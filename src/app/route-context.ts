@@ -9,6 +9,11 @@ import type { WorkflowActions } from '@/types/workflow'
 
 export type Notify = (message: string, tone?: ToastTone) => void
 
+// 本地路径 reveal 结果通知事件：Markdown 链接组件只负责发射，
+// 应用壳（App.tsx）统一监听并走全站 Toast，避免在 Markdown 静态闭包里
+// 再引入一份 radix Toast 图（包体积预算）。
+export const LOCAL_REVEAL_NOTICE_EVENT = 'pisper:local-reveal-notice'
+
 export type AppRouteContext = {
   query: string
   activeSessionId: string

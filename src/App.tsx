@@ -16,7 +16,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
 import { createPrimaryActionRegistry } from '@/app/primary-action'
-import type { AppRouteContext } from '@/app/route-context'
+import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
 import { getNavigation, getPageMeta } from '@/app/navigation'
 import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
@@ -312,6 +312,13 @@ function App() {
       setActiveSessionId(id ?? localStorage.getItem(STORAGE_KEYS.activeSession) ?? '')
     }
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
+    // Markdown 本地路径链接的 reveal 结果统一走全站 Toast：
+    // 组件只发事件不持有 Toast，避免在 Markdown 静态闭包引入 radix Toast 图。
+    const onLocalRevealNotice = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; tone?: string }>).detail
+      if (detail?.message) notify(detail.message, detail.tone === 'error' ? 'error' : 'info')
+    }
+    window.addEventListener(LOCAL_REVEAL_NOTICE_EVENT, onLocalRevealNotice)
     // 识别客户端形态与 Runtime 能力后，壳层统一裁剪不可用入口。
     void useClientStore
       .getState()
@@ -320,8 +327,11 @@ function App() {
     void loadRuntimeCapabilities({ refresh: false }).then(() =>
       markStartupPhase('capabilities-loaded'),
     )
-    return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
-  }, [loadRuntimeCapabilities])
+    return () => {
+      window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
+      window.removeEventListener(LOCAL_REVEAL_NOTICE_EVENT, onLocalRevealNotice)
+    }
+  }, [loadRuntimeCapabilities, notify])
 
   const mobileStartupPermissionsRequested = useRef(false)
   useEffect(() => {

@@ -27,6 +27,7 @@ import {
 } from '@/lib/streamdown'
 import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
 import { decodeLocalFileHref, remarkLocalFileLinks } from '@/lib/local-file-links'
+import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
 import { cn } from '@/lib/utils'
 
 const MARKDOWN_COMPONENTS: Components = {
@@ -39,6 +40,11 @@ const MARKDOWN_COMPONENTS: Components = {
 const STREAMDOWN_CONTROLS = false
 const STREAMDOWN_REMEND = { linkMode: 'text-only' } as const
 const MARKDOWN_REMARK_PLUGINS = [...Object.values(defaultRemarkPlugins), remarkLocalFileLinks]
+
+// 本地路径 reveal 结果交给应用壳的统一 Toast 展示（App.tsx 监听）。
+function emitLocalRevealNotice(message: string, tone: 'info' | 'error') {
+  window.dispatchEvent(new CustomEvent(LOCAL_REVEAL_NOTICE_EVENT, { detail: { message, tone } }))
+}
 
 function textContent(value: ReactNode): string {
   if (typeof value === 'string' || typeof value === 'number') return String(value)
@@ -93,22 +99,38 @@ function MarkdownLink({
       )
     }
     return (
-      <button
-        type="button"
-        className={cn(
-          'markdown-link inline cursor-pointer border-0 bg-transparent p-0 [font:inherit]',
-          className,
-        )}
-        data-local-path={localFile.path}
-        title={title}
-        onClick={() => {
-          void revealPath(localFile.path).catch((error: unknown) => {
-            console.error('[markdown] 无法在文件管理器中显示本地路径。', error)
-          })
-        }}
-      >
-        {content}
-      </button>
+      <>
+        <button
+          type="button"
+          className={cn(
+            'markdown-link inline cursor-pointer border-0 bg-transparent p-0 [font:inherit]',
+            className,
+          )}
+          data-local-path={localFile.path}
+          title={title}
+          onClick={() => {
+            void revealPath(localFile.path)
+              .then(() => {
+                // 成功也给出反馈：上游 opener 插件可能吞掉系统 Shell 错误后仍返回成功，
+                // 没有反馈时「窗口没出现」将无法判断是桥接层还是系统层的问题。
+                emitLocalRevealNotice(
+                  t('common:markdownMessage.revealLocalPathOk', { path: localFile.path }),
+                  'info',
+                )
+              })
+              .catch((error: unknown) => {
+                console.error('[markdown] 无法在文件管理器中显示本地路径。', error)
+                // 失败必须可见，避免用户遭遇「点了没反应」却无从排查。
+                emitLocalRevealNotice(
+                  t('common:markdownMessage.revealLocalPathFailed', { path: localFile.path }),
+                  'error',
+                )
+              })
+          }}
+        >
+          {content}
+        </button>
+      </>
     )
   }
 

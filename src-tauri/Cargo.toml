@@ -80,8 +80,37 @@ tauri-plugin-single-instance = "2.4.3"
 tauri-plugin-window-state = "2.4.1"
 
 [target.'cfg(windows)'.dependencies]
+# 与 tauri-plugin-opener 2.5.x 同版本，避免重复编译不同大版本的 windows crate。
+dunce = "1"
+windows = {
+    version = "0.61",
+    features = [
+        "Win32_Foundation",
+        "Win32_Security",
+        "Win32_System_Com",
+        "Win32_System_Threading",
+        "Win32_UI_Shell",
+        "Win32_UI_Shell_Common",
+        "Win32_UI_WindowsAndMessaging",
+    ],
+}
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"
+
+# macOS 本地 reveal 直接校验 NSWorkspace 的真实成功信号（与 plugin 同版本，锁文件不漂移）。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace"] }
+objc2-foundation = {
+    version = "0.3",
+    default-features = false,
+    features = ["std", "NSURL", "NSArray", "NSString"],
+}
+
+# 非 Windows 平台的目录打开走阻塞式 open::that（真实退出码）；
+# plugin 的 open_path 用 that_detached（线程结果被丢弃，失败静默）。
+[target.'cfg(not(windows))'.dependencies]
+open = "5"
 
 [dev-dependencies]
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。

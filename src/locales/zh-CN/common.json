@@ -9,6 +9,8 @@
   "markdownMessage.copy": "复制",
   "markdownMessage.copyCode": "复制代码",
   "markdownMessage.revealLocalPath": "在文件管理器中显示：{path}",
+  "markdownMessage.revealLocalPathOk": "已在文件管理器中显示：{path}",
+  "markdownMessage.revealLocalPathFailed": "无法在文件管理器中显示：{path}",
   "ui.cancel": "取消",
   "ui.closeDialog": "关闭对话框",
   "ui.notifications": "通知",

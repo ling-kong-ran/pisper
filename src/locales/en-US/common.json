@@ -9,6 +9,8 @@
   "markdownMessage.copy": "Copy",
   "markdownMessage.copyCode": "Copy code",
   "markdownMessage.revealLocalPath": "Show in file manager: {path}",
+  "markdownMessage.revealLocalPathOk": "Shown in the file manager: {path}",
+  "markdownMessage.revealLocalPathFailed": "Couldn't show this path in the file manager: {path}",
   "ui.cancel": "Cancel",
   "ui.closeDialog": "Close dialog",
   "ui.notifications": "Notifications",
