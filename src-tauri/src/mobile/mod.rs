@@ -56,31 +56,53 @@ const MOBILE_CLIENT_INITIALIZATION_SCRIPT: &str = r#"
 Object.defineProperty(window, '__PISPER_MOBILE_APP__', { value: true, writable: false, configurable: false });
 (() => {
   const LONG_BACKGROUND_MS = 60_000;
+  const RECOVERY_TIMEOUT_MS = 20_000;
+  const RECOVERY_COOLDOWN_MS = 60_000;
   let backgroundedAt = document.visibilityState === 'hidden' ? Date.now() : 0;
   let recoveryPending = false;
   const isRuntimePage = () => location.protocol === 'http:' && location.hostname === '127.0.0.1';
-  const moduleFailure = (value) => /module script|dynamically imported module|module failed|load failed/i.test(String(value || ''));
+  const moduleFailure = (value) => /module script|dynamically imported module|module failed|loading (?:chunk|css chunk)|chunkloaderror|(?:load|loading).*script.*failed/i.test(String(value || ''));
   const recover = () => {
-    if (!isRuntimePage() || recoveryPending) return;
+    if (!isRuntimePage()) return false;
+    if (recoveryPending) return true;
+    const url = new URL(location.href);
+    const previous = Number(url.searchParams.get('_pisper_recovery'));
+    // 确定性损坏不能变成无限刷新；保留下一次原始错误供错误边界显示。
+    if (previous > 0 && Date.now() - previous < RECOVERY_COOLDOWN_MS) return false;
     const invoke = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
-    if (!invoke) return;
+    if (!invoke) return false;
     recoveryPending = true;
-    Promise.resolve(invoke('mobile_recover_application')).catch(() => {
-      recoveryPending = false;
-    });
+    let settled = false;
+    const fallback = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      // 原生命令拒绝、挂起或导航未发生时，用同源导航清除 WebView 缓存的失败模块。
+      url.searchParams.set('_pisper_recovery', String(Date.now()));
+      location.replace(url.href);
+    };
+    const timer = window.setTimeout(fallback, RECOVERY_TIMEOUT_MS);
+    try {
+      Promise.resolve(invoke('mobile_recover_application')).catch(fallback);
+    } catch {
+      fallback();
+    }
+    return true;
   };
+  // Vite 会先发出此事件，再把失败交给 React 错误边界；此时不一定有全局 rejection。
+  window.addEventListener('vite:preloadError', (event) => {
+    if (recover()) event.preventDefault();
+  });
   window.addEventListener('error', (event) => {
     const target = event.target;
     if (target?.tagName === 'SCRIPT' || moduleFailure(event.message || event.error?.message)) {
-      event.preventDefault();
-      recover();
+      if (recover()) event.preventDefault();
     }
   }, true);
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     if (!moduleFailure(reason?.message || reason)) return;
-    event.preventDefault();
-    recover();
+    if (recover()) event.preventDefault();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
@@ -482,7 +504,7 @@ async fn mobile_retry_local_startup(
 /// 前后台切换后只恢复本机承载与代理，不改变当前页面路由。
 #[tauri::command]
 async fn mobile_resume_local_runtime(state: State<'_, MobileShared>) -> Result<(), String> {
-    state.proxy.invalidate_remote_upstream();
+    state.proxy.resume_remote_network().await;
     let (status, _) =
         ensure_local_runtime_ready(state.on_device.clone(), state.startup_error.clone()).await?;
     state.proxy.configure_local_runtime(&status.url)
@@ -1504,8 +1526,8 @@ pub fn run_mobile() {
                 let on_device = state.on_device.clone();
                 let startup_error = state.startup_error.clone();
                 let proxy = state.proxy.clone();
-                proxy.invalidate_remote_upstream();
                 tauri::async_runtime::spawn(async move {
+                    proxy.resume_remote_network().await;
                     if let Ok((status, _)) =
                         ensure_local_runtime_ready(on_device, startup_error).await
                     {

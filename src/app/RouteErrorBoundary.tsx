@@ -3,12 +3,12 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
+import { waitForMobileRuntimeReady } from '@/lib/http'
 
 async function recoverRoute() {
-  const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
-  if (window.__PISPER_MOBILE_APP__ && invoke) {
-    // 先确认本机 Runtime 和代理仍可用，再重新请求应用壳，避免只重放失败的模块请求。
-    await invoke('mobile_resume_local_runtime').catch(() => undefined)
+  if (window.__PISPER_MOBILE_APP__) {
+    // 与前台恢复共用有界等待；原生桥挂起时，手动重载仍能继续导航。
+    await waitForMobileRuntimeReady().catch(() => undefined)
   }
   const url = new URL(window.location.href)
   if (window.__PISPER_MOBILE_APP__ && url.protocol === 'http:' && url.hostname === '127.0.0.1') {

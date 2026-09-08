@@ -63,6 +63,23 @@ function requireDesktopListener(req, json) {
   return false
 }
 
+// 请求已经经过回环侧的原有桌面鉴权；这里再限制传输来源和主机，防止远端或 DNS 重绑定触发提权。
+function requireLocalFirewallRequest(req, json) {
+  const address = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '')
+  const loopback = address === '::1' || /^127\.(?:\d{1,3}\.){2}\d{1,3}$/.test(address)
+  let localHost = false
+  try {
+    const local = new URL(`http://${req.headers.host}`)
+    localHost = ['127.0.0.1', 'localhost', '[::1]'].includes(local.hostname)
+    if (req.headers.origin && req.headers.origin !== local.origin) localHost = false
+  } catch {
+    // 无法校验 Host 的请求不能进入系统授权入口。
+  }
+  if (!req.pisperRemote && loopback && localHost) return true
+  json(403, { error: '防火墙策略只能在本机桌面设置中管理。', code: 'local_firewall_required' })
+  return false
+}
+
 async function waitForRemoteEndpoints(remoteControl) {
   let status = remoteControl.status()
   for (let attempt = 0; attempt < 20 && !status.endpoints.length; attempt += 1) {
@@ -83,10 +100,33 @@ export const remoteRoutes = [
   {
     method: 'PUT',
     path: '/api/remote/enabled',
-    async handler({ services, body, json }) {
+    async handler({ services, body, req, json }) {
       const input = await body()
-      await services.remoteControl.setEnabled(Boolean(input.enabled))
+      const configureFirewall = input.configureFirewall === true
+      if (configureFirewall && !requireLocalFirewallRequest(req, json)) return
+      await services.remoteControl.setEnabled(Boolean(input.enabled), { configureFirewall })
       json(200, publicRemoteStatus(services.remoteControl.status()))
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/remote/firewall',
+    handler({ services, req, json }) {
+      if (!requireLocalFirewallRequest(req, json)) return
+      json(200, services.remoteControl.firewallStatus())
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/remote/firewall/retry',
+    async handler({ services, req, json }) {
+      if (!requireLocalFirewallRequest(req, json)) return
+      // JSON 请求要求浏览器预检，未配置桌面 Cookie 的开发模式也不能被跨站表单触发。
+      if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
+        json(415, { error: '此操作需要 JSON 请求。', code: 'json_required' })
+        return
+      }
+      json(200, await services.remoteControl.retryFirewall())
     },
   },
   {

@@ -11,6 +11,7 @@ import { SponsorContentService } from './services/sponsor-content-service.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
 import { RemoteAccessService } from './services/remote-access-service.mjs'
+import { RemoteFirewallService } from './services/remote-firewall-service.mjs'
 import { MdnsAdvertiser } from './services/mdns-advertiser.mjs'
 import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
 import { authorizeRemoteRequest } from './remote-auth.mjs'
@@ -106,9 +107,16 @@ export async function createPisperRuntime({
   // 远程监听与回环监听完全解耦：回环侧行为（桌面 Cookie/免鉴权）不变；
   // 远程侧独立 HTTPS 监听，除配对接口外一律强制设备 Bearer 令牌。
   const remoteAccess = new RemoteAccessService({ dataDir: agentDir })
+  const remoteFirewall = remote.firewallService || new RemoteFirewallService({ dataDir: agentDir })
   const mdns = new MdnsAdvertiser()
   const remoteHost = remote.host || '0.0.0.0'
-  const remotePort = Number(remote.port || 5174)
+  const remotePort = Number(remote.port ?? 5174)
+  let remoteTransition = Promise.resolve()
+  const transitionRemote = (action) => {
+    const pending = remoteTransition.then(action)
+    remoteTransition = pending.catch(() => {})
+    return pending
+  }
   let remoteServer = null
   let remoteTls = null
   let remoteError = null
@@ -143,13 +151,42 @@ export async function createPisperRuntime({
         error: remoteError,
       }
     },
-    async setEnabled(enabled) {
-      if (!capabilities.features.remoteAccess)
-        throw new Error('当前 Runtime 不支持远程访问服务端。')
-      remoteAccess.setEnabled(enabled)
-      if (enabled) await startRemote()
-      else await stopRemote()
-      return remoteControl.status()
+    setEnabled(enabled, { configureFirewall = false } = {}) {
+      return transitionRemote(async () => {
+        if (!capabilities.features.remoteAccess)
+          throw new Error('当前 Runtime 不支持远程访问服务端。')
+        remoteAccess.setEnabled(enabled)
+        if (enabled) {
+          if (await startRemote()) {
+            await remoteFirewall.reconcile({
+              enabled: true,
+              port: remoteControl.status().port,
+              allowElevation: configureFirewall,
+            })
+          }
+        } else {
+          await stopRemote()
+          // 关闭和退出不弹授权框；权限不足的残留清理由本地重试入口处理。
+          await remoteFirewall.reconcile({ enabled: false, inspectOnly: !configureFirewall })
+        }
+        return remoteControl.status()
+      })
+    },
+    firewallStatus() {
+      return remoteFirewall.status()
+    },
+    retryFirewall() {
+      return transitionRemote(async () => {
+        const status = remoteControl.status()
+        if (status.enabled && !status.listening) {
+          if (!(await startRemote())) throw new Error('远程 HTTPS 监听尚未启动。')
+        }
+        return remoteFirewall.reconcile({
+          enabled: remoteAccess.isEnabled(),
+          port: remoteControl.status().port,
+          allowElevation: true,
+        })
+      })
     },
     // 配对二维码负载：版本化 JSON，移动端扫码后凭 code 换设备令牌。
     qrPayload({ code }) {
@@ -205,6 +242,8 @@ export async function createPisperRuntime({
     if (remoteServer) {
       const server = remoteServer
       remoteServer = null
+      // SSE 等长连接不能让用户关闭远程访问时无限等待。
+      server.closeAllConnections()
       await new Promise((resolveClose) => server.close(() => resolveClose()))
     }
   }
@@ -417,7 +456,19 @@ export async function createPisperRuntime({
   const remoteRequested =
     capabilities.features.remoteAccess && (remote.enabled ?? remoteAccess.isEnabled())
   if (capabilities.features.remoteAccess && remote.enabled === true) remoteAccess.setEnabled(true)
-  if (remoteRequested) await startRemote()
+  if (capabilities.features.remoteAccess) {
+    if (remoteRequested) {
+      if (await startRemote()) {
+        await remoteFirewall.reconcile({
+          enabled: true,
+          port: remoteControl.status().port,
+          inspectOnly: true,
+        })
+      }
+    } else {
+      await remoteFirewall.reconcile({ enabled: false, inspectOnly: true })
+    }
+  }
 
   const address = server.address()
   const activePort = typeof address === 'object' && address ? address.port : port
@@ -439,6 +490,7 @@ export async function createPisperRuntime({
       // closing 缓存 Promise，保证多次 close 只执行一次完整清理。
       closing = (async () => {
         desktopPet.dispose()
+        await remoteTransition
         await stopRemote()
         await initialized.catch(() => null)
         await Promise.allSettled([runtimeInitialized, sponsorsInitialized])

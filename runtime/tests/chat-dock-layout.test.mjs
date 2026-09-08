@@ -124,7 +124,7 @@ test('chat split controls expose left, right, top and bottom actions', async () 
   assert.match(dock, /closeMobileSessionTab/)
   assert.match(dock, /chat:chatPage\.closeChat/)
   assert.match(page, /sessionIds=\{dock\.mobileSessionIds\}/)
-  assert.match(page, /mobile_resume_local_runtime/)
+  assert.match(page, /waitForMobileRuntimeReady/)
   assert.match(page, /mobile_state/)
   assert.match(page, /shouldInheritRecentSessionCwd\(mobileApp, mobileState\)/)
   assert.match(page, /inheritRecentCwd/)
@@ -158,16 +158,15 @@ test('移动端前台恢复会先校准本机 Runtime，再保留瞬时空目录
     readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
   ])
-  assert.match(page, /await invokeMobile<void>\('mobile_resume_local_runtime'\)/)
+  assert.match(page, /await waitForMobileRuntimeReady\(\)/)
   assert.match(page, /refreshSessions\(undefined, \{ preserveExistingOnEmpty: true \}\)/)
   assert.match(catalog, /preserveExistingOnEmpty = false/)
   assert.match(catalog, /!data\.sessions\.length && sessionsRef\.current\.length/)
-  assert.match(shell, /async fn mobile_resume_local_runtime/)
-  assert.match(shell, /invalidate_remote_upstream/)
+  assert.match(shell, /async fn mobile_resume_local_runtime[\s\S]*resume_remote_network\(\)\.await/)
   assert.match(shell, /ensure_local_runtime_ready\(state\.on_device\.clone\(\)/)
   assert.match(
     shell,
-    /RunEvent::Resumed[\s\S]*invalidate_remote_upstream[\s\S]*ensure_local_runtime_ready/,
+    /RunEvent::Resumed[\s\S]*resume_remote_network\(\)\.await[\s\S]*ensure_local_runtime_ready/,
   )
 })
 

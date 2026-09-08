@@ -1,9 +1,21 @@
+import { createAbortScope, waitWithAbort } from '@/lib/abort-signal'
+
 // 移动恢复实现按需加载，避免桌面/Web 的首屏入口携带原生恢复代码。
-export async function waitForMobileRuntimeReady() {
+export async function waitForMobileRuntimeReady(signal?: AbortSignal) {
   if (typeof window === 'undefined' || !window.__PISPER_MOBILE_APP__) return
-  const recovery = await import('@/lib/mobile-runtime-recovery')
-  recovery.installMobileRuntimeForegroundRecovery()
-  await recovery.waitForMobileRuntimeReady()
+  const scope = createAbortScope(signal, DEFAULT_HTTP_TIMEOUT_MS)
+  try {
+    // 模块下载本身也可能在 WebView 冻结后挂起，必须与原生恢复一起受取消和超时约束。
+    await waitWithAbort(
+      import('@/lib/mobile-runtime-recovery').then(async (recovery) => {
+        recovery.installMobileRuntimeForegroundRecovery()
+        await recovery.waitForMobileRuntimeReady()
+      }),
+      scope.signal,
+    )
+  } finally {
+    scope.dispose()
+  }
 }
 
 // 统一的 JSON API 请求层：
@@ -107,7 +119,7 @@ export async function requestJson<T = unknown>(
 
   try {
     // iOS 从后台恢复时先等本机 Runtime 与回环代理通过健康检查，避免业务请求抢跑。
-    await waitForMobileRuntimeReady()
+    await waitForMobileRuntimeReady(controller.signal)
     if (controller.signal.aborted) throw controller.signal.reason
     const response = await fetch(path, {
       ...requestOptions,

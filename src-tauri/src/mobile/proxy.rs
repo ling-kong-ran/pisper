@@ -22,14 +22,15 @@ use crate::iroh_tunnel::TunnelBridgePool;
 use super::pinning::pinned_client;
 use super::store::{ServerEndpoint, ServerProfile, SharedStore};
 
-/// 上游地址缓存有效期：避免每个请求都探测；网络切换后最多 20 秒内自愈。
+/// 上游地址缓存有效期：避免每个请求都探测；恢复通知会立即使缓存失效。
 const UPSTREAM_CACHE_TTL: Duration = Duration::from_secs(5);
 /// 在前端默认 30 秒超时前返回明确错误；SSE 和下载响应交付后不受此预算约束。
 const REMOTE_REQUEST_TIMEOUT: Duration = Duration::from_secs(25);
-/// 单次首部等待仍需留出重选端点的机会，所有尝试共用上述总预算。
-const RESPONSE_HEADERS_TIMEOUT: Duration = Duration::from_secs(15);
-/// 端点健康探测超时：局域网内健康检查应在毫秒级返回。
+/// 缓存连接失效后，为 LAN 探测、Iroh 握手与真实请求重试保留总预算。
+const RESPONSE_HEADERS_TIMEOUT: Duration = Duration::from_secs(10);
+/// 所有 LAN 共用探测预算，避免 DROP 端点逐个耗尽 Iroh 的连接机会。
 const PROBE_TIMEOUT: Duration = Duration::from_millis(2500);
+const MAX_PARALLEL_PROBES: usize = 8;
 /// 首次 Iroh 建连可能包含 relay 协商，需给足握手时间。
 const IROH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -40,6 +41,77 @@ struct UpstreamCache {
     kind: String,
     fingerprint: String,
     checked_at: Instant,
+    tunnel_generation: Option<u64>,
+}
+
+#[derive(Default)]
+struct RemoteState {
+    generation: u64,
+    upstream: Option<UpstreamCache>,
+    client_cache: Option<(String, reqwest::Client)>,
+}
+
+struct ResolvedUpstream {
+    url: String,
+    generation: u64,
+    client: reqwest::Client,
+}
+
+struct ProbedUpstream<'a> {
+    url: String,
+    endpoint: &'a ServerEndpoint,
+    tunnel_generation: Option<u64>,
+}
+
+#[derive(Default)]
+struct ProbeFailure {
+    transport: bool,
+    tunnel_generation: Option<u64>,
+}
+
+#[derive(Default)]
+struct ProbeGroup<'a> {
+    healthy: Option<ProbedUpstream<'a>>,
+    recovery_generation: Option<u64>,
+    rejected: bool,
+}
+
+/// rustls 错误也会被 reqwest 标记为 connect，必须先检查真实错误链再认定网络故障。
+fn is_transport_error(error: &reqwest::Error) -> bool {
+    if error.is_builder() || error.is_redirect() || error.is_status() || error.is_decode() {
+        return false;
+    }
+    let mut transport = error.is_connect() || error.is_timeout();
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(error) = source {
+        if error.is::<rustls::Error>() {
+            return false;
+        }
+        if let Some(io) = error.downcast_ref::<std::io::Error>() {
+            transport |= matches!(
+                io.kind(),
+                std::io::ErrorKind::ConnectionRefused
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::NotConnected
+                    | std::io::ErrorKind::TimedOut
+                    | std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::NetworkUnreachable
+                    | std::io::ErrorKind::HostUnreachable
+            );
+            // io::Error::source 可能跳过内层包装，get_ref 才能看到原始 rustls 错误。
+            if let Some(inner) = io.get_ref() {
+                source = Some(inner);
+                continue;
+            }
+        }
+        if let Some(error) = error.downcast_ref::<hyper::Error>() {
+            transport |= error.is_closed() || error.is_incomplete_message();
+        }
+        source = error.source();
+    }
+    transport
 }
 
 #[derive(Clone)]
@@ -51,19 +123,20 @@ struct LocalRuntime {
 pub struct ProxyHandle {
     pub port: u16,
     store: Arc<SharedStore>,
-    upstream: Mutex<Option<UpstreamCache>>,
-    /// 指纹变化（换服务器）时重建客户端。
-    client_cache: Mutex<Option<(String, reqwest::Client)>>,
+    /// 地址、连接池和世代必须一起切换，避免恢复后旧探测重新写入缓存。
+    remote: Mutex<RemoteState>,
+    /// 启动 API 共用一次探测；等待者拿到锁后重新读取健康缓存。
+    resolution: tokio::sync::Mutex<()>,
     tunnels: Option<Arc<TunnelBridgePool>>,
     local_runtime: Mutex<Option<LocalRuntime>>,
 }
 
 impl ProxyHandle {
     pub fn active_transport(&self) -> Option<String> {
-        self.upstream
+        self.remote
             .lock()
             .ok()
-            .and_then(|cache| cache.as_ref().map(|cache| cache.kind.clone()))
+            .and_then(|state| state.upstream.as_ref().map(|cache| cache.kind.clone()))
     }
 
     fn active_profile(&self) -> Option<ServerProfile> {
@@ -71,9 +144,57 @@ impl ProxyHandle {
     }
 
     pub fn invalidate_remote_upstream(&self) {
-        if let Ok(mut cache) = self.upstream.lock() {
-            *cache = None;
+        if let Ok(mut state) = self.remote.lock() {
+            Self::reset_remote(&mut state);
         }
+    }
+
+    pub async fn resume_remote_network(&self) {
+        self.invalidate_remote_upstream();
+        if let Some(tunnels) = self.tunnels.as_deref() {
+            // 通知只负责重新检查网络；不能阻塞前台恢复，也不销毁现有 Iroh 身份与桥。
+            let _ = tokio::time::timeout(Duration::from_secs(1), tunnels.network_change()).await;
+        }
+    }
+
+    fn reset_remote(state: &mut RemoteState) {
+        state.generation = state.generation.wrapping_add(1);
+        state.upstream = None;
+        // 丢弃池所有者；在途 SSE 可自然收尾，新请求不会再租用旧网络的空闲连接。
+        state.client_cache = None;
+    }
+
+    fn remote_generation(&self) -> u64 {
+        self.remote
+            .lock()
+            .map(|state| state.generation)
+            .unwrap_or(0)
+    }
+
+    fn invalidate_remote_generation(&self, generation: u64) {
+        if let Ok(mut state) = self.remote.lock() {
+            // 旧请求的超时和断流不能清掉恢复后选出的地址与新连接池。
+            if state.generation == generation {
+                Self::reset_remote(&mut state);
+            }
+        }
+    }
+
+    fn recover_tunnel_generation(&self, generation: u64, tunnel_generation: u64) -> bool {
+        let Ok(mut state) = self.remote.lock() else {
+            return false;
+        };
+        if state.generation != generation {
+            return false;
+        }
+        let recovering = self
+            .tunnels
+            .as_ref()
+            .is_some_and(|pool| pool.recover_if_current(tunnel_generation));
+        if recovering {
+            Self::reset_remote(&mut state);
+        }
+        recovering
     }
 
     pub fn configure_local_runtime(&self, bootstrap_url: &str) -> Result<(), String> {
@@ -109,92 +230,220 @@ impl ProxyHandle {
             .is_ok_and(|store| store.last_mode() == Some("remote") && store.active().is_some())
     }
 
-    fn client_for(&self, fingerprint: &str) -> Result<reqwest::Client, String> {
-        let mut cache = self
-            .client_cache
-            .lock()
-            .map_err(|_| "client cache poisoned")?;
-        if let Some((fp, client)) = cache.as_ref() {
+    fn client_for(state: &mut RemoteState, fingerprint: &str) -> Result<reqwest::Client, String> {
+        if let Some((fp, client)) = state.client_cache.as_ref() {
             if fp == fingerprint {
                 return Ok(client.clone());
             }
         }
         let client = pinned_client(fingerprint)?;
-        *cache = Some((fingerprint.to_string(), client.clone()));
+        if state.client_cache.is_some() {
+            Self::reset_remote(state);
+        }
+        state.client_cache = Some((fingerprint.to_string(), client.clone()));
         Ok(client)
     }
 
-    async fn endpoint_url(&self, endpoint: &ServerEndpoint) -> Result<String, String> {
+    async fn endpoint_url(
+        &self,
+        endpoint: &ServerEndpoint,
+    ) -> Result<(String, Option<u64>), String> {
         if endpoint.kind == "iroh" {
             let tunnels = self
                 .tunnels
                 .as_deref()
                 .ok_or_else(|| "Iroh 桥接尚未启动。".to_string())?;
-            return tunnels.bridge_url(endpoint.tunnel_endpoint()?).await;
+            return tunnels
+                .bridge_url_with_generation(endpoint.tunnel_endpoint()?)
+                .await
+                .map(|(url, generation)| (url, Some(generation)));
         }
         if !endpoint.url.starts_with("https://") {
             return Err("远程端点必须使用 HTTPS。".into());
         }
-        Ok(endpoint.url.trim_end_matches('/').to_string())
+        Ok((endpoint.url.trim_end_matches('/').to_string(), None))
     }
 
-    /// 解析当前可用上游：缓存有效直接用；否则按优先级逐个健康探测。
-    async fn resolve_upstream(&self, profile: &ServerProfile) -> Result<String, String> {
-        if let Some(cache) = self.upstream.lock().ok().and_then(|c| {
-            c.as_ref()
-                .map(|c| (c.url.clone(), c.fingerprint.clone(), c.checked_at))
-        }) {
-            // 切换配对档案后不能复用旧桌面端的地址；否则短暂期间请求会发往错误服务器。
-            if cache.2.elapsed() < UPSTREAM_CACHE_TTL && cache.1 == profile.fingerprint {
-                return Ok(cache.0);
-            }
+    async fn probe_endpoint<'a>(
+        &self,
+        profile: &ServerProfile,
+        client: &reqwest::Client,
+        endpoint: &'a ServerEndpoint,
+        budget: Duration,
+        deadline: tokio::time::Instant,
+    ) -> Result<ProbedUpstream<'a>, ProbeFailure> {
+        // 等待已启动的恢复不属于网络失败；只有实际尝试 HTTP 后的超时才可作为证据。
+        let (base, tunnel_generation) = self
+            .endpoint_url(endpoint)
+            .await
+            .map_err(|_| ProbeFailure::default())?;
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            return Err(ProbeFailure::default());
         }
-        let client = self.client_for(&profile.fingerprint)?;
-        for endpoint in &profile.endpoints {
-            let Ok(base) = self.endpoint_url(endpoint).await else {
-                continue;
-            };
-            let probe_timeout = if endpoint.kind == "iroh" {
-                IROH_PROBE_TIMEOUT
-            } else {
-                PROBE_TIMEOUT
-            };
-            let probe = client
+        let result = tokio::time::timeout_at(deadline.min(now + budget), async {
+            let response = client
                 .get(format!("{base}/api/health"))
                 .bearer_auth(&profile.token)
-                .timeout(probe_timeout)
                 .send()
-                .await;
-            let healthy = match probe {
-                Ok(response) => {
-                    let status = response.status();
-                    // 必须消费探测响应体释放连接，否则紧接着的真实请求可能卡在连接池中。
-                    let body_read = response.bytes().await.is_ok();
-                    status.is_success() && body_read
+                .await
+                .map_err(|error| is_transport_error(&error))?;
+            if !response.status().is_success() {
+                // HTTP 错误证明传输已到达服务端，不能据此回收 Endpoint。
+                return Err(false);
+            }
+            // 完整消费健康响应，真实请求才能复用同一条健康 TLS 连接。
+            response
+                .bytes()
+                .await
+                .map_err(|error| is_transport_error(&error))?;
+            Ok(())
+        })
+        .await
+        .unwrap_or(Err(true));
+        match result {
+            Ok(()) => Ok(ProbedUpstream {
+                url: base,
+                endpoint,
+                tunnel_generation,
+            }),
+            Err(transport) => Err(ProbeFailure {
+                transport,
+                tunnel_generation,
+            }),
+        }
+    }
+
+    /// LAN 优先；每个探测共享绝对截止点，超时仍返回分类而非取消整组后丢失证据。
+    async fn probe_group<'a>(
+        &self,
+        profile: &'a ServerProfile,
+        client: &reqwest::Client,
+        iroh: bool,
+    ) -> ProbeGroup<'a> {
+        let budget = if iroh {
+            IROH_PROBE_TIMEOUT
+        } else {
+            PROBE_TIMEOUT
+        };
+        let deadline = tokio::time::Instant::now() + budget;
+        let endpoints = profile
+            .endpoints
+            .iter()
+            .filter(|endpoint| (endpoint.kind == "iroh") == iroh)
+            .collect::<Vec<_>>();
+        let batches = u32::try_from(endpoints.len().div_ceil(MAX_PARALLEL_PROBES))
+            .unwrap_or(u32::MAX)
+            .max(1);
+        let endpoint_budget = if iroh { budget } else { budget / batches };
+        let mut endpoints = endpoints.into_iter();
+        let mut probes = futures_util::stream::FuturesUnordered::new();
+        let mut group = ProbeGroup::default();
+        for endpoint in endpoints.by_ref().take(MAX_PARALLEL_PROBES) {
+            probes.push(self.probe_endpoint(profile, client, endpoint, endpoint_budget, deadline));
+        }
+        while let Some(result) = probes.next().await {
+            match result {
+                Ok(healthy) => {
+                    group.healthy = Some(healthy);
+                    return group;
                 }
-                Err(_) => false,
-            };
-            if !healthy && endpoint.kind == "iroh" {
-                // 网络切换后旧桥仍可能保留失败的监听任务，下一次探测必须重建它。
-                if let Some(tunnels) = self.tunnels.as_deref() {
-                    if let Ok(remote) = endpoint.tunnel_endpoint() {
-                        tunnels.invalidate(&remote).await;
+                Err(failure) => {
+                    group.rejected |= !failure.transport;
+                    if let Some(generation) =
+                        failure.tunnel_generation.filter(|_| failure.transport)
+                    {
+                        group.rejected |= group
+                            .recovery_generation
+                            .is_some_and(|old| old != generation);
+                        group.recovery_generation = Some(generation);
                     }
                 }
             }
-            if healthy {
-                if let Ok(mut cache) = self.upstream.lock() {
-                    *cache = Some(UpstreamCache {
-                        url: base.clone(),
-                        kind: endpoint.kind.clone(),
-                        fingerprint: profile.fingerprint.clone(),
-                        checked_at: Instant::now(),
-                    });
-                }
-                return Ok(base);
+            if let Some(endpoint) = endpoints.next() {
+                probes.push(self.probe_endpoint(
+                    profile,
+                    client,
+                    endpoint,
+                    endpoint_budget,
+                    deadline,
+                ));
             }
         }
-        Err("无法连接到桌面端，请确认电脑在线且远程访问已启用。".to_string())
+        group
+    }
+
+    async fn resolve_upstream(&self, profile: &ServerProfile) -> Result<ResolvedUpstream, String> {
+        let _resolution = self.resolution.lock().await;
+        // 业务发送前仍只允许两轮；恢复任务独立运行，等待计入调用者原有的总预算。
+        'resolve: for _ in 0..2 {
+            let tunnel_generation = self.tunnels.as_deref().map(TunnelBridgePool::generation);
+            let (generation, client) = {
+                let mut state = self.remote.lock().map_err(|_| "remote cache poisoned")?;
+                if state.upstream.as_ref().is_some_and(|cache| {
+                    cache.tunnel_generation.is_some()
+                        && cache.tunnel_generation != tunnel_generation
+                }) {
+                    Self::reset_remote(&mut state);
+                }
+                let client = Self::client_for(&mut state, &profile.fingerprint)?;
+                if let Some(cache) = state.upstream.as_ref() {
+                    if cache.checked_at.elapsed() < UPSTREAM_CACHE_TTL
+                        && cache.fingerprint == profile.fingerprint
+                    {
+                        return Ok(ResolvedUpstream {
+                            url: cache.url.clone(),
+                            generation: state.generation,
+                            client,
+                        });
+                    }
+                }
+                (state.generation, client)
+            };
+            let mut recovery_generation = None;
+            let mut rejected = false;
+            for iroh in [false, true] {
+                if self.remote_generation() != generation {
+                    continue 'resolve;
+                }
+                let group = self.probe_group(profile, &client, iroh).await;
+                rejected |= group.rejected;
+                if group.recovery_generation.is_some() {
+                    recovery_generation = group.recovery_generation;
+                }
+                if let Some(healthy) = group.healthy {
+                    let mut state = self.remote.lock().map_err(|_| "remote cache poisoned")?;
+                    if state.generation != generation {
+                        continue 'resolve;
+                    }
+                    state.upstream = Some(UpstreamCache {
+                        url: healthy.url.clone(),
+                        kind: healthy.endpoint.kind.clone(),
+                        fingerprint: profile.fingerprint.clone(),
+                        checked_at: Instant::now(),
+                        tunnel_generation: healthy.tunnel_generation,
+                    });
+                    return Ok(ResolvedUpstream {
+                        url: healthy.url,
+                        generation,
+                        client,
+                    });
+                }
+            }
+            if self.remote_generation() != generation {
+                continue 'resolve;
+            }
+            if !rejected
+                && recovery_generation.is_some_and(|tunnel_generation| {
+                    self.recover_tunnel_generation(generation, tunnel_generation)
+                })
+            {
+                continue 'resolve;
+            }
+            self.invalidate_remote_generation(generation);
+            return Err("无法连接到桌面端，请确认电脑在线且远程访问已启用。".to_string());
+        }
+        Err("网络连接已更新，请重试。".into())
     }
 
     /// 从桌面端读取 Provider 配置并写入本机 Runtime，配对成功后自动执行。
@@ -209,9 +458,9 @@ impl ProxyHandle {
             .clone()
             .ok_or_else(|| "本机 Runtime 尚未就绪。".to_string())?;
         let upstream = self.resolve_upstream(&profile).await?;
-        let client = self.client_for(&profile.fingerprint)?;
-        let response = client
-            .get(format!("{upstream}/api/providers/export"))
+        let response = upstream
+            .client
+            .get(format!("{}/api/providers/export", upstream.url))
             .bearer_auth(&profile.token)
             .timeout(Duration::from_secs(10))
             .send()
@@ -283,10 +532,11 @@ struct RemoteTrace {
     request_id: u64,
     stage: &'static str,
     attempt: usize,
+    generation: u64,
 }
 
 impl RemoteTrace {
-    fn new() -> Self {
+    fn new(generation: u64) -> Self {
         static NEXT_REQUEST_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let enabled = std::env::var("PISPER_MOBILE_NETWORK_TRACE").is_ok_and(|value| value == "1");
         Self {
@@ -299,6 +549,7 @@ impl RemoteTrace {
             },
             stage: "request_start",
             attempt: 0,
+            generation,
         }
     }
 
@@ -342,7 +593,7 @@ async fn forward_remote_with_timeouts(
 ) -> Result<Response<ProxyBody>, Infallible> {
     // 只包住响应构造阶段：探测、重试和 JSON 读取不能各自重新获得完整预算。
     // SSE 与下载返回的是惰性流，后续逐帧传输不在这个超时作用域内。
-    let mut trace = RemoteTrace::new();
+    let mut trace = RemoteTrace::new(proxy.remote_generation());
     trace.record("request_start", 0, proxy, 0);
     let response = match tokio::time::timeout(
         budget,
@@ -358,8 +609,11 @@ async fn forward_remote_with_timeouts(
                 "json_body_start" => "json_body_timeout",
                 _ => "request_timeout",
             };
+            // 等待共享探测或读取入站请求体超时，不能撤销其他请求的健康连接。
+            if matches!(trace.stage, "headers_start" | "json_body_start") {
+                proxy.invalidate_remote_generation(trace.generation);
+            }
             trace.record(stage, trace.attempt, proxy, 504);
-            proxy.invalidate_remote_upstream();
             Ok(text_response(
                 StatusCode::GATEWAY_TIMEOUT,
                 "等待桌面端响应超时。",
@@ -426,6 +680,7 @@ async fn forward_remote_response(
     let mut response = None;
     let mut last_error = None;
     for attempt in 1..=attempts {
+        trace.generation = proxy.remote_generation();
         trace.record("resolve_start", attempt, proxy, 0);
         let upstream = match proxy.resolve_upstream(&profile).await {
             Ok(upstream) => {
@@ -438,12 +693,10 @@ async fn forward_remote_response(
                 break;
             }
         };
-        let client = match proxy.client_for(&profile.fingerprint) {
-            Ok(client) => client,
-            Err(error) => return Ok(text_response(StatusCode::INTERNAL_SERVER_ERROR, &error)),
-        };
-        let url = format!("{upstream}{path_and_query}");
-        let mut outgoing = client
+        trace.generation = upstream.generation;
+        let url = format!("{}{path_and_query}", upstream.url);
+        let mut outgoing = upstream
+            .client
             .request(parts.method.clone(), &url)
             .bearer_auth(&profile.token);
         for (name, value) in &parts.headers {
@@ -460,23 +713,24 @@ async fn forward_remote_response(
         {
             Ok(Ok(value)) => {
                 trace.record("headers_ok", attempt, proxy, value.status().as_u16());
-                response = Some(value);
+                response = Some((value, upstream.generation));
                 break;
             }
             Ok(Err(error)) => {
                 trace.record("headers_failed", attempt, proxy, 502);
                 last_error = Some(format!("连接桌面端失败：{error}"));
+                if !is_transport_error(&error) {
+                    break;
+                }
             }
             Err(_) => {
                 trace.record("headers_timeout", attempt, proxy, 504);
                 last_error = Some("等待桌面端响应超时。".to_string());
             }
         }
-        if let Ok(mut cache) = proxy.upstream.lock() {
-            *cache = None;
-        }
+        proxy.invalidate_remote_generation(upstream.generation);
     }
-    let response = match response {
+    let (response, generation) = match response {
         Some(response) => response,
         None => {
             let message = last_error.as_deref().unwrap_or("无法连接到桌面端。");
@@ -488,12 +742,6 @@ async fn forward_remote_response(
             return Ok(text_response(status, message));
         }
     };
-
-    if response.status().is_server_error() || response.status() == StatusCode::REQUEST_TIMEOUT {
-        if let Ok(mut cache) = proxy.upstream.lock() {
-            *cache = None;
-        }
-    }
 
     let mut builder = Response::builder().status(response.status());
     for (name, value) in response.headers() {
@@ -519,7 +767,7 @@ async fn forward_remote_response(
                     StatusCode::BAD_GATEWAY
                 };
                 trace.record("json_body_failed", trace.attempt, proxy, status.as_u16());
-                proxy.invalidate_remote_upstream();
+                proxy.invalidate_remote_generation(generation);
                 return Ok(text_response(
                     status,
                     &format!("读取桌面端 JSON 响应失败：{error}"),
@@ -546,7 +794,7 @@ async fn forward_remote_response(
                     Ok(chunk) => Some(chunk),
                     Err(_) => {
                         // SSE 断流通常意味着网络已切换；清缓存才能让重连重新选择端点。
-                        stream_proxy.invalidate_remote_upstream();
+                        stream_proxy.invalidate_remote_generation(generation);
                         None
                     }
                 }
@@ -719,8 +967,8 @@ pub async fn start_proxy(
     let handle = Arc::new(ProxyHandle {
         port,
         store,
-        upstream: Mutex::new(None),
-        client_cache: Mutex::new(None),
+        remote: Mutex::new(RemoteState::default()),
+        resolution: tokio::sync::Mutex::new(()),
         tunnels,
         local_runtime: Mutex::new(None),
     });
@@ -793,12 +1041,7 @@ mod tests {
         .await
     }
 
-    async fn spawn_scripted_upstream(
-        behavior: &'static str,
-        probe_delay: Duration,
-        headers_delay: Duration,
-        requests: Arc<AtomicU64>,
-    ) -> (String, String) {
+    fn test_tls_acceptor() -> (TlsAcceptor, String) {
         ensure_crypto_provider();
         let certified = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
         let cert_der = certified.cert.der().clone();
@@ -813,7 +1056,16 @@ mod tests {
                 PrivatePkcs8KeyDer::from(certified.key_pair.serialize_der()).into(),
             )
             .unwrap();
-        let acceptor = TlsAcceptor::from(Arc::new(tls_config));
+        (TlsAcceptor::from(Arc::new(tls_config)), fingerprint)
+    }
+
+    async fn spawn_scripted_upstream(
+        behavior: &'static str,
+        probe_delay: Duration,
+        headers_delay: Duration,
+        requests: Arc<AtomicU64>,
+    ) -> (String, String) {
+        let (acceptor, fingerprint) = test_tls_acceptor();
         let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
@@ -942,6 +1194,145 @@ mod tests {
         (format!("https://{addr}"), fingerprint)
     }
 
+    #[derive(Debug)]
+    enum TestReply {
+        Health,
+        TruncatedJson,
+        ServerError,
+        Unauthorized,
+        RequestTimeout,
+    }
+
+    struct TlsExchange {
+        connection: u64,
+        path: String,
+        reply: tokio::sync::oneshot::Sender<TestReply>,
+    }
+
+    struct ControlledUpstream {
+        url: String,
+        fingerprint: String,
+        exchanges: tokio::sync::mpsc::UnboundedReceiver<TlsExchange>,
+    }
+
+    impl ControlledUpstream {
+        async fn next(&mut self) -> TlsExchange {
+            tokio::time::timeout(Duration::from_secs(6), self.exchanges.recv())
+                .await
+                .expect("TLS 上游必须收到请求")
+                .expect("TLS 上游不能提前退出")
+        }
+    }
+
+    /// 由测试逐次放行真实 TLS 响应，稳定制造旧请求晚到并观察连接复用。
+    async fn spawn_controlled_upstream() -> ControlledUpstream {
+        let (acceptor, fingerprint) = test_tls_acceptor();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let url = format!("https://{}", listener.local_addr().unwrap());
+        let (sender, exchanges) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            let mut connection = 0;
+            while let Ok((stream, _)) = listener.accept().await {
+                connection += 1;
+                let acceptor = acceptor.clone();
+                let sender = sender.clone();
+                tokio::spawn(async move {
+                    let Ok(mut stream) = acceptor.accept(stream).await else {
+                        return;
+                    };
+                    loop {
+                        let mut head = Vec::new();
+                        let mut byte = [0u8; 1];
+                        while !head.ends_with(b"\r\n\r\n") {
+                            if stream.read_exact(&mut byte).await.is_err() {
+                                return;
+                            }
+                            head.push(byte[0]);
+                            assert!(head.len() < 64 * 1024);
+                        }
+                        let text = String::from_utf8(head).unwrap();
+                        assert!(text.contains("authorization: Bearer pst_test"));
+                        let path = text.split_whitespace().nth(1).unwrap().to_string();
+                        let (reply, receive) = tokio::sync::oneshot::channel();
+                        if sender
+                            .send(TlsExchange {
+                                connection,
+                                path,
+                                reply,
+                            })
+                            .is_err()
+                        {
+                            return;
+                        }
+                        let Ok(reply) = receive.await else {
+                            return;
+                        };
+                        let (bytes, close): (&[u8], bool) = match reply {
+                            TestReply::Health => (
+                                b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 11\r\n\r\n{\"ok\":true}",
+                                false,
+                            ),
+                            TestReply::ServerError => (
+                                b"HTTP/1.1 500 Internal Server Error\r\ncontent-type: application/json\r\ncontent-length: 2\r\n\r\n{}",
+                                false,
+                            ),
+                            TestReply::Unauthorized => (
+                                b"HTTP/1.1 401 Unauthorized\r\ncontent-type: application/json\r\ncontent-length: 2\r\n\r\n{}",
+                                false,
+                            ),
+                            TestReply::RequestTimeout => (
+                                b"HTTP/1.1 408 Request Timeout\r\ncontent-type: application/json\r\ncontent-length: 2\r\n\r\n{}",
+                                false,
+                            ),
+                            TestReply::TruncatedJson => (
+                                b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 128\r\nconnection: close\r\n\r\n{\"ok\":",
+                                true,
+                            ),
+                        };
+                        if stream.write_all(bytes).await.is_err() || stream.flush().await.is_err() {
+                            return;
+                        }
+                        if close {
+                            let _ = stream.shutdown().await;
+                            return;
+                        }
+                    }
+                });
+            }
+        });
+        ControlledUpstream {
+            url,
+            fingerprint,
+            exchanges,
+        }
+    }
+
+    /// 接受 TCP 后持续吞掉 TLS 字节，模拟 DROP 时没有 RST/EOF 的等待路径。
+    async fn spawn_silent_endpoint() -> (String, Arc<AtomicU64>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let url = format!("https://{}", listener.local_addr().unwrap());
+        let connections = Arc::new(AtomicU64::new(0));
+        let observed = connections.clone();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                observed.fetch_add(1, Ordering::SeqCst);
+                tokio::spawn(async move {
+                    let _ = tokio::io::copy(&mut stream, &mut tokio::io::sink()).await;
+                });
+            }
+        });
+        (url, connections)
+    }
+
+    fn start_resolution(
+        proxy: &Arc<ProxyHandle>,
+        profile: &ServerProfile,
+    ) -> tokio::task::JoinHandle<Result<ResolvedUpstream, String>> {
+        let proxy = proxy.clone();
+        let profile = profile.clone();
+        tokio::spawn(async move { proxy.resolve_upstream(&profile).await })
+    }
+
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         OnceLock,
@@ -990,6 +1381,15 @@ mod tests {
         budget: Duration,
         headers_timeout: Duration,
     ) -> Arc<ProxyHandle> {
+        spawn_proxy_with_tunnels(profile, budget, headers_timeout, None).await
+    }
+
+    async fn spawn_proxy_with_tunnels(
+        profile: ServerProfile,
+        budget: Duration,
+        headers_timeout: Duration,
+        tunnels: Option<Arc<TunnelBridgePool>>,
+    ) -> Arc<ProxyHandle> {
         let path = std::env::temp_dir().join(format!("pisper-proxy-test-{}.json", fast_id()));
         let mut store = crate::mobile::store::ProfileStore::load(&path);
         store.upsert(profile).unwrap();
@@ -998,9 +1398,9 @@ mod tests {
         let proxy = Arc::new(ProxyHandle {
             port: listener.local_addr().unwrap().port(),
             store: Arc::new(Mutex::new(store)),
-            upstream: Mutex::new(None),
-            client_cache: Mutex::new(None),
-            tunnels: None,
+            remote: Mutex::new(RemoteState::default()),
+            resolution: tokio::sync::Mutex::new(()),
+            tunnels,
             local_runtime: Mutex::new(None),
         });
         let server = proxy.clone();
@@ -1023,6 +1423,304 @@ mod tests {
             }
         });
         proxy
+    }
+
+    async fn spawn_iroh_proxy(
+        headers_timeout: Duration,
+    ) -> (
+        ControlledUpstream,
+        crate::iroh_tunnel::TunnelServer,
+        Arc<TunnelBridgePool>,
+        Arc<ProxyHandle>,
+    ) {
+        let server = spawn_controlled_upstream().await;
+        let target = server.url.trim_start_matches("https://").parse().unwrap();
+        let tunnel = crate::iroh_tunnel::start_server(
+            target,
+            iroh::SecretKey::generate(),
+            iroh::RelayMode::Disabled,
+        )
+        .await
+        .unwrap();
+        let remote =
+            crate::iroh_tunnel::loopback_endpoint(tunnel.node_id(), tunnel.local_port().unwrap());
+        let pool = Arc::new(
+            TunnelBridgePool::start(iroh::SecretKey::generate(), iroh::RelayMode::Disabled)
+                .await
+                .unwrap(),
+        );
+        let mut profile = profile_for(&server.url, &server.fingerprint);
+        profile.endpoints = vec![ServerEndpoint::iroh(remote)];
+        let proxy = spawn_proxy_with_tunnels(
+            profile,
+            REMOTE_REQUEST_TIMEOUT,
+            headers_timeout,
+            Some(pool.clone()),
+        )
+        .await;
+        (server, tunnel, pool, proxy)
+    }
+
+    #[tokio::test]
+    async fn closed_iroh_endpoint_recovers_once_for_concurrent_real_tls_requests() {
+        let (mut server, tunnel, pool, proxy) = spawn_iroh_proxy(RESPONSE_HEADERS_TIMEOUT).await;
+        let old = pool.endpoint_for_test();
+        old.close().await;
+        let mut requests = tokio::task::JoinSet::new();
+        for _ in 0..8 {
+            requests.spawn(raw_get(proxy.port, "/api/closed"));
+        }
+        for index in 0..9 {
+            let exchange = server.next().await;
+            assert_eq!(
+                exchange.path,
+                if index == 0 {
+                    "/api/health"
+                } else {
+                    "/api/closed"
+                }
+            );
+            exchange.reply.send(TestReply::Health).unwrap();
+        }
+        while let Some(result) = requests.join_next().await {
+            assert!(result.unwrap().0.contains("200"));
+        }
+        assert_eq!(pool.wait_ready().await.unwrap(), 1);
+        assert_eq!(pool.endpoint_for_test().id(), old.id());
+        assert_eq!(proxy.active_transport().as_deref(), Some("iroh"));
+        pool.endpoint_for_test().close().await;
+        tunnel.close().await;
+    }
+
+    #[tokio::test]
+    async fn iroh_headers_timeout_then_failed_reprobe_recovers_within_existing_retry_limit() {
+        let (mut server, tunnel, pool, proxy) = spawn_iroh_proxy(Duration::from_millis(150)).await;
+        let old = pool.endpoint_for_test();
+        let request = tokio::spawn(raw_get(proxy.port, "/api/work"));
+        let health = server.next().await;
+        assert_eq!(health.path, "/api/health");
+        health.reply.send(TestReply::Health).unwrap();
+        let pending = server.next().await;
+        assert_eq!(pending.path, "/api/work");
+        // 首次健康成功但业务首部超时；再次真实 TLS 探测断开才允许重建。
+        let failed_probe = server.next().await;
+        assert_eq!(failed_probe.path, "/api/health");
+        assert_eq!(pool.wait_ready().await.unwrap(), 0);
+        drop(failed_probe);
+        let recovered_probe = server.next().await;
+        assert_eq!(recovered_probe.path, "/api/health");
+        assert_eq!(pool.wait_ready().await.unwrap(), 1);
+        tokio::time::timeout(Duration::ZERO, old.closed())
+            .await
+            .unwrap();
+        recovered_probe.reply.send(TestReply::Health).unwrap();
+        let retry = server.next().await;
+        assert_eq!(retry.path, "/api/work");
+        retry.reply.send(TestReply::Health).unwrap();
+        assert!(request.await.unwrap().0.contains("200"));
+        assert_eq!(pool.endpoint_for_test().id(), old.id());
+        drop(pending);
+        pool.endpoint_for_test().close().await;
+        tunnel.close().await;
+    }
+
+    #[tokio::test]
+    async fn failed_iroh_post_is_not_replayed_and_the_next_request_recovers() {
+        let (mut server, tunnel, pool, proxy) = spawn_iroh_proxy(RESPONSE_HEADERS_TIMEOUT).await;
+        let port = proxy.port;
+        let post = tokio::spawn(async move {
+            reqwest::Client::new()
+                .post(format!("http://127.0.0.1:{port}/api/post-once"))
+                .body("{}")
+                .send()
+                .await
+                .unwrap()
+                .status()
+        });
+        let health = server.next().await;
+        health.reply.send(TestReply::Health).unwrap();
+        let submitted = server.next().await;
+        assert_eq!(submitted.path, "/api/post-once");
+        let old = pool.endpoint_for_test();
+        old.close().await;
+        assert!(post.await.unwrap().is_server_error());
+        drop(submitted);
+        let next = tokio::spawn(raw_get(port, "/api/after-post"));
+        let probe = server.next().await;
+        assert_eq!(probe.path, "/api/health");
+        probe.reply.send(TestReply::Health).unwrap();
+        let request = server.next().await;
+        assert_eq!(request.path, "/api/after-post", "不能重放已发送的 POST");
+        request.reply.send(TestReply::Health).unwrap();
+        assert!(next.await.unwrap().0.contains("200"));
+        assert_eq!(pool.wait_ready().await.unwrap(), 1);
+        assert_eq!(pool.endpoint_for_test().id(), old.id());
+        pool.endpoint_for_test().close().await;
+        tunnel.close().await;
+    }
+
+    #[tokio::test]
+    async fn healthy_iroh_http_errors_and_rejected_identity_never_rebuild_the_endpoint() {
+        let (mut server, tunnel, pool, proxy) = spawn_iroh_proxy(RESPONSE_HEADERS_TIMEOUT).await;
+        let old = pool.endpoint_for_test();
+        for (reply, expected) in [
+            (TestReply::Health, "200"),
+            (TestReply::ServerError, "500"),
+            (TestReply::Unauthorized, "401"),
+        ] {
+            let request = tokio::spawn(raw_get(proxy.port, "/api/business"));
+            let mut exchange = server.next().await;
+            if exchange.path == "/api/health" {
+                exchange.reply.send(TestReply::Health).unwrap();
+                exchange = server.next().await;
+            }
+            assert_eq!(exchange.path, "/api/business");
+            exchange.reply.send(reply).unwrap();
+            assert!(request.await.unwrap().0.contains(expected));
+            assert_eq!(pool.wait_ready().await.unwrap(), 0);
+        }
+        for reply in [TestReply::ServerError, TestReply::Unauthorized] {
+            proxy.invalidate_remote_upstream();
+            let request = tokio::spawn(raw_get(proxy.port, "/api/business"));
+            let health = server.next().await;
+            assert_eq!(health.path, "/api/health");
+            health.reply.send(reply).unwrap();
+            assert!(request.await.unwrap().0.contains("502"));
+            assert_eq!(pool.wait_ready().await.unwrap(), 0);
+        }
+        let mut profile = proxy.active_profile().unwrap();
+        profile.fingerprint = "A".repeat(64);
+        assert!(proxy.resolve_upstream(&profile).await.is_err());
+        assert_eq!(pool.wait_ready().await.unwrap(), 0);
+        profile.fingerprint = server.fingerprint.clone();
+        profile.endpoints[0].node_id = Some("invalid-node-id".into());
+        assert!(proxy.resolve_upstream(&profile).await.is_err());
+        assert_eq!(pool.wait_ready().await.unwrap(), 0);
+        assert_eq!(pool.endpoint_for_test().id(), old.id());
+        old.close().await;
+        tunnel.close().await;
+    }
+
+    #[tokio::test]
+    async fn transport_classification_uses_real_reqwest_tls_and_io_error_chains() {
+        let mut server = spawn_controlled_upstream().await;
+        let bad_pin = pinned_client(&"A".repeat(64))
+            .unwrap()
+            .get(&server.url)
+            .send()
+            .await
+            .unwrap_err();
+        assert!(bad_pin.is_connect(), "指纹拒绝也会被包装为 connect 错误");
+        assert!(!is_transport_error(&bad_pin));
+        let invalid_url = pinned_client(&server.fingerprint)
+            .unwrap()
+            .get("invalid-url")
+            .send()
+            .await
+            .unwrap_err();
+        assert!(!is_transport_error(&invalid_url));
+        let (silent, _) = spawn_silent_endpoint().await;
+        let timeout = pinned_client(&server.fingerprint)
+            .unwrap()
+            .get(silent)
+            .timeout(Duration::from_millis(30))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(is_transport_error(&timeout));
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let refused = pinned_client(&server.fingerprint)
+            .unwrap()
+            .get(format!("https://{address}"))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(is_transport_error(&refused));
+        for reply in [
+            None,
+            Some(TestReply::ServerError),
+            Some(TestReply::Unauthorized),
+        ] {
+            let outgoing = pinned_client(&server.fingerprint)
+                .unwrap()
+                .get(&server.url)
+                .bearer_auth("pst_test");
+            let request = tokio::spawn(async move { outgoing.send().await });
+            let exchange = server.next().await;
+            let transport = reply.is_none();
+            if let Some(reply) = reply {
+                exchange.reply.send(reply).unwrap();
+            } else {
+                drop(exchange);
+            }
+            let error = request
+                .await
+                .unwrap()
+                .and_then(reqwest::Response::error_for_status)
+                .unwrap_err();
+            assert_eq!(is_transport_error(&error), transport, "{error:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn healthy_lan_is_independent_of_recovering_or_unavailable_iroh() {
+        for recovering in [true, false] {
+            let (mut server, tunnel, pool, proxy) =
+                spawn_iroh_proxy(RESPONSE_HEADERS_TIMEOUT).await;
+            let mut profile = proxy.active_profile().unwrap();
+            profile
+                .endpoints
+                .push(ServerEndpoint::lan(server.url.clone()));
+            proxy.store.lock().unwrap().upsert(profile).unwrap();
+            let initial = tokio::spawn(raw_get(proxy.port, "/api/lan"));
+            server.next().await.reply.send(TestReply::Health).unwrap();
+            server.next().await.reply.send(TestReply::Health).unwrap();
+            assert!(initial.await.unwrap().0.contains("200"));
+            assert_eq!(proxy.active_transport().as_deref(), Some("lan"));
+
+            pool.endpoint_for_test().close().await;
+            // 固定在恢复等待或启动失败状态，避免 Iroh 恰好快速完成掩盖 LAN 被阻塞。
+            pool.set_unavailable_for_test(recovering);
+            for cached in [true, false] {
+                if !cached {
+                    proxy.invalidate_remote_upstream();
+                }
+                tokio::time::timeout(Duration::from_secs(1), async {
+                    let request = tokio::spawn(raw_get(proxy.port, "/api/lan"));
+                    if !cached {
+                        let probe = server.next().await;
+                        assert_eq!(probe.path, "/api/health");
+                        probe.reply.send(TestReply::Health).unwrap();
+                    }
+                    let business = server.next().await;
+                    assert_eq!(business.path, "/api/lan");
+                    business.reply.send(TestReply::Health).unwrap();
+                    assert!(request.await.unwrap().0.contains("200"));
+                })
+                .await
+                .expect("健康 LAN 的缓存命中与新探测都不能等待 Iroh");
+                assert_eq!(proxy.active_transport().as_deref(), Some("lan"));
+                assert_eq!(pool.generation(), 1);
+            }
+            tunnel.close().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn obsolete_proxy_generation_cannot_recover_the_current_tunnel() {
+        let (_server, tunnel, pool, proxy) = spawn_iroh_proxy(RESPONSE_HEADERS_TIMEOUT).await;
+        let old = proxy.remote_generation();
+        proxy.invalidate_remote_upstream();
+        assert!(!proxy.recover_tunnel_generation(old, 0));
+        assert_eq!(pool.wait_ready().await.unwrap(), 0);
+        assert!(proxy.recover_tunnel_generation(proxy.remote_generation(), 0));
+        assert_eq!(pool.wait_ready().await.unwrap(), 1);
+        assert!(!proxy.recover_tunnel_generation(old, 1));
+        assert_eq!(pool.wait_ready().await.unwrap(), 1);
+        pool.endpoint_for_test().close().await;
+        tunnel.close().await;
     }
 
     fn fast_id() -> u128 {
@@ -1071,7 +1769,7 @@ mod tests {
             // 声明比实际更多的字节，模拟 Runtime 在后台冻结/恢复时前端响应被截断。
             stream
                 .write_all(
-                    b"HTTP/1.1 200 OK\\r\\ncontent-type: text/javascript\\r\\ncontent-length: 128\\r\\nconnection: close\\r\\n\\r\\nexport const broken =",
+                    b"HTTP/1.1 200 OK\r\ncontent-type: text/javascript\r\ncontent-length: 128\r\nconnection: close\r\n\r\nexport const broken =",
                 )
                 .await
                 .unwrap();
@@ -1098,6 +1796,237 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn healthy_lan_after_many_silent_endpoints_is_probed_concurrently() {
+        let (url, fingerprint) = spawn_upstream("health").await;
+        let mut profile = profile_for(&url, &fingerprint);
+        let mut silent = Vec::new();
+        profile.endpoints.clear();
+        for _ in 0..12 {
+            let (url, connections) = spawn_silent_endpoint().await;
+            profile.endpoints.push(ServerEndpoint::lan(url));
+            silent.push(connections);
+        }
+        profile.endpoints.push(ServerEndpoint::lan(url));
+        let port = spawn_proxy(Some(profile)).await;
+        let (status, _) = tokio::time::timeout(Duration::from_secs(2), raw_get(port, "/api/test"))
+            .await
+            .expect("可用 LAN 不能排在失效端点的超时后面");
+        assert!(status.contains("200"), "{status}");
+        assert!(silent.iter().all(|count| count.load(Ordering::SeqCst) > 0));
+    }
+
+    #[tokio::test]
+    async fn recovery_replaces_the_pool_while_healthy_requests_reuse_tls() {
+        let mut server = spawn_controlled_upstream().await;
+        let profile = profile_for(&server.url, &server.fingerprint);
+        let proxy =
+            spawn_proxy_with_timeouts(profile, Duration::from_secs(2), Duration::from_millis(250))
+                .await;
+        let first = tokio::spawn(raw_get(proxy.port, "/api/first"));
+        let probe = server.next().await;
+        let original_connection = probe.connection;
+        assert_eq!(probe.path, "/api/health");
+        probe.reply.send(TestReply::Health).unwrap();
+        let request = server.next().await;
+        assert_eq!(request.connection, original_connection);
+        assert_eq!(request.path, "/api/first");
+        request.reply.send(TestReply::Health).unwrap();
+        assert!(first.await.unwrap().0.contains("200"));
+
+        // 先证明缓存命中会复用连接，再让这条连接只收请求、不返回首部。
+        let pending = tokio::spawn(raw_get(proxy.port, "/api/pending"));
+        let old_request = server.next().await;
+        assert_eq!(old_request.connection, original_connection);
+        assert_eq!(old_request.path, "/api/pending");
+        let retry_probe = server.next().await;
+        assert_ne!(retry_probe.connection, original_connection);
+        let retry_connection = retry_probe.connection;
+        assert_eq!(retry_probe.path, "/api/health");
+        retry_probe.reply.send(TestReply::Health).unwrap();
+        let retry = server.next().await;
+        assert_eq!(retry.connection, retry_connection);
+        assert_eq!(retry.path, "/api/pending");
+        retry.reply.send(TestReply::Health).unwrap();
+        assert!(pending.await.unwrap().0.contains("200"));
+        drop(old_request);
+
+        proxy.resume_remote_network().await;
+        let recovered = tokio::spawn(raw_get(proxy.port, "/api/recovered"));
+        let fresh_probe = server.next().await;
+        assert_ne!(fresh_probe.connection, retry_connection);
+        let fresh_connection = fresh_probe.connection;
+        assert_eq!(fresh_probe.path, "/api/health");
+        fresh_probe.reply.send(TestReply::Health).unwrap();
+        let fresh = server.next().await;
+        assert_eq!(fresh.connection, fresh_connection);
+        assert_eq!(fresh.path, "/api/recovered");
+        fresh.reply.send(TestReply::Health).unwrap();
+        assert!(recovered.await.unwrap().0.contains("200"));
+    }
+
+    #[tokio::test]
+    async fn post_retries_a_superseded_probe_without_publishing_stale_cache_or_replaying() {
+        let mut server = spawn_controlled_upstream().await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&server.url, &server.fingerprint),
+            Duration::from_secs(2),
+            Duration::from_secs(1),
+        )
+        .await;
+        let url = format!("http://127.0.0.1:{}/api/post", proxy.port);
+        let request = tokio::spawn(async move { reqwest::Client::new().post(url).send().await });
+        let old_probe = server.next().await;
+        assert_eq!(old_probe.path, "/api/health");
+        proxy.invalidate_remote_upstream();
+        let generation = proxy.remote_generation();
+        let old_connection = old_probe.connection;
+        old_probe.reply.send(TestReply::Health).unwrap();
+
+        let fresh_probe = server.next().await;
+        assert_eq!(fresh_probe.path, "/api/health");
+        assert_ne!(fresh_probe.connection, old_connection);
+        assert!(proxy.active_transport().is_none());
+        fresh_probe.reply.send(TestReply::Health).unwrap();
+        let business = server.next().await;
+        assert_eq!(business.path, "/api/post");
+        business.reply.send(TestReply::Health).unwrap();
+        assert_eq!(request.await.unwrap().unwrap().status(), StatusCode::OK);
+        assert_eq!(proxy.remote_generation(), generation);
+        assert_eq!(proxy.active_transport().as_deref(), Some("lan"));
+        assert!(server.exchanges.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn concurrent_startup_requests_share_one_health_probe() {
+        let mut server = spawn_controlled_upstream().await;
+        let profile = profile_for(&server.url, &server.fingerprint);
+        let proxy = spawn_proxy_with_timeouts(
+            profile.clone(),
+            Duration::from_secs(2),
+            Duration::from_secs(1),
+        )
+        .await;
+        let owner = start_resolution(&proxy, &profile);
+        let probe = server.next().await;
+        let generation = proxy.remote_generation();
+        let requests = (0..8)
+            .map(|_| tokio::spawn(raw_get(proxy.port, "/api/parallel")))
+            .collect::<Vec<_>>();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), server.exchanges.recv())
+                .await
+                .is_err(),
+            "等待者不应重复发送健康探测"
+        );
+        probe.reply.send(TestReply::Health).unwrap();
+        assert_eq!(owner.await.unwrap().unwrap().generation, generation);
+        for _ in 0..requests.len() {
+            let business = server.next().await;
+            assert_eq!(business.path, "/api/parallel");
+            business.reply.send(TestReply::Health).unwrap();
+        }
+        for request in requests {
+            assert!(request.await.unwrap().0.contains("200"));
+        }
+        assert_eq!(proxy.remote_generation(), generation);
+    }
+
+    #[tokio::test]
+    async fn resolution_waiter_timeout_does_not_invalidate_the_probe_owner() {
+        let mut server = spawn_controlled_upstream().await;
+        let profile = profile_for(&server.url, &server.fingerprint);
+        let proxy = spawn_proxy_with_timeouts(
+            profile.clone(),
+            Duration::from_millis(150),
+            Duration::from_millis(100),
+        )
+        .await;
+        let owner = start_resolution(&proxy, &profile);
+        let probe = server.next().await;
+        let generation = proxy.remote_generation();
+        let (status, _) = raw_get(proxy.port, "/api/waiter").await;
+        assert!(status.contains("504"));
+        assert_eq!(proxy.remote_generation(), generation);
+        probe.reply.send(TestReply::Health).unwrap();
+        assert_eq!(owner.await.unwrap().unwrap().generation, generation);
+        assert!(server.exchanges.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn business_errors_leave_concurrent_healthy_requests_and_the_pool_intact() {
+        for (status, reply) in [
+            (500, TestReply::ServerError),
+            (408, TestReply::RequestTimeout),
+        ] {
+            let mut server = spawn_controlled_upstream().await;
+            let proxy = spawn_proxy_with_timeouts(
+                profile_for(&server.url, &server.fingerprint),
+                Duration::from_secs(2),
+                Duration::from_secs(1),
+            )
+            .await;
+            let failing = tokio::spawn(raw_get(proxy.port, "/api/failing"));
+            server.next().await.reply.send(TestReply::Health).unwrap();
+            let failure = server.next().await;
+            assert_eq!(failure.path, "/api/failing");
+            let healthy = tokio::spawn(raw_get(proxy.port, "/api/healthy"));
+            let pending = server.next().await;
+            assert_eq!(pending.path, "/api/healthy");
+            let generation = proxy.remote_generation();
+            failure.reply.send(reply).unwrap();
+            assert!(failing.await.unwrap().0.contains(&status.to_string()));
+            assert_eq!(proxy.remote_generation(), generation);
+            assert_eq!(proxy.active_transport().as_deref(), Some("lan"));
+            pending.reply.send(TestReply::Health).unwrap();
+            assert!(healthy.await.unwrap().0.contains("200"));
+            let next = tokio::spawn(raw_get(proxy.port, "/api/next"));
+            let reused = server.next().await;
+            assert_eq!(reused.path, "/api/next");
+            reused.reply.send(TestReply::Health).unwrap();
+            assert!(next.await.unwrap().0.contains("200"));
+        }
+    }
+
+    #[tokio::test]
+    async fn old_json_failure_cannot_invalidate_the_recovered_connection() {
+        let mut server = spawn_controlled_upstream().await;
+        let proxy = spawn_proxy_with_timeouts(
+            profile_for(&server.url, &server.fingerprint),
+            Duration::from_secs(2),
+            Duration::from_secs(1),
+        )
+        .await;
+        let old = tokio::spawn(raw_get(proxy.port, "/api/old"));
+        server.next().await.reply.send(TestReply::Health).unwrap();
+        let old_request = server.next().await;
+        assert_eq!(old_request.path, "/api/old");
+
+        proxy.invalidate_remote_upstream();
+        let recovered = tokio::spawn(raw_get(proxy.port, "/api/new"));
+        let fresh_probe = server.next().await;
+        let fresh_connection = fresh_probe.connection;
+        assert_ne!(fresh_connection, old_request.connection);
+        assert_eq!(fresh_probe.path, "/api/health");
+        fresh_probe.reply.send(TestReply::Health).unwrap();
+        let fresh = server.next().await;
+        assert_eq!(fresh.path, "/api/new");
+        fresh.reply.send(TestReply::Health).unwrap();
+        assert!(recovered.await.unwrap().0.contains("200"));
+        let generation = proxy.remote_generation();
+
+        old_request.reply.send(TestReply::TruncatedJson).unwrap();
+        assert!(old.await.unwrap().0.contains("502"));
+        assert_eq!(proxy.remote_generation(), generation);
+        assert_eq!(proxy.active_transport().as_deref(), Some("lan"));
+        let reused = tokio::spawn(raw_get(proxy.port, "/api/reused"));
+        let reused_request = server.next().await;
+        assert_eq!(reused_request.path, "/api/reused");
+        assert_eq!(reused_request.connection, fresh_connection);
+        reused_request.reply.send(TestReply::Health).unwrap();
+        assert!(reused.await.unwrap().0.contains("200"));
+    }
+
+    #[tokio::test]
     async fn forwards_with_bearer_and_pinned_fingerprint() {
         let (url, fingerprint) = spawn_upstream("health").await;
         let port = spawn_proxy(Some(profile_for(&url, &fingerprint))).await;
@@ -1107,7 +2036,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn falls_back_from_lan_to_iroh() {
+    async fn silent_lan_group_falls_back_to_iroh_and_recovery_prefers_lan() {
         let (url, fingerprint) = spawn_upstream("health").await;
         let target = url.trim_start_matches("https://").parse().unwrap();
         let tunnel_server = crate::iroh_tunnel::start_server(
@@ -1127,18 +2056,43 @@ mod tests {
                 .unwrap(),
         );
         let mut profile = profile_for("https://127.0.0.1:9", &fingerprint);
+        let mut silent = Vec::new();
+        for _ in 0..12 {
+            let (url, connections) = spawn_silent_endpoint().await;
+            profile.endpoints.push(ServerEndpoint::lan(url));
+            silent.push(connections);
+        }
         profile.endpoints.push(ServerEndpoint::iroh(remote));
         let path = std::env::temp_dir().join(format!("pisper-proxy-test-{}.json", fast_id()));
         let mut store = crate::mobile::store::ProfileStore::load(&path);
-        store.upsert(profile).unwrap();
+        store.upsert(profile.clone()).unwrap();
         store.set_last_mode("remote").unwrap();
         let proxy = start_proxy(Arc::new(Mutex::new(store)), Some(tunnels))
             .await
             .unwrap();
 
-        let (status, raw) = raw_get(proxy.port, "/api/health").await;
+        let (status, raw) = tokio::time::timeout(
+            PROBE_TIMEOUT + Duration::from_secs(4),
+            raw_get(proxy.port, "/api/health"),
+        )
+        .await
+        .expect("无响应 LAN 的数量不能耗尽 Iroh 的连接机会");
         assert!(status.contains("200"), "unexpected status: {status}");
         assert!(String::from_utf8_lossy(&raw).contains("{\"ok\":true}"));
+        assert_eq!(proxy.active_transport().as_deref(), Some("iroh"));
+        assert!(silent.iter().all(|count| count.load(Ordering::SeqCst) > 0));
+
+        // 档案即使把 Iroh 放在前面，恢复到可用 LAN 后也应优先局域网。
+        profile.endpoints.retain(|endpoint| endpoint.kind == "iroh");
+        profile.endpoints.push(ServerEndpoint::lan(url));
+        proxy.store.lock().unwrap().upsert(profile).unwrap();
+        proxy.invalidate_remote_upstream();
+        let (status, _) =
+            tokio::time::timeout(Duration::from_secs(2), raw_get(proxy.port, "/api/health"))
+                .await
+                .unwrap();
+        assert!(status.contains("200"), "{status}");
+        assert_eq!(proxy.active_transport().as_deref(), Some("lan"));
         tunnel_server.close().await;
     }
 

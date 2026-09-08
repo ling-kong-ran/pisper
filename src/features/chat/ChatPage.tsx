@@ -11,6 +11,7 @@ import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
+import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
@@ -174,8 +175,8 @@ export function ChatPage({
     if (document.visibilityState !== 'visible' || resumeSyncRef.current) return
     const request = (async () => {
       if (mobileApp) {
-        // 先让原生壳复验内置 Runtime，避免 renderer/API 恢复时使用失效的代理上下文。
-        await invokeMobile<void>('mobile_resume_local_runtime').catch(() => undefined)
+        // 与 API 共用有界恢复闸门，避免独立原生命令挂起后永久锁住 resumeSyncRef。
+        await waitForMobileRuntimeReady().catch(() => undefined)
       }
       let sessions: SessionSummary[] = []
       try {

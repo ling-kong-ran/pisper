@@ -234,7 +234,7 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.match(recovery, /mobile_resume_local_runtime/)
   assert.match(recovery, /_pisper_resume_probe/)
   assert.match(recovery, /window\.location\.replace/)
-  assert.match(http, /await waitForMobileRuntimeReady\(\)/)
+  assert.match(http, /await waitForMobileRuntimeReady\(controller\.signal\)/)
   assert.match(chat, /open: async[\s\S]*await waitForMobileRuntimeReady\(\)/)
   assert.match(startupPage, /mobile_retry_local_startup/)
   assert.match(permissions, /"mobile_retry_local_startup"/)

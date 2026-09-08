@@ -135,6 +135,49 @@ test('fetch JSON client applies per-request timeout and external abort signals',
   })
 })
 
+test('mobile API timeout and cancellation also bound a stalled native readiness gate', async () => {
+  const originalWindow = globalThis.window
+  const originalDocument = globalThis.document
+  let release
+  const pending = new Promise((resolve) => (release = resolve))
+  globalThis.window = {
+    __PISPER_MOBILE_APP__: true,
+    location: new URL('http://127.0.0.1:41234/#/chat'),
+    __TAURI_INTERNALS__: { invoke: () => pending },
+    addEventListener() {},
+    setTimeout,
+    clearTimeout,
+  }
+  globalThis.document = { visibilityState: 'hidden', addEventListener() {} }
+  try {
+    const recovery = await import('../../src/lib/mobile-runtime-recovery.ts')
+    recovery.installMobileRuntimeForegroundRecovery()
+    await withFetch(
+      async (url) => {
+        assert.match(String(url), /_pisper_resume_probe/)
+        return new Response('<div id="root"></div>', {
+          headers: { 'Content-Type': 'text/html' },
+        })
+      },
+      async () => {
+        await assert.rejects(requestJson('/api/never-sent', { timeout: 10 }), {
+          kind: 'timeout',
+        })
+        const controller = new AbortController()
+        const request = requestJson('/api/cancelled', { signal: controller.signal })
+        controller.abort(new Error('cancel while recovering'))
+        await assert.rejects(request, { kind: 'cancelled' })
+        release()
+        await recovery.waitForMobileRuntimeReady()
+      },
+    )
+  } finally {
+    release()
+    globalThis.window = originalWindow
+    globalThis.document = originalDocument
+  }
+})
+
 test('fetch JSON client normalizes network failures as ApiError', async () => {
   await withFetch(
     async () => {

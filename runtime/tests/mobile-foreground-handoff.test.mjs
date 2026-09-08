@@ -21,11 +21,66 @@ const recoveryScript = transformSync(recoverySource, {
 const handoffKey = '__PISPER_MOBILE_FOREGROUND_RECOVERY_INSTALLED__'
 const flush = () => new Promise((resolve) => setImmediate(resolve))
 
+test('manual route reload waits for shared recovery and navigates even when recovery rejects', async () => {
+  const source = await readFile(
+    new URL('../../src/app/RouteErrorBoundary.tsx', import.meta.url),
+    'utf8',
+  )
+  let rejectRecovery
+  let waits = 0
+  const recovery = new Promise((_, reject) => {
+    rejectRecovery = reject
+  })
+  const navigations = []
+  const module = { exports: {} }
+  const context = createContext({
+    module,
+    exports: module.exports,
+    URL,
+    window: {
+      __PISPER_MOBILE_APP__: true,
+      location: {
+        href: 'http://127.0.0.1:41873/?existing=1#/chat?session=retained',
+        replace: (url) => navigations.push(url),
+      },
+    },
+    require: (name) =>
+      name === '@/lib/http'
+        ? {
+            waitForMobileRuntimeReady: () => {
+              waits += 1
+              return recovery
+            },
+          }
+        : {},
+  })
+  runInContext(
+    transformSync(`${source}\nexport { recoverRoute }`, {
+      loader: 'tsx',
+      target: 'es2022',
+      format: 'cjs',
+    }).code,
+    context,
+  )
+  const pending = module.exports.recoverRoute()
+  assert.equal(waits, 1)
+  assert.deepEqual(navigations, [])
+  rejectRecovery(new Error('bounded recovery timed out'))
+  await pending
+  assert.equal(navigations.length, 1)
+  const destination = new URL(navigations[0])
+  assert.equal(destination.origin, 'http://127.0.0.1:41873')
+  assert.equal(destination.hash, '#/chat?session=retained')
+  assert.equal(destination.searchParams.get('existing'), '1')
+  assert.ok(destination.searchParams.has('_pisper_recovery'))
+})
+
 // 两套真实脚本共享同一页面；独立 VM 避免模块单例、全局对象与定时器污染其他测试。
 function createPage({
   inject = true,
   healthy = true,
   resume,
+  recover,
   href = 'http://127.0.0.1:41873/#/chat',
 } = {}) {
   let now = 1_000
@@ -68,6 +123,7 @@ function createPage({
       invoke: async (command) => {
         commands.push(command)
         if (command === 'mobile_resume_local_runtime') await resume?.()
+        if (command === 'mobile_recover_application') await recover?.()
       },
     },
   })
@@ -145,10 +201,11 @@ test('handoff is published only after all listeners are installed and installati
     { target: 'document', type: 'visibilitychange', handoff: undefined },
     { target: 'window', type: 'pagehide', handoff: undefined },
     { target: 'window', type: 'pageshow', handoff: undefined },
+    { target: 'window', type: 'online', handoff: undefined },
   ])
   assert.equal(page.window[handoffKey], true)
   page.install()
-  assert.equal(page.registrations.length, 3)
+  assert.equal(page.registrations.length, 4)
 })
 
 test('failed listener installation does not publish handoff', () => {
@@ -218,6 +275,9 @@ test('module failures still invoke native recovery after foreground handoff', as
     ['error', { target: { tagName: 'SCRIPT' } }],
     ['error', { message: 'Failed to fetch dynamically imported module' }],
     ['unhandledrejection', { reason: new Error('module script load failed') }],
+    ['unhandledrejection', { reason: new Error('Load route script failed') }],
+    ['error', { message: 'ChunkLoadError: Loading chunk 42 failed' }],
+    ['vite:preloadError', { payload: new Error('Unable to preload CSS') }],
   ]) {
     const page = createPage()
     page.install()
@@ -226,6 +286,58 @@ test('module failures still invoke native recovery after foreground handoff', as
     assert.deepEqual(page.commands, ['mobile_recover_application'])
     assert.deepEqual(page.navigations, [])
   }
+})
+
+test('native module recovery rejection or stalled navigation falls back once on the same route', async () => {
+  for (const recover of [
+    () => Promise.reject(new Error('native failure')),
+    () => new Promise(() => undefined),
+    () => Promise.resolve(),
+  ]) {
+    const page = createPage({ recover })
+    page.window.dispatch('vite:preloadError')
+    await flush()
+    page.advance(20_000)
+    await flush()
+    assert.equal(page.navigations.length, 1)
+    assert.equal(new URL(page.navigations[0]).hash, '#/chat')
+    assert.ok(new URL(page.navigations[0]).searchParams.has('_pisper_recovery'))
+    page.window.dispatch('error', { target: { tagName: 'SCRIPT' } })
+    page.advance(20_000)
+    assert.equal(page.navigations.length, 1)
+  }
+})
+
+test('a repeated broken module remains visible instead of triggering a reload loop', () => {
+  const page = createPage({ href: 'http://127.0.0.1:41873/?_pisper_recovery=999#/chat' })
+  let prevented = false
+  page.window.dispatch('vite:preloadError', { preventDefault: () => (prevented = true) })
+  assert.equal(prevented, false)
+  assert.deepEqual(page.commands, [])
+  page.advance(60_000)
+  page.window.dispatch('vite:preloadError', { preventDefault: () => (prevented = true) })
+  assert.equal(prevented, true)
+  assert.deepEqual(page.commands, ['mobile_recover_application'])
+})
+
+test('ordinary network failures do not reload the app or suppress the original error', () => {
+  const page = createPage()
+  let prevented = false
+  page.window.dispatch('unhandledrejection', {
+    reason: new Error('Load failed'),
+    preventDefault: () => (prevented = true),
+  })
+  assert.equal(prevented, false)
+  assert.deepEqual(page.commands, [])
+})
+
+test('network restoration shares the foreground gate and probes again', async () => {
+  const page = createPage()
+  page.install()
+  page.window.dispatch('online')
+  await page.waitUntilReady()
+  assert.deepEqual(page.commands, ['mobile_resume_local_runtime'])
+  assert.equal(page.probes.length, 1)
 })
 
 test('bfcache before handoff retains native fallback and ignores ordinary pageshow', async () => {

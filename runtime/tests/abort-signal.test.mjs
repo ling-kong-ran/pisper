@@ -4,7 +4,38 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import { abortReason, createAbortScope, throwIfAborted } from '../../src/lib/abort-signal.ts'
+import {
+  abortReason,
+  createAbortScope,
+  throwIfAborted,
+  waitWithAbort,
+} from '../../src/lib/abort-signal.ts'
+
+test('aborting a readiness wait settles immediately without cancelling shared recovery', async () => {
+  let finish
+  const work = new Promise((resolve) => (finish = resolve))
+  const cancelled = new AbortController()
+  const other = new AbortController()
+  const first = waitWithAbort(work, cancelled.signal)
+  const second = waitWithAbort(work, other.signal)
+  cancelled.abort(new Error('request deadline'))
+  await assert.rejects(first, /request deadline/)
+  assert.equal(getEventListeners(cancelled.signal, 'abort').length, 0)
+  finish('ready')
+  assert.equal(await second, 'ready')
+  assert.equal(getEventListeners(other.signal, 'abort').length, 0)
+})
+
+test('late readiness rejection is consumed after a pre-aborted wait', async () => {
+  let fail
+  const work = new Promise((_resolve, reject) => (fail = reject))
+  const controller = new AbortController()
+  controller.abort()
+  await assert.rejects(waitWithAbort(work, controller.signal), { name: 'AbortError' })
+  fail(new Error('late native failure'))
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(getEventListeners(controller.signal, 'abort').length, 0)
+})
 
 test('abort scopes forward cancellation and release listeners on completion or abort', () => {
   const parent = new AbortController()

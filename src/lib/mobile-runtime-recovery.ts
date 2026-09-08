@@ -36,28 +36,33 @@ function settleWithin<T>(promise: Promise<T>, ms: number, onTimeout: () => T): P
 export function createMobileRuntimeRecoveryCoordinator(
   dependencies: MobileRuntimeRecoveryDependencies,
 ) {
-  let recoveryRequired = false
+  let recoveryGeneration = 0
+  let recoveredGeneration = 0
   let activeRecovery: Promise<void> | null = null
   const timeouts = { ...DEFAULT_RECOVERY_TIMEOUTS, ...dependencies.timeouts }
 
   const startRecovery = () => {
     if (!dependencies.isMobile()) {
-      recoveryRequired = false
+      recoveredGeneration = recoveryGeneration
       return Promise.resolve()
     }
-    if (!recoveryRequired) return activeRecovery || Promise.resolve()
+    if (recoveredGeneration === recoveryGeneration) return activeRecovery || Promise.resolve()
     if (activeRecovery) return activeRecovery
 
     const attempt = (async () => {
-      // resume 超时不直接判失败：本机运行时可能本来就在运行（如远程模式），
-      // 继续用探测结果判断可用性。
-      await settleWithin(dependencies.resume(), timeouts.resumeMs, () => undefined)
-      const healthy = await settleWithin(dependencies.probe(), timeouts.probeMs, () => false)
-      if (!healthy) {
-        // 页面重载也可能挂起（导航未生效）；超时后放行请求，避免永远卡在恢复闸门。
-        await settleWithin(dependencies.reload(), timeouts.reloadMs, () => undefined)
-      }
-      recoveryRequired = false
+      do {
+        const generation = recoveryGeneration
+        // resume 超时不直接判失败：本机运行时可能本来就在运行（如远程模式），
+        // 继续用探测结果判断可用性。
+        await settleWithin(dependencies.resume(), timeouts.resumeMs, () => undefined)
+        const healthy = await settleWithin(dependencies.probe(), timeouts.probeMs, () => false)
+        if (!healthy) {
+          // 页面重载也可能挂起（导航未生效）；超时后放行请求，避免永远卡在恢复闸门。
+          await settleWithin(dependencies.reload(), timeouts.reloadMs, () => undefined)
+        }
+        // 恢复期间再次切后台或切网时，旧探测不能抹掉新一轮恢复要求。
+        recoveredGeneration = generation
+      } while (recoveredGeneration !== recoveryGeneration)
     })()
     activeRecovery = attempt.finally(() => {
       activeRecovery = null
@@ -67,13 +72,15 @@ export function createMobileRuntimeRecoveryCoordinator(
 
   return {
     markBackgrounded() {
-      if (dependencies.isMobile()) recoveryRequired = true
+      if (dependencies.isMobile()) recoveryGeneration += 1
     },
     recoverAfterForeground() {
       return startRecovery()
     },
     waitUntilReady() {
-      return recoveryRequired ? startRecovery() : activeRecovery || Promise.resolve()
+      return recoveredGeneration !== recoveryGeneration
+        ? startRecovery()
+        : activeRecovery || Promise.resolve()
     },
   }
 }
@@ -153,6 +160,12 @@ export function installMobileRuntimeForegroundRecovery() {
   window.addEventListener('pageshow', (event) => {
     if (!event.persisted) return
     void mobileRuntimeRecovery.recoverAfterForeground().catch(() => undefined)
+  })
+  window.addEventListener('online', () => {
+    mobileRuntimeRecovery.markBackgrounded()
+    if (document.visibilityState === 'visible') {
+      void mobileRuntimeRecovery.recoverAfterForeground().catch(() => undefined)
+    }
   })
   // 监听器全部就绪后才接管，避免原生兜底在模块尚未安装完成时提前失效。
   installed = true

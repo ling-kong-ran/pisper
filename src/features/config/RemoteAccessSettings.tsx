@@ -32,6 +32,24 @@ type RemoteStatus = {
   error: string | null
 }
 
+type FirewallStatus = {
+  state:
+    | 'disabled'
+    | 'configured'
+    | 'not_needed'
+    | 'needs_authorization'
+    | 'unsupported'
+    | 'cancelled'
+    | 'error'
+    | 'cleanup_pending'
+  reason: string | null
+  port: number | null
+  scope: 'application' | 'program_port' | 'port'
+  busy: boolean
+  checkedAt: string | null
+  lanReachability: 'unverified'
+}
+
 type RemoteDevice = {
   id: string
   name: string
@@ -58,6 +76,7 @@ type PairingApproval = {
 export function RemoteAccessSettings({ notify }: { notify: Notify }) {
   const { t, language } = useI18n()
   const [status, setStatus] = useState<RemoteStatus | null>(null)
+  const [firewall, setFirewall] = useState<FirewallStatus | null>(null)
   const [devices, setDevices] = useState<RemoteDevice[]>([])
   const [approvals, setApprovals] = useState<PairingApproval[]>([])
   const [pairing, setPairing] = useState<PairingCode | null>(null)
@@ -69,14 +88,21 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextStatus, nextDevices, nextApprovals] = await Promise.all([
+      const [nextStatus, nextDevices, nextApprovals, nextFirewall] = await Promise.all([
         apiJson<RemoteStatus>('/api/remote/status'),
         apiJson<{ devices: RemoteDevice[] }>('/api/remote/devices'),
         apiJson<{ requests: PairingApproval[] }>('/api/remote/pairing-requests').catch(() => ({
           requests: [],
         })),
+        apiJson<FirewallStatus>('/api/remote/firewall').catch((error: unknown) => {
+          // 远程设备没有本机策略管理权限，保持普通远程访问设置可用。
+          if (error && typeof error === 'object' && 'status' in error && error.status === 403)
+            return null
+          throw error
+        }),
       ])
       setStatus(nextStatus)
+      setFirewall(nextFirewall)
       setDevices(nextDevices.devices.filter((device) => !device.revokedAt))
       setApprovals(nextApprovals.requests)
       setLoadError('')
@@ -98,7 +124,11 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
   const toggleEnabled = async (enabled: boolean) => {
     setBusy(true)
     try {
-      await apiJson('/api/remote/enabled', { method: 'PUT', body: { enabled } })
+      await apiJson('/api/remote/enabled', {
+        method: 'PUT',
+        body: { enabled, configureFirewall: firewall !== null },
+        timeout: 150_000,
+      })
       const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
       if (invoke) {
         await invoke('desktop_iroh_set_enabled', { enabled }).catch(() => undefined)
@@ -114,6 +144,47 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  const retryFirewall = async () => {
+    setBusy(true)
+    try {
+      await apiJson<FirewallStatus>('/api/remote/firewall/retry', {
+        method: 'POST',
+        body: {},
+        timeout: 150_000,
+      })
+      await refresh()
+    } catch (error) {
+      notify(t('config:remoteAccess.firewallRetryFailed', { message: String(error) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const firewallStates = {
+    disabled: t('config:remoteAccess.firewallDisabled'),
+    configured: t('config:remoteAccess.firewallConfigured'),
+    not_needed: t('config:remoteAccess.firewallNotNeeded'),
+    needs_authorization: t('config:remoteAccess.firewallNeedsAuthorization'),
+    unsupported: t('config:remoteAccess.firewallUnsupported'),
+    cancelled: t('config:remoteAccess.firewallCancelled'),
+    error: t('config:remoteAccess.firewallError'),
+    cleanup_pending: t('config:remoteAccess.firewallCleanupPending'),
+  }
+  const firewallReasons: Record<string, string> = {
+    packaged_app_required: t('config:remoteAccess.firewallPackagedApp'),
+    unsupported_firewall: t('config:remoteAccess.firewallUnsupportedBackend'),
+    unsupported_platform: t('config:remoteAccess.firewallUnsupportedBackend'),
+    permission_denied: t('config:remoteAccess.firewallPermissionDenied'),
+    cancelled: t('config:remoteAccess.firewallCancelled'),
+    timeout: t('config:remoteAccess.firewallTimeout'),
+    block_all: t('config:remoteAccess.firewallBlockAll'),
+    rule_changed: t('config:remoteAccess.firewallRuleChanged'),
+    inspection_failed: t('config:remoteAccess.firewallVerificationFailed'),
+    verification_failed: t('config:remoteAccess.firewallVerificationFailed'),
+    operation_failed: t('config:remoteAccess.firewallVerificationFailed'),
+    unsupported: t('config:remoteAccess.firewallUnsupportedBackend'),
   }
 
   const generatePairingCode = async () => {
@@ -222,7 +293,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
             </div>
           </div>
           <Switch
-            value={status.enabled && status.listening}
+            value={status.enabled}
             disabled={busy}
             onChange={(checked) => void toggleEnabled(checked)}
             ariaLabel={t('config:remoteAccess.title')}
@@ -234,6 +305,57 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
           </p>
         ) : null}
       </Panel>
+
+      {firewall ? (
+        <Panel className="flex flex-col gap-3 p-4" aria-live="polite">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-[14px]">{t('config:remoteAccess.firewallTitle')}</h3>
+            {status.enabled || firewall.state === 'cleanup_pending' ? (
+              <Button
+                size="sm"
+                disabled={busy || firewall.busy}
+                onClick={() => void retryFirewall()}
+              >
+                {busy || firewall.busy ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+                {status.enabled
+                  ? t('config:remoteAccess.firewallRetry')
+                  : t('config:remoteAccess.firewallRetryCleanup')}
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-[13px]">
+            {firewall.busy
+              ? t('config:remoteAccess.firewallWorking')
+              : firewallStates[firewall.state]}
+          </p>
+          {firewall.reason && firewallReasons[firewall.reason] ? (
+            <p className="text-[12px] text-[var(--text-muted)]">
+              {firewallReasons[firewall.reason]}
+            </p>
+          ) : null}
+          {status.enabled ? (
+            <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+              {firewall.scope === 'application'
+                ? t('config:remoteAccess.firewallApplicationScope')
+                : firewall.scope === 'program_port'
+                  ? t('config:remoteAccess.firewallProgramPortScope', {
+                      port: firewall.port ?? '—',
+                    })
+                  : t('config:remoteAccess.firewallPortScope', { port: firewall.port ?? '—' })}
+            </p>
+          ) : null}
+          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+            {t('config:remoteAccess.firewallReachability')}
+          </p>
+          {firewall.checkedAt ? (
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {t('config:remoteAccess.firewallCheckedAt', {
+                time: relativeTime(firewall.checkedAt, language),
+              })}
+            </p>
+          ) : null}
+        </Panel>
+      ) : null}
 
       {status.listening && approvals.length ? (
         <Panel className="flex flex-col gap-3 p-4" aria-live="polite">

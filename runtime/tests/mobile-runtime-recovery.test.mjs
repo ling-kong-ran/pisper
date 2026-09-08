@@ -39,6 +39,29 @@ test('mobile foreground recovery gates API work behind one shared readiness chec
   assert.equal(resumeCalls, 1)
 })
 
+test('backgrounding again during recovery cannot clear the next foreground check', async () => {
+  let releaseResume
+  let calls = 0
+  const recovery = createMobileRuntimeRecoveryCoordinator({
+    isMobile: () => true,
+    resume: async () => {
+      calls += 1
+      if (calls === 1) await new Promise((resolve) => (releaseResume = resolve))
+    },
+    probe: async () => true,
+    reload: async () => undefined,
+  })
+  recovery.markBackgrounded()
+  const ready = recovery.waitUntilReady()
+  recovery.markBackgrounded()
+  assert.strictEqual(recovery.recoverAfterForeground(), ready)
+  releaseResume()
+  await ready
+  assert.equal(calls, 2)
+  await recovery.waitUntilReady()
+  assert.equal(calls, 2)
+})
+
 test('failed mobile foreground recovery remains retryable for the next API request', async () => {
   let resumeCalls = 0
   const recovery = createMobileRuntimeRecoveryCoordinator({
