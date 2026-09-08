@@ -995,6 +995,14 @@ function appReleaseAssetUrl(releaseUrl, assetName) {
 const DESKTOP_RELEASE_API =
   'https://api.github.com/repos/ling-kong-ran/pisper/releases/latest'
 const DESKTOP_RELEASE_PAGE = 'https://github.com/ling-kong-ran/pisper/releases/latest'
+const GITHUB_DOWNLOAD_MIRROR = 'https://gh-proxy.com/'
+
+function acceleratedDownloadUrl(url) {
+  // 只加速本项目的安装包直链，版本页和清单失败时的兜底地址仍由 GitHub 打开。
+  return /^https:\/\/github\.com\/ling-kong-ran\/pisper\/releases\/download\/(?:app-)?v\d+\.\d+\.\d+\/[^/?#]+$/.test(url)
+    ? `${GITHUB_DOWNLOAD_MIRROR}${url}`
+    : url
+}
 
 function detectDownloadTarget() {
   const ua = navigator.userAgent.toLowerCase()
@@ -1066,13 +1074,26 @@ async function detectDesktopArchitecture(target) {
 }
 
 async function readJson(url) {
-  const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } })
-  if (!response.ok) throw new Error(`Download manifest request failed: ${response.status}`)
-  return response.json()
+  const controller = new AbortController()
+  // 限制单个来源的等待时间，避免网络不可达时下载按钮一直无法解析。
+  const timeout = setTimeout(() => controller.abort(), 6000)
+  try {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error(`Download manifest request failed: ${response.status}`)
+    return await response.json()
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function desktopReleaseAssetUrl(target) {
-  const release = await readJson(DESKTOP_RELEASE_API)
+  const release = await readJson(`${GITHUB_DOWNLOAD_MIRROR}${DESKTOP_RELEASE_API}`).catch(() =>
+    readJson(DESKTOP_RELEASE_API),
+  )
   const version = String(release?.tag_name || '').replace(/^v/, '')
   if (!/^\d+\.\d+\.\d+$/.test(version)) return DESKTOP_RELEASE_PAGE
 
@@ -1085,7 +1106,9 @@ async function desktopReleaseAssetUrl(target) {
   const expectedNames = [...new Set(suffixes[target] || [])].map(
     (suffix) => `Pisper_${version}_${suffix}`,
   )
-  const asset = release.assets?.find((candidate) => expectedNames.includes(candidate.name))
+  const asset = expectedNames
+    .map((name) => release.assets?.find((candidate) => candidate.name === name))
+    .find(Boolean)
   return asset?.browser_download_url || DESKTOP_RELEASE_PAGE
 }
 
@@ -1106,7 +1129,7 @@ Promise.all([appManifestPromise, desktopAssetPromise]).then(([appManifest, deskt
     downloadTarget.type === 'android' || downloadTarget.type === 'ios' ? appUrl : desktopUrl
 
   for (const link of document.querySelectorAll('[data-device-download]')) {
-    link.href = targetUrl
+    link.href = acceleratedDownloadUrl(targetUrl)
     if (downloadTarget.label) {
       const label = link.querySelector('[data-download-label]')
       if (label) label.textContent = downloadTarget.label
@@ -1116,6 +1139,15 @@ Promise.all([appManifestPromise, desktopAssetPromise]).then(([appManifest, deskt
   for (const link of document.querySelectorAll('[data-app-download]')) {
     const platform = link.dataset.appDownload
     const assetName = appAssets[platform] || link.dataset.appAsset
+    if (appReleaseUrl) {
+      link.href = acceleratedDownloadUrl(appReleaseAssetUrl(appReleaseUrl, assetName))
+    }
+  }
+  for (const link of document.querySelectorAll('[data-official-device-download]')) {
+    link.href = targetUrl
+  }
+  for (const link of document.querySelectorAll('[data-official-app-download]')) {
+    const assetName = appAssets[link.dataset.officialAppDownload]
     if (appReleaseUrl) link.href = appReleaseAssetUrl(appReleaseUrl, assetName)
   }
   if (appReleaseUrl) {
