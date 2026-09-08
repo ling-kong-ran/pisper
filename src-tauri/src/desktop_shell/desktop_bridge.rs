@@ -921,7 +921,6 @@ mod tests {
         canonical_local_path, cleanup_open_assets_at, is_volume_root, nearest_existing_ancestor,
         resolve_reveal_target, RevealTarget,
     };
-    use std::path::Path;
     use std::time::{Duration, SystemTime};
 
     #[test]
@@ -963,16 +962,20 @@ mod tests {
     #[test]
     fn shell_reveal_builds_select_params_and_rejects_quotes() {
         use super::shell_reveal::build_select_params;
-        let path = Path::new(r"C:\Users\lkr\generated\visuals\a b.gif");
+        let path = std::path::Path::new(r"C:\Users\lkr\generated\visuals\a b.gif");
         assert_eq!(
             build_select_params(path).as_deref(),
             Some("/select,\"C:\\Users\\lkr\\generated\\visuals\\a b.gif\"")
         );
         // 双引号会破坏 /select 参数解析：拒绝而不是拼出危险参数。
-        assert_eq!(build_select_params(Path::new("C:\\we\"ird.txt")), None);
+        assert_eq!(
+            build_select_params(std::path::Path::new("C:\\we\"ird.txt")),
+            None
+        );
         // 正斜杠路径规范化为反斜杠（嵌入版 Explorer 对正斜杠会静默回退到「文档」）。
         assert_eq!(
-            build_select_params(Path::new("C:/Users/lkr/generated/visuals/a.gif")).as_deref(),
+            build_select_params(std::path::Path::new("C:/Users/lkr/generated/visuals/a.gif"))
+                .as_deref(),
             Some("/select,\"C:\\Users\\lkr\\generated\\visuals\\a.gif\"")
         );
     }
