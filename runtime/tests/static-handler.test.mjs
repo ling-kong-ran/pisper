@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { createStaticHandler } from '../http/static-handler.mjs'
@@ -25,7 +26,8 @@ function captureResponse() {
 }
 
 test('缺失的前端 assets 不回退为 index.html', async () => {
-  const root = await mkdtemp('/tmp/pisper-static-handler-')
+  // 用系统临时目录而非硬编码 /tmp：后者在 Windows 上不存在，mkdtemp 会 ENOENT。
+  const root = await mkdtemp(join(tmpdir(), 'pisper-static-handler-'))
   const dist = join(root, 'dist')
   try {
     await mkdir(dist, { recursive: true })
