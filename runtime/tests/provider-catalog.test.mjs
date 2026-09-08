@@ -28,14 +28,19 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
   assert.equal(glm.baseUrl, 'https://open.bigmodel.cn/api/paas/v4')
   assert.ok(glm.models.some((model) => model.id === 'glm-5.2'))
 
-  await runtime.saveConfig({
+  const saved = await runtime.saveConfig({
     provider: 'zai-coding-cn',
+    providerName: '自定义 GLM 连接',
     model: 'glm-5.2',
     apiKey: 'test-key',
     baseUrl: glm.baseUrl,
     thinkingLevel: 'medium',
     toolMode: 'workspace',
   })
+  assert.equal(
+    saved.providers.find((provider) => provider.id === 'zai-coding-cn').name,
+    '自定义 GLM 连接',
+  )
   assert.equal(
     runtime.modelRuntime.getModel('zai-coding-cn', 'glm-5.2').baseUrl,
     'https://open.bigmodel.cn/api/paas/v4',

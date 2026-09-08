@@ -758,7 +758,7 @@ export class ProviderPreferences {
           : chatModels[0]?.id || ''
         return {
           id,
-          name: PROVIDER_LABELS[id] || overlay.name || runtimeProvider?.name || id,
+          name: overlay.name || PROVIDER_LABELS[id] || runtimeProvider?.name || id,
           type,
           configured: Boolean(credentials[id]) || modelRuntime.hasConfiguredAuth(id),
           enabled: !disabledProviders.has(id),
@@ -825,7 +825,7 @@ export class ProviderPreferences {
 
     const providerOverlay = { ...(existingOverlay.providers?.[provider] || {}) }
     const providerName = String(input.providerName || '').trim()
-    if (providerName && !KNOWN_PROVIDERS.includes(provider)) providerOverlay.name = providerName
+    if (providerName) providerOverlay.name = providerName
     const requestedApi = PROVIDER_API_IDS.has(input.api) ? input.api : ''
     const effectiveApi = requestedApi || String(providerOverlay.api || '')
     // 持久化前按协议归一化 Base URL：anthropic-messages 剥掉尾部 /v1（防 /v1/v1）。

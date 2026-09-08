@@ -95,7 +95,9 @@ export function ModelsSettings({
     setManageOpen(open)
     window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
   }
-  // 从列表/摘要卡进入向导：复用连接数据，但仍从 Base URL 步骤开始，便于检查端点。
+  // 从列表进入连接编辑弹窗；摘要卡仍进入向导以便直接切换默认模型。
+  const openProviderEditorFor = (provider: ProviderConfig) =>
+    setProviderModal({ providerType: provider.type, provider })
   const openWizardFor = (provider: ProviderConfig) =>
     setWizard({ providerId: provider.id, providerType: provider.type })
 
@@ -143,7 +145,7 @@ export function ModelsSettings({
             providers={config.providers}
             defaultProviderId={defaultProviderId}
             toggling={settings.toggling}
-            onConfigure={(provider) => openWizardFor(provider)}
+            onConfigure={openProviderEditorFor}
             onToggle={settings.toggleProvider}
             onDelete={settings.deleteProvider}
             onAddCustom={() => setProviderModal({ providerType: 'chat' })}
