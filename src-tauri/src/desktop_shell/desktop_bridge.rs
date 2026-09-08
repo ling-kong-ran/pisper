@@ -627,6 +627,7 @@ mod shell_reveal {
     }
 
     /// CreateProcessW 启动 explorer.exe "<folder>"（打开目录的唯一可靠机制，见 open_dir 注释）。
+    #[cfg(windows)]
     fn launch_explorer(folder: &str) -> Result<(), String> {
         // explorer 命令行参数统一用反斜杠（新嵌入版 Explorer 对正斜杠路径
         // 会静默回退到打开「文档」）；Windows 路径中 `/` 只会作为分隔符出现。
@@ -659,6 +660,7 @@ mod shell_reveal {
     }
 
     /// explore 动词（兜底路径；在部分构建上是静默 no-op，仅作最后手段）。
+    #[cfg(windows)]
     fn open_dir_via_explore_verb(path: &Path) -> Result<(), String> {
         let file_string = HSTRING::from(path);
         let class_string = HSTRING::from("folder");
