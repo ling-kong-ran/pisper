@@ -4,6 +4,7 @@ import {
   Check,
   ChevronRight,
   FileCode2,
+  Info,
   LoaderCircle,
   Pencil,
   Plus,
@@ -33,6 +34,7 @@ import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { Button } from '@/components/ui/button'
 
 import { FieldLabel } from '@/components/ui/field'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type Translate = (message: string, values?: I18nValues) => string
 type MemoryType = 'concept' | 'file' | 'risk' | 'preference' | 'decision' | 'fact' | 'task'
@@ -541,10 +543,17 @@ export function MemoryPage({
           </AppCardHeader>
           {autoApproveConfidence !== null && (
             <div className="memory-auto-approve-row [&_label]:flex [&_label]:min-w-0 [&_label]:flex-col [&_label]:gap-[2px] [&_label_span]:text-[12px] [&_label_span]:font-[600] [&_label_small]:text-[var(--text-muted)] [&_label_small]:text-[10px] [&_label_small]:leading-[1.4] flex items-center justify-between gap-[10px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:8px_0_10px]">
-              <label>
+              <div className="flex items-center justify-center gap-1">
                 <span>{t('memory:memoryPage.autoApproveThreshold')}</span>
-                <small>{t('memory:memoryPage.autoApproveThresholdHint')}</small>
-              </label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info size={16} />
+                  </TooltipTrigger>
+                  <TooltipContent align="center" side="top">
+                    {t('memory:memoryPage.autoApproveThresholdHint')}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <span className="memory-auto-approve-input [&_input]:w-[64px] [&_input]:[border:1px_solid_var(--stroke-soft)] [&_input]:rounded-[6px] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[4px_6px] [&_input]:text-[var(--text)] [&_input]:text-[12px] [&_input]:text-right [&_em]:text-[var(--text-muted)] [&_em]:text-[11px] [&_em]:[font-style:normal] flex flex-none items-center gap-[5px]">
                 <input
                   type="number"
@@ -570,7 +579,7 @@ export function MemoryPage({
               </span>
             </div>
           )}
-          <div className="flex max-h-[300px] flex-col gap-[8px] overflow-auto">
+          <div className="flex max-h-[300px] flex-col gap-[8px] overflow-auto mt-2">
             {(data.candidates || []).map((candidate) => (
               <div
                 className="memory-candidate [&_>_strong]:text-[12px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[11px] [&_>_span]:leading-[1.45] [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[11px] [&_>_small]:leading-[1.45] [&_>_div]:flex [&_>_div]:gap-[6px] [&_button]:inline-flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:[border:1px_solid_var(--stroke-soft)] [&_button]:rounded-[6px] [&_button]:bg-transparent [&_button]:p-[4px_7px] [&_button]:text-[var(--text)] [&_button]:text-[11px] [&_button.danger]:text-[var(--danger)] flex flex-col gap-[5px] [border:1px_solid_var(--stroke-soft)] rounded-[8px] bg-[var(--surface-muted)] [padding:8px]"

@@ -776,7 +776,7 @@ function App() {
               />
             )}
             <div
-              className={`page-content [&.page-chat]:flex [&.page-chat]:overflow-hidden [&.page-chat]:p-[0_18px_14px] [&.page-workflowCreate]:[padding-inline:24px] min-[651px]:[[data-density='compact']_&]:pb-[14px] max-[900px]:p-[0_16px_18px] max-[650px]:overflow-x-hidden max-[650px]:[&.page-chat]:p-[0_8px_8px] max-[650px]:[&.page-workflowCreate]:overflow-auto flex-1 min-h-0 overflow-auto [padding:0_max(24px,_calc((100%_-_1320px)_/_2))_24px] [scrollbar-color:var(--control-muted)_transparent] [animation:page-in_var(--d2)_var(--ease-out)] page-${page}`}
+              className={`page-content [&.page-chat]:flex [&.page-chat]:overflow-hidden p-[0_18px_14px] [&.page-workflowCreate]:[padding-inline:24px] min-[651px]:[[data-density='compact']_&]:pb-[14px] max-[900px]:p-[0_16px_18px] max-[650px]:overflow-x-hidden max-[650px]:[&.page-chat]:p-[0_8px_8px] max-[650px]:[&.page-workflowCreate]:overflow-auto flex-1 min-h-0 overflow-auto  [scrollbar-color:var(--control-muted)_transparent] [animation:page-in_var(--d2)_var(--ease-out)] page-${page}`}
               key={page}
             >
               <Outlet context={routeContext} />

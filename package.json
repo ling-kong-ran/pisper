@@ -62,7 +62,7 @@
     "@tauri-apps/api": "^2.11.1",
     "@tencent-connect/qqbot-connector": "^1.2.0",
     "html-void-elements": "3.0.0",
-    "officeparser": "^7.3.0",
+    "officeparser": "^6.0.7",
     "openai": "^6.26.0",
     "parse5": "7.3.0",
     "playwright-core": "^1.61.1",
