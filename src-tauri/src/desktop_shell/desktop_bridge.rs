@@ -180,15 +180,54 @@ fn write_update_log(app: &AppHandle, channel: &str, message: &str) {
     );
 }
 
-/// 记录本地路径 reveal 的每次尝试（含成功）。
-/// opener 插件可能吞掉部分系统 Shell 错误后返回成功，没有这份日志就无法
-/// 区分用户反馈的「点击无反应」发生在桥接层还是系统 Shell 层。
+/// 在系统调用之前记录请求；主日志不可写时把原因和请求写入系统临时目录。
 fn log_local_reveal(app: &AppHandle, message: &str) {
-    append_app_log(
-        app,
-        "local-reveal.log",
-        &format!("{} {message}", checked_at()),
-    );
+    let primary = app
+        .path()
+        .app_log_dir()
+        .map(|directory| directory.join("local-reveal.log"))
+        .map_err(|error| format!("无法获取应用日志目录：{error}"));
+    let fallback = std::env::temp_dir()
+        .join(&app.config().identifier)
+        .join("logs")
+        .join("local-reveal.log");
+    let line = format!("{} {message}", checked_at());
+    if let Err(error) = append_local_reveal_log(primary, &fallback, &line) {
+        eprintln!("[local-reveal] {error}");
+    }
+}
+
+fn append_reveal_log_line(path: &Path, line: &str) -> Result<(), String> {
+    let append = || -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            create_dir_all(parent)?;
+        }
+        let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+        // 路径和系统错误可能含换行，保持一次请求对应一行便于排查。
+        writeln!(file, "{}", line.replace('\r', "\\r").replace('\n', "\\n"))
+    };
+    append().map_err(|error| format!("写入日志 {} 失败：{error}", path.display()))
+}
+
+fn append_local_reveal_log(
+    primary: Result<PathBuf, String>,
+    fallback: &Path,
+    line: &str,
+) -> Result<PathBuf, String> {
+    let original_error = match primary {
+        Ok(path) => match append_reveal_log_line(&path, line) {
+            Ok(()) => return Ok(path),
+            Err(error) => error,
+        },
+        Err(error) => error,
+    };
+    eprintln!("[local-reveal] {original_error}");
+    append_reveal_log_line(
+        fallback,
+        &format!("{line} | log-fallback: {original_error}"),
+    )
+    .map_err(|error| format!("{original_error}; {error}"))?;
+    Ok(fallback.to_path_buf())
 }
 
 pub(crate) fn log_component_update(app: &AppHandle, message: &str) {
@@ -705,6 +744,14 @@ mod shell_reveal {
 
 #[tauri::command]
 pub fn desktop_reveal_path(app: AppHandle, path: String) -> Result<bool, String> {
+    log_local_reveal(
+        &app,
+        &format!(
+            "request desktop={} pid={} path={path:?}",
+            env!("PISPER_BUNDLED_DESKTOP_VERSION"),
+            std::process::id()
+        ),
+    );
     let requested = path;
     let target = match resolve_reveal_target(&requested) {
         Ok(target) => target,
@@ -920,10 +967,57 @@ pub fn desktop_show_notification(app: AppHandle, input: NotificationInput) -> No
 #[cfg(test)]
 mod tests {
     use super::{
-        canonical_local_path, cleanup_open_assets_at, is_volume_root, nearest_existing_ancestor,
-        resolve_reveal_target, RevealTarget,
+        append_local_reveal_log, canonical_local_path, cleanup_open_assets_at, is_volume_root,
+        nearest_existing_ancestor, resolve_reveal_target, RevealTarget,
     };
     use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn local_reveal_log_creates_primary_and_falls_back_with_error_details() {
+        let root = std::env::temp_dir().join(format!("pisper-reveal-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let primary = root.join("primary").join("local-reveal.log");
+        let fallback = root.join("fallback").join("local-reveal.log");
+        let target = append_local_reveal_log(Ok(primary.clone()), &fallback, "request").unwrap();
+        assert_eq!(target, primary);
+        assert!(!fallback.exists());
+        append_local_reveal_log(Ok(primary.clone()), &fallback, "reveal-ok").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&primary).unwrap(),
+            "request\nreveal-ok\n"
+        );
+
+        // 用普通文件占住目录位置稳定制造写入失败，避免依赖各平台的权限语义。
+        let blocked = root.join("blocked");
+        std::fs::write(&blocked, b"not a directory").unwrap();
+        let failed_primary = blocked.join("local-reveal.log");
+        let target = append_local_reveal_log(
+            Ok(failed_primary.clone()),
+            &fallback,
+            "request path=bad\r\nline",
+        )
+        .unwrap();
+        assert_eq!(target, fallback);
+        let content = std::fs::read_to_string(&fallback).unwrap();
+        assert!(content.contains("log-fallback:"));
+        assert!(content.contains(&failed_primary.display().to_string()));
+        assert!(content.contains("request path=bad\\r\\nline"));
+        assert_eq!(content.lines().count(), 1);
+
+        append_local_reveal_log(Err("no app log directory".into()), &fallback, "request").unwrap();
+        assert!(std::fs::read_to_string(&fallback)
+            .unwrap()
+            .contains("no app log directory"));
+        let error = append_local_reveal_log(
+            Err("no app log directory".into()),
+            &failed_primary,
+            "request",
+        )
+        .unwrap_err();
+        assert!(error.contains("no app log directory"));
+        assert!(error.contains(&failed_primary.display().to_string()));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn local_path_bridge_accepts_only_existing_absolute_paths() {

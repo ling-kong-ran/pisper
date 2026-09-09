@@ -27,6 +27,7 @@ import {
 } from '@/lib/streamdown'
 import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
 import { decodeLocalFileHref, remarkLocalFileLinks } from '@/lib/local-file-links'
+import { LocalPathRevealError, requestLocalPathReveal } from '@/lib/local-path-reveal'
 import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
 import { cn } from '@/lib/utils'
 
@@ -79,23 +80,39 @@ function MarkdownLink({
   ...props
 }: ComponentProps<'a'> & { node?: unknown }) {
   const { t } = useI18n()
+  const [revealPending, setRevealPending] = useState(false)
+  const [revealFailure, setRevealFailure] = useState('')
   const content = textContent(label).trim() ? label : href
   if (!href) return <span className={cn('markdown-link', className)}>{content}</span>
 
   const localFile = decodeLocalFileHref(href)
   if (localFile) {
     const title = t('common:markdownMessage.revealLocalPath', { path: localFile.path })
-    const revealPath = typeof window === 'undefined' ? undefined : window.pisperDesktop?.revealPath
-    if (!revealPath) {
-      return (
-        <span
-          className={cn('markdown-link', className)}
-          data-local-path={localFile.path}
-          title={title}
-        >
-          {content}
-        </span>
-      )
+    const reveal = async () => {
+      setRevealPending(true)
+      setRevealFailure('')
+      try {
+        // 点击时再取桥接，兼容页面先渲染、桌面桥接后就绪的情况。
+        await requestLocalPathReveal(localFile.path, window.pisperDesktop?.revealPath)
+        emitLocalRevealNotice(
+          t('common:markdownMessage.revealLocalPathOk', { path: localFile.path }),
+          'info',
+        )
+      } catch (error: unknown) {
+        const message =
+          error instanceof LocalPathRevealError && error.reason === 'unavailable'
+            ? t('common:markdownMessage.revealLocalPathUnavailable')
+            : error instanceof LocalPathRevealError && error.reason === 'timeout'
+              ? t('common:markdownMessage.revealLocalPathTimeout')
+              : t('common:markdownMessage.revealLocalPathFailed', { path: localFile.path })
+        const detail = error instanceof Error ? error.message : String(error)
+        console.error('[markdown] 无法在文件管理器中显示本地路径。', error)
+        // 错误留在链接旁：即使 Toast 监听尚未挂载，也能看到原因并复制路径自助定位。
+        setRevealFailure(`${message} (${detail})`)
+        emitLocalRevealNotice(message, 'error')
+      } finally {
+        setRevealPending(false)
+      }
     }
     return (
       <>
@@ -107,28 +124,29 @@ function MarkdownLink({
           )}
           data-local-path={localFile.path}
           title={title}
-          onClick={() => {
-            void revealPath(localFile.path)
-              .then(() => {
-                // 成功也给出反馈：上游 opener 插件可能吞掉系统 Shell 错误后仍返回成功，
-                // 没有反馈时「窗口没出现」将无法判断是桥接层还是系统层的问题。
-                emitLocalRevealNotice(
-                  t('common:markdownMessage.revealLocalPathOk', { path: localFile.path }),
-                  'info',
-                )
-              })
-              .catch((error: unknown) => {
-                console.error('[markdown] 无法在文件管理器中显示本地路径。', error)
-                // 失败必须可见，避免用户遭遇「点了没反应」却无从排查。
-                emitLocalRevealNotice(
-                  t('common:markdownMessage.revealLocalPathFailed', { path: localFile.path }),
-                  'error',
-                )
-              })
-          }}
+          disabled={revealPending}
+          aria-busy={revealPending || undefined}
+          onClick={() => void reveal()}
         >
           {content}
         </button>
+        {revealFailure && (
+          <span role="alert" className="ml-2 text-sm text-destructive">
+            {revealFailure}{' '}
+            <button
+              type="button"
+              className="cursor-pointer underline underline-offset-2"
+              onClick={() => {
+                void copyText(localFile.path).then(
+                  () => emitLocalRevealNotice(t('common:markdownMessage.copied'), 'info'),
+                  () => emitLocalRevealNotice(t('common:markdownMessage.copyPathFailed'), 'error'),
+                )
+              }}
+            >
+              {t('common:markdownMessage.copyPath')}
+            </button>
+          </span>
+        )}
       </>
     )
   }
