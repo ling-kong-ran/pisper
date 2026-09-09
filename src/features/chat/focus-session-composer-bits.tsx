@@ -1,5 +1,6 @@
 // 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、状态指示灯、
 // 手动压缩按钮与发送/停止按钮。从 FocusSession.tsx 拆出，样式逐字保留。
+import { lazy, Suspense } from 'react'
 import { Braces, Minimize2, RefreshCw, Send, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -7,6 +8,11 @@ import { QueueSection } from '@/components/ai-elements/queue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
+
+// 状态文案切换时的一次性光泽扫过（ShinyText 动画只跑一遍），懒加载避免进入主包。
+const ShinyText = lazy(() =>
+  import('@/components/react-bits/ShinyText').then((module) => ({ default: module.ShinyText })),
+)
 
 export function QueuedInputsTray({
   queuedInputs,
@@ -121,11 +127,17 @@ export function ComposerStatusPill({
     >
       <i aria-hidden="true" />
       <span className="min-w-0 max-w-[min(420px,60vw)] overflow-hidden text-ellipsis whitespace-nowrap">
-        {compaction?.active
-          ? t('chat:focusSession.compactingContext')
-          : streaming
-            ? statusLabel || t('chat:focusSession.running')
-            : t('chat:focusSession.waitingForInput')}
+        {compaction?.active ? (
+          t('chat:focusSession.compactingContext')
+        ) : streaming ? (
+          <Suspense fallback={statusLabel || t('chat:focusSession.running')}>
+            <ShinyText key={statusLabel || 'running'}>
+              {statusLabel || t('chat:focusSession.running')}
+            </ShinyText>
+          </Suspense>
+        ) : (
+          t('chat:focusSession.waitingForInput')
+        )}
       </span>
     </div>
   )
