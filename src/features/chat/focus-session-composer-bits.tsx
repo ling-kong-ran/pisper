@@ -106,9 +106,11 @@ export function ComposerResourceChip({
 export function ComposerStatusPill({
   compaction,
   streaming,
+  statusLabel,
 }: {
   compaction?: EntityRecord | null
   streaming?: boolean
+  statusLabel?: string
 }) {
   const { t } = useI18n()
   return (
@@ -118,11 +120,11 @@ export function ComposerStatusPill({
       aria-live="polite"
     >
       <i aria-hidden="true" />
-      <span>
+      <span className="min-w-0 max-w-[min(420px,60vw)] overflow-hidden text-ellipsis whitespace-nowrap">
         {compaction?.active
           ? t('chat:focusSession.compactingContext')
           : streaming
-            ? t('chat:focusSession.running')
+            ? statusLabel || t('chat:focusSession.running')
             : t('chat:focusSession.waitingForInput')}
       </span>
     </div>

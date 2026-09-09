@@ -72,12 +72,17 @@ export function usePromptCommands({
       teamMode = false,
       goalTokenBudget: number | null = null,
       invocation: ResourceInvocation | null = null,
+      // 重试模式：乐观消息截掉最后一轮，流改走 /retry（服务端原地重跑该轮）。
+      options: { retryFromIndex?: number } = {},
     ) => {
+      const retryFromIndex = options.retryFromIndex
       const prompt =
-        text.trim() ||
-        (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '') ||
-        (invocation ? invocation.resourceName : '')
-      if (!prompt && !invocation) return
+        retryFromIndex != null
+          ? text
+          : text.trim() ||
+            (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '') ||
+            (invocation ? invocation.resourceName : '')
+      if (!prompt && !invocation && retryFromIndex == null) return
       let sessionId = requestedSessionId
       if (!sessionId) sessionId = await createSession()
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
@@ -250,7 +255,9 @@ export function usePromptCommands({
         return {
           ...current,
           messages: [
-            ...current.messages,
+            ...(retryFromIndex == null
+              ? current.messages
+              : current.messages.slice(0, retryFromIndex)),
             userMessage,
             { id: agentId, role: 'agent', text: '', streaming: true },
           ],
@@ -295,18 +302,22 @@ export function usePromptCommands({
       let streamFailed = false
 
       try {
-        await chatApi.openStream(
-          {
-            sessionId,
-            message: prompt,
-            attachments,
-            goalMode,
-            teamMode,
-            goalTokenBudget,
-            invocation,
-          },
-          dispatchStreamEvent,
-        )
+        if (retryFromIndex != null) {
+          await chatApi.retryLastTurn(sessionId, dispatchStreamEvent)
+        } else {
+          await chatApi.openStream(
+            {
+              sessionId,
+              message: prompt,
+              attachments,
+              goalMode,
+              teamMode,
+              goalTokenBudget,
+              invocation,
+            },
+            dispatchStreamEvent,
+          )
+        }
         if (!ownsStream()) return
         streamState.responseRenderingStreaming = false
         streamState.terminal = true
@@ -647,5 +658,35 @@ export function usePromptCommands({
     [notify, t, updateSessionState],
   )
 
-  return { sendPrompt, queuePrompt, withdrawQueuedInput, abort }
+  // 重试最后一轮：乐观截掉最后一轮（该用户消息起的尾部），复用同一条流式管道原地重跑；
+  // 服务端负责树导航与真实输入恢复，前端的 text/attachments 只用于乐观气泡。
+  const retryLastTurn = useCallback(
+    async (sessionId: string) => {
+      const current = sessionStatesRef.current[sessionId]
+      if (!current || current.streaming) return
+      const messages = current.messages || []
+      let userIndex = -1
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        if (messages[index]?.role === 'user') {
+          userIndex = index
+          break
+        }
+      }
+      if (userIndex < 0) return
+      const source = messages[userIndex]
+      await sendPrompt(
+        source.text || '',
+        sessionId,
+        source.attachments || [],
+        false,
+        false,
+        null,
+        null,
+        { retryFromIndex: userIndex },
+      )
+    },
+    [sendPrompt, sessionStatesRef],
+  )
+
+  return { sendPrompt, retryLastTurn, queuePrompt, withdrawQueuedInput, abort }
 }

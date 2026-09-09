@@ -263,6 +263,7 @@
   "chatMessage.deriveFromHere": "Continue from here",
   "chatMessage.continueFromHere": "Continue from here",
   "chatMessage.createChildChat": "Open a separate chat from here",
+  "chatMessage.retry": "Retry",
   "chatMessage.labelThisTurn": "Mark this turn",
   "chatMessage.fileAttachment": "File attachment",
   "chatMessage.fullScreenImagePreview": "Full-screen image preview",

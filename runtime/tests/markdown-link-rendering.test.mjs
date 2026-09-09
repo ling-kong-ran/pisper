@@ -237,7 +237,7 @@ test('production Markdown surfaces delegate to one Streamdown adapter', async ()
   assert.match(pluginConfig, /\['github-dark', 'github-dark'\]/)
   assert.match(pluginConfig, /\{ cjk, code: streamdownCode, math \}/)
   // Focus 消息渲染带 cwd 传参（本地文件相对链接的解析基址）
-  assert.match(chat, /<MarkdownMessage cwd=\{cwd\} streaming=\{streaming\}>/)
+  assert.match(chat, /<MarkdownMessage[^>]*cwd=\{cwd\}[^>]*streaming=\{streaming\}[^>]*>/)
   assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
   assert.match(reasoning, /<MarkdownMessage streaming=\{isStreaming\}>/)
   assert.match(message, /<MarkdownMessage/)

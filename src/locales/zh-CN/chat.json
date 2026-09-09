@@ -263,6 +263,7 @@
   "chatMessage.deriveFromHere": "从此处继续",
   "chatMessage.continueFromHere": "从此处继续",
   "chatMessage.createChildChat": "从此处另开对话",
+  "chatMessage.retry": "重试",
   "chatMessage.labelThisTurn": "标记此轮回复",
   "chatMessage.fileAttachment": "文件附件",
   "chatMessage.fullScreenImagePreview": "图片大屏预览",

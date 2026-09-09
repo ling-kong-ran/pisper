@@ -2,7 +2,7 @@
 // 拆分说明：props 类型在 focus-session-props，composer 状态与提交逻辑在
 // use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
 // focus-session-composer-bits；composer 主体与发送行为约定保留在本文件。
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { AudioLines, Braces, Command, FolderOpen, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
@@ -11,6 +11,7 @@ import { workspaceName } from '@/lib/format'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
+import { runActivityStatusLabel } from './AgentRunActivity'
 import { AttachmentPicker } from './AttachmentPicker'
 import { AttachmentTray } from './AttachmentTray'
 import { ChatResourcePicker } from './ChatResourcePicker'
@@ -142,6 +143,7 @@ export const FocusSession = memo(function FocusSession({
   onRename,
   onBranchFromHere,
   onCreateChildSession,
+  onRetryLastTurn,
   onTreeNavigated,
   onSplitLeft,
   onSplitRight,
@@ -195,6 +197,36 @@ export const FocusSession = memo(function FocusSession({
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
+  // 呼吸灯胶囊直接复用活动区的实时状态推导：运行中显示「正在推进任务」等动态文案。
+  const composerStatusLabel = useMemo(
+    () =>
+      runActivityStatusLabel(
+        {
+          streaming,
+          text: messages.at(-1)?.role === 'agent' ? messages.at(-1)?.text || '' : '',
+          currentActivity,
+          thinkingText,
+          compaction,
+          error,
+          stopped: runStopped,
+          notice: runNotice,
+          lastActivityAt,
+        },
+        t,
+      ),
+    [
+      streaming,
+      messages,
+      currentActivity,
+      thinkingText,
+      compaction,
+      error,
+      runStopped,
+      runNotice,
+      lastActivityAt,
+      t,
+    ],
+  )
   const toolTrayId = `composer-tool-tray-${session.id}`
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
@@ -511,11 +543,12 @@ export const FocusSession = memo(function FocusSession({
         onLoadOlder={onLoadOlder}
         onBranchFromHere={onBranchFromHere}
         onCreateChildSession={onCreateChildSession}
+        onRetryLastTurn={onRetryLastTurn}
         onPromptSelect={applyWelcomeChip}
         onWorkspace={onWorkspace}
       />
       <form
-        className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(900px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(960px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
+        className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(1040px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(1040px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
         onSubmit={submit}
       >
         <ToolApproval approvals={approvals} onResolve={onApproval} />
@@ -534,7 +567,11 @@ export const FocusSession = memo(function FocusSession({
         {selection.attachmentError && (
           <span className="text-[var(--danger)] text-[13px]">{selection.attachmentError}</span>
         )}
-        <ComposerStatusPill compaction={compaction} streaming={streaming} />
+        <ComposerStatusPill
+          compaction={compaction}
+          streaming={streaming}
+          statusLabel={composerStatusLabel}
+        />
         <div className="focus-composer [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_3px_var(--focus-ring)] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[48px] [&_textarea]:max-h-[220px] [&_textarea]:[align-self:start] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:p-[5px_6px_8px] [&_textarea]:text-[var(--text)] [&_textarea]:text-[14px] [&_textarea]:leading-[1.5] [.focus-session.has-conversation_&]:shadow-[0_10px_28px_-24px_var(--shadow-strong)] [.focus-session.has-conversation_&_textarea]:min-h-[50px] [.focus-session.has-conversation_&_textarea]:p-[6px_7px_8px] dark:bg-[var(--solid)] dark:text-[var(--text)] @max-[700px]:grid-cols-[70px_36px_36px_auto_minmax(0,1fr)_36px] @max-[700px]:grid-rows-[minmax(48px,1fr)_36px] relative flex min-w-0 flex-col items-stretch gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:8px] shadow-[0_14px_34px_-24px_var(--shadow-strong)] [transition:border-color_var(--d1)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out)]">
           <ComposerCommandMenu
             sessionId={session.id}

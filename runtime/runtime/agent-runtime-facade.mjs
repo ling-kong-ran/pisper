@@ -106,6 +106,10 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.navigateSessionTree(id, targetEntryId, options)
   }
 
+  prepareLastTurnRetry(id) {
+    return this.sessionLifecycle.prepareLastTurnRetry(id)
+  }
+
   setSessionTreeLabel(id, targetEntryId, label) {
     return this.sessionLifecycle.setSessionTreeLabel(id, targetEntryId, label)
   }

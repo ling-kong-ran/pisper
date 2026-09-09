@@ -311,6 +311,7 @@ function SessionPanel({
       onCreateChildSession: (boundaryEntryId: string) => {
         if (session) return context?.createChildSession(session, boundaryEntryId)
       },
+      onRetryLastTurn: () => context?.retryLastTurn(sessionId),
       onTreeNavigated: () => context?.reloadSessionBranch(sessionId),
       onSplitLeft: () => context?.splitDockPanel(panelId, 'left'),
       onSplitRight: () => context?.splitDockPanel(panelId, 'right'),

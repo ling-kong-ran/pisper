@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type RefObject,
@@ -31,6 +32,7 @@ type VirtualMessageTranscriptProps = {
   onTargetLocated: (entryId: string) => void
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  onRetryLastTurn: () => Promise<void> | void
 }
 
 function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEntry) {
@@ -87,11 +89,23 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   onTargetLocated,
   onBranchFromHere,
   onCreateChildSession,
+  onRetryLastTurn,
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [highlightedEntryId, setHighlightedEntryId] = useState('')
   const messagesRef = useRef(messages)
   messagesRef.current = messages
+  // 每条消息记录最近的前置用户消息 ID，供最新一条助手消息上的「重试」按钮重新发送该轮输入；
+  // 旧节点不提供重试——那会把历史提问追加到会话末尾，语义与「从此处继续/另开对话」冲突。
+  const retryUserIdByIndex = useMemo(() => {
+    const result: (string | undefined)[] = Array.from({ length: messages.length })
+    let lastUserId: string | undefined
+    for (let index = 0; index < messages.length; index += 1) {
+      if (messages[index]?.role === 'user') lastUserId = messages[index].id
+      result[index] = lastUserId
+    }
+    return result
+  }, [messages])
   const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
   const getItemKey = useCallback(
     (index: number) => messagesRef.current[index]?.id ?? `transcript-message-${index}`,
@@ -187,6 +201,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
               sessionStreaming={streaming}
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}
+              retryUserMessageId={isLatestAgent ? retryUserIdByIndex[virtualItem.index] : undefined}
+              onRetryLastTurn={onRetryLastTurn}
             />
           </div>
         )

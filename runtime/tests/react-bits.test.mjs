@@ -78,7 +78,6 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   assert.match(welcome, /<WelcomeBrandStage \/>/)
   assert.match(welcome, /<BlurText/)
   assert.match(welcome, /<TargetCursor/)
-  assert.match(activity, /import\('@\/components\/react-bits\/ShinyText'\)/)
   assert.match(activity, /import\('@\/components\/react-bits\/AnimatedList'\)/)
   assert.match(activity, /<Suspense fallback=\{activityCards\}>/)
   assert.match(activity, /<ActivityCard/)

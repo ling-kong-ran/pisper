@@ -773,6 +773,50 @@ export class SessionLifecycle {
     }
   }
 
+  // 重试最后一轮：沿活跃路径向上找到最近的用户消息条目，把活跃叶子撤回到该轮
+  // 之前的边界（旧回合保留在树分支中，不追加重复用户消息），并取出该轮的
+  // 文本与图片附件，由 HTTP 层重新走 streamPrompt。
+  async prepareLastTurnRetry(id) {
+    const sessionId = String(id || '').trim()
+    if (!sessionId) throw new Error('会话无效。')
+    const value = await this.getOrCreateSession(sessionId)
+    const manager = value.session.sessionManager
+    let entry = null
+    const leafId = manager.getLeafId()
+    if (leafId) entry = manager.getEntry(leafId)
+    let userEntry = null
+    while (entry) {
+      if (entry.type === 'message' && entry.message?.role === 'user') {
+        userEntry = entry
+        break
+      }
+      entry = entry.parentId ? manager.getEntry(entry.parentId) : null
+    }
+    if (!userEntry) throw new Error('没有可重试的用户消息。')
+    const parentId = userEntry.parentId
+    if (!parentId || !manager.getEntry(parentId)) throw new Error('无法定位重试位置。')
+    const content = userEntry.message.content
+    const parts = Array.isArray(content) ? content : [{ type: 'text', text: String(content ?? '') }]
+    const message = parts
+      .filter((part) => part?.type === 'text')
+      .map((part) => String(part.text || ''))
+      .join('\n')
+      .trim()
+    const attachments = parts
+      .filter((part) => part?.type === 'image' && part.data)
+      .map((part, index) => ({
+        id: `retry-image-${index}`,
+        kind: 'image',
+        name: `image-${index + 1}`,
+        mimeType: part.mimeType || 'image/png',
+        data: part.data,
+      }))
+    if (!message && !attachments.length) throw new Error('没有可重试的用户消息。')
+    // 复用树导航的校验与缓存失效逻辑；不在此处创建摘要。
+    await this.navigateSessionTree(sessionId, parentId, { summarize: false, includeTree: false })
+    return { message, attachments }
+  }
+
   // 设置节点标签：空标签 = 删除（appendLabelChange 写墓碑）；返回更新后的树。
   async setSessionTreeLabel(id, targetEntryId, label) {
     const sessionId = String(id || '').trim()

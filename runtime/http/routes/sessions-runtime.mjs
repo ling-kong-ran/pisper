@@ -512,6 +512,23 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/sessions/:sessionId/retry',
+    async handler({ runtime, req, params, startSse, sendSse, startRun }) {
+      // 先完成树导航与输入恢复，再开启 SSE：无可重试内容时按普通错误返回。
+      const prepared = await runtime.prepareLastTurnRetry(params.sessionId)
+      startSse()
+      startRun({ kind: 'chat', sessionId: params.sessionId })
+      await runtime.streamPrompt({
+        sessionId: params.sessionId,
+        message: prepared.message,
+        attachments: prepared.attachments,
+        mobileClient: isMobileAppRequest(runtime, req),
+        send: sendSse,
+      })
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/chat',
     async handler({ runtime, req, body, json, startSse, sendSse, startRun }) {
       const input = await body()

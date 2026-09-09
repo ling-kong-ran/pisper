@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  AlertTriangle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
   GitFork,
   MessageSquarePlus,
   LoaderCircle,
+  RotateCcw,
   Tag,
   Trash2,
   X,
@@ -22,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
@@ -406,6 +409,9 @@ type FocusChatMessageProps = {
   sessionStreaming?: boolean
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  /** 最近一条前置用户消息 ID：存在时最新助手消息上展示重试按钮。 */
+  retryUserMessageId?: string
+  onRetryLastTurn: () => Promise<void> | void
 }
 
 function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
@@ -418,7 +424,9 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.cwd === next.cwd &&
     prev.sessionStreaming === next.sessionStreaming &&
     prev.onBranchFromHere === next.onBranchFromHere &&
-    prev.onCreateChildSession === next.onCreateChildSession
+    prev.onCreateChildSession === next.onCreateChildSession &&
+    prev.retryUserMessageId === next.retryUserMessageId &&
+    prev.onRetryLastTurn === next.onRetryLastTurn
   )
 }
 
@@ -432,10 +440,13 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   sessionStreaming,
   onBranchFromHere,
   onCreateChildSession,
+  retryUserMessageId,
+  onRetryLastTurn,
 }: FocusChatMessageProps) {
   const { t } = useI18n()
   const [branching, setBranching] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
@@ -443,29 +454,60 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   return (
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
-      className={`message [&.user]:items-end [&.user_>_span]:hidden [&.agent]:grid [&.agent]:grid-cols-[24px_minmax(0,1fr)] [&.agent]:[align-items:start] [&.agent]:gap-x-[12px] [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[5px] [&_>_span]:p-0 [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&.agent_>_span]:[grid-column:1] [&.agent_>_span]:[grid-row:1] [&.agent_>_span]:justify-center [&.agent_>_span]:pt-[4px] @max-[470px]:[&.agent]:grid-cols-[22px_minmax(0,1fr)] @max-[470px]:[&.agent]:gap-x-[9px] flex w-[min(900px,100%)] flex-col items-start gap-[6px] [margin:0_auto_30px] ${message.role}    ${message.error ? 'has-error' : ''}`}
+      className={cn(
+        'message mx-auto mb-8 w-full max-w-[1040px] min-w-0 gap-0',
+        message.role === 'agent' ? 'items-stretch' : 'items-end',
+        message.role,
+        message.error && 'has-error',
+      )}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
       data-pisper-streaming={streaming || undefined}
       data-pisper-error={message.error ? 'true' : undefined}
     >
-      <span>
-        {message.role === 'agent' ? (
+      {message.role === 'agent' && (
+        <span className="mb-3 flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
           <span
-            className="agent-message-mark [&[data-state='thinking']]:opacity-100 [&[data-state='thinking']]:[animation:agent-message-pulse_1.8s_ease-in-out_infinite] [&[data-state='waiting']]:opacity-[.9] grid w-[22px] h-[22px] place-items-center rounded-[var(--r-xs)] text-[var(--text-muted)] opacity-[.72] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]"
+            className="agent-message-mark grid size-[22px] place-items-center"
             data-state={agentState}
-            aria-label="Pisper"
+            aria-hidden="true"
           >
             <BrandLogo size={20} />
           </span>
-        ) : (
-          'You'
+          Pisper
+        </span>
+      )}
+      <div
+        className={cn(
+          'message-content relative min-w-0',
+          message.role === 'agent'
+            ? 'w-full'
+            : 'w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%]',
         )}
-      </span>
-      <div className="message-content [.message.agent_&]:w-full [.message.agent_&]:[grid-column:2] [.message.agent_&]:[grid-row:1] [.message.user_&]:w-[fit-content] [.message.user_&]:max-w-[76%] @max-[700px]:[.message.user_&]:max-w-[86%] @max-[470px]:[.message.user_&]:max-w-[92%] max-[650px]:[.message.user_&]:max-w-[86%] relative min-w-0">
+      >
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
+        {streaming && !displayText && !showRunActivity && (
+          // 首轮 SSE 事件到达前的空窗：只有头像会显得卡住，用三点动画表明正在工作。
+          <div
+            className="agent-thinking-dots [&_i]:w-[4px] [&_i]:h-[4px] [&_i]:rounded-[50%] [&_i]:bg-[var(--text-muted)] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-center gap-[3px] py-2"
+            aria-hidden="true"
+          >
+            <i />
+            <i />
+            <i />
+          </div>
+        )}
         {displayText && (
-          <MarkdownMessage cwd={cwd} streaming={streaming}>
+          <MarkdownMessage
+            cwd={cwd}
+            streaming={streaming}
+            className={cn(
+              'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
+              message.role === 'agent'
+                ? 'w-full py-1 leading-[1.75]'
+                : 'rounded-[22px] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.6] text-[var(--user-bubble-text)]',
+            )}
+          >
             {displayText}
           </MarkdownMessage>
         )}
@@ -473,76 +515,116 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           <MessageAttachments attachments={message.attachments} />
         )}
       </div>
-      {message.role === 'agent' && message.turnBoundaryEntryId && !streaming && (
-        <div
-          className="chat-history-actions [&_button]:grid [&_button]:w-[30px] [&_button]:h-[30px] [&_button]:min-h-[30px] [&_button]:place-items-center [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--solid)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--star-strong)] [&_button.danger:hover]:bg-[var(--danger-soft)] [&_button.danger:hover]:text-[var(--danger)] max-[650px]:pr-[4px] flex items-center gap-[2px] [padding-right:8px] message-actions"
-          style={{ gridColumn: 2, gridRow: 2, paddingRight: 0 }}
-        >
-          <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('chat:chatMessage.deriveFromHere')}
-                data-pisper-derive-entry={message.turnBoundaryEntryId}
-                disabled={branching || creatingChild || sessionStreaming}
-                onClick={async () => {
-                  const boundaryEntryId = message.turnBoundaryEntryId
-                  if (!boundaryEntryId) return
-                  setBranching(true)
-                  try {
-                    await onBranchFromHere(boundaryEntryId)
-                  } finally {
-                    setBranching(false)
-                  }
-                }}
-              >
-                {branching ? (
-                  <LoaderCircle className="animate-spin" size={14} />
-                ) : (
-                  <GitFork size={14} />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>
-              {t('chat:chatMessage.deriveFromHere')}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('chat:chatMessage.createChildChat')}
-                data-pisper-child-entry={message.turnBoundaryEntryId}
-                disabled={branching || creatingChild}
-                onClick={async () => {
-                  const boundaryEntryId = message.turnBoundaryEntryId
-                  if (!boundaryEntryId) return
-                  setCreatingChild(true)
-                  try {
-                    await onCreateChildSession(boundaryEntryId)
-                  } finally {
-                    setCreatingChild(false)
-                  }
-                }}
-              >
-                {creatingChild ? (
-                  <LoaderCircle className="animate-spin" size={14} />
-                ) : (
-                  <MessageSquarePlus size={14} />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>
-              {t('chat:chatMessage.createChildChat')}
-            </TooltipContent>
-          </Tooltip>
+      {message.error && fullText && !streaming && (
+        <div className="message-error-notice mt-3 flex items-start gap-1.5 text-[13px] leading-[1.5] text-[var(--danger)]">
+          <AlertTriangle size={13} className="mt-[3px] flex-none" />
+          <span className="min-w-0">{String(message.error)}</span>
         </div>
       )}
+      {message.role === 'agent' &&
+        !streaming &&
+        (message.turnBoundaryEntryId || retryUserMessageId) && (
+          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+            {message.turnBoundaryEntryId && (
+              <>
+                <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('chat:chatMessage.deriveFromHere')}
+                      data-pisper-derive-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild || sessionStreaming}
+                      onClick={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId) return
+                        setBranching(true)
+                        try {
+                          await onBranchFromHere(boundaryEntryId)
+                        } finally {
+                          setBranching(false)
+                        }
+                      }}
+                    >
+                      {branching ? (
+                        <LoaderCircle className="animate-spin" size={14} />
+                      ) : (
+                        <GitFork size={14} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    {t('chat:chatMessage.deriveFromHere')}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('chat:chatMessage.createChildChat')}
+                      data-pisper-child-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild}
+                      onClick={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId) return
+                        setCreatingChild(true)
+                        try {
+                          await onCreateChildSession(boundaryEntryId)
+                        } finally {
+                          setCreatingChild(false)
+                        }
+                      }}
+                    >
+                      {creatingChild ? (
+                        <LoaderCircle className="animate-spin" size={14} />
+                      ) : (
+                        <MessageSquarePlus size={14} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    {t('chat:chatMessage.createChildChat')}
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            )}
+            {retryUserMessageId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('chat:chatMessage.retry')}
+                    data-pisper-retry-message={retryUserMessageId}
+                    disabled={retrying || sessionStreaming}
+                    onClick={async () => {
+                      setRetrying(true)
+                      try {
+                        await onRetryLastTurn()
+                      } finally {
+                        setRetrying(false)
+                      }
+                    }}
+                  >
+                    {retrying ? (
+                      <LoaderCircle className="animate-spin" size={14} />
+                    ) : (
+                      <RotateCcw size={14} />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>
+                  {t('chat:chatMessage.retry')}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
     </AiMessage>
   )
 }, focusPropsEqual)

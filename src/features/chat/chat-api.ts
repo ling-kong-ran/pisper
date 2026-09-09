@@ -270,6 +270,21 @@ export const chatApi = {
     })
   },
 
+  // 重试最后一轮：服务端先把活跃叶子撤回上一轮边界，再复用同一 SSE 管道原地重跑。
+  retryLastTurn: async (sessionId: string, onEvent: StreamEventHandler) => {
+    await streamEventsWithResume({
+      open: async () => {
+        await waitForMobileRuntimeReady()
+        return fetch(`${sessionPath(sessionId)}/retry`, { method: 'POST' })
+      },
+      resume: async (runId, cursor) => {
+        await waitForMobileRuntimeReady()
+        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`)
+      },
+      onEvent,
+    })
+  },
+
   queueInput: (
     sessionId: string,
     message: string,

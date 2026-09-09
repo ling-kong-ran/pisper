@@ -391,7 +391,7 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(chatPage, /navigateSessionTree\(session\.id, boundaryEntryId, false\)/)
   assert.match(chatApi, /navigateSessionTreeTarget:/)
   assert.match(chatApi, /includeTree: false/)
-  assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 3)
+  assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 4)
   assert.doesNotMatch(
     chatMessage,
     /title=\{t\('chat:chatMessage\.(?:labelThisTurn|deriveFromHere)'\)\}/,

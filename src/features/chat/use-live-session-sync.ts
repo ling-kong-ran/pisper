@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { planFromPayloadOr } from '@/lib/plan-protocol'
 import { reconcileQueuedInputSnapshot } from '@/lib/session-state'
 import type { SessionStateUpdate } from '@/lib/session-state'
-import type { EntityRecord, SessionState, SessionSummary } from '@/types/chat'
+import type { ChatMessage, EntityRecord, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi, type ApiRecord } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { shouldPollLiveSession } from './live-session-sync'
@@ -33,6 +33,17 @@ type SessionSyncOptions = {
 
 export const MAX_FOCUS_MESSAGES = 200
 
+// 合并消息页时按 ID 复用内容完全一致的旧消息对象：SSE 结束后强制重拉历史，
+// 服务端返回的消息都是新对象，若直接替换会让每条消息的 memo 失效、可见行整体重渲染，
+// 表现为“整页刷一下”；保持引用不变即可让 FocusChatMessage 的 memo 命中跳过。
+function reuseStableMessages(current: ChatMessage[], incoming: ChatMessage[]) {
+  const currentById = new Map(current.map((message) => [message.id, message]))
+  return incoming.map((message) => {
+    const previous = currentById.get(message.id)
+    return previous && JSON.stringify(previous) === JSON.stringify(message) ? previous : message
+  })
+}
+
 // 合并消息页与现有消息：若当前起点早于（等于）新页起点，说明是向后翻页，
 // 保留前缀拼接；否则以新页为准。超出上限（MAX_FOCUS_MESSAGES）时从头部
 // 截断并同步前移 messageStart（保证“更早消息”游标仍准确）。
@@ -43,8 +54,11 @@ export function reconcileMessagePage(current: SessionState, data: ApiRecord) {
   const prefixLength = preservePrefix ? Math.max(0, incomingStart - currentStart) : 0
   let messageStart = preservePrefix ? currentStart : incomingStart
   let messages = preservePrefix
-    ? [...current.messages.slice(0, prefixLength), ...data.messages]
-    : data.messages
+    ? [
+        ...current.messages.slice(0, prefixLength),
+        ...reuseStableMessages(current.messages, data.messages),
+      ]
+    : reuseStableMessages(current.messages, data.messages)
   const overflow = Math.max(0, messages.length - MAX_FOCUS_MESSAGES)
   if (overflow) {
     messages = messages.slice(overflow)

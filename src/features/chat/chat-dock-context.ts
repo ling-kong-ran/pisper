@@ -41,6 +41,7 @@ export type ChatDockContextValue = {
     goalTokenBudget?: number | null,
     invocation?: ResourceInvocation | null,
   ) => Promise<void>
+  retryLastTurn: (sessionId: string) => Promise<void>
   queuePrompt: (
     value: string,
     sessionId: string,

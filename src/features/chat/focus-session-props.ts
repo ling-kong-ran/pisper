@@ -78,6 +78,7 @@ export type FocusSessionProps = {
   onRename: () => void
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  onRetryLastTurn: () => Promise<void> | void
   onTreeNavigated?: () => Promise<void> | void
   onSplitLeft: () => void
   onSplitRight: () => void

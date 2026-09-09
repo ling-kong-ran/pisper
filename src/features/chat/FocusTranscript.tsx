@@ -84,6 +84,7 @@ type FocusTranscriptProps = {
   onLoadOlder?: () => Promise<boolean> | boolean
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  onRetryLastTurn: () => Promise<void> | void
   onPromptSelect: (prompt: string) => void
   onWorkspace: () => void
 }
@@ -206,6 +207,7 @@ export function FocusTranscript({
   onLoadOlder,
   onBranchFromHere,
   onCreateChildSession,
+  onRetryLastTurn,
   onPromptSelect,
   onWorkspace,
 }: FocusTranscriptProps) {
@@ -396,7 +398,7 @@ export function FocusTranscript({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
+        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_1040px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_1040px)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
@@ -406,7 +408,7 @@ export function FocusTranscript({
         <div className="[display:flow-root] w-full" ref={transcriptPrefixRef}>
           {lineage?.parentSessionId && (
             <div
-              className="history-page-loader flex w-[min(960px,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
+              className="history-page-loader flex w-[min(1040px,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
               data-pisper-parent-session={lineage.parentSessionId}
             >
               <GitFork size={13} />
@@ -418,7 +420,7 @@ export function FocusTranscript({
             </div>
           )}
           {(hasOlder || loadingOlder || olderError) && (
-            <div className="history-page-loader flex w-[min(960px,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px]">
+            <div className="history-page-loader flex w-[min(1040px,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px]">
               {olderError ? (
                 <Button
                   type="button"
@@ -487,11 +489,12 @@ export function FocusTranscript({
               }}
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}
+              onRetryLastTurn={onRetryLastTurn}
             />
           </div>
         )}
         {error && (
-          <div className="flex w-[min(960px,100%)] items-center gap-[7px] [margin:8px_auto] rounded-[var(--r-sm)] bg-[var(--danger-soft)] text-[var(--danger)] [padding:9px_11px] text-[13px]">
+          <div className="flex w-[min(1040px,100%)] items-center gap-[7px] [margin:8px_auto] rounded-[var(--r-sm)] bg-[var(--danger-soft)] text-[var(--danger)] [padding:9px_11px] text-[13px]">
             <AlertTriangle size={14} />
             {error}
           </div>

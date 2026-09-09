@@ -84,9 +84,9 @@ test('SSE activity isolates one total-duration clock from the streamed activity 
   assert.match(durationLabel, /runDurationMs\(startedAt, finishedAt, now\)/)
   assert.doesNotMatch(activityCard, /agent-run-duration|activityDurationMs|useRunActivityClock/)
   assert.doesNotMatch(activityPanel, /const now = useRunActivityClock/)
-  assert.match(activityPanel, /!showOverview && completedActivityCount === 0/)
-  assert.match(activityPanel, /\{showOverview && \([\s\S]*<RunDurationLabel/)
-  assert.match(activityPanel, /\{!showOverview && \([\s\S]*<RunDurationLabel/)
+  assert.doesNotMatch(activityPanel, /showOverview|agent-run-overview|ShinyText/)
+  assert.match(activityPanel, /<RunDurationLabel/)
+  assert.match(activity, /export function runActivityStatusLabel/)
 })
 
 test('tool activity uses a polished scroll viewport without truncating records', async () => {
@@ -142,8 +142,11 @@ test('conversation layout keeps Pisper identity without a persistent avatar card
   assert.match(focus, /\{!hasConversation && \(/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
-  assert.match(message, /message-content[^"\n]*message\.agent[^"\n]*grid-column:2/)
-  assert.match(message, /agent-message-mark[^"\n]*data-state='thinking'/)
+  assert.match(message, /message mx-auto mb-8 w-full max-w-\[1040px\]/)
+  assert.match(message, /message\.role === 'agent' \? 'items-stretch' : 'items-end'/)
+  assert.match(message, /message-content[\s\S]*message\.role === 'agent'[\s\S]*'w-full'/)
+  assert.match(message, /agent-message-mark/)
+  assert.match(message, /data-state=\{agentState\}/)
   assert.match(transcript, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
 })
 

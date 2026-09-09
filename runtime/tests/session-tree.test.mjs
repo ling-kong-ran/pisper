@@ -347,3 +347,38 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   assert.equal(fromIndex[0].entryId, entries.firstAssistant)
   assert.equal(fromIndex[0].label, 'Resume here')
 })
+
+test('prepareLastTurnRetry withdraws the last turn and returns its original input', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-retry-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const created = await runtime.createSession('Retry fixture', directory)
+  const manager = runtime.pendingSessions.get(created.id).manager
+  manager.appendModelChange('openai', 'gpt-test')
+  manager.appendMessage({ role: 'user', content: 'First question', timestamp: Date.now() })
+  manager.appendMessage(assistantMessage('First answer'))
+  manager.appendMessage({ role: 'user', content: 'Retry me', timestamp: Date.now() })
+  manager.appendMessage(assistantMessage('Failed answer'))
+
+  const prepared = await runtime.prepareLastTurnRetry(created.id)
+  assert.equal(prepared.message, 'Retry me')
+  assert.deepEqual(prepared.attachments, [])
+
+  // 导航后活跃路径回到上一轮结束：失败回合保留在树上但不再是活跃分支。
+  const tree = await runtime.getSessionTree(created.id)
+  const failedNode = tree.nodes.find((node) => node.text === 'Failed answer')
+  const firstAnswerNode = tree.nodes.find((node) => node.text === 'First answer')
+  assert.ok(failedNode, 'failed turn stays in the tree as an abandoned branch')
+  assert.equal(failedNode.active, false)
+  assert.equal(firstAnswerNode.active, true)
+  // 叶子是导航位置标记，指向上一轮边界。
+  assert.equal(tree.nodes.find((node) => node.id === tree.leafId)?.kind, 'position')
+
+  // 再次重试则针对新的最后一轮（First question）。
+  const second = await runtime.prepareLastTurnRetry(created.id)
+  assert.equal(second.message, 'First question')
+})
