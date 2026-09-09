@@ -150,6 +150,30 @@ test('absolute local file links render without the unsafe-link blocked marker', 
   }
 })
 
+test('relative local file links resolve against the session cwd', () => {
+  // 无 cwd 时相对路径无法定位，保持原样（不伪造本地链接）
+  assert.equal(parseLocalFileTarget('workspace/标题.docx'), null)
+  assert.deepEqual(parseLocalFileTarget('workspace/标题.docx', 'E:\\work\\proj'), {
+    path: 'E:\\work\\proj\\workspace/标题.docx',
+  })
+  assert.equal(parseLocalFileTarget('../outside/x.docx', 'E:\\work\\proj'), null)
+
+  const html = renderMarkdown(
+    '[Workspace report](workspace/标题-正文-注释.docx)\n\n[Outside](../outside/x.docx)',
+    { cwd: 'E:\\work\\proj' },
+  )
+  // 安全相对链接解析为本地路径哨兵；不安全的 .. 链接保持原样（仍被安全过滤器拦截）
+  const localPaths = [...html.matchAll(/data-local-path="([^"]*)"/g)].map((item) => item[1])
+  assert.deepEqual(localPaths, ['E:\\work\\proj\\workspace/标题-正文-注释.docx'])
+  // 无桥接环境（SSR）下本地链接降级为带路径的 span，保留链接文本
+  assert.match(html, /Workspace report/)
+})
+
+test('relative links without cwd stay inert', () => {
+  const html = renderMarkdown('[Workspace report](workspace/标题.docx)')
+  assert.doesNotMatch(html, /data-local-path/)
+})
+
 test('desktop shell exposes a reveal-only bridge for local Markdown paths', async () => {
   const [markdown, bridgeType, bridgeScript, bridgeRust, shell, permissions] = await Promise.all([
     readFile(new URL('src/components/MarkdownMessage.tsx', ROOT), 'utf8'),
@@ -212,7 +236,8 @@ test('production Markdown surfaces delegate to one Streamdown adapter', async ()
   assert.match(pluginConfig, /MAX_TOKEN_CACHE_ENTRIES/)
   assert.match(pluginConfig, /\['github-dark', 'github-dark'\]/)
   assert.match(pluginConfig, /\{ cjk, code: streamdownCode, math \}/)
-  assert.match(chat, /<MarkdownMessage streaming=\{streaming\}>/)
+  // Focus 消息渲染带 cwd 传参（本地文件相对链接的解析基址）
+  assert.match(chat, /<MarkdownMessage cwd=\{cwd\} streaming=\{streaming\}>/)
   assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
   assert.match(reasoning, /<MarkdownMessage streaming=\{isStreaming\}>/)
   assert.match(message, /<MarkdownMessage/)

@@ -23,6 +23,8 @@ type VirtualMessageTranscriptProps = {
   latestRunProps: AgentRunActivityProps
   scrollElement: HTMLDivElement | null
   prefixRef: RefObject<HTMLDivElement | null>
+  /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
+  cwd?: string
   targetEntryId?: string
   onContentSizeChange: () => void
   onTargetScroll: () => void
@@ -78,6 +80,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   latestRunProps,
   scrollElement,
   prefixRef,
+  cwd,
   targetEntryId,
   onContentSizeChange,
   onTargetScroll,
@@ -180,6 +183,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
               agentState={agentState}
               showRunActivity={Boolean(runProps)}
               runProps={runProps}
+              cwd={cwd}
               sessionStreaming={streaming}
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}

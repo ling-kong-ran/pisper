@@ -39,7 +39,6 @@ const MARKDOWN_COMPONENTS: Components = {
 }
 const STREAMDOWN_CONTROLS = false
 const STREAMDOWN_REMEND = { linkMode: 'text-only' } as const
-const MARKDOWN_REMARK_PLUGINS = [...Object.values(defaultRemarkPlugins), remarkLocalFileLinks]
 
 // 本地路径 reveal 结果交给应用壳的统一 Toast 展示（App.tsx 监听）。
 function emitLocalRevealNotice(message: string, tone: 'info' | 'error') {
@@ -255,10 +254,22 @@ export type MarkdownMessageProps = {
   children: ReactNode
   className?: string
   streaming?: boolean
+  /** 会话工作区根目录：供本地文件链接插件解析相对路径（如 workspace/报告.docx）。 */
+  cwd?: string
 }
 
-function MarkdownMessage({ children, className, streaming = false }: MarkdownMessageProps) {
+function MarkdownMessage({ children, className, streaming = false, cwd }: MarkdownMessageProps) {
   const source = String(children ?? '')
+  // 本地文件链接哨兵插件按工作区基址构建：相对路径链接只有带上 cwd 才能解析，
+  // 因此不能做成模块级单例；以 [plugin, options] 形式注册，cwd 稳定时 useMemo 保证引用不变。
+  const remarkPlugins = useMemo(
+    () => [
+      ...Object.values(defaultRemarkPlugins),
+      // unified 要求 [plugin, options] 元组形式注册，不能直接传实例化的 transformer。
+      [remarkLocalFileLinks, cwd || undefined] as [typeof remarkLocalFileLinks, string | undefined],
+    ],
+    [cwd],
+  )
   // 公式样式按需注入：命中数学语法才加载 KaTeX CSS，避免主 CSS 常驻。
   const hasMath = useMemo(() => looksLikeMath(source), [source])
   useEffect(() => {
@@ -282,7 +293,7 @@ function MarkdownMessage({ children, className, streaming = false }: MarkdownMes
         mode="streaming"
         parseMarkdownIntoBlocksFn={parseBlocksFn}
         plugins={streamdownPlugins}
-        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+        remarkPlugins={remarkPlugins}
         remend={STREAMDOWN_REMEND}
       >
         {source}

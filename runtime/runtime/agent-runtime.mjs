@@ -1486,6 +1486,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         cwd: effectiveCwd,
         ownedFiles,
       })
+      this.installWorkspaceAssetCapture(subagentSession, effectiveCwd, runtimeSession.sessionId)
     }
     const accountSubagentUsage = createSubagentUsageHandler({
       runtimeService: this,
@@ -2023,6 +2024,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.activityFeed = backgroundActivities.slice(-MAX_LIVE_ACTIVITY_ITEMS)
       return finishedAt
     }
+    // 文件工具执行时已按所属会话归档；收尾补偿失败项，并发布本轮资产。
+    const collectWorkspaceAssets = async () => {
+      for (const asset of (await this.workspaceAssetTracker?.drain(session.sessionId)) || []) {
+        const attachment = assetMessageAttachment(asset)
+        live.assets = [...live.assets.filter((item) => item.id !== attachment.id), attachment]
+        emit('generated_asset', attachment)
+      }
+    }
     const teamPrompt = (currentGoal) =>
       currentGoal?.mode === 'team'
         ? `${goalContinuationPrompt(currentGoal)}\n\n${teamExecutionPrompt(
@@ -2376,6 +2385,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         await this.teamWorkflows.setSummary(session.sessionId, assistantText)
       // 只有本轮确实以 goal/team 语境启动时才回填团队快照；plan 轮保留 null 清除信号。
       live.team = this.getLiveTeamProjection(session.sessionId)
+      await collectWorkspaceAssets().catch(() => {})
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       emit('done', {
@@ -2413,6 +2423,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     } catch (error) {
       // 出错路径：清空排队输入、记录错误、暂停活动目标并广播 error 事件。
+      // 出错前已生成的文件同样需要收录，避免失败轮次的产物从资产页丢失。
+      await collectWorkspaceAssets().catch(() => {})
       session.clearQueue?.()
       live.queuedInputs = []
       live.error = error instanceof Error ? error.message : String(error)

@@ -178,7 +178,8 @@ test('image previews portal above session-level controls', async () => {
 test('completed activity-only messages do not render an empty error bubble', async () => {
   const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
   assert.match(message, /const displayText = fullText \|\| \(!showRunActivity/)
-  assert.match(message, /\{displayText && <MarkdownMessage/)
+  // 允许多行 JSX 形态（cwd 传参后 Prettier 会换行），语义仍是 displayText 条件渲染
+  assert.match(message, /\{displayText && \(?\s*<MarkdownMessage/)
   assert.doesNotMatch(message, /\(fullText \|\| !streaming\)/)
 })
 

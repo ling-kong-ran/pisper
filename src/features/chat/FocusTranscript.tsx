@@ -477,6 +477,7 @@ export function FocusTranscript({
               latestRunProps={latestRunProps}
               scrollElement={transcriptElement}
               prefixRef={transcriptPrefixRef}
+              cwd={cwd}
               targetEntryId={targetEntryId}
               onContentSizeChange={maintainBottom}
               onTargetScroll={pauseFollowing}

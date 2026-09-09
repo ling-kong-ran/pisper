@@ -401,6 +401,8 @@ type FocusChatMessageProps = {
   agentState: string
   showRunActivity: boolean
   runProps: RunProps | null
+  /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
+  cwd?: string
   sessionStreaming?: boolean
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
@@ -413,6 +415,7 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.agentState === next.agentState &&
     prev.showRunActivity === next.showRunActivity &&
     prev.runProps === next.runProps &&
+    prev.cwd === next.cwd &&
     prev.sessionStreaming === next.sessionStreaming &&
     prev.onBranchFromHere === next.onBranchFromHere &&
     prev.onCreateChildSession === next.onCreateChildSession
@@ -425,6 +428,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   agentState,
   showRunActivity,
   runProps,
+  cwd,
   sessionStreaming,
   onBranchFromHere,
   onCreateChildSession,
@@ -460,7 +464,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       </span>
       <div className="message-content [.message.agent_&]:w-full [.message.agent_&]:[grid-column:2] [.message.agent_&]:[grid-row:1] [.message.user_&]:w-[fit-content] [.message.user_&]:max-w-[76%] @max-[700px]:[.message.user_&]:max-w-[86%] @max-[470px]:[.message.user_&]:max-w-[92%] max-[650px]:[.message.user_&]:max-w-[86%] relative min-w-0">
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
-        {displayText && <MarkdownMessage streaming={streaming}>{displayText}</MarkdownMessage>}
+        {displayText && (
+          <MarkdownMessage cwd={cwd} streaming={streaming}>
+            {displayText}
+          </MarkdownMessage>
+        )}
         {message.attachments && message.attachments.length > 0 && (
           <MessageAttachments attachments={message.attachments} />
         )}

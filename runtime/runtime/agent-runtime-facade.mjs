@@ -5,6 +5,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
+import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
@@ -196,6 +197,19 @@ export class AgentRuntimeFacade {
     return this.sessionLifecycle.deleteSession(id)
   }
 
+  installWorkspaceAssetCapture(session, cwd, sessionId = session.sessionId) {
+    this.workspaceAssetTracker ||= new WorkspaceAssetTracker({
+      dataDir: this.dataDir,
+      archive: (id, path) =>
+        this.recordGeneratedFile(
+          id,
+          this.sessions.get(id) || { name: this.sessionMeta[id]?.name },
+          path,
+        ),
+    })
+    this.workspaceAssetTracker.install(session, { sessionId, cwd })
+  }
+
   // 流式执行一次会话提示：拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。
   async streamPrompt(options) {
     let value = await this.getOrCreateSession(options.sessionId)
@@ -212,6 +226,7 @@ export class AgentRuntimeFacade {
     delete value.forceDisposed
     value.runActive = true
     try {
+      this.installWorkspaceAssetCapture(value.session, value.cwd)
       return await this.runSessionPrompt(value, options)
     } finally {
       value.runActive = false
