@@ -279,16 +279,7 @@ function ActivityIcon({ tone }: { tone: string }) {
   if (tone === 'failed') return <AlertTriangle size={14} />
   if (tone === 'stopped') return <Square size={12} />
   if (['completed', 'plan'].includes(tone)) return <Check size={14} />
-  return (
-    <span
-      className="agent-activity-dots inline-flex items-center gap-[2px] text-[var(--brand-blue-strong)]"
-      aria-hidden="true"
-    >
-      <i />
-      <i />
-      <i />
-    </span>
-  )
+  return <i className="agent-activity-dot" aria-hidden="true" />
 }
 
 function ActivityElement({
