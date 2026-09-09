@@ -396,7 +396,7 @@ export function FocusTranscript({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_900px)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] m-0 border-0 [padding:26px_max(24px,calc((100%_-_960px)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
+        className="transcript [.focus-session.has-conversation_&]:p-[30px_32px] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] m-0 border-0 [padding:26px_32px] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}

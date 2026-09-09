@@ -46,8 +46,8 @@ function resolveLanguage(language: unknown) {
 }
 
 function tokenCacheKey(code: string, language: string, themes: [ThemeInput, ThemeInput]) {
-  // 与官方插件相同的思路：长度 + 首尾片段区分内容，避免把整段代码复制进 key。
-  return `${language}:${themeName(themes[0])}:${themeName(themes[1])}:${code.length}:${code.slice(0, 64)}:${code.slice(-64)}`
+  // 完整源码参与键值，避免两段只在中间不同的等长代码复用错误的高亮结果。
+  return JSON.stringify([language, themeName(themes[0]), themeName(themes[1]), code])
 }
 
 const tokenCache = new Map<string, HighlightResult>()
