@@ -1,6 +1,6 @@
 // 桌面宠物设置：启用/透明度/宠物选择与商店浏览。
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Cat, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Blend, Cat, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   SettingsBadge as Badge,
@@ -227,7 +227,7 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
   }
 
   return (
-    <div className="flex w-[min(100%,_760px)] flex-col gap-[12px] desktop-pet-settings">
+    <div className="flex flex-col gap-[12px] desktop-pet-settings">
       <Panel className="[padding:18px]" data-config-card="desktop-pet-settings">
         <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
           <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
@@ -245,46 +245,54 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
             <span>{t('config:desktopPetSettings.loading')}</span>
           </AppNotice>
         ) : (
-          <div className="notification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[11px] mt-4">
-            <Cat size={18} />
-            <div>
-              <strong>{t('config:desktopPetSettings.showOnDesktop')}</strong>
-              <small>
-                {status.selectedName
-                  ? t('config:desktopPetSettings.currentPet', { name: status.selectedName })
-                  : t('config:desktopPetSettings.installBeforeEnabling')}
-              </small>
-            </div>
-            <Badge tone={status.running ? 'green' : 'gray'}>
-              {status.running
-                ? t('config:desktopPetSettings.running')
-                : t('config:desktopPetSettings.stopped')}
-            </Badge>
-            <Toggle
-              value={status.enabled}
-              disabled={Boolean(busy) || !status.installed.length}
-              onChange={toggle}
-              ariaLabel={t('config:desktopPetSettings.showOnDesktop')}
-            />
-          </div>
-        )}
+          <div className="max-w-1/2">
+            <div className="flex items-center  snotification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-1 gap-2.75 mt-4">
+              <Cat size={18} />
+              <div>
+                <div>
+                  <span className="font-bold">{t('config:desktopPetSettings.showOnDesktop')}</span>{' '}
+                  <Badge tone={status.running ? 'green' : 'gray'}>
+                    {status.running
+                      ? t('config:desktopPetSettings.running')
+                      : t('config:desktopPetSettings.stopped')}
+                  </Badge>
+                </div>
+                <span className="text-xs">
+                  {status.selectedName
+                    ? t('config:desktopPetSettings.currentPet', { name: status.selectedName })
+                    : t('config:desktopPetSettings.installBeforeEnabling')}
+                </span>
+              </div>
 
-        {status && (
-          <div className="desktop-pet-opacity [&_>_div]:flex [&_>_div]:items-center [&_>_div]:justify-between [&_>_div]:gap-[8px] [&_>_div]:text-[12px] [&_>_div_span]:text-[var(--text-muted)] [&_>_div_span]:[font-variant-numeric:tabular-nums] grid grid-cols-[150px_minmax(0,1fr)] items-center gap-[14px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:14px] mt-4">
-            <div>
-              <strong>{t('config:desktopPetSettings.opacity')}</strong>
-              <span>{opacityPercent}%</span>
+              <Toggle
+                value={status.enabled}
+                disabled={Boolean(busy) || !status.installed.length}
+                onChange={toggle}
+                ariaLabel={t('config:desktopPetSettings.showOnDesktop')}
+                className="ml-4"
+              />
             </div>
-            <Slider
-              value={[opacityPercent]}
-              min={20}
-              max={100}
-              step={5}
-              disabled={busy === 'opacity'}
-              onValueChange={([value]) => setOpacityPercent(value)}
-              onValueCommit={([value]) => void changeOpacity(value / 100)}
-              aria-label={t('config:desktopPetSettings.opacity')}
-            />
+            {status && (
+              <div className="flex items-center snotification-option gap-2.75 mt-4">
+                <Blend size={18} />
+                <div className="flex items-center justify-center gap-2">
+                  <span className="font-bold">{t('config:desktopPetSettings.opacity')}</span>
+                  <span className="text-xs">{opacityPercent}%</span>
+                </div>
+
+                <Slider
+                  value={[opacityPercent]}
+                  min={20}
+                  max={100}
+                  step={5}
+                  disabled={busy === 'opacity'}
+                  onValueChange={([value]) => setOpacityPercent(value)}
+                  onValueCommit={([value]) => void changeOpacity(value / 100)}
+                  aria-label={t('config:desktopPetSettings.opacity')}
+                  className="flex-1 w-auto ml-4"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -326,7 +334,7 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
           </Button>
         </div>
         {catalog.length > 0 && (
-          <div className="language-choice-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[9px] [margin-top:18px] mt-4">
+          <div className="language-choice-grid  grid grid-cols-4 max-[650px]:grid-cols-1 max-[1300px]:grid-cols-2 gap-2.25 mt-4">
             {catalog.map((pet) => {
               const installed = status?.installed.some((item) => item.slug === pet.slug)
               return (

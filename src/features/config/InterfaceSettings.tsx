@@ -31,6 +31,7 @@ import {
 } from '@/stores/ui-store'
 import type { Notify } from '@/app/route-context'
 import type { LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type Choice<T extends string> = {
   value: T
@@ -66,15 +67,20 @@ function ChoiceGrid<T extends string>({
   options,
   value,
   onChange,
+  className,
 }: {
   label: string
   options: Choice<T>[]
   value: T
   onChange: (value: T) => void
+  className?: string
 }) {
   return (
     <div
-      className="mt-4 grid grid-cols-2 gap-2 max-[650px]:grid-cols-1"
+      className={cn(
+        'mt-4 grid grid-cols-4 gap-2 max-[650px]:grid-cols-1 max-[1300px]:grid-cols-2',
+        className,
+      )}
       role="radiogroup"
       aria-label={label}
     >
@@ -281,7 +287,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
   ]
 
   return (
-    <div className="flex w-[min(100%,920px)] flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <Panel className="p-[18px]" data-config-card="interface-appearance">
         <div className="flex items-start justify-between gap-4 max-[650px]:flex-col">
           <SettingHeading
@@ -446,6 +452,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
               options={densityOptions}
               value={density}
               onChange={update(setDensity)}
+              className="grid-cols-2"
             />
           </div>
           <div>
@@ -457,6 +464,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
               options={motionOptions}
               value={motion}
               onChange={update(setMotion)}
+              className="grid-cols-2"
             />
           </div>
         </div>

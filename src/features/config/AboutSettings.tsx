@@ -54,7 +54,7 @@ export function AboutSettings({ update }: { update: AppUpdateController }) {
   const version = update.info?.version || BUILD_VERSION
 
   return (
-    <div className="mx-auto flex w-full max-w-[760px] flex-col gap-3">
+    <div className="mx-auto flex w-full  flex-col gap-3">
       <div className="flex items-center gap-4 px-1 py-3">
         <img
           className="size-16 shrink-0 rounded-[14px] shadow-[0_10px_28px_-14px_var(--shadow)]"

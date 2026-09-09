@@ -630,7 +630,7 @@ function NotificationTemplates({
             }
           />
         </AppCardHeader>
-        <div className="channel-template-platforms [&_>_button]:flex [&_>_button]:min-h-[36px] [&_>_button]:items-center [&_>_button]:justify-between [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[0_9px] [&_>_button]:text-[12px] [&_>_button]:font-[700] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button.active]:text-[var(--star-strong)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[7px] [margin-top:13px]">
+        <div className="channel-template-platforms [&_>_button]:relative [&_>_button]:flex [&_>_button]:min-h-9 [&_>_button]:items-center [&_>_button]:justify-center [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[0_9px] [&_>_button]:text-[12px] [&_>_button]:font-[700] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button.active]:text-[var(--star-strong)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[7px] [margin-top:13px]">
           {(
             Object.entries(visibleChannels) as Array<[NotificationPlatform, ChannelDefinition]>
           ).map(([id, channel]) => {
@@ -642,7 +642,10 @@ function NotificationTemplates({
                 key={id}
               >
                 {notificationChannelLabel(id, t)}
-                <Badge tone={available ? channel.tone : 'gray'}>
+                <Badge
+                  tone={available ? channel.tone : 'red'}
+                  className=" absolute -top-2.5 -right-1.5"
+                >
                   {available
                     ? id === 'browser'
                       ? t('config:notificationSettings.enabled2')
