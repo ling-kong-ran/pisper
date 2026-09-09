@@ -1,7 +1,7 @@
 // Agent 运行活动面板：在消息下方展示当前运行的 Agent 状态——思考文本、
 // 工具调用列表、计划预览与停止按钮，实时跟随 SSE 流更新。
 import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangle, Check, ChevronRight, Clock3, Code2, Square } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Clock3, Code2, RefreshCw, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Plan } from '@/components/ai-elements/plan'
 import { Task } from '@/components/ai-elements/task'
@@ -279,16 +279,7 @@ function ActivityIcon({ tone }: { tone: string }) {
   if (tone === 'failed') return <AlertTriangle size={14} />
   if (tone === 'stopped') return <Square size={12} />
   if (['completed', 'plan'].includes(tone)) return <Check size={14} />
-  return (
-    <span
-      className="agent-activity-dots inline-flex items-center gap-[2px] text-[var(--brand-blue-strong)]"
-      aria-hidden="true"
-    >
-      <i />
-      <i />
-      <i />
-    </span>
-  )
+  return <RefreshCw className="animate-spin" size={14} />
 }
 
 function ActivityElement({
