@@ -22,7 +22,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
@@ -444,51 +443,29 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   return (
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
-      className={cn(
-        'message mx-auto mb-8 w-full max-w-[960px] min-w-0 gap-0',
-        message.role === 'agent' ? 'items-stretch' : 'items-end',
-        message.role,
-        message.error && 'has-error',
-      )}
+      className={`message [&.user]:items-end [&.user_>_span]:hidden [&.agent]:grid [&.agent]:grid-cols-[24px_minmax(0,1fr)] [&.agent]:[align-items:start] [&.agent]:gap-x-[12px] [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[5px] [&_>_span]:p-0 [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&.agent_>_span]:[grid-column:1] [&.agent_>_span]:[grid-row:1] [&.agent_>_span]:justify-center [&.agent_>_span]:pt-[4px] @max-[470px]:[&.agent]:grid-cols-[22px_minmax(0,1fr)] @max-[470px]:[&.agent]:gap-x-[9px] flex w-[min(900px,100%)] flex-col items-start gap-[6px] [margin:0_auto_30px] ${message.role}    ${message.error ? 'has-error' : ''}`}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
       data-pisper-streaming={streaming || undefined}
       data-pisper-error={message.error ? 'true' : undefined}
     >
-      {message.role === 'agent' && (
-        <span className="mb-3 flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
+      <span>
+        {message.role === 'agent' ? (
           <span
-            className="agent-message-mark grid size-[22px] place-items-center [&[data-state='thinking']]:[animation:agent-message-pulse_1.8s_ease-in-out_infinite]"
+            className="agent-message-mark [&[data-state='thinking']]:opacity-100 [&[data-state='thinking']]:[animation:agent-message-pulse_1.8s_ease-in-out_infinite] [&[data-state='waiting']]:opacity-[.9] grid w-[22px] h-[22px] place-items-center rounded-[var(--r-xs)] text-[var(--text-muted)] opacity-[.72] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]"
             data-state={agentState}
-            aria-hidden="true"
+            aria-label="Pisper"
           >
             <BrandLogo size={20} />
           </span>
-          Pisper
-        </span>
-      )}
-      <div
-        className={cn(
-          'message-content relative min-w-0',
-          message.role === 'agent'
-            ? 'w-full'
-            : 'w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%]',
+        ) : (
+          'You'
         )}
-      >
+      </span>
+      <div className="message-content [.message.agent_&]:w-full [.message.agent_&]:[grid-column:2] [.message.agent_&]:[grid-row:1] [.message.user_&]:w-[fit-content] [.message.user_&]:max-w-[76%] @max-[700px]:[.message.user_&]:max-w-[86%] @max-[470px]:[.message.user_&]:max-w-[92%] max-[650px]:[.message.user_&]:max-w-[86%] relative min-w-0">
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
         {displayText && (
-          <MarkdownMessage
-            cwd={cwd}
-            streaming={streaming}
-            className={cn(
-              'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
-              message.role === 'agent'
-                ? 'w-full py-1 leading-[1.75] [&_.markdown-content>p]:my-4'
-                : 'rounded-[22px] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.6] text-[var(--user-bubble-text)]',
-              message.error &&
-                'rounded-[var(--r-sm)] bg-[var(--danger-soft)] px-3 py-2 text-[var(--danger)]',
-            )}
-          >
+          <MarkdownMessage cwd={cwd} streaming={streaming}>
             {displayText}
           </MarkdownMessage>
         )}
@@ -497,7 +474,10 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         )}
       </div>
       {message.role === 'agent' && message.turnBoundaryEntryId && !streaming && (
-        <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+        <div
+          className="chat-history-actions [&_button]:grid [&_button]:w-[30px] [&_button]:h-[30px] [&_button]:min-h-[30px] [&_button]:place-items-center [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--solid)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--star-strong)] [&_button.danger:hover]:bg-[var(--danger-soft)] [&_button.danger:hover]:text-[var(--danger)] max-[650px]:pr-[4px] flex items-center gap-[2px] [padding-right:8px] message-actions"
+          style={{ gridColumn: 2, gridRow: 2, paddingRight: 0 }}
+        >
           <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
           <Tooltip>
             <TooltipTrigger asChild>

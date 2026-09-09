@@ -572,12 +572,11 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes session-tree-new-node-pulse { 0% { box-shadow: 0 0 0 0 var(--brand-blue-border), var(--sh-1); } 62% { box-shadow: 0 0 0 8px transparent, var(--sh-1); } 100% { box-shadow: var(--sh-1); } }
 @keyframes agent-message-pulse { 50% { opacity: .58; transform: translateY(-1px); } }
 .message-content > .markdown-body { min-height: 34px; overflow-wrap: anywhere; border-radius: var(--r-md); background: transparent; padding: 3px 0; font-size: var(--app-message-font-size); line-height: 1.72; }
-.message.user .message-content > .markdown-body { border: 1px solid var(--stroke-soft); border-radius: 22px; background: var(--user-bubble-bg); color: var(--user-bubble-text); padding: 10px 16px; box-shadow: none; }
+.message.user .message-content > .markdown-body { border: 1px solid var(--stroke-soft); border-radius: var(--r-md); background: var(--user-bubble-bg); color: var(--user-bubble-text); padding: 9px 13px; box-shadow: none; }
 .message.user .markdown-body h1,.message.user .markdown-body h2,.message.user .markdown-body h3,.message.user .markdown-body h4,.message.user .markdown-body a { color: var(--user-bubble-text); }
 .message.user .markdown-body code { background: var(--user-bubble-code); }
 .message.agent .message-content > .markdown-body { width: 100%; max-width: 100%; border: 0; border-radius: 0; background: transparent; padding: 4px 0 0; }
-.message.agent .markdown-body p { margin: 1em 0; }
-.message.has-error .message-content > .markdown-body { border-radius: var(--r-sm); background: var(--danger-soft); color: var(--danger); padding: 8px 12px; }
+.message.has-error .message-content > .markdown-body { background: var(--danger-soft); color: var(--danger); }
 @keyframes agent-aura-think { 0%,100% { opacity: .1; transform: scale(.96); } 50% { opacity: .28; transform: scale(1.04); } }
 @keyframes agent-thinking-dot { 0%,65%,100% { opacity: .3; transform: translateY(0); } 32% { opacity: 1; transform: translateY(-2px); } }
 .agent-thinking-scroll > .markdown-body { border: 0; background: transparent; padding: 0; color: var(--text-secondary); font-size: 12px; }
