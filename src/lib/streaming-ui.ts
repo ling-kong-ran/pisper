@@ -1,3 +1,5 @@
+import { recordStreamingDebug } from '@/lib/streaming-debug'
+
 // 流式 UI 调度原语：把高频 SSE 事件合并成低频 React 更新。
 // - createStreamingTextScheduler：文本增量合并（约 20fps）；
 // - createToolUpdateScheduler：同一 tool id 的多次更新合并成一条 patch；
@@ -196,7 +198,10 @@ export function createTypewriterDisplay(
     drainWaiters.clear()
     for (const resolve of waiters) resolve(completed)
   }
-  const emit = () => onFrame(shown, activityAt)
+  const emit = () => {
+    recordStreamingDebug('typewriter-frame', shown.length)
+    onFrame(shown, activityAt)
+  }
   const cancel = () => {
     closed = true
     if (frame != null) cancelScheduled(frame)

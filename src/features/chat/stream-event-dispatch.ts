@@ -10,6 +10,7 @@ import {
   planFromPayloadOr,
 } from '@/lib/plan-protocol'
 import { reconcileQueuedInputSnapshot } from '@/lib/session-state'
+import { recordStreamingDebug } from '@/lib/streaming-debug'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type {
   createStreamingTextScheduler,
@@ -343,11 +344,13 @@ export function createStreamEventDispatcher({
       publishResponse('streaming')
       typewriter.setTarget(state.responseText, eventAt)
     } else if (event === 'text_delta') {
+      recordStreamingDebug('sse-text-delta', state.responseText.length)
       state.responseRenderingStreaming = true
       state.responseText += data.delta || ''
       publishResponse('streaming')
       typewriter.setTarget(state.responseText, eventAt)
     } else if (event === 'text_end') {
+      recordStreamingDebug('sse-text-end', state.responseText.length)
       if (typeof data.text === 'string') state.responseText = data.text
       state.responseRenderingStreaming = false
       publishResponse('streaming')
