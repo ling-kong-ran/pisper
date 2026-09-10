@@ -161,8 +161,8 @@ for (const partialBrowser of [false, true]) {
     })
     t.after(() => typewriter.cancel())
     typewriter.setTarget('x'.repeat(1_000))
-    timestamp = 34
-    t.mock.timers.tick(34)
+    timestamp = 50
+    t.mock.timers.tick(50)
     assert.deepEqual(frames, ['x'.repeat(1_000)])
   })
 }
@@ -170,7 +170,7 @@ for (const partialBrowser of [false, true]) {
 test('large default backlogs settle in one batch instead of per-character frames', (t) => {
   const { clock, frames, typewriter } = typewriterFixture(t)
   typewriter.setTarget('x'.repeat(10_000))
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(frames.length, 1)
   assert.equal(frames[0].text.length, 10_000)
 })
@@ -179,7 +179,7 @@ test('continuous bursts use batch snap once the backlog reaches the threshold', 
   const { clock, frames, typewriter } = typewriterFixture(t)
   const target = 'x'.repeat(600)
   typewriter.setTarget(target)
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown(), target)
   assert.equal(frames.length, 1)
 })
@@ -198,7 +198,7 @@ test('fractional credit respects slow rates instead of forcing one character per
 test('default typewriter uses batch snap for large backlogs', (t) => {
   const { clock, frames, typewriter } = typewriterFixture(t)
   typewriter.setTarget('x'.repeat(1_000))
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(frames.length, 1)
   assert.equal(frames[0].text.length, 1_000)
 })
@@ -206,7 +206,7 @@ test('default typewriter uses batch snap for large backlogs', (t) => {
 test('default snap and flush calibrate immediately', async (t) => {
   const { clock, frames, typewriter } = typewriterFixture(t)
   typewriter.setTarget('x'.repeat(1_000))
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(frames.at(-1).text, 'x'.repeat(1_000))
   typewriter.setTarget('final correction', 'final')
   const drained = typewriter.drain()
@@ -233,10 +233,10 @@ test('rewrites and truncation preserve complete non-BMP characters', (t) => {
     assert.ok(target.startsWith(frame.text))
   }
   typewriter.setTarget('head ')
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown(), 'head ')
   typewriter.setTarget('')
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown(), '')
 })
 
@@ -246,13 +246,13 @@ test('a split trailing surrogate waits for the next delta without spinning', (t)
     maxCharsPerSecond: 30,
   })
   typewriter.setTarget('A\ud83d')
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown(), 'A')
   assert.equal(clock.pending, 0)
   typewriter.setTarget('A\u{1f4a1}B')
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown(), 'A\u{1f4a1}')
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown(), 'A\u{1f4a1}B')
   assert.ok(frames.every(({ text }) => text.isWellFormed()))
 })
@@ -265,7 +265,7 @@ test('hidden streaming pauses and resumes without accumulating a catch-up jump',
     snapRemaining: Number.POSITIVE_INFINITY,
   })
   typewriter.setTarget('x'.repeat(5_000))
-  clock.tick(34)
+  clock.tick(50)
   page.visibilityState = 'hidden'
   page.dispatchEvent(new Event('visibilitychange'))
   assert.equal(clock.pending, 0)
@@ -274,7 +274,7 @@ test('hidden streaming pauses and resumes without accumulating a catch-up jump',
   assert.equal(frames.length, 1)
   page.visibilityState = 'visible'
   page.dispatchEvent(new Event('visibilitychange'))
-  clock.tick(34)
+  clock.tick(50)
   assert.equal(typewriter.getShown().length, 6_000)
   assert.equal(frames.length, 2)
 })
@@ -290,7 +290,7 @@ for (const hideDuringDrain of [false, true]) {
     typewriter.setTarget('x'.repeat(5_000))
     const drained = typewriter.drain()
     if (hideDuringDrain) {
-      clock.tick(34)
+      clock.tick(50)
       assert.equal(typewriter.getShown().length, 5_000)
       page.visibilityState = 'hidden'
       page.dispatchEvent(new Event('visibilitychange'))

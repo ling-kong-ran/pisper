@@ -113,6 +113,11 @@ test('transcript keeps natural scroll following and live row remeasure wiring', 
   assert.match(transcript, /onContentSizeChange=\{maintainBottom\}/)
   assert.match(virtualList, /measureElement: measuredElementHeight/)
   assert.match(virtualList, /useAnimationFrameWithResizeObserver: true/)
+  // scroll margin 的布局读取按帧合并，避免流式高度变化让 observer 同步重测。
+  assert.match(virtualList, /const scheduleMeasure = \(\) => \{/)
+  assert.match(virtualList, /window\.requestAnimationFrame\(\(\) => \{/)
+  assert.match(virtualList, /new ResizeObserver\(scheduleMeasure\)/)
+  assert.match(virtualList, /window\.cancelAnimationFrame\(measureFrame\)/)
   // 历史合并必须复用未变化消息的对象引用。
   assert.match(liveSync, /reuseStableMessages/)
 })

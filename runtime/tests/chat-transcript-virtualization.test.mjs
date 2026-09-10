@@ -106,7 +106,7 @@ test('virtualization source owns only message rows and preserves stable render b
   assert.match(virtualSource, /getScrollElement: \(\) => scrollElement/)
   assert.match(virtualSource, /messagesRef\.current\[index\]\?\.id/)
   assert.match(virtualSource, /measureElement: measuredElementHeight/)
-  assert.match(virtualSource, /new ResizeObserver\(measure\)/)
+  assert.match(virtualSource, /new ResizeObserver\(scheduleMeasure\)/)
   assert.match(virtualSource, /onContentSizeChange\(\)/)
   assert.match(virtualSource, /virtualItems\.map/)
   assert.doesNotMatch(

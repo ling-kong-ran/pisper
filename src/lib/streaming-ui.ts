@@ -142,7 +142,7 @@ function commonPrefixLength(left: string, right: string) {
   return index > 0 && isHighSurrogate(left.charCodeAt(index - 1)) ? index - 1 : index
 }
 
-const TYPEWRITER_FRAME_INTERVAL_MS = 1_000 / 30
+const TYPEWRITER_FRAME_INTERVAL_MS = 50
 
 // 浏览器按绘制帧调度，但正文状态最多约 30fps；显式 flush 仍立即校准终态。
 // 速率按 Unicode 码点累计，保留小数额度，避免高刷新率或慢速配置突破上限。

@@ -196,7 +196,7 @@ for (const boundaries of [false, true]) {
     assert.equal(f.ref.current.session.messages.at(-1).text, '')
     assert.equal(f.history.length, 0)
     assert.equal(settled, false)
-    f.tick(34)
+    f.tick(50)
     const firstFrame = f.ref.current.session.messages.at(-1)
     assert.equal(firstFrame.text, finalText)
     assert.equal(firstFrame.streaming, false)
@@ -234,7 +234,7 @@ test('text_end settles an already displayed block without flushing its text agai
   })
   const sending = f.commands.sendPrompt('prompt', 'session')
   dispatch('text_delta', { delta: 'a' })
-  f.tick(34)
+  f.tick(50)
   assert.equal(f.ref.current.session.messages.at(-1).text, 'a')
   assert.equal(f.ref.current.session.messages.at(-1).streaming, true)
   dispatch('text_end', { text: 'a' })
@@ -260,7 +260,7 @@ test('a late final rewrite replaces the displayed suffix gradually and preserves
   })
   const sending = f.commands.sendPrompt('prompt', 'session')
   dispatch('text_delta', { delta: 'prefix ' + '\u{1f4a1}'.repeat(200) })
-  f.tick(34)
+  f.tick(50)
   const previous = f.ref.current.session.messages.at(-1).text
   assert.ok(previous.startsWith('prefix \u{1f4a1}'))
   const finalText = 'prefix ' + '\u{1f4a2}'.repeat(220)
@@ -269,7 +269,7 @@ test('a late final rewrite replaces the displayed suffix gradually and preserves
   close()
   await settleMicrotasks()
   assert.equal(f.ref.current.session.messages.at(-1).text, previous)
-  f.tick(34)
+  f.tick(50)
   const revised = f.ref.current.session.messages.at(-1).text
   assert.ok(revised.startsWith('prefix \u{1f4a2}'))
   assert.ok(revised.length < finalText.length)
@@ -369,7 +369,7 @@ for (const initiallyHidden of [false, true]) {
     await settleMicrotasks()
     if (!initiallyHidden) {
       assert.equal(f.history.length, 0)
-      f.tick(34)
+      f.tick(50)
       page.visibilityState = 'hidden'
       page.dispatchEvent(new Event('visibilitychange'))
     }

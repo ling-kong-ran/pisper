@@ -60,15 +60,25 @@ function useTranscriptScrollMargin(
       )
       setScrollMargin((current) => (Math.abs(current - next) < 1 ? current : next))
     }
+    let measureFrame: number | null = null
+    const scheduleMeasure = () => {
+      if (measureFrame !== null) return
+      measureFrame = window.requestAnimationFrame(() => {
+        measureFrame = null
+        measure()
+      })
+    }
     measure()
 
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure)
     observer?.observe(scrollElement)
     if (prefixRef.current) observer?.observe(prefixRef.current)
-    window.addEventListener('resize', measure)
+    window.addEventListener('resize', scheduleMeasure)
     return () => {
       observer?.disconnect()
-      window.removeEventListener('resize', measure)
+      window.removeEventListener('resize', scheduleMeasure)
+      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame)
     }
   }, [listRef, prefixRef, scrollElement])
 

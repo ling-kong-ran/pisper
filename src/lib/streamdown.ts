@@ -179,6 +179,12 @@ export function createIncrementalBlockParser() {
     if (prevBlocks.length > 0 && markdown.startsWith(prevSource)) {
       const lastBlock = prevBlocks[prevBlocks.length - 1]
       const tailStart = prevSource.length - lastBlock.length
+      // 分块器必须以原文 block 结尾；这个守卫防止未来解析器改动时误拼接尾部。
+      if (tailStart < 0 || prevSource.slice(tailStart) !== lastBlock) {
+        prevSource = markdown
+        prevBlocks = parseMarkdownIntoBlocks(markdown)
+        return prevBlocks
+      }
       const tailBlocks = parseMarkdownIntoBlocks(markdown.slice(tailStart))
       const merged = [...prevBlocks.slice(0, -1), ...tailBlocks]
       prevSource = markdown

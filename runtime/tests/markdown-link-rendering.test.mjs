@@ -9,13 +9,41 @@ import {
   encodeLocalFileHref,
   parseLocalFileTarget,
 } from '../../src/lib/local-file-links.ts'
-import { streamdownPlugins } from '../../src/lib/streamdown.ts'
+import {
+  createIncrementalBlockParser,
+  parseMarkdownBlocksCached,
+  streamdownPlugins,
+} from '../../src/lib/streamdown.ts'
 
 const ROOT = new URL('../../', import.meta.url)
 
 function renderMarkdown(source, props = {}) {
   return renderToStaticMarkup(React.createElement(MarkdownMessage, props, source))
 }
+
+test('incremental Markdown parsing preserves completed block identities and final structure', () => {
+  const parse = createIncrementalBlockParser()
+  const snapshots = [
+    '# Title\n\nFirst paragraph.\n\n```ts\nconst answer = 42',
+    '# Title\n\nFirst paragraph.\n\n```ts\nconst answer = 42\nconsole.log(answer)',
+    '# Title\n\nFirst paragraph.\n\n```ts\nconst answer = 42\nconsole.log(answer)\n```\n\n- final item',
+  ].map((source) => parse(source))
+
+  assert.equal(snapshots[0].length, 4)
+  assert.equal(snapshots[1][0], snapshots[0][0])
+  assert.equal(snapshots[1][1], snapshots[0][1])
+  assert.equal(snapshots[2][0], snapshots[1][0])
+  assert.equal(snapshots[2][1], snapshots[1][1])
+  assert.deepEqual(snapshots[2], parseMarkdownBlocksCached(snapshots[2].join('')))
+})
+
+test('incremental Markdown parsing falls back safely when a stream is rewritten', () => {
+  const parse = createIncrementalBlockParser()
+  parse('old content\n\n- old item')
+  const rewritten = 'new content\n\n> rewritten item\n\n```js\nanswer()\n```'
+
+  assert.deepEqual(parse(rewritten), parseMarkdownBlocksCached(rewritten))
+})
 
 test('shared Markdown renderer preserves GFM, code, CJK, and math fixtures', () => {
   const html = renderMarkdown(`
