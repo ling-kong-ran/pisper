@@ -208,18 +208,21 @@ test('live snapshots cannot overwrite a locally owned SSE assistant message', as
   assert.match(liveSync, /liveSyncInFlightRef\.current\.has\(id\)/)
 })
 
-test('every settled SSE run reconciles its optimistic message with the durable transcript', async () => {
-  const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
-  const reconcileComment = '// Reconcile every optimistic SSE bubble'
-  const settledRun = source.slice(
-    source.indexOf(reconcileComment),
-    source.indexOf('let completed', source.indexOf(reconcileComment)),
-  )
-  assert.match(settledRun, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
-  assert.ok(
-    settledRun.indexOf('await loadSessionMessages') < settledRun.indexOf('if ('),
-    'durable transcript reconciliation must not depend on Goal or queued-input state',
-  )
+test('settled SSE runs reconcile metadata from the done frame without a transcript reload', async () => {
+  const [source, dispatch, runtime] = await Promise.all([
+    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+    readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
+  ])
+  // done 帧直接携带回合边界条目，前端就地补全消息元数据（资产随 assets 字段）。
+  assert.match(runtime, /emit\('done', \{[\s\S]*turnBoundaryEntryId/)
+  assert.match(dispatch, /data\.turnBoundaryEntryId/)
+  // 排空打字机后直接把本地文本定格；成功路径不再整页强制重拉历史，
+  // 避免最后一行因换成服务端 ID 而重挂载。
+  const drainIndex = source.indexOf('await typewriter.drain()')
+  assert.ok(drainIndex >= 0)
+  const settleWindow = source.slice(drainIndex, source.indexOf('let completed', drainIndex))
+  assert.doesNotMatch(settleWindow, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
 })
 
 test('assistant text completion drains the typewriter before settling Markdown and history', async () => {
@@ -285,10 +288,8 @@ test('ephemeral reasoning remains rendered after a textless response completes',
   )
   assert.match(sessionState, /String\(activity\.thinkingText \|\| ''\)\.trim\(\)/)
   assert.match(sessionState, /activity\.currentActivity\?\.type === 'agent'/)
-  assert.match(
-    activity,
-    /if \(!streaming && !thinking && !activities\.length && !team\) return null/,
-  )
+  // 空值守卫：没有思考/工具/团队内容时不占位（运行状态由输入框胶囊承载）。
+  assert.match(activity, /if \(!thinking && !activities\.length && !team\) return null/)
   assert.match(activity, /reasoningCompleted/)
 })
 

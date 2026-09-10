@@ -12,6 +12,7 @@ import {
   SettingsManager,
 } from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
+import { findLastMessageEntryId } from './session-tree.mjs'
 import {
   createSessionWithTransientStreamRetry,
   installTransientStreamRetry,
@@ -2388,7 +2389,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await collectWorkspaceAssets().catch(() => {})
       const finishedAt = finishLiveRun()
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
+      // 回合边界条目随 done 直接下发：前端就地补全消息元数据，结束后不再整页重拉历史。
+      const turnBoundaryEntryId = findLastMessageEntryId(session.sessionManager, 'assistant')
       emit('done', {
+        turnBoundaryEntryId,
         queueRevision: sessionInputQueueRevision(session),
         sessionId: session.sessionId,
         text: live.text,

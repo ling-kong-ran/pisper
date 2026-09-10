@@ -450,6 +450,15 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
+  // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——否则首轮事件
+  // 空窗期活动区渲染空壳，三点动画永远不会出现。
+  const hasVisibleRunActivity = Boolean(
+    runProps &&
+    (String(runProps.thinkingText || '').trim() ||
+      (runProps.activityFeed?.length ?? 0) > 0 ||
+      (runProps.tools?.length ?? 0) > 0 ||
+      runProps.team),
+  )
 
   return (
     <AiMessage
@@ -486,7 +495,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         )}
       >
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
-        {streaming && !displayText && !showRunActivity && (
+        {streaming && !displayText && !hasVisibleRunActivity && (
           // 首轮 SSE 事件到达前的空窗：只有头像会显得卡住，用三点动画表明正在工作。
           <div
             className="agent-thinking-dots [&_i]:w-[4px] [&_i]:h-[4px] [&_i]:rounded-[50%] [&_i]:bg-[var(--text-muted)] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-center gap-[3px] py-2"

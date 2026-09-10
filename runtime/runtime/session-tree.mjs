@@ -477,3 +477,14 @@ export async function scanSessionTreeLabels(path, options = {}) {
 }
 
 export { TREE_NAVIGATION_CUSTOM_TYPE }
+
+// 沿活跃路径父链向上找最近一条指定角色的消息条目 ID（跳过标签/位置等自定义条目）。
+export function findLastMessageEntryId(manager, role) {
+  let entry = null
+  const leafId = manager?.getLeafId?.() || ''
+  if (leafId) entry = manager.getEntry(leafId)
+  while (entry && (entry.type !== 'message' || (role && entry.message?.role !== role))) {
+    entry = entry.parentId ? manager.getEntry(entry.parentId) : null
+  }
+  return entry?.id || ''
+}

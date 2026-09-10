@@ -122,6 +122,11 @@ export function reconcileTerminalStreamState(
                 ? data.text
                 : responseText || item.text,
             streaming: preserveDisplayedText ? item.text !== responseText : false,
+            ...(failed
+              ? {}
+              : data.turnBoundaryEntryId
+                ? { turnBoundaryEntryId: String(data.turnBoundaryEntryId) }
+                : {}),
             ...(failed ? {} : data.assets?.length ? { attachments: data.assets } : {}),
           }
         : item,

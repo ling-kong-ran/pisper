@@ -356,14 +356,8 @@ export function usePromptCommands({
               : item,
           ),
         }))
-        // Reconcile every optimistic SSE bubble with the durable transcript after the run settles.
-        try {
-          await loadSessionMessages(sessionId, { force: true })
-        } catch (error) {
-          if (!ownsStream()) return
-          // 回复已完成，消息页加载失败仅影响元数据，不应把成功回复改成运行错误。
-          updateSessionState(sessionId, { loading: false, error: chatErrorMessage(error) })
-        }
+        // 持久化元数据（回合边界/资产）已随 done 帧就地补齐，不再整页重拉历史，
+        // 避免最后一行消息因换成服务端 ID 而重挂载、闪动。
         if (!ownsStream()) return
         if (
           goalMode ||

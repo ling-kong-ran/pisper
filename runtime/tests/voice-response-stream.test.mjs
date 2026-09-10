@@ -228,19 +228,21 @@ for (const failure of ['resync_required', 'transport-error']) {
   })
 }
 
-test('completed prompt survives actual durable transcript loading failure without marking its reply failed', async (t) => {
+test('completed prompt settles from the done frame without a durable transcript reload', async (t) => {
   const f = transportFixture(t, {
     openStream: async (_input, dispatch) => {
       dispatch('run', { runId: 'run-one' })
       dispatch('meta', { startedAt: '2026-07-17T01:02:03.456Z' })
-      dispatch('done', { text: '完整回答。' })
+      dispatch('done', { text: '完整回答。', turnBoundaryEntryId: 'entry-final' })
     },
+    // 即使历史加载会失败，成功路径也不再触发它。
     loadError: 'metadata unavailable',
   })
   await f.commands.sendPrompt('spoken prompt', 'session')
-  assert.equal(f.ref.current.session.error, 'metadata unavailable')
+  assert.equal(f.ref.current.session.error, '')
   assert.equal(f.ref.current.session.messages.at(-1).error, undefined)
   assert.equal(f.ref.current.session.messages.at(-1).text, '完整回答。')
+  assert.equal(f.ref.current.session.messages.at(-1).turnBoundaryEntryId, 'entry-final')
   assert.equal(f.updates.at(-1).status, 'completed')
   assert.ok(!f.updates.some((event) => event.status === 'failed'))
 })

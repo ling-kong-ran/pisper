@@ -171,11 +171,15 @@ function burstAndDone(dispatch, { finalText = 'x'.repeat(900), boundaries = fals
     dispatch('permission_request', { id: 'permission' })
     dispatch('permission_resolved', { id: 'permission' })
   }
-  dispatch('done', { text: finalText, finishedAt: '2026-01-01T00:00:01.000Z' })
+  dispatch('done', {
+    text: finalText,
+    finishedAt: '2026-01-01T00:00:01.000Z',
+    turnBoundaryEntryId: 'entry-final',
+  })
 }
 
 for (const boundaries of [false, true]) {
-  test(`synchronous burst plus done drains before durable history (boundaries=${boundaries})`, async (t) => {
+  test(`synchronous burst plus done drains and settles from the done frame (boundaries=${boundaries})`, async (t) => {
     const finalText = 'x'.repeat(870) + ' revised \u{1f4a1} ending'
     const f = transportFixture(t, {
       onOpen: (dispatch) => burstAndDone(dispatch, { finalText, boundaries }),
@@ -201,8 +205,9 @@ for (const boundaries of [false, true]) {
     assert.equal(f.pending, 0)
     await sending
     assert.equal(settled, true)
-    assert.equal(f.history.length, 1)
-    assert.equal(f.history[0].state.messages.at(-1).text, finalText)
+    // 成功路径不再重拉历史：边界元数据随 done 帧就地补齐。
+    assert.equal(f.history.length, 0)
+    assert.equal(f.ref.current.session.messages.at(-1).turnBoundaryEntryId, 'entry-final')
     assert.equal(f.ref.current.session.messages.at(-1).text, finalText)
     assert.equal(f.ref.current.session.messages.at(-1).streaming, false)
     const completedStates = f.changes.filter(({ state }) => state.lifecycle?.phase === 'completed')
@@ -239,7 +244,7 @@ test('text_end settles an already displayed block without flushing its text agai
   dispatch('done', { text: 'a' })
   close()
   await sending
-  assert.equal(f.history.length, 1)
+  assert.equal(f.history.length, 0)
 })
 
 test('a late final rewrite replaces the displayed suffix gradually and preserves the final text', async (t) => {
@@ -272,7 +277,7 @@ test('a late final rewrite replaces the displayed suffix gradually and preserves
   for (let frame = 0; f.pending && frame < 1_000; frame += 1) f.tick()
   await sending
   assert.equal(f.ref.current.session.messages.at(-1).text, finalText)
-  assert.equal(f.history.length, 1)
+  assert.equal(f.history.length, 0)
 })
 
 for (const nextGeneration of ['forced-snapshot', 'new-run']) {
@@ -370,7 +375,7 @@ for (const initiallyHidden of [false, true]) {
     }
     await sending
     assert.equal(f.ref.current.session.messages.at(-1).text, 'x'.repeat(900))
-    assert.equal(f.history.length, 1)
+    assert.equal(f.history.length, 0)
     assert.equal(f.pending, 0)
     assert.equal(f.shared.localStreamSessionsRef.current.size, 0)
   })
@@ -391,20 +396,18 @@ test('error termination still flushes immediately without starting a drain', asy
   assert.equal(f.responseEvents.at(-1).status, 'failed')
 })
 
-test('durable loading failure cannot turn a successfully drained response into a failed run', async (t) => {
-  const f = transportFixture(t, {
-    onOpen: (dispatch) => burstAndDone(dispatch),
-    onHistory: () => {
-      throw new Error('history unavailable')
-    },
-  })
+test('settled runs apply the done-frame boundary id without loading history', async (t) => {
+  const f = transportFixture(t, { onOpen: (dispatch) => burstAndDone(dispatch) })
   const sending = f.commands.sendPrompt('prompt', 'session')
   await settleMicrotasks()
   for (let frame = 0; f.pending && frame < 1_000; frame += 1) f.tick()
   await sending
-  assert.equal(f.ref.current.session.messages.at(-1).text, 'x'.repeat(900))
-  assert.equal(f.ref.current.session.messages.at(-1).error, undefined)
-  assert.equal(f.ref.current.session.error, 'history unavailable')
+  const last = f.ref.current.session.messages.at(-1)
+  assert.equal(last.text, 'x'.repeat(900))
+  assert.equal(last.turnBoundaryEntryId, 'entry-final')
+  assert.equal(last.streaming, false)
+  assert.equal(last.error, undefined)
   assert.equal(f.ref.current.session.lifecycle.phase, 'completed')
   assert.equal(f.responseEvents.at(-1).status, 'completed')
+  assert.equal(f.history.length, 0)
 })

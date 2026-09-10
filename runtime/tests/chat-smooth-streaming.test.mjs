@@ -97,9 +97,10 @@ test('SSE text deltas flow only through the typewriter, never direct state write
   assert.match(dispatch, /preserveDisplayedText: event === 'done'/)
   // 终态先等打字机排空，再整体替换为持久化消息。
   const drainIndex = prompt.indexOf('await typewriter.drain()')
-  const reloadIndex = prompt.indexOf('loadSessionMessages(sessionId, { force: true })')
-  assert.ok(drainIndex >= 0, 'typewriter drain must run before reloading history')
-  assert.ok(reloadIndex > drainIndex, 'durable reload must run after the drain completes')
+  assert.ok(drainIndex >= 0, 'settled runs drain the typewriter before finalizing text')
+  // 成功路径不再整页重拉历史：回合边界/资产元数据随 done 帧就地补齐。
+  const settleWindow = prompt.slice(drainIndex, prompt.indexOf('let completed', drainIndex))
+  assert.doesNotMatch(settleWindow, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
 })
 
 test('transcript keeps natural scroll following and live row remeasure wiring', async () => {

@@ -572,7 +572,8 @@ function AgentRunActivity({
     })
     return () => window.cancelAnimationFrame(frame)
   }, [activityVersion, activities.length, streaming])
-  if (!streaming && !thinking && !activities.length && !team) return null
+  // 没有任何可见内容时不占位：运行状态由输入框的呼吸灯胶囊承载。
+  if (!thinking && !activities.length && !team) return null
 
   const completedActivityCount = !streaming ? activities.length : 0
   const renderActivityCards = (items: EntityRecord[]) =>
