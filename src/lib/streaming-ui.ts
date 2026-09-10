@@ -152,7 +152,6 @@ export function createTypewriterDisplay(
     minCharsPerSecond = 36,
     maxCharsPerSecond = 1_200,
     catchUpRemaining = 160,
-    snapRemaining,
     requestFrame,
     cancelFrame,
     isCurrent = () => true,
@@ -162,7 +161,6 @@ export function createTypewriterDisplay(
     minCharsPerSecond?: number
     maxCharsPerSecond?: number
     catchUpRemaining?: number
-    snapRemaining?: number
     requestFrame?: typeof requestAnimationFrame
     cancelFrame?: typeof cancelAnimationFrame
     isCurrent?: () => boolean
@@ -254,8 +252,8 @@ export function createTypewriterDisplay(
     }
 
     const remaining = target.length - shown.length
-    if (snapRemaining != null && remaining >= snapRemaining) {
-      // 只有调用方显式选择此模式时才整块补齐，默认 burst 始终受速率上限约束。
+    if (remaining >= 480) {
+      // 大段积压固定批量补齐，避免逐帧解析 Markdown 和重复布局。
       shown = target
       characterCredit = 0
     } else {

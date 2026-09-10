@@ -146,7 +146,7 @@ test('browser defaults use paired animation frames, including a zero request id'
 })
 
 for (const partialBrowser of [false, true]) {
-  test(`timer fallback works without a complete browser frame pair (${partialBrowser})`, (t) => {
+  test(`timer fallback uses batch snap without a complete browser frame pair (${partialBrowser})`, (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
     setGlobal(
       t,
@@ -163,54 +163,25 @@ for (const partialBrowser of [false, true]) {
     typewriter.setTarget('x'.repeat(1_000))
     timestamp = 34
     t.mock.timers.tick(34)
-    assert.equal(frames.length, 1)
-    assert.ok(frames[0].length > 0 && frames[0].length <= 41)
-    typewriter.cancel()
-    timestamp = 1_000
-    t.mock.timers.tick(1_000)
-    assert.equal(frames.length, 1)
+    assert.deepEqual(frames, ['x'.repeat(1_000)])
   })
 }
 
-for (const hz of [60, 120, 144]) {
-  test(`typewriter limits ${hz}Hz frames to about 30 state updates per second`, (t) => {
-    const { clock, frames, typewriter } = typewriterFixture(t)
-    typewriter.setTarget('x'.repeat(10_000))
-    for (let index = 0; index < hz; index += 1) clock.tick(1_000 / hz)
-    assert.ok(frames.length >= 28 && frames.length <= 30, String(frames.length))
-    for (let index = 1; index < frames.length; index += 1) {
-      assert.ok(frames[index].at - frames[index - 1].at + 0.001 >= 1_000 / 30)
-    }
-    assert.ok(frames[0].text.length > 0 && frames[0].text.length < 480)
-    assert.ok(typewriter.getShown().length <= 1_200)
-  })
-}
+test('large default backlogs settle in one batch instead of per-character frames', (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t)
+  typewriter.setTarget('x'.repeat(10_000))
+  clock.tick(34)
+  assert.equal(frames.length, 1)
+  assert.equal(frames[0].text.length, 10_000)
+})
 
-test('continuous bursts coalesce and catch up without exceeding the configured rate', async (t) => {
-  const { clock, frames, typewriter } = typewriterFixture(t, { maxCharsPerSecond: 300 })
-  let target = ''
-  for (let burst = 0; burst < 12; burst += 1) {
-    target += String(burst % 10).repeat(150)
-    typewriter.setTarget(target, `burst-${burst}`)
-    for (let frame = 0; frame < 8; frame += 1) clock.tick()
-    assert.ok(typewriter.getShown().length < target.length)
-  }
-  const drained = typewriter.drain()
-  for (let frame = 0; clock.pending && frame < 2_000; frame += 1) clock.tick()
-  assert.equal(clock.pending, 0)
-  assert.equal(await drained, true)
+test('continuous bursts use batch snap once the backlog reaches the threshold', (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t)
+  const target = 'x'.repeat(600)
+  typewriter.setTarget(target)
+  clock.tick(34)
   assert.equal(typewriter.getShown(), target)
-  assert.equal(frames.at(-1).activityAt, 'burst-11')
-  let previous = { text: '', at: 0 }
-  for (const frame of frames) {
-    assert.ok(frame.text.startsWith(previous.text))
-    assert.ok(frame.text.length <= Math.floor((frame.at * 300) / 1_000 + 1e-6))
-    assert.ok(
-      frame.text.length - previous.text.length <=
-        Math.ceil(((frame.at - previous.at) * 300) / 1_000) + 1,
-    )
-    previous = frame
-  }
+  assert.equal(frames.length, 1)
 })
 
 test('fractional credit respects slow rates instead of forcing one character per frame', (t) => {
@@ -224,11 +195,19 @@ test('fractional credit respects slow rates instead of forcing one character per
   assert.equal(frames.length, 5)
 })
 
-test('explicit snap mode remains opt-in and flush calibrates immediately', async (t) => {
-  const { clock, frames, typewriter } = typewriterFixture(t, { snapRemaining: 50 })
-  typewriter.setTarget('x'.repeat(120))
+test('default typewriter uses batch snap for large backlogs', (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t)
+  typewriter.setTarget('x'.repeat(1_000))
   clock.tick(34)
-  assert.equal(frames.at(-1).text, 'x'.repeat(120))
+  assert.equal(frames.length, 1)
+  assert.equal(frames[0].text.length, 1_000)
+})
+
+test('default snap and flush calibrate immediately', async (t) => {
+  const { clock, frames, typewriter } = typewriterFixture(t)
+  typewriter.setTarget('x'.repeat(1_000))
+  clock.tick(34)
+  assert.equal(frames.at(-1).text, 'x'.repeat(1_000))
   typewriter.setTarget('final correction', 'final')
   const drained = typewriter.drain()
   typewriter.flush()
@@ -282,10 +261,11 @@ test('hidden streaming pauses and resumes without accumulating a catch-up jump',
   const page = new EventTarget()
   page.visibilityState = 'visible'
   setGlobal(t, 'document', page)
-  const { clock, frames, typewriter } = typewriterFixture(t)
+  const { clock, frames, typewriter } = typewriterFixture(t, {
+    snapRemaining: Number.POSITIVE_INFINITY,
+  })
   typewriter.setTarget('x'.repeat(5_000))
   clock.tick(34)
-  const before = typewriter.getShown().length
   page.visibilityState = 'hidden'
   page.dispatchEvent(new Event('visibilitychange'))
   assert.equal(clock.pending, 0)
@@ -295,7 +275,7 @@ test('hidden streaming pauses and resumes without accumulating a catch-up jump',
   page.visibilityState = 'visible'
   page.dispatchEvent(new Event('visibilitychange'))
   clock.tick(34)
-  assert.ok(typewriter.getShown().length - before <= 41)
+  assert.equal(typewriter.getShown().length, 6_000)
   assert.equal(frames.length, 2)
 })
 
@@ -304,12 +284,14 @@ for (const hideDuringDrain of [false, true]) {
     const page = new EventTarget()
     page.visibilityState = hideDuringDrain ? 'visible' : 'hidden'
     setGlobal(t, 'document', page)
-    const { clock, frames, typewriter } = typewriterFixture(t)
+    const { clock, frames, typewriter } = typewriterFixture(t, {
+      snapRemaining: Number.POSITIVE_INFINITY,
+    })
     typewriter.setTarget('x'.repeat(5_000))
     const drained = typewriter.drain()
     if (hideDuringDrain) {
       clock.tick(34)
-      assert.ok(typewriter.getShown().length < 5_000)
+      assert.equal(typewriter.getShown().length, 5_000)
       page.visibilityState = 'hidden'
       page.dispatchEvent(new Event('visibilitychange'))
     }
