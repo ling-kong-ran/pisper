@@ -91,6 +91,7 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
         return typewriter
       },
     },
+    '@/lib/streaming-debug': { recordStreamingDebug() {} },
     './voice-response-stream': { publishVoiceResponse: (event) => responseEvents.push(event) },
     './mobile-operations': {},
     './run-activity': {
