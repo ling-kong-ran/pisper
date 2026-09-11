@@ -80,7 +80,6 @@
   "pluginsPage.enabled": "Enabled",
   "pluginsPage.enabled2": "Enabled",
   "pluginsPage.english": "English",
-  "pluginsPage.full": "Full",
   "pluginsPage.highRisk": "High risk",
   "pluginsPage.loadingToolPlugins": "Loading tool plugins",
   "pluginsPage.disableThisTool": "Disable this tool",
@@ -98,7 +97,6 @@
   "pluginsPage.onTheNextAgentRequestAfterSaving": "On the next agent request after saving",
   "pluginsPage.pathScope": "Path scope",
   "pluginsPage.pluginPolicySavedAgentRuntimeUpdated": "Plugin policy saved. Agent runtime updated.",
-  "pluginsPage.presets": "Presets",
   "pluginsPage.queriesAreSentToBingDoNotIncludeSecretsOrPrivateData": "Queries are sent to Bing. Do not include secrets or private data.",
   "pluginsPage.readingTheAgentSRegisteredToolsAndPermissions": "Reading the agent’s registered tools and permissions…",
   "pluginsPage.recentChanges": "Recent changes",
@@ -138,6 +136,5 @@
   "pluginsPage.uninstallPlugin": "Uninstall plugin",
   "pluginsPage.uninstallPluginDescription": "Uninstall {name} and all tools it provides? Built-in Pisper tools cannot be uninstalled.",
   "pluginsPage.pluginUninstalled": "{name} was uninstalled",
-  "pluginsPage.saveBeforePluginChanges": "Save pending tool policy changes before installing or uninstalling a plugin.",
-  "pluginsPage.workspace": "Workspace"
+  "pluginsPage.saveBeforePluginChanges": "Save pending tool policy changes before installing or uninstalling a plugin."
 }

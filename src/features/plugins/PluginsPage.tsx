@@ -99,11 +99,6 @@ function sourceLabel(source: SourceFilter, t: ReturnType<typeof useI18n>['t']) {
   return t('plugins:pluginsPage.all')
 }
 
-function presetLabel(preset: string, t: ReturnType<typeof useI18n>['t']) {
-  if (preset === 'workspace') return t('plugins:pluginsPage.workspace')
-  return t('plugins:pluginsPage.full')
-}
-
 function enabledToolNames(plugins: InstalledPlugin[]) {
   return plugins.flatMap((plugin) =>
     plugin.capabilities
@@ -334,24 +329,6 @@ export function PluginsPage({
     )
   }
 
-  const applyPreset = (preset: string) => {
-    const enabled = new Set(data?.presets?.[preset] || [])
-    setDraft((current) =>
-      current.map((plugin) =>
-        plugin.builtIn
-          ? {
-              ...plugin,
-              enabled: plugin.capabilities.some((capability) => enabled.has(capability.name)),
-              capabilities: plugin.capabilities.map((capability) => ({
-                ...capability,
-                enabled: enabled.has(capability.name),
-              })),
-            }
-          : plugin,
-      ),
-    )
-  }
-
   const requireSavedPluginState = () => {
     if (!dirty) return true
     setError(t('plugins:pluginsPage.saveBeforePluginChanges'))
@@ -422,19 +399,6 @@ export function PluginsPage({
           }
         />
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="plugin-presets [&_>_span]:p-[0_6px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] [&_button]:h-[27px] [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:p-[0_9px] [&_button]:text-[var(--text-muted)] [&_button]:text-[12px] [&_button]:font-[600] [&_button:hover]:bg-[var(--accent-soft)] [&_button:hover]:text-[var(--star-strong)] [&_button.active]:bg-[var(--accent-soft)] [&_button.active]:text-[var(--star-strong)] max-[650px]:min-w-0 max-[650px]:overflow-x-auto flex items-center gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--solid)] [padding:3px]">
-            <span>{t('plugins:pluginsPage.presets')}</span>
-            {['workspace', 'full'].map((preset) => (
-              <button
-                type="button"
-                key={preset}
-                className={data.preset === preset && !dirty ? 'active' : ''}
-                onClick={() => applyPreset(preset)}
-              >
-                {presetLabel(preset, t)}
-              </button>
-            ))}
-          </div>
           {customPluginsAvailable && (
             <Button
               type="button"

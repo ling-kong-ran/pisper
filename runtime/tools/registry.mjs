@@ -14,16 +14,16 @@ export const TOOL_CATALOG = [...BUILTIN_TOOL_CATALOG, ...APP_TOOL_CATALOG]
 
 const TOOL_IDS = new Set(TOOL_CATALOG.map((tool) => tool.id))
 
-// 从配置中解析启用工具：配置缺省时按 toolMode 预设解析，未知预设回退到 workspace。
+// 从配置中解析启用工具：配置缺省时按 toolMode 预设解析，未知预设回退到 full（Shell 默认可用）。
 // 只保留目录中存在的工具 ID。
 export function toolsFromConfig(config = {}) {
   const requestedToolMode = typeof config.toolMode === 'string' ? config.toolMode : ''
   const toolMode = normalizeToolMode(requestedToolMode, '')
-  if (requestedToolMode && !TOOL_MODES.has(requestedToolMode)) return TOOL_PRESETS.workspace
+  if (requestedToolMode && !TOOL_MODES.has(requestedToolMode)) return TOOL_PRESETS.full
   const configured = Array.isArray(config.enabledTools)
     ? config.enabledTools.filter((tool) => TOOL_IDS.has(tool))
     : null
-  return configured || TOOL_PRESETS[toolMode] || TOOL_PRESETS.workspace
+  return configured || TOOL_PRESETS[toolMode] || TOOL_PRESETS.full
 }
 
 export function presetFromTools(enabledTools) {

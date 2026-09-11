@@ -73,26 +73,9 @@ export const BUILTIN_TOOL_CATALOG = [
   },
 ]
 
+// 单一预设：默认全部内置工具开启（含 Shell）；细粒度开关走 custom（插件页逐工具管理）。
+// 历史上的 workspace/full 双预设已合并为有 Shell 的全量预设。
 export const TOOL_PRESETS = {
-  workspace: [
-    'read',
-    'grep',
-    'find',
-    'ls',
-    'edit',
-    'write',
-    'skill_create',
-    'plugin_create',
-    'web_search',
-    'browser_automation',
-    // 生图/手机操作的产物落在工作区或本地设备，属于工作区能力，随写权限一起开放。
-    'generate_visual',
-    'mobile_device',
-    'memory_search',
-    'memory_remember',
-    'mcp_list',
-    'mcp_manage',
-  ],
   full: [
     'read',
     'grep',
@@ -107,6 +90,7 @@ export const TOOL_PRESETS = {
     'browser_automation',
     'generate_visual',
     'mobile_device',
+    'computer_use',
     'memory_search',
     'memory_remember',
     'mcp_list',
@@ -114,9 +98,10 @@ export const TOOL_PRESETS = {
   ],
 }
 
-export const TOOL_MODES = new Set(['workspace', 'full', 'custom'])
+// 历史配置中的 'workspace' 已随预设合并废弃，读取时归入 full。
+export const TOOL_MODES = new Set(['full', 'custom'])
 
-// 读取配置时将已删除或未知模式按工作区处理，避免为旧文件增加专门迁移流程。
-export function normalizeToolMode(value, fallback = 'workspace') {
+// 读取配置时将已删除（如 workspace）或未知模式按完整模式处理：Shell（bash）默认可用。
+export function normalizeToolMode(value, fallback = 'full') {
   return TOOL_MODES.has(value) ? value : fallback
 }

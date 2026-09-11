@@ -12,8 +12,8 @@ test('mobile_device 是默认启用的高风险 App 工具', () => {
   assert.equal(catalog?.source, 'app')
   assert.equal(TOOL_PRESETS.full.includes('mobile_device'), true)
   // 工作区预设包含生图与手机操作（产物落在工作区/本地设备，随写权限开放）
-  assert.equal(TOOL_PRESETS.workspace.includes('mobile_device'), true)
-  assert.equal(TOOL_PRESETS.workspace.includes('generate_visual'), true)
+  assert.equal(TOOL_PRESETS.full.includes('mobile_device'), true)
+  assert.equal(TOOL_PRESETS.full.includes('generate_visual'), true)
 })
 
 test('mobile_device V2 默认迁移会修复旧版遗漏的工具开关', async () => {

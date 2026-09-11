@@ -77,7 +77,7 @@ test('configured OpenAI protocol applies to built-in Kimi models', async (t) => 
   assert.equal(model.baseUrl, 'https://api.kimi.com/coding/v1')
 })
 
-test('removed tool modes use the workspace default without a migration file', async (t) => {
+test('removed tool modes use the full default without a migration file', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-tool-mode-'))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   t.after(async () => {
@@ -90,8 +90,8 @@ test('removed tool modes use the workspace default without a migration file', as
     JSON.stringify({ toolMode: 'unknown', enabledTools: ['read'] }),
   )
 
-  assert.equal((await runtime.getConfig()).toolMode, 'workspace')
-  assert.equal((await runtime.exportProviderConfig()).toolMode, 'workspace')
+  assert.equal((await runtime.getConfig()).toolMode, 'full')
+  assert.equal((await runtime.exportProviderConfig()).toolMode, 'full')
 })
 
 test('paired device model config export imports credentials and defaults into the mobile runtime', async (t) => {

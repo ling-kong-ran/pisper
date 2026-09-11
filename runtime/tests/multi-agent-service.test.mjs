@@ -636,13 +636,14 @@ test('background Agents are considered proactively without polling or blocking t
   assert.match(waitGuidance, /without injecting model context/)
 })
 
-test('unknown tool modes fall back to the workspace preset', () => {
-  assert.deepEqual(toolsFromConfig({}), TOOL_PRESETS.workspace)
-  assert.deepEqual(toolsFromConfig({ toolMode: 'unknown' }), TOOL_PRESETS.workspace)
+test('unknown or missing tool modes fall back to the full preset with Shell enabled', () => {
+  assert.deepEqual(toolsFromConfig({}), TOOL_PRESETS.full)
+  assert.deepEqual(toolsFromConfig({ toolMode: 'unknown' }), TOOL_PRESETS.full)
   assert.deepEqual(
     toolsFromConfig({ toolMode: 'unknown', enabledTools: ['read'] }),
-    TOOL_PRESETS.workspace,
+    TOOL_PRESETS.full,
   )
+  assert.ok(TOOL_PRESETS.full.includes('bash'))
   assert.deepEqual(new Set(TOOL_PRESETS.full), new Set(TOOL_CATALOG.map((tool) => tool.id)))
   assert.ok(MULTI_AGENT_TOOL_NAMES.every((name) => !TOOL_PRESETS.full.includes(name)))
 })

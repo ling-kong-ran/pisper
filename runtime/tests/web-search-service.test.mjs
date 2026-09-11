@@ -69,7 +69,7 @@ test('web_search needs no endpoint, belongs to writable presets, and persists pr
     webSearch: { language: 'zh-CN', safeSearch: 1, maxResults: 6 },
   })
   assert.ok(TOOL_CATALOG.some((tool) => tool.id === 'web_search' && tool.source === 'app'))
-  assert.ok(TOOL_PRESETS.workspace.includes('web_search'))
+  assert.ok(TOOL_PRESETS.full.includes('web_search'))
   assert.ok(saved.enabledTools.includes('web_search'))
   assert.deepEqual(saved.webSearch, {
     provider: 'bing',

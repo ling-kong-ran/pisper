@@ -80,7 +80,6 @@
   "pluginsPage.enabled": "启用",
   "pluginsPage.enabled2": "已启用",
   "pluginsPage.english": "英语",
-  "pluginsPage.full": "完整",
   "pluginsPage.highRisk": "高风险",
   "pluginsPage.loadingToolPlugins": "正在加载工具插件",
   "pluginsPage.disableThisTool": "禁用此工具",
@@ -98,7 +97,6 @@
   "pluginsPage.onTheNextAgentRequestAfterSaving": "保存后下一次 Agent 请求",
   "pluginsPage.pathScope": "路径范围",
   "pluginsPage.pluginPolicySavedAgentRuntimeUpdated": "插件策略已保存，Agent 运行时已更新",
-  "pluginsPage.presets": "预设",
   "pluginsPage.queriesAreSentToBingDoNotIncludeSecretsOrPrivateData": "搜索词会发送到 Bing，请勿在查询中包含密钥或隐私数据。",
   "pluginsPage.readingTheAgentSRegisteredToolsAndPermissions": "读取 Agent 当前注册工具与权限…",
   "pluginsPage.recentChanges": "最近变更",
@@ -138,6 +136,5 @@
   "pluginsPage.uninstallPlugin": "卸载插件",
   "pluginsPage.uninstallPluginDescription": "卸载 {name} 及其提供的全部工具？Pisper 内置工具不支持卸载。",
   "pluginsPage.pluginUninstalled": "已卸载 {name}",
-  "pluginsPage.saveBeforePluginChanges": "请先保存待处理的工具策略变更，再安装或卸载插件。",
-  "pluginsPage.workspace": "工作区"
+  "pluginsPage.saveBeforePluginChanges": "请先保存待处理的工具策略变更，再安装或卸载插件。"
 }
