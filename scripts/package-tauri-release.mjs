@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -14,8 +14,9 @@ const stageDir = path.resolve(
   root,
   process.env.PISPER_TAURI_STAGE_DIR || path.join('release', 'tauri-artifacts'),
 )
+const simpleIntelMacDmg = process.platform === 'darwin' && process.arch === 'x64'
 const bundlesByPlatform = {
-  darwin: 'app,dmg',
+  darwin: simpleIntelMacDmg ? 'app' : 'app,dmg',
   linux: 'appimage,deb',
   win32: 'nsis',
 }
@@ -122,6 +123,24 @@ if (signingKey.trim()) {
 }
 
 await run(process.execPath, buildArgs, env)
+if (simpleIntelMacDmg) {
+  // macos-15-intel 的 Finder 布局脚本会卡住；直接从已签名 .app 创建无挂载 DMG。
+  const productName = String(tauriConfig.productName || 'Pisper')
+  const appBundle = path.join(bundleDir, 'macos', `${productName}.app`)
+  const sourceDir = path.join(bundleDir, 'dmg-source')
+  const dmgDir = path.join(bundleDir, 'dmg')
+  const dmgPath = path.join(dmgDir, `${productName}_${desktopPackage.version}_x64.dmg`)
+  await rm(sourceDir, { recursive: true, force: true })
+  await mkdir(sourceDir, { recursive: true })
+  await mkdir(dmgDir, { recursive: true })
+  await run('ditto', [appBundle, path.join(sourceDir, `${productName}.app`)], env)
+  await run('ln', ['-s', '/Applications', path.join(sourceDir, 'Applications')], env)
+  await run(
+    'hdiutil',
+    ['create', '-volname', productName, '-srcfolder', sourceDir, '-ov', '-format', 'UDZO', dmgPath],
+    env,
+  )
+}
 const stageArgs = [path.join(root, 'scripts', 'stage-tauri-artifacts.mjs')]
 if (signingKey.trim()) stageArgs.push('--require-signature')
 await run(process.execPath, stageArgs, env)
