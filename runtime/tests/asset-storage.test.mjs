@@ -380,3 +380,18 @@ test('legacy reconciliation merges readable duplicates and removes unreadable re
   assert.equal(await reconcile(), false)
   assert.equal(saves, 1)
 })
+
+test('non-media workspace file changes stay in generated assets after history reload', async (t) => {
+  const { workspace, runtime } = await createFixture(t)
+  const sourcePath = join(workspace, 'src', 'app.ts')
+  await mkdir(dirname(sourcePath), { recursive: true })
+  await writeFile(sourcePath, 'export const answer = 42\n')
+
+  const asset = await runtime.recordGeneratedFile('session-9', { name: 'Code session' }, sourcePath)
+  assert.ok(asset)
+  assert.equal(/^(?:image|video)\//.test(asset.mimeType), false)
+  // 非媒体的工作区文件变更也必须保留在会话生成资产里，否则消息重载后文件 chips 丢失。
+  const generated = runtime.streamProjection.generatedAssets('session-9')
+  assert.equal(generated.length, 1)
+  assert.equal(generated[0].name, 'app.ts')
+})

@@ -29,12 +29,16 @@ export function attachGeneratedAssets(messages, assets) {
   if (!agentIndexes.length) return result
   for (const asset of assets) {
     const created = new Date(asset.created || asset.modified || 0).getTime()
-    const targetIndex =
-      agentIndexes.find((index) => {
-        const timestamp =
-          Number(result[index].timestamp) || new Date(result[index].timestamp || 0).getTime()
-        return timestamp >= created
-      }) ?? agentIndexes.at(-1)
+    // 归属到资产创建时所处的轮次：工具执行产生的资产晚于该轮助手消息的起始时间戳，
+    // 取「最后一个不晚于创建时间的 agent 消息」；早于所有消息（异常时序）挂第一条。
+    // 旧逻辑取「第一条晚于创建时间的消息」，会把上一轮的产物错挂到下一轮。
+    let targetIndex = agentIndexes[0]
+    for (const index of agentIndexes) {
+      const timestamp =
+        Number(result[index].timestamp) || new Date(result[index].timestamp || 0).getTime()
+      if (timestamp <= created) targetIndex = index
+      else break
+    }
     const attachment = assetMessageAttachment(asset)
     if (!result[targetIndex].attachments.some((item) => item.id === attachment.id))
       result[targetIndex].attachments.push(attachment)

@@ -134,7 +134,9 @@ export function generatedAssetsForSession(assets, sessionId) {
       (asset) =>
         asset.sessionId === sessionId &&
         asset.source === 'agent' &&
-        /^(?:image|video)\//.test(asset.mimeType || ''),
+        // 图像/视频产物按类型归属；工作区文件变更（edit/write/bash 捕获）按 filePath 归属，
+        // 否则文本/代码类产物在历史消息重载后会整批丢失（文件列表时有时无的根因）。
+        (/^(?:image|video)\//.test(asset.mimeType || '') || Boolean(asset.filePath)),
     )
     .sort((left, right) => new Date(left.created).getTime() - new Date(right.created).getTime())
 }
