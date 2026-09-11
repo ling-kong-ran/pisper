@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pisper 开发日志：从 GitHub Releases 自动整理每个版本的新增功能、问题修复与其他变更。"
+    />
+    <meta name="theme-color" content="#0b0c0c" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Pisper 开发日志" />
+    <meta
+      property="og:description"
+      content="查看 Pisper Desktop、Runtime、TUI 与移动 App 每个版本的新增功能和问题修复。"
+    />
+    <meta property="og:url" content="https://ling-kong-ran.github.io/pisper/changelog.html" />
+    <link rel="canonical" href="https://ling-kong-ran.github.io/pisper/changelog.html" />
+    <link rel="icon" href="brand/pisper-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="changelog.css" />
+    <script src="changelog.js" defer></script>
+    <title>开发日志 · Pisper</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#changelog-main">跳到主要内容</a>
+
+    <header class="page-header">
+      <a class="page-brand" href="index.html">
+        <img src="brand/pisper-logo.svg" width="28" height="28" alt="" />
+        <span>Pisper</span>
+      </a>
+      <nav class="page-header-links" aria-label="站点链接">
+        <a href="index.html">首页</a>
+        <a href="guide.html">使用教程</a>
+        <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
+        <a href="index.html#download">下载</a>
+      </nav>
+    </header>
+
+    <main class="changelog-main" id="changelog-main">
+      <header class="changelog-intro">
+        <p class="eyebrow">DEVELOPMENT LOG</p>
+        <h1>开发日志</h1>
+        <p>从 GitHub Releases 自动整理。每次发布的新增功能、问题修复和其他变更，在这里分栏呈现。</p>
+      </header>
+
+      <div class="release-toolbar">
+        <div class="release-filters" data-release-filters role="group" aria-label="筛选发布组件">
+          <button type="button" data-release-filter="all" aria-pressed="true">全部</button>
+          <button type="button" data-release-filter="desktop" aria-pressed="false">Desktop</button>
+          <button type="button" data-release-filter="runtime" aria-pressed="false">Runtime</button>
+          <button type="button" data-release-filter="tui" aria-pressed="false">TUI</button>
+          <button type="button" data-release-filter="app" aria-pressed="false">App</button>
+        </div>
+        <p class="release-status" data-release-status role="status">正在从 GitHub 获取发布记录…</p>
+      </div>
+
+      <div class="release-list" data-release-list></div>
+      <div class="release-more-wrap">
+        <button class="release-more" type="button" data-release-more hidden>显示更多版本</button>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <p>
+        数据来自
+        <a href="https://github.com/ling-kong-ran/pisper/releases">GitHub Releases</a>，页面不会写死版本内容。
+      </p>
+    </footer>
+  </body>
+</html>

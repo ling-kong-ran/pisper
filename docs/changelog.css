@@ -1,0 +1,479 @@
+/* 开发日志页：沿用教程页的文档式布局，重点支持高密度版本浏览与提交分类。 */
+:root {
+  color-scheme: dark;
+  --page: #0b0c0c;
+  --surface: #151817;
+  --surface-2: #1b1f1d;
+  --ink: #f2f5f3;
+  --muted: #a7b0ac;
+  --faint: #727c77;
+  --line: #303734;
+  --feature: #cbe969;
+  --fix: #ff9c8d;
+  --change: #68cbd4;
+  --header-height: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.65;
+}
+
+a {
+  color: var(--change);
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--change);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--feature);
+  color: #11140a;
+  font-weight: 700;
+}
+
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  min-height: var(--header-height);
+  align-items: center;
+  gap: 20px;
+  padding-inline: max(20px, calc((100% - 1080px) / 2));
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--page) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.page-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.page-brand img {
+  border-radius: 7px;
+}
+
+.page-header-links {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.page-header-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.page-header-links a:hover {
+  color: var(--ink);
+}
+
+.changelog-main {
+  width: min(1080px, calc(100% - 48px));
+  min-height: calc(100vh - var(--header-height));
+  margin-inline: auto;
+  padding: 56px 0 96px;
+}
+
+.changelog-intro {
+  max-width: 760px;
+  padding-bottom: 38px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--feature);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.changelog-intro h1 {
+  margin: 0 0 14px;
+  font-size: clamp(36px, 5vw, 52px);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.changelog-intro > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.release-toolbar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 66px;
+  margin-bottom: 8px;
+  border-block: 1px solid var(--line);
+  background: color-mix(in srgb, var(--page) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.release-filters {
+  display: inline-flex;
+  min-width: 0;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.release-filters button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.release-filters button:hover {
+  color: var(--ink);
+}
+
+.release-filters button[aria-pressed="true"] {
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--feature) 32%, transparent);
+}
+
+.release-status {
+  margin: 0;
+  color: var(--faint);
+  font-size: 12.5px;
+  text-align: right;
+}
+
+.release-status.is-error {
+  color: var(--fix);
+}
+
+.release-retry {
+  margin-left: 8px;
+  padding: 4px 9px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.release-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.release-entry {
+  padding: 34px 0 38px;
+  border-bottom: 1px solid var(--line);
+}
+
+.release-entry-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.release-version-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.release-entry h2 {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 23px;
+  line-height: 1.25;
+}
+
+.release-channel {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.release-entry-name {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.release-entry-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px 14px;
+  color: var(--faint);
+  font-size: 12.5px;
+  text-align: right;
+}
+
+.release-entry-meta a {
+  text-decoration: none;
+}
+
+.release-entry-meta a:hover {
+  text-decoration: underline;
+}
+
+.release-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.release-category {
+  min-width: 0;
+}
+
+.release-category h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+.release-category h3::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--change);
+}
+
+.release-category-added h3::before {
+  background: var(--feature);
+}
+
+.release-category-fixed h3::before {
+  background: var(--fix);
+}
+
+.release-category ul {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release-commit {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.release-commit code {
+  display: inline;
+  margin-right: 6px;
+  color: var(--change);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.release-category-added .release-commit code {
+  color: var(--feature);
+}
+
+.release-category-fixed .release-commit code {
+  color: var(--fix);
+}
+
+.release-category.is-empty p {
+  margin: 0;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.release-empty {
+  padding: 72px 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.release-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 28px;
+}
+
+.release-more {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.release-more:hover {
+  border-color: var(--change);
+  background: var(--surface-2);
+}
+
+.page-footer {
+  padding: 28px 24px;
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+.page-footer p {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .page-header {
+    gap: 12px;
+    padding-inline: 16px;
+  }
+
+  .page-header-links {
+    gap: 12px;
+    font-size: 13px;
+  }
+
+  .page-header-links a:nth-child(3) {
+    display: none;
+  }
+
+  .changelog-main {
+    width: min(100% - 32px, 1080px);
+    padding-top: 38px;
+  }
+
+  .changelog-intro {
+    padding-bottom: 28px;
+  }
+
+  .release-toolbar {
+    position: static;
+    display: block;
+    padding-block: 14px;
+  }
+
+  .release-filters {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .release-filters button {
+    min-width: 0;
+    padding-inline: 4px;
+  }
+
+  .release-status {
+    margin-top: 10px;
+    text-align: left;
+  }
+
+  .release-entry-header {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .release-entry-meta {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .release-columns {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .release-category + .release-category {
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 460px) {
+  .page-header-links a:nth-child(2) {
+    display: none;
+  }
+
+  .page-header-links {
+    gap: 10px;
+  }
+
+  .release-filters button {
+    font-size: 11px;
+  }
+
+  .release-version-row {
+    display: block;
+  }
+
+  .release-channel {
+    display: inline-block;
+    margin-top: 8px;
+  }
+}
