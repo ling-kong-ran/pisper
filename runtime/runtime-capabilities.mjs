@@ -75,6 +75,7 @@ function buildCapabilities({
     memory: sqlite,
     workers,
     plugins: workers && !embedded,
+    extensions: true,
     mcp: processes && !embedded,
     goals: !embedded,
     plans: !embedded,

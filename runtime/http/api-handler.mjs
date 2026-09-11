@@ -51,6 +51,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/plugins\/web-search\/test$/, feature: 'webSearch' },
   { pattern: /^\/api\/plugins(?:\/|$)/, feature: 'plugins' },
+  { pattern: /^\/api\/extensions(?:\/|$)/, feature: 'extensions' },
   { pattern: /^\/api\/channels(?:\/|$)/, feature: 'channels' },
   { pattern: /^\/api\/schedules(?:\/|$)/, feature: 'schedules' },
   { pattern: /^\/api\/(?:workflows|workflow-runs)(?:\/|$)/, feature: 'workflows' },

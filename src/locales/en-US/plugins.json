@@ -136,5 +136,22 @@
   "pluginsPage.uninstallPlugin": "Uninstall plugin",
   "pluginsPage.uninstallPluginDescription": "Uninstall {name} and all tools it provides? Built-in Pisper tools cannot be uninstalled.",
   "pluginsPage.pluginUninstalled": "{name} was uninstalled",
-  "pluginsPage.saveBeforePluginChanges": "Save pending tool policy changes before installing or uninstalling a plugin."
+  "pluginsPage.saveBeforePluginChanges": "Save pending tool policy changes before installing or uninstalling a plugin.",
+  "pluginsPage.extensionMarket": "Extension marketplace",
+  "pluginsPage.openPackageCatalog": "Open full catalog",
+  "pluginsPage.searchPackageCatalog": "Search the pi.dev package catalog",
+  "pluginsPage.search": "Search",
+  "pluginsPage.installedExtensions": "Installed Extensions",
+  "pluginsPage.installExtension": "Install Extension",
+  "pluginsPage.uninstallExtension": "Uninstall Extension",
+  "pluginsPage.extensionSource": "Extension source",
+  "pluginsPage.extensionSourceHelp": "Enter an npm package, Git URL, or local extension directory. Packages with pi.extensions or pi.prompts can be installed as Extensions; pi.skills in mixed packages are also shown by category.",
+  "pluginsPage.extensionType.tool": "Tool",
+  "pluginsPage.extensionType.prompt": "Prompt",
+  "pluginsPage.extensionType.skill": "Skill",
+  "pluginsPage.extensionSecurityWarning": "Extension code runs in the Agent Runtime and may access files, the network, and current-user permissions. Install {name}?",
+  "pluginsPage.extensionInstalled": "Extension installed. Start a new session to load it.",
+  "pluginsPage.extensionUninstalled": "Extension uninstalled. Start a new session to stop using it.",
+  "pluginsPage.uninstallExtensionDescription": "Uninstall {name} and its Pi Extension configuration?",
+  "pluginsPage.installed": "Installed"
 }

@@ -90,7 +90,6 @@ export const TOOL_PRESETS = {
     'browser_automation',
     'generate_visual',
     'mobile_device',
-    'computer_use',
     'memory_search',
     'memory_remember',
     'mcp_list',

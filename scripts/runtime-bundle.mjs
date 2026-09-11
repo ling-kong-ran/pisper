@@ -9,6 +9,7 @@ export const RUNTIME_BUNDLE_VERSION = 1
 export const RUNTIME_EXTERNAL_PACKAGES = Object.freeze([
   '@earendil-works/pi-coding-agent',
   '@homebridge/ciao',
+  '@injaneity/pi-computer-use',
   '@larksuiteoapi/node-sdk',
   '@modelcontextprotocol/sdk',
   'sherpa-onnx-node',

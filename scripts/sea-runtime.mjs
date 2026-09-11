@@ -32,6 +32,12 @@ const officeBrowserFiles = new Set([
   'officeparser.browser.slim.mjs',
 ])
 const retainedYargsLocales = new Set(['en.json', 'zh_CN.json'])
+const OFFICIAL_COMPUTER_USE_PACKAGE = '@injaneity/pi-computer-use'
+
+function packageNameForDirectory(directory) {
+  const parent = basename(dirname(directory))
+  return parent.startsWith('@') ? `${parent}/${basename(directory)}` : basename(directory)
+}
 
 function runtimePath(runtimeDir, relativePath) {
   return join(runtimeDir, ...relativePath.split('/'))
@@ -194,6 +200,8 @@ async function prunePackageTree(directory, audit) {
   }
 
   const directoryName = basename(directory)
+  const packageName = packageNameForDirectory(directory)
+  const preserveOfficialComputerUseSource = packageName === OFFICIAL_COMPUTER_USE_PACKAGE
   const protectsPackageChildren =
     directoryName === 'node_modules' ||
     (basename(dirname(directory)) === 'node_modules' && directoryName.startsWith('@'))
@@ -208,7 +216,8 @@ async function prunePackageTree(directory, audit) {
       continue
     }
     const rule = removableFileRule(entry.name)
-    if (rule) await removePath(entryPath, rule, audit)
+    if (rule && !(preserveOfficialComputerUseSource && rule === 'sourceOnly'))
+      await removePath(entryPath, rule, audit)
   }
 }
 
@@ -391,6 +400,7 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
     ['highlight.js', 'scss'],
     ['highlight.js', 'styles'],
   ]
+  if (target.platform === 'mobile') explicitPaths.push(['@injaneity', 'pi-computer-use'])
   for (const parts of explicitPaths) {
     await removePath(join(nodeModules, ...parts), 'explicitUnusedClosure', audit)
   }

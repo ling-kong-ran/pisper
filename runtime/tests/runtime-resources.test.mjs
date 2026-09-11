@@ -177,17 +177,17 @@ test('pending session model settings stay lightweight until the first prompt', a
   )
 })
 
-test('resource loading keeps external Pi Extensions disabled while retaining Pisper inline hooks', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'pisper-disabled-extensions-'))
+test('resource loading enables external Pi Extensions for web and desktop runtimes', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-external-extensions-'))
   const markerPath = join(directory, 'external-extension-loaded.txt')
   let runtime
   t.after(async () => {
     await runtime?.dispose()
     await rm(directory, { recursive: true, force: true })
   })
-  await mkdir(join(directory, 'extensions'), { recursive: true })
+  await mkdir(join(directory, '.pi', 'extensions'), { recursive: true })
   await writeFile(
-    join(directory, 'extensions', 'external.ts'),
+    join(directory, '.pi', 'extensions', 'external.ts'),
     `import { writeFileSync } from 'node:fs'
 writeFileSync(${JSON.stringify(markerPath)}, 'loaded', 'utf8')
 export default function () {}
@@ -200,9 +200,41 @@ export default function () {}
   const loader = await runtime.skills.createResourceLoader(directory)
   const loadedPaths = loader.getExtensions().extensions.map((extension) => extension.path)
 
-  assert.ok(loadedPaths.length > 0)
-  assert.ok(loadedPaths.every((path) => path.startsWith('<inline:')))
-  assert.equal(await readFile(markerPath, 'utf8').catch(() => ''), '')
+  assert.ok(loadedPaths.some((path) => path.includes('external.ts')))
+  assert.ok(loadedPaths.some((path) => path.includes('computer-use.ts')))
+  assert.equal(await readFile(markerPath, 'utf8'), 'loaded')
+})
+
+test('mobile runtimes keep external Pi Extensions but exclude computer-use', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mobile-extensions-'))
+  const markerPath = join(directory, 'mobile-extension-loaded.txt')
+  const previousProfile = process.env.PISPER_RUNTIME_PROFILE
+  process.env.PISPER_RUNTIME_PROFILE = 'mobile-embedded'
+  let runtime
+  t.after(async () => {
+    if (previousProfile === undefined) delete process.env.PISPER_RUNTIME_PROFILE
+    else process.env.PISPER_RUNTIME_PROFILE = previousProfile
+    await runtime?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await mkdir(join(directory, '.pi', 'extensions'), { recursive: true })
+  await writeFile(
+    join(directory, '.pi', 'extensions', 'mobile.ts'),
+    `import { writeFileSync } from 'node:fs'
+writeFileSync(${JSON.stringify(markerPath)}, 'loaded', 'utf8')
+export default function () {}
+`,
+    'utf8',
+  )
+
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  const loader = await runtime.skills.createResourceLoader(directory)
+  const loadedPaths = loader.getExtensions().extensions.map((extension) => extension.path)
+
+  assert.ok(loadedPaths.some((path) => path.includes('mobile.ts')))
+  assert.ok(!loadedPaths.some((path) => path.includes('computer-use.ts')))
+  assert.equal(await readFile(markerPath, 'utf8'), 'loaded')
 })
 
 test('main runtime keeps discovered cold MCP tools for the rest of the session while child resources remain available', async (t) => {
@@ -504,6 +536,44 @@ test('saving plugin tools keeps the current streaming session alive and invalida
   assert.equal(idleDisposed, 1)
   assert.equal(runtime.sessions.has('streaming'), true)
   assert.equal(runtime.sessions.has('idle'), false)
+})
+
+test('extension changes hot-reload idle sessions and defer active sessions until their turn ends', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-extension-refresh-'))
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose?.().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  let idleReloads = 0
+  runtime.sessions.set('idle', {
+    runtimeVersion: 0,
+    session: {
+      isStreaming: false,
+      reload: async () => {
+        idleReloads += 1
+      },
+      dispose: () => {},
+    },
+  })
+  runtime.sessions.set('active', {
+    runtimeVersion: 0,
+    session: {
+      isStreaming: true,
+      reload: async () => {},
+      dispose: () => {},
+    },
+  })
+  runtime.skills.installExtension = async () => ({ packages: [] })
+
+  await runtime.installExtension({ source: 'npm:example-extension' })
+
+  assert.equal(runtime.sessionRuntimeVersion, 1)
+  assert.equal(idleReloads, 1)
+  assert.equal(runtime.sessions.get('idle').runtimeVersion, 1)
+  assert.equal(runtime.sessions.get('active').runtimeVersion, -1)
+  assert.equal(runtime.sessions.has('active'), true)
 })
 
 test('saving Provider settings keeps the currently streaming session alive', async (t) => {

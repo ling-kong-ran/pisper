@@ -11,12 +11,14 @@ import {
   SessionManager,
 } from '../runtime/pi-coding-agent.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
+import { getOfficialComputerUseExtensionPath } from '../runtime/computer-use-extension.mjs'
 import {
   createCompactionSettingsManager,
   pisperCompactionExtension,
 } from '../runtime/compaction-policy.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_WRITE_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
+import { extensionSafeSettingsManager } from './skills-service.mjs'
 
 export const MAX_CONCURRENT_AGENTS = 4
 export const MAX_AGENTS_PER_PARENT = 64
@@ -326,12 +328,17 @@ async function createAgentResourceLoader({
   settingsManager,
   appendSystemPrompt = MULTI_AGENT_SYSTEM_PROMPT,
 }) {
+  const mobileRuntime = ['mobile-embedded', 'mobile-store'].includes(
+    process.env.PISPER_RUNTIME_PROFILE,
+  )
+  process.env.PI_CODING_AGENT_DIR = agentDir || cwd
   const loader = await createDefaultResourceLoader({
     cwd,
     agentDir: agentDir || cwd,
-    ...(settingsManager ? { settingsManager } : {}),
+    ...(settingsManager ? { settingsManager: extensionSafeSettingsManager(settingsManager) } : {}),
     extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
-    noExtensions: true,
+    additionalExtensionPaths: mobileRuntime ? [] : [getOfficialComputerUseExtensionPath()],
+    noExtensions: false,
     appendSystemPromptOverride: (base) => [...base, appendSystemPrompt],
   })
   await loader.reload()

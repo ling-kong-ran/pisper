@@ -136,5 +136,22 @@
   "pluginsPage.uninstallPlugin": "卸载插件",
   "pluginsPage.uninstallPluginDescription": "卸载 {name} 及其提供的全部工具？Pisper 内置工具不支持卸载。",
   "pluginsPage.pluginUninstalled": "已卸载 {name}",
-  "pluginsPage.saveBeforePluginChanges": "请先保存待处理的工具策略变更，再安装或卸载插件。"
+  "pluginsPage.saveBeforePluginChanges": "请先保存待处理的工具策略变更，再安装或卸载插件。",
+  "pluginsPage.extensionMarket": "Extension 插件市场",
+  "pluginsPage.openPackageCatalog": "打开完整目录",
+  "pluginsPage.searchPackageCatalog": "搜索 pi.dev 包目录",
+  "pluginsPage.search": "搜索",
+  "pluginsPage.installedExtensions": "已安装 Extension",
+  "pluginsPage.installExtension": "安装 Extension",
+  "pluginsPage.uninstallExtension": "卸载 Extension",
+  "pluginsPage.extensionSource": "扩展来源",
+  "pluginsPage.extensionSourceHelp": "输入 npm 包、Git 地址或本地扩展目录。包含 pi.extensions 或 pi.prompts 的包可作为 Extension 安装；混合包中的 pi.skills 也会分类展示。",
+  "pluginsPage.extensionType.tool": "工具",
+  "pluginsPage.extensionType.prompt": "Prompt",
+  "pluginsPage.extensionType.skill": "Skill",
+  "pluginsPage.extensionSecurityWarning": "Extension 代码将在 Agent Runtime 中运行，并可能访问文件、网络和当前用户权限。确定安装 {name}？",
+  "pluginsPage.extensionInstalled": "Extension 已安装；请新建会话使其生效。",
+  "pluginsPage.extensionUninstalled": "Extension 已卸载；请新建会话使其停止生效。",
+  "pluginsPage.uninstallExtensionDescription": "卸载 {name} 及其所有 Pi Extension 配置？",
+  "pluginsPage.installed": "已安装"
 }

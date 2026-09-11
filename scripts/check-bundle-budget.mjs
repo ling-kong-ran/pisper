@@ -10,7 +10,8 @@ export const BUNDLE_BUDGETS = {
   // 移动端恢复门禁保留在统一请求层，入口只增加极小的按需加载开销。
   // 状态栏新增连接探针与重连提示（自适应轮询 + 内置 toast）后，入口文件小幅增长。
   entryFileGzip: 57 * KIB + 384,
-  entryStaticJsGzip: 275 * KIB,
+  // 插件市场与 Pi Extension 桥接加入首屏插件路由，保留约 1 KB 的压缩预算余量。
+  entryStaticJsGzip: 283 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
   chunks: {

@@ -1,7 +1,7 @@
 // 技能服务：发现/安装/更新/删除 Pi 技能（项目与用户级），
 // 构建资源加载器（提示词/技能/包管理器）供会话使用，并提供仪表盘视图。
 import { createHash } from 'node:crypto'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import {
   cp,
   lstat,
@@ -15,11 +15,13 @@ import {
 } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { parse } from 'parse5'
 import {
   createDefaultPackageManager,
   createDefaultResourceLoader,
   loadSkills,
 } from '../runtime/pi-coding-agent.mjs'
+import { getOfficialComputerUseExtensionPath } from '../runtime/computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const SKILLS_STATE_VERSION = 2
@@ -30,10 +32,193 @@ const MAX_SKILL_BYTES = 256 * 1024 * 1024
 const DASHBOARD_CACHE_TTL_MS = 3_000
 const MAX_SKILL_DESCRIPTION_CHARS = 1_024
 const MAX_SKILL_INSTRUCTIONS_CHARS = 100_000
+const MAX_EXTENSION_SOURCE_CHARS = 2_000
+const PI_PACKAGE_CATALOG_URL = 'https://pi.dev/packages'
+const MAX_MARKET_QUERY_CHARS = 100
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+function isMobileRuntime() {
+  return ['mobile-embedded', 'mobile-store'].includes(process.env.PISPER_RUNTIME_PROFILE)
+}
+
+export function isOfficialComputerUseSource(source) {
+  return /(?:^|[/:@])(?:injaneity[/:])?pi-computer-use(?:$|[@#?/:])/i.test(String(source || ''))
+}
+
+export function extensionSafeSettingsManager(settingsManager) {
+  if (!isMobileRuntime() || !settingsManager) return settingsManager
+  return new Proxy(settingsManager, {
+    get(target, property, receiver) {
+      if (property === 'getGlobalSettings' || property === 'getProjectSettings') {
+        return () => {
+          const getter = Reflect.get(target, property, receiver)
+          const settings = getter.call(target)
+          return {
+            ...settings,
+            packages: (settings.packages || []).filter(
+              (item) =>
+                !isOfficialComputerUseSource(typeof item === 'string' ? item : item?.source),
+            ),
+          }
+        }
+      }
+      const value = Reflect.get(target, property, receiver)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
+}
+
+function textContent(node) {
+  if (!node) return ''
+  if (node.nodeName === '#text') return node.value || ''
+  return (node.childNodes || []).map(textContent).join('')
+}
+
+function findNodes(node, predicate, output = []) {
+  if (predicate(node)) output.push(node)
+  for (const child of node.childNodes || []) findNodes(child, predicate, output)
+  return output
+}
+
+function parsePackageCatalog(html, query = '') {
+  const document = parse(html)
+  const normalizedQuery = String(query || '')
+    .trim()
+    .toLowerCase()
+  const cards = findNodes(
+    document,
+    (node) =>
+      node.nodeName === 'div' &&
+      node.attrs?.some(
+        (attribute) => attribute.name === 'data-package-card' && attribute.value === 'true',
+      ),
+  )
+  const cardPackages = cards.flatMap((card) => {
+    const link = findNodes(
+      card,
+      (node) =>
+        node.nodeName === 'a' &&
+        node.attrs?.some((attribute) => attribute.name === 'data-package-link'),
+    )[0]
+    if (!link) return []
+    const name =
+      card.attrs?.find((attribute) => attribute.name === 'data-package-name')?.value ||
+      textContent(link).trim()
+    const description =
+      findNodes(card, (node) => node.nodeName === 'p')
+        .map(textContent)
+        .join(' ')
+        .trim() ||
+      card.attrs?.find((attribute) => attribute.name === 'data-package-search')?.value ||
+      ''
+    const published = findNodes(card, (node) => node.nodeName === 'small')
+      .map(textContent)
+      .join(' ')
+      .trim()
+    const href = link.attrs?.find((attribute) => attribute.name === 'href')?.value || ''
+    return [
+      {
+        name,
+        description,
+        published,
+        url: href.startsWith('/') ? new URL(href, PI_PACKAGE_CATALOG_URL).href : '',
+        searchText:
+          card.attrs?.find((attribute) => attribute.name === 'data-package-search')?.value || '',
+      },
+    ]
+  })
+  const linkPackages = findNodes(
+    document,
+    (node) =>
+      node.nodeName === 'a' &&
+      node.attrs?.some((attribute) => attribute.name === 'data-package-link'),
+  ).map((node) => {
+    const href = node.attrs.find((attribute) => attribute.name === 'href')?.value || ''
+    const strong = findNodes(node, (child) => child.nodeName === 'strong')[0]
+    const span = findNodes(node, (child) => child.nodeName === 'span')[0]
+    const small = findNodes(node, (child) => child.nodeName === 'small')[0]
+    return {
+      name: textContent(strong || node).trim(),
+      description: textContent(span).trim(),
+      published: textContent(small).trim(),
+      url: href.startsWith('/') ? new URL(href, PI_PACKAGE_CATALOG_URL).href : '',
+      searchText: '',
+    }
+  })
+  const seen = new Set()
+  return [...cardPackages, ...linkPackages]
+    .filter((item) => {
+      if (!item.name || !item.url || seen.has(item.name)) return false
+      const haystack = `${item.name} ${item.description} ${item.searchText}`.toLowerCase()
+      if (normalizedQuery && !haystack.includes(normalizedQuery)) return false
+      seen.add(item.name)
+      return true
+    })
+    .map(({ name, description, published, url }) => ({ name, description, published, url }))
+}
+
+function extensionSource(value) {
+  const source = String(value || '').trim()
+  if (!source) throw new Error('请输入 npm 包、git 地址或本地扩展目录。')
+  if (source.length > MAX_EXTENSION_SOURCE_CHARS) throw new Error('扩展来源过长。')
+  return source
+}
+
+function packageSourcesMatch(left, right, cwd) {
+  const leftSource = safeSourceLabel(left)
+  const rightSource = safeSourceLabel(right)
+  const remote = /^(?:npm:|git(?:\+|hub:)|https?:\/\/|ssh:\/\/)/i
+  if (remote.test(leftSource) || remote.test(rightSource)) return leftSource === rightSource
+  return (
+    normalizedPath(expandPath(leftSource, cwd)) === normalizedPath(expandPath(rightSource, cwd))
+  )
+}
+
+function extensionManifest(installedPath) {
+  if (!installedPath) return { extensions: [], prompts: [], skills: [], resourceTypes: [] }
+  try {
+    const packageJson = JSON.parse(readFileSync(join(installedPath, 'package.json'), 'utf8'))
+    const manifest = packageJson?.pi && typeof packageJson.pi === 'object' ? packageJson.pi : {}
+    const resourceEntries = (key, conventionalDirectory) => {
+      if (Array.isArray(manifest[key])) {
+        return manifest[key]
+          .filter((entry) => typeof entry === 'string')
+          .map((entry) => entry.trim().replaceAll('\\', '/'))
+          .filter(
+            (entry) =>
+              entry &&
+              !isAbsolute(entry) &&
+              entry !== '..' &&
+              !entry.startsWith('../') &&
+              !entry.includes('/../'),
+          )
+      }
+      return existsSync(join(installedPath, conventionalDirectory)) ? [conventionalDirectory] : []
+    }
+    const extensions = resourceEntries('extensions', 'extensions')
+    const prompts = resourceEntries('prompts', 'prompts')
+    const skills = resourceEntries('skills', 'skills')
+    const resourceTypes = [
+      extensions.length ? 'tool' : '',
+      prompts.length ? 'prompt' : '',
+      skills.length ? 'skill' : '',
+    ].filter(Boolean)
+    return {
+      name: typeof packageJson.name === 'string' ? packageJson.name : '',
+      version: typeof packageJson.version === 'string' ? packageJson.version : '',
+      description: typeof packageJson.description === 'string' ? packageJson.description : '',
+      extensions,
+      prompts,
+      skills,
+      resourceTypes,
+    }
+  } catch {
+    return { extensions: [], prompts: [], skills: [], resourceTypes: [] }
+  }
 }
 
 function normalizedPath(value) {
@@ -247,10 +432,12 @@ export class SkillsService {
     cwd,
     getSettingsManager,
     createPackageManager,
+    configPath,
     extensionFactories = [],
   } = {}) {
     this.path = path
     this.agentDir = agentDir
+    this.configPath = configPath || null
     this.cwd = cwd || process.cwd()
     this.skillsDir = join(agentDir, 'skills')
     this.getSettingsManager = getSettingsManager || (() => null)
@@ -321,17 +508,52 @@ export class SkillsService {
     cwd = this.cwd,
     { includeDisabled = false, appendSystemPrompt = '' } = {},
   ) {
-    const settingsManager = this.getSettingsManager(cwd)
+    process.env.PI_CODING_AGENT_DIR = this.agentDir
+    const settingsManager = extensionSafeSettingsManager(this.getSettingsManager(cwd))
     const resources = await this.resolveSkillResources(cwd)
     const promptDir = projectPromptsDir(cwd)
+    const appConfig = this.configPath ? await readJson(this.configPath, {}) : {}
+    const computerUseEnabled = appConfig.computerUseEnabled !== false
+    const disabledExtensionSources = new Set(
+      Object.entries(appConfig.piExtensions || {})
+        .filter(([, enabled]) => enabled === false)
+        .map(([source]) => source),
+    )
+    let disabledExtensionRoots = []
+    if (disabledExtensionSources.size) {
+      try {
+        const configuredPackages = (await this.packageManager(cwd)).listConfiguredPackages()
+        disabledExtensionRoots = configuredPackages
+          .filter(
+            (item) =>
+              disabledExtensionSources.has(safeSourceLabel(item.source)) && item.installedPath,
+          )
+          .map((item) => item.installedPath)
+      } catch {}
+    }
     const loader = await createDefaultResourceLoader({
       cwd,
       agentDir: this.agentDir,
       ...(settingsManager ? { settingsManager } : {}),
       ...(this.extensionFactories.length ? { extensionFactories: this.extensionFactories } : {}),
-      noExtensions: true,
+      noExtensions: false,
       noSkills: true,
+      additionalExtensionPaths:
+        !isMobileRuntime() && computerUseEnabled ? [getOfficialComputerUseExtensionPath()] : [],
       additionalSkillPaths: resources.map((item) => item.path),
+      ...(disabledExtensionRoots.length
+        ? {
+            extensionsOverride: (current) => ({
+              ...current,
+              extensions: current.extensions.filter(
+                (extension) =>
+                  !disabledExtensionRoots.some((root) =>
+                    pathInside(root, extension.resolvedPath || extension.path),
+                  ),
+              ),
+            }),
+          }
+        : {}),
       ...(existsSync(promptDir)
         ? {
             additionalPromptTemplatePaths: [promptDir],
@@ -706,6 +928,83 @@ export class SkillsService {
       ),
       source: installedSource,
     }
+  }
+
+  async extensionMarketplace({ query = '', page = 1 } = {}) {
+    const normalizedQuery = String(query || '')
+      .trim()
+      .slice(0, MAX_MARKET_QUERY_CHARS)
+    const normalizedPage = Math.min(109, Math.max(1, Math.trunc(Number(page) || 1)))
+    const url = new URL(PI_PACKAGE_CATALOG_URL)
+    if (normalizedQuery) url.searchParams.set('name', normalizedQuery)
+    if (normalizedPage > 1) url.searchParams.set('page', String(normalizedPage))
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+    if (!response.ok) throw new Error(`插件市场暂时不可用（HTTP ${response.status}）。`)
+    return {
+      source: PI_PACKAGE_CATALOG_URL,
+      query: normalizedQuery,
+      page: normalizedPage,
+      packages: parsePackageCatalog(await response.text(), normalizedQuery),
+    }
+  }
+
+  async extensionDashboard({ cwd = this.cwd } = {}) {
+    const manager = await this.packageManager(cwd)
+    const packages = manager
+      .listConfiguredPackages()
+      .filter((item) => !(isMobileRuntime() && isOfficialComputerUseSource(item.source)))
+      .map((item) => {
+        const manifest = extensionManifest(item.installedPath)
+        return {
+          source: safeSourceLabel(item.source),
+          scope: item.scope,
+          filtered: item.filtered,
+          installed: Boolean(item.installedPath),
+          name: manifest.name || safeSourceLabel(item.source),
+          version: manifest.version || '',
+          description: manifest.description || '',
+          extensions: manifest.extensions,
+          prompts: manifest.prompts,
+          skills: manifest.skills,
+          resourceTypes: manifest.resourceTypes,
+        }
+      })
+    return {
+      cwd: resolve(cwd),
+      packages: packages.filter((item) =>
+        item.resourceTypes.some((type) => type === 'tool' || type === 'prompt'),
+      ),
+    }
+  }
+
+  // 安装扩展包前先解析其 Pi manifest，避免把只包含 Skill 的包误加入扩展市场。
+  async installExtension(input = {}, { cwd = this.cwd } = {}) {
+    const source = extensionSource(input.source)
+    if (isMobileRuntime() && isOfficialComputerUseSource(source))
+      throw new Error('computer-use 仅支持桌面 Runtime，移动端无法安装。')
+    const local = input.scope === 'project'
+    const manager = await this.packageManager(cwd)
+    await manager.installAndPersist(source, { local })
+    const dashboard = await this.extensionDashboard({ cwd })
+    const installed = dashboard.packages.find(
+      (item) =>
+        item.scope === (local ? 'project' : 'user') &&
+        item.resourceTypes.some((type) => type === 'tool' || type === 'prompt') &&
+        packageSourcesMatch(item.source, source, local ? cwd : this.agentDir),
+    )
+    if (!installed) {
+      await manager.removeAndPersist(source, { local }).catch(() => {})
+      throw new Error('该来源没有发现 Pi Extension。')
+    }
+    return dashboard
+  }
+
+  async removeExtension(source, { cwd = this.cwd, scope = 'user' } = {}) {
+    const normalizedSource = extensionSource(source)
+    const manager = await this.packageManager(cwd)
+    const removed = await manager.removeAndPersist(normalizedSource, { local: scope === 'project' })
+    if (!removed) return false
+    return true
   }
 
   // 删除技能。

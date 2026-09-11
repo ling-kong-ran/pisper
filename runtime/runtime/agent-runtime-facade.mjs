@@ -6,6 +6,12 @@ import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
+import {
+  bridgeOfficialComputerUsePlugin,
+  bridgePiExtensionPackages,
+  isPiExtensionPlugin,
+} from '../services/pi-extension-bridge.mjs'
+import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from './computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
@@ -261,18 +267,42 @@ export class AgentRuntimeFacade {
           : configuredToolNames,
     )
     const customPluginsAvailable = this.capabilities?.features?.plugins !== false
-    const plugins = statePlugins
-      .filter((plugin) => plugin.builtIn || customPluginsAvailable)
-      .map((plugin) => ({
+    const piExtensionsAvailable = this.capabilities?.features?.extensions !== false
+    let extensionDashboard = { packages: [] }
+    if (piExtensionsAvailable) {
+      try {
+        extensionDashboard = await this.skills.extensionDashboard({
+          cwd: await this.sessionWorkspaceCwd(sessionId),
+        })
+      } catch {}
+    }
+    const piPlugins = [
+      ...bridgePiExtensionPackages(extensionDashboard.packages).map((plugin) => ({
         ...plugin,
-        capabilities: plugin.capabilities.filter(
-          (capability) => !plugin.builtIn || supportedToolNames.has(capability.name),
-        ),
-      }))
-      .filter((plugin) => plugin.capabilities.length > 0)
-    const projectedToolNames = plugins.flatMap((plugin) =>
-      plugin.capabilities.map((capability) => capability.name),
-    )
+        enabled: state.piExtensions?.[plugin.packageSource] !== false,
+        capabilities: plugin.capabilities.map((capability) => ({
+          ...capability,
+          enabled: state.piExtensions?.[plugin.packageSource] !== false,
+        })),
+      })),
+      ...(this.capabilities?.features?.browserAutomation
+        ? [bridgeOfficialComputerUsePlugin({ enabled: state.computerUseEnabled !== false })]
+        : []),
+    ]
+    const plugins = [
+      ...statePlugins
+        .filter((plugin) => plugin.builtIn || customPluginsAvailable)
+        .map((plugin) => ({
+          ...plugin,
+          capabilities: plugin.capabilities.filter(
+            (capability) => !plugin.builtIn || supportedToolNames.has(capability.name),
+          ),
+        })),
+      ...piPlugins,
+    ].filter((plugin) => plugin.capabilities.length > 0)
+    const projectedToolNames = plugins
+      .filter((plugin) => !isPiExtensionPlugin(plugin))
+      .flatMap((plugin) => plugin.capabilities.map((capability) => capability.name))
     const visibleToolNames = new Set(
       projectedToolNames.length
         ? projectedToolNames
@@ -295,10 +325,16 @@ export class AgentRuntimeFacade {
     const enabledToolNames = this.toolPlugins
       .enabledTools({ enabledTools: visibleState.enabledTools }, executionMode)
       .filter((tool) => visibleToolNames.has(tool))
+    const callablePiToolNames = piPlugins
+      .filter((plugin) => plugin.name === 'Computer Use' && plugin.enabled !== false)
+      .flatMap((plugin) => plugin.capabilities.map((capability) => capability.name))
     return {
       ...visibleState,
-      callableToolNames: filterToolsForExecutionMode(enabledToolNames, executionMode, (name) =>
-        this.getToolRisk(name),
+      callableToolNames: filterToolsForExecutionMode(
+        [...enabledToolNames, ...callablePiToolNames],
+        executionMode,
+        (name) =>
+          OFFICIAL_COMPUTER_USE_TOOL_NAMES.includes(name) ? 'high' : this.getToolRisk(name),
       ),
     }
   }
@@ -756,6 +792,9 @@ export class AgentRuntimeFacade {
     await this.toolPlugins.saveState({
       ...input,
       enabledTools: [...new Set([...(input?.enabledTools || []), ...preservedToolNames])],
+      ...(typeof input?.computerUseEnabled === 'boolean'
+        ? { computerUseEnabled: input.computerUseEnabled }
+        : {}),
     })
     this.invalidateSessionRuntimes()
     return await this.getPlugins()
@@ -874,6 +913,31 @@ export class AgentRuntimeFacade {
 
   async getSkillsDashboard(sessionId = '') {
     return this.skills.dashboard({ cwd: await this.sessionWorkspaceCwd(sessionId) })
+  }
+
+  extensionMarketplace(input) {
+    return this.skills.extensionMarketplace(input)
+  }
+
+  async getExtensionDashboard(sessionId = '') {
+    return this.skills.extensionDashboard({ cwd: await this.sessionWorkspaceCwd(sessionId) })
+  }
+
+  async installExtension(input, sessionId = '') {
+    const result = await this.skills.installExtension(input, {
+      cwd: await this.sessionWorkspaceCwd(sessionId),
+    })
+    await this.refreshSessionRuntimes()
+    return result
+  }
+
+  async removeExtension(source, scope = 'user', sessionId = '') {
+    const removed = await this.skills.removeExtension(source, {
+      cwd: await this.sessionWorkspaceCwd(sessionId),
+      scope,
+    })
+    if (removed) await this.refreshSessionRuntimes()
+    return removed
   }
 
   async installSkill(input, sessionId = '') {

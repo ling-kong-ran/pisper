@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Eye,
+  ExternalLink,
   FileCode2,
   FolderOpen,
   Globe2,
@@ -36,8 +37,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useI18n } from '@/app/use-i18n'
-import { apiJson } from '@/lib/api'
+import type { Notify } from '@/app/route-context'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { apiJson } from '@/lib/api'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { PluginInstallDialog } from '@/features/plugins/PluginInstallDialog'
@@ -50,7 +53,7 @@ import {
   toolScopeLabel,
 } from '@/features/plugins/tool-labels'
 import type { LucideIcon } from 'lucide-react'
-import type { Notify } from '@/app/route-context'
+import type { EntityRecord } from '@/types/chat'
 import type {
   InstalledPlugin,
   PluginCapability,
@@ -65,6 +68,30 @@ type PluginsPageProps = {
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
   onStatusChange: (status: { enabled: number; total: number }) => void
+  requestText?: (options?: PromptDialogOptions) => Promise<string | null>
+  requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
+}
+
+type ExtensionResourceType = 'tool' | 'prompt' | 'skill'
+
+const EXTENSION_RESOURCE_TYPES: ExtensionResourceType[] = ['tool', 'prompt', 'skill']
+
+function extensionResourceTypes(item: EntityRecord): ExtensionResourceType[] {
+  const types = Array.isArray(item.resourceTypes)
+    ? item.resourceTypes.filter((type): type is ExtensionResourceType =>
+        EXTENSION_RESOURCE_TYPES.includes(type as ExtensionResourceType),
+      )
+    : []
+  return types.length ? types : ['tool']
+}
+
+function extensionResourceLabel(type: ExtensionResourceType, t: ReturnType<typeof useI18n>['t']) {
+  const labels: Record<ExtensionResourceType, string> = {
+    tool: t('plugins:pluginsPage.extensionType.tool'),
+    prompt: t('plugins:pluginsPage.extensionType.prompt'),
+    skill: t('plugins:pluginsPage.extensionType.skill'),
+  }
+  return labels[type]
 }
 
 type SourceFilter = 'all' | 'builtin' | 'local'
@@ -73,7 +100,7 @@ type ToolEntry = PluginCapability & {
   pluginName: string
   pluginDescription: string
   pluginVersion: string
-  pluginSource: 'builtin' | 'local'
+  pluginSource: 'builtin' | 'local' | 'pi'
   pluginBuiltIn: boolean
   pluginPermissions: string[]
   pluginSystemAccess: boolean
@@ -101,25 +128,47 @@ function sourceLabel(source: SourceFilter, t: ReturnType<typeof useI18n>['t']) {
 
 function enabledToolNames(plugins: InstalledPlugin[]) {
   return plugins.flatMap((plugin) =>
-    plugin.capabilities
-      .filter((capability) => capability.enabled)
-      .map((capability) => capability.name),
+    plugin.managedExternally
+      ? []
+      : plugin.capabilities
+          .filter((capability) => capability.enabled)
+          .map((capability) => capability.name),
   )
 }
 
 function toolEntries(plugins: InstalledPlugin[]): ToolEntry[] {
-  return plugins.flatMap((plugin) =>
-    plugin.capabilities.map((capability) => ({
-      ...capability,
-      pluginId: plugin.id,
-      pluginName: plugin.name,
-      pluginDescription: plugin.description,
-      pluginVersion: plugin.version,
-      pluginSource: plugin.source,
-      pluginBuiltIn: plugin.builtIn,
-      pluginPermissions: plugin.permissions || [],
-      pluginSystemAccess: Boolean(plugin.systemAccess),
-    })),
+  return plugins
+    .filter((plugin) => !plugin.managedExternally || plugin.source === 'pi')
+    .flatMap((plugin) =>
+      plugin.capabilities.map((capability) => ({
+        ...capability,
+        pluginId: plugin.id,
+        pluginName: plugin.name,
+        pluginDescription: plugin.description,
+        pluginVersion: plugin.version,
+        pluginSource: plugin.source,
+        pluginBuiltIn: plugin.builtIn,
+        pluginPermissions: plugin.permissions || [],
+        pluginSystemAccess: Boolean(plugin.systemAccess),
+      })),
+    )
+}
+
+function computerUseEnabled(plugins: InstalledPlugin[]) {
+  const plugin = plugins.find(
+    (candidate) => candidate.source === 'pi' && candidate.name === 'Computer Use',
+  )
+  return plugin?.enabled !== false
+}
+
+function piExtensionSettings(plugins: InstalledPlugin[]) {
+  return Object.fromEntries(
+    plugins
+      .filter(
+        (plugin) =>
+          plugin.source === 'pi' && plugin.name !== 'Computer Use' && Boolean(plugin.packageSource),
+      )
+      .map((plugin) => [plugin.packageSource as string, plugin.enabled !== false]),
   )
 }
 
@@ -132,7 +181,7 @@ function displayToolName(tool: ToolEntry, t: ReturnType<typeof useI18n>['t']) {
 }
 
 function displayPluginName(tool: ToolEntry, t: ReturnType<typeof useI18n>['t']) {
-  return tool.pluginBuiltIn ? toolCategoryLabel(tool.pluginName, t) : tool.pluginName
+  return tool.pluginSource === 'pi' ? tool.pluginName : toolCategoryLabel(tool.pluginName, t)
 }
 
 function WebSearchEditor({
@@ -198,11 +247,253 @@ function WebSearchEditor({
   )
 }
 
+function ExtensionMarket({
+  query,
+  notify,
+  requestText,
+  requestConfirm,
+}: {
+  query: string
+  notify: Notify
+  requestText?: (options?: PromptDialogOptions) => Promise<string | null>
+  requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
+}) {
+  const { t } = useI18n()
+  const [marketQuery, setMarketQuery] = useState('')
+  const [market, setMarket] = useState<EntityRecord | null>(null)
+  const [installed, setInstalled] = useState<EntityRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState('')
+  const [marketError, setMarketError] = useState('')
+
+  const load = useCallback(async (name = '') => {
+    setLoading(true)
+    setMarketError('')
+    try {
+      const [catalog, extensions] = await Promise.all([
+        apiJson<EntityRecord>(`/api/extensions/market?name=${encodeURIComponent(name)}`),
+        apiJson<EntityRecord>('/api/extensions'),
+      ])
+      setMarket(catalog)
+      setInstalled(extensions.packages || [])
+    } catch (caught) {
+      setMarketError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load('')
+  }, [load])
+
+  const visiblePackages = (market?.packages || []).filter((item: EntityRecord) =>
+    `${item.name} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase()),
+  )
+
+  const install = async (name: string) => {
+    const approved = await requestConfirm?.({
+      title: t('plugins:pluginsPage.installExtension'),
+      message: t('plugins:pluginsPage.extensionSecurityWarning', { name }),
+      confirmLabel: t('plugins:pluginsPage.installExtension'),
+      tone: 'danger',
+    })
+    if (approved === false) return
+    setBusy(name)
+    try {
+      const isLocalPath = /^(?:[.~\\/]|[A-Za-z]:[\\/])/.test(name)
+      const installSource =
+        isLocalPath || /^(?:npm:|https?:\/\/|git\+)/i.test(name) ? name : `npm:${name}`
+      const result = await apiJson<EntityRecord>('/api/extensions/install', {
+        method: 'POST',
+        body: JSON.stringify({ source: installSource }),
+      })
+      setInstalled(result.packages || [])
+      notify(t('plugins:pluginsPage.extensionInstalled'), 'success')
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : String(caught), 'error')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const installCustom = async () => {
+    const source = await requestText?.({
+      title: t('plugins:pluginsPage.installExtension'),
+      message: t('plugins:pluginsPage.extensionSourceHelp'),
+      inputLabel: t('plugins:pluginsPage.extensionSource'),
+      placeholder: 'npm:@scope/package or https://github.com/…',
+      maxLength: 2_000,
+    })
+    if (!source?.trim()) return
+    await install(source.trim())
+  }
+
+  const uninstall = async (item: EntityRecord) => {
+    const approved = await requestConfirm?.({
+      title: t('plugins:pluginsPage.uninstallExtension'),
+      message: t('plugins:pluginsPage.uninstallExtensionDescription', { name: item.name }),
+      confirmLabel: t('plugins:pluginsPage.uninstallExtension'),
+      tone: 'danger',
+    })
+    if (approved === false) return
+    setBusy(item.source)
+    try {
+      await apiJson('/api/extensions', {
+        method: 'DELETE',
+        body: JSON.stringify({ source: item.source, scope: item.scope }),
+      })
+      await load(marketQuery)
+      notify(t('plugins:pluginsPage.extensionUninstalled'), 'success')
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : String(caught), 'error')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const installedGroups = EXTENSION_RESOURCE_TYPES.map((type) => ({
+    type,
+    items: installed.filter((item) => extensionResourceTypes(item).includes(type)),
+  })).filter((group) => group.items.length > 0)
+
+  return (
+    <section className="plugin-market grid gap-[10px] border-t border-[var(--stroke)] pt-[14px]">
+      <div className="flex flex-wrap items-center justify-between gap-[10px]">
+        <h2 className="m-0 text-[14px] font-[650]">{t('plugins:pluginsPage.extensionMarket')}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={installCustom}
+            disabled={Boolean(busy)}
+          >
+            <PackagePlus size={14} />
+            {t('plugins:pluginsPage.installExtension')}
+          </Button>
+          <a
+            className="inline-flex h-[34px] items-center gap-1 rounded-[var(--r-xs)] border border-[var(--stroke)] px-2 text-[12px] text-[var(--text-soft)] no-underline hover:bg-[var(--surface-hover)]"
+            href="https://pi.dev/packages"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink size={13} />
+            {t('plugins:pluginsPage.openPackageCatalog')}
+          </a>
+        </div>
+      </div>
+      <form
+        className="flex min-w-0 gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void load(marketQuery)
+        }}
+      >
+        <input
+          className="h-[34px] min-w-0 flex-1 rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-2 text-[12px] text-[var(--text)]"
+          value={marketQuery}
+          onChange={(event) => setMarketQuery(event.target.value)}
+          placeholder={t('plugins:pluginsPage.searchPackageCatalog')}
+          aria-label={t('plugins:pluginsPage.searchPackageCatalog')}
+        />
+        <Button type="submit" variant="outline" size="lg" disabled={loading}>
+          {loading ? <RefreshCw className="animate-spin" size={14} /> : <Search size={14} />}
+          {t('plugins:pluginsPage.search')}
+        </Button>
+      </form>
+      {marketError && <p className="m-0 text-[12px] text-[var(--danger)]">{marketError}</p>}
+      {installedGroups.length > 0 && (
+        <div className="grid gap-2">
+          <h3 className="m-0 text-[12px] font-[650] text-[var(--text-secondary)]">
+            {t('plugins:pluginsPage.installedExtensions')}
+          </h3>
+          {installedGroups.map((group) => (
+            <section className="grid gap-1" key={group.type}>
+              <h4 className="m-0 text-[11px] font-[650] text-[var(--text-muted)]">
+                {extensionResourceLabel(group.type, t)}
+              </h4>
+              {group.items.map((item) => (
+                <div
+                  className="flex min-w-0 items-center justify-between gap-2 border-t border-[var(--stroke-soft)] py-2"
+                  key={`${group.type}:${item.scope}:${item.source}`}
+                >
+                  <span className="min-w-0">
+                    <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[12px]">
+                      {item.name}
+                    </strong>
+                    <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--text-muted)]">
+                      {item.source} · v{item.version}
+                    </small>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={Boolean(busy)}
+                    onClick={() => void uninstall(item)}
+                  >
+                    {busy === item.source ? (
+                      <LoaderCircle className="animate-spin" size={13} />
+                    ) : (
+                      <Trash2 size={13} />
+                    )}
+                    {t('plugins:pluginsPage.uninstallExtension')}
+                  </Button>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-2">
+        {visiblePackages.slice(0, 12).map((item: EntityRecord) => {
+          const isInstalled = installed.some(
+            (entry) => entry.name === item.name || entry.source === `npm:${item.name}`,
+          )
+          return (
+            <article
+              className="grid min-w-0 gap-2 rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] p-2"
+              key={item.name}
+            >
+              <strong
+                className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px]"
+                title={item.name}
+              >
+                {item.name}
+              </strong>
+              <p className="m-0 line-clamp-3 min-h-[45px] text-[11px] leading-[1.45] text-[var(--text-secondary)]">
+                {item.description}
+              </p>
+              <div className="flex items-center justify-between gap-2">
+                <small className="text-[10px] text-[var(--text-muted)]">{item.published}</small>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isInstalled || Boolean(busy)}
+                  onClick={() => void install(item.name)}
+                >
+                  {busy === item.name && <LoaderCircle className="animate-spin" size={13} />}
+                  {isInstalled
+                    ? t('plugins:pluginsPage.installed')
+                    : t('plugins:pluginsPage.installExtension')}
+                </Button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 export function PluginsPage({
   query = '',
   notify,
   registerPrimaryAction,
   onStatusChange,
+  requestText,
+  requestConfirm,
 }: PluginsPageProps) {
   const { t } = useI18n()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
@@ -258,6 +549,8 @@ export function PluginsPage({
   const draftEnabled = useMemo(() => enabledToolNames(draft), [draft])
   const dirty = data
     ? !sameNames(draftEnabled, data.enabledTools) ||
+      computerUseEnabled(draft) !== data.computerUseEnabled ||
+      JSON.stringify(piExtensionSettings(draft)) !== JSON.stringify(data.piExtensions) ||
       JSON.stringify(webSearch) !== JSON.stringify(data.webSearch)
     : false
 
@@ -273,7 +566,12 @@ export function PluginsPage({
     try {
       const updated = await apiJson<PluginsData>('/api/plugins', {
         method: 'PUT',
-        body: JSON.stringify({ enabledTools: draftEnabled, webSearch }),
+        body: JSON.stringify({
+          enabledTools: draftEnabled,
+          webSearch,
+          computerUseEnabled: computerUseEnabled(draft),
+          piExtensions: piExtensionSettings(draft),
+        }),
       })
       applyData(updated)
       notify(t('plugins:pluginsPage.pluginPolicySavedAgentRuntimeUpdated'))
@@ -282,7 +580,7 @@ export function PluginsPage({
     } finally {
       setSaving(false)
     }
-  }, [applyData, data, dirty, draftEnabled, notify, saving, t, webSearch])
+  }, [applyData, data, dirty, draft, draftEnabled, notify, saving, t, webSearch])
 
   usePagePrimaryAction(registerPrimaryAction, save)
 
@@ -311,21 +609,21 @@ export function PluginsPage({
 
   const toggleCapability = (pluginId: string, capabilityName: string, enabled: boolean) => {
     setDraft((current) =>
-      current.map((plugin) =>
-        plugin.id === pluginId
-          ? {
-              ...plugin,
-              enabled:
-                enabled ||
-                plugin.capabilities.some(
-                  (capability) => capability.name !== capabilityName && capability.enabled,
-                ),
-              capabilities: plugin.capabilities.map((capability) =>
-                capability.name === capabilityName ? { ...capability, enabled } : capability,
-              ),
-            }
-          : plugin,
-      ),
+      current.map((plugin) => {
+        if (plugin.id !== pluginId) return plugin
+        const isPiExtension = plugin.source === 'pi' && plugin.managedExternally
+        return {
+          ...plugin,
+          enabled: enabled || plugin.capabilities.some((capability) => capability.enabled),
+          capabilities: plugin.capabilities.map((capability) =>
+            isPiExtension
+              ? { ...capability, enabled }
+              : capability.name === capabilityName
+                ? { ...capability, enabled }
+                : capability,
+          ),
+        }
+      }),
     )
   }
 
@@ -550,6 +848,13 @@ export function PluginsPage({
           {t('plugins:pluginsPage.noMatchingTools')}
         </div>
       )}
+
+      <ExtensionMarket
+        query={query}
+        notify={notify}
+        requestText={requestText}
+        requestConfirm={requestConfirm}
+      />
 
       {customPluginsAvailable && (
         <PluginInstallDialog open={installOpen} onOpenChange={setInstallOpen} onInstalled={load} />

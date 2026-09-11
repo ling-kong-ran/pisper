@@ -645,6 +645,11 @@ export class ToolPluginService {
       changes: Array.isArray(appConfig.pluginChanges) ? appConfig.pluginChanges.slice(0, 20) : [],
       updatedAt: appConfig.pluginsUpdatedAt || null,
       webSearch: normalizeWebSearchConfig(appConfig.webSearch || {}),
+      piExtensions:
+        appConfig.piExtensions && typeof appConfig.piExtensions === 'object'
+          ? { ...appConfig.piExtensions }
+          : {},
+      computerUseEnabled: appConfig.computerUseEnabled !== false,
     }
   }
 
@@ -665,6 +670,16 @@ export class ToolPluginService {
     const webSearch = Object.hasOwn(input, 'webSearch')
       ? normalizeWebSearchConfig(input.webSearch)
       : normalizeWebSearchConfig(config.webSearch || {})
+    const computerUseEnabled =
+      typeof input.computerUseEnabled === 'boolean'
+        ? input.computerUseEnabled
+        : config.computerUseEnabled !== false
+    const piExtensions =
+      input.piExtensions && typeof input.piExtensions === 'object'
+        ? { ...input.piExtensions }
+        : config.piExtensions && typeof config.piExtensions === 'object'
+          ? { ...config.piExtensions }
+          : {}
     const toolMetadata = new Map(current.tools.map((tool) => [tool.id, tool]))
     const changes = [
       ...enabledTools.filter((name) => !current.enabledTools.includes(name)),
@@ -696,6 +711,8 @@ export class ToolPluginService {
         pluginChanges: [...changes, ...(config.pluginChanges || [])].slice(0, 50),
         pluginsUpdatedAt: now,
         webSearch,
+        piExtensions,
+        computerUseEnabled,
       })
     } catch (error) {
       for (const [pluginId, installed] of this.installed) {

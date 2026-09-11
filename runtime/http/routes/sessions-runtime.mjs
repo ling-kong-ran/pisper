@@ -1,6 +1,7 @@
 // 会话运行时路由：健康检查、诊断、用量、会话 CRUD、会话运行（SSE 流式）、
 // 消息/历史/树/标签、权限审批、模型/工作目录切换等核心 API。
 import { projectStoredTeam } from '../../services/team-workflow.mjs'
+import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
   return (
@@ -583,12 +584,18 @@ export const sessionRuntimeRoutes = [
       }
       const skillName = invocation?.kind === 'skill' ? String(invocation.resourceName || '') : ''
       const toolName = invocation?.kind === 'tool' ? String(invocation.resourceId || '') : ''
+      const requestedToolNames =
+        toolName === 'computer-use'
+          ? OFFICIAL_COMPUTER_USE_TOOL_NAMES
+          : toolName
+            ? [toolName]
+            : null
       const prompt = skillName ? `/skill:${skillName}${message ? `\n${message}` : ''}` : message
       await runtime.streamPrompt({
         sessionId: input.sessionId,
         message: prompt,
         attachments: input.attachments,
-        requestedToolNames: toolName ? [toolName] : input.requestedToolNames,
+        requestedToolNames: requestedToolNames || input.requestedToolNames,
         goalMode: Boolean(input.goalMode),
         teamMode: Boolean(input.teamMode),
         goalTokenBudget: input.goalTokenBudget == null ? null : Number(input.goalTokenBudget),

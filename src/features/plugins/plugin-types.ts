@@ -17,10 +17,13 @@ export type InstalledPlugin = EntityRecord & {
   name: string
   description: string
   version: string
-  source: 'builtin' | 'local'
+  source: 'builtin' | 'local' | 'pi'
   builtIn: boolean
   enabled: boolean
   capabilities: PluginCapability[]
+  managedExternally?: boolean
+  packageSource?: string
+  packageScope?: 'user' | 'project'
   permissions?: string[]
   systemAccess?: boolean
   installedAt?: string
@@ -45,6 +48,8 @@ export type PluginsData = EntityRecord & {
   callableToolNames?: string[]
   presets: Record<string, string[]>
   webSearch: WebSearchSettings
+  piExtensions: Record<string, boolean>
+  computerUseEnabled: boolean
   changes: PluginChange[]
   preset?: string
 }

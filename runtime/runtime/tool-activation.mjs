@@ -31,6 +31,7 @@ export class ToolActivation {
     const blockedToolNames = new Set(value?.blockedToolNames || [])
     return [
       ...(value?.baseToolNames || []),
+      ...(value?.session?.getAllTools?.() || []).map((tool) => tool.name),
       ...PLAN_COMPATIBILITY_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
     ].filter((name) => !blockedToolNames.has(name))

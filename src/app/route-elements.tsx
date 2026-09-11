@@ -134,6 +134,8 @@ export async function pluginsRoute() {
         query={context.query}
         notify={context.notify}
         registerPrimaryAction={context.registerPrimaryAction}
+        requestText={context.requestText}
+        requestConfirm={context.requestConfirm}
         onStatusChange={context.setPluginStats}
       />
     )

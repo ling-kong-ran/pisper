@@ -440,6 +440,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       path: join(dataDir, 'pisper-skills.json'),
       agentDir: dataDir,
       cwd,
+      configPath: this.appConfigPath,
       getSettingsManager: (skillsCwd = this.cwd) => {
         if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
           return this.settingsManager
@@ -975,6 +976,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   invalidateSessionRuntimes() {
     return this.sessionLifecycle.invalidateSessionRuntimes()
+  }
+
+  refreshSessionRuntimes() {
+    return this.sessionLifecycle.refreshSessionRuntimes()
   }
 
   // 会话元数据持久化：写盘串行化（链式 Promise），防止并发写覆盖。

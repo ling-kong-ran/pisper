@@ -75,7 +75,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   assert.equal(restoredSkill.modelInvocationEnabled, false)
 })
 
-test('skills service loads project resources while Pi Extensions stay disabled', async (t) => {
+test('skills service loads project resources and external Pi Extensions', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-project-skills-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const agentDir = join(directory, 'agent')
@@ -127,7 +127,97 @@ test('skills service loads project resources while Pi Extensions stay disabled',
       .prompts.map((prompt) => [prompt.name, prompt.argumentHint, prompt.sourceInfo.scope]),
     [['project-review', '<path>', 'project']],
   )
-  assert.equal(existsSync(extensionMarker), false)
+  assert.equal(existsSync(extensionMarker), true)
+})
+
+test('extension marketplace parses the pi.dev package catalog and forwards search paging', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-extension-market-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const requests = []
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requests.push(String(url))
+    return new Response(
+      '<a data-package-link href="/packages/%40scope%2Fdesktop-tools"><strong>@scope/desktop-tools</strong><span>Desktop tools</span><small>2 days ago</small></a>',
+      { status: 200 },
+    )
+  })
+  const service = new SkillsService({
+    path: join(directory, 'pisper-skills.json'),
+    agentDir: join(directory, 'agent'),
+    cwd: directory,
+    getSettingsManager: () => SettingsManager.inMemory(),
+  })
+  await service.init()
+
+  const result = await service.extensionMarketplace({ query: 'desktop tools', page: 3 })
+
+  assert.equal(requests[0], 'https://pi.dev/packages?name=desktop+tools&page=3')
+  assert.deepEqual(result.packages, [
+    {
+      name: '@scope/desktop-tools',
+      description: 'Desktop tools',
+      published: '2 days ago',
+      url: 'https://pi.dev/packages/%40scope%2Fdesktop-tools',
+    },
+  ])
+})
+
+test('extension installation uses Pi package settings and classifies prompt resources', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-extension-install-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const extensionPackage = join(directory, 'extension-package')
+  const promptPackage = join(directory, 'prompt-package')
+  const skillOnlyPackage = join(directory, 'skill-only-package')
+  await mkdir(extensionPackage, { recursive: true })
+  await mkdir(join(promptPackage, 'prompts'), { recursive: true })
+  await mkdir(skillOnlyPackage, { recursive: true })
+  await writeFile(
+    join(extensionPackage, 'package.json'),
+    JSON.stringify({
+      name: 'local-extension',
+      version: '1.0.0',
+      pi: { extensions: ['./extension.ts'] },
+    }),
+  )
+  await writeFile(join(extensionPackage, 'extension.ts'), 'export default function () {}\n')
+  await writeFile(
+    join(promptPackage, 'package.json'),
+    JSON.stringify({
+      name: 'local-prompt',
+      version: '1.0.0',
+      pi: { prompts: ['./prompts'] },
+    }),
+  )
+  await writeFile(join(promptPackage, 'prompts', 'review.md'), '# Review\n')
+  await writeFile(
+    join(skillOnlyPackage, 'package.json'),
+    JSON.stringify({ name: 'skill-only', version: '1.0.0', pi: { skills: ['./skills'] } }),
+  )
+  const settingsManager = SettingsManager.inMemory()
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd: directory,
+    getSettingsManager: () => settingsManager,
+  })
+  await service.init()
+
+  const installed = await service.installExtension({ source: extensionPackage })
+  assert.equal(installed.packages[0].name, 'local-extension')
+  const promptInstalled = await service.installExtension({ source: promptPackage })
+  const promptEntry = promptInstalled.packages.find((item) => item.name === 'local-prompt')
+  assert.deepEqual(promptEntry.resourceTypes, ['prompt'])
+  assert.equal(settingsManager.getGlobalSettings().packages.length, 2)
+
+  await assert.rejects(
+    service.installExtension({ source: skillOnlyPackage }),
+    /没有发现 Pi Extension/,
+  )
+  assert.equal(settingsManager.getGlobalSettings().packages.length, 2)
+  assert.equal(await service.removeExtension(extensionPackage), true)
+  assert.equal(await service.removeExtension(promptPackage), true)
+  assert.deepEqual(settingsManager.getGlobalSettings().packages, [])
 })
 
 test('skills service creates validated project and global skills without overwriting', async (t) => {

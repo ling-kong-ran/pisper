@@ -234,7 +234,25 @@ export class SessionLifecycle {
     }
   }
 
-  // 运行时诊断信息（内存/驻留会话/历史缓存），供 /api/runtime/diagnostics 使用。
+  // 重新载入非运行中的会话资源，保留对话上下文；正在运行的会话在本轮结束后自动按新版本重建。
+  async refreshSessionRuntimes() {
+    const state = this.getRuntimeState()
+    const version = state.sessionRuntimeVersion + 1
+    this.setRuntimeVersion(version)
+    for (const [id, value] of [...this.sessions]) {
+      if (this.sessionRunIsActive(id, value)) {
+        value.runtimeVersion = -1
+        continue
+      }
+      try {
+        await value.session.reload()
+        value.runtimeVersion = version
+      } catch {
+        this.disposeSessionRuntime(id, value)
+      }
+    }
+  }
+
   getRuntimeDiagnostics() {
     const now = Date.now()
     const memory = process.memoryUsage()

@@ -220,6 +220,50 @@ export const integrationRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/extensions/market',
+    async handler({ runtime, url, json }) {
+      json(
+        200,
+        await runtime.extensionMarketplace({
+          query: url.searchParams.get('name') || '',
+          page: url.searchParams.get('page') || '1',
+        }),
+      )
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/extensions',
+    async handler({ runtime, url, json }) {
+      json(200, await runtime.getExtensionDashboard(url.searchParams.get('sessionId') || ''))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/extensions/install',
+    async handler({ runtime, url, body, json }) {
+      json(
+        201,
+        await runtime.installExtension(await body(), url.searchParams.get('sessionId') || ''),
+      )
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/extensions',
+    async handler({ runtime, url, body, json }) {
+      const input = await body()
+      const removed = await runtime.removeExtension(
+        input?.source,
+        input?.scope || 'user',
+        url.searchParams.get('sessionId') || '',
+      )
+      if (!removed) json(404, { error: '扩展包不存在。' })
+      else json(200, { deleted: true })
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/skills',
     async handler({ runtime, url, json }) {
       json(200, await runtime.getSkillsDashboard(url.searchParams.get('sessionId') || ''))

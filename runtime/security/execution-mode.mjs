@@ -1,5 +1,6 @@
 // 执行模式：按模式过滤可用工具与默认权限策略。
 // 交互会话提供 approval-required（需审批，默认）/ workspace-write（工作区写）/ full-access（完全访问）三种模式。
+import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../runtime/computer-use-extension.mjs'
 import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
@@ -16,6 +17,8 @@ const APPROVAL_TOOLS = new Set([
   'skill_create',
   'plugin_create',
   'generate_visual',
+  'computer-use',
+  ...OFFICIAL_COMPUTER_USE_TOOL_NAMES,
 ])
 // mobile_device 的能力控制在手机原生桥和操作系统权限层完成，但在审批模式仍需让 Agent 看见它。
 const APPROVAL_EXEMPT_TOOLS = new Set(['mobile_device'])
