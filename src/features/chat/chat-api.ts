@@ -380,6 +380,12 @@ export const chatApi = {
   getVcsChanges: (sessionId: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`),
 
+  // 单文件差异：消息文件 chip「查看改动」；非版本控制工作区返回 isRepo: false。
+  getFileDiff: (sessionId: string, path: string) =>
+    requestJson<{ isRepo: boolean; diff: string; diffTruncated?: boolean }>(
+      `${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`,
+    ),
+
   commitVcsChanges: (sessionId: string, message: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/commit`, {
       method: 'POST',

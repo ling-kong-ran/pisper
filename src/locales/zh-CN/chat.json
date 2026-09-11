@@ -595,5 +595,9 @@
   "focusSession.composerHint": "写下你想完成的事",
   "focusSession.generateImage": "生成图片",
   "focusSession.visualPromptTemplate": "帮我生成一张图片：",
-  "focusSession.configureVisualModelFirst": "尚未配置视觉模型，已为你打开模型设置"
+  "focusSession.configureVisualModelFirst": "尚未配置视觉模型，已为你打开模型设置",
+  "chatMessage.fileActionDownload": "下载",
+  "chatMessage.fileActionReveal": "在文件管理器中显示",
+  "chatMessage.fileActionDiff": "查看改动",
+  "chatMessage.noFileChanges": "该文件当前没有未提交的改动。"
 }

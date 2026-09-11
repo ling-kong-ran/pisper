@@ -3,7 +3,7 @@
 // 的调用组织成 HTTP API 层可直接调用的方法集合；子类 AgentRuntimeService 在
 // 构造器里完成依赖装配后，这些方法即成为对外接口。
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
@@ -845,6 +845,17 @@ export class AgentRuntimeFacade {
 
   async getSessionVcsChanges(id) {
     return this.vcsChanges.getChanges(await this.sessionGitCwd(id))
+  }
+
+  // 单文件差异：会话文件 chip「查看改动」的数据源；
+  // 路径必须落在会话工作区内，避免借会话读取任意目录的 diff。
+  async getSessionFileDiff(id, filePath) {
+    const cwd = await this.sessionGitCwd(id)
+    const target = resolve(cwd, String(filePath || ''))
+    const relativePath = relative(cwd, target)
+    if (!String(filePath || '') || relativePath.startsWith('..') || isAbsolute(relativePath))
+      throw new Error('文件路径超出会话工作区范围。')
+    return this.vcsChanges.getFileDiff(cwd, target)
   }
 
   async commitSessionVcsChanges(id, message) {

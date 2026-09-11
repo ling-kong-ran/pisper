@@ -595,5 +595,9 @@
   "focusSession.composerHint": "Write what you want to accomplish",
   "focusSession.generateImage": "Generate image",
   "focusSession.visualPromptTemplate": "Generate an image: ",
-  "focusSession.configureVisualModelFirst": "No visual model configured yet — opening model settings"
+  "focusSession.configureVisualModelFirst": "No visual model configured yet — opening model settings",
+  "chatMessage.fileActionDownload": "Download",
+  "chatMessage.fileActionReveal": "Reveal in file manager",
+  "chatMessage.fileActionDiff": "View changes",
+  "chatMessage.noFileChanges": "This file has no uncommitted changes right now."
 }

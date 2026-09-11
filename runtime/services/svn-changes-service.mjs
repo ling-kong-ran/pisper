@@ -1,7 +1,7 @@
 // SVN 变更服务：与 GitChangesService 对等的 SVN 实现（status/diff/commit/push/revert），
 // 未装 svn 或非 SVN 工作区时静默降级。
 import { readFile, rm, stat } from 'node:fs/promises'
-import { resolve, sep } from 'node:path'
+import { relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 
 let execFileAsync
@@ -145,6 +145,28 @@ function validateCommitMessage(message) {
 }
 
 export class SvnChangesService {
+  // 单文件差异：与 GitChangesService.getFileDiff 对等；非 SVN 工作区返回 isRepo: false。
+  async getFileDiff(cwd, filePath) {
+    const info = await runSvn(cwd, ['info'])
+    if (!info.ok) return { isRepo: false, diff: '' }
+    const relativePath = relative(cwd, filePath).split(sep).join('/')
+    const diffResult = await runSvn(cwd, ['diff', '--', relativePath])
+    let diff = diffResult.ok ? normalizeSvnDiff(diffResult.stdout) : ''
+    if (!diff.trim()) {
+      const statusResult = await runSvn(cwd, ['status', '--', relativePath])
+      const unversioned =
+        statusResult.ok &&
+        parseSvnStatusXml(statusResult.stdout).some((item) => item.status === '?')
+      if (unversioned) diff = await buildAddedFileDiff(cwd, relativePath)
+    }
+    const diffTruncated = diff.length > MAX_DIFF_CHARS
+    return {
+      isRepo: true,
+      diff: diffTruncated ? diff.slice(0, MAX_DIFF_CHARS) : diff,
+      diffTruncated,
+    }
+  }
+
   async getChanges(cwd) {
     const info = await runSvn(cwd, ['info'])
     if (!info.ok) {

@@ -15,6 +15,9 @@ export function assetMessageAttachment(asset) {
     size: asset.size || 0,
     url: `/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`,
     downloadUrl: `/api/assets/${encodeURIComponent(asset.id)}/download`,
+    // 工作区文件的绝对路径：前端文件 chip 的操作面板用它做
+    // 「在文件管理器中显示」与单文件 diff；媒体资产没有该字段。
+    ...(asset.filePath ? { path: asset.filePath } : {}),
   }
 }
 

@@ -28,6 +28,14 @@ export class VcsChangesService {
     return changes.vcs || (changes.isRepo ? 'git' : '')
   }
 
+  async getFileDiff(cwd, filePath) {
+    const gitDiff = await this.git.getFileDiff(cwd, filePath)
+    if (gitDiff.isRepo) return { ...gitDiff, vcs: 'git' }
+    const svnDiff = await this.svn.getFileDiff(cwd, filePath)
+    if (svnDiff.isRepo) return { ...svnDiff, vcs: 'svn' }
+    return { isRepo: false, vcs: '', diff: '', diffTruncated: false }
+  }
+
   async commit(cwd, message) {
     const vcs = await this.detectVcs(cwd)
     if (vcs === 'svn') return this.svn.commit(cwd, message)

@@ -1,6 +1,6 @@
 // 单条聊天消息：Markdown 渲染 + 消息操作（复制/下载/删除/跳转），
 // 长代码自动展开，附件与工具调用内嵌展示。
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   AlertTriangle,
@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Download,
   File,
+  FileDiff,
+  FolderOpen,
   GitFork,
   MessageSquarePlus,
   LoaderCircle,
@@ -17,6 +19,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
@@ -25,10 +28,12 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { LocalPathRevealError, requestLocalPathReveal } from '@/lib/local-path-reveal'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
 import { chatApi } from './chat-api'
+import { GitDiffDialog } from './GitDiffViewer'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 type PreviewImage = { attachment: ChatAttachment; source: string; attachmentIndex: number }
@@ -178,21 +183,102 @@ function ImageLightbox({
   )
 }
 
+// 文件操作结果交给应用壳的统一 Toast 展示（与 MarkdownMessage 的 reveal 同一事件）。
+function emitFileNotice(message: string, tone: 'info' | 'error') {
+  window.dispatchEvent(new CustomEvent(LOCAL_REVEAL_NOTICE_EVENT, { detail: { message, tone } }))
+}
+
+function FileActionButton({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
 export function MessageAttachments({
   attachments,
   compact = false,
+  sessionId,
 }: {
   attachments: ChatAttachment[]
   compact?: boolean
+  // 会话 ID：文件 chip 的操作面板依赖它查单文件 diff；
+  // 无会话上下文的场景（如迷你消息）退化为纯下载链接。
+  sessionId?: string
 }) {
   const { t } = useI18n()
   const [preview, setPreview] = useState<ImagePreview | null>(null)
+  const [fileMenuFor, setFileMenuFor] = useState<string | null>(null)
+  const [fileDiff, setFileDiff] = useState<{ diff: string; truncated: boolean } | null>(null)
+  const [diffLoading, setDiffLoading] = useState(false)
   const imagePreviews = attachments.flatMap<PreviewImage>((attachment, attachmentIndex) => {
     const source =
       attachment.url ||
       (attachment.data ? `data:${attachment.mimeType};base64,${attachment.data}` : '')
     return attachment.kind === 'image' && source ? [{ attachment, source, attachmentIndex }] : []
   })
+
+  const revealInFileManager = async (path: string) => {
+    try {
+      await requestLocalPathReveal(path, window.pisperDesktop?.revealPath)
+      emitFileNotice(t('common:markdownMessage.revealLocalPathOk', { path }), 'info')
+    } catch (error: unknown) {
+      const message =
+        error instanceof LocalPathRevealError && error.reason === 'unavailable'
+          ? t('common:markdownMessage.revealLocalPathUnavailable')
+          : error instanceof LocalPathRevealError && error.reason === 'timeout'
+            ? t('common:markdownMessage.revealLocalPathTimeout')
+            : t('common:markdownMessage.revealLocalPathFailed', { path })
+      emitFileNotice(message, 'error')
+    }
+  }
+
+  const openFileDiff = async (path: string) => {
+    if (!sessionId) return
+    setDiffLoading(true)
+    try {
+      const result = await chatApi.getFileDiff(sessionId, path)
+      if (result.diff?.trim()) {
+        setFileDiff({ diff: result.diff, truncated: Boolean(result.diffTruncated) })
+        return
+      }
+      // 没有版本控制（拿不到 diff）：按约定直接回退到打开文件管理器。
+      if (!result.isRepo) {
+        await revealInFileManager(path)
+        return
+      }
+      emitFileNotice(t('chat:chatMessage.noFileChanges'), 'info')
+    } catch (error: unknown) {
+      emitFileNotice(error instanceof Error ? error.message : String(error), 'error')
+    } finally {
+      setDiffLoading(false)
+    }
+  }
+
+  const downloadAttachment = (attachment: ChatAttachment) => {
+    if (!attachment.downloadUrl) return
+    const anchor = document.createElement('a')
+    anchor.href = attachment.downloadUrl
+    if (attachment.name) anchor.download = attachment.name
+    anchor.click()
+  }
   return (
     <>
       <div
@@ -236,6 +322,46 @@ export function MessageAttachments({
                 <small>{attachment.name || t('chat:chatMessage.generatedVideo')}</small>
               </div>
             )
+          if (attachment.path && sessionId)
+            return (
+              <Popover
+                key={key}
+                open={fileMenuFor === key}
+                onOpenChange={(open) => setFileMenuFor(open ? String(key) : null)}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="message-file-attachment [.message-attachments_&]:inline-flex [.message-attachments_&]:items-center [.message-attachments_&]:gap-[5px] [.message-attachments_&]:[border:1px_solid_var(--stroke)] [.message-attachments_&]:rounded-[var(--r-xs)] [.message-attachments_&]:bg-[var(--solid)] [.message-attachments_&]:p-[5px_7px] [.message-attachments_&]:text-[var(--text-tertiary)] [.message-attachments_&]:text-[13px] [.message-attachments_&]:no-underline [.message-attachments_&]:[cursor:pointer]"
+                  >
+                    <File size={12} />
+                    {attachment.name || t('chat:chatMessage.fileAttachment')}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  sideOffset={6}
+                  className="flex w-[190px] flex-col gap-[2px] p-[4px]"
+                >
+                  <FileActionButton
+                    icon={<Download size={13} />}
+                    label={t('chat:chatMessage.fileActionDownload')}
+                    onClick={() => downloadAttachment(attachment)}
+                  />
+                  <FileActionButton
+                    icon={<FolderOpen size={13} />}
+                    label={t('chat:chatMessage.fileActionReveal')}
+                    onClick={() => void revealInFileManager(String(attachment.path))}
+                  />
+                  <FileActionButton
+                    disabled={diffLoading}
+                    icon={<FileDiff size={13} />}
+                    label={t('chat:chatMessage.fileActionDiff')}
+                    onClick={() => void openFileDiff(String(attachment.path))}
+                  />
+                </PopoverContent>
+              </Popover>
+            )
           return (
             <a
               className="message-file-attachment [.message-attachments_&]:inline-flex [.message-attachments_&]:items-center [.message-attachments_&]:gap-[5px] [.message-attachments_&]:[border:1px_solid_var(--stroke)] [.message-attachments_&]:rounded-[var(--r-xs)] [.message-attachments_&]:bg-[var(--solid)] [.message-attachments_&]:p-[5px_7px] [.message-attachments_&]:text-[var(--text-tertiary)] [.message-attachments_&]:text-[13px] [.message-attachments_&]:no-underline"
@@ -260,6 +386,13 @@ export function MessageAttachments({
           />,
           document.body,
         )}
+      {fileDiff && (
+        <GitDiffDialog
+          diff={fileDiff.diff}
+          truncated={fileDiff.truncated}
+          onClose={() => setFileDiff(null)}
+        />
+      )}
     </>
   )
 }
@@ -521,7 +654,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           </MarkdownMessage>
         )}
         {message.attachments && message.attachments.length > 0 && (
-          <MessageAttachments attachments={message.attachments} />
+          <MessageAttachments attachments={message.attachments} sessionId={sessionId} />
         )}
       </div>
       {message.error && fullText && !streaming && (

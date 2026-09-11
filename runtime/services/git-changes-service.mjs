@@ -1,5 +1,7 @@
 // Git 变更服务：查询工作区 Git 状态/差异，执行提交/推送/撤销；
 // 通过 execFile 调 git 并捕获错误（目录非 Git 仓库时返回 isRepo: false）。
+import { readFile, stat } from 'node:fs/promises'
+import { relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 
 let execFileAsync
@@ -14,6 +16,29 @@ const GIT_TIMEOUT_MS = 30_000
 const PUSH_TIMEOUT_MS = 120_000
 const MAX_DIFF_CHARS = 200_000
 const MAX_COMMIT_MESSAGE_CHARS = 4_000
+const MAX_UNTRACKED_BYTES = 2 * 1024 * 1024
+
+// 未跟踪的新文件不会出现在 git diff 里：读文件内容手工拼一份全新增 diff，
+// 让文件 chip 的「查看改动」对新建文件同样可用；二进制/超大文件放弃生成。
+async function buildUntrackedFileDiff(cwd, filePath) {
+  const relativePath = relative(cwd, filePath).split(sep).join('/')
+  const root = resolve(cwd)
+  const absolute = resolve(cwd, filePath)
+  if (absolute !== root && !absolute.startsWith(`${root}${sep}`)) return ''
+  try {
+    const info = await stat(absolute)
+    if (!info.isFile() || info.size > MAX_UNTRACKED_BYTES) return ''
+    const buffer = await readFile(absolute)
+    if (buffer.includes(0)) return ''
+    const lines = buffer.toString('utf8').replace(/\r\n/g, '\n').split('\n')
+    if (lines.length && lines[lines.length - 1] === '') lines.pop()
+    const header = `diff --git a/${relativePath} b/${relativePath}\n--- /dev/null\n+++ b/${relativePath}\n`
+    if (!lines.length) return header
+    return `${header}@@ -0,0 +1,${lines.length} @@\n${lines.map((line) => `+${line}`).join('\n')}\n`
+  } catch {
+    return ''
+  }
+}
 
 async function runGit(cwd, args, { timeout = GIT_TIMEOUT_MS } = {}) {
   try {
@@ -121,6 +146,27 @@ export class GitChangesService {
       diff,
       diffTruncated,
       ahead,
+    }
+  }
+
+  // 单文件差异：文件 chip「查看改动」的数据源；非仓库返回 isRepo: false，
+  // 由前端回退到「在文件管理器中显示」。
+  async getFileDiff(cwd, filePath) {
+    const repoCheck = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'])
+    if (!repoCheck.ok || repoCheck.stdout.trim() !== 'true') return { isRepo: false, diff: '' }
+    const hasHead = (await runGit(cwd, ['rev-parse', 'HEAD'])).ok
+    const tracked = await runGit(cwd, ['diff', hasHead ? 'HEAD' : '--cached', '--', filePath])
+    let diff = tracked.ok ? tracked.stdout : ''
+    if (!diff.trim()) {
+      const status = await runGit(cwd, ['status', '--porcelain', '--', filePath])
+      const untracked = status.ok && status.stdout.split('\n').some((line) => line.startsWith('??'))
+      if (untracked) diff = await buildUntrackedFileDiff(cwd, filePath)
+    }
+    const diffTruncated = diff.length > MAX_DIFF_CHARS
+    return {
+      isRepo: true,
+      diff: diffTruncated ? diff.slice(0, MAX_DIFF_CHARS) : diff,
+      diffTruncated,
     }
   }
 

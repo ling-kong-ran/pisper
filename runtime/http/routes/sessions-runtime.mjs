@@ -342,6 +342,13 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/vcs/file-diff',
+    async handler({ runtime, params, url, json }) {
+      json(200, await runtime.getSessionFileDiff(params.sessionId, url.searchParams.get('path')))
+    },
+  },
+  {
     method: 'POST',
     path: '/api/sessions/:sessionId/vcs/commit',
     async handler({ runtime, params, body, json }) {

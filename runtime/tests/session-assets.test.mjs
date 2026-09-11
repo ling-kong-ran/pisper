@@ -70,3 +70,22 @@ test('assets created after the final turn fall back to the last assistant messag
   const result = attachGeneratedAssets(messages, [asset])
   assert.equal(result[1].attachments[0]?.id, 'asset-late')
 })
+
+test('workspace file attachments carry the absolute path for reveal and per-file diff', () => {
+  const messages = [{ id: 'agent-1', role: 'agent', text: 'done', timestamp: 2000 }]
+  const asset = {
+    id: 'asset-path',
+    name: 'notes.md',
+    mimeType: 'text/markdown',
+    size: 5,
+    filePath: '/workspace/notes.md',
+    created: new Date(2500).toISOString(),
+  }
+  const result = attachGeneratedAssets(messages, [asset])
+  assert.equal(result[0].attachments[0].path, '/workspace/notes.md')
+  // 媒体资产不带 path：chip 仍走预览/下载，不出现文件操作面板。
+  const media = attachGeneratedAssets(messages, [
+    { ...asset, id: 'asset-media', mimeType: 'image/png', filePath: undefined },
+  ])
+  assert.equal('path' in media[0].attachments[0], false)
+})
