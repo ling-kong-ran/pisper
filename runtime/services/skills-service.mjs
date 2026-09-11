@@ -21,7 +21,10 @@ import {
   createDefaultResourceLoader,
   loadSkills,
 } from '../runtime/pi-coding-agent.mjs'
-import { getOfficialComputerUseExtensionPath } from '../runtime/computer-use-extension.mjs'
+import {
+  getComputerUseOcrExtensionPath,
+  getOfficialComputerUseExtensionPath,
+} from '../runtime/computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const SKILLS_STATE_VERSION = 2
@@ -539,7 +542,9 @@ export class SkillsService {
       noExtensions: false,
       noSkills: true,
       additionalExtensionPaths:
-        !isMobileRuntime() && computerUseEnabled ? [getOfficialComputerUseExtensionPath()] : [],
+        !isMobileRuntime() && computerUseEnabled
+          ? [getOfficialComputerUseExtensionPath(), getComputerUseOcrExtensionPath()]
+          : [],
       additionalSkillPaths: resources.map((item) => item.path),
       ...(disabledExtensionRoots.length
         ? {

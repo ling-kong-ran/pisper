@@ -12,6 +12,8 @@ export const RUNTIME_EXTERNAL_PACKAGES = Object.freeze([
   '@injaneity/pi-computer-use',
   '@larksuiteoapi/node-sdk',
   '@modelcontextprotocol/sdk',
+  'tesseract.js',
+  'tsx',
   'sherpa-onnx-node',
   'officeparser',
   'playwright-core',
@@ -27,6 +29,7 @@ const SHARED_RESOURCES = Object.freeze([
   'speech-model-catalog.json',
   'speech-resource-notices.json',
   'speech-resources/xasr-bpe.vocab',
+  'ocr-model-catalog.mjs',
 ])
 
 function posixPath(path) {
@@ -152,6 +155,8 @@ export async function bundleRuntime({ runtimeDir }) {
   await Promise.all([
     mkdir(join(outputRuntime, 'plugins'), { recursive: true }),
     mkdir(join(outputRuntime, 'workers'), { recursive: true }),
+    mkdir(join(outputRuntime, 'extensions'), { recursive: true }),
+    mkdir(join(outputRuntime, 'services'), { recursive: true }),
   ])
   await Promise.all([
     cp(
@@ -161,6 +166,14 @@ export async function bundleRuntime({ runtimeDir }) {
     cp(
       join(sourceRuntime, 'workers', 'team-workflow-worker.mjs'),
       join(outputRuntime, 'workers', 'team-workflow-worker.mjs'),
+    ),
+    cp(
+      join(sourceRuntime, 'extensions', 'computer-use-ocr.mjs'),
+      join(outputRuntime, 'extensions', 'computer-use-ocr.mjs'),
+    ),
+    cp(
+      join(sourceRuntime, 'services', 'tesseract-ocr-service.mjs'),
+      join(outputRuntime, 'services', 'tesseract-ocr-service.mjs'),
     ),
   ])
 

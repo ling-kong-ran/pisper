@@ -85,6 +85,7 @@ test('Runtime bundle preserves host entries and only declares external package r
       'shared/speech-resources/xasr-bpe.vocab',
       'shared/speech-model-catalog.json',
       'shared/speech-resource-notices.json',
+      'shared/ocr-model-catalog.mjs',
     ]
     await Promise.all(
       speechSources.map(async (path) => {
@@ -121,6 +122,16 @@ test('Runtime bundle preserves host entries and only declares external package r
         'runtime/workers/team-workflow-worker.mjs',
         "export const teamWorker = 'fixture'\n",
       ),
+      createFile(
+        runtimeDir,
+        'runtime/extensions/computer-use-ocr.mjs',
+        "export const ocr = 'fixture'\n",
+      ),
+      createFile(
+        runtimeDir,
+        'runtime/services/tesseract-ocr-service.mjs',
+        "export const ocrService = 'fixture'\n",
+      ),
       createFile(runtimeDir, 'shared/value.mjs', "export const value = 'bundled'\n"),
       createFile(runtimeDir, 'shared/unreferenced.onnx', 'not a packaged model'),
       createFile(runtimeDir, 'runtime/unreferenced.onnx', 'not a packaged model'),
@@ -139,7 +150,10 @@ test('Runtime bundle preserves host entries and only declares external package r
     assert.equal(await exists(join(runtimeDir, 'shared', 'value.mjs')), false)
     assert.equal(await exists(join(runtimeDir, 'shared', 'unreferenced.onnx')), false)
     assert.equal(await exists(join(runtimeDir, 'runtime', 'unreferenced.onnx')), false)
-    assert.equal(await exists(join(runtimeDir, 'runtime', 'services')), false)
+    assert.equal(
+      await exists(join(runtimeDir, 'runtime', 'services', 'tesseract-ocr-service.mjs')),
+      true,
+    )
     assert.equal(await exists(join(runtimeDir, 'runtime', 'speech-inference-worker.mjs')), false)
     const resourcePath = 'shared/speech-resources/xasr-bpe.vocab'
     const bpe = await readFile(join(runtimeDir, resourcePath))
@@ -149,6 +163,7 @@ test('Runtime bundle preserves host entries and only declares external package r
       '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5',
     )
     const retained = [
+      'shared/ocr-model-catalog.mjs',
       'shared/speech-model-catalog.json',
       'shared/speech-resource-notices.json',
       resourcePath,

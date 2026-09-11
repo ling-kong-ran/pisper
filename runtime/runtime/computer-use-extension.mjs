@@ -1,6 +1,11 @@
 import { fileURLToPath } from 'node:url'
+import { OCR_LANGUAGES, OCR_MODEL_VERSION } from '../../shared/ocr-model-catalog.mjs'
 
 const OFFICIAL_EXTENSION_ENTRY = '@injaneity/pi-computer-use/extensions/computer-use.ts'
+
+export const COMPUTER_USE_OCR_LANGUAGES = Object.freeze(['eng', 'chi_sim', 'chi_sim+eng'])
+export const COMPUTER_USE_OCR_MODEL_VERSION = OCR_MODEL_VERSION
+export const COMPUTER_USE_OCR_MODEL_FILES = Object.freeze([...OCR_LANGUAGES])
 
 // 对外只展示一个聚合工具；调用时再展开为官方 Extension 注册的真实工具名。
 export const OFFICIAL_COMPUTER_USE_TOOL_NAMES = [
@@ -19,4 +24,8 @@ export const OFFICIAL_COMPUTER_USE_TOOL_NAMES = [
 
 export function getOfficialComputerUseExtensionPath() {
   return fileURLToPath(import.meta.resolve(OFFICIAL_EXTENSION_ENTRY))
+}
+
+export function getComputerUseOcrExtensionPath() {
+  return fileURLToPath(new URL('../extensions/computer-use-ocr.mjs', import.meta.url))
 }

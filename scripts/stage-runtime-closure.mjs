@@ -18,6 +18,7 @@ import {
 } from './sea-runtime.mjs'
 import { bundleRuntime } from './runtime-bundle.mjs'
 import { stageSpeechModel } from './stage-speech-model.mjs'
+import { stageOcrModels } from './stage-ocr-models.mjs'
 
 const run = promisify(execFile)
 
@@ -70,6 +71,8 @@ export async function stageRuntimeClosure({
   const beforeBundle = await collectRuntimeSnapshot(runtimeDir)
   const bundle = await bundleRuntime({ runtimeDir })
   await rm(join(runtimeDir, 'package-lock.json'), { force: true })
+  // OCR 模型必须在裁剪生产依赖前落盘；语言包本身不是运行时依赖。
+  await stageOcrModels({ runtimeDir, target })
   // bundle 已吸收普通生产依赖；让 npm 按改写后的 manifest 保留 external 包及其传递闭包。
   await runNpm(
     ['prune', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false'],

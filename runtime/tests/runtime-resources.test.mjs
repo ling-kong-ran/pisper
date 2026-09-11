@@ -202,6 +202,7 @@ export default function () {}
 
   assert.ok(loadedPaths.some((path) => path.includes('external.ts')))
   assert.ok(loadedPaths.some((path) => path.includes('computer-use.ts')))
+  assert.ok(loadedPaths.some((path) => path.includes('computer-use-ocr.mjs')))
   assert.equal(await readFile(markerPath, 'utf8'), 'loaded')
 })
 

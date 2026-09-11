@@ -3,7 +3,7 @@ import { basename, dirname, join } from 'node:path'
 
 export const SEA_RUNTIME_MANIFEST_SCHEMA = 'pisper.sea-runtime-size-manifest'
 export const SEA_RUNTIME_MANIFEST_VERSION = 1
-export const SEA_RUNTIME_BUDGET_BYTES = 120 * 1024 * 1024
+export const SEA_RUNTIME_BUDGET_BYTES = 160 * 1024 * 1024
 export const SEA_SPEECH_RUNTIME_BUDGET_BYTES = 190 * 1024 * 1024
 
 const PI_CODING_AGENT = 'node_modules/@earendil-works/pi-coding-agent'
@@ -32,12 +32,6 @@ const officeBrowserFiles = new Set([
   'officeparser.browser.slim.mjs',
 ])
 const retainedYargsLocales = new Set(['en.json', 'zh_CN.json'])
-const OFFICIAL_COMPUTER_USE_PACKAGE = '@injaneity/pi-computer-use'
-
-function packageNameForDirectory(directory) {
-  const parent = basename(dirname(directory))
-  return parent.startsWith('@') ? `${parent}/${basename(directory)}` : basename(directory)
-}
 
 function runtimePath(runtimeDir, relativePath) {
   return join(runtimeDir, ...relativePath.split('/'))
@@ -200,8 +194,10 @@ async function prunePackageTree(directory, audit) {
   }
 
   const directoryName = basename(directory)
-  const packageName = packageNameForDirectory(directory)
-  const preserveOfficialComputerUseSource = packageName === OFFICIAL_COMPUTER_USE_PACKAGE
+  const normalizedDirectory = directory.replaceAll('\\', '/')
+  const preserveOfficialComputerUseSource =
+    normalizedDirectory.includes('/node_modules/@injaneity/pi-computer-use/') ||
+    normalizedDirectory.endsWith('/node_modules/@injaneity/pi-computer-use')
   const protectsPackageChildren =
     directoryName === 'node_modules' ||
     (basename(dirname(directory)) === 'node_modules' && directoryName.startsWith('@'))
@@ -386,8 +382,6 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
   const nodeModules = join(runtimeDir, 'node_modules')
   const audit = createRemovalAudit()
   const explicitPaths = [
-    ['tesseract.js'],
-    ['tesseract.js-core'],
     ['zlibjs'],
     ['@napi-rs', 'canvas'],
     ['@earendil-works', 'pi-coding-agent', 'CHANGELOG.md'],
