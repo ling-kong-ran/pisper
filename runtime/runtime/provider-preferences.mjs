@@ -724,7 +724,12 @@ export class ProviderPreferences {
         const runtimeProvider = runtimeProviders.find((item) => item.id === id)
         const overlay = modelsJson.providers?.[id] || {}
         const overlayModels = Array.isArray(overlay.models) ? overlay.models : []
-        const type = appConfig.providerTypes?.[id] || inferredProviderType(overlay)
+        // 内置 Provider 均为对话型：只有被显式标记为 visual 才按视觉连接展示，
+        // 避免覆盖配置中遗留的视觉模型（如手动挂到 openai 下的 sora-2）把内置
+        // 对话 Provider 推断成视觉供应商，混进「视觉连接」列表。
+        const explicitType = appConfig.providerTypes?.[id]
+        const type =
+          explicitType || (KNOWN_PROVIDERS.includes(id) ? 'chat' : inferredProviderType(overlay))
         const models = modelRuntime
           .getModels(id)
           .map((model) => {

@@ -506,3 +506,37 @@ test('each chat provider keeps its saved default model independently', async (t)
     'relay-two-first',
   )
 })
+
+test('built-in providers are only visual when explicitly marked, never inferred from stray visual models', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-builtin-visual-inference-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  // 内置对话 Provider 的覆盖配置中遗留视觉模型（如 openai 下的 sora-2）时，
+  // 不得被推断为视觉供应商而混入「视觉连接」列表。
+  await writeFile(
+    join(directory, 'models.json'),
+    JSON.stringify({
+      providers: {
+        openai: {
+          baseUrl: 'https://relay.example.test/v1',
+          models: [{ id: 'sora-2', name: 'sora-2', kind: 'video' }],
+        },
+      },
+    }),
+  )
+  const inferred = await runtime.getConfig()
+  assert.equal(inferred.providers.find((provider) => provider.id === 'openai').type, 'chat')
+
+  // 显式标记为 visual 的内置 Provider 仍然按视觉连接展示。
+  await writeFile(
+    join(directory, 'pisper.json'),
+    JSON.stringify({ providerTypes: { openai: 'visual' } }),
+  )
+  const explicit = await runtime.getConfig()
+  assert.equal(explicit.providers.find((provider) => provider.id === 'openai').type, 'visual')
+})
