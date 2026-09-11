@@ -278,7 +278,7 @@ test('SEA size manifest enforces its runtime budget and executable audit', () =>
   })
   assert.equal(passing.schema, 'pisper.sea-runtime-size-manifest')
   assert.equal(passing.version, 1)
-  assert.equal(passing.budget.runtimeMiB, 120)
+  assert.equal(passing.budget.runtimeMiB, 160)
   assert.equal(passing.budget.pass, true)
   assert.equal(passing.pass, true)
   assert.throws(() => assertSizeManifest(passing, { requireExecutable: true }), /executable size/)
