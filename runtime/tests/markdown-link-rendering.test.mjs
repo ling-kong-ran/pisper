@@ -165,17 +165,6 @@ test('absolute local file links render without the unsafe-link blocked marker', 
   assert.match(html, /data-local-path="\/home\/user\/project\/report\.txt"/)
   assert.match(html, /data-local-path="E:\/code\/My Report\.txt"/)
   assert.match(html, /href="https:\/\/example\.com\/docs"/)
-
-  const originalWindow = globalThis.window
-  globalThis.window = { pisperDesktop: { revealPath: async () => true } }
-  try {
-    const desktopHtml = renderMarkdown('[Desktop report](E:/code/pi-coder/report.txt)')
-    assert.match(desktopHtml, /<button[^>]*data-local-path="E:\/code\/pi-coder\/report\.txt"/)
-    assert.doesNotMatch(desktopHtml, /href="https:\/\/local-file\.pisper\.invalid/)
-  } finally {
-    if (originalWindow === undefined) delete globalThis.window
-    else globalThis.window = originalWindow
-  }
 })
 
 test('relative local file links resolve against the session cwd', () => {
@@ -202,25 +191,19 @@ test('relative links without cwd stay inert', () => {
   assert.doesNotMatch(html, /data-local-path/)
 })
 
-test('desktop shell exposes a reveal-only bridge for local Markdown paths', async () => {
-  const [markdown, bridgeType, bridgeScript, bridgeRust, shell, permissions] = await Promise.all([
-    readFile(new URL('src/components/MarkdownMessage.tsx', ROOT), 'utf8'),
-    readFile(new URL('src/types/update.ts', ROOT), 'utf8'),
-    readFile(new URL('src-tauri/src/desktop_shell/desktop-bridge.js', ROOT), 'utf8'),
-    readFile(new URL('src-tauri/src/desktop_shell/desktop_bridge.rs', ROOT), 'utf8'),
-    readFile(new URL('src-tauri/src/desktop_shell/mod.rs', ROOT), 'utf8'),
-    readFile(new URL('src-tauri/permissions/desktop.toml', ROOT), 'utf8'),
-  ])
+test('Runtime exposes a Node local path reveal endpoint for web and desktop clients', async () => {
+  const runtimeSource = await readFile(
+    new URL('runtime/services/local-path-service.mjs', ROOT),
+    'utf8',
+  )
+  const facade = await readFile(new URL('runtime/runtime/agent-runtime-facade.mjs', ROOT), 'utf8')
+  const route = await readFile(new URL('runtime/http/routes/desktop.mjs', ROOT), 'utf8')
 
-  assert.match(markdown, /pisperDesktop\?\.revealPath/)
-  assert.match(bridgeType, /revealPath\?: \(path: string\) => Promise<boolean>/)
-  assert.match(bridgeScript, /revealPath: \(path\) => invoke\('desktop_reveal_path', \{ path \}\)/)
-  assert.match(bridgeRust, /pub fn desktop_reveal_path/)
-  assert.match(bridgeRust, /requested\.is_absolute\(\)/)
-  assert.match(bridgeRust, /reveal_item_in_dir\(path\)/)
-  assert.doesNotMatch(bridgeRust, /desktop_reveal_path[\s\S]{0,800}Command::new/)
-  assert.match(shell, /desktop_bridge::desktop_reveal_path/)
-  assert.match(permissions, /"desktop_reveal_path"/)
+  assert.match(runtimeSource, /command: 'explorer\.exe'/)
+  assert.match(runtimeSource, /command: 'open'/)
+  assert.match(runtimeSource, /command: 'xdg-open'/)
+  assert.match(facade, /async revealLocalPath\(path\)/)
+  assert.match(route, /path: '\/api\/desktop\/reveal-path'/)
 })
 
 test('incomplete Markdown streams through the same incremental renderer', () => {

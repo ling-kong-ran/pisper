@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
 
-function request(method, body) {
+function request(method, body, { remote = false } = {}) {
   return {
     method,
+    pisperRemote: remote,
     async *[Symbol.asyncIterator]() {
       if (body !== undefined) yield Buffer.from(JSON.stringify(body))
     },
@@ -53,6 +54,28 @@ test('API handler passes through non-API requests and returns the public JSON 40
   assert.deepEqual(JSON.parse(missing.body), { error: '接口不存在。' })
   assert.equal(missing.headers['Content-Type'], 'application/json; charset=utf-8')
   assert.equal(missing.headers['Cache-Control'], 'no-store')
+})
+
+test('remote clients cannot invoke the host file manager endpoint', async () => {
+  let calls = 0
+  const handler = createApiHandler({
+    capabilities: { profile: 'desktop' },
+    async revealLocalPath() {
+      calls += 1
+      return { revealed: true }
+    },
+  })
+  const output = response()
+
+  await handler(
+    request('POST', { path: 'C:/report.txt' }, { remote: true }),
+    output,
+    new URL('http://localhost/api/desktop/reveal-path'),
+  )
+
+  assert.equal(output.status, 403)
+  assert.deepEqual(JSON.parse(output.body), { error: '远程客户端不能打开宿主文件管理器。' })
+  assert.equal(calls, 0)
 })
 
 test('API handler redacts secrets from asynchronous public errors', async () => {

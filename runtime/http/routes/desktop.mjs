@@ -6,6 +6,18 @@ function requireDesktopPet(services) {
 
 export const desktopRoutes = [
   {
+    method: 'POST',
+    path: '/api/desktop/reveal-path',
+    async handler({ runtime, req, body, json }) {
+      if (req.pisperRemote) {
+        json(403, { error: '远程客户端不能打开宿主文件管理器。' })
+        return
+      }
+      const input = await body()
+      json(200, await runtime.revealLocalPath(input?.path))
+    },
+  },
+  {
     method: 'GET',
     path: '/api/app-update',
     async handler({ services, url, publicError, json }) {

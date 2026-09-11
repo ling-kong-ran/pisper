@@ -27,7 +27,11 @@ import {
 } from '@/lib/streamdown'
 import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
 import { decodeLocalFileHref, remarkLocalFileLinks } from '@/lib/local-file-links'
-import { LocalPathRevealError, requestLocalPathReveal } from '@/lib/local-path-reveal'
+import {
+  LocalPathRevealError,
+  requestLocalPathReveal,
+  revealPathThroughRuntime,
+} from '@/lib/local-path-reveal'
 import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
 import { cn } from '@/lib/utils'
 
@@ -92,8 +96,8 @@ function MarkdownLink({
       setRevealPending(true)
       setRevealFailure('')
       try {
-        // 点击时再取桥接，兼容页面先渲染、桌面桥接后就绪的情况。
-        await requestLocalPathReveal(localFile.path, window.pisperDesktop?.revealPath)
+        // 点击时再请求 Runtime，桌面 WebView 与普通 Web 页面使用同一条 Node 链路。
+        await requestLocalPathReveal(localFile.path, revealPathThroughRuntime)
         emitLocalRevealNotice(
           t('common:markdownMessage.revealLocalPathOk', { path: localFile.path }),
           'info',

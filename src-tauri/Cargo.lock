@@ -3926,7 +3926,6 @@ version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "dunce",
  "flate2",
  "futures-util",
  "http-body-util",
@@ -3934,10 +3933,6 @@ dependencies = [
  "hyper-util",
  "iroh",
  "jni 0.21.1",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "open",
  "pisper-component-updater",
  "pisper-mobile-device-plugin",
  "portable-pty",
@@ -3963,7 +3958,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing-subscriber",
- "windows 0.61.3",
  "windows-sys 0.59.0",
  "winreg 0.55.0",
 ]

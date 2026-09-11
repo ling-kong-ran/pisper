@@ -6,7 +6,7 @@ import {
   requestLocalPathReveal,
 } from '../../src/lib/local-path-reveal.ts'
 
-test('local reveal reports a missing bridge instead of silently ignoring the click', async () => {
+test('local reveal reports an unavailable Runtime instead of silently ignoring the click', async () => {
   await assert.rejects(requestLocalPathReveal('C:/report.txt', undefined), (error) => {
     assert.ok(error instanceof LocalPathRevealError)
     assert.equal(error.reason, 'unavailable')
@@ -14,15 +14,15 @@ test('local reveal reports a missing bridge instead of silently ignoring the cli
   })
 })
 
-test('local reveal preserves IPC rejections and synchronous bridge errors', async () => {
-  const syncError = new Error('Tauri IPC is unavailable.')
+test('local reveal preserves Runtime rejections and synchronous errors', async () => {
+  const syncError = new Error('Runtime is unavailable.')
   await assert.rejects(
     requestLocalPathReveal('C:/report.txt', () => {
       throw syncError
     }),
     (error) => error === syncError,
   )
-  const rejection = 'desktop_reveal_path not allowed on window main'
+  const rejection = 'Runtime local path reveal failed'
   await assert.rejects(
     requestLocalPathReveal('C:/report.txt', () => Promise.reject(rejection)),
     (error) => error === rejection,

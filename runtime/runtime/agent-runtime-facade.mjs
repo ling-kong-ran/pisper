@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
+import { revealLocalPath } from '../services/local-path-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
   bridgePiExtensionPackages,
@@ -83,6 +84,12 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 }
 
 export class AgentRuntimeFacade {
+  async revealLocalPath(path) {
+    if (this.capabilities?.profile !== 'desktop')
+      throw new Error('当前 Runtime 不支持打开宿主文件管理器。')
+    return await revealLocalPath(path)
+  }
+
   async getSessionCommands(sessionId) {
     const cwd = await this.sessionWorkspaceCwd(sessionId)
     const loader = await this.skills.createResourceLoader(cwd)

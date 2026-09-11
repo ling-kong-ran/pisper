@@ -28,7 +28,11 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { LocalPathRevealError, requestLocalPathReveal } from '@/lib/local-path-reveal'
+import {
+  LocalPathRevealError,
+  requestLocalPathReveal,
+  revealPathThroughRuntime,
+} from '@/lib/local-path-reveal'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
@@ -236,7 +240,7 @@ export function MessageAttachments({
 
   const revealInFileManager = async (path: string) => {
     try {
-      await requestLocalPathReveal(path, window.pisperDesktop?.revealPath)
+      await requestLocalPathReveal(path, revealPathThroughRuntime)
       emitFileNotice(t('common:markdownMessage.revealLocalPathOk', { path }), 'info')
     } catch (error: unknown) {
       const message =
