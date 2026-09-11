@@ -10,16 +10,14 @@ import {
   CircleAlert,
   FlaskConical,
   RefreshCw,
-  Server,
   Sparkles,
-  Trash2,
   Wand2,
 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
-import { PROVIDER_ICONS } from './provider-constants'
-import { SettingsBadge, SettingsCard, SettingsSwitch } from './settings-primitives'
+import { ConnectionCardGrid } from './ConnectionList'
+import { SettingsBadge, SettingsCard } from './settings-primitives'
 import type { Notify } from '@/app/route-context'
 import type {
   ConfigData,
@@ -34,6 +32,15 @@ import { AppError } from '@/components/ui/app-primitives'
 
 // 视觉连接区展开状态持久化：与「连接管理」一致，默认折叠。
 const VISUAL_CONNECTIONS_STORAGE_KEY = 'pisper.config.visualConnectionsOpen'
+
+// 冒烟测试状态提升为模块级缓存：真实生图可能耗时数十秒，期间切走页面组件会卸载，
+// 局部状态丢失导致“切回来什么都没了”。缓存在途 Promise 与最近一次结果，
+// 重新回到本页时在途的继续转圈、已完成的直接展示。
+const visualTestCache = {
+  running: null as Promise<VisualTestResult> | null,
+  result: null as VisualTestResult | null,
+  error: '',
+}
 
 function storedVisualConnectionsOpen(): boolean {
   return window.localStorage.getItem(VISUAL_CONNECTIONS_STORAGE_KEY) === '1'
@@ -82,6 +89,29 @@ export function VisualGenerationSettings({
     void refresh()
   }, [refresh, config])
 
+  // 挂载时恢复缓存的测试状态：在途请求重新挂回调继续转圈，已完成的直接展示。
+  useEffect(() => {
+    if (visualTestCache.result) setTestResult(visualTestCache.result)
+    if (visualTestCache.error) setError(visualTestCache.error)
+    const running = visualTestCache.running
+    if (!running) return undefined
+    setTesting(true)
+    let active = true
+    running
+      .then((result) => {
+        if (active) setTestResult(result)
+      })
+      .catch(() => {
+        if (active) setError(visualTestCache.error)
+      })
+      .finally(() => {
+        if (active) setTesting(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   const selectVisualModel = async (kind: 'image' | 'video', model: string) => {
     setSelecting(kind)
     setError('')
@@ -101,18 +131,33 @@ export function VisualGenerationSettings({
   }
 
   // 冒烟测试：实际生成一张小图，验证当前自动选中的视觉模型端到端可用。
+  // 状态写入模块级缓存，页面导航后不丢失；组件卸载后的 setState 为静默无操作。
   const runTest = async () => {
+    if (visualTestCache.running) return
     setTesting(true)
     setError('')
     setTestResult(null)
+    visualTestCache.result = null
+    visualTestCache.error = ''
+    const pending = apiJson<VisualTestResult>('/api/visual/test', {
+      method: 'POST',
+      body: '{}',
+      // 真实生图可能远超默认 30s：服务端图像驱动超时为 3 分钟，这里留足余量。
+      timeout: 210_000,
+    })
+    visualTestCache.running = pending
     try {
-      setTestResult(
-        await apiJson<VisualTestResult>('/api/visual/test', { method: 'POST', body: '{}' }),
-      )
+      const result = await pending
+      visualTestCache.result = result
+      setTestResult(result)
       notify(t('config:configPage.testSucceeded'))
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
+      const message = caught instanceof Error ? caught.message : String(caught)
+      visualTestCache.error = message
+      setError(message)
+      notify(message)
     } finally {
+      visualTestCache.running = null
       setTesting(false)
     }
   }
@@ -123,6 +168,10 @@ export function VisualGenerationSettings({
   }
 
   const visualProviders = config.providers.filter((provider) => provider.type === 'visual')
+  // 与对话连接列表同一套过滤规则：只展示已配置或自定义的连接。
+  const visibleVisualProviders = visualProviders.filter(
+    (provider) => provider.configured || provider.custom,
+  )
   const imageModels = status?.imageModels || []
   const videoModels = status?.videoModels || []
 
@@ -241,70 +290,19 @@ export function VisualGenerationSettings({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SettingsCard>
-            <div className="flex flex-col gap-[8px]">
-              {visualProviders.map((provider) => {
-                const Icon = PROVIDER_ICONS[provider.id] || Server
-                const statusText = !provider.configured
-                  ? t('config:configPage.apiKeyRequired')
-                  : provider.enabled
-                    ? t('config:configPage.authenticationReady')
-                    : t('config:configPage.disabled2')
-                return (
-                  <div
-                    key={provider.id}
-                    role="button"
-                    tabIndex={0}
-                    title={t('config:configPage.configure')}
-                    className="flex min-w-0 cursor-pointer items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[9px_11px] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)] max-[650px]:grid max-[650px]:grid-cols-[30px_minmax(0,1fr)_auto]"
-                    onClick={() => onEditVisualProvider(provider.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        onEditVisualProvider(provider.id)
-                      }
-                    }}
-                  >
-                    <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-                      <Icon size={16} />
-                    </span>
-                    <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                      {provider.name}
-                    </strong>
-                    <small className="min-w-0 flex-none text-[12px] text-[var(--text-muted)] max-[650px]:col-start-2 max-[650px]:row-start-2">
-                      {statusText}
-                    </small>
-                    {/* 开关/删除是行内独立控件，不触发行点击编辑 */}
-                    <div
-                      className="flex flex-none items-center gap-[6px] max-[650px]:col-start-3 max-[650px]:row-span-2 max-[650px]:row-start-1"
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
-                      <SettingsSwitch
-                        value={provider.configured && provider.enabled}
-                        disabled={!provider.configured || toggling === provider.id}
-                        onChange={(enabled) => onToggleProvider(provider, enabled)}
-                      />
-                      {provider.custom && (
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="h-[26px] w-[26px]"
-                          title={t('config:configPage.deleteProvider')}
-                          onClick={() => onDeleteProvider(provider)}
-                        >
-                          <Trash2 size={13} />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-              {visualProviders.length === 0 && (
-                <p className="[margin:2px_0_0] text-[12px] text-[var(--text-muted)]">
-                  {t('config:configPage.visualEmptyHint')}
-                </p>
-              )}
-            </div>
+            {/* 与对话连接管理共用同一套卡片网格，保证两边样式一致 */}
+            <ConnectionCardGrid
+              providers={visualProviders}
+              toggling={toggling}
+              onConfigure={(provider) => onEditVisualProvider(provider.id)}
+              onToggle={onToggleProvider}
+              onDelete={onDeleteProvider}
+            />
+            {visibleVisualProviders.length === 0 && (
+              <p className="[margin:2px_0_0] text-[12px] text-[var(--text-muted)]">
+                {t('config:configPage.visualEmptyHint')}
+              </p>
+            )}
             {(imageModels.length > 0 || videoModels.length > 0) && (
               <div className="flex flex-col gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [margin-top:10px] pt-[10px]">
                 {imageModels.length > 0 && (

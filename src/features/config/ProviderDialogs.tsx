@@ -6,6 +6,7 @@ import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { PROVIDER_APIS } from './provider-constants'
+import { ManualModelIds } from './ManualModelIds'
 import { SettingsSwitch } from './settings-primitives'
 import type { FormEvent } from 'react'
 import type { ConfigData, ProviderConfig, ProviderType } from './config-types'
@@ -62,6 +63,8 @@ export function ProviderConfigModal({
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // 手动追加的额外模型 ID：保存时随主模型批量写入该连接（对话/视觉均支持）。
+  const [extraModelIds, setExtraModelIds] = useState<string[]>([])
   const updateName = (name: string) =>
     setDraft((current) => ({
       ...current,
@@ -90,7 +93,7 @@ export function ProviderConfigModal({
     setSaving(true)
     setError('')
     try {
-      const data = editing
+      let data = editing
         ? await apiJson<ConfigData>('/api/config', {
             method: 'PUT',
             body: JSON.stringify({
@@ -104,6 +107,34 @@ export function ProviderConfigModal({
             method: 'POST',
             body: JSON.stringify(draft),
           })
+      // 主模型保存成功后批量写入追加的模型；失败时保留对话框，修正后可安全重试
+      //（服务端会跳过已存在的模型）。
+      const existingIds = new Set((initialProvider?.models || []).map((model) => model.id))
+      const extraIds = extraModelIds.filter(
+        (id) => id !== draft.model.trim() && !existingIds.has(id),
+      )
+      if (extraIds.length) {
+        // 新建连接时以服务端返回的真实 ID 为准（服务端会对空/非法 ID 做归一化）。
+        const targetProviderId =
+          (data as ConfigData & { createdProviderId?: string }).createdProviderId || draft.id
+        try {
+          data = await apiJson<ConfigData>(
+            `/api/providers/${encodeURIComponent(targetProviderId)}/models/batch`,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                models: extraIds.map((id) => ({
+                  id,
+                  kind: draft.providerType === 'visual' ? draft.modelKind : 'chat',
+                })),
+              }),
+            },
+          )
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : String(caught))
+          return
+        }
+      }
       onCreated(data)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -252,6 +283,14 @@ export function ProviderConfigModal({
             </div>
           )}
         </FieldLabel>
+        <div className="grid gap-[9px]">
+          <ManualModelIds
+            ids={extraModelIds}
+            onChange={setExtraModelIds}
+            primaryId={draft.model}
+            placeholder={draft.providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
+          />
+        </div>
         <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
           <span>
             <strong>{t('config:configPage.enableAfterCreation')}</strong>

@@ -13,6 +13,97 @@ import type { ProviderConfig } from './config-types'
 
 import { Button } from '@/components/ui/button'
 
+// 连接卡片网格：对话连接列表与视觉连接列表共用同一套卡片样式，保证两边观感一致。
+type ConnectionCardGridProps = {
+  providers: ProviderConfig[]
+  defaultProviderId?: string
+  toggling: string
+  onConfigure: (provider: ProviderConfig) => void
+  onToggle: (provider: ProviderConfig, enabled: boolean) => void | Promise<void>
+  onDelete: (provider: ProviderConfig) => void | Promise<void>
+}
+
+export function ConnectionCardGrid({
+  providers,
+  defaultProviderId = '',
+  toggling,
+  onConfigure,
+  onToggle,
+  onDelete,
+}: ConnectionCardGridProps) {
+  const { t } = useI18n()
+  const visibleProviders = providers.filter((provider) => provider.configured || provider.custom)
+  return (
+    <div className="grid [grid-template-columns:repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-[8px]">
+      {visibleProviders.map((provider) => {
+        const Icon = PROVIDER_ICONS[provider.id] || Server
+        const isDefault = provider.id === defaultProviderId
+        const statusText = !provider.configured
+          ? provider.id === 'openai-codex'
+            ? t('config:configPage.codexCLILoginRequired')
+            : t('config:configPage.apiKeyRequired')
+          : provider.enabled
+            ? t('config:configPage.authenticationReady')
+            : t('config:configPage.disabled2')
+        return (
+          <div
+            key={provider.id}
+            role="button"
+            tabIndex={0}
+            title={t('config:configPage.configure')}
+            className="flex cursor-pointer flex-col gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[10px_11px] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
+            onClick={() => onConfigure(provider)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onConfigure(provider)
+              }
+            }}
+          >
+            <div className="flex min-w-0 items-center gap-[8px]">
+              <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
+                <Icon size={16} />
+              </span>
+              <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+                {provider.name}
+              </strong>
+              {isDefault && (
+                <SettingsBadge tone="green">{t('config:configPage.defaultBadge')}</SettingsBadge>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-[8px]">
+              <small className="text-[12px] text-[var(--text-muted)]">{statusText}</small>
+              {/* 开关/删除是卡片内的独立控件，不触发卡片点击 */}
+              <div
+                className="flex flex-none items-center gap-[6px]"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <SettingsSwitch
+                  value={provider.configured && provider.enabled}
+                  disabled={!provider.configured || toggling === provider.id}
+                  onChange={(enabled) => onToggle(provider, enabled)}
+                />
+                {provider.custom && (
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="h-[26px] w-[26px]"
+                    title={t('config:configPage.deleteProvider')}
+                    onClick={() => onDelete(provider)}
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 type ConnectionListProps = {
   providers: ProviderConfig[]
   defaultProviderId: string
@@ -33,7 +124,6 @@ export function ConnectionList({
   onAddCustom,
 }: ConnectionListProps) {
   const { t } = useI18n()
-  const visibleProviders = providers.filter((provider) => provider.configured || provider.custom)
   return (
     <SettingsCard>
       <div className="flex flex-wrap items-center justify-between gap-[8px] [margin-bottom:8px]">
@@ -48,73 +138,14 @@ export function ConnectionList({
           {t('config:configPage.addCustomConnection')}
         </Button>
       </div>
-      <div className="grid [grid-template-columns:repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-[8px]">
-        {visibleProviders.map((provider) => {
-          const Icon = PROVIDER_ICONS[provider.id] || Server
-          const isDefault = provider.id === defaultProviderId
-          const statusText = !provider.configured
-            ? provider.id === 'openai-codex'
-              ? t('config:configPage.codexCLILoginRequired')
-              : t('config:configPage.apiKeyRequired')
-            : provider.enabled
-              ? t('config:configPage.authenticationReady')
-              : t('config:configPage.disabled2')
-          return (
-            <div
-              key={provider.id}
-              role="button"
-              tabIndex={0}
-              title={t('config:configPage.configure')}
-              className="flex cursor-pointer flex-col gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[10px_11px] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
-              onClick={() => onConfigure(provider)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  onConfigure(provider)
-                }
-              }}
-            >
-              <div className="flex min-w-0 items-center gap-[8px]">
-                <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-                  <Icon size={16} />
-                </span>
-                <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                  {provider.name}
-                </strong>
-                {isDefault && (
-                  <SettingsBadge tone="green">{t('config:configPage.defaultBadge')}</SettingsBadge>
-                )}
-              </div>
-              <div className="flex items-center justify-between gap-[8px]">
-                <small className="text-[12px] text-[var(--text-muted)]">{statusText}</small>
-                {/* 开关/删除是卡片内的独立控件，不触发卡片点击 */}
-                <div
-                  className="flex flex-none items-center gap-[6px]"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                >
-                  <SettingsSwitch
-                    value={provider.configured && provider.enabled}
-                    disabled={!provider.configured || toggling === provider.id}
-                    onChange={(enabled) => onToggle(provider, enabled)}
-                  />
-                  {provider.custom && (
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="h-[26px] w-[26px]"
-                      title={t('config:configPage.deleteProvider')}
-                      onClick={() => onDelete(provider)}
-                    >
-                      <Trash2 size={13} />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <ConnectionCardGrid
+        providers={providers}
+        defaultProviderId={defaultProviderId}
+        toggling={toggling}
+        onConfigure={onConfigure}
+        onToggle={onToggle}
+        onDelete={onDelete}
+      />
     </SettingsCard>
   )
 }

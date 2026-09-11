@@ -595,6 +595,8 @@
   "configPage.configure": "配置",
   "configPage.manualModelId": "模型 ID（手动输入）",
   "configPage.manualModelIdHint": "列表中没有需要的模型时，直接输入模型 ID",
+  "configPage.manualModelIds": "追加模型 ID（可选）",
+  "configPage.manualModelIdsHint": "输入后点击 + 或按回车追加，可添加多个；保存时随选中模型一并加入该连接",
   "configPage.runtimePolicySaved": "运行策略已保存",
   "configPage.saveSettings": "保存设置",
   "configPage.manageConnections": "连接管理",

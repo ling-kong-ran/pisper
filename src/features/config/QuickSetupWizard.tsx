@@ -6,6 +6,7 @@ import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ManualModelIds } from './ManualModelIds'
 import { PROVIDER_APIS } from './provider-constants'
 import { SettingsBadge } from './settings-primitives'
 import type {
@@ -70,6 +71,8 @@ export function QuickSetupWizard({
   const [connectionName, setConnectionName] = useState(initialProvider?.name || '')
   const [models, setModels] = useState<ProviderModel[]>([])
   const [modelId, setModelId] = useState('')
+  // 手动追加的额外模型 ID 列表：点 + 或回车逐个追加，保存时随主模型一并写入连接。
+  const [manualIds, setManualIds] = useState<string[]>([])
   const [modelKind, setModelKind] = useState<ProviderModel['kind']>(
     providerType === 'visual' ? 'image' : 'chat',
   )
@@ -213,15 +216,19 @@ export function QuickSetupWizard({
   }
 
   const save = async () => {
-    const model = modelId.trim()
+    // 主模型取列表选中项/手动输入；都为空时退回第一个追加项。
+    const model = modelId.trim() || manualIds[0] || ''
     if (!model) {
       setError(t('config:configPage.selectModelToFinish'))
       return
     }
+    // 已在连接里的模型跳过（服务端也会跳过已存在项，这里提前过滤避免整批被判为重复）。
+    const existingIds = new Set((provider?.models || []).map((item) => item.id))
+    const extraIds = manualIds.filter((id) => id !== model && !existingIds.has(id))
     setBusy(true)
     setError('')
     try {
-      const data = provider
+      let data = provider
         ? await apiJson<ConfigData>('/api/config', {
             method: 'PUT',
             body: JSON.stringify({
@@ -254,6 +261,24 @@ export function QuickSetupWizard({
               enabled: true,
             }),
           })
+      // 主模型保存成功后再批量添加其余手动输入的模型；失败时保留向导以便修正重试
+      //（重试安全：服务端会跳过已存在的模型）。
+      if (extraIds.length) {
+        const targetProviderId = provider?.id || identity.id
+        const kind = providerType === 'visual' ? modelKind : 'chat'
+        try {
+          data = await apiJson<ConfigData>(
+            `/api/providers/${encodeURIComponent(targetProviderId)}/models/batch`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ models: extraIds.map((id) => ({ id, kind })) }),
+            },
+          )
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : String(caught))
+          return
+        }
+      }
       onCompleted(data)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -437,6 +462,41 @@ export function QuickSetupWizard({
                 </div>
               </>
             )}
+            {/* 手动输入模型 ID：站点不提供 /models 接口或列表缺模型时的兜底入口，
+                与上面获取到的列表双向联动（点列表填入，可直接改）。 */}
+            <div className="[margin-top:14px] grid gap-[9px]">
+              <FieldLabel variant="control">
+                {t('config:configPage.manualModelId')}
+                <input
+                  value={modelId}
+                  onChange={(event) => setModelId(event.target.value)}
+                  placeholder={providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.4'}
+                />
+              </FieldLabel>
+              <p className="[margin:0] text-[11px] text-[var(--text-tertiary)]">
+                {t('config:configPage.manualModelIdHint')}
+              </p>
+              {providerType === 'visual' && (
+                <FieldLabel variant="control">
+                  {t('config:configPage.modelType')}
+                  <AppSelect
+                    value={modelKind}
+                    onChange={(event) => setModelKind(event.target.value as ProviderModel['kind'])}
+                  >
+                    <option value="image">
+                      {t('config:configPage.imageGenerationAndEditing')}
+                    </option>
+                    <option value="video">{t('config:configPage.videoGeneration')}</option>
+                  </AppSelect>
+                </FieldLabel>
+              )}
+              <ManualModelIds
+                ids={manualIds}
+                onChange={setManualIds}
+                primaryId={modelId}
+                placeholder={providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
+              />
+            </div>
           </div>
         )}
 
@@ -481,7 +541,7 @@ export function QuickSetupWizard({
             <Button
               type="button"
               size="lg"
-              disabled={busy || !modelId.trim() || visibleModels.length === 0}
+              disabled={busy || (!modelId.trim() && manualIds.length === 0)}
               onClick={() => void save()}
             >
               {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}

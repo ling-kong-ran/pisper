@@ -595,6 +595,8 @@
   "configPage.configure": "Configure",
   "configPage.manualModelId": "Model ID (manual)",
   "configPage.manualModelIdHint": "If the model you need is not listed, enter its ID directly",
+  "configPage.manualModelIds": "Add more model IDs (optional)",
+  "configPage.manualModelIdsHint": "Click + or press Enter to append each ID; all are saved to this connection with the selected model",
   "configPage.runtimePolicySaved": "Runtime policy saved",
   "configPage.saveSettings": "Save settings",
   "configPage.manageConnections": "Manage connections",

@@ -49,7 +49,10 @@ test('visual Provider settings expose a direct connection editor and hide unused
   assert.match(modelsSource, /onConfigure=\{openProviderEditorFor\}/)
   assert.match(modelsSource, /setProviderModal\(\{ providerType: provider\.type, provider \}\)/)
   assert.doesNotMatch(connectionSource, /provider\.type === 'visual'/)
-  assert.match(visualSource, /value=\{provider\.configured && provider\.enabled\}/)
-  assert.match(visualSource, /onToggleProvider\(provider, enabled\)/)
+  // 视觉连接与对话连接共用同一套卡片网格（ConnectionCardGrid），启停/删除交互一致。
+  assert.match(visualSource, /<ConnectionCardGrid/)
+  assert.match(visualSource, /onToggle=\{onToggleProvider\}/)
+  assert.match(visualSource, /onDelete=\{onDeleteProvider\}/)
+  assert.match(connectionSource, /value=\{provider\.configured && provider\.enabled\}/)
   assert.match(modelsSource, /onToggleProvider=\{settings\.toggleProvider\}/)
 })
