@@ -1,9 +1,9 @@
 {
-  "version": "0.1.36",
-  "tag": "app-v0.1.36",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.36",
+  "version": "0.1.37",
+  "tag": "app-v0.1.37",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.37",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- perf(chat): add development streaming timeline\n- perf(chat): throttle streaming markdown and transcript layout\n- fix(chat): restore batch snap streaming\n- fix(chat): settle runs from the done frame without transcript reload\n- chore(release-runtime): runtime-v0.5.40\n- feat(chat): shine composer status label on activity change\n- chore(deps): update pi coding agent\n- feat(chat): redesign transcript layout with turn retry and streaming safeguards\n- Revert \"fix(chat): align transcript with DeepSeek Harness layout\"\n- Revert \"fix(chat): soften running activity animation\"\n- Revert \"fix(chat): keep activity status icons still\"\n- fix(chat): keep activity status icons still\n- fix(chat): soften running activity animation\n- fix(chat): align transcript with DeepSeek Harness layout\n- fix(packaging): restore officeparser 7 runtime dependencies\n- fix(desktop): surface local reveal failures and add diagnostics\n- fix: track generated workspace assets by tool execution and resolve local links\n- styles：优化并统一布局结构样式",
-  "releaseDate": "2026-09-10"
+  "notes": "- chore(release-runtime): runtime-v0.5.43\n- fix(mobile): prune desktop OCR runtime\n- chore(release-runtime): runtime-v0.5.42\n- feat(computer-use): bundle bilingual OCR models\n- refactor(runtime): move local path reveal out of tauri\n- feat(plugins): unify Pi extensions with plugin management\n- refactor(chat): 文件面板无可用改动时直接隐藏「查看改动」\n- feat(chat): 文件 chip 点击展开操作面板（下载/文件管理器/查看改动）\n- fix(chat): 文件变更列表重载不丢、归属正确轮次\n- fix(config): 内置 Provider 不再因遗留视觉模型被推断为视觉供应商\n- feat(tools): 合并双预设为默认全开，Shell 默认可用\n- fix(visual): 鉴权错误(401/403)允许跨 Provider 回退\n- feat(config): 视觉连接统一卡片网格，手动追加模型 ID，测试生成状态保持",
+  "releaseDate": "2026-09-11"
 }
