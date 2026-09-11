@@ -394,11 +394,20 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
     ['highlight.js', 'scss'],
     ['highlight.js', 'styles'],
   ]
-  if (target.platform === 'mobile') explicitPaths.push(['@injaneity', 'pi-computer-use'])
   for (const parts of explicitPaths) {
     await removePath(join(nodeModules, ...parts), 'explicitUnusedClosure', audit)
   }
   if (target.platform === 'mobile') {
+    // 移动端不提供桌面 computer-use/OCR，避免把视觉自动化及模型运行时带入嵌入式闭包。
+    for (const parts of [
+      ['@injaneity', 'pi-computer-use'],
+      ['@tesseract.js-data', 'chi_sim'],
+      ['@tesseract.js-data', 'eng'],
+      ['tesseract.js'],
+      ['tesseract.js-core'],
+    ]) {
+      await removePath(join(nodeModules, ...parts), 'mobileDesktopAutomation', audit)
+    }
     // 移动端由 sherpa Android AAR 原生识别，Node addon 只会增加无效的桌面二进制体积。
     for (const parts of [
       ['sherpa-onnx-node'],

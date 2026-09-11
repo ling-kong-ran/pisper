@@ -143,7 +143,15 @@ test('mobile Runtime pruning removes desktop native packages', async () => {
   const piTui =
     'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/native'
   try {
+    const automationPackages = [
+      'node_modules/@injaneity/pi-computer-use/src/bridge.ts',
+      'node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz',
+      'node_modules/@tesseract.js-data/chi_sim/4.0.0_best_int/chi_sim.traineddata.gz',
+      'node_modules/tesseract.js/src/index.js',
+      'node_modules/tesseract.js-core/tesseract-core-lstm.wasm',
+    ]
     await Promise.all([
+      ...automationPackages.map((path) => createFile(runtime, path)),
       createFile(runtime, `${clipboard}/clipboard-win32-x64-msvc/binding.node`),
       createFile(runtime, `${clipboard}/clipboard-darwin-universal/binding.node`),
       createFile(runtime, `${piTui}/win32/prebuilds/win32-x64/binding.node`),
@@ -158,6 +166,7 @@ test('mobile Runtime pruning removes desktop native packages', async () => {
     })
     assert.deepEqual(native.retainedClipboardPackages, [])
     assert.deepEqual(native.retainedPiTuiNativeFiles, [])
+    for (const path of automationPackages) assert.equal(await exists(join(runtime, path)), false)
     assert.equal(native.pass, true)
   } finally {
     await rm(runtime, { recursive: true, force: true })
