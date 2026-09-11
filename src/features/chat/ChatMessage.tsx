@@ -192,19 +192,16 @@ function FileActionButton({
   icon,
   label,
   onClick,
-  disabled = false,
 }: {
   icon: ReactNode
   label: string
   onClick: () => void
-  disabled?: boolean
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
       onClick={onClick}
-      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
     >
       {icon}
       {label}
@@ -227,7 +224,9 @@ export function MessageAttachments({
   const [preview, setPreview] = useState<ImagePreview | null>(null)
   const [fileMenuFor, setFileMenuFor] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState<{ diff: string; truncated: boolean } | null>(null)
-  const [diffLoading, setDiffLoading] = useState(false)
+  const [diffInfo, setDiffInfo] = useState<
+    Record<string, { diff: string; truncated: boolean } | null>
+  >({})
   const imagePreviews = attachments.flatMap<PreviewImage>((attachment, attachmentIndex) => {
     const source =
       attachment.url ||
@@ -250,26 +249,27 @@ export function MessageAttachments({
     }
   }
 
-  const openFileDiff = async (path: string) => {
+  // 打开面板时探测该文件是否有可用 diff：无版本控制或无改动都不显示「查看改动」。
+  // 结果按 chip 缓存，点击按钮直接复用，避免重复跑 git。
+  const checkFileDiff = async (key: string, path: string) => {
     if (!sessionId) return
-    setDiffLoading(true)
     try {
       const result = await chatApi.getFileDiff(sessionId, path)
-      if (result.diff?.trim()) {
-        setFileDiff({ diff: result.diff, truncated: Boolean(result.diffTruncated) })
-        return
-      }
-      // 没有版本控制（拿不到 diff）：按约定直接回退到打开文件管理器。
-      if (!result.isRepo) {
-        await revealInFileManager(path)
-        return
-      }
-      emitFileNotice(t('chat:chatMessage.noFileChanges'), 'info')
-    } catch (error: unknown) {
-      emitFileNotice(error instanceof Error ? error.message : String(error), 'error')
-    } finally {
-      setDiffLoading(false)
+      setDiffInfo((current) => ({
+        ...current,
+        [key]: result.diff?.trim()
+          ? { diff: result.diff, truncated: Boolean(result.diffTruncated) }
+          : null,
+      }))
+    } catch {
+      // 探测失败（如路径已不存在）同样隐藏按钮，不打扰用户。
+      setDiffInfo((current) => ({ ...current, [key]: null }))
     }
+  }
+
+  const openFileDiff = (key: string) => {
+    const cached = diffInfo[key]
+    if (cached) setFileDiff(cached)
   }
 
   const downloadAttachment = (attachment: ChatAttachment) => {
@@ -327,7 +327,10 @@ export function MessageAttachments({
               <Popover
                 key={key}
                 open={fileMenuFor === key}
-                onOpenChange={(open) => setFileMenuFor(open ? String(key) : null)}
+                onOpenChange={(open) => {
+                  setFileMenuFor(open ? String(key) : null)
+                  if (open) void checkFileDiff(String(key), String(attachment.path))
+                }}
               >
                 <PopoverTrigger asChild>
                   <button
@@ -353,12 +356,13 @@ export function MessageAttachments({
                     label={t('chat:chatMessage.fileActionReveal')}
                     onClick={() => void revealInFileManager(String(attachment.path))}
                   />
-                  <FileActionButton
-                    disabled={diffLoading}
-                    icon={<FileDiff size={13} />}
-                    label={t('chat:chatMessage.fileActionDiff')}
-                    onClick={() => void openFileDiff(String(attachment.path))}
-                  />
+                  {diffInfo[String(key)] && (
+                    <FileActionButton
+                      icon={<FileDiff size={13} />}
+                      label={t('chat:chatMessage.fileActionDiff')}
+                      onClick={() => openFileDiff(String(key))}
+                    />
+                  )}
                 </PopoverContent>
               </Popover>
             )
