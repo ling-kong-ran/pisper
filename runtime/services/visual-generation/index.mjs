@@ -14,11 +14,20 @@ const SAFETY_REJECTION_PATTERN =
   /(?:content policy|safety system|moderation|内容安全|安全策略|审核拒绝|违规内容)/i
 
 // 可回退的错误判定：瞬时错误/模型不可用可回退到备选模型，安全拒绝不可回退。
-function canFallbackFrom(error, signal) {
+// 鉴权错误（401/403）是 Provider 级问题：同 Provider 换模型无意义，
+// 但回退到持有不同凭据的另一个 Provider 值得尝试（如某中转 Key 失效后回退到可用连接）。
+function canFallbackFrom(error, signal, nextModel, currentModel) {
   if (signal?.aborted) return false
   const message = String(error?.message || error || '')
   if (SAFETY_REJECTION_PATTERN.test(message)) return false
   const status = Number(error?.status ?? error?.statusCode)
+  if (
+    (status === 401 || status === 403) &&
+    nextModel &&
+    currentModel &&
+    nextModel.providerId !== currentModel.providerId
+  )
+    return true
   return RETRYABLE_VISUAL_STATUSES.has(status) || UNAVAILABLE_VISUAL_PATTERN.test(message)
 }
 
@@ -130,7 +139,12 @@ export class VisualGenerationService {
         }
       } catch (error) {
         const nextModel = models[index + 1]
-        if (requestedModel || !nextModel || !canFallbackFrom(error, options.signal)) throw error
+        if (
+          requestedModel ||
+          !nextModel ||
+          !canFallbackFrom(error, options.signal, nextModel, model)
+        )
+          throw error
         options.onProgress?.(
           `${model.providerName} / ${model.name} 当前不可用，尝试 ${nextModel.providerName} / ${nextModel.name}…`,
         )

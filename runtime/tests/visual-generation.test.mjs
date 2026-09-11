@@ -889,3 +889,136 @@ test('New API channel conversion failures are exposed without retrying another v
     await value.cleanup()
   }
 })
+
+// 双 Provider 夹具：主连接 401，备用连接可用，用于验证鉴权错误的跨 Provider 回退。
+async function twoProviderFixture({ brokenPort, backupPort }) {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-visual-auth-fallback-'))
+  const modelsPath = join(directory, 'models.json')
+  const authPath = join(directory, 'auth.json')
+  const appConfigPath = join(directory, 'pisper.json')
+  await writeFile(
+    modelsPath,
+    JSON.stringify({
+      providers: {
+        'broken-relay': {
+          name: 'A Broken Relay',
+          api: 'openai-responses',
+          baseUrl: `http://127.0.0.1:${brokenPort}/v1`,
+          models: [{ id: 'gpt-image-2', kind: 'image' }],
+        },
+        'backup-relay': {
+          name: 'Z Backup Relay',
+          api: 'openai-responses',
+          baseUrl: `http://127.0.0.1:${backupPort}/v1`,
+          models: [{ id: 'gpt-image-1', kind: 'image' }],
+        },
+      },
+    }),
+  )
+  await writeFile(
+    authPath,
+    JSON.stringify({
+      'broken-relay': { type: 'api_key', key: 'expired-key' },
+      'backup-relay': { type: 'api_key', key: 'working-key' },
+    }),
+  )
+  await writeFile(
+    appConfigPath,
+    JSON.stringify({
+      disabledProviders: [],
+      providerTypes: { 'broken-relay': 'visual', 'backup-relay': 'visual' },
+    }),
+  )
+  return {
+    directory,
+    service: new VisualGenerationService({ modelsPath, authPath, appConfigPath }),
+    cleanup: () => rm(directory, { recursive: true, force: true }),
+  }
+}
+
+test('auth failure falls back to a visual model from a different provider', async () => {
+  const brokenRequests = []
+  const { server: brokenServer, port: brokenPort } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      brokenRequests.push(req.headers.authorization)
+      res.writeHead(401, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'Invalid API key' } }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const { server: backupServer, port: backupPort } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ data: [{ b64_json: PNG.toString('base64') }] }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const value = await twoProviderFixture({ brokenPort, backupPort })
+  try {
+    const result = await value.service.generate({
+      kind: 'image',
+      prompt: 'auth fallback test',
+      cwd: value.directory,
+    })
+    // Key 失效（401）不是模型问题：回退到持不同凭据的另一个 Provider 而不是直接失败。
+    assert.equal(result.provider, 'backup-relay')
+    assert.equal(result.model, 'gpt-image-1')
+    assert.equal(result.fallbackUsed, true)
+    assert.deepEqual(result.attemptedModels, [
+      'broken-relay/gpt-image-2',
+      'backup-relay/gpt-image-1',
+    ])
+    assert.ok(brokenRequests.length > 0)
+  } finally {
+    brokenServer.close()
+    backupServer.close()
+    await value.cleanup()
+  }
+})
+
+test('auth failure does not fall back to another model of the same provider', async () => {
+  const requestedModels = []
+  const { server, port } = await listen(async (req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'POST' && url.pathname === '/v1/images/generations') {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      requestedModels.push(JSON.parse(Buffer.concat(chunks).toString('utf8')).model)
+      res.writeHead(401, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'Invalid API key' } }))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  const value = await fixture({
+    id: 'same-provider-auth-relay',
+    config: {
+      name: 'Same Provider Auth Relay',
+      api: 'openai-responses',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      models: [
+        { id: 'gpt-image-2', kind: 'image' },
+        { id: 'gpt-image-1', kind: 'image' },
+      ],
+    },
+  })
+  try {
+    // 同 Provider 的 Key 失效时换模型无意义：直接抛错，不逐个尝试该 Provider 的其他模型。
+    await assert.rejects(
+      value.service.generate({
+        kind: 'image',
+        prompt: 'same provider auth test',
+        cwd: value.directory,
+      }),
+      /Invalid API key/,
+    )
+    assert.deepEqual(requestedModels, ['gpt-image-2'])
+  } finally {
+    server.close()
+    await value.cleanup()
+  }
+})
