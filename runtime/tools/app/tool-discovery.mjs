@@ -41,6 +41,140 @@ const TOOL_ALIASES = {
     '图片编辑',
     '视觉生成',
   ],
+  find_roots: [
+    'computer use',
+    'computer-use',
+    'desktop automation',
+    'ui automation',
+    'find window',
+    'find app window',
+    '电脑操作',
+    '控制电脑',
+    '桌面自动化',
+    '视觉自动化',
+    '查找窗口',
+    '查找应用窗口',
+  ],
+  observe_ui: [
+    'computer use',
+    'computer-use',
+    'desktop automation',
+    'ui automation',
+    'screen',
+    'screenshot',
+    'observe screen',
+    'capture screen',
+    '电脑截图',
+    '屏幕截图',
+    '截屏',
+    '观察界面',
+    '查看窗口',
+  ],
+  search_ui: [
+    'computer use',
+    'ui automation',
+    'find ui element',
+    'find button',
+    'find control',
+    '查找界面元素',
+    '查找按钮',
+    '查找控件',
+  ],
+  expand_ui: [
+    'computer use',
+    'ui automation',
+    'expand ui',
+    'show more ui',
+    '展开界面',
+    '展开控件',
+    '显示更多界面',
+  ],
+  inspect_ui: [
+    'computer use',
+    'ui automation',
+    'inspect ui',
+    'inspect control',
+    '检查界面',
+    '检查控件',
+    '查看控件详情',
+  ],
+  act_ui: [
+    'computer use',
+    'computer-use',
+    'desktop automation',
+    'ui automation',
+    'click window',
+    'control computer',
+    'mouse and keyboard',
+    'click',
+    'type text',
+    'press key',
+    'scroll',
+    'drag',
+    '点击窗口',
+    '控制电脑',
+    '鼠标键盘',
+    '点击',
+    '输入文字',
+    '按键',
+    '滚动',
+    '拖拽',
+  ],
+  read_text: [
+    'computer use',
+    'ui automation',
+    'read screen text',
+    'read ui text',
+    '读取屏幕文字',
+    '读取界面文字',
+    '读屏',
+  ],
+  wait_for: [
+    'computer use',
+    'ui automation',
+    'wait for window',
+    'wait for ui',
+    '等待窗口',
+    '等待界面变化',
+  ],
+  launch_browser: [
+    'computer use',
+    'browser automation',
+    'launch browser',
+    'open browser',
+    '启动浏览器',
+    '打开浏览器',
+  ],
+  navigate_browser: [
+    'computer use',
+    'browser automation',
+    'navigate browser',
+    'open url in browser',
+    '浏览器导航',
+    '浏览器打开网址',
+  ],
+  evaluate_browser: [
+    'computer use',
+    'browser automation',
+    'evaluate browser javascript',
+    'run javascript in browser',
+    '浏览器脚本',
+    '在浏览器执行 javascript',
+  ],
+  ocr_ui: [
+    'computer use',
+    'ui automation',
+    'ocr',
+    'screen text recognition',
+    'read chinese text from screen',
+    '文字识别',
+    '屏幕文字识别',
+    '图片文字识别',
+    '中文识别',
+    '英文识别',
+    '中英文识别',
+    '读取截图文字',
+  ],
   mobile_device: [
     'mobile device',
     'phone',
@@ -97,6 +231,72 @@ const TOOL_ALIASES = {
   interrupt_agent: ['stop agent', 'interrupt agent', '停止 agent', '中断 agent'],
 }
 
+const TOOL_DISCOVERY_PROFILES = {
+  find_roots: {
+    label: 'Computer Use: Find Window',
+    description:
+      'Find desktop windows, dialogs, menus, or browser pages before visual interaction.',
+  },
+  observe_ui: {
+    label: 'Computer Use: Observe Screen',
+    description:
+      'Capture the current screen and return a bounded accessibility and visual UI outline.',
+  },
+  search_ui: {
+    label: 'Computer Use: Find UI Element',
+    description:
+      'Search the observed UI for a button, field, control, text, or other target element.',
+  },
+  expand_ui: {
+    label: 'Computer Use: Expand UI',
+    description: 'Show more bounded context below one observed UI element.',
+  },
+  inspect_ui: {
+    label: 'Computer Use: Inspect UI Element',
+    description:
+      'Inspect one UI element for its text, role, geometry, state, and available actions.',
+  },
+  act_ui: {
+    label: 'Computer Use: Act',
+    description:
+      'Click, type, press keys, scroll, drag, or move the pointer in a checked desktop UI.',
+  },
+  read_text: {
+    label: 'Computer Use: Read Screen Text',
+    description: 'Read bounded text from an observed UI element or a continuation result.',
+  },
+  wait_for: {
+    label: 'Computer Use: Wait For UI',
+    description:
+      'Wait for a scoped UI condition such as text appearing, disappearing, or changing.',
+  },
+  launch_browser: {
+    label: 'Computer Use: Launch Browser',
+    description: 'Launch the configured managed browser and return its initial browser-page state.',
+  },
+  navigate_browser: {
+    label: 'Computer Use: Navigate Browser',
+    description:
+      'Navigate the managed browser to an HTTP(S) URL from an observed browser-page state.',
+  },
+  evaluate_browser: {
+    label: 'Computer Use: Evaluate Browser',
+    description:
+      'Evaluate bounded JavaScript in the managed browser and return selected page data.',
+  },
+  ocr_ui: {
+    label: 'Computer Use: OCR Screen',
+    description: 'Extract English, Simplified Chinese, or mixed text from the current screen.',
+  },
+}
+
+function discoveryProfile(tool) {
+  return TOOL_DISCOVERY_PROFILES[tool?.name] || null
+}
+
+function discoveryAliases(tool) {
+  return TOOL_ALIASES[tool?.name] || []
+}
 function normalized(value) {
   return String(value || '')
     .toLowerCase()
@@ -104,7 +304,6 @@ function normalized(value) {
     .replace(/\s+/g, ' ')
     .trim()
 }
-
 function queryTerms(query) {
   return normalized(query)
     .split(/[^\p{L}\p{N}]+/u)
@@ -137,7 +336,14 @@ function skipBigrams(value, maxLength = 24) {
 
 function toolSearchText(tool) {
   return normalized(
-    [tool.name, tool.label, tool.description, ...(TOOL_ALIASES[tool.name] || [])]
+    [
+      tool.name,
+      tool.label,
+      tool.description,
+      discoveryProfile(tool)?.label,
+      discoveryProfile(tool)?.description,
+      ...discoveryAliases(tool),
+    ]
       .filter(Boolean)
       .join(' '),
   )
@@ -154,7 +360,7 @@ function scoreTool(tool, query) {
   if (normalizedName.includes(normalizedQuery) || normalizedLabel.includes(normalizedQuery))
     score += 120
   if (haystack.includes(normalizedQuery)) score += 80
-  for (const alias of TOOL_ALIASES[tool.name] || []) {
+  for (const alias of discoveryAliases(tool)) {
     const normalizedAlias = normalized(alias)
     if (
       normalizedAlias &&
@@ -226,7 +432,11 @@ function formatMatch(tool) {
   const invocation = tool.active
     ? '; active: call this tool directly'
     : '; inactive: call through call_tool'
-  return `- ${tool.name}: ${tool.description || tool.label || 'Optional tool'}${formatSignature(tool)}${invocation}`
+  const profile = discoveryProfile(tool)
+  const label = profile?.label || tool.label || tool.name
+  const exactName = label === tool.name ? tool.name : `${label} [${tool.name}]`
+  const description = profile?.description || tool.description || tool.label || 'Optional tool'
+  return `- ${exactName}: ${description}${formatSignature(tool)}${invocation}`
 }
 
 export function createToolDiscoveryTool({ listTools }) {

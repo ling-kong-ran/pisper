@@ -39,6 +39,34 @@ const tools = [
   },
 ]
 
+const computerUseTools = [
+  {
+    name: 'observe_ui',
+    label: 'Observe UI',
+    description: 'Observe the current UI.',
+    active: false,
+  },
+  {
+    name: 'act_ui',
+    label: 'Act',
+    description: 'Perform a checked UI action.',
+    active: false,
+  },
+  {
+    name: 'ocr_ui',
+    label: 'OCR UI',
+    description: 'Extract text from the current UI screenshot.',
+    active: false,
+  },
+]
+
+test('computer-use discovery aliases map natural tasks to exact bridge tools', () => {
+  assert.equal(searchOptionalTools(computerUseTools, '控制电脑并点击窗口', 1)[0].name, 'act_ui')
+  assert.equal(searchOptionalTools(computerUseTools, '屏幕截图', 1)[0].name, 'observe_ui')
+  assert.equal(searchOptionalTools(computerUseTools, 'OCR 中文文字', 1)[0].name, 'ocr_ui')
+  assert.equal(searchOptionalTools(computerUseTools, 'computer use', 1)[0].name, 'act_ui')
+})
+
 test('optional tool search understands capability aliases and exact dynamic tool labels', () => {
   assert.equal(searchOptionalTools(tools, '帮我生图', 1)[0].name, 'generate_visual')
   assert.equal(
@@ -67,6 +95,17 @@ test('optional tool search understands capability aliases and exact dynamic tool
     )[0].name,
     'mobile_device',
   )
+})
+
+test('discover_tools presents friendly computer-use labels while preserving exact names', async () => {
+  const tool = createToolDiscoveryTool({ listTools: () => computerUseTools })
+  const result = await tool.execute(
+    'discover-computer-use',
+    { query: '点击窗口', limit: 1 },
+    new AbortController().signal,
+  )
+  assert.match(result.content[0].text, /Computer Use: Act \[act_ui\]/)
+  assert.match(result.content[0].text, /call through call_tool/)
 })
 
 test('discover_tools returns stable gateway matches without activating schemas', async () => {
