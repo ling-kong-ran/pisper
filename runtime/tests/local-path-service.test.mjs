@@ -3,11 +3,11 @@ import assert from 'node:assert/strict'
 import { revealPathCommandForTests, revealLocalPath } from '../services/local-path-service.mjs'
 
 test('local path reveal selects the native command for each desktop platform', () => {
-  assert.deepEqual(revealPathCommandForTests('C:\\report.txt', 'win32'), {
+  assert.deepEqual(revealPathCommandForTests('C:/Users/test user/report.txt', 'win32'), {
     command: 'explorer.exe',
-    args: ['/select,C:\\report.txt'],
+    args: ['/select,"C:\\Users\\test user\\report.txt"'],
   })
-  assert.deepEqual(revealPathCommandForTests('C:\\reports', 'win32', true), {
+  assert.deepEqual(revealPathCommandForTests('C:/reports', 'win32', true), {
     command: 'explorer.exe',
     args: ['C:\\reports'],
   })

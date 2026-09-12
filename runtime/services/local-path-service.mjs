@@ -44,9 +44,11 @@ async function existingTarget(path) {
 
 function commandFor(target, platform = process.platform) {
   if (platform === 'win32') {
+    // 部分 Windows Explorer 版本会静默忽略正斜杠路径，导致请求成功但窗口不出现。
+    const windowsPath = target.path.replaceAll('/', '\\')
     return target.isDirectory
-      ? { command: 'explorer.exe', args: [target.path] }
-      : { command: 'explorer.exe', args: [`/select,${target.path}`] }
+      ? { command: 'explorer.exe', args: [windowsPath] }
+      : { command: 'explorer.exe', args: [`/select,"${windowsPath}"`] }
   }
   if (platform === 'darwin') {
     return target.isDirectory
@@ -60,9 +62,9 @@ function launch(command, args) {
   return new Promise((resolvePromise, reject) => {
     let settled = false
     const child = spawn(command, args, {
-      detached: true,
+      detached: process.platform !== 'win32',
       stdio: 'ignore',
-      windowsHide: true,
+      windowsHide: process.platform !== 'win32',
     })
     const timer = setTimeout(() => {
       if (settled) return
@@ -77,12 +79,24 @@ function launch(command, args) {
       reject(new Error(`启动文件管理器失败：${error.message}`))
     })
     child.once('spawn', () => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      child.unref()
-      resolvePromise(true)
+      if (process.platform === 'win32') {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        child.unref()
+        resolvePromise(true)
+      }
     })
+    if (process.platform !== 'win32') {
+      // macOS/Linux 的 open/xdg-open 会在交给桌面环境后退出；检查退出码才能识别启动失败。
+      child.once('close', (code) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        if (code === 0) resolvePromise(true)
+        else reject(new Error(`文件管理器退出失败：${command}（退出码 ${code ?? 'unknown'}）`))
+      })
+    }
   })
 }
 
@@ -90,8 +104,16 @@ export async function revealLocalPath(value) {
   const requestedPath = validatePath(value)
   const target = await existingTarget(requestedPath)
   const { command, args } = commandFor(target)
-  await launch(command, args)
-  return { revealed: true, path: target.path, fallback: Boolean(target.fallback) }
+  try {
+    await launch(command, args)
+    return { revealed: true, path: target.path, fallback: Boolean(target.fallback) }
+  } catch (error) {
+    if (target.isDirectory) throw error
+    const parent = dirname(target.path)
+    const fallback = commandFor({ path: parent, isDirectory: true })
+    await launch(fallback.command, fallback.args)
+    return { revealed: true, path: parent, fallback: true }
+  }
 }
 
 export function revealPathCommandForTests(value, platform = process.platform, isDirectory = false) {
