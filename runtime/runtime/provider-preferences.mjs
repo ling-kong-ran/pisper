@@ -244,16 +244,39 @@ export function clampThinkingLevelToAvailable(availableLevels, requested) {
   return levels[0]
 }
 
+// 计算模型实际可用的思考等级（与 Composer 下拉一致）：
+// 未声明 reasoning 时仅 off；xhigh/max 必须显式声明，其余等级未被显式置 null 即可用。
+export function availableThinkingLevelsForModel(model) {
+  if (!model?.reasoning) return ['off']
+  return EXTENDED_THINKING_LEVELS.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level]
+    if (mapped === null) return false
+    if (level === 'xhigh' || level === 'max') return mapped !== undefined
+    return true
+  })
+}
+
+// 由「勾选的可用等级」生成完整的思考等级映射：
+// 勾选的等级按原值透传，未勾选的等级显式置 null（在 Composer 下拉中隐藏）。
+// 本地模型的模板各自支持的档位不同（如 llama.cpp 的 Qwen3.8 仅 low/medium/high/xhigh），
+// 静态默认无法穷举，改为由用户在 UI 勾选后完整落盘，覆盖默认映射。
+export function thinkingLevelMapFromSelection(selectedLevels) {
+  const selected = new Set(
+    Array.isArray(selectedLevels)
+      ? selectedLevels.filter((level) => EXTENDED_THINKING_LEVELS.includes(level))
+      : [],
+  )
+  const map = {}
+  for (const level of EXTENDED_THINKING_LEVELS) {
+    // off 恒可用：误配后仍应能关闭思考。
+    map[level] = level === 'off' ? 'off' : selected.has(level) ? level : null
+  }
+  return map
+}
+
 // 未创建 AgentSession 时直接从模型元数据推导可用思考等级，避免为配置查询装配完整会话。
 export function modelThinkingState(model, requested) {
-  const availableLevels = model?.reasoning
-    ? EXTENDED_THINKING_LEVELS.filter((level) => {
-        const mapped = model.thinkingLevelMap?.[level]
-        if (mapped === null) return false
-        if (level === 'xhigh' || level === 'max') return mapped !== undefined
-        return true
-      })
-    : ['off']
+  const availableLevels = availableThinkingLevelsForModel(model)
   const thinkingLevel = clampThinkingLevelToAvailable(availableLevels, requested)
   return {
     thinkingLevel,
@@ -734,11 +757,14 @@ export class ProviderPreferences {
           .getModels(id)
           .map((model) => {
             const definition = overlayModels.find((item) => item.id === model.id)
+            const resolvedKind = inferModelKind(model.id, definition?.kind || model.pisperKind)
             return {
               id: model.id,
               name: model.name || model.id,
-              kind: inferModelKind(model.id, definition?.kind || model.pisperKind),
+              kind: resolvedKind,
               reasoning: Boolean(model.reasoning),
+              // 回显有效思考等级，供模型编辑弹窗预填（与 Composer 下拉一致）。
+              thinkingLevels: resolvedKind === 'chat' ? availableThinkingLevelsForModel(model) : [],
               contextWindow: model.contextWindow || null,
               baseUrl: model.baseUrl || '',
               baseUrlOverride: definition?.baseUrl || '',
@@ -906,7 +932,7 @@ export class ProviderPreferences {
         ? [...providerOverlay.models]
         : []
       if (!providerOverlay.models.some((item) => item.id === model)) {
-        providerOverlay.models.push({
+        const newModel = {
           id: model,
           name: String(input.modelName || model),
           api: String(input.api || 'openai-responses'),
@@ -915,7 +941,12 @@ export class ProviderPreferences {
           input: ['text', 'image'],
           contextWindow: Number(input.contextWindow) || 200_000,
           maxTokens: Number(input.maxTokens) || 128_000,
-        })
+        }
+        // 思考等级：仅对话模型、且用户显式给出勾选列表时才落盘，避免臆造。
+        if (newModel.kind === 'chat' && Array.isArray(input.thinkingLevels)) {
+          newModel.thinkingLevelMap = thinkingLevelMapFromSelection(input.thinkingLevels)
+        }
+        providerOverlay.models.push(newModel)
       }
     }
     const modelDefinitions = Array.isArray(providerOverlay.models)
@@ -942,6 +973,10 @@ export class ProviderPreferences {
       if (modelBaseUrl) definition.baseUrl = modelBaseUrl
       else delete definition.baseUrl
       definition.kind = inferModelKind(model, input.modelKind || definition.kind)
+      // 思考等级：用户显式选择时覆盖，未提供时保留已有映射（不臆造、不清空）。
+      if (definition.kind === 'chat' && Array.isArray(input.thinkingLevels)) {
+        definition.thinkingLevelMap = thinkingLevelMapFromSelection(input.thinkingLevels)
+      }
       if (definitionIndex >= 0) modelDefinitions[definitionIndex] = definition
       else modelDefinitions.push(definition)
       providerOverlay.models = modelDefinitions
@@ -1166,6 +1201,20 @@ export class ProviderPreferences {
 
     const modelsJson = await readJson(this.modelsPath, { providers: {} })
     modelsJson.providers ||= {}
+    const initialModel = {
+      id: modelId,
+      name: String(input.modelName || modelId).trim() || modelId,
+      api,
+      kind: inferModelKind(modelId, input.modelKind),
+      reasoning: input.reasoning !== false,
+      input: ['text', 'image'],
+      contextWindow: Number(input.contextWindow) || 200_000,
+      maxTokens: Number(input.maxTokens) || 128_000,
+    }
+    // 思考等级：仅对话模型、且用户显式给出勾选列表时才落盘。
+    if (initialModel.kind === 'chat' && Array.isArray(input.thinkingLevels)) {
+      initialModel.thinkingLevelMap = thinkingLevelMapFromSelection(input.thinkingLevels)
+    }
     modelsJson.providers[id] = {
       name,
       api,
@@ -1173,18 +1222,7 @@ export class ProviderPreferences {
       ...(String(input.organization || '').trim()
         ? { headers: { 'OpenAI-Organization': String(input.organization).trim() } }
         : {}),
-      models: [
-        {
-          id: modelId,
-          name: String(input.modelName || modelId).trim() || modelId,
-          api,
-          kind: inferModelKind(modelId, input.modelKind),
-          reasoning: input.reasoning !== false,
-          input: ['text', 'image'],
-          contextWindow: Number(input.contextWindow) || 200_000,
-          maxTokens: Number(input.maxTokens) || 128_000,
-        },
-      ],
+      models: [initialModel],
     }
     await writeJsonAtomic(this.modelsPath, modelsJson)
 

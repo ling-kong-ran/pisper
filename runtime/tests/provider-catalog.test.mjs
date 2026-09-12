@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import {
+  availableThinkingLevelsForModel,
+  thinkingLevelMapFromSelection,
+} from '../runtime/provider-preferences.mjs'
 
 test('model configuration exposes built-in Kimi and GLM providers', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-catalog-'))
@@ -539,4 +543,180 @@ test('built-in providers are only visual when explicitly marked, never inferred 
   )
   const explicit = await runtime.getConfig()
   assert.equal(explicit.providers.find((provider) => provider.id === 'openai').type, 'visual')
+})
+
+test('saveConfig persists explicit model thinking levels as a complete level map', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-thinking-levels-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  // 本地模型（如 llama.cpp 的 Qwen3.8-27B）模板只支持 low/medium/high/xhigh：
+  // 用户勾选后保存，应落盘为完整映射（未勾选等级置 null），而非依赖静态默认。
+  await runtime.saveConfig({
+    provider: 'local-qwen',
+    providerName: '本地 Qwen',
+    providerType: 'chat',
+    model: 'qwen3.8-27b',
+    apiKey: 'local-key',
+    baseUrl: 'http://127.0.0.1:8000/v1',
+    thinkingLevel: 'high',
+    toolMode: 'workspace',
+    thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
+  })
+
+  const savedModel = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8')).providers[
+    'local-qwen'
+  ].models.find((model) => model.id === 'qwen3.8-27b')
+  assert.deepEqual(savedModel.thinkingLevelMap, {
+    off: 'off',
+    minimal: null,
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: null,
+  })
+
+  // 运行时模型对象应携带用户映射（覆盖默认映射）。
+  const runtimeModel = runtime.modelRuntime.getModel('local-qwen', 'qwen3.8-27b')
+  assert.equal(runtimeModel.thinkingLevelMap?.minimal, null)
+  assert.equal(runtimeModel.thinkingLevelMap?.xhigh, 'xhigh')
+
+  // 等级推导与 Composer 下拉一致：无 minimal/max，含 off 与 xhigh。
+  assert.deepEqual(availableThinkingLevelsForModel(runtimeModel), [
+    'off',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+  ])
+
+  // getConfig 回显有效等级，供模型编辑弹窗预填。
+  const config = await runtime.getConfig()
+  const exposed = config.providers
+    .find((provider) => provider.id === 'local-qwen')
+    .models.find((model) => model.id === 'qwen3.8-27b')
+  assert.deepEqual(exposed.thinkingLevels, ['off', 'low', 'medium', 'high', 'xhigh'])
+})
+
+test('thinkingLevelMapFromSelection emits a complete explicit map', () => {
+  // 勾选即透传，未勾选显式 null（下拉隐藏），非法等级忽略；off 恒保留。
+  assert.deepEqual(thinkingLevelMapFromSelection(['low', 'xhigh']), {
+    off: 'off',
+    minimal: null,
+    low: 'low',
+    medium: null,
+    high: null,
+    xhigh: 'xhigh',
+    max: null,
+  })
+  // 即使未勾选 off，也强制保留（误配后仍能关闭思考）。
+  assert.deepEqual(thinkingLevelMapFromSelection(['bogus', 'low']), {
+    off: 'off',
+    minimal: null,
+    low: 'low',
+    medium: null,
+    high: null,
+    xhigh: null,
+    max: null,
+  })
+})
+
+test('availableThinkingLevelsForModel falls back to defaults without a map', () => {
+  // 未声明 thinkingLevelMap 的模型：默认映射下无 xhigh/max（保留现状）。
+  assert.deepEqual(availableThinkingLevelsForModel({ reasoning: true }), [
+    'off',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+  ])
+  // 无 reasoning 仅 off。
+  assert.deepEqual(availableThinkingLevelsForModel({ reasoning: false }), ['off'])
+})
+
+test('saving a model without thinkingLevels keeps prior level map untouched', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-thinking-levels-keep-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.saveConfig({
+    provider: 'local-qwen',
+    providerType: 'chat',
+    model: 'qwen3.8-27b',
+    apiKey: 'local-key',
+    baseUrl: 'http://127.0.0.1:8000/v1',
+    thinkingLevel: 'medium',
+    toolMode: 'workspace',
+    thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
+  })
+
+  // 再次保存（未提供 thinkingLevels）时保留已有映射，不清空也不臆造。
+  await runtime.saveConfig({
+    provider: 'local-qwen',
+    providerType: 'chat',
+    model: 'qwen3.8-27b',
+    baseUrl: 'http://127.0.0.1:8000/v1',
+    thinkingLevel: 'high',
+    toolMode: 'workspace',
+  })
+  const savedModel = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8')).providers[
+    'local-qwen'
+  ].models.find((model) => model.id === 'qwen3.8-27b')
+  assert.deepEqual(savedModel.thinkingLevelMap, {
+    off: 'off',
+    minimal: null,
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: null,
+  })
+})
+
+test('createProvider persists initial model thinking levels', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-thinking-levels-create-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  await runtime.createProvider({
+    id: 'local-qwen',
+    name: '本地 Qwen',
+    providerType: 'chat',
+    api: 'openai-responses',
+    baseUrl: 'http://127.0.0.1:8000/v1',
+    apiKey: 'local-key',
+    model: 'qwen3.8-27b',
+    modelKind: 'chat',
+    enabled: true,
+    thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
+  })
+
+  const savedModel = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8')).providers[
+    'local-qwen'
+  ].models.find((model) => model.id === 'qwen3.8-27b')
+  assert.deepEqual(savedModel.thinkingLevelMap, {
+    off: 'off',
+    minimal: null,
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: null,
+  })
+  const exposed = (await runtime.getConfig()).providers
+    .find((provider) => provider.id === 'local-qwen')
+    .models.find((model) => model.id === 'qwen3.8-27b')
+  assert.deepEqual(exposed.thinkingLevels, ['off', 'low', 'medium', 'high', 'xhigh'])
 })

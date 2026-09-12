@@ -298,6 +298,8 @@
   "configPage.theKeyEnvironmentVariableNameIsInvalid": "The key environment variable name is invalid",
   "configPage.theProviderEndpointIsInvalid": "The provider endpoint is invalid",
   "configPage.thinkingLevel": "Thinking level",
+  "configPage.modelThinkingLevels": "Supported thinking levels",
+  "configPage.modelThinkingLevelsHint": "Select the levels this model actually supports; unchecked levels are hidden from the composer's thinking dropdown. For local models (llama.cpp / LM Studio etc.), pick the levels its chat template supports.",
   "configPage.unableToReadTheConfigurationFile": "Unable to read the configuration file",
   "configPage.unsavedChanges": "Unsaved settings",
   "configPage.usedForAgentChatAndMayAlsoIncludeVisualModels": "Used for Agent chat and may also include visual models.",

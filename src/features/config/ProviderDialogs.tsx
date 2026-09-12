@@ -2,6 +2,7 @@
 // 提交前校验必填项与端点格式。
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Check, Plus, RefreshCw, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
@@ -59,8 +60,24 @@ export function ProviderConfigModal({
           ? 'image'
           : 'chat',
     reasoning: existingModel?.reasoning !== false,
+    // 预填该模型当前有效的思考等级（服务端按 thinkingLevelMap 计算）；
+    // 未配置过的模型为空，保存时不写映射，保持默认行为。
+    thinkingLevels: existingModel?.thinkingLevels || [],
     enabled: initialProvider?.enabled ?? true,
   })
+  // 思考等级选项与 Composer 下拉一致（off 恒可选，其余等级取决于模型能力）。
+  const thinkingLevelOptions = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+  // 只有用户实际操作过勾选才发送 thinkingLevels，避免把「未触碰」误写成 off-only 映射。
+  const [thinkingLevelsTouched, setThinkingLevelsTouched] = useState(false)
+  const toggleThinkingLevel = (level: string) => {
+    setThinkingLevelsTouched(true)
+    setDraft((current) => ({
+      ...current,
+      thinkingLevels: current.thinkingLevels.includes(level)
+        ? current.thinkingLevels.filter((item) => item !== level)
+        : [...current.thinkingLevels, level],
+    }))
+  }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // 手动追加的额外模型 ID：保存时随主模型批量写入该连接（对话/视觉均支持）。
@@ -98,6 +115,8 @@ export function ProviderConfigModal({
             method: 'PUT',
             body: JSON.stringify({
               ...draft,
+              // 未触碰勾选时省略字段，保留服务端已有映射/默认行为。
+              thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
               provider: draft.id,
               providerName: draft.name,
               setAsDefault: false,
@@ -105,7 +124,10 @@ export function ProviderConfigModal({
           })
         : await apiJson<ConfigData>('/api/providers', {
             method: 'POST',
-            body: JSON.stringify(draft),
+            body: JSON.stringify({
+              ...draft,
+              thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
+            }),
           })
       // 主模型保存成功后批量写入追加的模型；失败时保留对话框，修正后可安全重试
       //（服务端会跳过已存在的模型）。
@@ -291,6 +313,44 @@ export function ProviderConfigModal({
             placeholder={draft.providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
           />
         </div>
+        {draft.modelKind === 'chat' && (
+          <FieldLabel variant="control">
+            {t('config:configPage.modelThinkingLevels')}
+            <div className="flex flex-wrap gap-[6px]">
+              {thinkingLevelOptions.map((level) => {
+                // off 是应用级「不思考」开关，恒可用，不参与勾选；
+                // 其余等级未勾选即从 Composer 下拉隐藏。
+                const isOff = level === 'off'
+                const checked = isOff || draft.thinkingLevels.includes(level)
+                // 非思考模型只有 off 有意义；其余等级置灰避免误解。
+                const disabled = isOff || (!draft.reasoning && level !== 'off')
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    aria-pressed={checked}
+                    disabled={disabled}
+                    onClick={() => !isOff && toggleThinkingLevel(level)}
+                    className={cn(
+                      'inline-flex h-[27px] cursor-pointer items-center gap-[4px] rounded-full border px-[10px] text-[12px] font-medium transition-colors',
+                      checked
+                        ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]'
+                        : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text)] hover:bg-[var(--surface-highlight)]',
+                      // off 恒选中，仅表现为不可取消；其余禁用项明显弱化。
+                      isOff ? 'cursor-default' : disabled && 'cursor-not-allowed opacity-40',
+                    )}
+                  >
+                    {checked && <Check size={12} />}
+                    {level}
+                  </button>
+                )
+              })}
+            </div>
+            <small className="text-[var(--text-muted)]">
+              {t('config:configPage.modelThinkingLevelsHint')}
+            </small>
+          </FieldLabel>
+        )}
         <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
           <span>
             <strong>{t('config:configPage.enableAfterCreation')}</strong>
