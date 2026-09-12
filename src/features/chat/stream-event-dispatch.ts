@@ -17,7 +17,7 @@ import type {
   createToolUpdateScheduler,
   createTypewriterDisplay,
 } from '@/lib/streaming-ui'
-import type { EntityRecord, SessionState, SessionSummary } from '@/types/chat'
+import type { EntityRecord, ChatAttachment, SessionState, SessionSummary } from '@/types/chat'
 import type { ApiRecord } from './chat-api'
 import {
   handleMobileOperationCancellation,
@@ -27,6 +27,14 @@ import { planChanges, pushCurrentActivity, settleToolCalls } from './run-activit
 import { publishVoiceResponse, type VoiceResponseUpdate } from './voice-response-stream'
 
 const MAX_LIVE_THINKING_CHARS = 6_000
+
+function attachmentIdentity(attachment: ChatAttachment) {
+  const path = String(attachment.path || '')
+    .trim()
+    .replaceAll('\\', '/')
+    .toLowerCase()
+  return path ? `path:${path}` : `id:${attachment.id}`
+}
 
 type TextScheduler = ReturnType<typeof createStreamingTextScheduler>
 type ToolScheduler = ReturnType<typeof createToolUpdateScheduler>
@@ -499,7 +507,9 @@ export function createStreamEventDispatcher({
             ? {
                 ...item,
                 attachments: [
-                  ...(item.attachments || []).filter((attachment) => attachment.id !== data.id),
+                  ...(item.attachments || []).filter(
+                    (attachment) => attachmentIdentity(attachment) !== attachmentIdentity(data),
+                  ),
                   data,
                 ],
               }

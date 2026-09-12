@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
-import { generatedAssetsForSession, reconcileAssetIndex } from '../services/asset-storage.mjs'
+import {
+  dedupeAssetsForDisplay,
+  generatedAssetsForSession,
+  reconcileAssetIndex,
+} from '../services/asset-storage.mjs'
 
 const PNG = Buffer.from(
   '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082',
@@ -30,7 +34,20 @@ async function createFixture(t) {
   }
 }
 
-test('generated assets are archived once and remain available without their workspace', async (t) => {
+test('asset display deduplication prefers normalized paths, then content hashes', () => {
+  const assets = dedupeAssetsForDisplay([
+    { id: 'new-path', filePath: 'C:/workspace/app.ts', modified: '2026-01-02' },
+    { id: 'old-path', filePath: 'c:\\workspace\\app.ts', modified: '2026-01-01' },
+    { id: 'same-content-a', hash: 'abc' },
+    { id: 'same-content-b', hash: 'abc' },
+    { id: 'unique', hash: 'def' },
+  ])
+  assert.deepEqual(
+    assets.map((asset) => asset.id),
+    ['new-path', 'same-content-a', 'unique'],
+  )
+})
+test('generated assets index workspace paths without copying files', async (t) => {
   const { assetsDir, dataDir, workspace, runtime } = await createFixture(t)
   const sourcePath = join(workspace, 'generated', 'visuals', 'image.png')
   const duplicatePath = join(workspace, 'generated', 'visuals', 'renamed.png')
@@ -51,26 +68,24 @@ test('generated assets are archived once and remain available without their work
   const stored = runtime.findAsset(created.id)
 
   assert.ok(stored)
-  assert.equal(duplicate.id, created.id)
-  assert.equal(runtime.assetIndex.assets.length, 1)
-  assert.equal((await readdir(assetsDir)).length, 1)
+  assert.notEqual(duplicate.id, created.id)
+  assert.equal(runtime.assetIndex.assets.length, 2)
+  assert.equal((await readdir(assetsDir)).length, 0)
   assert.equal(stored.filePath, resolve(sourcePath))
-  assert.notEqual(stored.storagePath, resolve(sourcePath))
-  assert.deepEqual(await readFile(stored.storagePath), PNG)
-  assert.equal(stored.references.length, 1)
-  assert.equal(stored.references[0].filePath, resolve(duplicatePath))
+  assert.equal(stored.storagePath, undefined)
+  assert.equal(stored.references, undefined)
   const persisted = JSON.parse(await readFile(join(dataDir, 'pisper-assets.json'), 'utf8'))
-  assert.equal(persisted.assets.length, 1)
-  assert.equal(persisted.assets[0].references.length, 1)
+  assert.equal(persisted.assets.length, 2)
+  assert.equal(
+    persisted.assets.every((asset) => !asset.storagePath && !asset.hash),
+    true,
+  )
   assert.equal(runtime.streamProjection.generatedAssets('session-1').length, 1)
   assert.equal(runtime.streamProjection.generatedAssets('session-2')[0].name, 'renamed.png')
 
-  await rm(workspace, { recursive: true, force: true })
   const content = await runtime.getAssetContent(stored.id)
-  const download = await runtime.getAssetDownload(stored.id)
   assert.equal(content.kind, 'image')
   assert.equal(content.data, PNG.toString('base64'))
-  assert.deepEqual(download.buffer, PNG)
 })
 
 test('extensionless UTF-8 assets and additional text formats have readable previews', async (t) => {
@@ -206,8 +221,8 @@ test('asset operations wait for background legacy reconciliation', async (t) => 
   releaseSave()
   assert.equal(await reconciliation, true)
   assert.equal((await listed)[0].id, 'legacy')
-  assert.match(runtime.findAsset('legacy').hash, /^[a-f0-9]{64}$/)
-  assert.ok(runtime.findAsset('legacy').storagePath)
+  assert.equal(runtime.findAsset('legacy').hash, undefined)
+  assert.equal(runtime.findAsset('legacy').storagePath, undefined)
 })
 
 test('legacy reconciliation merges readable duplicates and removes unreadable records', async (t) => {
@@ -348,14 +363,14 @@ test('legacy reconciliation merges readable duplicates and removes unreadable re
   assert.equal(saves, 1)
   assert.deepEqual(
     assets.map((asset) => asset.id),
-    ['current', 'unique', 'recovered', 'link'],
+    ['current', 'old-workspace', 'unique', 'recovered', 'link'],
   )
   assert.match(assets[0].hash, /^[a-f0-9]{64}$/)
   assert.equal(assets[0].size, PNG.length)
   assert.equal(assets[0].storagePath, resolve(currentStorage))
   assert.deepEqual(
     assets[0].references.map((reference) => reference.sessionId),
-    ['session-2', 'session-3'],
+    ['session-2'],
   )
   assert.equal(generatedAssetsForSession(assets, 'session-3')[0].name, 'old-source.png')
   assert.deepEqual(await readFile(oldSource), PNG)
@@ -363,12 +378,12 @@ test('legacy reconciliation merges readable duplicates and removes unreadable re
 
   const unique = assets.find((asset) => asset.id === 'unique')
   const recovered = assets.find((asset) => asset.id === 'recovered')
-  assert.match(unique.hash, /^[a-f0-9]{64}$/)
-  assert.notEqual(unique.storagePath, resolve(uniqueSource))
-  assert.deepEqual(await readFile(unique.storagePath), Buffer.from('unique legacy content'))
-  assert.match(recovered.hash, /^[a-f0-9]{64}$/)
-  assert.notEqual(recovered.storagePath, resolve(referenceSource))
-  assert.deepEqual(await readFile(recovered.storagePath), recoverable)
+  assert.equal(unique.hash, undefined)
+  assert.equal(unique.storagePath, undefined)
+  assert.deepEqual(await readFile(unique.filePath), Buffer.from('unique legacy content'))
+  assert.equal(recovered.hash, undefined)
+  assert.equal(recovered.storagePath, undefined)
+  assert.deepEqual(await readFile(recovered.filePath), recoverable)
   assert.equal(
     assets.some((asset) => asset.id === 'missing'),
     false,

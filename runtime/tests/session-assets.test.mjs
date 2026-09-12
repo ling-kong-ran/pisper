@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { assetMessageAttachment, attachGeneratedAssets } from '../services/session-assets.mjs'
+import {
+  assetMessageAttachment,
+  attachGeneratedAssets,
+  dedupeMessageAttachments,
+} from '../services/session-assets.mjs'
 
+test('message attachments deduplicate the same file path across different asset ids', () => {
+  const attachments = dedupeMessageAttachments([
+    { id: 'asset-1', kind: 'file', path: 'C:/workspace/app.ts' },
+    { id: 'asset-2', kind: 'file', path: 'c:\\workspace\\app.ts' },
+    { id: 'asset-3', kind: 'file', path: 'C:/workspace/other.ts' },
+  ])
+  assert.deepEqual(
+    attachments.map((attachment) => attachment.id),
+    ['asset-1', 'asset-3'],
+  )
+})
 test('generated media is restored on the assistant message after the tool call', () => {
   const messages = [
     { id: 'user-1', role: 'user', text: 'generate an image', timestamp: 1000 },

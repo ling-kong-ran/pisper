@@ -1,5 +1,25 @@
 // 会话资产附件：把资产转换为可嵌入消息的附件结构，并把生成的资产挂到对应助手消息上
 // （按时间归属到最近的 agent 消息）。
+export function attachmentIdentity(attachment) {
+  const path = String(attachment?.path || attachment?.filePath || '')
+    .trim()
+    .replaceAll('\\', '/')
+    .toLowerCase()
+  if (path) return `path:${path}`
+  const id = String(attachment?.id || '').trim()
+  return id ? `id:${id}` : ''
+}
+
+export function dedupeMessageAttachments(attachments) {
+  const seen = new Set()
+  return attachments.filter((attachment) => {
+    const identity = attachmentIdentity(attachment)
+    if (!identity || seen.has(identity)) return false
+    seen.add(identity)
+    return true
+  })
+}
+
 export function assetMessageAttachment(asset) {
   const mimeType = String(asset.mimeType || '')
   const kind = mimeType.startsWith('image/')
@@ -24,7 +44,7 @@ export function assetMessageAttachment(asset) {
 export function attachGeneratedAssets(messages, assets) {
   const result = messages.map((message) => ({
     ...message,
-    attachments: [...(message.attachments || [])],
+    attachments: dedupeMessageAttachments(message.attachments || []),
   }))
   const agentIndexes = result
     .map((message, index) => (message.role === 'agent' ? index : -1))
@@ -43,8 +63,10 @@ export function attachGeneratedAssets(messages, assets) {
       else break
     }
     const attachment = assetMessageAttachment(asset)
-    if (!result[targetIndex].attachments.some((item) => item.id === attachment.id))
-      result[targetIndex].attachments.push(attachment)
+    const targetAttachments = result[targetIndex].attachments
+    const identity = attachmentIdentity(attachment)
+    if (!targetAttachments.some((item) => attachmentIdentity(item) === identity))
+      targetAttachments.push(attachment)
   }
   return result
 }

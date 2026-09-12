@@ -77,7 +77,8 @@ import {
   resolveWorkspaceDirectory,
   workspacePathKey,
 } from './workspace-directories.mjs'
-import { assetMessageAttachment } from '../services/session-assets.mjs'
+import { assetMessageAttachment, attachmentIdentity } from '../services/session-assets.mjs'
+import { dedupeAssetsForDisplay } from '../services/asset-storage.mjs'
 import * as assetStorage from '../services/asset-storage.mjs'
 import {
   ASSET_DOCUMENT_EXTENSIONS,
@@ -1243,7 +1244,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           `${asset.name} ${asset.sessionName} ${asset.url || ''}`.toLowerCase().includes(needle)
         )
       })
-    return assets.map((asset) => this.publicAsset(asset))
+    return dedupeAssetsForDisplay(assets).map((asset) => this.publicAsset(asset))
   }
 
   findAsset(id) {
@@ -2208,8 +2209,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           const generatedPath = resolve(event.result.details.path)
           const asset = assetStorage.findAssetByFilePath(this.assetIndex.assets, generatedPath)
           if (asset) {
-            const attachment = assetMessageAttachment(asset)
-            live.assets = [...live.assets.filter((item) => item.id !== attachment.id), attachment]
+            live.assets = [
+              ...live.assets.filter(
+                (item) => attachmentIdentity(item) !== attachmentIdentity(attachment),
+              ),
+              attachment,
+            ]
             emit('generated_asset', attachment)
           }
         }

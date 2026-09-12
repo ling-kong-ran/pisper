@@ -63,6 +63,27 @@ export async function findContentDuplicate(assets, hash) {
   return null
 }
 
+function assetPathKey(value) {
+  const path = String(value || '').trim()
+  return path ? path.replaceAll('\\', '/').toLowerCase() : ''
+}
+
+export function dedupeAssetsForDisplay(assets) {
+  const seen = new Set()
+  return assets.filter((asset) => {
+    const filePath = String(asset?.filePath || '')
+      .trim()
+      .replaceAll('\\', '/')
+      .toLowerCase()
+    const hash = String(asset?.hash || '').trim()
+    const id = String(asset?.id || '').trim()
+    const identity = filePath ? `path:${filePath}` : hash ? `hash:${hash}` : `id:${id}`
+    if (seen.has(identity)) return false
+    seen.add(identity)
+    return true
+  })
+}
+
 export function addAssetReference(asset, input) {
   const reference = {
     source: String(input.source || 'upload'),
@@ -204,37 +225,18 @@ export async function archiveGeneratedAsset({
   const sourcePath = resolve(filePath)
   const fileInfo = await stat(sourcePath).catch(() => null)
   if (!fileInfo?.isFile()) return null
-  const hash = await hashFile(sourcePath)
   const now = new Date().toISOString()
-  const duplicate = await findContentDuplicate(assets, hash)
-  if (duplicate) {
-    addAssetReference(duplicate, {
-      source: 'agent',
-      sessionId,
-      sessionName,
-      name: basename(sourcePath),
-      kind,
-      mimeType,
-      size: fileInfo.size,
-      filePath: sourcePath,
-      created: now,
-    })
-    duplicate.modified = now
-    return duplicate
-  }
+  const duplicate = findAssetByFilePath(assets, sourcePath)
+  if (duplicate) return assets.find((asset) => asset.id === duplicate.id) || duplicate
   const id = randomUUID()
   const name = basename(sourcePath)
-  const storagePath = join(assetsDir, `${id}${extname(name).slice(0, 12)}`)
-  await copyFile(sourcePath, storagePath)
   const asset = {
     id,
     kind,
     name,
     mimeType,
     size: fileInfo.size,
-    hash,
     filePath: sourcePath,
-    storagePath,
     source: 'agent',
     sessionId,
     sessionName,
@@ -252,39 +254,40 @@ export async function reconcileAssetIndex({ assets, assetsDir, save }) {
   for (const asset of assets) {
     if (asset.kind === 'link') continue
     const stored = await readablePath(asset.storagePath)
-    const source =
-      stored ||
-      (await firstReadablePath([
-        asset.filePath,
-        ...assetReferences(asset).map((reference) => reference.filePath),
-      ]))
+    const source = asset.filePath
+      ? await firstReadablePath([
+          asset.filePath,
+          ...assetReferences(asset).map((reference) => reference.filePath),
+        ])
+      : stored
     const storagePath = stored ? managedAssetPath(stored.path, assetsDir) : null
     const hash =
-      storagePath && asset.hash
-        ? asset.hash
-        : source
-          ? await hashFile(source.path).catch(() => null)
-          : null
-    if (!source || !hash) {
+      asset.hash ||
+      (!asset.filePath && source ? await hashFile(source.path).catch(() => null) : null)
+    if (!source) {
       removed.add(asset)
       const cleanupPath = managedAssetPath(asset.storagePath, assetsDir)
       if (cleanupPath) cleanupPaths.add(cleanupPath)
       continue
     }
+    const effectiveStoragePath = asset.filePath ? null : storagePath
     entries.push({
       asset,
       hash,
       info: source.info,
       sourcePath: source.path,
-      storagePath,
+      storagePath: effectiveStoragePath,
     })
   }
 
   const groups = new Map()
   for (const entry of entries) {
-    const group = groups.get(entry.hash) || []
+    const groupKey = entry.asset.filePath
+      ? `path:${assetPathKey(entry.asset.filePath)}`
+      : entry.hash || `asset:${entry.asset.id}`
+    const group = groups.get(groupKey) || []
     group.push(entry)
-    groups.set(entry.hash, group)
+    groups.set(groupKey, group)
   }
 
   let changed = removed.size > 0
@@ -295,21 +298,18 @@ export async function reconcileAssetIndex({ assets, assetsDir, save }) {
     const readableEntry = group.find((entry) => entry.sourcePath)
     let storagePath = managedEntry?.storagePath || null
     if (!storagePath && readableEntry) {
-      const targetPath = join(
-        assetsDir,
-        `${randomUUID()}${extname(canonical.name || '').slice(0, 12)}`,
-      )
-      const copied = await copyFile(readableEntry.sourcePath, targetPath)
-        .then(() => true)
-        .catch(async () => {
-          await unlink(targetPath).catch(() => {})
-          return false
-        })
-      if (!copied) continue
-      storagePath = targetPath
+      if (canonical.storagePath && canonical.filePath) {
+        cleanupPaths.add(canonical.storagePath)
+        canonical.storagePath = undefined
+        changed = true
+      }
+      storagePath = null
+    }
+    if (canonical.filePath !== readableEntry?.sourcePath && !canonical.storagePath) {
+      canonical.filePath = readableEntry?.sourcePath || canonical.filePath
       changed = true
     }
-    if (canonical.hash !== first.hash) {
+    if (first.hash && canonical.hash !== first.hash) {
       canonical.hash = first.hash
       changed = true
     }
