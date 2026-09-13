@@ -57,3 +57,4 @@ pisper-agents.json
 *.njsproj
 *.sln
 *.sw?
+dev.pid

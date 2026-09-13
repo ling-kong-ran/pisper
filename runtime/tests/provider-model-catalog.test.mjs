@@ -314,3 +314,141 @@ test('raw runtime models use metadata while explicit context configuration wins'
 
   assert.equal(runtime.getModel('relay', 'gpt-5.6-sol').contextWindow, 300_000)
 })
+
+test('pi.dev metadata overrides inferred context window', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pidev-metadata-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+
+  // 创建模拟的 pi.dev 缓存
+  const piDevCachePath = join(directory, 'pi-dev-cache.json')
+  const { writeJsonAtomic } = await import('../storage/json-file.mjs')
+  await writeJsonAtomic(piDevCachePath, {
+    timestamp: Date.now(),
+    models: {
+      'claude-opus-5': { contextWindow: 1_000_000 },
+      'anthropic/claude-opus-5': { contextWindow: 1_000_000 },
+    },
+  })
+
+  const catalog = new ProviderModelCatalogService({
+    path: join(directory, 'catalog.json'),
+    piDevCachePath,
+  })
+  await catalog.init()
+
+  await catalog.sync('anthropic', {
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-responses',
+    models: [{ id: 'claude-opus-5', name: 'Claude Opus 5', kind: 'chat' }],
+  })
+
+  const template = {
+    provider: 'anthropic',
+    id: 'claude-3-5-sonnet-20241022',
+    contextWindow: 200_000,
+    maxTokens: 8_192,
+  }
+  const runtime = {
+    getModels: (provider) => (provider === 'anthropic' ? [template] : []),
+    getModel: () => undefined,
+    getAvailable: async () => [template],
+    getAvailableSnapshot: () => [template],
+  }
+
+  catalog.decorateRuntime(runtime, { anthropic: 'https://api.anthropic.com' })
+
+  // pi.dev 元数据应该覆盖默认的 200k
+  const model = runtime.getModel('anthropic', 'claude-opus-5')
+  assert.equal(model.contextWindow, 1_000_000)
+})
+
+test('pi.dev metadata supports fuzzy matching', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pidev-fuzzy-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+
+  const piDevCachePath = join(directory, 'pi-dev-cache.json')
+  const { writeJsonAtomic } = await import('../storage/json-file.mjs')
+  await writeJsonAtomic(piDevCachePath, {
+    timestamp: Date.now(),
+    models: {
+      'anthropic/claude-opus-5': { contextWindow: 1_000_000 },
+    },
+  })
+
+  const catalog = new ProviderModelCatalogService({
+    path: join(directory, 'catalog.json'),
+    piDevCachePath,
+  })
+  await catalog.init()
+
+  await catalog.sync('relay', {
+    baseUrl: 'https://relay.example.test/v1',
+    api: 'openai-responses',
+    models: [{ id: 'claude-opus-5', name: 'Claude Opus 5', kind: 'chat' }],
+  })
+
+  const template = { provider: 'relay', id: 'gpt-4', contextWindow: 128_000, maxTokens: 4_096 }
+  const runtime = {
+    getModels: (provider) => (provider === 'relay' ? [template] : []),
+    getModel: () => undefined,
+    getAvailable: async () => [template],
+    getAvailableSnapshot: () => [template],
+  }
+
+  catalog.decorateRuntime(runtime, { relay: 'https://relay.example.test/v1' })
+
+  // 模糊匹配：claude-opus-5 应该匹配到 anthropic/claude-opus-5
+  const model = runtime.getModel('relay', 'claude-opus-5')
+  assert.equal(model.contextWindow, 1_000_000)
+})
+
+test('explicit config wins over pi.dev metadata', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pidev-explicit-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+
+  const piDevCachePath = join(directory, 'pi-dev-cache.json')
+  const { writeJsonAtomic } = await import('../storage/json-file.mjs')
+  await writeJsonAtomic(piDevCachePath, {
+    timestamp: Date.now(),
+    models: {
+      'claude-opus-5': { contextWindow: 1_000_000 },
+    },
+  })
+
+  const catalog = new ProviderModelCatalogService({
+    path: join(directory, 'catalog.json'),
+    piDevCachePath,
+  })
+  await catalog.init()
+
+  await catalog.sync('anthropic', {
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-responses',
+    models: [{ id: 'claude-opus-5', name: 'Claude Opus 5', kind: 'chat' }],
+  })
+
+  const template = {
+    provider: 'anthropic',
+    id: 'claude-3-5-sonnet-20241022',
+    contextWindow: 200_000,
+    maxTokens: 8_192,
+  }
+  const runtime = {
+    getModels: (provider) => (provider === 'anthropic' ? [template] : []),
+    getModel: () => undefined,
+    getAvailable: async () => [template],
+    getAvailableSnapshot: () => [template],
+  }
+
+  // 用户显式配置了 500k
+  catalog.decorateRuntime(
+    runtime,
+    { anthropic: 'https://api.anthropic.com' },
+    {},
+    { 'anthropic:claude-opus-5': 500_000 },
+  )
+
+  // 显式配置应该覆盖 pi.dev 的 1M
+  const model = runtime.getModel('anthropic', 'claude-opus-5')
+  assert.equal(model.contextWindow, 500_000)
+})
