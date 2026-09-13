@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { getEventListeners } from 'node:events'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setImmediate as nextTick } from 'node:timers/promises'
@@ -25,7 +25,9 @@ async function waitingForLock(signal) {
 }
 
 async function fixture(t, archiveHook) {
-  const root = await mkdtemp(join(tmpdir(), 'pisper-asset-tracker-'))
+  // macOS 的 TMPDIR 常为 /var 符号链接形态，而 tracker 会以 realpath 规范化 cwd；
+  // fixture 根目录统一为真实路径，断言路径才能与归档输出在任意 shell 环境下一致。
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'pisper-asset-tracker-')))
   const cwd = join(root, 'workspace')
   const dataDir = join(root, 'data')
   await Promise.all([mkdir(cwd), mkdir(dataDir)])

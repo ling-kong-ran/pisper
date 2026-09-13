@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -11,7 +11,9 @@ import {
 } from '../services/workspace-asset-capture.mjs'
 
 async function fixture(t) {
-  const workspace = await mkdtemp(join(tmpdir(), 'pisper-workspace-assets-'))
+  // macOS 的 TMPDIR 常为 /var 符号链接形态，而资产捕获会以 realpath 规范化根路径；
+  // fixture 必须返回真实路径形态，期望值才能与服务输出在任意 shell 环境下一致。
+  const workspace = await realpath(await mkdtemp(join(tmpdir(), 'pisper-workspace-assets-')))
   t.after(() => rm(workspace, { recursive: true, force: true }))
   return workspace
 }
