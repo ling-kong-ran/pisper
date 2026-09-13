@@ -69,7 +69,7 @@ export class PiDevModelMetadataService {
    */
   refreshInBackground() {
     if (this.refreshing || this.cache) return // 已经在刷新中或缓存已存在
-    
+
     this.refreshing = this.refresh()
       .catch((err) => {
         console.warn('[PiDev] Background refresh failed:', err.message)
