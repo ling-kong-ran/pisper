@@ -268,6 +268,9 @@ export class ProviderModelCatalogService {
           const contextWindow = this.piDevMetadata.getContextWindowSync(modelId)
           if (contextWindow) {
             piDevMeta = { contextWindow }
+          } else {
+            // 缓存未命中，触发后台刷新（不阻塞当前查询）
+            this.piDevMetadata.refreshInBackground()
           }
         }
         return mergedMetadata(

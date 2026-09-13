@@ -52,7 +52,7 @@ export class PiDevModelMetadataService {
   }
 
   /**
-   * 初始化：从缓存加载（不主动抓取）
+   * 初始化：从缓存加载，如果缓存不存在则后台刷新
    */
   async init() {
     try {
@@ -62,10 +62,10 @@ export class PiDevModelMetadataService {
         this.lastFetch = cached.timestamp
       }
     } catch {
-      // 缓存文件不存在或损坏，等待按需触发刷新
+      // 缓存文件不存在或损坏
     }
     
-    // 如果缓存过期或不存在，启动后台刷新（不阻塞初始化）
+    // 如果缓存不存在或过期，启动后台刷新（不阻塞初始化）
     const now = Date.now()
     if (!this.cache || now - this.lastFetch > CACHE_TTL_MS) {
       this.refreshInBackground()
@@ -73,14 +73,20 @@ export class PiDevModelMetadataService {
   }
 
   /**
-   * 后台刷新（不阻塞调用者）
+   * 后台刷新（不阻塞调用者，只在缓存过期时执行）
    */
   refreshInBackground() {
     if (this.refreshing) return // 已经在刷新中
     
+    // 检查缓存是否过期
+    const now = Date.now()
+    const needsRefresh = !this.cache || (now - this.lastFetch > CACHE_TTL_MS)
+    if (!needsRefresh) return
+    
+    console.log('[PiDev] Cache expired, refreshing in background...')
     this.refreshing = this.refresh()
       .catch((err) => {
-        console.warn('[PiDevModelMetadata] Background refresh failed:', err.message)
+        console.warn('[PiDev] Background refresh failed:', err.message)
       })
       .finally(() => {
         this.refreshing = null
@@ -88,16 +94,12 @@ export class PiDevModelMetadataService {
   }
 
   /**
-   * 同步获取上下文窗口（仅从已加载缓存读取，缓存未命中时触发后台刷新）
+   * 同步获取上下文窗口（仅从已加载缓存读取）
    * @param {string} modelId - 模型 ID
    * @returns {number | null}
    */
   getContextWindowSync(modelId) {
-    if (!this.cache) {
-      // 缓存未加载，触发后台刷新但返回 null
-      this.refreshInBackground()
-      return null
-    }
+    if (!this.cache) return null
 
     // 精确匹配
     const exact = this.cache.get(modelId)
@@ -112,12 +114,6 @@ export class PiDevModelMetadataService {
       ) {
         return metadata.contextWindow || null
       }
-    }
-
-    // 未找到，触发后台刷新（可能是新模型）
-    const now = Date.now()
-    if (now - this.lastFetch > CACHE_TTL_MS) {
-      this.refreshInBackground()
     }
 
     return null
