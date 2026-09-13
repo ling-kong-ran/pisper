@@ -2,7 +2,6 @@
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const PI_DEV_MODELS_URL = 'https://pi.dev/models'
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 小时
 const FETCH_TIMEOUT_MS = 10_000 // 10 秒超时
 
 /**
@@ -46,8 +45,7 @@ export class PiDevModelMetadataService {
    */
   constructor({ cachePath }) {
     this.cachePath = cachePath
-    this.cache = null
-    this.lastFetch = 0
+    this.cache = null // Map<modelId, {contextWindow}>
     this.refreshing = null // 正在进行的刷新 Promise
   }
 
@@ -57,33 +55,21 @@ export class PiDevModelMetadataService {
   async init() {
     try {
       const cached = await readJson(this.cachePath)
-      if (cached?.timestamp && cached?.models) {
+      if (cached?.models) {
         this.cache = new Map(Object.entries(cached.models))
-        this.lastFetch = cached.timestamp
       }
     } catch {
-      // 缓存文件不存在或损坏
-    }
-    
-    // 如果缓存不存在或过期，启动后台刷新（不阻塞初始化）
-    const now = Date.now()
-    if (!this.cache || now - this.lastFetch > CACHE_TTL_MS) {
+      // 缓存文件不存在或损坏，触发后台刷新
       this.refreshInBackground()
     }
   }
 
   /**
-   * 后台刷新（不阻塞调用者，只在缓存过期时执行）
+   * 后台刷新（不阻塞调用者，只在缓存不存在时执行）
    */
   refreshInBackground() {
-    if (this.refreshing) return // 已经在刷新中
+    if (this.refreshing || this.cache) return // 已经在刷新中或缓存已存在
     
-    // 检查缓存是否过期
-    const now = Date.now()
-    const needsRefresh = !this.cache || (now - this.lastFetch > CACHE_TTL_MS)
-    if (!needsRefresh) return
-    
-    console.log('[PiDev] Cache expired, refreshing in background...')
     this.refreshing = this.refresh()
       .catch((err) => {
         console.warn('[PiDev] Background refresh failed:', err.message)
@@ -125,29 +111,12 @@ export class PiDevModelMetadataService {
    * @returns {{contextWindow: number} | null}
    */
   async getMetadata(modelId) {
-    // 如果缓存过期，尝试刷新
-    const now = Date.now()
-    if (!this.cache || now - this.lastFetch > CACHE_TTL_MS) {
-      await this.refresh()
-    }
+    // 先尝试从缓存读取
+    const cached = this.getContextWindowSync(modelId)
+    if (cached) return { contextWindow: cached }
 
-    if (!this.cache) return null
-
-    // 精确匹配
-    const exact = this.cache.get(modelId)
-    if (exact) return exact
-
-    // 模糊匹配：尝试找到包含该 ID 的模型（不区分大小写）
-    const normalizedId = modelId.toLowerCase()
-    for (const [cachedId, metadata] of this.cache.entries()) {
-      if (
-        cachedId.toLowerCase().includes(normalizedId) ||
-        normalizedId.includes(cachedId.toLowerCase())
-      ) {
-        return metadata
-      }
-    }
-
+    // 缓存未命中，触发后台刷新（不阻塞当前请求）
+    this.refreshInBackground()
     return null
   }
 
@@ -171,11 +140,9 @@ export class PiDevModelMetadataService {
 
       if (models.size > 0) {
         this.cache = models
-        this.lastFetch = Date.now()
 
-        // 持久化到缓存文件
+        // 持久化到缓存文件（永久缓存）
         await writeJsonAtomic(this.cachePath, {
-          timestamp: this.lastFetch,
           models: Object.fromEntries(models),
         })
       }
@@ -190,6 +157,5 @@ export class PiDevModelMetadataService {
    */
   clearCache() {
     this.cache = null
-    this.lastFetch = 0
   }
 }
