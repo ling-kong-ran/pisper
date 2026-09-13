@@ -2,7 +2,7 @@
 // 提供存储、去重（内容哈希）、归档生成文件、会话归属与孤儿资产对账。
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { copyFile, stat, unlink, writeFile } from 'node:fs/promises'
+import { stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve, sep } from 'node:path'
 
 async function hashFile(filePath) {
@@ -215,7 +215,7 @@ export async function storeAssetBuffer({
 
 export async function archiveGeneratedAsset({
   assets,
-  assetsDir,
+  assetsDir: _assetsDir,
   filePath,
   kind,
   mimeType,
