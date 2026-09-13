@@ -59,8 +59,11 @@ test('production build emits an audited manifest with explicit non-recursive chu
   assert.match(config, /VENDOR_CHUNK_PRIORITIES\.map/)
   assert.match(
     scripts.build,
-    /node scripts\/build-frontend\.mjs && node scripts\/check-bundle-budget\.mjs/,
+    /node scripts\/build-frontend\.mjs && node scripts\/check-bundle-budget\.mjs && node scripts\/check-dist-compat\.mjs/,
   )
+  // iOS 最低 15.1：build.target 锁定 safari16（降级依赖产物里的 class static block，
+  // 又不会像 safari15 那样把 vendor-shiki-runtime 拖进入口静态图）。
+  assert.match(config, /target: 'safari16'/)
   assert.match(buildScript, /NODE_ENV: 'production'/)
   assert.match(buildScript, /'vite'/)
 })

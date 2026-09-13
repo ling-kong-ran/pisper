@@ -80,6 +80,8 @@ function assertResumeCommandAcl() {
 
 run(['scripts/build-frontend.mjs'])
 run(['scripts/check-bundle-budget.mjs'])
+// iOS 最低支持 15.1：产物若含 Safari 16.4+ 才能解析的语法，旧设备会在启动时黑屏。
+run(['scripts/check-dist-compat.mjs'])
 run(['scripts/build-mobile-runtime.mjs'], { PISPER_MOBILE_STORE: '0' })
 
 if (!existsSync(runtimeArchive)) {

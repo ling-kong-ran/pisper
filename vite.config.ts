@@ -162,6 +162,13 @@ export default defineConfig({
     },
   },
   build: {
+    // iOS App 最低支持 15.1（tauri.mobile-ios.conf.json），而依赖（如 @radix-ui/react-collection）
+    // 发布的产物含 class static block（Safari 16.4+ 才能解析）。Vite 8 默认目标不降级该语法，
+    // 旧 iOS 的 WebView 会在入口模块解析阶段直接 SyntaxError，React 无法挂载，用户只看到黑屏。
+    // 选 safari16 而非 safari15：safari15 会连带降级依赖里的语法并把 vendor-shiki-runtime
+    // 拖进入口静态图（+55 kB gzip，违反 route-only vendor 审计）；而 TLA 等 15.0 已原生支持，
+    // safari16（16.0）只降级 static block。初始 chunk 的解析兼容性由 check-dist-compat.mjs 把关。
+    target: 'safari16',
     chunkSizeWarningLimit: 900,
     manifest: true,
     rolldownOptions: {

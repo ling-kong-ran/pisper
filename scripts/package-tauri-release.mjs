@@ -62,6 +62,8 @@ async function optionalFile(filePath) {
 // cannot leak development JSX into an otherwise successful installer.
 await run(process.execPath, [path.join(root, 'scripts', 'build-frontend.mjs')])
 await run(process.execPath, [path.join(root, 'scripts', 'check-bundle-budget.mjs')])
+// 桌面端同样内嵌 dist：旧 macOS 的 WKWebView 遇到未降级语法也会白/黑屏，一并审计。
+await run(process.execPath, [path.join(root, 'scripts', 'check-dist-compat.mjs')])
 
 const desktopPackage = JSON.parse(
   await readFile(path.join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),

@@ -16,7 +16,7 @@
   "scripts": {
     "postinstall": "node scripts/patch-pi-mobile-compat.mjs",
     "dev": "node runtime/index.mjs",
-    "build": "node scripts/build-frontend.mjs && node scripts/check-bundle-budget.mjs",
+    "build": "node scripts/build-frontend.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-dist-compat.mjs",
     "sidecar:dev": "node runtime/sidecar.mjs",
     "sidecar:sea": "node scripts/build-sea.mjs",
     "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
