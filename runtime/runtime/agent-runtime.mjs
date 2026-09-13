@@ -395,10 +395,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.modelsPath = join(dataDir, 'models.json')
     this.providerModelCatalogPath = join(dataDir, 'pisper-provider-models.json')
     this.modelMetadataPath = join(dataDir, 'pisper-model-metadata.json')
+    this.piDevCachePath = join(dataDir, 'pi-dev-models-cache.json')
     this.modelMetadata = new ModelMetadataService({ path: this.modelMetadataPath })
     this.providerModelCatalog = new ProviderModelCatalogService({
       path: this.providerModelCatalogPath,
       metadata: this.modelMetadata,
+      piDevCachePath: this.piDevCachePath,
     })
     this.settingsPath = join(dataDir, 'settings.json')
     this.chatDockLayoutPath = join(dataDir, 'pisper-chat-dock-layout.json')
