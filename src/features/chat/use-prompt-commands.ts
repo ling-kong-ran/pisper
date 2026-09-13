@@ -82,7 +82,7 @@ export function usePromptCommands({
           : text.trim() ||
             (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '') ||
             (invocation ? invocation.resourceName : '')
-      if (!prompt && !invocation && retryFromIndex == null) return
+      if (!prompt && !invocation) return
       let sessionId = requestedSessionId
       if (!sessionId) sessionId = await createSession()
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
