@@ -205,6 +205,9 @@ npm run desktop:webview:dev
 npm run desktop:webview:build
 ```
 
+移动端 App：`npm run build:ios` 产出本地签名调试 IPA（真机自测）。iOS 模拟器构建流程与
+已知踩坑（Rosetta Node、Tauri CLI ARCHS、旧系统黑屏）见[移动端使用指南](./docs/mobile.md)。
+
 </details>
 
 数据默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 修改。

@@ -205,6 +205,10 @@ npm run desktop:webview:dev
 npm run desktop:webview:build
 ```
 
+Mobile App: `npm run build:ios` produces a locally signed debugging IPA for real devices.
+For the iOS Simulator build flow and known pitfalls (Rosetta Node, Tauri CLI ARCHS,
+black screen on old iOS), see the [Mobile Guide](./docs/mobile.md).
+
 </details>
 
 Data lives in `~/.pisper/agent` by default; override with `PISPER_AGENT_DIR`.

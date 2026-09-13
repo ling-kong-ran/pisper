@@ -132,6 +132,7 @@ When a detected component is **Runtime** or **TUI**, `npm run release` automatic
 - Treat existing global semantic classes as migration debt: when changing a component that uses them, migrate the touched styling to Tailwind/shadcn when the change can remain focused. Do not perform unrelated bulk rewrites solely to remove old classes.
 - Feature code lives under `src/features/<area>/`; shared layout/chrome under `src/components/`.
 - i18n: `t('namespace:key')` / `translateText('namespace:key')` with **string-literal** keys only. Both `zh-CN` and `en-US` must define every key; no Chinese characters as keys. Run `npm run i18n:check` after UI copy changes.
+- Keep `build.target: 'safari16'` in `vite.config.ts` and `scripts/check-dist-compat.mjs` in the build chain. The iOS App minimum is 15.1 and dependencies (e.g. `@radix-ui/react-collection`) ship class static blocks that WebViews older than Safari 16.4 cannot parse — the entry module then dies at parse time and users see a black screen after the startup splash. Do not raise the target, and do not switch to `safari15`: it downlevels dependency top-level await and drags `vendor-shiki-runtime` into the eager entry graph (+55 kB gzip, fails the route-only vendor audit).
 - Prettier: single quotes, no semicolons, trailing commas, print width 100. Only `docs/`, the root READMEs, and `AGENTS.md` are excluded via `.prettierignore`; other Markdown (e.g. `src-tui/`, `crates/`, `runtime/tools/`) must stay formatted.
 
 ### Runtime (`runtime/`)
@@ -175,7 +176,8 @@ Team sessions with subagents follow `docs/team-mode-playbook.md`. Three non-nego
 5. For SEA/desktop packaging changes: `npm run sidecar:sea:smoke` (and platform-specific packaging only with required Rust/Tauri toolchain).
 6. For npm installer or npm release changes: `npm run npm:pack:check`, `node scripts/validate-npm-targets.mjs`, and the focused `runtime/tests/npm-cli-package.test.mjs` test.
 7. For Android APK release regressions, build and test the actual minified release variant with R8 enabled; a debug APK does not validate JNI/reflection entry points. On an emulator, install and exercise the package in a temporary Android user/profile so the primary user's App data remains untouched, then remove the temporary user and restore the intended package after verification.
-8. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
+8. For iOS Simulator verification on Apple Silicon, follow the simulator flow in `docs/mobile.md` (`npm run build:ios` only produces a device IPA): keep the Tauri CLI RPC server alive with `tauri ios build --target aarch64-sim --open`, then drive `xcodebuild ARCHS=arm64 -sdk iphonesimulator` manually with an **arm64-native Node** first in PATH — an x86_64 (Rosetta) Node makes the Tauri CLI silently compile the Intel-device Rust library, which only fails at link time. Device and simulator builds share `Externals/arm64/release/libapp.a`; delete it when switching targets. Verify with an actual simulator launch, not just a successful build.
+9. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
 
 ## Out of scope / safety
 

@@ -202,10 +202,81 @@ mDNS 广播，但建议同时吊销不再使用的设备。
   能力。这是移动端的预期降级，不会切换到另一套对话 Runtime。
 - arm64 Runtime 不能在 x86_64 Android 模拟器中启动；最终验证需要 arm64 设备。
 
+### 启动页之后黑屏（iOS 16.3 及以下）
+
+0.1.39 及更早版本的前端入口包含依赖产物的 class static block 语法（Safari 16.4+ 才能解析）。
+iOS 15.x~16.3 的 WebView 在解析入口模块时直接失败，React 无法挂载，页面停留在黑色背景。
+该问题已在后续版本修复（构建目标降级为 safari16 + 产物语法审计）；在更新可用前，临时
+方案是把系统升级到 iOS 16.4 及以上，或改用桌面端。
+
 ### iOS IPA 无法安装
 
 这是未签名 IPA 的预期行为。使用 AltStore、Sideloadly 或 Apple 开发者账号重签，并确保所用证书、
 设备 UDID 与 provisioning profile 满足对应工具的要求。Pisper Release 不提供 Apple 分发签名。
+
+## iOS 模拟器本地构建（开发自测）
+
+App Release 交付的是未签名真机 IPA；iOS 改动合入前应在模拟器实际运行验证。以下流程在
+Apple Silicon Mac（Xcode 26.6、Tauri CLI 2.11.4）验证通过。
+
+### 前置条件
+
+- Xcode 与 iOS 模拟器 runtime，已 `xcrun simctl boot` 一台模拟器。
+- `rustup target add aarch64-apple-ios-sim`。
+- **arm64 原生 Node**（如 Homebrew 的 `/opt/homebrew/bin/node`）。若 PATH 里是 x86_64
+  （Rosetta）Node，Tauri CLI 会按自身架构把模拟器 arch 选成 x86_64，编译出 Intel 真机
+  Rust 库，直到链接阶段才报错。用 `node -p process.arch` 自检，应为 `arm64`。
+
+### 构建步骤
+
+```bash
+# 1. 前端（含预算与产物语法审计）+ 嵌入式 Runtime，与 build-mobile-ios.mjs 前置一致
+npm run build
+PISPER_MOBILE_STORE=0 node scripts/build-mobile-runtime.mjs
+cp release/pisper-embedded-runtime.tar.gz src-tauri/pisper-embedded-runtime.tar.gz
+node scripts/sync-mobile-icons.mjs
+mkdir -p src-tauri/gen/apple/assets
+cp src-tauri/pisper-embedded-runtime.tar.gz src-tauri/gen/apple/assets/
+
+# 2. 真机与模拟器构建共用 Externals/arm64/release/libapp.a；切换目标前必须删除，
+#    否则链接到上一个目标的静态库（错误只在链接期暴露）
+rm -f src-tauri/gen/apple/Externals/arm64/release/libapp.a
+
+# 3. 后台保持 Tauri CLI 存活：Rust build phase 的 `tauri ios xcode-script` 需要连接
+#    CLI 主进程的 RPC server（地址写在 $TMPDIR/com.lingkongran.pisper-server-addr），
+#    脱离 CLI 直接 xcodebuild 会 panic（WebSocket ConnectionRefused）。
+#    --open 让 CLI 启动 server 后挂起等待（会顺带打开 Xcode，可关掉）。
+node node_modules/@tauri-apps/cli/tauri.js ios build --target aarch64-sim --open \
+  --config src-tauri/tauri.mobile-ios.conf.json \
+  --config "{\"version\":\"$(node -p "require('./src-tauri/mobile-package.json').version")\"}" &
+
+# 4. 手动驱动 xcodebuild：CLI 自己调 xcodebuild 时对模拟器 target 传 ARCHS=x86_64，
+#    会被工程 VALID_ARCHS=arm64 过滤成空，导致 ${ARCHS:?} 失败；手动传 ARCHS=arm64 绕过。
+#    PATH 必须让 arm64 Node 在前（Build Rust Code phase 内部走 npm run）。
+env PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.cargo/bin" \
+  xcodebuild -allowProvisioningUpdates \
+  -destination "platform=iOS Simulator,name=<已启动的模拟器名>" \
+  ARCHS=arm64 -scheme pisper-webview_iOS \
+  -workspace src-tauri/gen/apple/pisper-webview.xcodeproj/project.xcworkspace \
+  -sdk iphonesimulator -configuration release build
+
+# 5. 覆盖安装并启动（模拟器已有旧版本时直接覆盖）
+APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/pisper-webview-*/Build/Products/release-iphonesimulator/Pisper.app | head -1)
+xcrun simctl install booted "$APP"
+xcrun simctl launch booted com.lingkongran.pisper
+
+# 6. 清理：kill 第 3 步的后台 tauri CLI 进程
+```
+
+### 已知踩坑速查
+
+| 现象 | 根因 | 处理 |
+| --- | --- | --- |
+| `ARCHS: parameter null or not set` | CLI 2.11.4 对模拟器 target 传 `ARCHS=x86_64`，被 `VALID_ARCHS=arm64` 过滤成空 | 手动 xcodebuild 传 `ARCHS=arm64`（步骤 4） |
+| xcode-script panic：WebSocket ConnectionRefused | 脱离 Tauri CLI 手动构建，RPC server 不存在 | 先用 `--open` 挂住 CLI（步骤 3） |
+| `ld: building for 'iOS-simulator', but linking in object file built for 'iOS'` | Rosetta（x86_64）Node 跑 CLI，编译出 Intel 真机库 | PATH 前置 arm64 Node |
+| 模拟器构建链接到真机库（或反之） | 两类构建共用 `Externals/arm64/release/libapp.a` | 切换目标前删除（步骤 2） |
+| 旧 iOS 设备启动页后黑屏 | 产物含 Safari 16.4+ 语法 | `vite.config.ts` 保持 `target: 'safari16'`，勿移除 `scripts/check-dist-compat.mjs` |
 
 ## 后续方向
 
