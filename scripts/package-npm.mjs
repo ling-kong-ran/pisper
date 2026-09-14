@@ -25,6 +25,14 @@ function version(value, label) {
 }
 
 export async function packageNpm() {
+  // npm 包的 web/ 直接复用根目录 dist，不会重新构建：TUI-only 发布等路径在打包前
+  // 不保证跑过 `npm run build`，这里对现存 dist 做语法兼容性审计兜底，防止未降级
+  // 的产物（如 class static block，iOS<16.4 / 旧 Android WebView 会在解析期直接
+  // SyntaxError 黑屏）混进 registry 包。
+  execFileSync(process.execPath, [join(root, 'scripts', 'check-dist-compat.mjs')], {
+    cwd: root,
+    stdio: 'inherit',
+  })
   const manifest = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
   manifest.version = version(process.env.PISPER_NPM_VERSION || manifest.version, 'npm version')
   manifest.pisper.tuiVersion = version(
