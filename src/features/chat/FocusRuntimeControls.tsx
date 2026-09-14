@@ -141,7 +141,7 @@ export function ContextUsageIndicator({
   const known = usage?.percent != null && Number.isFinite(Number(usage.percent))
   const percent = known ? Math.max(0, Number(usage.percent)) : null
   const roundedPercent = percent == null ? null : Math.round(percent)
-  const warningAt = Math.max(50, currentThreshold - 15)
+  const warningAt = Math.max(10, currentThreshold - 15)
   const tone =
     percent == null
       ? 'unknown'
@@ -180,7 +180,7 @@ export function ContextUsageIndicator({
 
   // 保存压缩阈值：本地持久化到 store 并回调通知。
   const saveThreshold = async (value: number) => {
-    const next = Math.min(95, Math.max(50, Math.round(value)))
+    const next = Math.min(95, Math.max(10, Math.round(value)))
     setDraftThreshold(next)
     if (!onThresholdChange || next === lastSavedThreshold.current) return
     setSavingThreshold(true)
@@ -241,7 +241,7 @@ export function ContextUsageIndicator({
         </div>
         <input
           type="range"
-          min="50"
+          min="10"
           max="95"
           step="1"
           value={draftThreshold}
@@ -262,7 +262,7 @@ export function ContextUsageIndicator({
           className="context-threshold-scale flex items-center justify-between text-[var(--text-tertiary)] text-[10px]"
           aria-hidden="true"
         >
-          <span>50%</span>
+          <span>10%</span>
           <span>95%</span>
         </div>
         <small className={thresholdError ? 'error' : ''}>

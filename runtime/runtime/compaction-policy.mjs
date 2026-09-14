@@ -3,7 +3,9 @@
 import { compact } from './pi-coding-agent.mjs'
 
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
-export const MIN_COMPACTION_THRESHOLD_PERCENT = 50
+// 下限 10：允许激进压缩策略（小窗口模型/长工具输出场景）；上限 95 保留，
+// 再高会挤掉摘要响应所需的预留 token。
+export const MIN_COMPACTION_THRESHOLD_PERCENT = 10
 export const MAX_COMPACTION_THRESHOLD_PERCENT = 95
 // 摘要响应的预留 token：压缩时不能把上下文窗口全部占满，否则摘要无法生成。
 export const COMPACTION_SUMMARY_RESERVE_TOKENS = 16_384

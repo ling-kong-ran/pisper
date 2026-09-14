@@ -1435,14 +1435,14 @@ test('compaction threshold defaults to 80% and persists valid updates', async (t
   assert.equal(runtime.getCompactionPreference().thresholdPercent, 80)
   assert.deepEqual(await runtime.updateCompactionPreference({ thresholdPercent: 72 }), {
     thresholdPercent: 72,
-    minPercent: 50,
+    minPercent: 10,
     maxPercent: 95,
   })
   assert.equal(
     JSON.parse(await readFile(join(directory, 'pisper.json'), 'utf8')).compactionThresholdPercent,
     72,
   )
-  await assert.rejects(runtime.updateCompactionPreference({ thresholdPercent: 99 }), /50%.*95%/)
+  await assert.rejects(runtime.updateCompactionPreference({ thresholdPercent: 99 }), /10%.*95%/)
 })
 
 test('session messages are returned newest-first by bounded cursor pages', async (t) => {

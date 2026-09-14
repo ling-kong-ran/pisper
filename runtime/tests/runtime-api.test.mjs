@@ -114,11 +114,11 @@ test('compaction preference APIs expose and update the threshold percentage', as
   const runtime = {
     getCompactionPreference() {
       calls.push(['get'])
-      return { thresholdPercent: 80, minPercent: 50, maxPercent: 95 }
+      return { thresholdPercent: 80, minPercent: 10, maxPercent: 95 }
     },
     async updateCompactionPreference(input) {
       calls.push(['update', input.thresholdPercent])
-      return { thresholdPercent: input.thresholdPercent, minPercent: 50, maxPercent: 95 }
+      return { thresholdPercent: input.thresholdPercent, minPercent: 10, maxPercent: 95 }
     },
   }
   const handler = createApiHandler(runtime)
@@ -130,7 +130,7 @@ test('compaction preference APIs expose and update the threshold percentage', as
   )
   assert.deepEqual(JSON.parse(getResponse.body), {
     thresholdPercent: 80,
-    minPercent: 50,
+    minPercent: 10,
     maxPercent: 95,
   })
 
@@ -145,7 +145,7 @@ test('compaction preference APIs expose and update the threshold percentage', as
   )
   assert.deepEqual(JSON.parse(patchResponse.body), {
     thresholdPercent: 75,
-    minPercent: 50,
+    minPercent: 10,
     maxPercent: 95,
   })
   assert.deepEqual(calls, [['get'], ['update', 75]])
