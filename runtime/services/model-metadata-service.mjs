@@ -81,7 +81,7 @@ export const BUNDLED_MODEL_METADATA = Object.freeze({
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_ALWAYS_ON_XHIGH_THINKING_LEVEL_MAP,
   }),
-  'gpt-5.4': metadata('gpt-5.4', 272_000, 128_000, {
+  'gpt-5.4': metadata('gpt-5.4', 1_050_000, 128_000, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_XHIGH_THINKING_LEVEL_MAP,
   }),
@@ -89,23 +89,23 @@ export const BUNDLED_MODEL_METADATA = Object.freeze({
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_XHIGH_THINKING_LEVEL_MAP,
   }),
-  'gpt-5.5': metadata('gpt-5.5', 272_000, 128_000, {
+  'gpt-5.5': metadata('gpt-5.5', 1_050_000, 128_000, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_55_THINKING_LEVEL_MAP,
   }),
-  'gpt-5.6-luna': metadata('gpt-5.6-luna', 272_000, null, {
+  'gpt-5.6-luna': metadata('gpt-5.6-luna', 1_050_000, null, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP,
   }),
-  'gpt-5.6-sol': metadata('gpt-5.6-sol', 272_000, null, {
+  'gpt-5.6-sol': metadata('gpt-5.6-sol', 1_050_000, null, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP,
   }),
-  'gpt-5.6-terra': metadata('gpt-5.6-terra', 272_000, null, {
+  'gpt-5.6-terra': metadata('gpt-5.6-terra', 1_050_000, null, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP,
   }),
-  'gpt-6-astra': metadata('gpt-6-astra', 272_000, null, {
+  'gpt-6-astra': metadata('gpt-6-astra', 1_050_000, null, {
     input: TEXT_IMAGE_INPUT,
     thinkingLevelMap: GPT_56_THINKING_LEVEL_MAP,
   }),

@@ -16,10 +16,11 @@ function zeroCost() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 }
 
-// 推断上下文窗口：有特殊已知值时返回精确值，否则回退到默认。
-// 注意：此函数现在作为最后的回退，优先级：用户配置 > pi.dev 缓存 > 内置元数据 > 此函数
+// 推断上下文窗口：无任何元数据时的默认回退。
+// 注意：此函数是优先级链的最后一级（用户配置 > pi.dev 落盘数据 > 内置元数据 > 此函数），
+// 不再保留任何按型号硬编码的特例（曾有 gpt-5.6=272k，已过时且错误）；
+// 精确窗口一律来自 pi.dev 落盘文件与内置元数据表，避免硬编码随模型迭代腐烂。
 export function inferredContextWindow(modelId, fallback = 200_000) {
-  if (/^gpt-5\.6(?:-|$)/i.test(String(modelId || ''))) return 272_000
   return Number(fallback) || 200_000
 }
 
@@ -262,15 +263,13 @@ export class ProviderModelCatalogService {
     const runtimeCapabilities = runtimeCapabilityMetadata(rawGetModels())
     const effectiveMetadata = {
       get: (modelId) => {
-        // 优先级：pi.dev 缓存 → 内置元数据 → runtime 能力
+        // 优先级：pi.dev 落盘数据 → 内置元数据 → runtime 能力。
+        // pi.dev 数据是恒定参考数据：未命中不触发网络抓取，由后两级兜底。
         let piDevMeta = null
         if (this.piDevMetadata) {
           const contextWindow = this.piDevMetadata.getContextWindowSync(modelId)
           if (contextWindow) {
             piDevMeta = { contextWindow }
-          } else {
-            // 缓存未命中，触发后台刷新（不阻塞当前查询）
-            this.piDevMetadata.refreshInBackground()
           }
         }
         return mergedMetadata(

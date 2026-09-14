@@ -9,10 +9,12 @@ import {
 } from '../services/provider-model-catalog-service.mjs'
 import { BUNDLED_MODEL_METADATA } from '../services/model-metadata-service.mjs'
 
-test('gpt-5.6 relay models use their 272k context window', () => {
-  assert.equal(inferredContextWindow('gpt-5.6-sol'), 272_000)
-  assert.equal(inferredContextWindow('gpt-5.6-terra'), 272_000)
-  assert.equal(inferredContextWindow('gpt-5.6-luna'), 272_000)
+test('inferred context window keeps no per-model hardcodes', () => {
+  // gpt-5.6 的 272k 特例已移除：精确窗口一律来自 pi.dev 落盘数据与内置元数据表，
+  // 这里只剩默认回退，避免硬编码随模型迭代腐烂（gpt-5.4/5.6 实为 1M 窗口）。
+  assert.equal(inferredContextWindow('gpt-5.6-sol'), 200_000)
+  assert.equal(inferredContextWindow('gpt-5.6-terra'), 200_000)
+  assert.equal(inferredContextWindow('gpt-5.6-luna'), 200_000)
   assert.equal(inferredContextWindow('unknown-model'), 200_000)
 })
 
@@ -44,7 +46,9 @@ test('dynamic models do not inherit another model context window', async (t) => 
 
   catalog.decorateRuntime(runtime, { relay: 'https://relay.example.test/v1' })
 
-  assert.equal(runtime.getModel('relay', 'gpt-5.6-terra').contextWindow, 272_000)
+  // 无 pi.dev 数据、无内置元数据时只剩默认回退（gpt-5.6 的 272k 硬编码特例已移除）；
+  // 重点仍是不得继承同 provider 其他模型的 128k 窗口。
+  assert.equal(runtime.getModel('relay', 'gpt-5.6-terra').contextWindow, 200_000)
   assert.equal(runtime.getModel('relay', 'unknown-model').contextWindow, 200_000)
   assert.deepEqual(runtime.getModel('relay', 'unknown-model').thinkingLevelMap, {
     xhigh: null,

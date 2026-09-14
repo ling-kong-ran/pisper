@@ -32,11 +32,11 @@ test('bundled model metadata resolves without network access', async (t) => {
 
   const expected = {
     'gpt-5.3-codex-spark': [128_000, 32_000],
-    'gpt-5.4': [272_000, 128_000],
+    'gpt-5.4': [1_050_000, 128_000],
     'gpt-5.4-mini': [400_000, 128_000],
-    'gpt-5.5': [272_000, 128_000],
-    'gpt-5.6-terra': [272_000, undefined],
-    'gpt-6-astra': [272_000, undefined],
+    'gpt-5.5': [1_050_000, 128_000],
+    'gpt-5.6-terra': [1_050_000, undefined],
+    'gpt-6-astra': [1_050_000, undefined],
     'claude-fable-5': [1_000_000, 128_000],
     'claude-fable-5-1': [1_000_000, 128_000],
     'claude-sonnet-4-6': [1_000_000, 128_000],
