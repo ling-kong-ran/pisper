@@ -1,6 +1,7 @@
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
 import { PERMISSION_MODES } from '../services/session-permission-service.mjs'
 import { modelThinkingState } from './provider-preferences.mjs'
+import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
   ATTACHMENT_MARKER,
   finishedCompaction,
@@ -14,28 +15,11 @@ import {
 } from './session-input-queue.mjs'
 import { listWorkspaceDirectories, listWorkspaceEntries } from './workspace-directories.mjs'
 
-function configuredSessionModel(manager, metadata = {}, settings = {}) {
-  let selected = null
-  for (const entry of manager?.getBranch?.() || []) {
-    if (entry?.type === 'model_change' && entry.provider && entry.modelId) {
-      selected = { provider: entry.provider, modelId: entry.modelId }
-      continue
-    }
-    if (
-      entry?.type === 'message' &&
-      entry.message?.role === 'assistant' &&
-      entry.message?.provider &&
-      entry.message?.model
-    ) {
-      selected = { provider: entry.message.provider, modelId: entry.message.model }
-    }
-  }
+// 非常驻会话的模型选择：与常驻路径共用同一套绑定推导（显式 model_change 优先于
+// provider 回显），避免网关改写回显后思考等级对齐到错误模型。
+function configuredSessionModel(manager, metadata = {}, settings = {}, modelRuntime = null) {
+  const selected = boundSessionModelRef(manager, modelRuntime, metadata)
   if (selected) return selected
-  const raw = String(metadata.model || '')
-  const slash = raw.indexOf('/')
-  if (slash > 0 && slash < raw.length - 1) {
-    return { provider: raw.slice(0, slash), modelId: raw.slice(slash + 1) }
-  }
   if (settings.defaultProvider && settings.defaultModel) {
     return { provider: settings.defaultProvider, modelId: settings.defaultModel }
   }
@@ -258,6 +242,9 @@ export const agentSessionMethods = {
     if (!supportsLightweightSessionConfiguration(this) || this.sessions.has(id)) {
       const result = await this.providerPreferences.setSessionModel(id, provider, modelId)
       if (result?.model) {
+        // 重选成功后解除执行拦截：常驻运行时已切到新模型。
+        const cached = this.sessions instanceof Map ? this.sessions.get(id) : null
+        if (cached) delete cached.blockedModel
         this.sessionMeta[id] = {
           ...(this.sessionMeta[id] || {}),
           model: result.model,
@@ -312,7 +299,12 @@ export const agentSessionMethods = {
     const target = await nonResidentSession(this, id)
     if (!target) return null
     const settings = this.settingsManager.getGlobalSettings()
-    const selected = configuredSessionModel(target.manager, this.sessionMeta[id], settings)
+    const selected = configuredSessionModel(
+      target.manager,
+      this.sessionMeta[id],
+      settings,
+      this.modelRuntime,
+    )
     if (!selected) throw new Error('当前会话没有可用模型。')
     const model = await this.providerPreferences.resolveSessionModel(
       selected.provider,
@@ -344,7 +336,12 @@ export const agentSessionMethods = {
     const target = await nonResidentSession(this, id)
     if (!target) return null
     const settings = this.settingsManager.getGlobalSettings()
-    const selected = configuredSessionModel(target.manager, this.sessionMeta[id], settings)
+    const selected = configuredSessionModel(
+      target.manager,
+      this.sessionMeta[id],
+      settings,
+      this.modelRuntime,
+    )
     if (!selected) throw new Error('当前会话没有可用模型。')
     const model = await this.providerPreferences.resolveSessionModel(
       selected.provider,

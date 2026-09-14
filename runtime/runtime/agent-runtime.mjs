@@ -114,6 +114,7 @@ import {
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import { createRuntimeToolGateway } from './tool-gateway-runtime.mjs'
 import { agentSessionMethods } from './agent-session-methods.mjs'
+import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
@@ -205,46 +206,14 @@ const MAX_SESSION_HISTORY_CACHE_ENTRIES = 4
 const MAX_SESSION_HISTORY_CACHE_SOURCE_BYTES = 8 * 1024 * 1024
 const MAX_SESSION_HISTORY_CACHE_ESTIMATED_BYTES = 48 * 1024 * 1024
 
-// 从会话分支记录中推导最后一次使用的模型（model_change 或 assistant 消息携带），恢复会话时还原其模型选择。
-export function storedSessionModel(sessionManager) {
-  let model = null
-  for (const entry of sessionManager?.getBranch?.() || []) {
-    if (entry?.type === 'model_change' && entry.provider && entry.modelId) {
-      model = { provider: entry.provider, modelId: entry.modelId }
-      continue
-    }
-    if (
-      entry?.type === 'message' &&
-      entry.message?.role === 'assistant' &&
-      entry.message?.provider &&
-      entry.message?.model
-    ) {
-      model = { provider: entry.message.provider, modelId: entry.message.model }
-    }
-  }
-  return model
-}
-
-export function storedSessionModelId(sessionManager) {
-  return storedSessionModel(sessionManager)?.modelId || ''
-}
-
-// 解析 “provider/modelId” 形式的模型引用；格式非法时返回 null。
-function parseSessionModelRef(value) {
-  const raw = String(value || '').trim()
-  if (!raw) return null
-  const slash = raw.indexOf('/')
-  if (slash <= 0 || slash >= raw.length - 1) return null
-  return {
-    provider: raw.slice(0, slash),
-    modelId: raw.slice(slash + 1),
-  }
-}
-
-// 会话模型解析优先级：会话分支记录 > 会话元数据的 model 字段。
-function resolveSessionModelRef(sessionManager, sessionMeta = {}) {
-  return storedSessionModel(sessionManager) || parseSessionModelRef(sessionMeta.model) || null
-}
+// 会话模型绑定推导统一在 session-model-ref.mjs：显式 model_change 优先于 provider 回显，
+// 避免网关剥掉响应里的路由前缀后，历史会话恢复时被静默改绑到默认模型。
+export {
+  boundSessionModelRef,
+  parseSessionModelRef,
+  storedSessionModel,
+  storedSessionModelId,
+} from './session-model-ref.mjs'
 
 // 从多 Agent 工具的执行结果中提取 Agent 摘要信息，供实时活动流展示。
 export function multiAgentResultAgent(toolName, details) {
@@ -1377,11 +1346,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   // 创建会话运行时（resident runtime）：为会话装配模型、工具、网关、权限与目标/计划/多 Agent 工具，
   // 并返回可运行的会话对象。这是“打开一个会话”的核心路径。
   async createSessionRuntime(sessionManager, name) {
-    // 首选模型解析：会话历史 > 元数据；无鉴权/不可用的模型会回退到默认模型。
+    // 首选模型解析：显式 model_change > 可解析的元数据 > 可解析的 assistant 回显。
+    // 历史会话绑定解析失败时绝不静默换成默认模型：记录 blockedModel，
+    // 由 streamPrompt 拒绝执行并提示用户重选，避免用错误模型消耗额度并污染会话绑定。
     const settings = this.settingsManager.getGlobalSettings()
     const runtimeSessionId = sessionManager.getSessionId()
-    const preferredModelRef = resolveSessionModelRef(
+    const preferredModelRef = boundSessionModelRef(
       sessionManager,
+      this.modelRuntime,
       this.sessionMeta[runtimeSessionId],
     )
     await this.modelMetadata.ensure(preferredModelRef?.modelId || settings.defaultModel)
@@ -1393,6 +1365,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       !this.modelRuntime?.hasConfiguredAuth ||
       this.modelRuntime.hasConfiguredAuth(preferredModel.provider)
     const sessionModel = preferredModel && preferredModelHasAuth ? preferredModel : undefined
+    const blockedModel =
+      preferredModelRef && !sessionModel
+        ? {
+            provider: preferredModelRef.provider,
+            modelId: preferredModelRef.modelId,
+            reason: preferredModel ? 'missing-auth' : 'not-resolvable',
+          }
+        : null
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
     const effectiveCwd = await resolveSessionDirectory(this, sessionManager, runtimeSessionId)
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
@@ -1660,6 +1640,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const value = {
       session,
       modelFallbackMessage,
+      ...(blockedModel ? { blockedModel } : {}),
       name: name || sessionManager.getSessionName() || DEFAULT_SESSION_NAME,
       created: now,
       modified: now,
@@ -1675,7 +1656,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     runtimeValue = Object.assign(value, { multiAgentRuntime })
     runtimeSession = session
     if (multiAgentRuntime) await multiAgentRuntime.resume()
-    if (session.model) {
+    // 绑定模型不可用时 SDK 已经回退到默认模型；此时绝不能把回退结果写回元数据，
+    // 否则用户显式选择的模型会被默认模型静默覆盖并在下次恢复时永久丢失。
+    if (session.model && !blockedModel) {
       const model = `${session.model.provider}/${session.model.id}`
       if (this.sessionMeta[session.sessionId]?.model !== model) {
         this.sessionMeta[session.sessionId] = {

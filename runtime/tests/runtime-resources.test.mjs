@@ -10,6 +10,7 @@ import {
   storedSessionModel,
   storedSessionModelId,
 } from '../runtime/agent-runtime.mjs'
+import { boundSessionModelRef } from '../runtime/session-model-ref.mjs'
 
 test('runtime initialization leaves stored conversations unloaded until requested', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-lazy-sessions-'))
@@ -917,6 +918,127 @@ test('empty sessions still restore the last model change after runtime recreatio
     provider: 'xai',
     modelId: 'grok-4.5',
   })
+})
+
+// 回归（线上事故）：网关会把路由前缀从响应 model 字段剥掉——用户选
+// anthropic/tokenhub/glm-5.3，assistant 回显只有 glm-5.3。旧实现“最后一条记录获胜”
+// 让回显覆盖显式选择，裸 id 解析失败后会话被静默换成默认模型执行。
+test('gateway model echoes never override the explicit session model binding', () => {
+  const known = new Set(['anthropic:tokenhub/glm-5.3', 'anthropic:aliyun_openai/qwen3.8-max'])
+  const modelRuntime = {
+    getModel: (provider, modelId) =>
+      known.has(`${provider}:${modelId}`) ? { provider, id: modelId } : undefined,
+  }
+  const sessionManager = {
+    getBranch: () => [
+      { type: 'model_change', provider: 'anthropic', modelId: 'aliyun_openai/qwen3.8-max' },
+      {
+        type: 'message',
+        message: { role: 'assistant', provider: 'anthropic', model: 'qwen3.8-max' },
+      },
+      {
+        type: 'message',
+        message: { role: 'assistant', provider: 'anthropic', model: 'qwen3.8-max' },
+      },
+    ],
+  }
+  assert.deepEqual(boundSessionModelRef(sessionManager, modelRuntime, {}), {
+    provider: 'anthropic',
+    modelId: 'aliyun_openai/qwen3.8-max',
+  })
+  // 兼容接口同样以 model_change 为准，不再被后续回显覆盖。
+  assert.deepEqual(storedSessionModel(sessionManager), {
+    provider: 'anthropic',
+    modelId: 'aliyun_openai/qwen3.8-max',
+  })
+})
+
+test('sessions without model_change fall back to resolvable metadata then echoes', () => {
+  const modelRuntime = {
+    getModel: (provider, modelId) =>
+      provider === 'openai' && modelId === 'gpt-real' ? { provider, id: modelId } : undefined,
+  }
+  const echoOnly = {
+    getBranch: () => [
+      { type: 'message', message: { role: 'assistant', provider: 'openai', model: 'gpt-real' } },
+    ],
+  }
+  assert.deepEqual(boundSessionModelRef(echoOnly, modelRuntime, {}), {
+    provider: 'openai',
+    modelId: 'gpt-real',
+  })
+  // 回显被网关改写而元数据可解析：元数据（用户显式选择的持久化副本）获胜。
+  const corruptedEcho = {
+    getBranch: () => [
+      {
+        type: 'message',
+        message: { role: 'assistant', provider: 'openai', model: 'gpt-stripped' },
+      },
+    ],
+  }
+  assert.deepEqual(
+    boundSessionModelRef(corruptedEcho, modelRuntime, { model: 'openai/gpt-real' }),
+    { provider: 'openai', modelId: 'gpt-real' },
+  )
+  // 全部不可解析时返回最后已知引用交给上层显式报错，绝不自行落到默认模型。
+  assert.deepEqual(boundSessionModelRef(corruptedEcho, modelRuntime, {}), {
+    provider: 'openai',
+    modelId: 'gpt-stripped',
+  })
+})
+
+test('streamPrompt refuses to run on the default model while the binding is blocked', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-blocked-model-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    runtime.sessions.clear()
+    await runtime.dispose().catch(() => {})
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  })
+  let prompted = 0
+  const session = {
+    sessionId: 'blocked-session',
+    isStreaming: false,
+    // SDK 回退后的默认模型：绝不能用它执行，也不能写回元数据。
+    model: { provider: 'xtb', id: 'gpt-6-astra' },
+    messages: [],
+    async prompt() {
+      prompted += 1
+    },
+  }
+  const value = {
+    session,
+    cwd: directory,
+    name: 'Blocked',
+    baseToolNames: [],
+    blockedModel: {
+      provider: 'anthropic',
+      modelId: 'tokenhub/glm-5.3',
+      reason: 'not-resolvable',
+    },
+  }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  await assert.rejects(
+    runtime.streamPrompt({
+      sessionId: session.sessionId,
+      message: 'hello',
+      send: () => {},
+    }),
+    /会话绑定的模型 anthropic\/tokenhub\/glm-5\.3 当前不可用/,
+  )
+  assert.equal(prompted, 0)
+
+  // 重新选择模型成功后拦截解除（常驻路径清理 blockedModel）。
+  delete value.blockedModel
+  runtime.runSessionPrompt = async () => 'ran'
+  const result = await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'hello',
+    send: () => {},
+  })
+  assert.equal(result, 'ran')
 })
 
 test('setSessionModel persists the active model into session metadata', async () => {

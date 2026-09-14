@@ -710,6 +710,10 @@ export class StreamProjection {
   // 解析会话模型：活动运行时 > 元数据 > 磁盘会话上下文（并持久化结果）。
   async resolveSessionModel(id) {
     const active = this.sessions().get(id)
+    // 绑定模型不可用时运行时里是 SDK 回退的默认模型；展示必须继续用用户绑定，
+    // 否则选择器会“自动跳到默认模型”，也不能把默认模型记进元数据。
+    if (active?.blockedModel)
+      return `${active.blockedModel.provider}/${active.blockedModel.modelId}`
     if (active?.session?.model?.provider && active.session.model.id) {
       return this.rememberSessionModel(
         id,
@@ -1150,6 +1154,7 @@ export class StreamProjection {
     return [
       active,
       active?.session?.model,
+      active?.blockedModel,
       sessionInputQueueRevision(active?.session),
       ...messageToken(messages),
       live,
@@ -1214,12 +1219,14 @@ export class StreamProjection {
       startedAt: live?.startedAt || null,
       lastActivityAt: live?.lastActivityAt || null,
       finishedAt: live?.finishedAt || null,
-      model: active?.session.model
-        ? this.rememberSessionModel(
-            id,
-            `${active.session.model.provider}/${active.session.model.id}`,
-          )
-        : page.model || meta[id]?.model || '',
+      model: active?.blockedModel
+        ? `${active.blockedModel.provider}/${active.blockedModel.modelId}`
+        : active?.session.model
+          ? this.rememberSessionModel(
+              id,
+              `${active.session.model.provider}/${active.session.model.id}`,
+            )
+          : page.model || meta[id]?.model || '',
       cwd: active?.cwd || meta[id]?.cwd || persisted?.cwd || this.cwd,
       permissionMode: meta[id]?.permissionMode || permissionModeForExecutionMode(executionMode),
       executionMode,

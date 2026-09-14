@@ -238,6 +238,16 @@ export class AgentRuntimeFacade {
     }
     if (this.sessionRunIsActive(id, value))
       throw new Error('当前会话仍在运行，请等待完成或先停止。')
+    // 历史会话不允许自动切换模型：绑定模型不可用时拒绝执行并显式告知，
+    // 而不是静默用默认模型消耗额度、并把回退结果写回会话绑定。
+    if (value.blockedModel) {
+      const ref = `${value.blockedModel.provider}/${value.blockedModel.modelId}`
+      const reason =
+        value.blockedModel.reason === 'missing-auth'
+          ? 'Provider 缺少可用凭据'
+          : '模型不存在或 Provider 未配置'
+      throw new Error(`会话绑定的模型 ${ref} 当前不可用（${reason}），请重新选择模型后再发送。`)
+    }
     // 中止标记只属于单次运行：留在常驻运行时上会让下一次 prompt 继承上次的截止时间。
     delete value.abortedAt
     delete value.forceDisposed
