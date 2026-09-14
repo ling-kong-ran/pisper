@@ -1798,7 +1798,7 @@ dependencies = [
 
 [[package]]
 name = "pisper-tui"
-version = "0.5.26"
+version = "0.5.27"
 dependencies = [
  "anyhow",
  "base64",
