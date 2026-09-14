@@ -1,9 +1,9 @@
 {
-  "version": "0.1.40",
-  "tag": "app-v0.1.40",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.40",
+  "version": "0.1.41",
+  "tag": "app-v0.1.41",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.41",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(runtime): keep historical sessions bound to their selected model\n- fix(runtime): resolve prefixed model ids and drop stale 272k context hardcodes\n- fix(mobile): downlevel frontend syntax so old iOS WebViews stop black-screening",
+  "notes": "- feat(chat): lower auto-compaction threshold minimum from 50% to 10%\n- fix(web): markdown 与语音链路不再依赖 lookbehind 正则（Safari <16.4 崩溃）",
   "releaseDate": "2026-09-14"
 }
