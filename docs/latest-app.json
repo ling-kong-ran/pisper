@@ -1,9 +1,9 @@
 {
-  "version": "0.1.39",
-  "tag": "app-v0.1.39",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.39",
+  "version": "0.1.40",
+  "tag": "app-v0.1.40",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.40",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- style(runtime): format pi-dev-model-metadata\n- chore(deps): update pi coding agent\n- feat(runtime): persistent pi.dev model metadata cache\n- feat(runtime): lazy pi.dev metadata refresh on cache miss\n- refactor(runtime): make pi.dev metadata refresh non-blocking\n- fix(runtime): initialize pi.dev model metadata service on startup\n- feat(runtime): integrate pi.dev model metadata for accurate context windows\n- fix(chat): prevent empty request submission in retry mode\n- chore(release-runtime): runtime-v0.5.45\n- fix(runtime): remove unused imports and parameters in asset storage\n- fix(runtime): deduplicate assets by absolute path\n- fix(runtime): make local file reveal reliable\n- feat(config): support per-model thinking levels",
-  "releaseDate": "2026-09-13"
+  "notes": "- fix(runtime): keep historical sessions bound to their selected model\n- fix(runtime): resolve prefixed model ids and drop stale 272k context hardcodes\n- fix(mobile): downlevel frontend syntax so old iOS WebViews stop black-screening",
+  "releaseDate": "2026-09-14"
 }
