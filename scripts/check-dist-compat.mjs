@@ -10,6 +10,9 @@
 // 1. class static block：`static {` / `static{`（Safari 16.4+）
 // 2. RegExp lookbehind 字面量：`/(?<=` `/(?<!`（Safari 16.4+；需排除字符串内的 Oniguruma 模式）
 // 3. 私有字段 brand check：`#x in obj`（Safari 15.4+）
+// 4. 字符串构造的 RegExp 含旧引擎拒绝的组说明符（lookbehind 等）且无 try 守卫：
+//    构建器会把不支持的正则字面量改写成字符串构造，字面量扫描看不到，
+//    但运行时在旧 Safari 仍抛错（mdast-util-gfm-autolink-literal / remend 事故）。
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -79,6 +82,41 @@ const CHECKS = [
   },
 ]
 
+// 扫描字符串字面量参数的 RegExp()/new RegExp() 构造：内容含旧 JSC 拒绝的组说明符
+// （lookbehind、原子组、内联标志、Python 命名组）且不在 try 守卫内时上报。
+// 构建器（oxc）会把目标不支持的正则字面量改写成字符串构造，字面量扫描看不到，
+// 但运行时在旧 Safari 仍抛 “invalid group specifier name”（markdown 链路事故）。
+// try/catch 包裹的特性检测构造（marked 与 vendored shim 的守卫）豁免。
+const REGEXP_CTOR = /RegExp\(\s*(['"`])/g
+const BAD_GROUP_IN_STRING = /\(\?(?:<[=!]|>|P<|[-imnsx])/
+function scanRegExpStringConstructs(source) {
+  const hits = []
+  let match
+  REGEXP_CTOR.lastIndex = 0
+  while ((match = REGEXP_CTOR.exec(source)) !== null) {
+    const quote = match[1]
+    let i = match.index + match[0].length
+    let content = ''
+    while (i < source.length) {
+      const ch = source[i]
+      if (ch === '\\') {
+        content += source.slice(i, i + 2)
+        i += 2
+        continue
+      }
+      if (ch === quote) break
+      content += ch
+      i += 1
+    }
+    if (!BAD_GROUP_IN_STRING.test(content)) continue
+    // 特性检测惯用式：try{return…RegExp(…)}catch —— 构造失败有降级分支，豁免。
+    const before = source.slice(Math.max(0, match.index - 60), match.index)
+    if (/try\s*\{[^}]*$/.test(before)) continue
+    hits.push({ at: match.index, content: content.slice(0, 60) })
+  }
+  return hits
+}
+
 let files
 try {
   files = (await readdir(assetsDir)).filter((name) => name.endsWith('.js'))
@@ -101,6 +139,11 @@ for (const file of files.sort()) {
         `${file}: ${check.name} @${match.index}\n    …${haystack.slice(at, match.index + 60).replace(/\n/g, ' ')}…`,
       )
     }
+  }
+  for (const hit of scanRegExpStringConstructs(source)) {
+    failures.push(
+      `${file}: RegExp 字符串构造含旧引擎拒绝的语法（需 try 守卫 + 降级分支） @${hit.at}\n    …${hit.content}…`,
+    )
   }
 }
 

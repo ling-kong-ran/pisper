@@ -146,6 +146,13 @@ export default defineConfig({
       // Swap the full Shiki bundle (~220 grammars) for the web bundle (~60 grammars)
       // to keep the emitted language chunks and installer size down.
       { find: /^shiki$/, replacement: 'shiki/dist/bundle-web.mjs' },
+      // 上游包内联 lookbehind 正则字面量，旧 iOS WKWebView（Safari <16.4）解析即抛
+      // "invalid group specifier name"，整条 markdown 渲染链会挂掉。指向已做特性检测
+      // 的 vendored 副本；用正则精确匹配裸导入，避免影响其他 mdast-util-* 包。
+      {
+        find: /^mdast-util-gfm-autolink-literal$/,
+        replacement: resolve(rootDir, 'src/vendor/mdast-util-gfm-autolink-literal.js'),
+      },
     ],
     // Force a single Shiki copy so language packs are not emitted twice.
     dedupe: [
