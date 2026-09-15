@@ -620,10 +620,9 @@ mod capture {
             }
         }
 
-        /// 枚举共享内容并按窗口 ID 匹配窗口对象，附带窗口尺寸（逻辑点）。
-        fn find_sc_window(
-            window_id: u32,
-        ) -> Result<Option<(Retained<AnyObject>, f64, f64)>, String> {
+        /// 枚举共享内容得到全部可捕获窗口（含尺寸与所有者 bundle ID）。
+        /// 独立于捕获路径，供 find_sc_window 与冒烟测试共用。
+        fn enumerate_windows() -> Result<Vec<ScWindowInfo>, String> {
             let shareable_content_class = class_or_err(c"SCShareableContent")?;
             let (tx, rx) = mpsc::channel();
             let block = RcBlock::new(move |content: *mut AnyObject, error: *mut NSError| {
@@ -662,16 +661,65 @@ mod capture {
             let Some(windows) = windows else {
                 return Err("shareable content has no windows".into());
             };
+            let mut result = Vec::new();
             for window in windows.to_vec() {
                 // SAFETY: SCWindow 响应 windowID（返回 CGWindowID=u32）与 frame。
-                let candidate: u32 = unsafe { msg_send![&*window, windowID] };
-                if candidate == window_id {
-                    // SAFETY: SCWindow 响应 frame（返回 CGRect）。
-                    let frame: CGRect = unsafe { msg_send![&*window, frame] };
-                    return Ok(Some((window, frame.size.width, frame.size.height)));
-                }
+                let id: u32 = unsafe { msg_send![&*window, windowID] };
+                // SAFETY: SCWindow 响应 frame（返回 CGRect）。
+                let frame: CGRect = unsafe { msg_send![&*window, frame] };
+                // SAFETY: owningApplication 可能返回 nil SCRunningApplication；
+                // 后者响应 bundleIdentifier（NSString）。仅冒烟测试按所有者筛选
+                // 目标窗口，生产路径不读取，直接不计算。
+                #[cfg(test)]
+                let bundle_id = unsafe {
+                    let app: Option<Retained<AnyObject>> = msg_send![&*window, owningApplication];
+                    app.map(|app| {
+                        let bundle: Retained<objc2_foundation::NSString> =
+                            msg_send![&*app, bundleIdentifier];
+                        bundle.to_string()
+                    })
+                };
+                result.push(ScWindowInfo {
+                    id,
+                    width: frame.size.width,
+                    height: frame.size.height,
+                    #[cfg(test)]
+                    bundle_id,
+                    object: window,
+                });
             }
-            Ok(None)
+            Ok(result)
+        }
+
+        /// 枚举得到的可捕获窗口描述（附带窗口对象，供过滤器构建）。
+        struct ScWindowInfo {
+            id: u32,
+            width: f64,
+            height: f64,
+            /// 仅冒烟测试读取（按所有者筛选目标窗口），生产路径不用。
+            #[cfg(test)]
+            bundle_id: Option<String>,
+            /// SCK 窗口对象；生命周期由 Retained 管理。
+            object: Retained<AnyObject>,
+        }
+
+        /// 冒烟测试用的窗口描述视图。
+        #[cfg(test)]
+        pub(crate) struct ScWindowInfoView {
+            pub id: u32,
+            pub width: f64,
+            pub height: f64,
+            pub bundle_id: Option<String>,
+        }
+
+        /// 按窗口 ID 匹配窗口对象，返回尺寸（逻辑点）。
+        fn find_sc_window(
+            window_id: u32,
+        ) -> Result<Option<(Retained<AnyObject>, f64, f64)>, String> {
+            let Some(info) = enumerate_windows()?.into_iter().find(|w| w.id == window_id) else {
+                return Ok(None);
+            };
+            Ok(Some((info.object, info.width, info.height)))
         }
 
         /// SCStream 停止辅助：等待停止完成（超时即视为流已结束）。
@@ -790,6 +838,20 @@ mod capture {
 
         pub fn stop(stream: &StreamHandle) {
             stop_capture_and_wait(stream);
+        }
+
+        /// 冒烟测试辅助：枚举可捕获窗口描述（不含窗口对象）。
+        #[cfg(test)]
+        pub(crate) fn enumerate_windows_for_test() -> Result<Vec<ScWindowInfoView>, String> {
+            Ok(enumerate_windows()?
+                .into_iter()
+                .map(|w| ScWindowInfoView {
+                    id: w.id,
+                    width: w.width,
+                    height: w.height,
+                    bundle_id: w.bundle_id,
+                })
+                .collect())
         }
     }
 }
@@ -1105,5 +1167,121 @@ mod tests {
             }
         }
         pixels
+    }
+
+    /// SCStream 真机冒烟：需要屏幕录制权限与可见窗口，默认跳过。
+    /// 手动运行：cargo test --lib -- --ignored --nocapture scstream_smoke
+    /// 可用环境变量控制：
+    /// - PISPER_CU_SMOKE_BUNDLE：按所有者 bundle ID 匹配目标窗口
+    /// - PISPER_CU_SMOKE_SECONDS：收集时长（默认 5）
+    /// - PISPER_CU_SMOKE_MIN_FRAMES：断言最低帧数（默认 1）
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "需要真实屏幕录制权限与可见窗口，手动运行"]
+    fn scstream_smoke_delivers_frames() {
+        use std::time::Instant;
+
+        let seconds = std::env::var("PISPER_CU_SMOKE_SECONDS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(5);
+        let min_frames = std::env::var("PISPER_CU_SMOKE_MIN_FRAMES")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(1);
+        let target_bundle = std::env::var("PISPER_CU_SMOKE_BUNDLE").ok();
+
+        assert!(
+            super::capture::sc_stream::ensure_screencapturekit_loaded(),
+            "ScreenCaptureKit 应当可用（dlopen + 类注册成功）"
+        );
+        let windows = super::capture::sc_stream::enumerate_windows_for_test()
+            .expect("枚举共享内容失败（可能缺少屏幕录制权限）");
+        println!("可见窗口数：{}", windows.len());
+        for w in windows.iter().take(10) {
+            println!(
+                "  窗口 {}：{:.0}x{:.0}，所有者 {}",
+                w.id,
+                w.width,
+                w.height,
+                w.bundle_id.as_deref().unwrap_or("(未知)")
+            );
+        }
+        let target = if let Some(bundle) = target_bundle.as_deref() {
+            windows
+                .iter()
+                .find(|w| w.bundle_id.as_deref() == Some(bundle))
+                .unwrap_or_else(|| panic!("未找到所有者为 {bundle} 的窗口"))
+        } else {
+            // 默认取第一个尺寸足够的窗口，避开小工具条窗口。
+            windows
+                .iter()
+                .find(|w| w.width >= 200.0 && w.height >= 200.0)
+                .expect("没有尺寸足够的可见窗口")
+        };
+        println!(
+            "冒烟目标：窗口 {}（{:.0}x{:.0}，所有者 {}）",
+            target.id,
+            target.width,
+            target.height,
+            target.bundle_id.as_deref().unwrap_or("(未知)")
+        );
+
+        let slot = Arc::new(FrameSlot::new());
+        let stop = Arc::new(AtomicBoolLike::new());
+        // 看门狗：到时置位停止标记。FrameSlot::take 只在有帧或停止时返回，
+        // 不设看门狗的话，无帧场景会让测试永久挂起。
+        let watchdog = {
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(seconds));
+                stop.stop();
+            })
+        };
+        let handle = super::capture::sc_stream::start(target.id, 960, 12, Arc::clone(&slot))
+            .expect("SCStream 启动失败");
+
+        let started = Instant::now();
+        let mut frames = 0usize;
+        let mut first: Option<CapturedWindow> = None;
+        while !stop.is_stopped() {
+            if let Some(frame) = slot.take(&stop) {
+                if first.is_none() {
+                    first = Some(frame);
+                }
+                frames += 1;
+            }
+        }
+        super::capture::sc_stream::stop(&handle);
+        let _ = watchdog.join();
+
+        let elapsed = started.elapsed().as_secs_f64();
+        println!(
+            "{} 秒收到 {} 帧（≈{:.1}fps）",
+            elapsed,
+            frames,
+            frames as f64 / elapsed.max(0.001)
+        );
+        assert!(
+            frames >= min_frames,
+            "帧数不足：{frames} < {min_frames}（若目标窗口静止属于正常现象，请用动态窗口重试）"
+        );
+
+        let first = first.expect("至少应收到一帧");
+        assert!(first.width > 0 && first.height > 0, "帧尺寸非法");
+        assert_eq!(
+            first.bgra.len(),
+            first.width as usize * first.height as usize * 4,
+            "紧凑 BGRA 长度应等于宽×高×4"
+        );
+        let jpeg = encode_jpeg(&first.bgra, first.width, first.height, 960).expect("JPEG 编码失败");
+        assert_eq!(&jpeg[0..2], &[0xff, 0xd8], "JPEG 魔数错误");
+        assert!(jpeg.len() < MAX_FRAME_JPEG_BYTES, "JPEG 帧过大");
+        println!(
+            "首帧 {}x{}，JPEG {} 字节 —— 管道验证通过",
+            first.width,
+            first.height,
+            jpeg.len()
+        );
     }
 }
