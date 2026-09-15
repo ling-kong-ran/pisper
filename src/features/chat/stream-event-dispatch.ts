@@ -419,6 +419,9 @@ export function createStreamEventDispatcher({
           updatedAt: data.updatedAt || eventAt,
           ...(data.output !== undefined ? { output: data.output } : {}),
           ...(data.agent ? { agent: data.agent } : {}),
+          // 工具预览图（computer use / 浏览器截图）：归档完成后由运行时补发，
+          // 随同一调度通道合并进活动卡片，避免额外的前端事件通道。
+          ...(data.previewImage ? { previewImage: data.previewImage } : {}),
         },
         data.updatedAt || eventAt,
       )
@@ -447,6 +450,7 @@ export function createStreamEventDispatcher({
           updatedAt: finishedAt,
           finishedAt,
           ...(data.output !== undefined ? { output: data.output } : {}),
+          ...(data.previewImage ? { previewImage: data.previewImage } : {}),
         }
         const agentActivity = data.agent
           ? {
@@ -472,6 +476,7 @@ export function createStreamEventDispatcher({
                   updatedAt: finishedAt,
                   finishedAt,
                   ...(data.output !== undefined ? { output: data.output } : {}),
+                  ...(data.previewImage ? { previewImage: data.previewImage } : {}),
                 }
               : item,
           ),

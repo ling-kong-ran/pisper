@@ -155,6 +155,7 @@ import {
   startedCompaction,
   textFromContent,
 } from './stream-projection.mjs'
+import { archivePreviewImagePart, dispatchToolPreviewImage } from './tool-preview-images.mjs'
 import { releaseConsumedSessionInput, sessionInputQueueRevision } from './session-input-queue.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
@@ -1183,6 +1184,34 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.publicAsset(asset)
   }
 
+  // 工具预览图异步归档：从工具结果提取图像（内容内联图或已落盘的 details.path），
+  // 存为资产后通过 tool_update 补发 previewImage。事件回调是同步的，归档只能后置；
+  // 因此在下发前校验 live 会话未被替换，避免旧轮次的活动卡片被晚到的帧覆盖。
+  // 具体提取/归档/补发逻辑在 tool-preview-images.mjs，这里只注入运行时依赖。
+  attachToolPreviewImage({ live, session, sessionName, toolCallId, toolName, result, emit }) {
+    void dispatchToolPreviewImage(
+      {
+        archivePreview: async (part) => {
+          await this.assetReconcile
+          const asset = await archivePreviewImagePart(part, {
+            assets: this.assetIndex.assets,
+            assetsDir: this.assetsDir,
+            sessionId: session.sessionId,
+            sessionName,
+            created: new Date().toISOString(),
+          })
+          if (asset) await this.saveAssetIndex()
+          return asset
+        },
+        findAssetByFilePath: (filePath) =>
+          assetStorage.findAssetByFilePath(this.assetIndex.assets, filePath),
+        isLiveSessionCurrent: () => this.liveSessions.get(session.sessionId) === live,
+        resolve,
+      },
+      { live, toolCallId, toolName, result, emit },
+    )
+  }
+
   async recordGeneratedFile(sessionId, value, filePath) {
     await this.assetReconcile
     const name = basename(filePath)
@@ -2194,6 +2223,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           const generatedPath = resolve(event.result.details.path)
           const asset = assetStorage.findAssetByFilePath(this.assetIndex.assets, generatedPath)
           if (asset) {
+            const attachment = assetMessageAttachment(asset)
             live.assets = [
               ...live.assets.filter(
                 (item) => attachmentIdentity(item) !== attachmentIdentity(attachment),
@@ -2202,6 +2232,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             ]
             emit('generated_asset', attachment)
           }
+        }
+        // 工具预览图：computer use / OCR / 浏览器截图等工具的图像随结果异步归档，
+        // 归档完成后再以 tool_update 补发 previewImage，活动卡片即可实时渲染“实时窗口”。
+        if (!event.isError && event.result) {
+          this.attachToolPreviewImage({
+            live,
+            session,
+            sessionName: value.name,
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            result: event.result,
+            emit,
+          })
         }
         const resultOutput =
           event.toolName === 'bash' ? liveThinkingTail(textFromContent(event.result?.content)) : ''

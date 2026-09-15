@@ -147,6 +147,21 @@ function toolDetail(tool?: EntityRecord | null) {
         .filter(Boolean)
         .join(' · '),
     }
+  // computer use 工具：显示观察模式或动作摘要，帮助用户辨认当前在哪个窗口干什么。
+  if (tool?.name === 'observe_ui') return { text: cleanInline(args.root || args.mode) }
+  if (tool?.name === 'act_ui')
+    return {
+      text: Array.isArray(args.actions)
+        ? args.actions
+            .slice(0, 3)
+            .map((action: EntityRecord) => cleanInline(action?.action))
+            .filter(Boolean)
+            .join(' · ')
+        : '',
+    }
+  if (tool?.name === 'search_ui') return { text: cleanInline(args.text || args.role) }
+  if (tool?.name === 'find_roots') return { text: cleanInline(args.app || args.text) }
+  if (tool?.name === 'ocr_ui') return { text: cleanInline(args.language) }
   if (tool?.name === 'spawn_agent') return { text: cleanInline(args.taskName) }
   if (['send_message', 'followup_task', 'wait_agent', 'interrupt_agent'].includes(tool?.name))
     return { text: cleanInline(args.target) }
@@ -405,6 +420,30 @@ function CommandOutput({
   )
 }
 
+// 工具活动预览图：computer use / 浏览器截图等工具的“实时窗口”画面。
+// 每次观察/操作后由运行时补发 previewImage，随活动卡片就地更新；
+// 点击可在新标签页查看原图（内联下载响应本身就是图像）。
+function PreviewImage({ image, t }: { image: EntityRecord; t: Translate }) {
+  const url = String(image.url || '')
+  if (!url) return null
+  return (
+    <a
+      className="agent-run-tool-preview block w-full overflow-hidden rounded-[var(--r-sm)] [border:1px_solid_var(--stroke-soft)] bg-[var(--surface-subtle)] [grid-column:1/-1] [margin:2px_0_1px]"
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title={String(image.name || '')}
+    >
+      <img
+        alt={String(image.name || t('chat:agentRunActivity.toolPreviewAlt'))}
+        className="block max-h-[168px] w-full object-contain object-top"
+        loading="lazy"
+        src={url}
+      />
+    </a>
+  )
+}
+
 type ActivityCardProps = {
   activity: EntityRecord
   latest: boolean
@@ -510,6 +549,9 @@ const ActivityCard = memo(function ActivityCard({
             </small>
           )}
       </span>
+      {activity.previewImage && activity.previewImage.url ? (
+        <PreviewImage image={activity.previewImage} t={t} />
+      ) : null}
       {showCommandOutput && (
         <CommandOutput
           output={activity.output}
