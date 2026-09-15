@@ -25,5 +25,7 @@ commands.allow = [
   "desktop_pet_start_dragging",
   "desktop_pet_show_context_menu",
   "desktop_pet_sync_menu",
+  "desktop_computer_use_start_stream",
+  "desktop_computer_use_stop_stream",
   "desktop_show_main_window",
 ]

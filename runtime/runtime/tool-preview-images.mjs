@@ -91,12 +91,27 @@ export function previewImageFromAsset(asset) {
 
 // 预览图分发主流程：事件回调同步触发，这里异步归档后补发 tool_update。
 // 依赖由调用方注入（资产归档/查找/活会话校验/路径解析），保持模块纯净可测。
+// 从工具 details.target 中提取前端需要的目标窗口信息：windowId 驱动实时镜像流，
+// app/windowTitle 供展示。非 computer use 工具或字段缺失时返回 null。
+export function previewTargetFromDetails(toolName, details) {
+  const target = details?.target
+  const windowId = Number(target?.windowId)
+  if (!Number.isInteger(windowId) || windowId <= 0) return null
+  return {
+    app: String(target.app || '').slice(0, 120),
+    windowTitle: String(target.windowTitle || '').slice(0, 200),
+    bundleId: target.bundleId ? String(target.bundleId).slice(0, 200) : '',
+    windowId,
+  }
+}
+
 export async function dispatchToolPreviewImage(
   { archivePreview, findAssetByFilePath, isLiveSessionCurrent, resolve },
   { live, toolCallId, toolName, result, emit },
 ) {
   try {
     const contentPart = previewImagePartFromContent(toolName, result?.content)
+    const target = previewTargetFromDetails(toolName, result?.details)
     let previewImage = null
     if (contentPart) {
       previewImage = await archivePreview(contentPart)
@@ -108,15 +123,28 @@ export async function dispatchToolPreviewImage(
         previewImage = asset ? previewImageFromAsset(asset) : null
       }
     }
-    if (!previewImage) return
+    // 没有任何可补发信息（既无图也无目标窗口）时直接结束，避免空事件。
+    // 只有目标窗口也要继续：语义模式（无图）的 computer use 仍需驱动前端镜像流。
+    if (!previewImage && !target) return
     if (!isLiveSessionCurrent()) return
     const updatedAt = new Date().toISOString()
-    live.tools = live.tools.map((item) =>
-      item.id === toolCallId ? { ...item, previewImage, updatedAt } : item,
-    )
+    const patch = {
+      ...(previewImage ? { previewImage } : {}),
+      ...(target ? { target } : {}),
+      updatedAt,
+    }
+    live.tools = live.tools.map((item) => (item.id === toolCallId ? { ...item, ...patch } : item))
     if (live.currentActivity?.id === toolCallId)
-      live.currentActivity = { ...live.currentActivity, previewImage, updatedAt }
-    emit('tool_update', { id: toolCallId, name: toolName, previewImage, updatedAt })
+      live.currentActivity = { ...live.currentActivity, ...patch }
+    emit('tool_update', {
+      id: toolCallId,
+      name: toolName,
+      ...(patch.previewImage ? { previewImage: patch.previewImage } : {}),
+      // 目标窗口信息（computer use 工具的 details.target）：前端用它启动/维持实时镜像流。
+      // 只保留展示与流控需要的字段，剥离 pid/windowRef 等内部细节。
+      ...(target ? { target } : {}),
+      updatedAt,
+    })
   } catch {
     // 预览图是增强信息：归档或下发失败不应影响工具结果本身，静默降级为无预览。
   }

@@ -78,6 +78,8 @@ pisper-component-updater = { path = "../crates/component-updater" }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-single-instance = "2.4.3"
 tauri-plugin-window-state = "2.4.1"
+# Computer Use 实时窗口流：捕获帧 BGRA→缩放 JPEG 编码；只开 jpeg 能性避免拖入多余编解码器。
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }

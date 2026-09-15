@@ -1,5 +1,6 @@
 mod cli_manager;
 mod component_updates;
+mod computer_use;
 mod desktop_bridge;
 mod desktop_pet;
 mod desktop_terminal;
@@ -779,6 +780,7 @@ pub fn run() {
         )
         .manage(component_updates::ComponentUpdateState::default())
         .manage(desktop_terminal::DesktopTerminalState::default())
+        .manage(computer_use::ComputerUseStreamState::default())
         .manage(LifecycleState {
             quitting: AtomicBool::new(false),
         })
@@ -807,6 +809,8 @@ pub fn run() {
             desktop_terminal::desktop_terminal_resize,
             desktop_terminal::desktop_terminal_close,
             desktop_terminal::desktop_terminal_close_all,
+            computer_use::desktop_computer_use_start_stream,
+            computer_use::desktop_computer_use_stop_stream,
             desktop_pet::desktop_pet_apply_enabled,
             desktop_pet::desktop_pet_set_visible,
             desktop_pet::desktop_pet_start_dragging,

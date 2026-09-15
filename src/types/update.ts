@@ -133,6 +133,24 @@ export type DesktopTerminalCreated = {
   cwd: string
 }
 
+// Computer Use 实时窗口帧事件：Rust 侧经 Channel 下发（与终端输出同一回调模式）。
+export type DesktopComputerUseFrameEvent =
+  | {
+      type: 'frame'
+      windowId: number
+      width: number
+      height: number
+      timestampMs: number
+      jpegBase64: string
+    }
+  | { type: 'error'; code: string; message: string }
+  | { type: 'stopped' }
+
+export type DesktopComputerUseStreamOptions = {
+  maxWidth?: number
+  fps?: number
+}
+
 export type DesktopBridge = {
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
@@ -167,6 +185,12 @@ export type DesktopBridge = {
   terminalResize?: (terminalId: string, cols: number, rows: number) => Promise<void>
   terminalClose?: (terminalId: string) => Promise<boolean>
   terminalCloseAll?: () => Promise<number>
+  computerUseStartStream?: (
+    windowId: number,
+    onFrame: (event: DesktopComputerUseFrameEvent) => void,
+    options?: DesktopComputerUseStreamOptions,
+  ) => Promise<void>
+  computerUseStopStream?: (windowId: number) => Promise<void>
   getPetStatus?: () => Promise<DesktopPetStatus>
   setPetEnabled?: (enabled: boolean) => Promise<DesktopPetStatus>
   setPetOpacity?: (opacity: number) => Promise<DesktopPetStatus>

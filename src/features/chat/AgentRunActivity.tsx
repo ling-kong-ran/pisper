@@ -9,6 +9,8 @@ import MarkdownMessage from '@/components/MarkdownMessage'
 import { planFromActivity } from '@/lib/plan-protocol'
 import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { EntityRecord, TeamCommunication, TeamState, TeamTask } from '@/types/chat'
+import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
+import { latestComputerUseTarget } from './computer-use-live-support.ts'
 import {
   agentActivityTitle,
   compactionText,
@@ -594,6 +596,9 @@ function AgentRunActivity({
   }, [thinking])
 
   const activities = activityFeed.length ? activityFeed : tools
+  // computer use 实时镜像跟随 agent 当前操作的目标窗口；仅流式期间激活，
+  // 且镜像回退到同一活动的静态预览图。
+  const computerUseTarget = streaming && !compact ? latestComputerUseTarget(activities) : null
   const activityVersion = activityScrollVersion(activities)
   const teamTasks: TeamTask[] = Array.isArray(team?.tasks) ? team.tasks : []
   const teamCompleted = Number(team?.completedTaskCount ?? 0)
@@ -860,6 +865,13 @@ function AgentRunActivity({
             </div>
           </details>
         )}
+      {streaming && !compact && computerUseTarget ? (
+        <ComputerUseLiveMirror
+          fallbackImage={computerUseTarget.previewImage}
+          streaming={streaming}
+          target={computerUseTarget}
+        />
+      ) : null}
       {streaming && activities.length > 0 && (
         <div
           ref={liveFeedRef}

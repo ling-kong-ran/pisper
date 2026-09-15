@@ -125,6 +125,20 @@
         invoke('desktop_terminal_resize', { terminalId, cols, rows }),
       terminalClose: (terminalId) => invoke('desktop_terminal_close', { terminalId }),
       terminalCloseAll: () => invoke('desktop_terminal_close_all'),
+      computerUseStartStream: (windowId, onFrame, options = {}) => {
+        // 帧流复用终端输出的 Channel 回调模式：不需额外的 Tauri 事件权限。
+        const channel = new Channel(onFrame)
+        return invoke('desktop_computer_use_start_stream', {
+          input: {
+            windowId,
+            maxWidth: options.maxWidth,
+            fps: options.fps,
+          },
+          onFrame: channel,
+        })
+      },
+      computerUseStopStream: (windowId) =>
+        invoke('desktop_computer_use_stop_stream', { input: { windowId } }),
       getPetStatus: () => api('/api/desktop-pet'),
       setPetEnabled,
       setPetOpacity: (opacity) =>

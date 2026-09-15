@@ -422,6 +422,8 @@ export function createStreamEventDispatcher({
           // 工具预览图（computer use / 浏览器截图）：归档完成后由运行时补发，
           // 随同一调度通道合并进活动卡片，避免额外的前端事件通道。
           ...(data.previewImage ? { previewImage: data.previewImage } : {}),
+          // 目标窗口信息：驱动 computer use 实时镜像流的启动与保活。
+          ...(data.target ? { target: data.target } : {}),
         },
         data.updatedAt || eventAt,
       )
@@ -451,6 +453,7 @@ export function createStreamEventDispatcher({
           finishedAt,
           ...(data.output !== undefined ? { output: data.output } : {}),
           ...(data.previewImage ? { previewImage: data.previewImage } : {}),
+          ...(data.target ? { target: data.target } : {}),
         }
         const agentActivity = data.agent
           ? {
@@ -477,6 +480,7 @@ export function createStreamEventDispatcher({
                   finishedAt,
                   ...(data.output !== undefined ? { output: data.output } : {}),
                   ...(data.previewImage ? { previewImage: data.previewImage } : {}),
+                  ...(data.target ? { target: data.target } : {}),
                 }
               : item,
           ),

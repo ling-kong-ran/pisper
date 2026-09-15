@@ -94,7 +94,15 @@ test('tool_execution_end 内联图像归档后补发 previewImage tool_update', 
             { type: 'text', text: 'Outline (2 nodes, stateId s1)' },
             { type: 'image', data: PNG_1PX, mimeType: 'image/png' },
           ],
-          details: { capture: { stateId: 's1', width: 800, height: 600 } },
+          details: {
+            capture: { stateId: 's1', width: 800, height: 600 },
+            target: {
+              app: 'Weather',
+              windowTitle: 'Weather — Cupertino',
+              bundleId: 'com.apple.weather',
+              windowId: 77,
+            },
+          },
         },
       },
     ],
@@ -119,6 +127,13 @@ test('tool_execution_end 内联图像归档后补发 previewImage tool_update', 
   assert.match(previewImage.url, /^\/api\/assets\/[^/]+\/download\?inline=1$/)
   assert.equal(previewImage.mimeType, 'image/png')
   assert.equal(previewUpdate.data.name, 'observe_ui')
+  // 目标窗口信息随同一事件透传：前端用它驱动实时镜像流。
+  assert.deepEqual(previewUpdate.data.target, {
+    app: 'Weather',
+    windowTitle: 'Weather — Cupertino',
+    bundleId: 'com.apple.weather',
+    windowId: 77,
+  })
 
   // 活动状态同步更新：tools / currentActivity 都能看到预览。
   // 注意：done 快照在运行收尾时生成，早于异步归档完成，因此不包含 previewImage；
@@ -219,4 +234,56 @@ test('无图像的工具结果不会补发 previewImage', async (t) => {
   )
   const assetDir = join(directory, 'pisper-assets')
   await rm(assetDir, { recursive: true, force: true }).catch(() => {})
+})
+
+test('语义模式（无图像）的 computer use 结果仍透传目标窗口', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-tool-preview-semantic-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.archiveAttachments = async () => []
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+
+  const session = createFakeSession({
+    sessionId: 'session-semantic',
+    eventsByToolEnd: [
+      {
+        toolName: 'act_ui',
+        // 语义模式：结果只有文本大纲，没有内联图，也没有已归档文件。
+        result: {
+          content: [{ type: 'text', text: 'Outline (5 nodes, stateId s2)' }],
+          details: {
+            target: {
+              app: 'Notes',
+              windowTitle: 'Notes',
+              bundleId: 'com.apple.Notes',
+              windowId: 88,
+            },
+          },
+        },
+      },
+    ],
+  })
+  const value = { session, cwd: directory, name: '语义会话', baseToolNames: [] }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  const events = []
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: '操作备忘录',
+    send: (event, data) => events.push({ event, data }),
+  })
+
+  // 无图也应收到仅带 target 的 tool_update：实时镜像流需要它保活。
+  const targetUpdate = await waitFor(() =>
+    events.find((item) => item.event === 'tool_update' && item.data.target),
+  )
+  assert.ok(targetUpdate, '语义模式应透传目标窗口')
+  assert.equal(targetUpdate.data.target.windowId, 88)
+  assert.equal(targetUpdate.data.name, 'act_ui')
+  assert.equal(targetUpdate.data.previewImage, undefined)
+  // 活动状态也带上了目标信息。
+  const live = await runtime.getSessionLive(session.sessionId)
+  assert.equal(live.tools[0].target.windowId, 88)
 })
