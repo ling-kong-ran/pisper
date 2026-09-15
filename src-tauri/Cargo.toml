@@ -81,6 +81,20 @@ tauri-plugin-window-state = "2.4.1"
 # Computer Use 实时窗口流：捕获帧 BGRA→缩放 JPEG 编码；只开 jpeg 能性避免拖入多余编解码器。
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
+# Computer Use 实时镜像（macOS）：ScreenCaptureKit 运行时调用。
+# 关键约束：不得依赖 objc2-screen-capture-kit——它对 SCK 的 #[link] 会随 rlib 的
+# LC_LINKER_OPTION 把强链接写入主二进制，macOS 12.3 之前整个应用无法启动。
+# 计算机捕获完全在 computer_use.rs 内用 extern_protocol!/define_class!/msg_send!
+# 按名称运行时解析；这里只依赖远古框架（Foundation/CoreMedia/CoreVideo/CoreGraphics）。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", features = ["std", "exception", "verify"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSError", "NSString", "NSArray"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
+objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2", "CMTime", "CMSampleBuffer", "objc2-core-video"] }
+objc2-core-video = { version = "0.3", default-features = false, features = ["std", "objc2", "CVPixelBuffer", "CVBase", "CVBuffer", "CVImageBuffer", "CVReturn"] }
+block2 = { version = "0.6", default-features = false, features = ["std", "alloc"] }
+dispatch2 = { version = "0.3", default-features = false, features = ["std", "alloc", "objc2"] }
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"

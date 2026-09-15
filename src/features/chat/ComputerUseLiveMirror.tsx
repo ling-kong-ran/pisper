@@ -64,6 +64,9 @@ function ComputerUseLiveMirrorBase({
         } else if (event.type === 'error') {
           // 权限缺失/窗口关闭：停流回退静态预览。
           setStatus('unavailable')
+        } else if (event.type === 'downgraded') {
+          // SCStream 不可用已回退轮询：继续等待帧（降速但不断流）。
+          setStatus((prev) => (prev === 'live' ? prev : 'connecting'))
         } else if (event.type === 'stopped') {
           setStatus('unavailable')
         }

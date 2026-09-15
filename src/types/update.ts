@@ -144,6 +144,8 @@ export type DesktopComputerUseFrameEvent =
       jpegBase64: string
     }
   | { type: 'error'; code: string; message: string }
+  // 降级提示（非致命）：SCStream 不可用已回退轮询，帧流继续。
+  | { type: 'downgraded'; reason: string }
   | { type: 'stopped' }
 
 export type DesktopComputerUseStreamOptions = {
