@@ -25,7 +25,9 @@ const MAX_FRAME_JPEG_BYTES: usize = 512 * 1024;
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamStartInput {
-    window_id: u32,
+    /// 窗口编号：macOS 为 CGWindowID（u32），Windows 为 HWND（官方 bridge 按
+    /// isize 上报）。统一 u64 兼容两端：runtime 只透传正整数，平台边界各自收窄。
+    window_id: u64,
     #[serde(default = "default_max_width")]
     max_width: u32,
     #[serde(default = "default_fps")]
@@ -46,7 +48,9 @@ fn default_fps() -> u32 {
     12
 }
 
-/// SCStream 路径的帧率上限：超过无意义且会放大 CPU/IPC 开销。
+/// SCStream 路径的帧率上限（仅 macOS）：超过无意义且会放大 CPU/IPC 开销。
+/// Windows WGC 主路径为内容驱动、无帧率参数；轮询兜底两端统一用 POLLING_MAX_FPS。
+#[cfg(target_os = "macos")]
 const MAX_FPS: u32 = 60;
 
 const POLLING_MAX_FPS: u32 = 5;
@@ -60,7 +64,7 @@ const POLLING_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(200);
 )]
 pub enum ComputerUseFrameEvent {
     Frame {
-        window_id: u32,
+        window_id: u64,
         width: u32,
         height: u32,
         timestamp_ms: u64,
@@ -99,7 +103,7 @@ impl AtomicBoolLike {
 }
 
 #[derive(Default)]
-pub struct ComputerUseStreamState(Arc<Mutex<HashMap<u32, ManagedStream>>>);
+pub struct ComputerUseStreamState(Arc<Mutex<HashMap<u64, ManagedStream>>>);
 
 fn ensure_main(window: &WebviewWindow) -> Result<(), String> {
     if window.label() == "main" {
@@ -253,7 +257,7 @@ fn run_encoder(
     slot: Arc<FrameSlot>,
     stop: Arc<AtomicBoolLike>,
     channel: tauri::ipc::Channel<ComputerUseFrameEvent>,
-    window_id: u32,
+    window_id: u64,
     max_width: u32,
 ) {
     let mut last_signature: Option<u64> = None;
@@ -317,17 +321,22 @@ fn run_encoder(
     }
 }
 
+/// 捕获失败原因（平台中性契约：监督线程按此统一处理）。
+/// Denied 为 macOS TCC 屏幕录制权限特有；Windows 无逐窗口捕获权限门槛，
+/// 该变体不会被构造（match 分支保留以维持跨平台一致的处理逻辑）。
+pub enum CaptureError {
+    WindowMissing,
+    #[allow(dead_code)]
+    Denied,
+    Failed(String),
+}
+
 // ---------------------------------------------------------------------------
 // macOS 捕获实现：SCStream（dlopen + objc2 运行时绑定）主路径 + 轮询回退。
 // ---------------------------------------------------------------------------
 #[cfg(target_os = "macos")]
 mod capture {
-    /// 捕获失败原因：区分“窗口不存在”和“权限缺失”（后者返回空图）。
-    pub enum CaptureError {
-        WindowMissing,
-        Denied,
-        Failed(String),
-    }
+    pub use super::CaptureError;
 
     // -- 回退路径：CGWindowListCreateImage 轮询（兼容与兜底） ------------------
 
@@ -1033,7 +1042,106 @@ mod capture {
 }
 
 #[cfg(target_os = "macos")]
-use capture::{sc_stream, CaptureError};
+use capture::sc_stream;
+
+// ---------------------------------------------------------------------------
+// 平台捕获后端分派：监督线程只面对这一组统一函数，macOS/Windows 各自实现。
+// macOS = SCStream 主路径 + CGWindowList 轮询兜底；
+// Windows = WGC 主路径（crates/computer-use-capture-win，WinRT 运行时激活
+// 零强链接，旧系统优雅降级）+ GDI PrintWindow 轮询兜底。
+// ---------------------------------------------------------------------------
+
+/// 主路径句柄：监督线程持有，线程退出时随之释放并停流。
+#[cfg(target_os = "macos")]
+type PrimaryHandle = sc_stream::StreamHandle;
+
+#[cfg(target_os = "macos")]
+fn primary_available() -> bool {
+    sc_stream::ensure_screencapturekit_loaded()
+}
+
+#[cfg(target_os = "macos")]
+fn primary_unavailable_reason() -> String {
+    "ScreenCaptureKit is unavailable on this system".into()
+}
+
+#[cfg(target_os = "macos")]
+fn start_primary(
+    window_id: u64,
+    max_width: u32,
+    fps: u32,
+    slot: Arc<FrameSlot>,
+) -> Result<PrimaryHandle, String> {
+    // CGWindowID 天然是 u32：SCShareableContent 枚举产出的 ID 不会溢出。
+    sc_stream::start(window_id as u32, max_width, fps, slot)
+}
+
+#[cfg(target_os = "macos")]
+fn stop_primary(handle: &PrimaryHandle) {
+    sc_stream::stop(handle);
+}
+
+#[cfg(target_os = "macos")]
+fn capture_polling(window_id: u64) -> Result<CapturedWindow, CaptureError> {
+    capture::cg_ffi::capture_window_bgra(window_id as u32)
+}
+
+#[cfg(windows)]
+type PrimaryHandle = computer_use_capture_win::WgcStream;
+
+#[cfg(windows)]
+fn primary_available() -> bool {
+    computer_use_capture_win::wgc_supported()
+}
+
+#[cfg(windows)]
+fn primary_unavailable_reason() -> String {
+    "Windows Graphics Capture is unavailable on this system (Windows 10 1903+ required)".into()
+}
+
+#[cfg(windows)]
+fn start_primary(
+    window_id: u64,
+    _max_width: u32,
+    _fps: u32,
+    slot: Arc<FrameSlot>,
+) -> Result<PrimaryHandle, String> {
+    // WGC 输出窗口物理尺寸、无内置缩放/限速参数：降采样由编码管线
+    // （encode_jpeg 的 max_width）统一完成；帧节奏由内容驱动（DWM 合成），
+    // 单槽邮箱天然丢弃旧帧——与 macOS SCK 主路径语义一致。
+    computer_use_capture_win::start_wgc(
+        window_id,
+        Arc::new(move |result| match result {
+            Ok(frame) => slot.push(CapturedWindow {
+                width: frame.width,
+                height: frame.height,
+                bgra: frame.bgra,
+            }),
+            Err(error) => slot.push_error(error.message()),
+        }),
+    )
+}
+
+#[cfg(windows)]
+fn stop_primary(_handle: &PrimaryHandle) {
+    // WgcStream 的 Drop 即停流（解绑事件 + 关闭 session/pool），
+    // 监督线程退出时统一释放，无需显式停止调用。
+}
+
+#[cfg(windows)]
+fn capture_polling(window_id: u64) -> Result<CapturedWindow, CaptureError> {
+    computer_use_capture_win::capture_window_gdi(window_id)
+        .map(|frame| CapturedWindow {
+            width: frame.width,
+            height: frame.height,
+            bgra: frame.bgra,
+        })
+        .map_err(|error| match error {
+            computer_use_capture_win::CaptureError::WindowMissing => CaptureError::WindowMissing,
+            // Windows 无权限门槛，后端故障统一走 Failed（重试/终止由轮询循环决定）。
+            other => CaptureError::Failed(other.message()),
+        })
+}
 
 // ---------------------------------------------------------------------------
 // 启动自测（仅 debug 构建）：环境变量 PISPER_CU_SELFTEST=1 时，在自身进程内
@@ -1260,7 +1368,7 @@ const SELFTEST_ANIM_JS: &str = r#"(function(){if(!document.body)return;var d=doc
 #[cfg(all(debug_assertions, target_os = "macos"))]
 const SELFTEST_CLEAR_JS: &str = r#"(function(){clearInterval(window.__cuSelfAnim);var d=document.getElementById('cu-selftest-anim');if(d)d.remove();})()"#;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 #[tauri::command]
 pub fn desktop_computer_use_start_stream(
     window: WebviewWindow,
@@ -1295,8 +1403,8 @@ pub fn desktop_computer_use_start_stream(
     );
     drop(streams);
 
-    // 每条流一个监督线程：负责启动 SCStream/轮询、守护生命周期并收尾。
-    // SCShareableContent 枚举与启动均为阻塞等待（最长 10s），不能占用异步运行时。
+    // 每条流一个监督线程：负责启动主路径/轮询、守护生命周期并收尾。
+    // 主路径枚举与启动可能是阻塞等待（macOS 最长约 10s），不能占用异步运行时。
     // state 是借用句柄，把内部 Arc 移交给监督线程以便收尾时清理注册表。
     let streams_state = Arc::clone(&state.0);
     let rollback_state = Arc::clone(&state.0);
@@ -1306,18 +1414,19 @@ pub fn desktop_computer_use_start_stream(
             let started = Instant::now();
             let slot = Arc::new(FrameSlot::new());
             let encoder_stop = Arc::new(AtomicBoolLike::new());
-            let mut sc_stream: Option<sc_stream::StreamHandle> = None;
+            let mut primary: Option<PrimaryHandle> = None;
 
-            // 主路径：SCStream。句柄由监督线程持有，退出时统一停流。
-            // mode=poll 为诊断开关：跳过 SCStream，直接走轮询路径对比帧数。
+            // 主路径：平台原生流（macOS SCStream / Windows WGC）。句柄由监督
+            // 线程持有，退出时统一停流。
+            // mode=poll 为诊断开关：跳过主路径，直接走轮询路径对比帧数。
             let force_polling = input.mode.as_deref() == Some("poll");
-            if !force_polling && sc_stream::ensure_screencapturekit_loaded() {
-                match sc_stream::start(window_id, max_width, input.fps, Arc::clone(&slot)) {
-                    Ok(handle) => sc_stream = Some(handle),
+            if !force_polling && primary_available() {
+                match start_primary(window_id, max_width, input.fps, Arc::clone(&slot)) {
+                    Ok(handle) => primary = Some(handle),
                     Err(message) => {
-                        // SCStream 不可用不立即失败：先降级到轮询，前端仍能看到画面。
+                        // 主路径不可用不立即失败：先降级到轮询，前端仍能看到画面。
                         eprintln!(
-                            "[computer-use] SCStream unavailable, falling back to polling: {message}"
+                            "[computer-use] native stream unavailable, falling back to polling: {message}"
                         );
                         computer_use_channel_send(
                             &on_frame,
@@ -1329,7 +1438,7 @@ pub fn desktop_computer_use_start_stream(
                 computer_use_channel_send(
                     &on_frame,
                     ComputerUseFrameEvent::Downgraded {
-                        reason: "ScreenCaptureKit is unavailable on this system".into(),
+                        reason: primary_unavailable_reason(),
                     },
                 );
             }
@@ -1344,8 +1453,8 @@ pub fn desktop_computer_use_start_stream(
                     move || run_encoder(slot, encoder_stop, channel, window_id, max_width)
                 });
 
-            if sc_stream.is_some() {
-                // SCStream 路径只做生命周期看护：停止信号/超时时停流。
+            if primary.is_some() {
+                // 主路径只做生命周期看护：停止信号/超时时停流。
                 while !stop.is_stopped() && started.elapsed() <= MAX_STREAM_LIFETIME {
                     std::thread::sleep(Duration::from_millis(500));
                 }
@@ -1356,7 +1465,7 @@ pub fn desktop_computer_use_start_stream(
                     POLLING_MIN_FRAME_INTERVAL.max(Duration::from_millis(1000 / fps as u64));
                 let mut consecutive_failures = 0u32;
                 while !stop.is_stopped() && started.elapsed() <= MAX_STREAM_LIFETIME {
-                    match capture::cg_ffi::capture_window_bgra(window_id) {
+                    match capture_polling(window_id) {
                         Ok(frame) => {
                             consecutive_failures = 0;
                             slot.push(frame);
@@ -1400,9 +1509,9 @@ pub fn desktop_computer_use_start_stream(
                 }
             }
 
-            // 收尾：停 SCStream、停编码线程、清理注册表并通知前端。
-            if let Some(stream) = sc_stream.as_ref() {
-                sc_stream::stop(stream);
+            // 收尾：停主路径、停编码线程、清理注册表并通知前端。
+            if let Some(handle) = primary.as_ref() {
+                stop_primary(handle);
             }
             encoder_stop.stop();
             if let Ok(encoder) = encoder {
@@ -1426,11 +1535,11 @@ pub fn desktop_computer_use_start_stream(
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamStopInput {
-    window_id: u32,
+    window_id: u64,
 }
 
 #[tauri::command]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub fn desktop_computer_use_stop_stream(
     window: WebviewWindow,
     state: State<'_, ComputerUseStreamState>,
@@ -1445,8 +1554,8 @@ pub fn desktop_computer_use_stop_stream(
     Ok(())
 }
 
-// 非 macOS 桌面平台：保留命令面（前端统一调用路径），返回平台不支持错误。
-#[cfg(not(target_os = "macos"))]
+// 非 macOS/Windows 桌面平台：保留命令面（前端统一调用路径），返回平台不支持错误。
+#[cfg(not(any(target_os = "macos", windows)))]
 #[tauri::command]
 pub fn desktop_computer_use_start_stream(
     window: WebviewWindow,
@@ -1455,10 +1564,10 @@ pub fn desktop_computer_use_start_stream(
     on_frame: Channel<ComputerUseFrameEvent>,
 ) -> Result<(), String> {
     let _ = (window, state, input, on_frame);
-    Err("Computer Use window streaming requires macOS in this build.".into())
+    Err("Computer Use window streaming requires macOS or Windows in this build.".into())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 #[tauri::command]
 pub fn desktop_computer_use_stop_stream(
     window: WebviewWindow,
@@ -1466,7 +1575,7 @@ pub fn desktop_computer_use_stop_stream(
     input: StreamStopInput,
 ) -> Result<(), String> {
     let _ = (window, state, input);
-    Err("Computer Use window streaming requires macOS in this build.".into())
+    Err("Computer Use window streaming requires macOS or Windows in this build.".into())
 }
 
 #[cfg(test)]

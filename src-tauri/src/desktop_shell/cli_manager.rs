@@ -392,8 +392,12 @@ mod windows_path {
         }
         let mut units = value
             .bytes
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            // as_chunks 免去了逐对索引；长度已保证是 2 的倍数，余数切片恒为空。
+            // （clippy chunks_exact_to_as_chunks：项目 MSRV 1.91 ≥ as_chunks 稳定的 1.88）
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u16::from_le_bytes(*pair))
             .collect::<Vec<_>>();
         while units.last() == Some(&0) {
             units.pop();

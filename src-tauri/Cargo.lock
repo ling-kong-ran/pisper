@@ -676,6 +676,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "computer-use-capture-win"
+version = "0.1.0"
+dependencies = [
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4007,6 +4014,7 @@ dependencies = [
  "base64 0.22.1",
  "block2",
  "bytes",
+ "computer-use-capture-win",
  "dispatch2",
  "flate2",
  "futures-util",

@@ -13,24 +13,33 @@ fn manifest_version(manifest: &serde_json::Value, path: &[&str]) -> String {
 
 fn stage_windows_test_resource() {
     let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
-    let (generated_name, test_name) = if target_env == "msvc" {
-        ("resource.lib", "pisper_test_resource.lib")
+    // 测试资源名跟随工具链的链接约定：msvc 用 .lib，gnu 用 lib*.a
+    // （src/desktop_shell/mod.rs 的 cfg(test) link 块按此查找）。
+    let test_name = if target_env == "msvc" {
+        "pisper_test_resource.lib"
     } else {
-        ("libresource.a", "libpisper_test_resource.a")
+        "libpisper_test_resource.a"
     };
     let out_dir =
         std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo must provide OUT_DIR"));
-    let generated = out_dir.join(generated_name);
-    let test_resource = out_dir.join(test_name);
-    assert!(
-        generated.is_file(),
-        "tauri-build did not generate the Windows resource at {}",
-        generated.display()
-    );
+    // embed-resource 的产物命名随版本变化：msvc 恒为 resource.lib；gnu 在 2.x 时代是
+    // libresource.a（windres+ar），3.x 实测为 resource.lib（windres 单步 COFF）。
+    // 按序探测两种命名，避免工具链/依赖升级悄悄打断 Windows 构建。
+    let generated = ["resource.lib", "libresource.a"]
+        .iter()
+        .map(|name| out_dir.join(name))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| {
+            panic!(
+                "tauri-build did not generate the Windows resource in {}",
+                out_dir.display()
+            )
+        });
 
     // tauri-build links `generated` to the application binary. Unit-test targets opt in to this
     // valid copy through their cfg(test) native link block, so the binary is never linked twice.
-    std::fs::copy(&generated, &test_resource).expect("failed to stage the Windows test resource");
+    std::fs::copy(&generated, out_dir.join(test_name))
+        .expect("failed to stage the Windows test resource");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 }
 

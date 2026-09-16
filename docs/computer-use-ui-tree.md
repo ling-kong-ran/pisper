@@ -121,6 +121,12 @@ serde_json 直接断流）；帧流是桌面壳专属高频通道，走 Tauri Ch
   版本强链接崩溃——与 macOS 侧「dlopen ScreenCaptureKit、主二进制零强链接」的约束
   完全对齐。官方 helper 的 GDI PrintWindow 捕获仅服务其自身 look image，不作为
   Pisper 可视化栈方案（PrintWindow 对 DirectX 内容与遮挡窗口有明显缺陷）。
+  实现位于 `crates/computer-use-capture-win`（独立 crate：WGC 主路径 + GDI 轮询
+  兜底），src-tauri 侧经 `computer_use.rs` 的 platform 分派层接入与 macOS 完全
+  同构的监督线程/单槽邮箱/JPEG 编码管线（窗口编号统一 u64：macOS CGWindowID，
+  Windows HWND）。WGC 帧为 GPU 纹理，经 staging 纹理 CopyResource+Map 回 CPU，
+  尺寸变化才重建 staging；无边框（SetIsBorderRequired）/无光标
+  （SetIsCursorCaptureEnabled）为 best-effort，旧系统忽略。
 - **验收**：Windows 侧必须真机验收（R8 类比：源码检查 + 单测 + 实机运行分层报告）；
   当前开发机为 macOS，Windows 构建与运行验收需另行安排，交付时明确标注未验证项。
 
@@ -132,9 +138,13 @@ serde_json 直接断流）；帧流是桌面壳专属高频通道，走 Tauri Ch
 
 ## 现状与验收（2026-09）
 
-- macOS：镜像流 SCStream 12fps 真机验证通过（Swift 原生置顶动画窗口目标，6s 72 帧
-  ≈11.9fps，JPEG 编码正常）；静止帧签名跳过与遮挡冻结（系统固有行为）已确认。
+- macOS：镜像流 SCStream 12fps 真机验证通过（Swift 原生置顶动画窗口目标，6s 73 帧
+  ≈12.0fps，JPEG 编码正常；platform 分派重构后复验 PASS）；静止帧签名跳过与遮挡
+  冻结（系统固有行为）已确认。
 - 帧预算 q70/≤1280：已落地，cargo test 83 通过。
-- Windows：官方 bridge 已随包分发（打包脚本确认保留）；Pisper 原生 WGC 可视化与
-  真机验收未完成——见 M3 计划。
+- Windows：官方 bridge 已随包分发（打包脚本确认保留）；Pisper 原生 WGC 镜像流已实现
+  （crates/computer-use-capture-win + src-tauri platform 分派），在 macOS 主机上经
+  `cargo check/clippy --target x86_64-pc-windows-gnu`（mingw-w64）与
+  `--target x86_64-pc-windows-msvc`（捕获 crate）静态验证通过；**真机运行验收未做**
+  （需 Windows 10 1903+ 实机：WGC 帧交付、GDI 兜底、降级链、长时间稳定性）。
 - 敏感 app 二次确认：设计定稿（本文档），实现待做。

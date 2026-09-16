@@ -98,6 +98,10 @@ dispatch2 = { version = "0.3", default-features = false, features = ["std", "all
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"
+# Windows 镜像流捕获后端（WGC 主路径 + GDI 轮询兜底）：独立 crate 以便在
+# 任意主机交叉 cargo check/clippy（主 crate 因 ring 的 C 依赖无法在 macOS
+# 主机对 MSVC 目标交叉编译）。
+computer-use-capture-win = { path = "../crates/computer-use-capture-win" }
 
 [dev-dependencies]
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。
