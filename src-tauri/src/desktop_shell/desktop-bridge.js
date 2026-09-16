@@ -133,6 +133,7 @@
             windowId,
             maxWidth: options.maxWidth,
             fps: options.fps,
+            mode: options.mode,
           },
           onFrame: channel,
         })

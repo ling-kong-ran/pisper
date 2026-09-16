@@ -30,6 +30,10 @@ pub struct StreamStartInput {
     max_width: u32,
     #[serde(default = "default_fps")]
     fps: u32,
+    /// 调试选项：强制捕获后端。"poll" 走 CGWindowListCreateImage 轮询，
+    /// 其余值走默认的 SCStream 优先 + 自动降级。用于对比诊断两条路径。
+    #[serde(default)]
+    mode: Option<String>,
 }
 
 fn default_max_width() -> u32 {
@@ -42,7 +46,9 @@ fn default_fps() -> u32 {
     12
 }
 
+/// SCStream 路径的帧率上限：超过无意义且会放大 CPU/IPC 开销。
 const MAX_FPS: u32 = 60;
+
 const POLLING_MAX_FPS: u32 = 5;
 const POLLING_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(200);
 
@@ -125,6 +131,8 @@ pub struct CapturedWindow {
 /// “只留最新帧”的单槽邮箱：编码速度跟不上时丢弃旧帧，镜像始终显示最新画面。
 struct FrameSlot {
     frame: Mutex<Option<CapturedWindow>>,
+    /// 流级错误（如 SCStream didStopWithError）：由编码线程取出并上报前端。
+    error: Mutex<Option<String>>,
     ready: Condvar,
 }
 
@@ -132,6 +140,7 @@ impl FrameSlot {
     fn new() -> Self {
         Self {
             frame: Mutex::new(None),
+            error: Mutex::new(None),
             ready: Condvar::new(),
         }
     }
@@ -142,6 +151,16 @@ impl FrameSlot {
         self.ready.notify_one();
     }
 
+    fn push_error(&self, message: String) {
+        let mut guard = self.error.lock().unwrap_or_else(|p| p.into_inner());
+        *guard = Some(message);
+        self.ready.notify_one();
+    }
+
+    fn take_error(&self) -> Option<String> {
+        self.error.lock().unwrap_or_else(|p| p.into_inner()).take()
+    }
+
     /// 阻塞取最新帧；被停止时返回 None。
     fn take(&self, stop: &AtomicBoolLike) -> Option<CapturedWindow> {
         let mut guard = self.frame.lock().unwrap_or_else(|p| p.into_inner());
@@ -150,6 +169,15 @@ impl FrameSlot {
                 return Some(frame);
             }
             if stop.is_stopped() {
+                return None;
+            }
+            // 流级错误也退出等待：编码线程收尾时取出错误并上报。
+            if self
+                .error
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .is_some()
+            {
                 return None;
             }
             // 等待时释放锁；等待超时后重查停止标记，保证停止信号及时生效。
@@ -274,6 +302,17 @@ fn run_encoder(
                 jpeg_base64,
             },
         );
+    }
+    // 流级错误（如 SCK didStopWithError）：上报前端并触发监督线程收尾。
+    if let Some(message) = slot.take_error() {
+        computer_use_channel_send(
+            &channel,
+            ComputerUseFrameEvent::Error {
+                code: "stream_stopped".into(),
+                message,
+            },
+        );
+        stop.stop();
     }
 }
 
@@ -446,6 +485,96 @@ mod capture {
             }
             Ok(compact_bgra(&bytes, width, height, bytes_per_row))
         }
+
+        // 仅供启动自测：按 PID 找本进程面积最大的顶层窗口。
+        // 窗口列表元数据（ID/属主/层次/位置）不触发屏幕录制 TCC。
+        #[cfg(debug_assertions)]
+        pub fn find_own_window_id() -> Option<u32> {
+            type CFArrayRef = *const c_void;
+            type CFDictionaryRef = *const c_void;
+            type CFStringRef = *const c_void;
+            type CFNumberRef = *const c_void;
+
+            unsafe extern "C" {
+                static kCGWindowNumber: CFStringRef;
+                static kCGWindowOwnerPID: CFStringRef;
+                static kCGWindowLayer: CFStringRef;
+                static kCGWindowBounds: CFStringRef;
+                fn CGWindowListCopyWindowInfo(option: u32, relative_to: u32) -> CFArrayRef;
+                fn CFArrayGetCount(array: CFArrayRef) -> isize;
+                fn CFArrayGetValueAtIndex(array: CFArrayRef, idx: isize) -> *const c_void;
+                fn CFDictionaryGetValue(dict: CFDictionaryRef, key: CFStringRef) -> *const c_void;
+                fn CFNumberGetValue(
+                    number: CFNumberRef,
+                    the_type: isize,
+                    value_ptr: *mut c_void,
+                ) -> bool;
+                fn CGRectMakeWithDictionaryRepresentation(
+                    dict: CFDictionaryRef,
+                    rect: *mut CGRect,
+                ) -> bool;
+                fn CFRelease(cf: *const c_void);
+            }
+
+            fn number_i64(dict: *const c_void, key: *const c_void) -> Option<i64> {
+                // SAFETY: 字典键是 CG 定义的 CFString；返回值是 CFNumber。
+                let value = unsafe { CFDictionaryGetValue(dict.cast(), key) };
+                if value.is_null() {
+                    return None;
+                }
+                let mut out: i64 = 0;
+                // kCFNumberSInt64Type = 4；统一按 64 位读，窄数值会正确零扩展。
+                if unsafe { CFNumberGetValue(value, 4, &mut out as *mut _ as *mut c_void) } {
+                    Some(out)
+                } else {
+                    None
+                }
+            }
+
+            let own_pid = std::process::id() as i64;
+            // kCGWindowListOptionOnScreenOnly = 1<<0；kCGNullWindowID = 0。
+            let list = unsafe { CGWindowListCopyWindowInfo(1 << 0, 0) };
+            if list.is_null() {
+                return None;
+            }
+            let mut best: Option<(u32, f64)> = None;
+            let count = unsafe { CFArrayGetCount(list) };
+            for index in 0..count {
+                // SAFETY: 索引在数组范围内；元素是 CFDictionary。
+                let entry = unsafe { CFArrayGetValueAtIndex(list, index) };
+                if entry.is_null() {
+                    continue;
+                }
+                let pid = number_i64(entry, unsafe { kCGWindowOwnerPID });
+                let layer = number_i64(entry, unsafe { kCGWindowLayer });
+                if pid != Some(own_pid) || layer != Some(0) {
+                    continue;
+                }
+                let number = number_i64(entry, unsafe { kCGWindowNumber })?;
+                let mut bounds = CGRect {
+                    origin: CGPoint { x: 0.0, y: 0.0 },
+                    size: CGSize {
+                        width: 0.0,
+                        height: 0.0,
+                    },
+                };
+                // SAFETY: kCGWindowBounds 的值是可转换为 CGRect 的字典。
+                let bounds_value = unsafe { CFDictionaryGetValue(entry.cast(), kCGWindowBounds) };
+                if bounds_value.is_null()
+                    || !unsafe {
+                        CGRectMakeWithDictionaryRepresentation(bounds_value.cast(), &mut bounds)
+                    }
+                {
+                    continue;
+                }
+                let area = bounds.size.width * bounds.size.height;
+                if best.is_none_or(|(_, best_area)| area > best_area) {
+                    best = Some((u32::try_from(number).ok()?, area));
+                }
+            }
+            unsafe { CFRelease(list) };
+            best.map(|(id, _)| id)
+        }
     }
 
     // -- 主路径：ScreenCaptureKit SCStream（运行时 dlopen，无链接期依赖） ------
@@ -471,8 +600,19 @@ mod capture {
 
         use super::super::{CapturedWindow, FrameSlot};
 
-        /// 监督线程需要持有 SCStream 句柄（以 AnyObject 形态）。
-        pub type StreamHandle = Retained<AnyObject>;
+        /// 流句柄：持有 SCStream 对象与自定义派发队列。
+        /// 队列必须与流同生命周期——addStreamOutput 不保证保留传入的队列，
+        /// 局部队列被释放后帧回调可能停摆。
+        pub struct StreamHandle {
+            stream: Retained<AnyObject>,
+            /// 仅用于延长队列生命周期（RAII 保活），不读取。
+            #[allow(dead_code)]
+            queue: dispatch2::DispatchRetained<dispatch2::DispatchQueue>,
+            /// SCStream 对 output/delegate 只持弱引用：sink 必须与流同生命周期，
+            /// 否则首帧后委托对象即被释放，帧流静默停摆（镜像冻结的根因）。
+            #[allow(dead_code)]
+            sink: Retained<CuFrameSink>,
+        }
 
         /// dlopen ScreenCaptureKit 并确认核心类已注册。
         /// 不引用任何 SCK 外部符号，保证主二进制在 macOS 12.3 之前仍能启动。
@@ -525,6 +665,21 @@ mod capture {
             }
         );
 
+        // SCK 流委托协议：接收流级错误（didStopWithError）。
+        // 没有委托时流出错会静默停摆，前端只能看到画面冻结。
+        // SAFETY:
+        // - 协议名称与 macOS SDK 的 SCStreamDelegate 一致。
+        // - 方法签名与 SDK 声明一致。
+        extern_protocol!(
+            #[allow(clippy::missing_safety_doc)]
+            unsafe trait SCStreamDelegate: NSObjectProtocol {
+                #[optional]
+                #[unsafe(method(stream:didStopWithError:))]
+                #[allow(non_snake_case)]
+                fn stream_didStopWithError(&self, stream: &AnyObject, error: &NSError);
+            }
+        );
+
         /// 接收 SCK 帧回调的自定义类：把样本缓冲区像素拷贝进槽位。
         /// 类经 define_class! 注册一次，每个流持有独立槽位实例。
         struct SinkIvars {
@@ -554,6 +709,14 @@ mod capture {
                     self.on_sample(sample_buffer)
                 }
             }
+
+            unsafe impl SCStreamDelegate for CuFrameSink {
+                #[allow(non_snake_case)]
+                #[unsafe(method(stream:didStopWithError:))]
+                fn stream_didStopWithError(&self, _stream: &AnyObject, error: &NSError) {
+                    self.on_stream_error(error)
+                }
+            }
         );
 
         impl CuFrameSink {
@@ -561,6 +724,13 @@ mod capture {
                 let this = Self::alloc().set_ivars(SinkIvars { slot });
                 // SAFETY: 超类 init 不改变对象身份，返回值即本实例。
                 unsafe { msg_send![super(this), init] }
+            }
+
+            /// 流级错误：记录日志并经槽位通知编码线程上报前端。
+            fn on_stream_error(&self, error: &NSError) {
+                let message = error.localizedDescription().to_string();
+                eprintln!("[computer-use] SCStream stopped with error: {message}");
+                self.ivars().slot.push_error(message);
             }
 
             /// 样本缓冲 → 锁定像素 → 紧凑 BGRA 拷贝 → 槽位。
@@ -755,7 +925,6 @@ mod capture {
             };
             let target_width = ((window_width * scale).round() as usize).max(1);
             let target_height = ((window_height * scale).round() as usize).max(1);
-            let timescale = fps.clamp(1, super::super::MAX_FPS) as i32;
 
             let filter_class = class_or_err(c"SCContentFilter")?;
             let config_class = class_or_err(c"SCStreamConfiguration")?;
@@ -777,6 +946,7 @@ mod capture {
                 let _: () = msg_send![&*config, setShowsCursor: false];
                 let _: () = msg_send![&*config, setScalesToFit: true];
                 let _: () = msg_send![&*config, setQueueDepth: 3];
+                let timescale = fps.clamp(1, super::super::MAX_FPS) as i32;
                 let _: () = msg_send![
                     &*config,
                     setMinimumFrameInterval: CMTime {
@@ -787,16 +957,17 @@ mod capture {
                     },
                 ];
 
+                let sink = CuFrameSink::new(slot);
                 let stream: Retained<AnyObject> = {
                     let alloc: Allocated<AnyObject> = msg_send![stream_class, alloc];
                     msg_send![
                         alloc,
                         initWithFilter: &*filter,
                         configuration: &*config,
-                        delegate: std::ptr::null::<AnyObject>(),
+                        // sink 同时充当流委托：didStopWithError 不再静默。
+                        delegate: &*sink,
                     ]
                 };
-                let sink = CuFrameSink::new(slot);
                 let queue = dispatch2::DispatchQueue::new("com.pisper.computer-use", None);
                 let mut error: *mut NSError = std::ptr::null_mut();
                 let ok: bool = msg_send![
@@ -826,7 +997,11 @@ mod capture {
                 });
                 let _: () = msg_send![&*stream, startCaptureWithCompletionHandler: &*start_block,];
                 match started_rx.recv_timeout(Duration::from_secs(10)) {
-                    Ok(None) => Ok(stream),
+                    Ok(None) => Ok(StreamHandle {
+                        stream,
+                        queue,
+                        sink,
+                    }),
                     Ok(Some(error)) => Err(format!(
                         "failed to start capture: {}",
                         error.localizedDescription()
@@ -836,8 +1011,8 @@ mod capture {
             }
         }
 
-        pub fn stop(stream: &StreamHandle) {
-            stop_capture_and_wait(stream);
+        pub fn stop(handle: &StreamHandle) {
+            stop_capture_and_wait(&handle.stream);
         }
 
         /// 冒烟测试辅助：枚举可捕获窗口描述（不含窗口对象）。
@@ -858,6 +1033,231 @@ mod capture {
 
 #[cfg(target_os = "macos")]
 use capture::{sc_stream, CaptureError};
+
+// ---------------------------------------------------------------------------
+// 启动自测（仅 debug 构建）：环境变量 PISPER_CU_SELFTEST=1 时，在自身进程内
+// 端到端验证镜像管道（找窗口→驱动内容变化→SCStream 捕获→帧率/帧校验）。
+// 纯 cargo 测试二进制会被 TCC 自动拒绝（无 GUI 上下文弹不出授权框），
+// 真机验证只能在 App 进程内进行，本钩子就是为此而设。
+// ---------------------------------------------------------------------------
+#[cfg(all(debug_assertions, target_os = "macos"))]
+pub fn maybe_run_startup_self_test(app: tauri::AppHandle) {
+    // 两种触发方式：环境变量（终端启动）或 --cu-selftest 参数（LaunchServices
+    // `open --args` 启动——这种方式进程归属干净，TCC 授权弹窗才能正常出现）。
+    let env_flag = std::env::var("PISPER_CU_SELFTEST").ok().as_deref() == Some("1");
+    let arg_flag = std::env::args_os().any(|arg| arg == "--cu-selftest");
+    if !env_flag && !arg_flag {
+        return;
+    }
+    // 在独立线程跑：setup 不能被自测阻塞。
+    let _ = std::thread::Builder::new()
+        .name("cu-selftest".into())
+        .spawn(move || run_self_test(app));
+}
+
+#[cfg(all(debug_assertions, target_os = "macos"))]
+fn run_self_test(app: tauri::AppHandle) {
+    use std::io::Write;
+    use std::time::Instant;
+    use tauri::Manager;
+
+    // 输出辅助：stderr 之外追加到固定文件；每次启动首条写入时清空旧内容。
+    static FRESH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+    let log = |message: &str| {
+        eprintln!("[cu-selftest] {message}");
+        let path = std::path::Path::new("/tmp/pisper-cu-selftest.log");
+        let truncate = FRESH.swap(false, std::sync::atomic::Ordering::Relaxed);
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(truncate)
+            .append(!truncate)
+            .open(path)
+        {
+            let _ = writeln!(file, "[cu-selftest] {message}");
+        }
+    };
+
+    log(&format!("start pid={}", std::process::id()));
+    // 等 SPA 与主窗口稳定。
+    std::thread::sleep(Duration::from_secs(3));
+    // 外部目标窗口：用原生置顶动画窗口作为“保证可见且持续变化”的捕获目标，
+    // 避免自身窗口的 webview 动画在被遮挡时被系统节流、导致误判 SCK“冻结”。
+    // 未设置时回退到自身窗口 + JS 动画（原有行为）。
+    let external_target: Option<u32> = std::env::var("PISPER_CU_SELFTEST_TARGET")
+        .ok()
+        .and_then(|value| value.parse().ok());
+    let mut webview: Option<tauri::WebviewWindow> = None;
+    let window_id = if let Some(target) = external_target {
+        log(&format!("external-target={target}"));
+        target
+    } else {
+        let Some(own_window_id) = capture::cg_ffi::find_own_window_id() else {
+            log("RESULT: FAIL no-own-window");
+            return;
+        };
+        log(&format!("window={own_window_id}"));
+        // 前端动画：100ms 换一次色块，驱动窗口内容持续变化，
+        // 让 SCStream 的内容变化驱动出帧可被观测。
+        let Some(main_webview) = app.get_webview_window("main") else {
+            log("RESULT: FAIL no-main-window");
+            return;
+        };
+        let _ = main_webview.eval(SELFTEST_ANIM_JS);
+        webview = Some(main_webview);
+        log("anim=started");
+        std::thread::sleep(Duration::from_millis(800));
+        own_window_id
+    };
+
+    let slot = Arc::new(FrameSlot::new());
+    let stop = Arc::new(AtomicBoolLike::new());
+    // 启动重试：首次授权弹窗会挂起枚举直到用户处理（点击后仍需重启进程，
+    // 本轮重试注定失败，由外部重启后二次运行验证）。重试只为给用户留出
+    // 点弹窗的时间，避免过早退出把弹窗一起带走。
+    let mut stream_handle = None;
+    for attempt in 1..=8u32 {
+        match sc_stream::start(window_id, 960, 12, Arc::clone(&slot)) {
+            Ok(handle) => {
+                stream_handle = Some(handle);
+                break;
+            }
+            Err(message) => {
+                log(&format!("attempt {attempt} failed: {message}"));
+                let waiting_for_user = message.contains("TCC") || message.contains("timed out");
+                if !waiting_for_user {
+                    break;
+                }
+                std::thread::sleep(Duration::from_secs(8));
+            }
+        }
+    }
+    let Some(stream) = stream_handle else {
+        if let Some(main_webview) = &webview {
+            let _ = main_webview.eval(SELFTEST_CLEAR_JS);
+        }
+        log("RESULT: FAIL sck-start");
+        return;
+    };
+    log("stream=started");
+
+    // 看6 门狗：到时停止收集（take 只在有帧或停止时返回，没有看门狗会永久阻塞）。
+    let watchdog = {
+        let stop = Arc::clone(&stop);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(6));
+            stop.stop();
+        })
+    };
+    let started = Instant::now();
+    let mut frames = 0usize;
+    let mut first: Option<CapturedWindow> = None;
+    while !stop.is_stopped() {
+        if let Some(frame) = slot.take(&stop) {
+            if first.is_none() {
+                first = Some(frame);
+            }
+            frames += 1;
+        }
+    }
+    sc_stream::stop(&stream);
+    let _ = watchdog.join();
+    let elapsed = started.elapsed().as_secs_f64();
+    log(&format!(
+        "frames={frames} elapsed={elapsed:.1}s fps={:.1}",
+        frames as f64 / elapsed.max(0.001)
+    ));
+
+    // 首帧校验：尺寸、紧凑 BGRA 长度、JPEG 魔数与大小。
+    let mut pass = frames >= 20;
+    if !pass {
+        log("frames below threshold (20)");
+    }
+    match first {
+        Some(frame) => {
+            let dims_ok = frame.width > 0
+                && frame.height > 0
+                && frame.bgra.len() == frame.width as usize * frame.height as usize * 4;
+            match encode_jpeg(&frame.bgra, frame.width, frame.height, 960) {
+                Ok(jpeg)
+                    if jpeg.starts_with(&[0xff, 0xd8]) && jpeg.len() < MAX_FRAME_JPEG_BYTES =>
+                {
+                    log(&format!(
+                        "first-frame={}x{} jpeg={} dims-ok={dims_ok}",
+                        frame.width,
+                        frame.height,
+                        jpeg.len()
+                    ));
+                }
+                other => {
+                    log(&format!(
+                        "first-frame INVALID dims-ok={dims_ok} err={:?}",
+                        other.err()
+                    ));
+                    pass = false;
+                }
+            }
+            if !dims_ok {
+                pass = false;
+            }
+        }
+        None => {
+            log("no frame received");
+            pass = false;
+        }
+    }
+
+    // 轮询回退路径基准：测量 CGWindowListCreateImage 单帧延迟，
+    // 评估回退路径可达帧率（决定 SCK 不可用时镜像流畅度下限）。
+    {
+        let mut ok = 0usize;
+        let mut total = Duration::ZERO;
+        let mut last_dims = None;
+        let bench_start = Instant::now();
+        while bench_start.elapsed() < Duration::from_secs(3) {
+            let t0 = Instant::now();
+            match capture::cg_ffi::capture_window_bgra(window_id) {
+                Ok(frame) => {
+                    ok += 1;
+                    total += t0.elapsed();
+                    last_dims = Some((frame.width, frame.height));
+                }
+                Err(error) => {
+                    log(&format!(
+                        "polling failed: {}",
+                        match error {
+                            CaptureError::WindowMissing => "window missing".to_string(),
+                            CaptureError::Denied => "denied".to_string(),
+                            CaptureError::Failed(message) => message,
+                        }
+                    ));
+                    break;
+                }
+            }
+        }
+        if ok > 0 {
+            let avg_ms = total.as_secs_f64() * 1000.0 / ok as f64;
+            log(&format!(
+                "poll-bench ok={ok} avg={avg_ms:.1}ms dims={last_dims:?} max-fps≈{:.1}",
+                1000.0 / avg_ms.max(0.001)
+            ));
+        } else {
+            log("poll-bench ok=0");
+        }
+    }
+
+    if let Some(main_webview) = &webview {
+        let _ = main_webview.eval(SELFTEST_CLEAR_JS);
+    }
+    log(&format!("RESULT: {}", if pass { "PASS" } else { "FAIL" }));
+}
+
+/// 自测动画：右上角固定色块，100ms 换色，驱动窗口内容变化。
+#[cfg(all(debug_assertions, target_os = "macos"))]
+const SELFTEST_ANIM_JS: &str = r#"(function(){if(!document.body)return;var d=document.createElement('div');d.id='cu-selftest-anim';d.style.cssText='position:fixed;top:8px;right:8px;width:96px;height:96px;z-index:2147483647;pointer-events:none;border-radius:10px;background:#f55';document.body.appendChild(d);var i=0;var c=['#f55','#5f5','#55f','#ff5','#f5f','#5ff'];window.__cuSelfAnim=setInterval(function(){d.style.background=c[i++%c.length];},100);})()"#;
+
+#[cfg(all(debug_assertions, target_os = "macos"))]
+const SELFTEST_CLEAR_JS: &str = r#"(function(){clearInterval(window.__cuSelfAnim);var d=document.getElementById('cu-selftest-anim');if(d)d.remove();})()"#;
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -907,7 +1307,9 @@ pub fn desktop_computer_use_start_stream(
             let mut sc_stream: Option<sc_stream::StreamHandle> = None;
 
             // 主路径：SCStream。句柄由监督线程持有，退出时统一停流。
-            if sc_stream::ensure_screencapturekit_loaded() {
+            // mode=poll 为诊断开关：跳过 SCStream，直接走轮询路径对比帧数。
+            let force_polling = input.mode.as_deref() == Some("poll");
+            if !force_polling && sc_stream::ensure_screencapturekit_loaded() {
                 match sc_stream::start(window_id, max_width, input.fps, Arc::clone(&slot)) {
                     Ok(handle) => sc_stream = Some(handle),
                     Err(message) => {
@@ -921,7 +1323,7 @@ pub fn desktop_computer_use_start_stream(
                         );
                     }
                 }
-            } else {
+            } else if !force_polling {
                 computer_use_channel_send(
                     &on_frame,
                     ComputerUseFrameEvent::Downgraded {

@@ -867,6 +867,11 @@ pub fn run() {
                         Ok(())
                     }
                 });
+            // 镜像管道启动自测（仅 debug 构建 + 显式环境变量）：在主窗口就绪后启动。
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            {
+                computer_use::maybe_run_startup_self_test(app.handle().clone());
+            }
             if let Err(error) = result {
                 stop_sidecar(app.handle());
                 return Err(error.into());

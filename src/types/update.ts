@@ -151,6 +151,8 @@ export type DesktopComputerUseFrameEvent =
 export type DesktopComputerUseStreamOptions = {
   maxWidth?: number
   fps?: number
+  // 诊断选项：'poll' 强制走 CGWindowListCreateImage 轮询捕获（默认 SCStream 优先）
+  mode?: 'poll'
 }
 
 export type DesktopBridge = {
