@@ -239,7 +239,8 @@ fn encode_jpeg(bgra: &[u8], width: u32, height: u32, max_width: u32) -> Result<V
         rgba
     };
     let mut jpeg = Vec::new();
-    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 60);
+    // 帧预算（M4 加固）：q70 在文字可读性与体积间取平衡；配合 ≤1280 宽度上限。
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 70);
     image::DynamicImage::ImageRgba8(resized)
         .write_with_encoder(encoder)
         .map_err(|error| format!("failed to encode jpeg: {error}"))?;
@@ -1268,7 +1269,8 @@ pub fn desktop_computer_use_start_stream(
     on_frame: Channel<ComputerUseFrameEvent>,
 ) -> Result<(), String> {
     ensure_main(&window)?;
-    let max_width = input.max_width.clamp(320, 1920);
+    // 帧预算：宽度上限 1280（≤1280 宽 JPEG q70），防止超宽窗口放大 IPC 载荷。
+    let max_width = input.max_width.clamp(320, 1280);
     let window_id = input.window_id;
 
     let mut streams = state
