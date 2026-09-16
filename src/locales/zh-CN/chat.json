@@ -147,6 +147,7 @@
   "computerUseLive.live": "实时",
   "computerUseLive.connecting": "连接中",
   "computerUseLive.staticPreview": "静态预览",
+  "computerUseLive.secureInput": "系统安全输入已激活：密码保护拦截了自动化键盘输入，代理的输入可能无效。",
   "agentRunActivity.generatingVisualContent": "正在生成视觉内容",
   "agentRunActivity.discoveringTools": "正在查找可选工具",
   "agentRunActivity.filesRead": "已读取文件",

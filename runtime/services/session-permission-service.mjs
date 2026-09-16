@@ -8,6 +8,7 @@ import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 import { guardCommand } from '../tools/command-guard.mjs'
+import { SecureRefRegistry } from './computer-use-secure-refs.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
 export const DEFAULT_PERMISSION_MODE = 'auto'
@@ -230,12 +231,14 @@ export class SessionPermissionService {
     approvalPath,
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
+    computerUseSecureRefs = new SecureRefRegistry(),
   } = {}) {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
+    this.computerUseSecureRefs = computerUseSecureRefs
     this.approvalPath = approvalPath
     this.approvalWrite = Promise.resolve()
     this.pending = new Map()
@@ -346,12 +349,23 @@ export class SessionPermissionService {
     return this.approvalWrite
   }
 
+  // Computer Use 敏感关卡喂入：agent-runtime 在工具结果事件处调用，
+  // 从官方 outline 文本登记密码框 ref（见 computer-use-secure-refs.mjs）。
+  observeComputerUseResult(sessionId, toolName, result) {
+    return this.computerUseSecureRefs.observe(sessionId, toolName, result)
+  }
+
   async authorize({ sessionId, cwd, toolName, toolCallId, args, signal }) {
     const mode = PERMISSION_MODES.has(this.getMode(sessionId))
       ? this.getMode(sessionId)
       : DEFAULT_PERMISSION_MODE
     const executionMode = this.getExecutionMode(sessionId)
-    const requirement = permissionRequirement({
+    // 密码框控件级敏感关卡：先于通用 requirement 判定。auto 模式下 medium/high
+    // 风险工具本会免审批，此关卡仍强制确认；full-access 模式用户已声明完全
+    // 信任，保持与既有语义一致的豁免。evaluateAct 的焦点推断副作用在
+    // 任何模式下都执行，保证注册表状态与对话进度一致。
+    const secureAct = this.computerUseSecureRefs.evaluateAct(sessionId, toolName, args)
+    let requirement = permissionRequirement({
       mode,
       executionMode,
       cwd,
@@ -359,6 +373,16 @@ export class SessionPermissionService {
       args,
       toolRisk: this.getToolRisk(toolName),
     })
+    if (secureAct && executionMode !== 'full-access') {
+      requirement = {
+        risk: 'high',
+        reason: secureAct.reason,
+        // 密码是一次性敏感内容：审批决定不进 5 分钟记忆缓存（相同密文重试
+        // 也必须重新确认），审批事件里的输入内容打码后才可落盘/上前端。
+        skipRemember: true,
+        args: this.computerUseSecureRefs.maskActArgs(args),
+      }
+    }
     if (!requirement) return undefined
     if (requirement.block) return { block: true, reason: requirement.reason }
     const previewedFileChange = isPreviewedFileChange(toolName, requirement)
@@ -374,7 +398,12 @@ export class SessionPermissionService {
       }
     }
     const rememberedKey = approvalKey({ sessionId, cwd, toolName, args })
-    if (!previewedFileChange && (await this.hasRememberedApproval(rememberedKey))) return undefined
+    if (
+      !requirement.skipRemember &&
+      !previewedFileChange &&
+      (await this.hasRememberedApproval(rememberedKey))
+    )
+      return undefined
     const approval = await this.requestApproval({
       sessionId,
       toolName,
@@ -401,7 +430,7 @@ export class SessionPermissionService {
             reason: error instanceof Error ? error.message : String(error),
           }
         }
-      } else {
+      } else if (!requirement.skipRemember) {
         await this.rememberApproval(rememberedKey, {
           resolvedAt: new Date().toISOString(),
           toolName,

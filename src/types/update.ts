@@ -195,6 +195,9 @@ export type DesktopBridge = {
     options?: DesktopComputerUseStreamOptions,
   ) => Promise<void>
   computerUseStopStream?: (windowId: number) => Promise<void>
+  // 系统安全输入状态：激活时合成键盘事件被拦截（macOS Secure Event Input /
+  // Windows 安全桌面），agent 的输入可能静默无效。
+  computerUseSecureInputState?: () => Promise<{ active: boolean }>
   getPetStatus?: () => Promise<DesktopPetStatus>
   setPetEnabled?: (enabled: boolean) => Promise<DesktopPetStatus>
   setPetOpacity?: (opacity: number) => Promise<DesktopPetStatus>

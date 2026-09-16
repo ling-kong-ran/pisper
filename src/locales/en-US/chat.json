@@ -147,6 +147,7 @@
   "computerUseLive.live": "Live",
   "computerUseLive.connecting": "Connecting",
   "computerUseLive.staticPreview": "Static preview",
+  "computerUseLive.secureInput": "Secure input is active: password protection blocks synthetic keyboard input, so agent typing may have no effect.",
   "agentRunActivity.generatingVisualContent": "Generating visual content",
   "agentRunActivity.discoveringTools": "Discovering optional tools",
   "agentRunActivity.filesRead": "Files read",

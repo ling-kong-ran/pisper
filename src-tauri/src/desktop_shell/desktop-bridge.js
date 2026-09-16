@@ -140,6 +140,9 @@
       },
       computerUseStopStream: (windowId) =>
         invoke('desktop_computer_use_stop_stream', { input: { windowId } }),
+      // 系统安全输入状态（Secure Event Input / 安全桌面）：激活时合成键盘事件
+      // 被系统拦截，镜像面板据此诚实上报 agent 输入可能无效。
+      computerUseSecureInputState: () => invoke('desktop_computer_use_secure_input_state'),
       getPetStatus: () => api('/api/desktop-pet'),
       setPetEnabled,
       setPetOpacity: (opacity) =>

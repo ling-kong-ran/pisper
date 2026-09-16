@@ -811,6 +811,7 @@ pub fn run() {
             desktop_terminal::desktop_terminal_close_all,
             computer_use::desktop_computer_use_start_stream,
             computer_use::desktop_computer_use_stop_stream,
+            computer_use::desktop_computer_use_secure_input_state,
             desktop_pet::desktop_pet_apply_enabled,
             desktop_pet::desktop_pet_set_visible,
             desktop_pet::desktop_pet_start_dragging,

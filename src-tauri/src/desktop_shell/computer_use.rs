@@ -1554,6 +1554,93 @@ pub fn desktop_computer_use_stop_stream(
     Ok(())
 }
 
+/// 系统安全输入状态：激活时合成键盘事件（agent 的 type/keypress）会被系统
+/// 拦截——macOS 的 Secure Event Input 锁（密码输入框、1Password 等激活）与
+/// Windows 安全桌面（UAC/锁屏）。前端镜像面板据此诚实上报：agent 输入
+/// 静默失效时用户能立刻知道原因，而不是归因为「自动化失灵」。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecureInputState {
+    pub active: bool,
+}
+
+/// Windows：当前输入桌面是否为安全桌面（Winlogon）。UAC/锁屏期间合成输入
+/// 落在安全桌面，普通进程无法操作。手写 user32 FFI，不新增 windows-sys
+/// feature，与 macOS dlopen SCK 的零强链接约束同构（user32 本就是必链库）。
+#[cfg(windows)]
+fn windows_secure_desktop_active() -> bool {
+    type Hdesk = *mut std::ffi::c_void;
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn OpenInputDesktop(flags: u32, inherit: i32, access: u32) -> Hdesk;
+        fn GetUserObjectInformationW(
+            handle: Hdesk,
+            index: i32,
+            buf: *mut u16,
+            len: u32,
+            returned: *mut u32,
+        ) -> i32;
+        fn CloseDesktop(handle: Hdesk) -> i32;
+    }
+    // DESKTOP_READOBJECTS = 0x0001：只读桌面名即可判定。
+    // SAFETY：纯查询 API；句柄成对关闭；缓冲区长度以字节计传入。
+    let desk = unsafe { OpenInputDesktop(0, 0, 0x0001) };
+    if desk.is_null() {
+        // 输入桌面打不开（罕见权限状态）：保守报未拦截，让 act 结果自行报错。
+        return false;
+    }
+    let mut buf = [0u16; 64];
+    let mut returned = 0u32;
+    // UOI_NAME = 2。
+    let ok = unsafe {
+        GetUserObjectInformationW(
+            desk,
+            2,
+            buf.as_mut_ptr(),
+            (buf.len() * 2) as u32,
+            &mut returned,
+        )
+    };
+    unsafe {
+        CloseDesktop(desk);
+    };
+    if ok == 0 {
+        return false;
+    }
+    // returned 是字节数（含 NUL 终止符），转 UTF-16 长度后去尾比较。
+    // 桌面名必为 ASCII（Winlogon/Default 等），lossy 转换安全且省掉 u16 逐字符大小写比较。
+    let name_len = (returned as usize / 2).saturating_sub(1).min(buf.len());
+    let name = String::from_utf16_lossy(&buf[..name_len]);
+    name.eq_ignore_ascii_case("Winlogon")
+}
+
+#[tauri::command]
+pub fn desktop_computer_use_secure_input_state() -> Result<SecureInputState, String> {
+    #[cfg(target_os = "macos")]
+    {
+        // IsSecureEventInputEnabled 属 HIToolbox（Carbon 框架），自 macOS 10.0
+        // 存在，直接强链无兼容负担（不同于 12.3+ 才有的 ScreenCaptureKit）。
+        #[link(name = "Carbon", kind = "framework")]
+        unsafe extern "C" {
+            fn IsSecureEventInputEnabled() -> bool;
+        }
+        // SAFETY：无参纯查询。cfg 互斥保证每个平台只剩一个块，块尾即函数返回值。
+        Ok(SecureInputState {
+            active: unsafe { IsSecureEventInputEnabled() },
+        })
+    }
+    #[cfg(windows)]
+    {
+        Ok(SecureInputState {
+            active: windows_secure_desktop_active(),
+        })
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        Ok(SecureInputState { active: false })
+    }
+}
+
 // 非 macOS/Windows 桌面平台：保留命令面（前端统一调用路径），返回平台不支持错误。
 #[cfg(not(any(target_os = "macos", windows)))]
 #[tauri::command]

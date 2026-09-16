@@ -2236,6 +2236,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         // 工具预览图：computer use / OCR / 浏览器截图等工具的图像随结果异步归档，
         // 归档完成后再以 tool_update 补发 previewImage，活动卡片即可实时渲染“实时窗口”。
         if (!event.isError && event.result) {
+          // Computer Use 敏感关卡喂入：从官方工具结果的 outline 文本登记密码框 ref，
+          // 后续 act_ui 向密码框写入时由权限服务据此强制用户确认（见
+          // computer-use-secure-refs.mjs）。只吃成功结果：错误载荷里没有可信 outline。
+          this.permissions.observeComputerUseResult(session.sessionId, event.toolName, event.result)
           this.attachToolPreviewImage({
             live,
             session,

@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | Agent 工具面 | 官方扩展 `@injaneity/pi-computer-use`（`find_roots` / `observe_ui` / `search_ui` / `expand_ui` / `inspect_ui` / `act_ui` / `read_text` / `wait_for` / 浏览器三件套） | UI 树采集、文本化、ref 解析、动作执行、act 前后 diff |
 | 原生可视化 | `src-tauri/src/desktop_shell/computer_use.rs` | 窗口枚举、静态截图、实时镜像流（macOS SCStream，12fps 默认/60 上限） |
-| 加固政策 | runtime 包装层（与 `tool-preview-images` 同层） | 帧预算、敏感 app 二次确认、活动卡片预览 |
+| 加固政策 | runtime 包装层（与 `tool-preview-images` 同层） | 帧预算、密码框 act 阻断、活动卡片预览 |
 
 SEA 打包对 `@injaneity/pi-computer-use` 整包保留（`scripts/sea-runtime.mjs` 的
 `preserveOfficialComputerUseSource`），官方 macOS/Linux/Windows 原生 helper 随 runtime
@@ -99,16 +99,41 @@ closure 分发，Windows 侧无需额外打包动作。
 serde_json 直接断流）；帧流是桌面壳专属高频通道，走 Tauri Channel 天然绕开该约束，
 也避免 base64 帧挤占会话事件流。后续新增高频/二进制桌面通道一律沿用此模式。
 
-### 敏感 app 二次确认（M4，设计）
+### 密码框控件级敏感关卡（已实现）
 
-- 内置默认清单（可用户配置扩展）：密码管理器（1Password、Bitwarden、KeePassXC、
-  钥匙串访问）、银行/证券类 app、`sudo`/提权对话框。
-- 检测点：runtime 包装层后处理 `find_roots`/`observe_ui` 工具结果（与
-  `tool-preview-images` 同层），按 app 名/bundleId 命中清单则在结果注入警示，并把
-  `(sessionId, app)` 记入会话敏感标记。
-- 执行策略：对已标记敏感 app 的 state，`act_ui`/浏览器 act 返回「需用户确认」错误；
-  前端弹确认卡片，用户确认后本次会话对该 app 放行（确认范围 = 会话 × app，不跨会话）。
-- 原则：不 fork 官方扩展，政策全部落在 runtime 包装层与前端。
+早期设计是「敏感 app 名单 + 会话级二次确认」，已废弃：「哪些 app 敏感」无法清晰
+定义（名单武断且永远列不完），而密码框有系统级原生标记，边界清晰、可测试。
+
+- **控件识别**（`runtime/services/computer-use-secure-refs.mjs`）：agent-runtime 在
+  工具结果事件处喂入官方 outline 文本，扫描含 `AXSecureTextField`（macOS AX 原生
+  role/subrole 标记）的行提取 `@eN` ref，登记进会话级注册表。不 fork 官方扩展：
+  官方对密码框已拒绝读值（`secure_text_unreadable`）并置空序列化值，但允许写入——
+  写入确认正是本关卡补上的最后一环。
+- **act 阻断**（`SessionPermissionService.authorize`）：`act_ui` 的 `setText`/`typeText`/
+  `keypress` 命中密码框 ref，或无 ref 且当前焦点推断为密码框（click 密码框后的
+  焦点跟随输入）时，强制用户审批——auto 模式同样拦截（risk high）；full-access
+  模式用户已声明完全信任，保持既有豁免语义。
+- **审批载荷脱敏**：写入动作的 `text`/`keys` 可能含明文密码，审批事件与任何落盘
+  产物只见 `•••`；审批决定**不进 5 分钟记忆缓存**（`skipRemember`，相同调用必须
+  重新确认），避免密码哈希与密文进 `pisper-approvals.json`。
+- **平台边界**：官方 Windows bridge 内部有 `isPassword`（UIA IsPassword），但归一化
+  outline 节点不透出该标记（role 统一为 `edit`、值置空），控件级识别当前仅对
+  macOS outline 生效；Windows 由安全输入状态上报兜底（见下），控件级透出的缺口
+  可上游补 `isPassword` 注解后自然覆盖（扫描器只需追加标记词）。
+- **测试**：`runtime/tests/computer-use-secure-refs.test.mjs`（11 用例：扫描/焦点
+  推断/脱敏/审批集成/full-access 豁免）。
+
+### 安全输入状态上报（已实现）
+
+系统级安全输入激活时，合成键盘事件（agent 的 type/keypress）被操作系统拦截：
+
+- macOS：Secure Event Input 锁（`IsSecureEventInputEnabled`，HIToolbox/Carbon，
+  自 10.0 存在故直接强链，不同于 12.3+ 才有的 ScreenCaptureKit）。
+- Windows：安全桌面（UAC/锁屏期间输入桌面为 Winlogon，`OpenInputDesktop` +
+  `GetUserObjectInformationW(UOI_NAME)`，手写 user32 FFI 不新增 windows-sys feature）。
+- 命令 `desktop_computer_use_secure_input_state` → 桥接 `computerUseSecureInputState`
+  → 镜像面板（`ComputerUseLiveMirror`）在流式期间 2s 轮询，激活时显示警示横幅：
+  agent 输入静默失效时用户能立刻知道原因，而不是归因为「自动化失灵」。
 
 ### M3 Windows 对等
 
@@ -132,9 +157,10 @@ serde_json 直接断流）；帧流是桌面壳专属高频通道，走 Tauri Ch
 
 ### 远期项
 
-- 锁屏/私有桌面：macOS Secure Event Input 与 Windows 安全桌面（UAC 提权界面）期间
-  捕获与注入均被系统阻断，行为应是「诚实报告不可用」而非静默失败；镜像流发
-  `Error{code:"secure_input_active"}` 类事件，前端提示用户。
+- 锁屏/私有桌面期间的**捕获**同样被系统阻断（注入侧已由安全输入状态上报覆盖）：
+  镜像流可追加 `Error{code:"secure_input_active"}` 类事件细化提示；当前横幅轮询
+  已能诚实报告。
+- Windows 控件级密码框识别：待官方 outline 透出 `isPassword`（可上游 PR）。
 
 ## 现状与验收（2026-09）
 
@@ -147,4 +173,7 @@ serde_json 直接断流）；帧流是桌面壳专属高频通道，走 Tauri Ch
   `cargo check/clippy --target x86_64-pc-windows-gnu`（mingw-w64）与
   `--target x86_64-pc-windows-msvc`（捕获 crate）静态验证通过；**真机运行验收未做**
   （需 Windows 10 1903+ 实机：WGC 帧交付、GDI 兜底、降级链、长时间稳定性）。
-- 敏感 app 二次确认：设计定稿（本文档），实现待做。
+- 敏感关卡：密码框控件级 act 阻断已落地（runtime 关卡 + 审批脱敏 + 不记忆，
+  测试 11/11）；安全输入状态上报已落地（macOS Carbon / Windows 安全桌面 +
+  镜像面板横幅）；Windows 控件级识别受限于官方 outline 未透出 isPassword，
+  已记录为远期项。

@@ -2,7 +2,7 @@
 // 在聊天活动区就地渲染“实时窗口”。捕获发生在原生层（按窗口、不抢焦点），
 // 用户前台不被打扰；桥接不可用（Web/移动/无权限）时回退到工具结果静态截图。
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Monitor } from 'lucide-react'
+import { Monitor, ShieldAlert } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { DesktopBridge, DesktopComputerUseFrameEvent } from '@/types/update.ts'
 import type { EntityRecord } from '@/types/chat'
@@ -38,7 +38,35 @@ function ComputerUseLiveMirrorBase({
   const windowId = Number(target.target?.windowId) || 0
   const [frame, setFrame] = useState<MirrorFrame | null>(null)
   const [status, setStatus] = useState<MirrorStatus>('connecting')
+  const [secureInput, setSecureInput] = useState(false)
   const frameUrlRef = useRef<string | null>(null)
+
+  // 系统安全输入状态轮询：Secure Event Input 锁（macOS）/安全桌面（Windows）
+  // 激活时合成键盘事件被系统拦截，agent 输入会静默失效——就地提示用户
+  // 原因，而不是让用户归因为「自动化失灵」。仅在流式期间轮询；桥接
+  // 不可用（Web/移动）时不显示。
+  useEffect(() => {
+    if (!streaming) return undefined
+    const desktop = bridge()
+    if (!desktop?.computerUseSecureInputState) return undefined
+    let active = true
+    const poll = () => {
+      desktop
+        .computerUseSecureInputState?.()
+        .then((state) => {
+          if (active) setSecureInput(Boolean(state?.active))
+        })
+        .catch(() => {
+          if (active) setSecureInput(false)
+        })
+    }
+    poll()
+    const timer = window.setInterval(poll, 2000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [streaming])
 
   useEffect(() => {
     if (!streaming || !windowId) return undefined
@@ -108,6 +136,15 @@ function ComputerUseLiveMirrorBase({
           {t('chat:computerUseLive.waitingForFirstFrame')}
         </div>
       )}
+      {secureInput ? (
+        <div
+          className="flex items-center gap-[6px] bg-[var(--warning-soft)] px-[8px] py-[4px] text-[11px] text-[var(--warning-strong)]"
+          data-pisper-secure-input="active"
+        >
+          <ShieldAlert size={12} className="flex-none" />
+          <span className="min-w-0">{t('chat:computerUseLive.secureInput')}</span>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-[8px] px-[8px] py-[4px] text-[11px] text-[var(--text-muted)]">
         <span className="flex min-w-0 items-center gap-[5px]">
           <Monitor size={12} />
