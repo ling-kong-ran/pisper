@@ -27,6 +27,8 @@ export type ProviderConfig = EntityRecord & {
   defaultModel?: string
   baseUrl?: string
   organization?: string
+  // 普通配置接口只返回不可逆 ID 和掩码，绝不回传 API Key 明文。
+  apiKeys?: Array<{ id: string; hint: string }>
   enabled: boolean
   configured: boolean
   custom?: boolean

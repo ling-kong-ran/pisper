@@ -68,6 +68,118 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   assert.equal(visualStatus.image?.id, 'relay-image-v1')
 })
 
+test('one Provider merges multiple API key catalogs and resolves each model with its source key', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-multi-key-'))
+  const calls = []
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: {
+      async discover(input) {
+        calls.push(input.apiKey)
+        if (input.apiKey === 'key-alpha') {
+          return {
+            models: [
+              { id: 'shared-model', name: 'Shared', kind: 'chat' },
+              { id: 'alpha-only', name: 'Alpha only', kind: 'chat' },
+            ],
+          }
+        }
+        if (input.apiKey === 'key-beta') {
+          return {
+            models: [
+              { id: 'shared-model', name: 'Shared', kind: 'chat' },
+              { id: 'beta-only', name: 'Beta only', kind: 'chat' },
+            ],
+          }
+        }
+        throw new Error('unexpected key')
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'multi-relay',
+    name: 'Multi relay',
+    api: 'openai-responses',
+    baseUrl: 'https://relay.example.test/v1',
+    apiKeys: ['key-alpha', 'key-beta'],
+    model: 'alpha-only',
+  })
+
+  const discovered = await runtime.discoverProviderModels('multi-relay')
+  assert.deepEqual(calls, ['key-alpha', 'key-beta'])
+  assert.deepEqual(discovered.models.map((model) => model.id).sort(), [
+    'alpha-only',
+    'beta-only',
+    'shared-model',
+  ])
+  const alpha = runtime.modelRuntime.getModel('multi-relay', 'alpha-only')
+  const beta = runtime.modelRuntime.getModel('multi-relay', 'beta-only')
+  assert.equal((await runtime.modelRuntime.getAuth(alpha)).auth.apiKey, 'key-alpha')
+  assert.equal((await runtime.modelRuntime.getAuth(beta)).auth.apiKey, 'key-beta')
+  const config = await runtime.getConfig()
+  assert.equal(config.providers.find((provider) => provider.id === 'multi-relay').apiKeys.length, 2)
+  assert.equal(JSON.stringify(config).includes('key-alpha'), false)
+  assert.equal(JSON.stringify(config).includes('key-beta'), false)
+})
+
+test('same URL connections share model catalogs while retaining the key that discovered each model', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-shared-url-'))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: {
+      async discover({ apiKey }) {
+        return apiKey === 'key-a'
+          ? { models: [{ id: 'model-a', name: 'Model A', kind: 'chat' }] }
+          : { models: [{ id: 'model-b', name: 'Model B', kind: 'chat' }] }
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'relay-a',
+    name: 'relay-a',
+    api: 'openai-responses',
+    baseUrl: 'https://relay.example.test/v1/',
+    apiKey: 'key-a',
+    model: 'model-a',
+  })
+  await runtime.discoverProviderModels('relay-a')
+  await runtime.createProvider({
+    id: 'relay-b',
+    name: 'relay-b',
+    api: 'openai-completions',
+    baseUrl: 'https://relay.example.test/v1',
+    apiKey: 'key-b',
+    model: 'model-b',
+  })
+
+  // 后添加连接尚未单独拉取时，初始模型已经与同 URL 已发现目录合并。
+  assert.deepEqual(
+    runtime.modelRuntime
+      .getModels('relay-a')
+      .map((model) => model.id)
+      .sort(),
+    ['model-a', 'model-b'],
+  )
+  await runtime.discoverProviderModels('relay-b')
+  const models = runtime.modelRuntime.getModels('relay-a')
+  assert.deepEqual(models.map((model) => model.id).sort(), ['model-a', 'model-b'])
+  const peerModel = runtime.modelRuntime.getModel('relay-a', 'model-b')
+  assert.equal(peerModel.pisperAuthProvider, 'relay-b')
+  assert.equal((await runtime.modelRuntime.getAuth(peerModel)).auth.apiKey, 'key-b')
+})
+
 test('connection discovery fetches models without creating a provider and isolates visual kinds', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-connection-discovery-'))
   const calls = []

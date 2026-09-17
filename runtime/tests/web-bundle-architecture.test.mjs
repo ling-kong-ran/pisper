@@ -434,11 +434,12 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
 })
 
 test('mobile shell keeps navigation in the viewport and model settings use one narrow column', async () => {
-  const [app, models, connectionList, wizard] = await Promise.all([
+  const [app, models, connectionList, wizard, apiKeyList] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
     readFile('src/features/config/ConnectionList.tsx', 'utf8'),
     readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
+    readFile('src/features/config/ApiKeyList.tsx', 'utf8'),
   ])
 
   assert.match(
@@ -458,8 +459,10 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
   assert.match(models, /<VisualGenerationSettings/)
   assert.match(connectionList, /value=\{provider\.configured && provider\.enabled\}/)
   assert.match(connectionList, /tone="green"/)
-  assert.match(wizard, /type="password"/)
-  assert.ok(wizard.indexOf('API Key') < wizard.indexOf('config:configPage.apiProtocol'))
+  // 密码输入已抽为多 Key 复用控件；向导必须接入它，控件自身保证密码语义与禁用自动填充。
+  assert.match(wizard, /<ApiKeyList/)
+  assert.match(apiKeyList, /type="password"/)
+  assert.match(apiKeyList, /autoComplete="new-password"/)
 })
 
 test('mobile device permissions are requested by native operations', async () => {

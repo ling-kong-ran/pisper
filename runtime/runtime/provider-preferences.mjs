@@ -137,6 +137,20 @@ function configuredProviderSecret(credential, providerConfig) {
   return reference
 }
 
+// 新 UI 以数组追加 Key；保留旧 apiKey 字段以兼容已发布客户端与脚本调用。
+function inputApiKeys(input = {}) {
+  const values = Array.isArray(input.apiKeys) ? input.apiKeys : [input.apiKey]
+  const seen = new Set()
+  const keys = []
+  for (const value of values) {
+    const key = String(value || '').trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    keys.push(key)
+  }
+  return keys
+}
+
 // Base URL 归一化（去尾部斜杠、小写），用于端点比较。
 function normalizedProviderBaseUrl(value) {
   return String(value || '')
@@ -326,6 +340,7 @@ export class ProviderPreferences {
     providerDiscovery,
     providerModelDiscovery,
     providerModelCatalog,
+    providerKeyring,
     modelMetadata,
     getModelRuntime,
     setModelRuntime,
@@ -349,6 +364,7 @@ export class ProviderPreferences {
     this.providerDiscovery = providerDiscovery
     this.providerModelDiscovery = providerModelDiscovery
     this.providerModelCatalog = providerModelCatalog
+    this.providerKeyring = providerKeyring
     this.modelMetadata = modelMetadata
     this.getModelRuntime = getModelRuntime
     this.setModelRuntime = setModelRuntime
@@ -367,10 +383,76 @@ export class ProviderPreferences {
     this.providerState = providerState
   }
 
+  // 凭据文件始终以私有权限原子写入；避免 rename 覆盖后退回到进程 umask。
+  async writeAuth(credentials) {
+    await writeJsonAtomic(this.authPath, credentials, { mode: 0o600 })
+  }
+
+  async providerKeyRecords(provider, credentials, overlay) {
+    const primary = configuredProviderSecret(credentials[provider], overlay)
+    return this.providerKeyring.records(provider, primary)
+  }
+
+  // 多 Key 依次发现并按精确模型 ID 合并；仅在内部保留模型到 Key 的关联，响应绝不返回 Key。
+  async discoverWithKeys({
+    provider,
+    credentials,
+    overlay,
+    api,
+    baseUrl,
+    organization,
+    headers,
+    input,
+  }) {
+    const explicitKeys = inputApiKeys(input)
+    const records = [...(await this.providerKeyRecords(provider, credentials, overlay))]
+    for (const key of explicitKeys) {
+      if (!records.some((record) => record.key === key)) {
+        records.push({ id: this.providerKeyring.id(key), key })
+      }
+    }
+    const attempts = records.length ? records : [{ id: '', key: '' }]
+    const models = new Map()
+    const modelKeyIds = {}
+    const failures = []
+    for (const record of attempts) {
+      try {
+        const discovered = await this.providerModelDiscovery.discover({
+          api,
+          baseUrl,
+          apiKey: record.key,
+          organization,
+          headers,
+        })
+        for (const model of discovered.models || []) {
+          const id = String(model?.id || '').trim()
+          if (!id) continue
+          if (!models.has(id)) models.set(id, model)
+          if (record.id) {
+            const ids = modelKeyIds[id] || []
+            if (!ids.includes(record.id)) ids.push(record.id)
+            modelKeyIds[id] = ids
+          }
+        }
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (!models.size) {
+      const first = failures[0]
+      throw first || new Error('Provider 没有返回可用的模型。')
+    }
+    return { models: [...models.values()], modelKeyIds }
+  }
+
   // 重载模型运行时：读取 models.json 的覆盖配置（Base URL/Header/上下文窗口等）
   // 装饰进引擎运行时，然后重建 ModelRuntime。
   async reload() {
-    const modelsJson = await readJson(this.modelsPath, { providers: {} })
+    const [modelsJson, credentials, appConfig] = await Promise.all([
+      readJson(this.modelsPath, { providers: {} }),
+      readJson(this.authPath, {}),
+      readJson(this.appConfigPath, { providerTypes: {} }),
+    ])
     const modelRuntime = await ModelRuntime.create({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
@@ -382,8 +464,13 @@ export class ProviderPreferences {
     const configuredContextWindows = {}
     const configuredInputs = {}
     const configuredReasoning = {}
+    const configuredApiKeys = {}
+    const configuredProviderTypes = {}
     for (const provider of modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
+      configuredProviderTypes[provider.id] =
+        appConfig.providerTypes?.[provider.id] ||
+        (KNOWN_PROVIDERS.includes(provider.id) ? 'chat' : inferredProviderType(overlay))
       if (PROVIDER_API_IDS.has(overlay.api)) configuredApis[provider.id] = overlay.api
       configuredBaseUrls[provider.id] =
         overlay.baseUrl ||
@@ -395,6 +482,12 @@ export class ProviderPreferences {
           provider.id,
           overlay,
           this.providerUserAgent,
+        )
+      }
+      const keys = await this.providerKeyRecords(provider.id, credentials, overlay)
+      if (keys.length) {
+        configuredApiKeys[provider.id] = Object.fromEntries(
+          keys.map((record) => [record.id, record.key]),
         )
       }
       for (const model of overlay.models || []) {
@@ -419,6 +512,8 @@ export class ProviderPreferences {
       configuredInputs,
       configuredReasoning,
       configuredApis,
+      configuredApiKeys,
+      configuredProviderTypes,
     )
     this.setModelRuntime(modelRuntime)
     this.invalidateProjection('', { allUsage: true })
@@ -665,10 +760,11 @@ export class ProviderPreferences {
   // 凭据随配对链路传输，避免用户在手机上再次手工输入，但不进入普通配置视图。
   async exportProviderConfig() {
     const settings = this.getSettingsManager().getGlobalSettings()
-    const [modelsJson, credentials, appConfig] = await Promise.all([
+    const [modelsJson, credentials, appConfig, keyrings] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
       readJson(this.authPath, {}),
       readJson(this.appConfigPath, { toolMode: 'full', disabledProviders: [] }),
+      this.providerKeyring.readAll(),
     ])
     return {
       version: 1,
@@ -684,6 +780,8 @@ export class ProviderPreferences {
           ? modelsJson.providers
           : {},
       credentials: credentials && typeof credentials === 'object' ? credentials : {},
+      // 仅经已配对设备令牌的加密传输导出，普通 /api/config 永不包含此字段。
+      providerKeyrings: keyrings,
     }
   }
 
@@ -702,7 +800,11 @@ export class ProviderPreferences {
       Object.assign(credentials, input.credentials)
     }
     await writeJsonAtomic(this.modelsPath, modelsJson)
-    await writeJsonAtomic(this.authPath, credentials, { mode: 0o600 })
+    await this.writeAuth(credentials)
+    if (input.providerKeyrings && typeof input.providerKeyrings === 'object') {
+      // 桌面配置仅覆盖同名 Provider，手机独有连接的额外 Key 必须保留。
+      await this.providerKeyring.mergeSelected(input.providerKeyrings, Object.keys(input.providers))
+    }
     const nextAppConfig = {
       ...appConfig,
       toolMode:
@@ -742,6 +844,17 @@ export class ProviderPreferences {
     ]
     const disabledProviders = new Set(appConfig.disabledProviders || [])
     const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
+    const keySummaries = Object.fromEntries(
+      await Promise.all(
+        providerIds.map(async (id) => [
+          id,
+          await this.providerKeyring.summaries(
+            id,
+            configuredProviderSecret(credentials[id], modelsJson.providers?.[id]),
+          ),
+        ]),
+      ),
+    )
     const providers = providerIds
       .map((id) => {
         const runtimeProvider = runtimeProviders.find((item) => item.id === id)
@@ -797,6 +910,7 @@ export class ProviderPreferences {
           api: overlay.api || modelRuntime.getModels(id)[0]?.api || 'openai-responses',
           baseUrl: overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || '',
           organization: overlay.headers?.['OpenAI-Organization'] || '',
+          apiKeys: keySummaries[id] || [],
           defaultModel,
           models,
         }
@@ -882,12 +996,22 @@ export class ProviderPreferences {
     const modelRuntime = this.getModelRuntime()
     const credentials = await readJson(this.authPath, {})
     let apiKeyUpdated = false
+    const apiKeys = inputApiKeys(input)
     if (input.clearApiKey) {
       delete credentials[provider]
+      await this.providerKeyring.remove(provider)
       apiKeyUpdated = true
-    }
-    if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
-      credentials[provider] = { type: 'api_key', key: input.apiKey.trim() }
+    } else if (Array.isArray(input.apiKeys) && apiKeys.length) {
+      const records = await this.providerKeyring.add(
+        provider,
+        apiKeys,
+        configuredProviderSecret(credentials[provider], providerOverlay),
+      )
+      credentials[provider] = { type: 'api_key', key: records[0].key }
+      apiKeyUpdated = true
+    } else if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
+      const records = await this.providerKeyring.replace(provider, [input.apiKey])
+      credentials[provider] = { type: 'api_key', key: records[0].key }
       apiKeyUpdated = true
     }
     const oauthOverlay = { ...providerOverlay }
@@ -911,7 +1035,7 @@ export class ProviderPreferences {
     if (!hasAuthentication) {
       throw new Error('请先填写 API Key 或加载 Provider 认证，再保存。')
     }
-    if (apiKeyUpdated) await writeJsonAtomic(this.authPath, credentials)
+    if (apiKeyUpdated) await this.writeAuth(credentials)
 
     const modelsJson = existingOverlay
     modelsJson.providers ||= {}
@@ -1033,7 +1157,8 @@ export class ProviderPreferences {
     const provider = String(id || '').trim()
     const api = String(input.api || '').trim()
     const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, api)
-    const apiKey = String(input.apiKey || '').trim()
+    const apiKeys = inputApiKeys(input)
+    const apiKey = apiKeys[0] || ''
     if (!provider) throw new Error('Provider 不能为空。')
     if (!PROVIDER_API_IDS.has(api)) throw new Error('Provider API 协议不受支持。')
     if (!baseUrl) throw new Error('Provider Base URL 不能为空。')
@@ -1051,7 +1176,7 @@ export class ProviderPreferences {
     } catch {
       throw new Error('Provider Base URL 必须是有效的 HTTP 或 HTTPS 地址。')
     }
-    if (apiKey.length > 16_384) throw new Error('API Key 过长。')
+    if (apiKeys.some((key) => key.length > 16_384)) throw new Error('API Key 过长。')
 
     const config = await this.getConfigFacade()
     if (!config.providers.some((item) => item.id === provider)) {
@@ -1086,10 +1211,13 @@ export class ProviderPreferences {
     await writeJsonAtomic(this.modelsPath, modelsJson)
 
     let apiKeyUpdated = false
-    if (apiKey) {
+    if (apiKeys.length) {
       const credentials = await readJson(this.authPath, {})
-      credentials[provider] = { type: 'api_key', key: apiKey }
-      await writeJsonAtomic(this.authPath, credentials)
+      const records = Array.isArray(input.apiKeys)
+        ? await this.providerKeyring.add(provider, apiKeys, credentialSecret(credentials[provider]))
+        : await this.providerKeyring.replace(provider, apiKeys)
+      credentials[provider] = { type: 'api_key', key: records[0].key }
+      await this.writeAuth(credentials)
       apiKeyUpdated = true
     }
 
@@ -1106,18 +1234,20 @@ export class ProviderPreferences {
   // 仅更新 API Key。
   async setProviderApiKey(id, input = {}) {
     const provider = String(id || '').trim()
-    const apiKey = String(input.apiKey || '').trim()
+    const apiKeys = inputApiKeys(input)
     if (!provider) throw new Error('Provider 不能为空。')
-    if (!apiKey) throw new Error('API Key 不能为空。')
-    if (apiKey.length > 16_384) throw new Error('API Key 过长。')
+    if (!apiKeys.length) throw new Error('API Key 不能为空。')
 
     const config = await this.getConfigFacade()
     if (!config.providers.some((item) => item.id === provider)) {
       throw new Error('Provider 不存在。')
     }
     const credentials = await readJson(this.authPath, {})
-    credentials[provider] = { type: 'api_key', key: apiKey }
-    await writeJsonAtomic(this.authPath, credentials)
+    const records = Array.isArray(input.apiKeys)
+      ? await this.providerKeyring.add(provider, apiKeys, credentialSecret(credentials[provider]))
+      : await this.providerKeyring.replace(provider, apiKeys)
+    credentials[provider] = { type: 'api_key', key: records[0].key }
+    await this.writeAuth(credentials)
     await this.reloadModelRuntime()
     this.invalidateSessionRuntimes()
     return {
@@ -1185,6 +1315,8 @@ export class ProviderPreferences {
     const api = String(input.api || 'openai-responses').trim()
     const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, api)
     const modelId = String(input.model || '').trim()
+    const initialApiKeys = inputApiKeys(input)
+    if (initialApiKeys.some((key) => key.length > 16_384)) throw new Error('API Key 过长。')
     const providerType =
       input.providerType === 'visual' || inferModelKind(modelId, input.modelKind) !== 'chat'
         ? 'visual'
@@ -1226,12 +1358,20 @@ export class ProviderPreferences {
     }
     await writeJsonAtomic(this.modelsPath, modelsJson)
 
-    const apiKey = String(input.apiKey || '').trim()
-    if (apiKey) {
+    let keyRecords = []
+    if (initialApiKeys.length) {
       const credentials = await readJson(this.authPath, {})
-      credentials[id] = { type: 'api_key', key: apiKey }
-      await writeJsonAtomic(this.authPath, credentials)
+      keyRecords = await this.providerKeyring.replace(id, initialApiKeys)
+      credentials[id] = { type: 'api_key', key: keyRecords[0].key }
+      await this.writeAuth(credentials)
     }
+    // 新连接的首个模型也加入同 URL 目录，使已有连接立刻看到合并后的模型集合。
+    await this.providerModelCatalog.sync(id, {
+      baseUrl,
+      api,
+      models: [initialModel],
+      modelKeyIds: keyRecords[0] ? { [modelId]: [keyRecords[0].id] } : {},
+    })
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -1344,26 +1484,28 @@ export class ProviderPreferences {
     const api = String(input.api || overlay.api || 'openai-responses').trim()
     const baseUrl = normalizeProtocolBaseUrl(input.baseUrl || overlay.baseUrl, api)
     if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
-    const explicitApiKey = String(input.apiKey || '').trim()
+    const explicitApiKeys = inputApiKeys(input)
     if (
       isOAuthCredential(credentials[providerId]) &&
-      !explicitApiKey &&
+      !explicitApiKeys.length &&
       hasNonOfficialOAuthEndpoint(providerId, { ...overlay, baseUrl })
     )
       throw new Error(
         '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
       )
-    const apiKey = explicitApiKey || configuredProviderSecret(credentials[providerId], overlay)
-    const discovered = await this.providerModelDiscovery.discover({
+    const discovered = await this.discoverWithKeys({
+      provider: providerId,
+      credentials,
+      overlay,
       api,
       baseUrl,
-      apiKey,
       organization: String(
         input.organization || overlay.headers?.['OpenAI-Organization'] || '',
       ).trim(),
       headers: providerId
         ? providerHeaders(providerId, overlay, this.providerUserAgent)
         : { 'User-Agent': this.providerUserAgent },
+      input,
     })
     const providerType = String(input.providerType || '').trim()
     if (providerType !== 'chat' && providerType !== 'visual') {
@@ -1381,7 +1523,8 @@ export class ProviderPreferences {
           : 'Provider 没有返回可用的对话模型。',
       )
     }
-    return { ...discovered, count: models.length, models, scope }
+    // keyIds 只用于内部目录同步，普通发现响应不暴露任何 Key 关联信息。
+    return { count: models.length, models, scope }
   }
 
   // 单 Provider 模型发现：拉取远程模型列表，与当前目录同步（新增/移除），
@@ -1407,24 +1550,26 @@ export class ProviderPreferences {
     ).trim()
     const baseUrl = String(input.baseUrl || configuredBaseUrl || '').trim()
     if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
-    const explicitApiKey = String(input.apiKey || '').trim()
+    const explicitApiKeys = inputApiKeys(input)
     if (
       isOAuthCredential(credentials[provider]) &&
-      !explicitApiKey &&
+      !explicitApiKeys.length &&
       hasNonOfficialOAuthEndpoint(provider, { ...overlay, baseUrl })
     )
       throw new Error(
         '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
       )
-    const apiKey = explicitApiKey || configuredProviderSecret(credentials[provider], overlay)
-    const discovered = await this.providerModelDiscovery.discover({
+    const discovered = await this.discoverWithKeys({
+      provider,
+      credentials,
+      overlay,
       api,
       baseUrl,
-      apiKey,
       organization: String(
         input.organization || overlay.headers?.['OpenAI-Organization'] || '',
       ).trim(),
       headers: providerHeaders(provider, overlay, this.providerUserAgent),
+      input,
     })
     const scope =
       input.providerType === 'visual' || input.providerType === 'chat'
@@ -1448,6 +1593,7 @@ export class ProviderPreferences {
         baseUrl,
         api,
         models: result.models,
+        modelKeyIds: discovered.modelKeyIds,
       })
       const nextModelIds = new Set(result.models.map((model) => model.id))
       sync = {
@@ -1548,7 +1694,8 @@ export class ProviderPreferences {
     await writeJsonAtomic(this.modelsPath, modelsJson)
     const credentials = await readJson(this.authPath, {})
     delete credentials[provider]
-    await writeJsonAtomic(this.authPath, credentials)
+    await this.writeAuth(credentials)
+    await this.providerKeyring.remove(provider)
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],

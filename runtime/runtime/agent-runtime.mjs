@@ -32,6 +32,7 @@ import { McpService } from '../services/mcp-service.mjs'
 import { migrateKimiCodeProvider } from '../services/provider-migrations.mjs'
 import { ProviderDiscoveryService } from '../services/provider-discovery.mjs'
 import { ProviderModelCatalogService } from '../services/provider-model-catalog-service.mjs'
+import { ProviderKeyringService } from '../services/provider-keyring-service.mjs'
 import { ModelMetadataService } from '../services/model-metadata-service.mjs'
 import { ProviderModelDiscoveryService } from '../services/provider-model-discovery-service.mjs'
 import { ScheduleService } from '../services/schedule-service.mjs'
@@ -363,6 +364,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.sessionDir = join(dataDir, 'sessions')
     this.authPath = join(dataDir, 'auth.json')
     this.modelsPath = join(dataDir, 'models.json')
+    this.providerKeyringPath = join(dataDir, 'pisper-provider-keyrings.json')
     this.providerModelCatalogPath = join(dataDir, 'pisper-provider-models.json')
     this.modelMetadataPath = join(dataDir, 'pisper-model-metadata.json')
     this.piDevCachePath = join(dataDir, 'pi-dev-models-cache.json')
@@ -372,6 +374,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       metadata: this.modelMetadata,
       piDevCachePath: this.piDevCachePath,
     })
+    this.providerKeyring = new ProviderKeyringService({ path: this.providerKeyringPath })
     this.settingsPath = join(dataDir, 'settings.json')
     this.chatDockLayoutPath = join(dataDir, 'pisper-chat-dock-layout.json')
     this.chatDockLayoutWrite = Promise.resolve()
@@ -624,6 +627,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       providerDiscovery: this.providerDiscovery,
       providerModelDiscovery: this.providerModelDiscovery,
       providerModelCatalog: this.providerModelCatalog,
+      providerKeyring: this.providerKeyring,
       modelMetadata: this.modelMetadata,
       getModelRuntime: () => this.modelRuntime,
       setModelRuntime: (runtime) => {

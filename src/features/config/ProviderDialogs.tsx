@@ -7,6 +7,7 @@ import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { PROVIDER_APIS } from './provider-constants'
+import { ApiKeyList } from './ApiKeyList'
 import { ManualModelIds } from './ManualModelIds'
 import { SettingsSwitch } from './settings-primitives'
 import type { FormEvent } from 'react'
@@ -50,7 +51,6 @@ export function ProviderConfigModal({
     providerType,
     api: initialProvider?.api || 'openai-responses',
     baseUrl: initialProvider?.baseUrl || '',
-    apiKey: '',
     model: existingModel?.id || '',
     modelName: existingModel?.name || '',
     modelKind:
@@ -81,6 +81,7 @@ export function ProviderConfigModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // 手动追加的额外模型 ID：保存时随主模型批量写入该连接（对话/视觉均支持）。
+  const [apiKeys, setApiKeys] = useState<string[]>([])
   const [extraModelIds, setExtraModelIds] = useState<string[]>([])
   const updateName = (name: string) =>
     setDraft((current) => ({
@@ -115,6 +116,7 @@ export function ProviderConfigModal({
             method: 'PUT',
             body: JSON.stringify({
               ...draft,
+              apiKeys,
               // 未触碰勾选时省略字段，保留服务端已有映射/默认行为。
               thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
               provider: draft.id,
@@ -126,6 +128,7 @@ export function ProviderConfigModal({
             method: 'POST',
             body: JSON.stringify({
               ...draft,
+              apiKeys,
               thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
             }),
           })
@@ -254,19 +257,11 @@ export function ProviderConfigModal({
             placeholder="https://api.openai.com/v1"
           />
         </FieldLabel>
-        <FieldLabel variant="control">
-          API Key
-          <input
-            type="password"
-            value={draft.apiKey}
-            onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })}
-            placeholder={
-              editing
-                ? t('config:configPage.keepExistingKeyBlank')
-                : t('config:configPage.enterTheAPIKeyForThisConnection')
-            }
-          />
-        </FieldLabel>
+        <ApiKeyList
+          keys={apiKeys}
+          onChange={setApiKeys}
+          existing={initialProvider?.apiKeys || []}
+        />
         <div className="form-grid grid gap-[9px]">
           <FieldLabel variant="control">
             {t('config:configPage.initialModelID')}

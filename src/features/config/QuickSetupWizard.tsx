@@ -1,11 +1,12 @@
 // 快速配置向导：通过 Base URL、API 协议和模型列表完成连接配置。
 // 对话与视觉共用流程，但模型类型严格隔离，避免视觉模型进入默认对话配置。
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, RefreshCw, Server, X } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ApiKeyList } from './ApiKeyList'
 import { ManualModelIds } from './ManualModelIds'
 import { PROVIDER_APIS } from './provider-constants'
 import { SettingsBadge } from './settings-primitives'
@@ -66,7 +67,7 @@ export function QuickSetupWizard({
   const [provider, setProvider] = useState<ProviderConfig | null>(initialProvider)
   const [baseUrl, setBaseUrl] = useState(initialProvider?.baseUrl || '')
   const [api, setApi] = useState(initialProvider?.api || 'openai-responses')
-  const [apiKey, setApiKey] = useState('')
+  const [apiKeys, setApiKeys] = useState<string[]>([])
   const [organization, setOrganization] = useState(initialProvider?.organization || '')
   const [connectionName, setConnectionName] = useState(initialProvider?.name || '')
   const [models, setModels] = useState<ProviderModel[]>([])
@@ -79,7 +80,6 @@ export function QuickSetupWizard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [discoverWarning, setDiscoverWarning] = useState('')
-  const apiKeyInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -93,7 +93,6 @@ export function QuickSetupWizard({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const readApiKey = () => apiKeyInputRef.current?.value ?? apiKey
   const identity = connectionIdentity(baseUrl, providerType)
   const purposeLabel =
     providerType === 'visual'
@@ -145,14 +144,12 @@ export function QuickSetupWizard({
 
   // 第三步才访问 Provider：临时参数只用于发现模型，成功选择后才写入配置文件。
   const fetchModels = async () => {
-    const liveKey = readApiKey().trim()
-    if (liveKey !== apiKey) setApiKey(liveKey)
     const existing = config.providers.find(
       (item) =>
         item.type === providerType && sameBaseUrl(item.baseUrl, baseUrl) && item.api === api,
     )
     setProvider(existing || null)
-    if (!liveKey && !existing?.configured) {
+    if (!apiKeys.length && !existing?.configured) {
       setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
       return
     }
@@ -170,7 +167,7 @@ export function QuickSetupWizard({
             api,
             baseUrl,
             organization,
-            apiKey: liveKey,
+            apiKeys,
           }),
         },
       )
@@ -239,7 +236,7 @@ export function QuickSetupWizard({
               organization,
               model,
               modelKind: providerType === 'visual' ? modelKind : 'chat',
-              apiKey: readApiKey(),
+              apiKeys,
               thinkingLevel: config.thinkingLevel,
               toolMode: config.toolMode,
               setAsDefault: true,
@@ -255,7 +252,7 @@ export function QuickSetupWizard({
               api,
               baseUrl,
               organization,
-              apiKey: readApiKey(),
+              apiKeys,
               model,
               modelKind: providerType === 'visual' ? modelKind : 'chat',
               enabled: true,
@@ -381,23 +378,7 @@ export function QuickSetupWizard({
                 />
               </FieldLabel>
             )}
-            <FieldLabel variant="control">
-              API Key
-              <input
-                ref={apiKeyInputRef}
-                type="password"
-                autoComplete="new-password"
-                autoFocus
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                onInput={(event) => setApiKey(event.currentTarget.value)}
-                placeholder={
-                  provider?.configured
-                    ? t('config:configPage.keepExistingKeyBlank')
-                    : t('config:configPage.enterTheAPIKeyForThisConnection')
-                }
-              />
-            </FieldLabel>
+            <ApiKeyList keys={apiKeys} onChange={setApiKeys} existing={provider?.apiKeys || []} />
             <Button
               type="button"
               size="lg"

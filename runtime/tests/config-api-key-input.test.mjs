@@ -10,7 +10,7 @@ test('quick setup wizard saves provider config after fetching and selecting a mo
 
   assert.match(wizardSource, /setAsDefault: true/)
   assert.match(wizardSource, /enabled: true/)
-  assert.match(wizardSource, /apiKey: readApiKey\(\)/)
+  assert.match(wizardSource, /apiKeys,/)
   // 向导先填写 Base URL，再选择协议，第三步获取模型列表。
   assert.match(wizardSource, /configPage\.quickSetupStepBaseUrl/)
   assert.match(wizardSource, /configPage\.quickSetupStepProtocol/)
@@ -25,13 +25,18 @@ test('quick setup wizard saves provider config after fetching and selecting a mo
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
 })
 
-test('Provider API key saving reads the live password input instead of relying only on React state', async () => {
-  const wizardSource = await readFile('src/features/config/QuickSetupWizard.tsx', 'utf8')
-  assert.match(wizardSource, /const apiKeyInputRef = useRef<HTMLInputElement>\(null\)/)
-  assert.match(wizardSource, /apiKeyInputRef\.current\?\.value/)
-  assert.match(wizardSource, /type="password"/)
-  assert.match(wizardSource, /autoComplete="new-password"/)
-  assert.match(wizardSource, /onInput=\{\(event\) =>/)
+test('Provider API key input appends multiple masked keys without returning their plaintext', async () => {
+  const [wizardSource, dialogSource, keyListSource] = await Promise.all([
+    readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
+    readFile('src/features/config/ProviderDialogs.tsx', 'utf8'),
+    readFile('src/features/config/ApiKeyList.tsx', 'utf8'),
+  ])
+  assert.match(wizardSource, /<ApiKeyList/)
+  assert.match(dialogSource, /<ApiKeyList/)
+  assert.match(keyListSource, /type="password"/)
+  assert.match(keyListSource, /autoComplete="new-password"/)
+  assert.match(keyListSource, /maskKey\(key\)/)
+  assert.match(keyListSource, /onChange\(\[\.\.\.keys, key\]\)/)
 })
 
 test('visual Provider settings expose a direct connection editor and hide unused presets', async () => {
