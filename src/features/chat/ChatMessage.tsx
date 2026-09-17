@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Tag,
   Trash2,
+  Undo2,
   X,
 } from 'lucide-react'
 import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
@@ -196,16 +197,19 @@ function FileActionButton({
   icon,
   label,
   onClick,
+  disabled = false,
 }: {
   icon: ReactNode
   label: string
   onClick: () => void
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
     >
       {icon}
       {label}
@@ -217,19 +221,23 @@ export function MessageAttachments({
   attachments,
   compact = false,
   sessionId,
+  sessionStreaming = false,
 }: {
   attachments: ChatAttachment[]
   compact?: boolean
   // 会话 ID：文件 chip 的操作面板依赖它查单文件 diff；
   // 无会话上下文的场景（如迷你消息）退化为纯下载链接。
   sessionId?: string
+  sessionStreaming?: boolean
 }) {
   const { t } = useI18n()
   const [preview, setPreview] = useState<ImagePreview | null>(null)
   const [fileMenuFor, setFileMenuFor] = useState<string | null>(null)
+  const [confirmingRevertFor, setConfirmingRevertFor] = useState<string | null>(null)
+  const [revertingFile, setRevertingFile] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState<{ diff: string; truncated: boolean } | null>(null)
   const [diffInfo, setDiffInfo] = useState<
-    Record<string, { diff: string; truncated: boolean } | null>
+    Record<string, { diff: string; truncated: boolean; canRevert?: boolean } | null>
   >({})
   const imagePreviews = attachments.flatMap<PreviewImage>((attachment, attachmentIndex) => {
     const source =
@@ -253,8 +261,8 @@ export function MessageAttachments({
     }
   }
 
-  // 打开面板时探测该文件是否有可用 diff：无版本控制或无改动都不显示「查看改动」。
-  // 结果按 chip 缓存，点击按钮直接复用，避免重复跑 git。
+  // 打开面板时探测该文件是否有可用 diff：无版本控制时回退到修改前快照，
+  // 无快照或无改动都不显示「查看改动」。结果按 chip 缓存，点击按钮直接复用。
   const checkFileDiff = async (key: string, path: string) => {
     if (!sessionId) return
     try {
@@ -262,12 +270,37 @@ export function MessageAttachments({
       setDiffInfo((current) => ({
         ...current,
         [key]: result.diff?.trim()
-          ? { diff: result.diff, truncated: Boolean(result.diffTruncated) }
+          ? {
+              diff: result.diff,
+              truncated: Boolean(result.diffTruncated),
+              canRevert: Boolean(result.canRevert),
+            }
           : null,
       }))
     } catch {
       // 探测失败（如路径已不存在）同样隐藏按钮，不打扰用户。
       setDiffInfo((current) => ({ ...current, [key]: null }))
+    }
+  }
+
+  // 快照撤销：先二次确认，避免新建文件被附件菜单中的一次点击直接删除。
+  const revertFileChange = async (key: string, path: string) => {
+    if (!sessionId || sessionStreaming || revertingFile) return
+    if (confirmingRevertFor !== key) {
+      setConfirmingRevertFor(key)
+      return
+    }
+    setConfirmingRevertFor(null)
+    setRevertingFile(key)
+    try {
+      await chatApi.revertSessionFileChanges(sessionId, path)
+      setDiffInfo((current) => ({ ...current, [key]: null }))
+      emitFileNotice(t('chat:chatMessage.fileActionRevertDone', { path }), 'info')
+    } catch (error: unknown) {
+      emitFileNotice(t('chat:chatMessage.fileActionRevertFailed', { path }), 'error')
+      console.error('[chat] 撤销文件改动失败。', error)
+    } finally {
+      setRevertingFile(null)
     }
   }
 
@@ -334,6 +367,7 @@ export function MessageAttachments({
                 onOpenChange={(open) => {
                   setFileMenuFor(open ? String(key) : null)
                   if (open) void checkFileDiff(String(key), String(attachment.path))
+                  else setConfirmingRevertFor(null)
                 }}
               >
                 <PopoverTrigger asChild>
@@ -365,6 +399,24 @@ export function MessageAttachments({
                       icon={<FileDiff size={13} />}
                       label={t('chat:chatMessage.fileActionDiff')}
                       onClick={() => openFileDiff(String(key))}
+                    />
+                  )}
+                  {diffInfo[String(key)]?.canRevert && (
+                    <FileActionButton
+                      icon={
+                        revertingFile === String(key) ? (
+                          <LoaderCircle className="animate-spin" size={13} />
+                        ) : (
+                          <Undo2 size={13} />
+                        )
+                      }
+                      label={
+                        confirmingRevertFor === String(key)
+                          ? t('chat:chatMessage.fileActionConfirmRevert')
+                          : t('chat:chatMessage.fileActionRevert')
+                      }
+                      disabled={Boolean(sessionStreaming || revertingFile)}
+                      onClick={() => void revertFileChange(String(key), String(attachment.path))}
                     />
                   )}
                 </PopoverContent>
@@ -662,7 +714,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           </MarkdownMessage>
         )}
         {message.attachments && message.attachments.length > 0 && (
-          <MessageAttachments attachments={message.attachments} sessionId={sessionId} />
+          <MessageAttachments
+            attachments={message.attachments}
+            sessionId={sessionId}
+            sessionStreaming={sessionStreaming}
+          />
         )}
       </div>
       {message.error && fullText && !streaming && (

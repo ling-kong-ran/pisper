@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
+import { SessionFileChangesService } from '../services/session-file-changes.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
@@ -211,7 +212,10 @@ export class AgentRuntimeFacade {
   }
 
   async deleteSession(id) {
-    return this.sessionLifecycle.deleteSession(id)
+    // 仅在会话生命周期删除成功后清理快照，避免删除失败时丢失可恢复基线。
+    const result = await this.sessionLifecycle.deleteSession(id)
+    await this.getFileChangesService().clear(id)
+    return result
   }
 
   installWorkspaceAssetCapture(session, cwd, sessionId = session.sessionId) {
@@ -225,6 +229,9 @@ export class AgentRuntimeFacade {
         ),
     })
     this.workspaceAssetTracker.install(session, { sessionId, cwd })
+    // 同一安装点顺手挂上文件变更追踪：子会话也归属父会话 ID，审批视图自动聚合。
+    this.fileChanges ||= new SessionFileChangesService({ dataDir: this.dataDir })
+    this.fileChanges.install(session, { sessionId, cwd })
   }
 
   // 流式执行一次会话提示：拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。
@@ -905,13 +912,70 @@ export class AgentRuntimeFacade {
 
   // 单文件差异：会话文件 chip「查看改动」的数据源；
   // 路径必须落在会话工作区内，避免借会话读取任意目录的 diff。
+  // 非 VCS 工作区回退到会话内修改前快照，保证无 Git/SVN 也能预览。
   async getSessionFileDiff(id, filePath) {
     const cwd = await this.sessionGitCwd(id)
     const target = resolve(cwd, String(filePath || ''))
     const relativePath = relative(cwd, target)
     if (!String(filePath || '') || relativePath.startsWith('..') || isAbsolute(relativePath))
       throw new Error('文件路径超出会话工作区范围。')
-    return this.vcsChanges.getFileDiff(cwd, target)
+    const vcs = await this.vcsChanges.getFileDiff(cwd, target)
+    if (vcs.isRepo && vcs.diff?.trim())
+      return { ...vcs, source: vcs.vcs || 'vcs', canRevert: false }
+    const relPath = relativePath.replace(/\\/g, '/')
+    const snapshot = await this.getFileChangesService().diff(id, cwd, relPath)
+    if (snapshot.found && snapshot.diff.trim())
+      return {
+        isRepo: false,
+        vcs: '',
+        diff: snapshot.diff,
+        diffTruncated: snapshot.diffTruncated,
+        source: 'snapshot',
+        canRevert: true,
+      }
+    return { ...vcs, source: vcs.isRepo ? vcs.vcs || 'vcs' : '' }
+  }
+
+  getFileChangesService() {
+    this.fileChanges ||= new SessionFileChangesService({ dataDir: this.dataDir })
+    return this.fileChanges
+  }
+
+  // 会话文件变更清单（无 VCS 审批视图的数据源）。
+  async getSessionFileChanges(id) {
+    const cwd = await this.sessionWorkspaceCwd(id)
+    return { cwd, ...(await this.getFileChangesService().list(id, cwd)) }
+  }
+
+  async getSessionFileChangeDiff(id, filePath) {
+    const cwd = await this.sessionWorkspaceCwd(id)
+    const relPath = this.fileChangeRelPath(cwd, filePath)
+    return this.getFileChangesService().diff(id, cwd, relPath)
+  }
+
+  async revertSessionFileChanges(id, filePath) {
+    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    const cwd = await this.sessionWorkspaceCwd(id)
+    const relPath = filePath ? this.fileChangeRelPath(cwd, filePath) : ''
+    const result = await this.getFileChangesService().revert(id, cwd, relPath || undefined)
+    // HTTP 面保持清单响应平铺，前端不需要了解服务层的内部包装。
+    return { ...result.files, reverted: result.reverted }
+  }
+
+  async approveSessionFileChanges(id, filePath) {
+    const cwd = await this.sessionWorkspaceCwd(id)
+    const relPath = filePath ? this.fileChangeRelPath(cwd, filePath) : ''
+    const result = await this.getFileChangesService().approve(id, cwd, relPath || undefined)
+    return result.files
+  }
+
+  // 文件变更接口统一的路径校验：必须落在会话工作区内。
+  fileChangeRelPath(cwd, filePath) {
+    const target = resolve(cwd, String(filePath || ''))
+    const relativePath = relative(cwd, target)
+    if (!String(filePath || '') || relativePath.startsWith('..') || isAbsolute(relativePath))
+      throw new Error('文件路径超出会话工作区范围。')
+    return relativePath.replace(/\\/g, '/')
   }
 
   async commitSessionVcsChanges(id, message) {

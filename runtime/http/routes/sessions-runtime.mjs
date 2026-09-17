@@ -350,6 +350,43 @@ export const sessionRuntimeRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/file-changes',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionFileChanges(params.sessionId))
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/file-changes/diff',
+    async handler({ runtime, params, url, json }) {
+      json(
+        200,
+        await runtime.getSessionFileChangeDiff(params.sessionId, url.searchParams.get('path')),
+      )
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/file-changes/revert',
+    async handler({ runtime, params, body, json }) {
+      json(
+        200,
+        await runtime.revertSessionFileChanges(params.sessionId, (await body())?.path || ''),
+      )
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/file-changes/approve',
+    async handler({ runtime, params, body, json }) {
+      json(
+        200,
+        await runtime.approveSessionFileChanges(params.sessionId, (await body())?.path || ''),
+      )
+    },
+  },
+  {
     method: 'POST',
     path: '/api/sessions/:sessionId/vcs/commit',
     async handler({ runtime, params, body, json }) {

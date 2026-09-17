@@ -9,6 +9,7 @@ export const COMPOSER_TOOL_IDS = [
   'thinking',
   'commands',
   'git-changes',
+  'file-changes',
   'compact-context',
   'session-actions',
 ] as const

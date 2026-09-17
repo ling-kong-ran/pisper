@@ -147,6 +147,27 @@ export type GitChangesResponse = EntityRecord & {
   error?: string
 }
 
+// 会话文件变更审批：edit/write 的修改前快照对比结果，无 VCS 也可用。
+export type SessionFileChangeFile = {
+  path: string
+  status: 'modified' | 'created' | 'deleted'
+  added: number
+  removed: number
+  changeCount: number
+  snapshot: boolean
+  canRevert: boolean
+  approved: boolean
+  reverted: boolean
+  pending: boolean
+  changedAt: string
+}
+
+export type SessionFileChangesResponse = EntityRecord & {
+  files: SessionFileChangeFile[]
+  summary: { files: number; pending: number; added: number; removed: number }
+  reverted?: number
+}
+
 const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`
 
 async function requestJson<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
@@ -380,11 +401,15 @@ export const chatApi = {
   getVcsChanges: (sessionId: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`),
 
-  // 单文件差异：消息文件 chip「查看改动」；非版本控制工作区返回 isRepo: false。
+  // 单文件差异：消息文件 chip「查看改动」；非版本控制工作区回退到修改前快照。
   getFileDiff: (sessionId: string, path: string) =>
-    requestJson<{ isRepo: boolean; diff: string; diffTruncated?: boolean }>(
-      `${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`,
-    ),
+    requestJson<{
+      isRepo: boolean
+      diff: string
+      diffTruncated?: boolean
+      source?: string
+      canRevert?: boolean
+    }>(`${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`),
 
   commitVcsChanges: (sessionId: string, message: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/commit`, {
@@ -405,6 +430,28 @@ export const chatApi = {
       method: 'POST',
       data: {},
       timeout: 60_000,
+    }),
+
+  // —— 会话文件变更审批（无 Git/SVN 时的快照 diff / 撤销 / 批准）——
+  getSessionFileChanges: (sessionId: string) =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes`),
+
+  getSessionFileChangeDiff: (sessionId: string, path: string) =>
+    requestJson<{ diff: string; diffTruncated?: boolean; found?: boolean }>(
+      `${sessionPath(sessionId)}/file-changes/diff?path=${encodeURIComponent(path)}`,
+    ),
+
+  revertSessionFileChanges: (sessionId: string, path = '') =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes/revert`, {
+      method: 'POST',
+      data: { path },
+      timeout: 60_000,
+    }),
+
+  approveSessionFileChanges: (sessionId: string, path = '') =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes/approve`, {
+      method: 'POST',
+      data: { path },
     }),
 
   // —— 会话运行控制（模型/思考/执行模式/审批/目录）——

@@ -34,6 +34,7 @@ import {
 } from './FocusRuntimeControls'
 import { FocusTranscript } from './FocusTranscript'
 import { GitChangesControl } from './GitChangesControl'
+import { FileChangesControl } from './FileChangesControl'
 import { ExecutionModeControl } from './GoalModeControl'
 import { SessionActionsMenu } from './SessionActionsMenu'
 import { SessionTreeControl } from './SessionTreeControl'
@@ -365,6 +366,7 @@ export const FocusSession = memo(function FocusSession({
     thinking: t('chat:focusSession.currentThinkingLevel'),
     commands: t('chat:focusSession.commands'),
     'git-changes': t('chat:focusSession.gitChanges'),
+    'file-changes': t('chat:focusSession.fileChanges'),
     'compact-context': t('chat:focusSession.compactContextNow'),
     'session-actions': t('chat:focusSession.chatActions'),
   }
@@ -459,6 +461,8 @@ export const FocusSession = memo(function FocusSession({
     'git-changes': vcsAvailable ? (
       <GitChangesControl sessionId={session.id} streaming={streaming} />
     ) : null,
+    // 文件改动审批不依赖 VCS 能力：无 Git/SVN 工作区同样可用。
+    'file-changes': <FileChangesControl sessionId={session.id} streaming={streaming} />,
     'compact-context': (
       <CompactContextButton
         streaming={streaming}
@@ -484,7 +488,7 @@ export const FocusSession = memo(function FocusSession({
   )
   const renderComposerTool = (id: ComposerToolId) => (
     <div
-      className="composer-toolbar-slot grid size-9 min-w-9 flex-none place-items-center overflow-visible [&>button]:!size-9 [&>button]:!min-w-9 [&>div]:!size-9 [&>div]:!min-w-9 [&>div>button]:!size-9 [&_.git-changes-trigger>i]:!right-0.5 [&_.git-changes-trigger>i]:!top-0.5"
+      className="composer-toolbar-slot grid size-9 min-w-9 flex-none place-items-center overflow-visible [&>button]:!size-9 [&>button]:!min-w-9 [&>div]:!size-9 [&>div]:!min-w-9 [&>div>button]:!size-9 [&_.git-changes-trigger>i]:!right-0.5 [&_.git-changes-trigger>i]:!top-0.5 [&_.file-changes-trigger>i]:!right-0.5 [&_.file-changes-trigger>i]:!top-0.5"
       data-composer-tool-id={id}
       key={id}
     >
