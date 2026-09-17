@@ -40,8 +40,7 @@ fn stage_windows_test_resource() {
     // valid copy through their cfg(test) native link block, so the binary is never linked twice.
     // 绑定名保持 test_resource：release-workflow 源码守卫按此字面断言 copy 语义。
     let test_resource = out_dir.join(test_name);
-    std::fs::copy(&generated, &test_resource)
-        .expect("failed to stage the Windows test resource");
+    std::fs::copy(&generated, &test_resource).expect("failed to stage the Windows test resource");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 }
 
