@@ -14,8 +14,12 @@
 // Linux 桌面无 computer use 捕获实现（命令面仅保留 unsupported stub，stub 不读
 // 入参字段），整个帧管线（FrameSlot/编码/监督线程/事件类型）在 Linux 目标下
 // 无消费者；CI 的 Linux 集成检查以 -D warnings 运行会因 dead_code 失败，故按
-// 平台豁免。macOS/Windows 构建保留正常 dead_code 检查。
-#![cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+// 平台豁免 dead_code 与 unused_imports（如顶层 Instant 仅 mac/win 帧管线消费）；
+// macOS/Windows 构建保留正常检查。
+#![cfg_attr(
+    not(any(target_os = "macos", windows)),
+    allow(dead_code, unused_imports)
+)]
 
 use serde::Serialize;
 use std::{
