@@ -42,7 +42,7 @@
   },
   "pisper": {
     "repository": "ling-kong-ran/pisper",
-    "tuiVersion": "0.5.27",
+    "tuiVersion": "0.5.28",
     "runtimeVersion": "0.5.48"
   }
 }
