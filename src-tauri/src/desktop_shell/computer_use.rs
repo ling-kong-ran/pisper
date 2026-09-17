@@ -10,6 +10,13 @@
 //!
 //! 帧经 Tauri IPC Channel 下发（与终端输出同一模式），不占用 agent SSE 通道，
 //! 也不需要额外的事件权限；TUI/移动端不受影响。
+
+// Linux 桌面无 computer use 捕获实现（命令面仅保留 unsupported stub，stub 不读
+// 入参字段），整个帧管线（FrameSlot/编码/监督线程/事件类型）在 Linux 目标下
+// 无消费者；CI 的 Linux 集成检查以 -D warnings 运行会因 dead_code 失败，故按
+// 平台豁免。macOS/Windows 构建保留正常 dead_code 检查。
+#![cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+
 use serde::Serialize;
 use std::{
     collections::HashMap,
