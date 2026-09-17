@@ -1,9 +1,9 @@
 {
-  "version": "0.1.41",
-  "tag": "app-v0.1.41",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.41",
+  "version": "0.1.42",
+  "tag": "app-v0.1.42",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.42",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- feat(chat): lower auto-compaction threshold minimum from 50% to 10%\n- fix(web): markdown 与语音链路不再依赖 lookbehind 正则（Safari <16.4 崩溃）",
-  "releaseDate": "2026-09-14"
+  "notes": "- fix(app): 避免 Android setup action 安装已下架 tools 包\n- chore(release-runtime): runtime-v0.5.49\n- fix(web): 字体渲染去模糊与全局排版观感优化\n- feat(desktop): computer use 密码框控件级敏感关卡与安全输入状态上报\n- feat(desktop): M3 Windows 原生镜像流——WGC 主路径 + GDI 轮询兜底\n- fix(desktop): 镜像流首帧后静默停摆——SCStream output 弱引用生命周期修复\n- feat(desktop): computer use 镜像流迁移 ScreenCaptureKit，帧率 3→12（上限 60）\n- feat(desktop): computer use 实时窗口镜像流（原生按窗口捕获，不扰前台）\n- feat(chat): 工具活动卡片渲染 computer use / 浏览器截图实时预览",
+  "releaseDate": "2026-09-17"
 }
