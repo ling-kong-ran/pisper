@@ -3,7 +3,7 @@
   "version": "0.5.65",
   "private": true,
   "bundled": {
-    "tui": "0.5.27",
-    "runtime": "0.5.48"
+    "tui": "0.5.28",
+    "runtime": "0.5.49"
   }
 }
