@@ -97,6 +97,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android SDK packages and NDK
         run: |
           yes | sdkmanager --licenses > /dev/null
