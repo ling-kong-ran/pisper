@@ -37,7 +37,7 @@
 
 ## 检查范围与结果解释
 
-- `npm run typecheck` 覆盖 `src/`、Vite 配置和 `tsconfig.jscheck.json` 的指定文件及其依赖图，不等于全部 Runtime 已检查。当前 JS 配置仅列出 `runtime/http/route-registry.mjs`、`runtime/runtime/workspace-directories.mjs` 和 `shared/app-update.mjs`；扩大覆盖时记录实际纳入的范围，避免用宽泛 `any` 消除错误。
+- `npm run typecheck` 覆盖 `src/`、Vite 配置和 `tsconfig.jscheck.json` 的指定文件及其依赖图，不等于全部 Runtime 已检查。当前 JS 配置仅列出 `runtime/http/route-registry.mjs`、`runtime/runtime/workspace-directories.mjs`、`runtime/services/openai-request-transport.mjs` 和 `shared/app-update.mjs`；扩大覆盖时记录实际纳入的范围，避免用宽泛 `any` 消除错误。
 - `npm test` 当前只匹配 `runtime/tests/*.test.mjs`，其中包含 Runtime、前端纯逻辑、协议、构建和源码守卫。新增其他目录或嵌套目录时，同步执行入口、CI 和测试资产路径，验证默认命令确实发现新测试；不要求为了目录整齐搬迁现有测试。
 - `npm run check` 按顺序执行类型、lint、i18n、格式和启动检查；任一步失败会阻断后续步骤。`npm run build` 中编译、体积预算和语法兼容检查也按顺序执行。报告应区分已通过、失败、跳过和未执行，不能用前一步成功概括整条命令通过。
 - 源码守卫应保护依赖边界、安全、兼容性和构建约定。重构前用 `node scripts/list-source-guards.mjs --source <文件>` 辅助定位，再检索动态路径或间接读取；该脚本不是完整静态分析器。更新守卫时记录原保护目标和替代的行为、契约或依赖检查。

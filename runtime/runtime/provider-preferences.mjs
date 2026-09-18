@@ -6,6 +6,7 @@ import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
+import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
 
 // 内置 Provider 标识与展示名；其余自定义 Provider 由用户配置。
 const KNOWN_PROVIDERS = [
@@ -515,6 +516,18 @@ export class ProviderPreferences {
       configuredApiKeys,
       configuredProviderTypes,
     )
+    // complete/completeSimple/fetchDeferred 委托对应 stream，统一覆盖会话、压缩和直接调用。
+    for (const method of ['stream', 'streamSimple', 'streamDeferred', 'cancelDeferred']) {
+      const original = modelRuntime[method].bind(modelRuntime)
+      modelRuntime[method] = (model, input, options) =>
+        original(
+          model,
+          input,
+          usesOpenAISdk(model)
+            ? { ...options, fetch: createOpenAIRequestFetch(options?.fetch) }
+            : options,
+        )
+    }
     this.setModelRuntime(modelRuntime)
     this.invalidateProjection('', { allUsage: true })
   }
