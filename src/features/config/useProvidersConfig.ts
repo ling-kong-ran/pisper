@@ -31,6 +31,8 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toggling, setToggling] = useState('')
+  const [settingDefault, setSettingDefault] = useState('')
+  const [settingModel, setSettingModel] = useState('')
 
   // 首次加载配置，随后后台刷新各 Provider 的模型目录（结果回来后更新视图）。
   useEffect(() => {
@@ -90,6 +92,46 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     [notify, t],
   )
 
+  const setDefaultProvider = useCallback(
+    async (provider: ProviderConfig) => {
+      setSettingDefault(provider.id)
+      setError('')
+      try {
+        const updated = await apiJson<ConfigData>('/api/config', {
+          method: 'PUT',
+          body: JSON.stringify({ provider: provider.id, setAsDefault: true }),
+        })
+        setConfig(updated)
+        notify(t('config:configPage.defaultProviderUpdated', { name: provider.name }))
+      } catch (caught) {
+        setError(errorMessage(caught))
+      } finally {
+        setSettingDefault('')
+      }
+    },
+    [notify, t],
+  )
+
+  const setProviderDefaultModel = useCallback(
+    async (provider: ProviderConfig, model: string) => {
+      setSettingModel(provider.id)
+      setError('')
+      try {
+        const updated = await apiJson<ConfigData>('/api/config', {
+          method: 'PUT',
+          body: JSON.stringify({ provider: provider.id, model, setAsDefault: false }),
+        })
+        setConfig(updated)
+        notify(t('config:configPage.providerConnectionUpdated'))
+      } catch (caught) {
+        setError(errorMessage(caught))
+      } finally {
+        setSettingModel('')
+      }
+    },
+    [notify, t],
+  )
+
   const deleteProvider = useCallback(
     async (provider: ProviderConfig) => {
       const approved = await requestConfirm({
@@ -121,7 +163,11 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     loading,
     error,
     toggling,
+    settingDefault,
+    settingModel,
     applyConfig,
+    setDefaultProvider,
+    setProviderDefaultModel,
     toggleProvider,
     deleteProvider,
   }

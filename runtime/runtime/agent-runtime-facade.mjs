@@ -1086,6 +1086,10 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.setProviderEnabled(id, enabled)
   }
 
+  async cloneProvider(id, input) {
+    return this.providerPreferences.cloneProvider(id, input)
+  }
+
   async createProvider(input) {
     return this.providerPreferences.createProvider(input)
   }

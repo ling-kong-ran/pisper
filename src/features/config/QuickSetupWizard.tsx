@@ -6,10 +6,10 @@ import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { ApiKeyList } from './ApiKeyList'
-import { collectApiKeys } from './api-key-input'
+import { ApiKeyInput } from './ApiKeyInput'
 import { ManualModelIds } from './ManualModelIds'
 import { PROVIDER_APIS } from './provider-constants'
+import { createProviderConnectionId } from './provider-connection-id'
 import { SettingsBadge } from './settings-primitives'
 import type {
   ConfigData,
@@ -32,25 +32,13 @@ type QuickSetupWizardProps = {
   onCompleted: (data: ConfigData) => void
 }
 
-function connectionIdentity(baseUrl: string, providerType: ProviderType) {
+function connectionIdentity(baseUrl: string) {
   try {
     const host = new URL(baseUrl).hostname.replace(/^www\./i, '')
-    const suffix = providerType === 'visual' ? 'visual' : 'chat'
-    const id = `custom-${host.replace(/[^a-z0-9]+/gi, '-')}-${suffix}`
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 60)
-    return { id: id || 'custom-provider', name: host || 'Custom Provider' }
+    return { name: host || 'Custom Provider' }
   } catch {
-    return { id: 'custom-provider', name: 'Custom Provider' }
+    return { name: 'Custom Provider' }
   }
-}
-
-function sameBaseUrl(left: string | undefined, right: string) {
-  return (
-    String(left || '')
-      .replace(/\/+$/, '')
-      .toLowerCase() === right.replace(/\/+$/, '').toLowerCase()
-  )
 }
 
 export function QuickSetupWizard({
@@ -66,19 +54,20 @@ export function QuickSetupWizard({
     : null
   const [step, setStep] = useState(1)
   const [provider, setProvider] = useState<ProviderConfig | null>(initialProvider)
+  const [connectionId] = useState(createProviderConnectionId)
   const [baseUrl, setBaseUrl] = useState(initialProvider?.baseUrl || '')
   const [api, setApi] = useState(initialProvider?.api || 'openai-responses')
-  const [listedApiKeys, setApiKeys] = useState<string[]>([])
   const [apiKeyDraft, setApiKeyDraft] = useState('')
-  const apiKeys = collectApiKeys(listedApiKeys, apiKeyDraft)
+  const apiKey = apiKeyDraft.trim() || undefined
   const [organization, setOrganization] = useState(initialProvider?.organization || '')
   const [connectionName, setConnectionName] = useState(initialProvider?.name || '')
-  const [models, setModels] = useState<ProviderModel[]>([])
-  const [modelId, setModelId] = useState('')
+  const [models, setModels] = useState<ProviderModel[]>(initialProvider?.models || [])
+  const [modelId, setModelId] = useState(initialProvider?.defaultModel || '')
   // 手动追加的额外模型 ID 列表：点 + 或回车逐个追加，保存时随主模型一并写入连接。
   const [manualIds, setManualIds] = useState<string[]>([])
   const [modelKind, setModelKind] = useState<ProviderModel['kind']>(
-    providerType === 'visual' ? 'image' : 'chat',
+    initialProvider?.models.find((item) => item.id === initialProvider.defaultModel)?.kind ||
+      (providerType === 'visual' ? 'image' : 'chat'),
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -96,7 +85,7 @@ export function QuickSetupWizard({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const identity = connectionIdentity(baseUrl, providerType)
+  const identity = connectionIdentity(baseUrl)
   const purposeLabel =
     providerType === 'visual'
       ? t('config:configPage.visualProvider')
@@ -123,14 +112,7 @@ export function QuickSetupWizard({
       return
     }
     setError('')
-    const existing = config.providers.find(
-      (item) => item.type === providerType && sameBaseUrl(item.baseUrl, value) && item.api === api,
-    )
-    setProvider(existing || null)
-    if (existing) {
-      setConnectionName(existing.name)
-      setOrganization(existing.organization || '')
-    } else if (!connectionName.trim()) {
+    if (!connectionName.trim()) {
       setConnectionName(identity.name)
     }
     setStep(2)
@@ -147,12 +129,8 @@ export function QuickSetupWizard({
 
   // 第三步才访问 Provider：临时参数只用于发现模型，成功选择后才写入配置文件。
   const fetchModels = async () => {
-    const existing = config.providers.find(
-      (item) =>
-        item.type === providerType && sameBaseUrl(item.baseUrl, baseUrl) && item.api === api,
-    )
-    setProvider(existing || null)
-    if (!apiKeys.length && !existing?.configured) {
+    const existing = provider
+    if (!apiKey && !existing?.configured) {
       setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
       return
     }
@@ -170,7 +148,7 @@ export function QuickSetupWizard({
             api,
             baseUrl,
             organization,
-            apiKeys,
+            apiKey,
           }),
         },
       )
@@ -222,6 +200,10 @@ export function QuickSetupWizard({
       setError(t('config:configPage.selectModelToFinish'))
       return
     }
+    if (!apiKey && !provider?.configured) {
+      setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
+      return
+    }
     // 已在连接里的模型跳过（服务端也会跳过已存在项，这里提前过滤避免整批被判为重复）。
     const existingIds = new Set((provider?.models || []).map((item) => item.id))
     const extraIds = manualIds.filter((id) => id !== model && !existingIds.has(id))
@@ -239,32 +221,32 @@ export function QuickSetupWizard({
               organization,
               model,
               modelKind: providerType === 'visual' ? modelKind : 'chat',
-              apiKeys,
-              thinkingLevel: config.thinkingLevel,
-              toolMode: config.toolMode,
-              setAsDefault: true,
+              apiKey,
+              setAsDefault: false,
               enabled: true,
             }),
           })
         : await apiJson<ConfigData>('/api/providers', {
             method: 'POST',
             body: JSON.stringify({
-              id: identity.id,
+              id: connectionId,
               name: connectionName.trim() || identity.name,
               providerType,
               api,
               baseUrl,
               organization,
-              apiKeys,
+              apiKey,
               model,
               modelKind: providerType === 'visual' ? modelKind : 'chat',
               enabled: true,
             }),
           })
+      const targetProviderId = provider?.id || data.createdProviderId || connectionId
+      const savedProvider = data.providers.find((item) => item.id === targetProviderId)
+      if (savedProvider) setProvider(savedProvider)
       // 主模型保存成功后再批量添加其余手动输入的模型；失败时保留向导以便修正重试
       //（重试安全：服务端会跳过已存在的模型）。
       if (extraIds.length) {
-        const targetProviderId = provider?.id || identity.id
         const kind = providerType === 'visual' ? modelKind : 'chat'
         try {
           data = await apiJson<ConfigData>(
@@ -381,12 +363,10 @@ export function QuickSetupWizard({
                 />
               </FieldLabel>
             )}
-            <ApiKeyList
-              keys={listedApiKeys}
-              onChange={setApiKeys}
-              draft={apiKeyDraft}
-              onDraftChange={setApiKeyDraft}
-              existing={provider?.apiKeys || []}
+            <ApiKeyInput
+              value={apiKeyDraft}
+              onChange={setApiKeyDraft}
+              configured={provider?.configured}
             />
             <Button
               type="button"
@@ -535,7 +515,7 @@ export function QuickSetupWizard({
               onClick={() => void save()}
             >
               {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
-              {busy ? t('config:configPage.saving') : t('config:configPage.saveAndSetDefault')}
+              {busy ? t('config:configPage.saving') : t('config:configPage.saveChanges')}
             </Button>
           )}
         </div>

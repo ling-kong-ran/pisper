@@ -124,7 +124,7 @@ function runtimeModel(
       ),
       name: candidate.name || existing.name,
       pisperKind: candidate.kind || 'chat',
-      // 同 URL 多 Key 合并时，模型保留发现它的连接归属，运行时据此选择正确凭据。
+      // 认证始终归当前 Provider；保留内部字段以兼容旧模型投影。
       pisperAuthProvider: candidate.authProvider || providerId,
       pisperAuthKeyId: candidate.authKeyId || '',
     }
@@ -264,7 +264,7 @@ export class ProviderModelCatalogService {
     configuredInputs = {},
     configuredReasoning = {},
     configuredApis = {},
-    configuredApiKeys = {},
+    _configuredApiKeys = {},
     configuredProviderTypes = {},
   ) {
     this.configuredBaseUrls = new Map(
@@ -276,7 +276,6 @@ export class ProviderModelCatalogService {
     const explicitReasoning = new Map(Object.entries(configuredReasoning || {}))
     this.configuredHeaders = new Map(Object.entries(configuredHeaders || {}))
     this.configuredProviderTypes = new Map(Object.entries(configuredProviderTypes || {}))
-    const apiKeys = new Map(Object.entries(configuredApiKeys || {}))
     const rawGetModels = runtime.getModels.bind(runtime)
     const rawGetModel = runtime.getModel.bind(runtime)
     const rawGetAvailable = runtime.getAvailable.bind(runtime)
@@ -310,18 +309,10 @@ export class ProviderModelCatalogService {
     const catalogEntries = (providerId) => {
       const configuredBaseUrl = this.configuredBaseUrls.get(providerId)
       if (!configuredBaseUrl) return []
-      return (
-        Object.entries(this.state.providers || {})
-          // 目录共享严格按端点 URL：同一网关即使两个连接协议配置不同，也应复用已发现的模型 ID。
-          .filter(([, entry]) => normalizedBaseUrl(entry?.baseUrl) === configuredBaseUrl)
-          // 当前连接优先，其他同端点连接按 ID 稳定排序，模型 ID 冲突时可预测地选 Key。
-          .sort(([left], [right]) => {
-            if (left === providerId) return -1
-            if (right === providerId) return 1
-            return left.localeCompare(right)
-          })
-          .map(([id, entry]) => ({ id, entry }))
-      )
+      const entry = this.state.providers?.[providerId]
+      return entry && normalizedBaseUrl(entry.baseUrl) === configuredBaseUrl
+        ? [{ id: providerId, entry }]
+        : []
     }
     const modelsForProvider = (providerId) => {
       const configuredApi = this.configuredApis.get(providerId)
@@ -349,7 +340,7 @@ export class ProviderModelCatalogService {
             {
               ...candidate,
               authProvider: sourceProvider,
-              authKeyId: Array.isArray(candidate.keyIds) ? candidate.keyIds[0] || '' : '',
+              authKeyId: '',
             },
             existing.get(candidate.id),
             raw[0],
@@ -361,25 +352,13 @@ export class ProviderModelCatalogService {
           ),
         )
       }
-      // 自身目录存在时仍保持“本 Key 已下线模型被移除”的原有同步语义；
-      // 新连接无自身目录时先保留本地初始模型，再补同 URL 的已发现模型。
+      // 已发现目录为当前 Provider 权威来源，未发现时使用本地模型定义。
       if (own) {
         for (const candidate of own.entry.models || []) append(own.id, own.entry, candidate)
       } else {
         for (const model of raw) {
           seen.add(model.id)
           models.push({ ...model, pisperAuthProvider: providerId })
-        }
-      }
-      const targetType = this.configuredProviderTypes.get(providerId) || 'chat'
-      for (const source of entries) {
-        if (source.id === providerId) continue
-        const sourceType = this.configuredProviderTypes.get(source.id) || 'chat'
-        for (const candidate of source.entry.models || []) {
-          // 专用视觉连接占用图像/视频模型；同 URL 对话连接不能把它们重新列回聊天模型。
-          if (targetType === 'chat' && sourceType === 'visual' && candidate.kind !== 'chat')
-            continue
-          append(source.id, source.entry, candidate)
         }
       }
       const providerHeaders = this.configuredHeaders.get(providerId)
@@ -390,27 +369,6 @@ export class ProviderModelCatalogService {
       }))
     }
 
-    // Pi 会话经 getAuth(model) 取凭据；同端点合并进来的模型必须使用发现它的连接 Key。
-    // 纯目录测试会传入最小 runtime，缺少 getAuth 时保留其原有契约。
-    if (typeof runtime.getAuth === 'function') {
-      const rawGetAuth = runtime.getAuth.bind(runtime)
-      runtime.getAuth = async (providerOrModel, overrides = {}) => {
-        if (typeof providerOrModel === 'string') return rawGetAuth(providerOrModel, overrides)
-        const source = providerOrModel?.pisperAuthProvider || providerOrModel?.provider
-        const key = providerOrModel?.pisperAuthKeyId
-          ? apiKeys.get(source)?.[providerOrModel.pisperAuthKeyId]
-          : ''
-        if (
-          source &&
-          (source !== providerOrModel.provider || key) &&
-          overrides.apiKey === undefined
-        ) {
-          const resolved = await rawGetAuth(source, key ? { ...overrides, apiKey: key } : overrides)
-          if (resolved) return resolved
-        }
-        return rawGetAuth(providerOrModel, overrides)
-      }
-    }
     runtime.getModels = (providerId) => {
       if (providerId) return modelsForProvider(providerId)
       const raw = [...rawGetModels()]

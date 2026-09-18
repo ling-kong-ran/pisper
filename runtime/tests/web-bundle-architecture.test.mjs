@@ -439,7 +439,7 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
     readFile('src/features/config/ConnectionList.tsx', 'utf8'),
     readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
-    readFile('src/features/config/ApiKeyList.tsx', 'utf8'),
+    readFile('src/features/config/ApiKeyInput.tsx', 'utf8'),
   ])
 
   assert.match(
@@ -459,8 +459,8 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
   assert.match(models, /<VisualGenerationSettings/)
   assert.match(connectionList, /value=\{provider\.configured && provider\.enabled\}/)
   assert.match(connectionList, /tone="green"/)
-  // 密码输入已抽为多 Key 复用控件；向导必须接入它，控件自身保证密码语义与禁用自动填充。
-  assert.match(wizard, /<ApiKeyList/)
+  // 单 Key 复用控件继续保证密码语义与禁用自动填充。
+  assert.match(wizard, /<ApiKeyInput/)
   assert.match(apiKeyList, /type="password"/)
   assert.match(apiKeyList, /autoComplete="new-password"/)
 })

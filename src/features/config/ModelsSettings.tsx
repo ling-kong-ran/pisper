@@ -52,6 +52,7 @@ export function ModelsSettings({
   const [providerModal, setProviderModal] = useState<{
     providerType: ProviderType
     provider?: ProviderConfig
+    cloneProvider?: ProviderConfig
   } | null>(null)
   const [manageOpen, setManageOpen] = useState<boolean | null>(storedManageOpen)
   const settings = useProvidersConfig({ notify, requestConfirm, t })
@@ -98,6 +99,8 @@ export function ModelsSettings({
   // 从列表进入连接编辑弹窗；摘要卡仍进入向导以便直接切换默认模型。
   const openProviderEditorFor = (provider: ProviderConfig) =>
     setProviderModal({ providerType: provider.type, provider })
+  const openProviderClonerFor = (provider: ProviderConfig) =>
+    setProviderModal({ providerType: provider.type, cloneProvider: provider })
   const openWizardFor = (provider: ProviderConfig) =>
     setWizard({ providerId: provider.id, providerType: provider.type })
 
@@ -146,6 +149,11 @@ export function ModelsSettings({
             defaultProviderId={defaultProviderId}
             toggling={settings.toggling}
             onConfigure={openProviderEditorFor}
+            onClone={openProviderClonerFor}
+            onSetDefault={settings.setDefaultProvider}
+            settingDefault={settings.settingDefault}
+            settingModel={settings.settingModel}
+            onSetDefaultModel={settings.setProviderDefaultModel}
             onToggle={settings.toggleProvider}
             onDelete={settings.deleteProvider}
             onAddCustom={() => setProviderModal({ providerType: 'chat' })}
@@ -165,6 +173,7 @@ export function ModelsSettings({
         notify={notify}
         toggling={settings.toggling}
         onToggleProvider={settings.toggleProvider}
+        onCloneProvider={openProviderClonerFor}
         onDeleteProvider={settings.deleteProvider}
         onQuickSetup={() => setWizard({ providerType: 'visual' })}
         onEditVisualProvider={(providerId) => {
@@ -189,6 +198,7 @@ export function ModelsSettings({
         <ProviderConfigModal
           initialProviderType={providerModal.providerType}
           initialProvider={providerModal.provider}
+          cloneProvider={providerModal.cloneProvider}
           onClose={() => setProviderModal(null)}
           onCreated={(data) => {
             settings.applyConfig(data)

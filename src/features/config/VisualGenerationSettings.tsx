@@ -52,6 +52,7 @@ type VisualGenerationSettingsProps = {
   toggling: string
   onToggleProvider: (provider: ProviderConfig, enabled: boolean) => void | Promise<void>
   onDeleteProvider: (provider: ProviderConfig) => void | Promise<void>
+  onCloneProvider: (provider: ProviderConfig) => void
   onQuickSetup: () => void
   onEditVisualProvider: (providerId: string) => void
 }
@@ -62,6 +63,7 @@ export function VisualGenerationSettings({
   toggling,
   onToggleProvider,
   onDeleteProvider,
+  onCloneProvider,
   onQuickSetup,
   onEditVisualProvider,
 }: VisualGenerationSettingsProps) {
@@ -294,6 +296,7 @@ export function VisualGenerationSettings({
             <ConnectionCardGrid
               providers={visualProviders}
               toggling={toggling}
+              onClone={onCloneProvider}
               onConfigure={(provider) => onEditVisualProvider(provider.id)}
               onToggle={onToggleProvider}
               onDelete={onDeleteProvider}

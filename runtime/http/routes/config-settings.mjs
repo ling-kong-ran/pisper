@@ -242,6 +242,13 @@ export const configSettingsRoutes = [
   },
   {
     method: 'POST',
+    path: '/api/providers/:providerId/clone',
+    async handler({ runtime, params, body, json }) {
+      json(201, await runtime.cloneProvider(params.providerId, await body()))
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/providers/models/refresh',
     async handler({ runtime, json }) {
       json(200, await runtime.refreshProviderModels())

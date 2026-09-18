@@ -479,11 +479,12 @@ test('each chat provider keeps its saved default model independently', async (t)
     setAsDefault: false,
   })
   const retainedDefault = runtime.settingsManager.getGlobalSettings()
-  assert.equal(savedWithoutDefault.defaultUpdated, false)
+  // 修改当前默认 Provider 的内部默认模型，同步 SDK 的 provider/model 对。
+  assert.equal(savedWithoutDefault.defaultUpdated, true)
   assert.equal(savedWithoutDefault.defaultProvider, originalDefault.defaultProvider)
-  assert.equal(savedWithoutDefault.defaultModel, originalDefault.defaultModel)
+  assert.equal(savedWithoutDefault.defaultModel, 'relay-one-second')
   assert.equal(retainedDefault.defaultProvider, originalDefault.defaultProvider)
-  assert.equal(retainedDefault.defaultModel, originalDefault.defaultModel)
+  assert.equal(retainedDefault.defaultModel, 'relay-one-second')
 
   const savedAsDefault = await runtime.saveConfig({
     provider: 'relay-two',
