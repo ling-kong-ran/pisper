@@ -1,9 +1,9 @@
 {
-  "version": "0.1.43",
-  "tag": "app-v0.1.43",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.43",
+  "version": "0.1.44",
+  "tag": "app-v0.1.44",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.44",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(runtime): 关闭时取消并等待模型元数据后台任务\n- chore(deps): update pi coding agent\n- fix(chat): 完善附件预览并修复会话重命名与收尾写盘\n- fix：修复TabsList的滚动条\n- fix(desktop): 隐藏筛选条滚动条，页头标题不再逐字换行\n- feat(chat): 侧栏右键管理项目与会话，用量弹窗新增详细统计\n- feat(runtime): 记录每轮模型请求的首字耗时与响应时长\n- fix(runtime): 全 0 缓存回传视为未知命中率\n- fix(config): 修复多密钥列表占满整行的问题\n- feat(config): 同 URL Provider 支持多 Key 模型聚合\n- feat(chat): 支持会话文件改动审批与快照撤销",
+  "notes": "- test(ios): 内容证明测试使用确定性的已安装模型数据\n- chore(release-runtime): runtime-v0.5.51\n- fix(config): 复用布局样式降低官方 Node 构建 CSS 体积\n- feat(config): 独立 Provider 单密钥、默认模型与克隆\n- fix(runtime): 过滤 OpenAI SDK 请求诊断头以改善端点兼容\n- fix(workflows): 修复高分屏标签栏滚动条与纵向溢出\n- fix(config): 当前输入的密钥直接参与模型发现与保存\n- fix(desktop): 工作流筛选条滚动条同样隐藏",
   "releaseDate": "2026-09-18"
 }
