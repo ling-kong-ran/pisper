@@ -1,9 +1,9 @@
 {
-  "version": "0.1.42",
-  "tag": "app-v0.1.42",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.42",
+  "version": "0.1.43",
+  "tag": "app-v0.1.43",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.43",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(app): 避免 Android setup action 安装已下架 tools 包\n- chore(release-runtime): runtime-v0.5.49\n- fix(web): 字体渲染去模糊与全局排版观感优化\n- feat(desktop): computer use 密码框控件级敏感关卡与安全输入状态上报\n- feat(desktop): M3 Windows 原生镜像流——WGC 主路径 + GDI 轮询兜底\n- fix(desktop): 镜像流首帧后静默停摆——SCStream output 弱引用生命周期修复\n- feat(desktop): computer use 镜像流迁移 ScreenCaptureKit，帧率 3→12（上限 60）\n- feat(desktop): computer use 实时窗口镜像流（原生按窗口捕获，不扰前台）\n- feat(chat): 工具活动卡片渲染 computer use / 浏览器截图实时预览",
-  "releaseDate": "2026-09-17"
+  "notes": "- fix(runtime): 关闭时取消并等待模型元数据后台任务\n- chore(deps): update pi coding agent\n- fix(chat): 完善附件预览并修复会话重命名与收尾写盘\n- fix：修复TabsList的滚动条\n- fix(desktop): 隐藏筛选条滚动条，页头标题不再逐字换行\n- feat(chat): 侧栏右键管理项目与会话，用量弹窗新增详细统计\n- feat(runtime): 记录每轮模型请求的首字耗时与响应时长\n- fix(runtime): 全 0 缓存回传视为未知命中率\n- fix(config): 修复多密钥列表占满整行的问题\n- feat(config): 同 URL Provider 支持多 Key 模型聚合\n- feat(chat): 支持会话文件改动审批与快照撤销",
+  "releaseDate": "2026-09-18"
 }
