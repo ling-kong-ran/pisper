@@ -29,11 +29,12 @@ export function ApiKeyList({ keys, onChange, existing = [] }: ApiKeyListProps) {
   }
 
   return (
-    <>
+    <div className="grid min-w-0 gap-1.5">
       <FieldLabel variant="control">
         {t('config:configPage.apiKeys')}
-        <div className="flex items-stretch gap-[6px]">
+        <div className="flex min-w-0 items-stretch gap-[6px]">
           <input
+            className="min-w-0 flex-1"
             type="password"
             autoComplete="new-password"
             value={draft}
@@ -58,27 +59,26 @@ export function ApiKeyList({ keys, onChange, existing = [] }: ApiKeyListProps) {
         </div>
       </FieldLabel>
       {(existing.length > 0 || keys.length > 0) && (
-        <div className="flex flex-col gap-[6px]" aria-label={t('config:configPage.apiKeys')}>
+        <div
+          className="flex min-w-0 flex-wrap items-center gap-1.5"
+          aria-label={t('config:configPage.apiKeys')}
+        >
           {existing.map((key) => (
             <div
               key={key.id}
-              className="flex min-w-0 items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[6px_10px]"
+              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-[var(--r-sm)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-2 py-1"
             >
               <KeyRound size={13} className="flex-none text-[var(--text-muted)]" />
-              <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                {key.hint}
-              </span>
+              <span className="min-w-0 truncate font-mono text-xs">{key.hint}</span>
             </div>
           ))}
           {keys.map((key) => (
             <div
               key={key}
-              className="flex min-w-0 items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[6px_10px]"
+              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-[var(--r-sm)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-2 py-1"
             >
               <KeyRound size={13} className="flex-none text-[var(--text-muted)]" />
-              <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                {maskKey(key)}
-              </span>
+              <span className="min-w-0 truncate font-mono text-xs">{maskKey(key)}</span>
               <button
                 type="button"
                 aria-label={t('config:configPage.delete')}
@@ -94,6 +94,6 @@ export function ApiKeyList({ keys, onChange, existing = [] }: ApiKeyListProps) {
       <p className="[margin:0] text-[11px] text-[var(--text-tertiary)]">
         {t('config:configPage.apiKeysHint')}
       </p>
-    </>
+    </div>
   )
 }
