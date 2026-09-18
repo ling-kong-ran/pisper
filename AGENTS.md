@@ -1,186 +1,292 @@
 # AGENTS.md
 
-Guidance for coding agents working in the **Pisper** repository.
+本文档用于指导在 **Pisper** 仓库中工作的开发者和 AI 代理。
 
-## Project
+## 项目概览
 
-Pisper is a multi-agent app across desktop, terminal, and mobile, built on [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). It ships:
+Pisper 是一个覆盖桌面端、终端和移动端的多代理应用，基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 构建。项目包含：
 
-- a React web UI (dev server + production static assets)
-- a Node.js app runtime / desktop sidecar that hosts sessions, tools, MCP, skills, memory, workflows, channels, and schedules
-- a Tauri 2 desktop shell with a system WebView and a Node SEA sidecar
-- a Rust Ratatui TUI client
+- React Web 界面（开发服务器和生产静态资源）
+- Node.js 应用运行时与桌面伴随进程，承载会话、工具、MCP、技能、记忆、工作流、通道和计划任务
+- Tauri 2 桌面壳，包含系统 WebView 和 Node SEA 伴随进程
+- Rust Ratatui TUI 客户端
 
-Requires **Node.js 20+** (desktop SEA packaging docs target Node 24). Runtime agent data defaults to `~/.pisper/agent` (`PISPER_AGENT_DIR` overrides). Do not commit API keys, bot credentials, or personal data from that directory.
+项目要求 **Node.js 20 及以上**（桌面 SEA 打包文档以 Node 24 为目标）。运行时代理数据默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 覆盖。不得提交该目录中的 API 密钥、机器人凭据或个人数据。
 
-## Architecture
+## 架构
 
-| Path | Role |
+| 路径 | 职责 |
 | --- | --- |
-| `src/` | React + TypeScript frontend (Vite, Tailwind 4, shadcn/ui, Zustand, i18next) |
-| `src/app/` | App shell: routing, providers, i18n wiring, navigation |
-| `src/features/` | Feature pages (chat, config, skills, MCP/plugins, workflows, …) |
-| `src/components/ui/` | shadcn/ui primitives; prefer composing these over one-off styles |
-| `src/locales/{zh-CN,en-US}/` | Translation namespaces (`namespace:key`) |
-| `runtime/` | Node app runtime (plain ESM `.mjs`): HTTP API, agent integration, services, tools |
-| `runtime/runtime/` | Pi agent runtime integration |
-| `runtime/services/` | Domain services (sessions, MCP, schedules, workflows, providers, …) |
-| `runtime/tools/app/` | Application-level agent tools (one module per tool) |
-| `runtime/tests/` | Node test suite (`tsx --test`) |
-| `packages/pisper/` | Private source manifest and npm installer/launcher published as `pisper` |
-| `shared/` | Small JS modules shared by runtime and client (e.g. workflow graph, release notes) |
-| `src-tauri/` | Tauri 2 shell (desktop bridge, pet window, updater, CLI install) |
-| `src-tui/` | Rust TUI (`pisper` CLI) |
-| `scripts/` | SEA packaging, release, smoke tests, i18n check |
-| `docs/` | Product docs, screenshots, sponsor config, packaging notes |
-| `dist/` | Vite production build output |
-| `release/` | Packaged SEA / TUI / Tauri artifacts (gitignored) |
+| `src/` | React + TypeScript 前端（Vite、Tailwind 4、shadcn/ui、Zustand、i18next） |
+| `src/app/` | 应用壳：路由、Provider、i18n 接线和导航 |
+| `src/features/` | 功能页面（聊天、配置、技能、MCP/插件、工作流等） |
+| `src/components/ui/` | shadcn/ui 基础组件；优先组合这些组件，避免编写一次性样式 |
+| `src/locales/{zh-CN,en-US}/` | 翻译命名空间（`namespace:key`） |
+| `runtime/` | Node 应用运行时（纯 ESM `.mjs`）：HTTP API、代理集成、服务和工具 |
+| `runtime/runtime/` | Pi 代理运行时集成 |
+| `runtime/services/` | 领域服务（会话、MCP、计划任务、工作流、Provider 等） |
+| `runtime/tools/app/` | 应用级代理工具（每个工具一个模块） |
+| `runtime/tests/` | Node 测试套件（`tsx --test`） |
+| `packages/pisper/` | 私有源代码清单，以及发布为 `pisper` 的 npm 安装器/启动器 |
+| `shared/` | Runtime 与客户端共享的小型 JS 模块（例如工作流图和发布说明） |
+| `src-tauri/` | Tauri 2 壳（桌面桥接、宠物窗口、更新器、CLI 安装） |
+| `src-tui/` | Rust TUI（`pisper` CLI） |
+| `scripts/` | SEA 打包、发布、冒烟测试和 i18n 检查脚本 |
+| `docs/` | 产品文档、截图、赞助配置和打包说明 |
+| `dist/` | Vite 生产构建输出 |
+| `release/` | 已打包的 SEA/TUI/Tauri 产物（已被 Git 忽略） |
 
-**Runtime shape (desktop):** Tauri shell → `pisper-sidecar` (Node SEA) → `sidecar-runtime/` (Pisper runtime, Pi packages, skills, native modules). Dev web flow: `runtime/index.mjs` embeds Vite middleware and serves the SPA + API on `127.0.0.1:5173` by default.
+**桌面端运行形态：** Tauri 壳 → `pisper-sidecar`（Node SEA）→ `sidecar-runtime/`（Pisper Runtime、Pi 包、技能和原生模块）。开发 Web 流程中，`runtime/index.mjs` 嵌入 Vite 中间件，并默认在 `127.0.0.1:5173` 提供 SPA 和 API。
 
-Path aliases: `@/*` → `src/*`, `@shared/*` → `shared/*`.
+路径别名：`@/*` → `src/*`，`@shared/*` → `shared/*`。
 
-## Commands
+## 规范执行方式
+
+本文件同时服务于开发者和 AI 代理。安全要求、协议兼容要求以及已有检查工具明确验证的规则属于硬性要求；目录组织、拆分方式和验证范围属于默认建议。采用不同方案时，应在变更说明中写明原因、影响范围和后续计划。
+
+命令脚本、测试、CI 工作流和源代码守卫是可执行事实来源。它们与本文件不一致时，应先修正文档或脚本，再继续扩大变更范围，不能依靠口头约定解释冲突。
+
+开发环境、依赖升级和验证矩阵见 [`docs/development-workflow.md`](docs/development-workflow.md)；故障排查见 [`docs/troubleshooting/README.md`](docs/troubleshooting/README.md)；跨层架构决策见 [`docs/architecture-decisions.md`](docs/architecture-decisions.md)。
+
+## 代码结构与模块边界
+
+代码结构以业务边界、变更原因、依赖方向和可测试性为主要依据。现有目录不要求一次性迁移；规则优先用于新代码和正在修改的区域，不为了目录整齐进行无关搬迁：
+
+- 每个模块应有清晰的主要责任。前端页面、运行时服务、HTTP 适配器、平台桥接和共享协议放在能表达其责任的层中；跨层实现应通过明确的适配器或契约连接。
+- `src/features/<area>/` 采用功能内聚的组织方式。只有在子域有独立的变更原因、测试边界或依赖关系时才继续分组；不要仅因为文件数量增加就机械创建目录。
+- `src/components/ui/` 放置无业务语义的基础组件；需要应用级通用原语时可以创建或使用 `src/components/app/`。基础组件不得导入 Feature 内部实现。页面和路由是允许组装多个公开 Feature 的组合边界。
+- 一个 Feature 默认通过另一个 Feature 的公开导出协作，不直接引用其内部文件。多个 Feature 共用的模型、事件或格式化逻辑，只有在确实跨层复用时才提升到 `src/app/contracts/` 或 `shared/`，避免把共享目录变成无法归属的杂物目录。
+- 页面文件负责页面编排和状态连接。模型、校验、表单、弹窗、列表和可视化逻辑可以与页面同域共置；当它们有独立的变更原因、测试边界或生命周期时再拆成 `types`、`model`、`hooks`、`components` 或 `services`。
+- 一个文件可以声明多个组件，只要这些组件共享公开 API、生命周期或样式状态，例如 `Dialog` 与 `DialogContent`、`Card` 与 `CardHeader`。如果组件可以独立修改、测试和复用，或互不共享状态，就应拆分。不要仅按导出数量机械拆分。
+- 不使用固定行数作为拆分依据。文件承担多个变化原因、难以测试、依赖关系混乱或频繁产生合并冲突时，应优先拆分；若保留为单文件，应在变更说明中说明内聚性或公共 API 的理由。生成文件、第三方同步文件和外部约定要求的文件可以按来源规则处理。
+- `runtime/http/routes/` 负责请求解析、权限边界、调用服务、流式编排和响应序列化；复杂业务逻辑放在服务层。只有当路由具有独立权限、生命周期或测试边界时才按 API 子域拆分，不要求每个端点都单独建文件。
+- `runtime/services/` 按领域和用例组织。配置归一化、持久化、网络连接和归档处理等职责在拥有独立测试边界时拆成同域辅助模块，不为追求小文件而拆分。
+- TUI 和 Tauri 也遵循按责任拆分的原则。入口文件保留必要的编排和公共状态；渲染、生命周期、代理/配对、设备操作、语音和资源处理在确有独立边界时拆分。
+- Runtime、Web 和 TUI 共享的 HTTP/SSE 数据必须有单一契约来源，或至少有覆盖关键负载和错误情况的契约测试。契约变更应优先采用向后兼容的增量方式；需要分阶段迁移时，保留旧字段或版本并说明移除条件。
+- 开始结构性改动前，先说明文件归属、依赖方向、受影响的客户端和验证范围。移动文件时同步更新路由、导出、测试和源码守卫；结构重排应与当前功能变更保持同一边界。
+
+## 命令
 
 ```bash
-# Setup
-npm install                 # install dependencies from package-lock.json
-npm ci                      # reproducible clean install for CI/release
+# 安装
+npm install                 # 根据 package-lock.json 安装依赖
+npm ci                      # 为 CI/发布执行可复现的全新安装
 
-# Day-to-day web server
-npm run dev                 # web + API with Vite middleware
-npm run build               # production frontend build and bundle-budget check
-npm run preview             # serve built assets through the production server
-npm start                   # alias for preview
+# 日常 Web 服务器
+npm run dev                 # 使用 Vite 中间件启动 Web 与 API
+npm run build               # 构建生产前端并检查产物体积预算
+npm run preview             # 通过生产服务器提供已构建资源
+npm start                   # preview 的别名
 
-# Quality
-npm run typecheck           # TypeScript checks for src, node, and JS-check config
-npm run lint                # oxlint
-npm run format              # prettier --write .
-npm run format:check        # verify Prettier formatting
-npm run i18n:check          # verify literal src keys exist in zh-CN and en-US
-npm run check               # typecheck + lint + i18n:check + format:check + test:startup
-npm test                    # all runtime/tests/*.test.mjs tests
-npx tsx --test runtime/tests/foo.test.mjs  # run one or more focused tests
+# 质量检查
+npm run typecheck           # 检查 src、Node 和 JS 检查配置的 TypeScript 类型
+npm run lint                # 运行 oxlint
+npm run format              # 执行 prettier --write .
+npm run format:check        # 检查 Prettier 格式
+npm run i18n:check          # 检查 zh-CN 和 en-US 是否定义了所有字面量 src 键
+npm run check               # 依次执行 typecheck、lint、i18n:check、format:check 和 test:startup
+npm test                    # 运行 runtime/tests/*.test.mjs 中的全部测试
+npx tsx --test runtime/tests/foo.test.mjs  # 运行一个或多个指定测试文件
 
-# Node SEA sidecar
-npm run sidecar:dev         # run the sidecar directly in development
-npm run sidecar:sea         # build the Node SEA and stage its runtime closure
-npm run sidecar:sea:smoke   # smoke-test the staged SEA/runtime/API
+# Node SEA 伴随进程
+npm run sidecar:dev         # 在开发环境直接运行伴随进程
+npm run sidecar:sea         # 构建 Node SEA 并准备运行时闭包
+npm run sidecar:sea:smoke   # 对暂存的 SEA、运行时和 API 执行冒烟测试
 
-# Tauri desktop (requires Rust and platform Tauri dependencies)
-npm run desktop:webview:dev       # build frontend and launch tauri dev
-npm run desktop:webview:smoke -- http://127.0.0.1:9223  # smoke-test a running WebView CDP endpoint
-npm run desktop:webview:package   # package the Tauri desktop application
-npm run desktop:webview:build     # SEA + SEA smoke + TUI stage + desktop package
+# Tauri 桌面端（需要 Rust 和平台 Tauri 依赖）
+npm run desktop:webview:dev       # 构建前端并启动 Tauri 开发环境
+npm run desktop:webview:smoke -- http://127.0.0.1:9223  # 对运行中的 WebView CDP 端点执行冒烟测试
+npm run desktop:webview:package   # 打包 Tauri 桌面应用
+npm run desktop:webview:build     # SEA + SEA 冒烟测试 + TUI 暂存 + 桌面打包
 
 # Rust TUI
-npm run tui:dev             # cargo run the TUI
-npm run tui:check           # cargo check
-npm run tui:test            # cargo test
-cargo fmt --manifest-path src-tui/Cargo.toml -- --check  # verify Rust formatting
-npm run tui:stage           # build and stage the TUI with the SEA sidecar
-npm run tui:package         # build and package the TUI distribution
-npm run tui:build           # SEA build followed by TUI packaging
+npm run tui:dev             # 使用 cargo run 启动 TUI
+npm run tui:check           # 执行 cargo check
+npm run tui:test            # 执行 cargo test
+cargo fmt --manifest-path src-tui/Cargo.toml -- --check  # 检查 Rust 格式
+npm run tui:stage           # 构建并使用 SEA 伴随进程暂存 TUI
+npm run tui:package         # 构建并打包 TUI 分发包
+npm run tui:build           # 先构建 SEA，再打包 TUI
 
-# npm installer package
-npm run npm:pack                  # build the lightweight pisper tarball
-npm run npm:pack:check            # build and validate tarball contents and behavior
+# npm 安装器包
+npm run npm:pack                  # 构建轻量级 pisper 压缩包
+npm run npm:pack:check            # 构建并验证压缩包的内容和行为
 
-# Versioning and release
-npm run release -- patch          # auto-detect and publish every changed release channel
-npm run release -- 0.4.31         # explicit version for every detected release channel
+# 版本与发布
+npm run release -- patch          # 自动检测并发布所有发生变化的发布渠道
+npm run release -- 0.4.31         # 为所有检测到的发布渠道指定版本
 ```
 
-Prefer `npm run check` and `npm test` before considering a change done. Run desktop/TUI packaging only when touching those surfaces.
+在认为变更完成前，优先运行 `npm run check` 和 `npm test`。只有修改桌面端或 TUI 相关内容时才运行对应的桌面/TUI 打包命令。
 
-### Release policy (agents)
+### 发布规范（供开发者和 AI 代理遵循）
 
-Releases must ship **substantive product changes**. Do **not** cut a version when the only delta since the latest component tag is version metadata, dependency refresh, formatting, docs-only nits, or other release-script bookkeeping.
+- 发布必须包含会改变已交付行为、发布产物、安全性或运行兼容性的实质性变更。仅有版本元数据、格式化、文档维护或发布脚本记账变更时，不创建版本；安全修复和会改变发布产物的依赖更新应按实际影响判断。
+- 以 `scripts/release.mjs`、`scripts/release-policy.mjs` 和对应 GitHub Actions 工作流作为发布流程的执行来源。运行发布命令前检查分支、工作区、最新标签和各渠道的实际变更，并遵循脚本对渠道的自动检测结果。
+- 不得绕过发布脚本手动修改版本、创建标签、推送发布元数据或重复发布 npm。组件、npm 和 App 的版本独立维护，具体版本文件、产物清单、签名和工作流参数以脚本与工作流为准。
+- 发布工作流运行期间，不要推进被冻结的发布分支或推送无关提交。遇到失败先停止并检查日志、工作流状态和远程分支，再决定是否清理或重试；不要盲目等待或重复执行。
+- 发布前应运行脚本要求的检查，并根据实际改动补充 Runtime、TUI、桌面端、Android 或 iOS 验证。详细的渠道规则、资产清单和签名流程应维护在发布脚本、工作流和相关文档中，不在本文件复制易过期的实现细节。
 
-Desktop, TUI, runtime, npm, and mobile App releases have independent versions and tags. Desktop uses `src-tauri/desktop-package.json` with `vX.Y.Z`; TUI uses `src-tui/Cargo.toml` with `tui-vX.Y.Z`; runtime/web uses root `package.json` with `runtime-vX.Y.Z`; the `pisper` npm manifest uses `packages/pisper/package.json` with `npm-vX.Y.Z`; mobile App uses `src-tauri/mobile-package.json` with `app-vX.Y.Z`. Only desktop Releases are marked as GitHub `latest` and publish signed `latest.json` updater metadata. TUI Releases keep a self-contained distribution and add a thin TUI-only updater archive; runtime Releases ship the SEA/runtime component; App Releases publish the signed Android APK, unsigned iOS IPA, and `docs/latest-app.json`. Every component archive is minisign-signed, while TUI builds never build or sign Tauri installers.
+## 约定
 
-The root package stays private. npm publishes only the installer/launcher package named `pisper`, whose installation downloads and verifies the selected signed TUI and Runtime components without the Desktop frontend. Do not publish the root Runtime package directly to npm, bundle release archives into the npm tarball, or copy Runtime into the TUI installation. The launcher must reuse the single standard component Runtime via `PISPER_SIDECAR_PATH` and `PISPER_APP_ROOT`.
+- **注释语言：** 代码注释默认使用中文，并说明“为什么”而不是复述代码。公共 API、与外部项目同步的代码、生成文件和必须保持上游语言的内容可以遵循其既有语言，但同一模块应保持一致。
 
-Before running `npm run release -- <version>`:
+### 前端（`src/`）
 
-1. Confirm you are on the `release` branch, the tracked working tree is clean, and local `release` exactly matches `origin/release`.
-2. Inspect `git log --oneline <latest-tag>..HEAD` and `git diff --stat <latest-tag>..HEAD`.
-3. Require at least one substantive commit since the latest tag for each detected channel (`v*`, `tui-v*`, `runtime-v*`, or `app-v*`): `feat`, `fix`, `perf`, user-facing behavior, security, or packaging that changes shipped artifacts. Pure `chore(deps)`, `chore(release)`, `style`, and docs-only commits do **not** count by themselves.
-4. If there is nothing substantive to ship, **stop**. Do not invent a patch release, do not run `npm run release` “just to push”, and do not force-publish after dependency refresh alone.
-5. When the user asks to “发布新版本” but HEAD is already the applicable components' release commit / tag with no later product commits, report that the latest version is already published and wait for new work.
+- 使用严格的 TypeScript 类型检查；禁止未使用的局部变量和参数。
+- 使用 `@/` 路径别名导入。在 `src/**` 下，oxlint 强制禁止相对父级导入（`import/no-relative-parent-imports`）。
+- 界面使用 Tailwind 和 shadcn（`components.json` 的样式为 `radix-nova`，图标使用 `lucide-react`）。使用 `@/lib/utils` 中的 `cn()`。
+- 样式规范：使用 Tailwind 工具类处理组件布局和外观，并使用或扩展 shadcn 原语来提供共享控件。重复的工具类组合应放入 React 组件或带类型的变体中，不要新建全局 CSS 类。
+- **禁止**向 `src/index.css` 添加页面级、功能级或控件级语义类，包括仅用于隐藏 Tailwind 工具类的 `@apply` 别名。全局 CSS 仅限设计令牌/主题变量、重置和基础元素规则、关键帧，以及 Tailwind 难以清晰表达的第三方或复杂选择器覆盖。
+- 现有全局语义类属于迁移债务：修改使用这些类的组件时，如果改动可以保持聚焦，应将本次涉及的样式迁移到 Tailwind/shadcn。不要仅为了删除旧类而进行无关的大规模重写。
+- Feature 代码放在 `src/features/<area>/`；共享布局和界面框架放在 `src/components/`。
+- i18n 默认使用 `t('namespace:key')` 或 `translateText('namespace:key')` 的字符串字面量键。确需动态键时，必须使用可静态登记和检查的类型化键表；`zh-CN` 和 `en-US` 都必须能检查到每个对外展示的键，键中不得出现中文字符。修改界面文案后运行 `npm run i18n:check`。
+- 必须在 `vite.config.ts` 中保留 `build.target: 'safari16'`，并将 `scripts/check-dist-compat.mjs` 保留在构建链中。iOS App 最低版本为 15.1，而依赖（例如 `@radix-ui/react-collection`）包含 Safari 16.4 以下 WebView 无法解析的 class 静态块；入口模块会在解析阶段失败，用户会在启动画面后看到黑屏。不得提高目标版本，也不得切换到 `safari15`：后者会降级依赖的顶层 await，并将 `vendor-shiki-runtime` 拖入急切入口依赖图（增加约 55 kB gzip，导致仅路由供应商审计失败）。
+- Prettier 规则：使用单引号、不加分号、保留尾随逗号、打印宽度为 100。只有 `docs/`、根目录 README 和 `AGENTS.md` 被 `.prettierignore` 排除；其他 Markdown（例如 `src-tui/`、`crates/`、`runtime/tools/`）必须保持格式化。
 
-Once `npm run release` dispatches a channel, treat the remote `release` branch as frozen until the command exits and **every** selected workflow has completed. Check both `.github/workflows/release.yml` and `.github/workflows/release-app.yml` for queued or in-progress runs; the command waits for each selected workflow before dispatching the next channel in the shared global queue. Keep follow-up work uncommitted or on another branch during this window. After finalization, fetch `origin/release` and tags, fast-forward local `release`, verify that no release run remains active, and only then commit and push queued changes. Advancing `release` during this window can invalidate the workflow's atomic branch-advance check.
+### 运行时（`runtime/`）
 
-When monitoring long-running commands or workflows (release dispatch, packaging, full test suites) with output redirected to a log file, never blind-sleep past the point where a failure would already be visible. Tail the log at short intervals and stop waiting the moment any failure surfaces (non-zero exit code, error stack, failed CI job, `##[error]`), then diagnose immediately instead of burning the remaining wait time.
+- 使用 ESM `.mjs` 模块；API 处理器放在 `runtime/http/`，领域逻辑放在 `runtime/services/`，Pi 接线放在 `runtime/runtime/`。
+- 应用工具默认每个工具在 `runtime/tools/app/` 下使用一个模块，导出 `manifest` 和使用 `defineTool()` 的 `create…Tool(context)` 工厂。在 `runtime/tools/app/index.mjs` 中注册。多个工具只有在共享生命周期和公开 API 时才可共置；工厂接收 `cwd`/服务依赖，不得直接耦合 `AgentRuntimeService`。
+- 测试与代码共置于 `runtime/tests/*.test.mjs`。行为发生变化时，优先扩展已有的服务/运行时测试。
+- 运行时变更必须同时兼容两个客户端：React Web 界面（`src/`）和 Rust TUI（`src-tui/`）。Runtime 通过 HTTP（JSON 响应体和 SSE 帧）发送的任何内容都必须是严格有效的 JSON/UTF-8，并且同时能被 `JSON.parse` 和 `serde_json` 接受——浏览器可以容忍孤立代理项和其他宽松编码，但 `serde_json` 会拒绝这些内容并使整个 TUI 流断开。修改运行时线协议输出时，运行 `npm test` 和 `npm run tui:check` / `npm run tui:test`。
 
-`npm run release` enforces this gate in `scripts/release.mjs` via `scripts/release-policy.mjs`. It compares every component and the mobile App with their own latest tags, dispatches every channel with substantive owned changes, and runs the union of their local checks once. Manual scopes are rejected so a release cannot accidentally omit another changed channel. Component dispatches go to `.github/workflows/release.yml`; App dispatches go to `.github/workflows/release-app.yml`. Every dispatch receives the exact immutable source SHA and target version, while the local script must **not** bump versions, create tags, or push release metadata. The workflows run sequentially in one global queue; the App always runs last because component workflows accept only validated component/npm version commits after the source. GitHub Actions stages only the selected channel's version files, verifies and builds its platform packages, validates the exact asset set, then atomically pushes the version commit and tag immediately before publishing a Draft Release. Any earlier failure leaves that channel's remote version and tag unchanged; finalization failures run compensating cleanup. Do not reintroduce tag-push-triggered releases.
+### 共享代码、桌面端与 TUI
 
-When a detected component is **Runtime** or **TUI**, `npm run release` automatically chains an npm release: it derives `pisper@<next>` from the manifest using the same `major|minor|patch` bump, or uses the same explicit `X.Y.Z` version as the selected components, passes the exact new TUI/Runtime versions, and runs `npm run npm:pack:check` locally before dispatching. The npm publish happens inside the first npm-related component workflow via `.github/workflows/publish-npm.yml` (`workflow_call` with `npm_version`, `tui_version`, `runtime_version`, `source_sha`); npm is never dispatched twice for the same release. The workflow commits only `packages/pisper/package.json` as `chore(release-npm): npm-vX.Y.Z`. npm publishing uses the repository's Trusted Publisher connection, GitHub OIDC, and provenance; do not add registry tokens or pass inherited Secrets into that workflow. Never commit registry credentials. There is no manual per-component, standalone npm, or standalone App release command: component, npm, and App releases are always driven by automatic detection.
+- 前端和 Runtime 都需要的纯共享逻辑放在 `shared/`（被 TS 使用时同时提供 `.d.mts` 类型）。只有在确实跨客户端或跨运行时复用时才提升到共享层。`shared/` 中的代码必须保持环境中立，不得直接依赖 DOM、React、Node 专属 API 或平台原生接口；需要平台差异时由对应客户端或运行时适配层处理。
+- 桌面打包和更新器细节见 `docs/node-sea-webview.md`。不得重新引入 Electron 打包路径。
+- TUI 面向用户的文档位于 `src-tui/README.md` / `README.en.md`。TUI 版本只能通过限定范围的发布脚本推进，不要将其与桌面端或 Runtime 版本同步。
+- 新增或修改 TUI 顶层命令、子命令、选项或 Slash 命令时，必须在同一变更中更新对应的 `--help`/命令帮助文本及其覆盖测试。
 
-## Conventions
+### 跨平台一致性（桌面端 / Android / iOS）
 
-- **注释语言：** 代码注释一律使用中文。新增或修改 `src/`、`runtime/`、`shared/`、`src-tauri/`、`src-tui/` 等任何代码时，解释性注释（行注释、块注释、JSDoc/doc 注释）均须用中文书写；注释应说明「为什么」，而不是复述代码本身。
-
-### Frontend (`src/`)
-
-- TypeScript strict; no unused locals/parameters.
-- Import with `@/` aliases. Under `src/**`, oxlint enforces **no relative parent imports** (`import/no-relative-parent-imports`).
-- UI: Tailwind + shadcn (`components.json` style `radix-nova`, icons via `lucide-react`). Use `cn()` from `@/lib/utils`.
-- Styling policy: use Tailwind utilities for component layout and appearance, and use or extend shadcn primitives for shared controls. Repeated utility combinations belong in a React component or typed variant, not in a new global CSS class.
-- Do **not** add page-, feature-, or control-level semantic classes to `src/index.css`, including `@apply` aliases that merely hide Tailwind utilities. Keep global CSS limited to design tokens/theme variables, resets and base element rules, keyframes, and narrowly scoped third-party or complex selector overrides that Tailwind cannot express clearly.
-- Treat existing global semantic classes as migration debt: when changing a component that uses them, migrate the touched styling to Tailwind/shadcn when the change can remain focused. Do not perform unrelated bulk rewrites solely to remove old classes.
-- Feature code lives under `src/features/<area>/`; shared layout/chrome under `src/components/`.
-- i18n: `t('namespace:key')` / `translateText('namespace:key')` with **string-literal** keys only. Both `zh-CN` and `en-US` must define every key; no Chinese characters as keys. Run `npm run i18n:check` after UI copy changes.
-- Keep `build.target: 'safari16'` in `vite.config.ts` and `scripts/check-dist-compat.mjs` in the build chain. The iOS App minimum is 15.1 and dependencies (e.g. `@radix-ui/react-collection`) ship class static blocks that WebViews older than Safari 16.4 cannot parse — the entry module then dies at parse time and users see a black screen after the startup splash. Do not raise the target, and do not switch to `safari15`: it downlevels dependency top-level await and drags `vendor-shiki-runtime` into the eager entry graph (+55 kB gzip, fails the route-only vendor audit).
-- Prettier: single quotes, no semicolons, trailing commas, print width 100. Only `docs/`, the root READMEs, and `AGENTS.md` are excluded via `.prettierignore`; other Markdown (e.g. `src-tui/`, `crates/`, `runtime/tools/`) must stay formatted.
-
-### Runtime (`runtime/`)
-
-- ESM `.mjs` modules; keep API handlers in `runtime/http/`, domain logic in `runtime/services/`, Pi wiring in `runtime/runtime/`.
-- App tools: one module under `runtime/tools/app/` exporting `manifest` and a `create…Tool(context)` factory using `defineTool()`. Register in `runtime/tools/app/index.mjs`. Factories take `cwd`/service deps—do not couple tools directly to `AgentRuntimeService`.
-- Tests are colocated as `runtime/tests/*.test.mjs`. Prefer extending existing service/runtime tests when behavior changes.
-- Runtime changes must stay compatible with **both** clients: the React web UI (`src/`) and the Rust TUI (`src-tui/`). Anything the runtime emits over HTTP (JSON bodies and SSE frames) must be strict, valid JSON/UTF-8 that both `JSON.parse` and `serde_json` accept — the browser tolerates lone surrogates and other lenient encodings that `serde_json` rejects and that tear down the whole TUI stream. When touching runtime wire output, run `npm test` and `npm run tui:check` / `npm run tui:test`.
-
-### Shared / desktop / TUI
-
-- Pure shared logic that both UI and runtime need goes in `shared/` (with `.d.mts` types when consumed from TS).
-- Desktop packaging and updater details: `docs/node-sea-webview.md`. Do not reintroduce Electron packaging paths.
-- TUI user-facing docs: `src-tui/README.md` / `README.en.md`. TUI versions advance only through the scoped release script; do not synchronize them to desktop or runtime versions.
-- When adding or changing a TUI top-level command, subcommand, option, or Slash command, update the corresponding `--help`/command help text and its coverage in the same change.
-
-### 跨平台一致性（桌面 / Android / iOS）
-
-- 默认功能范围覆盖桌面、Android、iOS。除非用户明确排除某个平台，不得仅完成 Android 就交付“App 已支持”；共享 React 页面或 Rust 命令注册也不代表 iOS 原生实现已完成。
-- 三端必须共用业务规则和行为合同。语音功能共用 `shared/speech-model-catalog.json`：模型、版本、精度、文件摘要、默认值、音色及派生映射必须一致，不得擅自新增平台专属 catalog、降级模型或改变功能语义。平台条件编译只用于必要的系统接口、库链接、文件位置、权限和音频生命周期适配。
-- 模型选择、文本清洗与分句、VAD、自动提交、回复选择、取消和错误处理优先复用已有共享实现。原生适配不得自行复制另一套对话业务逻辑；无法直接共享的原生接口必须通过相同输入、输出和边界条件的合同测试。
-- 开始跨平台改动前，列出桌面、Android、iOS 的前端入口、原生命令、依赖与资源打包、权限、生命周期和验收路径。审查 `cfg(target_os)`、平台判断、`unsupported` 返回和隐藏入口，不能把遗漏的平台实现隐藏起来充当完成。
-- 验收须逐平台区分源码检查、单元测试、实际构建和设备运行。Android 使用真实 R8 release 变体；iOS 必须检查 Xcode 构建、链接、资源和原生运行。Windows 上的 Rust/Node 测试、Android 测试或共享前端测试不能替代 iOS 验收。缺少 macOS/Xcode、设备或签名条件时明确报告未验证项与阻塞，不得声称三端完成。
-- 用户明确承接某个平台的构建或真机验收时，仍须补齐该平台实现和可执行测试入口，并交接命令、环境要求及未验证项；不能继续以当前环境不支持为由只实现另一平台，也不能把交由用户执行的测试写成已通过。
+- 先根据改动影响范围确定需要覆盖的平台。涉及共享业务规则、协议、语音模型或原生桥接时，必须评估桌面端、Android 和 iOS；纯 Web、纯 Runtime 或明确的平台专属改动不要求无关平台执行完整验收。任何未实现的平台都不得被宣称为已支持。
+- 三端共用的业务规则和行为契约必须保持一致。语音功能共用 `shared/speech-model-catalog.json`：模型、版本、精度、文件摘要、默认值、音色及派生映射必须一致，不得擅自新增平台专属 catalog、降级模型或改变功能语义。平台条件编译只用于必要的系统接口、库链接、文件位置、权限和音频生命周期适配。
+- 模型选择、文本清洗与分句、VAD、自动提交、回复选择、取消和错误处理优先复用已有共享实现。原生适配不得自行复制另一套对话业务逻辑；无法直接共享的原生接口必须通过相同输入、输出和边界条件的契约测试。
+- 开始影响多个平台的改动前，列出桌面端、Android、iOS 的前端入口、原生命令、依赖与资源打包、权限、生命周期和验收路径。审查 `cfg(target_os)`、平台判断、`unsupported` 返回和隐藏入口，不能把遗漏的平台实现隐藏起来充当完成。
+- 验收按受影响平台区分源码检查、单元测试、实际构建和设备运行；Android、iOS 和桌面端的具体构建、设备与签名流程见 [`docs/development-workflow.md`](docs/development-workflow.md) 和 [`docs/mobile.md`](docs/mobile.md)。缺少环境时明确报告未验证项与阻塞，不得声称已完成对应平台验收。
+- 用户明确承接某个平台的构建或真机验收时，仍须补齐该平台实现和可执行测试入口，并交接命令、环境要求及未验证项；不能把交由用户执行的测试写成已通过。
 - 性能预算以用户最新要求为准；参考值不能擅自变成硬限制，更不能据此引入未经用户同意的平台差异。报告内存时区分推理进程与全应用、RSS/工作集与私有提交，并注明测试平台与场景。
 
-## Team mode（agents）
+## 开发实现规范
 
-Team sessions with subagents follow `docs/team-mode-playbook.md`. Three non-negotiable rules:
+### 命名、文件与公共入口
 
-- Tiered verification: subagents run only targeted tests for their whitelisted files (`npx tsx --test runtime/tests/<file>.test.mjs`); full `npm test` / `npm run check` / `npm run build` belong to the lead's integration phase. Two failed runs of the same command without progress must be escalated, never looped.
-- Guard redlines: source-guard tests in `runtime/tests/*.test.mjs` (`readFile` + `assert.match`) are read-only. Refactoring spawn messages must attach the guard list (`node scripts/list-source-guards.mjs`); stale assertions are reported to the lead, never edited by subagents.
-- Takeover protocol: wrap-up message → one ~30s wait → observe file mtime/output → interrupt → lead takeover. Assume the workspace is mid-state after any interrupt; repair via the playbook SOP and finish leftover work by respawning, not by messaging the interrupted agent.
+- 新增文件遵循统一命名：React 组件使用 `PascalCase.tsx`，Hook 使用 `useXxx.ts`，Store 使用 `xxx-store.ts`，纯前端模块使用能表达领域的 `kebab-case.ts`，运行时模块使用 `kebab-case.mjs`，Rust 模块使用 `snake_case.rs`。保留现有文件名时，不要为了统一命名进行无关重命名。
+- 一个功能目录可以按需要使用 `components/`、`hooks/`、`api/`、`model/`、`types/` 和 `tests/` 等子目录；只有在子目录有实际边界时才创建，不要创建空目录或为了目录层级而拆分。
+- 跨 Feature 协作时，Feature 应提供明确的公共入口（例如 `index.ts` 或 `public.ts`）；跨 Feature 只能引用这些公开导出，不得通过深层路径访问内部文件。公共入口不得无选择地导出全部内部实现。
+- 公共模块和跨层模块优先使用具名导出；默认导出只在 React 路由约定、第三方接口或现有模块风格明确要求时使用。
+- 导入顺序保持一致：外部依赖、项目别名、同域模块、类型导入分别归组；使用 `import type` 表达纯类型依赖。新增代码不得制造跨层循环依赖；发现循环依赖时优先调整边界或引入适配器。
 
-## Verification expectations
+### 目录职责
 
-1. For TypeScript/UI work: `npm run check` (or at least `typecheck` + `lint` + `i18n:check` when touching strings).
-2. For runtime/runtime/tool/service changes: `npm test` (or the relevant test file under `runtime/tests/`).
-3. For TUI Rust changes: `npm run tui:check` and `npm run tui:test`.
-4. For Tauri desktop changes: `cargo test --manifest-path src-tauri/Cargo.toml` and `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`.
-5. For SEA/desktop packaging changes: `npm run sidecar:sea:smoke` (and platform-specific packaging only with required Rust/Tauri toolchain).
-6. For npm installer or npm release changes: `npm run npm:pack:check`, `node scripts/validate-npm-targets.mjs`, and the focused `runtime/tests/npm-cli-package.test.mjs` test.
-7. For Android APK release regressions, build and test the actual minified release variant with R8 enabled; a debug APK does not validate JNI/reflection entry points. On an emulator, install and exercise the package in a temporary Android user/profile so the primary user's App data remains untouched, then remove the temporary user and restore the intended package after verification.
-8. For iOS Simulator verification on Apple Silicon, follow the simulator flow in `docs/mobile.md` (`npm run build:ios` only produces a device IPA): keep the Tauri CLI RPC server alive with `tauri ios build --target aarch64-sim --open`, then drive `xcodebuild ARCHS=arm64 -sdk iphonesimulator` manually with an **arm64-native Node** first in PATH — an x86_64 (Rosetta) Node makes the Tauri CLI silently compile the Intel-device Rust library, which only fails at link time. Device and simulator builds share `Externals/arm64/release/libapp.a`; delete it when switching targets. Verify with an actual simulator launch, not just a successful build.
-9. Do not invent new top-level package managers or dual lockfiles; this repo uses **npm** (`package-lock.json`).
+- `src/app/` 负责启动、路由、Provider、导航和应用级编排；`src/components/layout/` 负责可复用的应用界面框架；两者都不承载具体 Feature 的业务规则。
+- `src/features/<area>/` 负责单个功能域的页面、组件、Hook、API 适配、模型和类型。只被一个 Feature 使用的类型和工具应留在该 Feature 内，不要过早提升到全局目录。
+- `src/lib/` 放浏览器端纯工具、HTTP 客户端、格式化和平台适配辅助；`src/hooks/` 放跨 Feature 的通用 React Hook；`src/stores/` 只放跨页面客户端状态；`src/types/` 只放确实被多个 Feature 共享的类型。
+- `runtime/http/` 处理协议和请求生命周期；`runtime/services/` 处理领域用例；`runtime/runtime/` 负责 Pi 运行时集成；`runtime/workers/` 放可隔离的后台任务；`runtime/storage/` 负责持久化和迁移；`scripts/` 只放构建、发布、迁移和开发工具，不承载产品业务逻辑。
+- `src/vendor/` 和其他第三方同步目录中的代码必须与业务代码隔离；不要从业务模块直接修改或扩展供应商文件。需要适配时通过包装模块或补丁脚本完成。
 
-## Out of scope / safety
+### 状态、请求与副作用
 
-- Do not commit secrets, `release/` artifacts, `src-tauri/binaries/`, or user agent state under `.pisper/`.
-- Do not target Electron; desktop is Tauri + Node SEA only.
-- Public sponsor placement config is `docs/sponsors.json`—keep it free of user session/provider credentials.
+- 组件内部且不会跨页面共享的交互状态使用 React 本地状态；跨页面的界面偏好、连接状态和客户端控制状态使用 Zustand；服务端数据、缓存、重新获取和失效统一使用 React Query 或现有的服务端数据层。相同远程数据不得同时在多个 Store、组件状态和查询缓存中维护。
+- 页面和展示组件不得直接拼接 API 地址或调用 `fetch`。请求应通过 Feature 的 API 模块或统一 HTTP 客户端发起，并集中处理认证、序列化、错误、超时、重试和 `AbortSignal`。新增接口同时定义请求、成功响应和错误响应的类型或校验。
+- `useEffect`、SSE、WebSocket、Worker、音频设备、定时器和事件监听必须明确创建条件、清理逻辑和取消路径。组件卸载、路由切换、会话切换和 Runtime 停止时不得遗留订阅、进程或临时文件。
+- 模块导入不应隐式启动服务器、Worker、网络连接或长期定时器；启动和停止应由明确的生命周期入口控制，并且可以安全地重复调用。
+
+### 数据协议、错误与兼容性
+
+- HTTP、SSE 和本地桥接协议中的字段名、空值、分页、状态枚举、错误码和终止事件必须保持稳定。新增字段优先采用向后兼容的方式，删除或改变字段前先提供迁移期和兼容测试。
+- Runtime、Web、TUI 和原生桥接共享的数据模型应有单一来源，或至少有覆盖成功、空数据、错误、取消、重连和版本差异的契约测试。不要在每个客户端复制一份没有约束的对象形状。
+- API 和工具在边界处校验外部输入；服务层只接收已归一化的数据。错误应包含稳定的机器可读标识和适合当前界面的消息，禁止通过解析临时文案判断错误类型。
+- 存储格式、配置字段和协议字段需要有版本或迁移策略。弃用字段应标明保留期限和删除条件，不能在没有迁移说明的情况下直接改变含义。
+
+### 配置、持久化与资源
+
+- 环境变量、命令行参数和用户配置应在单一入口解析、校验和归一化；业务模块不得到处直接读取环境变量，也不得把未校验的配置传入工具或子进程。
+- 用户数据写入使用现有的原子写入、目录权限和迁移机制。涉及多个文件的更新要考虑崩溃恢复、并发写入、重复执行和旧版本数据；不得通过手写一次性脚本悄悄改变已有数据格式。
+- 资源文件、模型文件和平台包必须说明来源、版本、校验摘要和打包路径。大文件和二进制资源不得以临时副本散落在源码目录中；构建产物、用户数据和临时缓存分别使用既定目录。
+- 生成文件、移动端工程和补丁产物必须通过对应脚本生成。应修改生成源或脚本后重新生成，不要直接编辑下次构建会覆盖的结果。
+
+### 安全边界
+
+- 所有来自用户、网络、插件、MCP、模型输出和文件系统的数据都视为不可信输入，在 HTTP、工具和服务入口进行校验、长度限制和权限检查。
+- 执行外部命令使用参数数组和允许的可执行文件，禁止拼接未经校验的 Shell 字符串。文件操作限制在允许的工作区或资源目录，防止路径穿越、符号链接绕过和意外覆盖。
+- HTML、Markdown、图片、远程 URL 和浏览器自动化输入必须经过现有的清洗、白名单或安全引用机制；不要为了显示内容直接放宽 CSP 或使用未审查的 `dangerouslySetInnerHTML`。
+- 日志、错误消息、遥测和测试输出不得包含 API 密钥、Token、Cookie、私钥、完整个人路径或用户会话内容。新增日志应说明级别、用途和脱敏方式。
+
+### 测试与测试资产
+
+- 测试按行为和边界命名，而不是按实现细节命名。服务、协议、存储、UI 和平台测试放在现有测试体系中；不要为一个局部需求引入第二套测试框架。
+- 测试应覆盖成功、空数据、错误、取消、重试、重启和兼容旧数据等相关边界。涉及公共 HTTP/SSE、存储格式或跨端模型时，必须补充契约或迁移测试。
+- 测试不得依赖开发者个人目录、真实凭据、真实外部网络或未固定版本的远程资源。使用临时目录和模拟服务，并在测试结束时清理进程、文件、端口和环境变量。
+- 源码守卫用于保护已确认的结构约束，应保持断言清晰、范围最小；结构发生有意变化时，由负责集成的人同步更新守卫和迁移说明，不要为了通过测试删除约束。
+- 测试失败时先判断是实现回归、环境问题、时序不稳定还是过时断言，再决定修复代码、稳定测试或更新契约；不得通过增加任意等待时间掩盖竞态。
+
+### 性能、无障碍与变更记录
+
+- 路由页面默认采用懒加载；大型依赖不得无故进入首屏入口；长列表、日志和消息流按实际数据量使用虚拟化或分页。性能优化必须记录测量场景、设备、指标和前后结果。
+- 新增交互控件必须支持键盘操作、焦点管理、语义化标签、必要的 ARIA 属性，以及加载中、空数据、错误和禁用状态。移动端触控和桌面端快捷键不能互相破坏。
+- 所有用户可见文案、日期、时间、数字和错误提示都通过现有 i18n 与格式化约定处理；不要在组件中散落不可翻译的文案或硬编码时区。
+- 用户可见行为、命令、配置、协议、存储格式和目录边界发生变化时，同步更新相关测试、帮助文本、文档和必要的发布说明。一次变更不要夹带无关的全仓库格式化或重命名。
+
+### 类型、异步与并发
+
+- 外部 HTTP、文件、插件、MCP、模型输出和原生桥接数据先按 `unknown` 处理，在边界处完成校验、归一化和错误处理后再进入业务层。不得把未经校验的数据直接断言为业务类型。
+- 禁止无必要的 `any`、非空断言和未经验证的 `as` 类型断言。确需绕过类型系统时，应在临近位置说明运行时不变量，并优先增加类型守卫或契约测试。
+- 多状态异步流程优先使用判别联合表达状态，明确区分未加载、加载中、成功、空数据、失败、取消和过期结果；不要用多个互相独立的布尔值组合出无法验证的状态。
+- 不得遗留未处理的 Promise、后台任务或异常。任务启动方必须明确拥有等待、取消、失败处理和资源清理责任；确实无需等待的任务也要显式处理拒绝。
+- 网络请求、流式响应、下载、Worker、语音和会话任务应支持 `AbortSignal` 或等价取消机制，并在组件卸载、会话切换、路由离开和 Runtime 停止时触发取消。
+- 需要去重或顺序保证的异步操作必须处理重复启动、重试、超时和竞态。旧请求的结果不得覆盖更新的状态；启动和停止操作应尽可能幂等。
+
+### 依赖、平台能力与原生代码
+
+- 新增 npm、Rust 或原生依赖前，说明用途、许可证、体积影响、平台兼容性和维护状态；优先复用仓库已有依赖，不引入功能重复的工具库。
+- 依赖升级必须同步检查锁文件、类型检查、构建产物、许可证、安全影响和目标平台；不得只修改版本号而跳过实际验证。
+- 桌面端、Android、iOS 和 Web 的能力判断统一通过已有能力层或明确的适配器完成。不要在业务组件中散落 `navigator.userAgent`、平台字符串或重复的 `cfg` 判断。
+- 平台不支持某项能力时，通过明确的 capability、状态或 `unsupported` 结果传递给上层；不得通过隐藏入口、吞掉错误或返回空数据伪装成已支持。
+- Rust 代码提交前按改动范围运行 `cargo fmt`、`cargo check`、`cargo test` 和 `clippy`。生产路径避免无理由使用 `unwrap()`、`expect()` 和 `unsafe`；确需使用时说明不变量、安全前提和失败处理。
+- Tauri capability、权限、原生桥接、移动端生命周期和资源打包变更必须同时检查权限范围、错误传播、重复调用和平台差异，并补充对应测试或实际构建验证。
+
+### HTTP、可观测性与架构评审
+
+- HTTP 路由统一约定方法、路径、状态码、Content-Type、请求校验和错误响应；新增接口不得用临时文案、不同字段名或不同状态码表达同一种错误。
+- API、SSE、Worker 和跨端桥接的事件名称、顺序、重连、取消、超时和终止行为必须写入契约或测试。SSE 客户端应能处理未知事件、重复事件、断线和服务端错误。
+- 日志和诊断信息应包含请求、会话、任务或组件更新的关联标识，使问题可以从入口追踪到失败点。日志使用合适的级别，生产环境不得输出调试噪声或敏感数据。
+- 结构性变更、跨层依赖、公共协议、存储格式和平台架构变更，应记录动机、影响范围、迁移步骤、验证结果和回滚方式；架构决策记录格式见 [`docs/architecture-decisions.md`](docs/architecture-decisions.md)。
+- 一个变更不得夹带无关的全仓库重命名、格式化或目录搬迁。需要顺带修复明显问题时，应保持范围可审查，并在变更说明中单独列出。
+
+### 工程协作、发布与运行维护
+
+- 共享分支和发布分支禁止强制推送、重写他人提交或绕过既定发布流程。需要回滚时优先使用可追踪的回滚提交或发布机制；个人分支的改写也不得影响其他协作者正在使用的引用。
+- 代码评审说明应包含变更目的、影响范围、验证结果、已知风险、迁移步骤和回滚方式。影响多个层、公共协议、存储格式或平台桥接的改动，应邀请相关模块维护者审查；无关的格式化和重命名不应混入同一变更。
+- 模型、二进制、补丁脚本和其他外部产物必须记录来源、版本、许可证、校验信息和更新方式；发现供应链异常、来源不明的二进制或许可证冲突时先停止集成。
+- 依赖、构建工具和补丁脚本必须使用仓库声明的版本和锁文件。不得依赖开发者机器上的全局包、未声明的环境变量或个人路径；依赖升级后检查漏洞报告、许可证、构建产物和运行时行为。
+- 请求、会话、任务、Worker、下载和组件更新等重要流程应保留可关联的诊断标识。日志使用统一级别和稳定错误码，能够定位入口、阶段和失败原因；生产环境不得输出调试噪声、用户内容或敏感信息。
+- 实验性或分阶段发布的功能必须有明确的开关、默认值、适用平台、负责人和移除计划。平台差异优先通过能力检测或集中式功能开关管理，不能在多个页面和服务中散落相互矛盾的条件判断。
+- 新功能应说明关闭方式、降级行为和异常情况下的回滚路径。功能开关长期保留时必须重新评估，已经稳定的功能应删除不再需要的开关和旧分支。
+- 开发、测试和发布环境、产物复现和平台工具链要求遵循 [`docs/development-workflow.md`](docs/development-workflow.md)；变更说明应列出未验证的环境和原因。
+- 用户会话、日志、缓存、模型文件、临时文件和远程同步数据应明确保存位置、用途、保留时间和删除方式。新增数据字段或同步路径时，说明是否影响 Runtime、Web、TUI、移动端或远程服务；测试和调试不得复制真实用户数据。
+- 影响多个模块、客户端、协议、存储格式或平台架构的设计选择，应按 [`docs/architecture-decisions.md`](docs/architecture-decisions.md) 留下记录。目录职责、命令、平台流程和发布行为变化时，同步更新对应文档，并标明适用版本或状态。
+
+## 多代理协作模式（仅在使用子代理时）
+
+多代理会话遵循 `docs/team-mode-playbook.md`。没有使用子代理的普通开发任务不受本节的角色和接管流程限制：
+
+- 分层验证：子代理默认只为获准修改的文件运行指定测试（例如 `npx tsx --test runtime/tests/<file>.test.mjs`）；完整的 `npm test`、`npm run check` 和 `npm run build` 在集成阶段由主代理或负责合并的人运行。同一命令连续两次失败且没有进展时，必须升级处理，不得循环重试。
+- 守卫红线：`runtime/tests/*.test.mjs` 中通过 `readFile` + `assert.match` 实现的源码守卫测试只能读取，不能由执行重构的子代理修改。发现断言过时，应将守卫清单和原因交给负责集成的人处理。
+- 接管流程：先发送收尾消息并确认任务状态，再观察文件修改时间、输出和工作区差异；只有确认代理无进展或需要中断时才执行接管。中断后假定工作区处于中间状态，先修复和检查现有变更，再继续工作。
+
+## 验证要求
+
+按改动影响范围选择检查；详细环境要求、验证矩阵和平台限制见 [`docs/development-workflow.md`](docs/development-workflow.md)。进入合并或发布阶段时，由主代理或负责合并的人运行适用范围的完整检查，并在变更说明中列出未运行项目及原因：
+
+- TypeScript/界面改动：运行受影响范围的类型检查、lint 和 i18n 检查；涉及多个前端区域或构建配置时运行 `npm run check`。
+- Runtime、HTTP/SSE、工具或服务改动：运行相关 `runtime/tests/` 测试；公共线协议改动还要验证 Web、TUI 和对应契约。
+- TUI、Tauri、SEA、npm、Android 或 iOS 改动：遵循开发流程文档中的对应命令、构建和设备验收要求。
+- 不得新增顶层包管理器或双重锁文件；本仓库使用 **npm**（`package-lock.json`）。
+
+## 范围外事项与安全
+
+- 不得提交密钥、`release/` 产物、`src-tauri/binaries/` 或 `.pisper/` 下的用户代理状态。
+- 不得使用 Electron；桌面端只能采用 Tauri + Node SEA。
+- 公共赞助展示配置位于 `docs/sponsors.json`，其中不得包含用户会话或 Provider 凭据。
