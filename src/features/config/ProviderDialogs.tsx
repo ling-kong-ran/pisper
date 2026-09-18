@@ -379,10 +379,12 @@ export function ProviderConfigModal({
                 </small>
               </FieldLabel>
             )}
-            <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
-              <span>
-                <strong>{t('config:configPage.enableAfterCreation')}</strong>
-                <small>
+            <div className="mt-2.5 flex min-h-11 items-center justify-between gap-3 rounded-sm border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-2.5 py-2">
+              <span className="flex min-w-0 flex-col gap-1">
+                <strong className="text-[13px]">
+                  {t('config:configPage.enableAfterCreation')}
+                </strong>
+                <small className="text-[13px] text-muted-foreground">
                   {t(
                     'config:configPage.visualModelsAreSelectedByTheVisualGenerationToolAndDoNotAppearInTheChatModelList',
                   )}

@@ -43,7 +43,7 @@ export function ConnectionCardGrid({
   const { t } = useI18n()
   const visibleProviders = providers.filter((provider) => provider.configured || provider.custom)
   return (
-    <div className="grid [grid-template-columns:repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-[8px]">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {visibleProviders.map((provider) => {
         const Icon = PROVIDER_ICONS[provider.id] || Server
         const isDefault = provider.id === defaultProviderId
@@ -57,12 +57,12 @@ export function ConnectionCardGrid({
         return (
           <div
             key={provider.id}
-            className="flex min-w-0 flex-col gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[10px_11px]"
+            className="flex min-w-0 flex-col gap-2 border border-[var(--stroke-soft)] rounded-sm bg-[var(--surface-subtle)] px-3 py-2.5"
           >
             <button
               type="button"
               title={t('config:configPage.configure')}
-              className="flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[var(--r-sm)] border-0 bg-transparent p-0 text-left hover:text-[var(--brand-blue)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
+              className="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent p-0 text-left hover:text-[var(--brand-blue)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
               onClick={() => onConfigure(provider)}
             >
               <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
@@ -180,7 +180,7 @@ export function ConnectionList({ onAddCustom, providers, ...gridProps }: Connect
   const { t } = useI18n()
   return (
     <SettingsCard>
-      <div className="flex flex-wrap items-center justify-between gap-[8px] [margin-bottom:8px]">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <SettingsSectionTitle title={t('config:configPage.connections')} />
         <Button
           variant="ghost"
