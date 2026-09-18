@@ -16,7 +16,6 @@ const FOCUS_MESSAGE_PAGE_SIZE = 40
 const EMPTY_LIST: never[] = []
 
 export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionId?: string }>) {
-  const context = useContext(ChatDockContext)
   const sessionId = params?.sessionId || sessionIdFromPanel(api?.id)
   const [visible, setVisible] = useState(() => api.isVisible)
   const [active, setActive] = useState(() => api.isActive)
@@ -40,7 +39,6 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
       panelId={api.id}
       shortcutEnabled={active}
       onFocusCapture={() => api.setActive()}
-      canSplitPanel={Boolean(context?.compactDock === false && api.group.size > 1)}
       canClosePanel
     />
   )
@@ -196,13 +194,7 @@ export function MobileSessionPanel({
         aria-labelledby={sessionId ? `mobile-session-tab-${sessionId}` : undefined}
       >
         {sessionId ? (
-          <SessionPanel
-            sessionId={sessionId}
-            panelId=""
-            shortcutEnabled
-            canSplitPanel={false}
-            canClosePanel={false}
-          />
+          <SessionPanel sessionId={sessionId} panelId="" shortcutEnabled canClosePanel={false} />
         ) : (
           <ChatDockWatermark onNewSession={onCreateSession} />
         )}
@@ -216,7 +208,6 @@ type SessionPanelProps = {
   panelId: string
   shortcutEnabled: boolean
   onFocusCapture?: () => void
-  canSplitPanel: boolean
   canClosePanel: boolean
 }
 
@@ -227,7 +218,6 @@ function SessionPanel({
   panelId,
   shortcutEnabled,
   onFocusCapture,
-  canSplitPanel,
   canClosePanel,
 }: SessionPanelProps) {
   const context = useContext(ChatDockContext)
@@ -313,10 +303,6 @@ function SessionPanel({
       },
       onRetryLastTurn: () => context?.retryLastTurn(sessionId),
       onTreeNavigated: () => context?.reloadSessionBranch(sessionId),
-      onSplitLeft: () => context?.splitDockPanel(panelId, 'left'),
-      onSplitRight: () => context?.splitDockPanel(panelId, 'right'),
-      onSplitTop: () => context?.splitDockPanel(panelId, 'above'),
-      onSplitBottom: () => context?.splitDockPanel(panelId, 'below'),
       onClosePanel: () => context?.closeDockPanel(panelId),
       onSend: (
         value: string,
@@ -413,7 +399,6 @@ function SessionPanel({
         notify={context.notify}
         onOpenModelSettings={context.openModelSettings}
         onCompactionThresholdChange={context.setCompactionThreshold}
-        canSplit={canSplitPanel}
         canClosePanel={canClosePanel}
         {...handlers}
       />

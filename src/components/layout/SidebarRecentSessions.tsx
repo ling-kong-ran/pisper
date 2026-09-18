@@ -11,7 +11,6 @@ import {
   MessageSquare,
   Pencil,
   Plus,
-  Search,
   Trash2,
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
@@ -68,6 +67,26 @@ function workspaceKey(cwd = '') {
   return /^[A-Za-z]:\//.test(normalized) ? normalized.toLowerCase() : normalized
 }
 
+// 极简相对时间（ZCode 式列表标注）：刚刚 / 18分 / 1时 / 3天 / 9/12。
+function shortRelativeTime(value: string, locale = 'zh-CN') {
+  if (!value) return ''
+  const distance = Date.now() - new Date(value).getTime()
+  if (distance < 60_000) return locale === 'en-US' ? 'now' : '刚刚'
+  if (distance < 3_600_000) {
+    const minutes = Math.floor(distance / 60_000)
+    return locale === 'en-US' ? `${minutes}m` : `${minutes}分`
+  }
+  if (distance < 86_400_000) {
+    const hours = Math.floor(distance / 3_600_000)
+    return locale === 'en-US' ? `${hours}h` : `${hours}时`
+  }
+  if (distance < 7 * 86_400_000) {
+    const days = Math.floor(distance / 86_400_000)
+    return locale === 'en-US' ? `${days}d` : `${days}天`
+  }
+  return new Date(value).toLocaleDateString(locale, { month: 'numeric', day: 'numeric' })
+}
+
 export function SidebarRecentSessions({
   navigate,
   requestText,
@@ -77,7 +96,6 @@ export function SidebarRecentSessions({
   const { t, language } = useI18n()
   const { isMobile, setOpenMobile } = useSidebar()
   const [historyExpanded, setHistoryExpanded] = useState(true)
-  const [sessionQuery, setSessionQuery] = useState('')
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -94,20 +112,14 @@ export function SidebarRecentSessions({
     ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
     refetchInterval: 20_000,
   })
-  const sessions = useMemo(
+  // 搜索框已按反馈移除（列表本身带分组与快捷键直达，搜索入口鸡肋）。
+  const visibleSessions = useMemo(
     () =>
       [...(sidebarSessionData?.sessions || [])].sort(
         (a, b) => Date.parse(b.modified) - Date.parse(a.modified),
       ),
     [sidebarSessionData],
   )
-  const visibleSessions = useMemo(() => {
-    const needle = sessionQuery.trim().toLocaleLowerCase(language)
-    if (!needle) return sessions
-    return sessions.filter((session) =>
-      `${session.name || ''} ${session.cwd || ''}`.toLocaleLowerCase(language).includes(needle),
-    )
-  }, [language, sessionQuery, sessions])
   const sessionGroups = useMemo(() => {
     const groups = new Map<string, SessionGroup>()
     for (const session of visibleSessions.slice(0, RECENT_SESSION_LIMIT)) {
@@ -119,7 +131,8 @@ export function SidebarRecentSessions({
     return [...groups.values()]
   }, [visibleSessions])
   const menuTargetGroup = sessionGroups.find((group) => group.key === menuTargetKey) || null
-  const menuTargetSession = sessions.find((session) => session.id === menuTargetSessionId) || null
+  const menuTargetSession =
+    visibleSessions.find((session) => session.id === menuTargetSessionId) || null
   const workspaceLabel = (group: SessionGroup) =>
     group.cwd ? workspaceName(group.cwd, language) : t('navigation:appSidebar.noWorkspace')
 
@@ -164,7 +177,7 @@ export function SidebarRecentSessions({
       await apiJson(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' })
     }
     if (deletedIds.has(activeSessionId)) {
-      const nextId = sessions.find((session) => !deletedIds.has(session.id))?.id || ''
+      const nextId = visibleSessions.find((session) => !deletedIds.has(session.id))?.id || ''
       setActiveSessionId(nextId)
       if (nextId) localStorage.setItem(STORAGE_KEYS.activeSession, nextId)
       else localStorage.removeItem(STORAGE_KEYS.activeSession)
@@ -262,36 +275,35 @@ export function SidebarRecentSessions({
       className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
       aria-label={t('navigation:appSidebar.recentChats')}
     >
-      <div className="flex h-[34px] items-center justify-between gap-[6px] [padding:0_4px]">
+      <div className="flex h-[30px] items-center justify-between gap-[6px] [padding:0_4px]">
+        {/* ZCode 式：标题收敛为单个箭头图标，点击开/合整个会话列表。 */}
         <button
-          className="nav-history-heading [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[28px] [.nav-list_&]:[flex:0_1_auto] [.nav-list_&]:gap-[4px] [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[600] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text-secondary)] [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_svg]:flex-none [&_svg]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg.is-open]:[transform:rotate(90deg)]"
+          className="nav-history-heading grid h-[26px] w-[26px] place-items-center rounded-[var(--r-xs)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
           aria-controls="sidebar-recent-sessions"
           aria-expanded={historyExpanded}
+          aria-label={t('navigation:appSidebar.recentChats')}
+          title={t('navigation:appSidebar.recentChats')}
           onClick={() => setHistoryExpanded((value) => !value)}
         >
-          <span>{t('navigation:appSidebar.recentChats')}</span>
-          <ChevronRight className={historyExpanded ? 'is-open' : ''} size={14} />
+          <ChevronRight
+            className={
+              historyExpanded
+                ? 'rotate-90 [transition:transform_var(--d1)_var(--ease-out)]'
+                : '[transition:transform_var(--d1)_var(--ease-out)]'
+            }
+            size={14}
+          />
         </button>
         <button
-          className="nav-history-view-all [.nav-list_&]:w-auto [.nav-list_&]:h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[500] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
+          className="nav-history-view-all h-[26px] flex-none rounded-[var(--r-xs)] border-0 bg-transparent p-[0_6px] text-[var(--text-muted)] text-[11px] font-[500] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
           aria-label={t('navigation:appSidebar.viewAllCountChats', {
-            count: sessions.length,
+            count: visibleSessions.length,
           })}
           onClick={() => navigateFromSection('chatHistory')}
         >
           {t('navigation:appSidebar.viewAll')}
         </button>
       </div>
-      <label className="min-[901px]:[.sidebar.collapsed_&]:hidden flex h-8 flex-none items-center gap-2 rounded-[var(--r-xs)] border border-[var(--stroke-soft)] bg-[var(--solid)] px-2 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
-        <Search size={13} aria-hidden="true" />
-        <input
-          className="min-w-0 flex-1 border-0 bg-transparent text-[12px] text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
-          value={sessionQuery}
-          onChange={(event) => setSessionQuery(event.target.value)}
-          placeholder={t('navigation:appSidebar.searchChats')}
-          aria-label={t('navigation:appSidebar.searchChats')}
-        />
-      </label>
       {historyExpanded && (
         <ContextMenu
           onOpenChange={(open) => {
@@ -303,7 +315,7 @@ export function SidebarRecentSessions({
         >
           <ContextMenuTrigger asChild>
             <div
-              className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto [animation:page-in_var(--d1)_var(--ease-out)]"
+              className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto overflow-x-hidden [animation:page-in_var(--d1)_var(--ease-out)]"
               id="sidebar-recent-sessions"
             >
               {sessionGroups.map((group) => {
@@ -319,12 +331,11 @@ export function SidebarRecentSessions({
                       onContextMenu={() => setMenuTargetKey(group.key)}
                     >
                       <button
-                        className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_svg:first-child]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg:first-child.is-open]:[transform:rotate(90deg)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
+                        className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
                         aria-expanded={!groupCollapsed}
                         onClick={() => toggleWorkspace(group.key)}
                         title={group.cwd || label}
                       >
-                        <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
                         <FolderClosed size={13} />
                         <span>{label}</span>
                         <small>{group.sessions.length}</small>
@@ -348,7 +359,7 @@ export function SidebarRecentSessions({
                     {!groupCollapsed &&
                       group.sessions.map((session) => (
                         <button
-                          className={`nav-history-item [.nav-list_&]:flex [.nav-list_&]:w-full [.nav-list_&]:h-[34px] [.nav-list_&]:min-h-[34px] [.nav-list_&]:rounded-[var(--r-sm)] [.nav-list_&]:p-[0_8px_0_24px] [.nav-list_&]:text-[var(--text-secondary)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-[500] [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [.nav-list_&:hover]:bg-[var(--surface-muted)] [.nav-list_&:hover]:text-[var(--text)] min-[901px]:[[data-density='compact']_.nav-list_&]:h-[32px] min-[901px]:[[data-density='compact']_.nav-list_&]:min-h-[32px] ${session.id === activeSessionId ? 'active-session [.nav-list_.nav-history-item&]:bg-[var(--surface-muted)] [.nav-list_.nav-history-item&]:text-[var(--text)] [.nav-list_.nav-history-item&]:shadow-[inset_2px_0_var(--brand-blue)]' : ''}`}
+                          className={`nav-history-item [.nav-list_&]:flex [.nav-list_&]:w-full [.nav-list_&]:h-[32px] [.nav-list_&]:min-h-[32px] [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_8px_0_24px] [.nav-list_&]:text-[var(--text-secondary)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-[500] [.nav-list_&]:gap-[8px] [&_>_span]:flex-1 [&_>_span]:min-w-0 [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_>_small]:flex-none [&_>_small]:shrink-0 [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[11px] [&_>_small]:font-[400] [.nav-list_&:hover]:bg-[var(--surface-muted)] [.nav-list_&:hover]:text-[var(--text)] [.nav-list_&:hover_>_small]:opacity-100 min-[901px]:[[data-density='compact']_.nav-list_&]:h-[30px] min-[901px]:[[data-density='compact']_.nav-list_&]:min-h-[30px] ${session.id === activeSessionId ? 'active-session [.nav-list_.nav-history-item&]:bg-[var(--surface-muted)] [.nav-list_.nav-history-item&]:text-[var(--text)] [.nav-list_.nav-history-item&]:shadow-[inset_2px_0_var(--brand-blue)]' : ''}`}
                           aria-current={session.id === activeSessionId ? 'page' : undefined}
                           title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
                           onClick={() => openRecentSession(session.id)}
@@ -358,6 +369,9 @@ export function SidebarRecentSessions({
                           <span className="select-none">
                             {session.name || t('navigation:appSidebar.untitledChat')}
                           </span>
+                          <small className="opacity-70">
+                            {shortRelativeTime(session.modified, language)}
+                          </small>
                         </button>
                       ))}
                   </div>
@@ -365,9 +379,7 @@ export function SidebarRecentSessions({
               })}
               {!visibleSessions.length && (
                 <span className="[padding:8px] text-[var(--text-muted)] text-[11px]">
-                  {sessionQuery.trim()
-                    ? t('navigation:appSidebar.noMatchingChats')
-                    : t('navigation:appSidebar.noChatHistoryYet')}
+                  {t('navigation:appSidebar.noChatHistoryYet')}
                 </span>
               )}
             </div>

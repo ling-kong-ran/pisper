@@ -24,6 +24,8 @@ export async function chatRoute() {
         onAssetConsumed={context.onAssetConsumed}
         requestText={context.requestText}
         requestConfirm={context.requestConfirm}
+        terminalOpen={context.terminalOpen}
+        onToggleTerminal={context.toggleTerminal}
       />
     )
   }

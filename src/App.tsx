@@ -239,6 +239,7 @@ function App() {
     [t],
   )
   const [terminalOpen, setTerminalOpen] = useState(() => Boolean(readStoredTerminalPanel().open))
+  const toggleTerminal = useCallback(() => setTerminalOpen((open) => !open), [])
   const [terminalHeight, setTerminalHeight] = useState(() =>
     Math.max(180, Math.min(640, Number(readStoredTerminalPanel().height) || 300)),
   )
@@ -640,11 +641,10 @@ function App() {
 
   const activeMeta: readonly [string, string] =
     page === 'chat'
-      ? [
-          t('common:app.sessions'),
-          mobileLayout ? '' : t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
-        ]
+      ? [t('common:app.sessions'), '']
       : pageMeta[page] || [t('common:app.sessions'), '']
+  // 桌面聊天页：应用页头隐藏，汉堡/标题/工具簇由聊天中栏自带。
+  const desktopChatPage = page === 'chat'
 
   const updateNotificationSettings = useCallback((settings: NotificationSettingsData) => {
     // 回调须稳定，否则通知表单会因依赖变化重复加载；保存值不能被较早的请求覆盖。
@@ -665,6 +665,8 @@ function App() {
     onUseAsset: useAsset,
     requestText: appDialog.prompt,
     requestConfirm: appDialog.confirm,
+    terminalOpen,
+    toggleTerminal,
     openNotificationSettings,
     configSection,
     setConfigSection,
@@ -734,42 +736,51 @@ function App() {
               onSettings={() => navigate('config')}
             />
           </Suspense>
-          <AppSidebar
-            page={page}
-            configSection={configSection}
-            navigation={navigation}
-            navigate={navigate}
-            navigateSettings={navigateSettings}
-            onExitSettings={exitSettings}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebarCollapsed}
-            update={appUpdate}
-            onOpenUpdates={openUpdateSettings}
-            requestText={appDialog.prompt}
-            requestConfirm={appDialog.confirm}
-            notify={notify}
-          />
+          {/* 收起时完全隐藏侧栏（ZCode 式），页头汉堡负责展开；移动端抽屉不受影响 */}
+          {(!sidebarCollapsed || mobileNav) && (
+            <AppSidebar
+              page={page}
+              configSection={configSection}
+              navigation={navigation}
+              navigate={navigate}
+              navigateSettings={navigateSettings}
+              onExitSettings={exitSettings}
+              collapsed={false}
+              update={appUpdate}
+              onOpenUpdates={openUpdateSettings}
+              requestText={appDialog.prompt}
+              requestConfirm={appDialog.confirm}
+              notify={notify}
+            />
+          )}
           <SidebarInset className="main-surface before:[content:''] before:absolute before:z-[-1] before:inset-[0_0_auto] before:h-[220px] before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] before:pointer-events-none dark:bg-[var(--main-surface-bg)] dark:before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] dark:[background-image:radial-gradient(rgba(255,_255,_255,_.05)_1px,_transparent_1.3px),_radial-gradient(rgba(255,_255,_255,_.025)_1px,_transparent_1.3px)] dark:[background-size:26px_26px,_41px_41px] dark:[background-position:0_0,_13px_20px] relative flex min-w-0 flex-1 h-full flex-col overflow-hidden [border-left:0] bg-[var(--main-surface-bg)] shadow-[inset_0_1px_0_var(--main-surface-inset),_0_20px_60px_-28px_var(--main-surface-shadow)]">
-            <Suspense fallback={null}>
-              <PageHeader
-                meta={activeMeta}
-                page={page}
-                query={query}
-                setQuery={setQuery}
-                configSection={configSection}
-                onMenu={() => setMobileNav(true)}
-                onPrimary={handlePrimary}
-                onConfigSearchSelect={setConfigSection}
-                searchInputRef={searchInputRef}
-                theme={theme}
-                onCycleTheme={cycleTheme}
-                workflowActions={workflowActions}
-                desktopPlatform={window.pisperDesktop?.platform || ''}
-                mobileApp={mobileApp}
-                terminalOpen={terminalOpen}
-                onToggleTerminal={() => setTerminalOpen((value) => !value)}
-              />
-            </Suspense>
+            {/* 桌面聊天页的页头三件套（汉堡/标题/工具簇）由中栏自带，应用页头隐藏；移动端仍用应用页头。 */}
+            {(!desktopChatPage || mobileLayout) && (
+              <Suspense fallback={null}>
+                <PageHeader
+                  meta={activeMeta}
+                  page={page}
+                  query={query}
+                  setQuery={setQuery}
+                  configSection={configSection}
+                  onMenu={() => {
+                    // 移动端开导航抽屉；桌面端负责侧栏的收起/展开（ZCode 式完全隐藏）。
+                    if (mobileLayout) setMobileNav(true)
+                    else toggleSidebarCollapsed()
+                  }}
+                  onPrimary={handlePrimary}
+                  onConfigSearchSelect={setConfigSection}
+                  searchInputRef={searchInputRef}
+                  theme={theme}
+                  onCycleTheme={cycleTheme}
+                  workflowActions={workflowActions}
+                  desktopPlatform={window.pisperDesktop?.platform || ''}
+                  mobileApp={mobileApp}
+                  terminalOpen={terminalOpen}
+                  onToggleTerminal={() => setTerminalOpen((value) => !value)}
+                />
+              </Suspense>
+            )}
             {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
               <MobileSettingsNavigation
                 page={page}

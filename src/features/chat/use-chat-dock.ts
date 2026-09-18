@@ -369,6 +369,8 @@ export function useChatDock({
       for (const disposable of dockDisposablesRef.current) disposable.dispose()
       dockDisposablesRef.current = []
       dockApiRef.current = api
+      // 标签头改由 CSS 隐藏（.dv-tabs-and-actions-container display:none），
+      // 不依赖 dock API 时序，恢复布局/新建/拆分分组均稳定生效。
       dockDisposablesRef.current.push(
         api.onDidActivePanelChange(({ panel }) => {
           const sessionId = sessionIdFromPanel(panel)

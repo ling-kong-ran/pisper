@@ -2,9 +2,9 @@
 // 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
 import type { RefObject } from 'react'
 import {
+  Clock,
   Link2,
   Menu,
-  Clock,
   MonitorCog,
   Moon,
   Plus,
@@ -124,7 +124,7 @@ export function PageHeader({
     >
       <SidebarTrigger
         className={cn(
-          'hidden size-[34px] place-items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--solid)] max-[900px]:grid',
+          'size-[34px] place-items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--solid)]',
           desktop && '[-webkit-app-region:no-drag]',
         )}
         onClick={onMenu}

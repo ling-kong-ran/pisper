@@ -112,6 +112,8 @@
   "pageHeader.scheduled": "Automatic by time",
   "pageHeader.testRun": "Test run",
   "pageHeader.themeThemeClickToSwitch": "Theme: {theme} (click to switch)",
+  "pageHeader.sessionTree": "Recall: open session tree",
+  "pageHeader.auxChat": "Assistant chat: toggle right panel",
   "pageHeader.themeThemeClickToSwitchThemes": "Theme: {theme}. Click to switch themes.",
   "pageHeader.toggleTerminal": "Toggle terminal",
   "pageLoader.bringingTheNeededCapabilitiesIntoPlace": "Bringing the needed capabilities into place…",

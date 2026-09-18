@@ -112,6 +112,8 @@
   "pageHeader.scheduled": "按时间自动",
   "pageHeader.testRun": "试运行",
   "pageHeader.themeThemeClickToSwitch": "主题：{theme}（点击切换）",
+  "pageHeader.sessionTree": "追忆：打开会话分支树",
+  "pageHeader.auxChat": "辅助对话：打开/收起右栏",
   "pageHeader.themeThemeClickToSwitchThemes": "主题：{theme}，点击切换主题",
   "pageHeader.toggleTerminal": "切换终端",
   "pageLoader.bringingTheNeededCapabilitiesIntoPlace": "所需能力正在依次就位…",

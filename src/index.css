@@ -15,10 +15,12 @@
 
 :root {
   color-scheme: light;
-  /* 拉丁字符走 Geist，中文回退系统字体；与 @theme 的 --font-sans 保持一致。
+  /* 拉丁字符走 Geist（未打包，仅本机装过才生效），中文回退系统字体。
+     Windows 清晰度关键：Segoe UI 必须排在中文黑体之前——否则英文/数字
+     回退到雅黑，小字号渲染发虚；Segoe UI 原生 hinting 锐利。
      HarmonyOS Sans SC / MiSans 仅对主动安装过它们的用户生效（无预装），
-     Noto/思源覆盖 Linux；Windows 默认仍落到雅黑 UI。 */
-  font-family: "Geist Variable", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+     Noto/思源覆盖 Linux。 */
+  font-family: "Geist Variable", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -360,8 +362,8 @@
     --sh-edge: rgba(0, 0, 0, .3);
 
     /* ── 表面与场景 ── */
-    --sidebar-bg: #131316;
-    --sidebar-status-bg: #101013;
+    --sidebar-bg: #101013;
+    --sidebar-status-bg: #0d0d10;
     --sidebar-shadow: rgba(0, 0, 0, .55);
     --sidebar: #0b0b0d;
     --main-surface-bg: #141417;
@@ -590,7 +592,10 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   background: var(--main-surface-bg);
 }
 :root .dockview-theme-pisper { --dv-tabs-and-actions-container-height: 36px; --dv-tabs-and-actions-container-font-size: 12px; --dv-group-view-background-color: var(--panel); --dv-tabs-and-actions-container-background-color: var(--surface-subtle); --dv-activegroup-visiblepanel-tab-background-color: var(--panel); --dv-activegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel); --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--text-soft); --dv-inactivegroup-visiblepanel-tab-color: var(--text-soft); --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted); --dv-tab-divider-color: var(--stroke-soft); --dv-separator-border: var(--stroke); --dv-paneview-active-outline-color: var(--focus); --dv-drag-over-background-color: var(--focus-ring); --dv-drag-over-border-color: var(--focus); --dv-icon-hover-background-color: var(--surface-hover); --dv-tabs-container-scrollbar-color: var(--control-muted); --dv-scrollbar-background-color: var(--control-muted); --dv-sash-color: var(--stroke-soft); --dv-active-sash-color: var(--focus); --dv-border-radius: 0; --dv-tab-border-radius: 0; --dv-spacing-padding: 0; }
-.dockview-theme-pisper .dv-tabs-and-actions-container { border-bottom: 1px solid var(--stroke-soft); }
+/* ZCode 式布局：会话切换统一走左侧会话列表，dock 顶部的多会话标签头
+   （会话名 + 关闭 + 新建）整体隐藏——CSS 层隐藏不依赖 dock API 时序，
+   恢复布局/新建分组/拆分都会生效。 */
+.dockview-theme-pisper .dv-tabs-and-actions-container { display: none; }
 .dockview-theme-pisper .dv-tab { font-weight: 600; }
 .dockview-theme-pisper .dv-active-group .dv-tab.dv-active-tab { box-shadow: inset 0 -2px var(--brand-blue); }
 /* 图标化模型切换：Radix Select 透明覆盖整个按钮，文字收进 tooltip，仅保留图标 */
@@ -716,7 +721,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', ui-sans-serif, system-ui, sans-serif;
+  /* Segoe UI 在中文黑体之前：Windows 上拉丁/数字避免回退雅黑导致发虚。 */
+  --font-sans: 'Geist Variable', 'Segoe UI', 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', ui-sans-serif, system-ui, sans-serif;
   --color-brand-soft: var(--brand-blue-soft);
   --color-brand-strong: var(--brand-blue-strong);
   --color-success-soft: var(--success-soft);

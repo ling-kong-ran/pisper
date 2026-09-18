@@ -7,8 +7,6 @@ import {
   ArrowLeft,
   Download,
   ExternalLink,
-  PanelLeftClose,
-  PanelLeftOpen,
   RefreshCw,
   Rocket,
   Settings,
@@ -55,7 +53,6 @@ type AppSidebarProps = {
   navigateSettings: (destination: SettingsDestination) => void
   onExitSettings: () => void
   collapsed: boolean
-  onToggleCollapse: () => void
   update: SidebarUpdate
   onOpenUpdates: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -71,7 +68,6 @@ export function AppSidebar({
   navigateSettings,
   onExitSettings,
   collapsed,
-  onToggleCollapse,
   update,
   onOpenUpdates,
   requestText,
@@ -108,7 +104,7 @@ export function AppSidebar({
   return (
     <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container">
       <aside
-        className={`sidebar dark:border-[var(--stroke)] dark:bg-[var(--sidebar-bg)] dark:shadow-[0_14px_40px_-18px_var(--sidebar-shadow)] max-[1150px]:w-[205px] max-[1150px]:min-w-[205px] max-[1150px]:p-[16px_14px] max-[900px]:fixed max-[900px]:inset-[0_auto_0_0] max-[900px]:w-[236px] max-[900px]:[transform:translateX(-102%)] max-[900px]:[transition:transform_var(--d2)_var(--ease-out)] max-[900px]:[&.is-open]:[transform:translateX(0)] relative z-[30] w-[236px] min-w-[236px] h-full flex flex-col gap-[18px] [padding:18px] [border-right:1px_solid_var(--stroke)] bg-[var(--sidebar-bg)] shadow-[0_14px_40px_-18px_var(--sidebar-shadow)] shadcn-sidebar-content max-[900px]:[.sidebar&]:relative max-[900px]:[.sidebar&]:inset-[auto] max-[900px]:[.sidebar&]:w-[236px] max-[900px]:[.sidebar&]:min-w-[236px] max-[900px]:[.sidebar&]:[transform:none] max-[900px]:[.sidebar&]:[transition:none] ${collapsed ? "collapsed min-[901px]:[.sidebar&]:w-[64px] min-[901px]:[.sidebar&]:min-w-[64px] min-[901px]:[.sidebar&]:gap-[12px] min-[901px]:[.sidebar&]:p-[14px_10px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:w-[218px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:min-w-[218px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:p-[14px]" : ''}`}
+        className={`sidebar dark:border-[var(--stroke)] dark:bg-[var(--sidebar-bg)] dark:shadow-[0_14px_40px_-18px_var(--sidebar-shadow)] max-[1150px]:w-[205px] max-[1150px]:min-w-[205px] max-[1150px]:p-[16px_14px] max-[900px]:fixed max-[900px]:inset-[0_auto_0_0] max-[900px]:w-[236px] max-[900px]:[transform:translateX(-102%)] max-[900px]:[transition:transform_var(--d2)_var(--ease-out)] max-[900px]:[&.is-open]:[transform:translateX(0)] relative z-[30] w-[236px] min-w-[236px] h-full flex flex-col gap-[18px] [padding:18px] bg-[var(--sidebar-bg)] shadow-[0_14px_40px_-18px_var(--sidebar-shadow)] shadcn-sidebar-content max-[900px]:[.sidebar&]:relative max-[900px]:[.sidebar&]:inset-[auto] max-[900px]:[.sidebar&]:w-[236px] max-[900px]:[.sidebar&]:min-w-[236px] max-[900px]:[.sidebar&]:[transform:none] max-[900px]:[.sidebar&]:[transition:none] ${collapsed ? "collapsed min-[901px]:[.sidebar&]:w-[64px] min-[901px]:[.sidebar&]:min-w-[64px] min-[901px]:[.sidebar&]:gap-[12px] min-[901px]:[.sidebar&]:p-[14px_10px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:w-[218px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:min-w-[218px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:p-[14px]" : ''}`}
       >
         <button
           className="mobile-close hover:bg-[var(--surface-hover)] hover:text-[var(--text)] max-[900px]:grid max-[900px]:place-items-center hidden w-[32px] h-[32px] flex-none [margin-left:auto] border-0 rounded-[var(--r-sm)] bg-transparent text-[var(--text-muted)] cursor-pointer"
@@ -128,7 +124,7 @@ export function AppSidebar({
           )}
         </div>
         <div
-          className={`nav-list [&_button]:relative [&_button]:flex [&_button]:w-full [&_button]:h-[34px] [&_button]:items-center [&_button]:gap-[10px] [&_button]:border-0 [&_button]:rounded-[var(--r-sm)] [&_button]:bg-transparent [&_button]:p-[0_10px] [&_button]:text-[var(--text-secondary)] [&_button]:text-left [&_button]:text-[12px] [&_button]:font-[500] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--text)] [&_button.active]:font-[600] [&_button.active::before]:[content:''] [&_button.active::before]:absolute [&_button.active::before]:left-[2px] [&_button.active::before]:top-[8px] [&_button.active::before]:bottom-[8px] [&_button.active::before]:w-[3px] [&_button.active::before]:rounded-[var(--r-pill)] [&_button.active::before]:bg-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&_button]:justify-center min-[901px]:[.sidebar.collapsed_&_button]:gap-[0] min-[901px]:[.sidebar.collapsed_&_button]:p-0 min-[901px]:[.sidebar.collapsed_&_button_span]:hidden min-[901px]:[.sidebar.collapsed_&_button.active::before]:left-0 dark:[&_button.active]:bg-[var(--surface-hover)] min-[901px]:[[data-density='compact']_&_button]:h-[30px] flex min-h-0 flex-col gap-[3px] overflow-y-auto ${settingsActive ? 'nav-settings-mode gap-[10px]' : ''}`}
+          className={`nav-list [&_button]:relative [&_button]:flex [&_button]:w-full [&_button]:h-[34px] [&_button]:items-center [&_button]:gap-[10px] [&_button]:border-0 [&_button]:rounded-[var(--r-sm)] [&_button]:bg-transparent [&_button]:p-[0_10px] [&_button]:text-[var(--text-secondary)] [&_button]:text-left [&_button]:text-[12px] [&_button]:font-[500] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--text)] [&_button.active]:font-[600] [&_button.active::before]:[content:''] [&_button.active::before]:absolute [&_button.active::before]:left-[2px] [&_button.active::before]:top-[8px] [&_button.active::before]:bottom-[8px] [&_button.active::before]:w-[3px] [&_button.active::before]:rounded-[var(--r-pill)] [&_button.active::before]:bg-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&_button]:justify-center min-[901px]:[.sidebar.collapsed_&_button]:gap-[0] min-[901px]:[.sidebar.collapsed_&_button]:p-0 min-[901px]:[.sidebar.collapsed_&_button_span]:hidden min-[901px]:[.sidebar.collapsed_&_button.active::before]:left-0 dark:[&_button.active]:bg-[var(--surface-hover)] min-[901px]:[[data-density='compact']_&_button]:h-[30px] flex min-h-0 flex-col gap-[3px] overflow-y-auto overflow-x-hidden ${settingsActive ? 'nav-settings-mode gap-[10px]' : ''}`}
         >
           {settingsActive ? (
             <nav
@@ -221,27 +217,6 @@ export function AppSidebar({
             </button>
           )}
           <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
-          <button
-            className="sidebar-collapse hover:bg-[var(--surface-hover)] hover:text-[var(--text)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-[0] min-[901px]:[.sidebar.collapsed_&]:p-0 min-[901px]:[.sidebar.collapsed_&_span]:hidden max-[900px]:hidden flex h-[34px] flex-none items-center gap-[8px] [margin-top:auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-transparent [padding:0_10px] text-[var(--text-muted)] text-[12px] cursor-pointer [transition:var(--d1)_var(--ease-out)] !mt-0"
-            title={
-              collapsed
-                ? t('navigation:appSidebar.expandSidebar')
-                : t('navigation:appSidebar.collapseSidebar')
-            }
-            aria-label={
-              collapsed
-                ? t('navigation:appSidebar.expandSidebar')
-                : t('navigation:appSidebar.collapseSidebar')
-            }
-            onClick={onToggleCollapse}
-          >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            <span>
-              {collapsed
-                ? t('navigation:appSidebar.expandSidebar')
-                : t('navigation:appSidebar.collapseSidebar')}
-            </span>
-          </button>
         </div>
       </aside>
     </ShadcnSidebar>

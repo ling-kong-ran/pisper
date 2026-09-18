@@ -4,13 +4,27 @@
 // dockview 及其样式经懒加载分包，移动端不下载。
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
-import { RefreshCw } from 'lucide-react'
+import {
+  Clock,
+  Menu,
+  MonitorCog,
+  Moon,
+  PanelRightClose,
+  PanelRightOpen,
+  RefreshCw,
+  Sun,
+  TerminalSquare,
+  type LucideIcon,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
+import { useUiStore, type ThemeMode } from '@/stores/ui-store'
 import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
@@ -24,9 +38,25 @@ import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
-import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
+import {
+  AUX_CHAT_TOGGLE_EVENT,
+  SESSION_CREATE_REQUESTED_EVENT,
+  consumeSessionCreationRequest,
+  requestAuxChatToggle,
+} from './events'
+
+// 中栏头部主题图标：与 PageHeader 的 THEME_META 保持一致顺序。
+const CHAT_THEME_META: Record<ThemeMode, LucideIcon> = {
+  system: MonitorCog,
+  scheduled: Clock,
+  light: Sun,
+  dark: Moon,
+}
 
 // Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
+const LazyAuxChatPanel = lazy(() =>
+  import('./AuxChatPanel').then((module) => ({ default: module.AuxChatPanel })),
+)
 const LazyChatDockView = lazy(() =>
   import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
 )
@@ -51,6 +81,8 @@ type ChatPageProps = {
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+  terminalOpen: boolean
+  onToggleTerminal: () => void
 }
 
 export function ChatPage({
@@ -62,12 +94,19 @@ export function ChatPage({
   onAssetConsumed,
   requestText,
   requestConfirm,
+  terminalOpen,
+  onToggleTerminal,
 }: ChatPageProps) {
   const { t } = useI18n()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  // 终端依赖桌面壳 PTY：网页端（浏览器/dev）不可用，按钮随之隐藏。
+  const terminalAvailable =
+    runtimeFeatureAvailable(capabilities, 'terminal') &&
+    Boolean(window.pisperDesktop?.terminalProfiles)
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
   const resumeSyncRef = useRef<Promise<void> | null>(null)
@@ -263,6 +302,39 @@ export function ChatPage({
     [notify, openSessionInDock, refreshSessions, requestText, setGlobalError, t],
   )
 
+  // 右栏辅助对话：新建默认打开；开合状态持久化。
+  const [auxOpen, setAuxOpen] = useState(() => localStorage.getItem('pisper-aux-open') !== '0')
+  const updateAuxOpen = useCallback((open: boolean) => {
+    setAuxOpen(open)
+    localStorage.setItem('pisper-aux-open', open ? '1' : '0')
+  }, [])
+  // 中栏头部三件套的本地状态：侧栏开合（ui-store）与主题循环。
+  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
+  const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
+  const toggleSidebar = useCallback(
+    () => setSidebarCollapsed(!sidebarCollapsed),
+    [setSidebarCollapsed, sidebarCollapsed],
+  )
+  const theme = useUiStore((state) => state.theme)
+  const cycleTheme = useUiStore((state) => state.cycleTheme)
+  const ThemeIcon = CHAT_THEME_META[theme]
+  const themeLabel =
+    theme === 'light'
+      ? t('navigation:pageHeader.light')
+      : theme === 'dark'
+        ? t('navigation:pageHeader.dark')
+        : theme === 'scheduled'
+          ? t('navigation:pageHeader.scheduled')
+          : t('navigation:pageHeader.system')
+  // 页头图标簇的辅助对话按钮经事件总线联动（PageHeader 与 ChatPage 跨层）。
+  const auxOpenRef = useRef(auxOpen)
+  auxOpenRef.current = auxOpen
+  useEffect(() => {
+    const toggle = () => updateAuxOpen(!auxOpenRef.current)
+    window.addEventListener(AUX_CHAT_TOGGLE_EVENT, toggle)
+    return () => window.removeEventListener(AUX_CHAT_TOGGLE_EVENT, toggle)
+  }, [updateAuxOpen])
+
   const openModelSettings = useCallback(() => navigate('config'), [navigate])
   // 会话状态不进 context：流式期间 sessionStates 每帧变化，
   // 若随 context 广播会让所有 Dock 面板每帧重渲染。面板改为按会话订阅，
@@ -352,7 +424,9 @@ export function ChatPage({
 
   return (
     <>
-      <div className="chat-layout max-[900px]:grid-cols-[minmax(0,1fr)] max-[650px]:flex max-[650px]:flex-col max-[650px]:min-h-0 relative grid w-full min-w-0 min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-[0] dock-layout">
+      <div
+        className={`chat-layout relative grid w-full min-w-0 min-h-0 flex-1 gap-[6px] dock-layout max-[650px]:flex max-[650px]:flex-col max-[650px]:min-h-0 max-[650px]:gap-[0] -m-[6px] ${auxOpen && !mobileLayout ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)]'}`}
+      >
         {catalog.loading ? (
           <AppEmptyState>
             <RefreshCw className="animate-spin" size={24} />
@@ -360,26 +434,93 @@ export function ChatPage({
             <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
           </AppEmptyState>
         ) : (
-          <div className="chat-dock-workspace max-[650px]:[flex:1_1_0] max-[650px]:min-h-0 relative min-w-0 min-h-0 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
-            <ChatDockContext.Provider value={dockContextValue}>
-              {clientLoaded && mobileLayout ? (
-                <MobileSessionPanel
-                  sessionIds={dock.mobileSessionIds}
-                  onSelectSession={openSessionInDock}
-                  onCreateSession={createSession}
-                />
-              ) : clientLoaded ? (
+          <>
+            <div className="chat-dock-workspace max-[650px]:[flex:1_1_0] max-[650px]:min-h-0 relative flex min-w-0 min-h-0 flex-col [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-muted)]">
+              {/* 中栏头部：桌面聊天页的应用页头三件套移到这里（汉堡/标题/工具簇）。 */}
+              {!mobileLayout && (
+                <div className="chat-column-header flex h-[40px] flex-none items-center gap-[4px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:0_8px]">
+                  <button
+                    type="button"
+                    className="grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+                    title={t('navigation:appSidebar.expandSidebar')}
+                    aria-label={t('navigation:appSidebar.expandSidebar')}
+                    onClick={toggleSidebar}
+                  >
+                    <Menu size={17} />
+                  </button>
+                  <span className="ml-[2px] text-[13px] font-[650] text-[var(--text)]">
+                    {t('common:app.sessions')}
+                  </span>
+                  <div className="flex-1" />
+                  {terminalAvailable && (
+                    <button
+                      type="button"
+                      className={`grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)] max-[1200px]:hidden ${terminalOpen ? 'bg-[var(--surface-hover)] text-[var(--brand-blue)]' : 'text-[var(--text-muted)]'}`}
+                      title={t('navigation:pageHeader.toggleTerminal')}
+                      aria-label={t('navigation:pageHeader.toggleTerminal')}
+                      aria-pressed={terminalOpen}
+                      onClick={onToggleTerminal}
+                    >
+                      <TerminalSquare size={16} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)] max-[1200px]:hidden"
+                    title={t('navigation:pageHeader.auxChat')}
+                    aria-label={t('navigation:pageHeader.auxChat')}
+                    onClick={requestAuxChatToggle}
+                  >
+                    {auxOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+                    title={t('navigation:pageHeader.themeThemeClickToSwitch', {
+                      theme: themeLabel,
+                    })}
+                    aria-label={t('navigation:pageHeader.themeThemeClickToSwitchThemes', {
+                      theme: themeLabel,
+                    })}
+                    onClick={cycleTheme}
+                  >
+                    <ThemeIcon size={16} />
+                  </button>
+                </div>
+              )}
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                <ChatDockContext.Provider value={dockContextValue}>
+                  {clientLoaded && mobileLayout ? (
+                    <MobileSessionPanel
+                      sessionIds={dock.mobileSessionIds}
+                      onSelectSession={openSessionInDock}
+                      onCreateSession={createSession}
+                    />
+                  ) : clientLoaded ? (
+                    <Suspense fallback={null}>
+                      <LazyChatDockView
+                        compactDock={dock.compactDock}
+                        onDockReady={dock.onDockReady}
+                        getTabContextMenuItems={dock.getTabContextMenuItems}
+                        createSession={createSession}
+                      />
+                    </Suspense>
+                  ) : null}
+                </ChatDockContext.Provider>
+              </div>
+            </div>
+            {/* 右栏辅助对话：与中栏完全同款卡片（同边框/圆角/底色），栅格 6px 缝分隔；窄屏隐藏。 */}
+            {!mobileLayout && auxOpen && (
+              <div className="relative min-h-0 flex-none overflow-hidden max-[1200px]:hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-subtle)]">
                 <Suspense fallback={null}>
-                  <LazyChatDockView
-                    compactDock={dock.compactDock}
-                    onDockReady={dock.onDockReady}
-                    getTabContextMenuItems={dock.getTabContextMenuItems}
-                    createSession={createSession}
+                  <LazyAuxChatPanel
+                    cwd={catalog.sessions.find((item) => item.id === catalog.activeId)?.cwd || ''}
+                    onClose={() => updateAuxOpen(false)}
                   />
                 </Suspense>
-              ) : null}
-            </ChatDockContext.Provider>
-          </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       {sessionCommands.workspaceSession && (

@@ -13,6 +13,19 @@ export const SESSION_CREATE_REQUESTED_EVENT = 'pisper:session-create-requested'
 export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
 export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
+// 页头图标簇 → 聊天页的跨层联动：右栏辅助对话开合、当前会话追忆树打开。
+export const AUX_CHAT_TOGGLE_EVENT = 'pisper:aux-chat-toggle'
+export const SESSION_TREE_REQUESTED_EVENT = 'pisper:session-tree-requested'
+
+// 请求切换右栏辅助对话的开合状态。
+export function requestAuxChatToggle() {
+  window.dispatchEvent(new Event(AUX_CHAT_TOGGLE_EVENT))
+}
+
+// 请求打开当前会话的追忆树（由活动会话面板响应）。
+export function requestSessionTree() {
+  window.dispatchEvent(new Event(SESSION_TREE_REQUESTED_EVENT))
+}
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
 // 会话创建请求：cwd 可为空串（默认工作区）；prompt 存在时创建后自动发送
