@@ -1,33 +1,23 @@
 // 侧边栏：应用导航 + 设置分组导航 + 更新入口，支持折叠与移动端抽屉。
-// 用 React Query 拉取 Provider/会话摘要等数据；折叠状态由 ui-store 持久化。
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+// 用 React Query 拉取 Provider 等数据；折叠状态由 ui-store 持久化。
+// 「最近会话」区块（含右键新建/删除项目）拆到 SidebarRecentSessions 并懒加载，
+// 避免目录选择弹窗与右键菜单原语进入应用壳的 eager 入口（受打包预算约束）。
+import { lazy, Suspense, useMemo } from 'react'
 import {
   ArrowLeft,
-  ChevronRight,
   Download,
-  FolderClosed,
   ExternalLink,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
   RefreshCw,
   Rocket,
-  Search,
   Settings,
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
-import {
-  ACTIVE_SESSION_CHANGED_EVENT,
-  SESSION_SELECTED_EVENT,
-  requestSessionCreation,
-  requestSessionSelection,
-} from '@/features/chat/events'
-import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
-import { relativeTime, workspaceName } from '@/lib/format'
+import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   getSettingsNavigation,
   SETTINGS_PAGES,
@@ -38,12 +28,11 @@ import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
-type SessionSummary = {
-  id: string
-  name?: string
-  modified: string
-  cwd?: string
-}
+const SidebarRecentSessions = lazy(() =>
+  import('@/components/layout/SidebarRecentSessions').then((m) => ({
+    default: m.SidebarRecentSessions,
+  })),
+)
 
 type SidebarUpdate = {
   info?: { desktop?: boolean; mobile?: boolean }
@@ -68,13 +57,9 @@ type AppSidebarProps = {
   onToggleCollapse: () => void
   update: SidebarUpdate
   onOpenUpdates: () => void
-}
-
-const RECENT_SESSION_LIMIT = 24
-
-function workspaceKey(cwd = '') {
-  const normalized = cwd.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  return /^[A-Za-z]:\//.test(normalized) ? normalized.toLowerCase() : normalized
+  requestText: (options?: PromptDialogOptions) => Promise<string | null>
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+  notify: Notify
 }
 
 export function AppSidebar({
@@ -88,15 +73,12 @@ export function AppSidebar({
   onToggleCollapse,
   update,
   onOpenUpdates,
+  requestText,
+  requestConfirm,
+  notify,
 }: AppSidebarProps) {
-  const { t, language } = useI18n()
+  const { t } = useI18n()
   const { isMobile, setOpenMobile } = useSidebar()
-  const [historyExpanded, setHistoryExpanded] = useState(true)
-  const [sessionQuery, setSessionQuery] = useState('')
-  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
-  const [activeSessionId, setActiveSessionId] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
-  )
   const active = page === 'workflowCreate' ? 'workflows' : page === 'chatHistory' ? 'chat' : page
   const settingsActive = SETTINGS_PAGES.has(page)
   const mobileApp = useIsMobileApp()
@@ -106,69 +88,6 @@ export function AppSidebar({
     [capabilities, mobileApp, t],
   )
   const activeSettingsKey = settingsNavigationKey(page, configSection)
-
-  const { data: sidebarSessionData } = useQuery({
-    ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
-    refetchInterval: 20_000,
-  })
-  const sessions = useMemo(
-    () =>
-      [...(sidebarSessionData?.sessions || [])].sort(
-        (a, b) => Date.parse(b.modified) - Date.parse(a.modified),
-      ),
-    [sidebarSessionData],
-  )
-  const visibleSessions = useMemo(() => {
-    const needle = sessionQuery.trim().toLocaleLowerCase(language)
-    if (!needle) return sessions
-    return sessions.filter((session) =>
-      `${session.name || ''} ${session.cwd || ''}`.toLocaleLowerCase(language).includes(needle),
-    )
-  }, [language, sessionQuery, sessions])
-  const sessionGroups = useMemo(() => {
-    const groups = new Map<string, { key: string; cwd: string; sessions: SessionSummary[] }>()
-    for (const session of visibleSessions.slice(0, RECENT_SESSION_LIMIT)) {
-      const key = workspaceKey(session.cwd) || '__no_workspace__'
-      const group = groups.get(key) || { key, cwd: session.cwd || '', sessions: [] }
-      group.sessions.push(session)
-      groups.set(key, group)
-    }
-    return [...groups.values()]
-  }, [visibleSessions])
-
-  useEffect(() => {
-    const refresh = () => {
-      void fetchStartupQuery('sessions', true).catch(() => {})
-    }
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') refresh()
-    }
-    const syncActive = (event: Event) => {
-      const detail = (event as CustomEvent<{ id?: string }>).detail
-      setActiveSessionId(detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || '')
-    }
-    document.addEventListener('visibilitychange', refreshWhenVisible)
-    window.addEventListener(SESSION_SELECTED_EVENT, syncActive)
-    window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
-    return () => {
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
-      window.removeEventListener(SESSION_SELECTED_EVENT, syncActive)
-      window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
-    }
-  }, [])
-
-  const openRecentSession = (id: string) => {
-    setActiveSessionId(id)
-    requestSessionSelection(id)
-    navigate('chat')
-    if (isMobile) setOpenMobile(false)
-  }
-
-  const createSessionInWorkspace = (cwd: string) => {
-    if (!requestSessionCreation(cwd)) return
-    navigate('chat')
-    if (isMobile) setOpenMobile(false)
-  }
 
   const navigateFromSidebar = (id: string) => {
     navigate(id)
@@ -183,15 +102,6 @@ export function AppSidebar({
   const exitSettings = () => {
     onExitSettings()
     if (isMobile) setOpenMobile(false)
-  }
-
-  const toggleWorkspace = (key: string) => {
-    setCollapsedWorkspaces((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
   }
 
   return (
@@ -278,110 +188,14 @@ export function AppSidebar({
             </nav>
           )}
           {!settingsActive && (
-            <section
-              className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
-              aria-label={t('navigation:appSidebar.recentChats')}
-            >
-              <div className="flex h-[34px] items-center justify-between gap-[6px] [padding:0_4px]">
-                <button
-                  className="nav-history-heading [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[28px] [.nav-list_&]:[flex:0_1_auto] [.nav-list_&]:gap-[4px] [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[600] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text-secondary)] [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_svg]:flex-none [&_svg]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg.is-open]:[transform:rotate(90deg)]"
-                  aria-controls="sidebar-recent-sessions"
-                  aria-expanded={historyExpanded}
-                  onClick={() => setHistoryExpanded((value) => !value)}
-                >
-                  <span>{t('navigation:appSidebar.recentChats')}</span>
-                  <ChevronRight className={historyExpanded ? 'is-open' : ''} size={14} />
-                </button>
-                <button
-                  className="nav-history-view-all [.nav-list_&]:w-auto [.nav-list_&]:h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[500] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
-                  aria-label={t('navigation:appSidebar.viewAllCountChats', {
-                    count: sessions.length,
-                  })}
-                  onClick={() => navigateFromSidebar('chatHistory')}
-                >
-                  {t('navigation:appSidebar.viewAll')}
-                </button>
-              </div>
-              <label className="min-[901px]:[.sidebar.collapsed_&]:hidden flex h-8 flex-none items-center gap-2 rounded-[var(--r-xs)] border border-[var(--stroke-soft)] bg-[var(--solid)] px-2 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
-                <Search size={13} aria-hidden="true" />
-                <input
-                  className="min-w-0 flex-1 border-0 bg-transparent text-[12px] text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
-                  value={sessionQuery}
-                  onChange={(event) => setSessionQuery(event.target.value)}
-                  placeholder={t('navigation:appSidebar.searchChats')}
-                  aria-label={t('navigation:appSidebar.searchChats')}
-                />
-              </label>
-              {historyExpanded && (
-                <div
-                  className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto [animation:page-in_var(--d1)_var(--ease-out)]"
-                  id="sidebar-recent-sessions"
-                >
-                  {sessionGroups.map((group) => {
-                    const groupCollapsed = collapsedWorkspaces.has(group.key)
-                    const workspaceLabel = group.cwd
-                      ? workspaceName(group.cwd, language)
-                      : t('navigation:appSidebar.noWorkspace')
-                    return (
-                      <div
-                        className="nav-workspace-group [.nav-workspace-group_+_&]:mt-[3px]"
-                        key={group.key}
-                      >
-                        <div className="group/workspace flex min-w-0 items-center gap-[2px]">
-                          <button
-                            className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_svg:first-child]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg:first-child.is-open]:[transform:rotate(90deg)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
-                            aria-expanded={!groupCollapsed}
-                            onClick={() => toggleWorkspace(group.key)}
-                            title={group.cwd || workspaceLabel}
-                          >
-                            <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
-                            <FolderClosed size={13} />
-                            <span>{workspaceLabel}</span>
-                            <small>{group.sessions.length}</small>
-                          </button>
-                          {group.cwd && (
-                            <button
-                              type="button"
-                              className="nav-workspace-create [.nav-list_&]:grid [.nav-list_&]:w-[28px] [.nav-list_&]:h-[28px] [.nav-list_&]:min-h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:place-items-center [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-0 [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&:hover]:bg-[var(--surface-hover)] [.nav-list_&:hover]:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset"
-                              title={t('navigation:appSidebar.newChatInWorkspace', {
-                                workspace: group.cwd,
-                              })}
-                              aria-label={t('navigation:appSidebar.newChatInWorkspace', {
-                                workspace: group.cwd,
-                              })}
-                              onClick={() => createSessionInWorkspace(group.cwd)}
-                            >
-                              <Plus size={14} />
-                            </button>
-                          )}
-                        </div>
-                        {!groupCollapsed &&
-                          group.sessions.map((session) => (
-                            <button
-                              className={`nav-history-item [.nav-list_&]:flex [.nav-list_&]:w-full [.nav-list_&]:h-[34px] [.nav-list_&]:min-h-[34px] [.nav-list_&]:rounded-[var(--r-sm)] [.nav-list_&]:p-[0_8px_0_24px] [.nav-list_&]:text-[var(--text-secondary)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-[500] [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [.nav-list_&:hover]:bg-[var(--surface-muted)] [.nav-list_&:hover]:text-[var(--text)] min-[901px]:[[data-density='compact']_.nav-list_&]:h-[32px] min-[901px]:[[data-density='compact']_.nav-list_&]:min-h-[32px] ${session.id === activeSessionId ? 'active-session [.nav-list_.nav-history-item&]:bg-[var(--surface-muted)] [.nav-list_.nav-history-item&]:text-[var(--text)] [.nav-list_.nav-history-item&]:shadow-[inset_2px_0_var(--brand-blue)]' : ''}`}
-                              aria-current={session.id === activeSessionId ? 'page' : undefined}
-                              title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
-                              onClick={() => openRecentSession(session.id)}
-                              key={session.id}
-                            >
-                              <span className="select-none">
-                                {session.name || t('navigation:appSidebar.untitledChat')}
-                              </span>
-                            </button>
-                          ))}
-                      </div>
-                    )
-                  })}
-                  {!visibleSessions.length && (
-                    <span className="[padding:8px] text-[var(--text-muted)] text-[11px]">
-                      {sessionQuery.trim()
-                        ? t('navigation:appSidebar.noMatchingChats')
-                        : t('navigation:appSidebar.noChatHistoryYet')}
-                    </span>
-                  )}
-                </div>
-              )}
-            </section>
+            <Suspense fallback={null}>
+              <SidebarRecentSessions
+                navigate={navigate}
+                requestText={requestText}
+                requestConfirm={requestConfirm}
+                notify={notify}
+              />
+            </Suspense>
           )}
         </div>
         <div className="mt-auto grid gap-2">

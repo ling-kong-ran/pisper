@@ -647,6 +647,9 @@ export const FocusSession = memo(function FocusSession({
             <div className="focus-composer-secondary flex h-11 min-w-0 flex-none items-center justify-end">
               <ContextUsageIndicator
                 usage={contextUsage}
+                sessionUsage={sessionUsage}
+                model={model}
+                availableModels={availableModels}
                 onThresholdChange={onCompactionThresholdChange}
                 compact
               />

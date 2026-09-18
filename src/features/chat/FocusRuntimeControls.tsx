@@ -21,9 +21,99 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { formatTokenCount } from '@/lib/format'
 import type { EntityRecord, ModelOption, Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
+import { formatRunDuration } from './run-activity'
 
 type Translate = (message: string, values?: I18nValues) => string
 type ExecutionModeOption = [string, string, string, LucideIcon]
+
+// 由模型 key 解析展示名（Provider · 模型），未收录时退化为 key 末段。
+function resolveModelLabel(model: string, models: ModelOption[]) {
+  const current = models.find((item) => item.key === model)
+  return current ? `${current.providerName} · ${current.label}` : model.split('/').at(-1) || model
+}
+
+// 详细数据统计面板：在上下文用量弹窗中展示当前模型、token 用量与请求时序
+// （首字平均耗时/平均响应时长）。timing 由 runtime 随 sessionUsage 上报并持久化。
+export function SessionStatsPanel({
+  model,
+  availableModels,
+  sessionUsage,
+  contextUsage,
+}: {
+  model?: string
+  availableModels?: ModelOption[]
+  sessionUsage?: EntityRecord | null
+  contextUsage?: EntityRecord | null
+}) {
+  const { t, language } = useI18n()
+  const timing =
+    sessionUsage?.timing && typeof sessionUsage.timing === 'object' ? sessionUsage.timing : null
+  const firstTokenSamples = Math.max(0, Number(timing?.firstTokenSamples) || 0)
+  const recordedRequests = Math.max(0, Number(timing?.requests) || 0)
+  const avgFirstToken =
+    firstTokenSamples > 0 ? Number(timing?.firstTokenTotalMs) / firstTokenSamples : null
+  const avgDuration =
+    recordedRequests > 0 ? Number(timing?.durationTotalMs) / recordedRequests : null
+  const contextTokens =
+    contextUsage?.tokens == null ? null : Math.max(0, Number(contextUsage.tokens) || 0)
+  // 缓存统计与状态栏同语义：上游从未回传过非零缓存用量时不可知，
+  // 显示「—」而不是把缺失当成 0（见 stream-projection 的 cacheReported）。
+  const cacheKnown = Boolean(sessionUsage?.cacheReported)
+  const rows: Array<[string, string]> = [
+    [
+      t('chat:focusSession.statCurrentModel'),
+      model ? resolveModelLabel(model, availableModels || []) : '—',
+    ],
+    [
+      t('chat:focusSession.statContextTokens'),
+      contextTokens == null
+        ? '—'
+        : `${formatTokenCount(contextTokens)} / ${formatTokenCount(contextUsage?.contextWindow)}`,
+    ],
+    [t('chat:focusSession.statInputTokens'), formatTokenCount(sessionUsage?.input)],
+    [t('chat:focusSession.statOutputTokens'), formatTokenCount(sessionUsage?.output)],
+    [
+      t('chat:focusSession.statCacheReadTokens'),
+      cacheKnown ? formatTokenCount(sessionUsage?.cacheRead) : '—',
+    ],
+    [
+      t('chat:focusSession.statCacheWriteTokens'),
+      cacheKnown ? formatTokenCount(sessionUsage?.cacheWrite) : '—',
+    ],
+    [t('chat:focusSession.statReasoningTokens'), formatTokenCount(sessionUsage?.reasoning)],
+    [t('chat:focusSession.statProcessedTokens'), formatTokenCount(sessionUsage?.processedTokens)],
+    [t('chat:focusSession.statRequests'), String(Math.max(0, Number(sessionUsage?.requests) || 0))],
+    [
+      t('chat:focusSession.statAvgFirstToken'),
+      avgFirstToken == null ? '—' : formatRunDuration(avgFirstToken, language),
+    ],
+    [
+      t('chat:focusSession.statAvgDuration'),
+      avgDuration == null ? '—' : formatRunDuration(avgDuration, language),
+    ],
+  ]
+  return (
+    <div
+      className="session-stats-panel grid gap-[3px]"
+      aria-label={t('chat:focusSession.sessionStats')}
+    >
+      <div className="text-[var(--text)] text-[12px] font-[600]">
+        {t('chat:focusSession.sessionStats')}
+      </div>
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline justify-between gap-[10px] text-[11px]">
+          <span className="min-w-0 shrink-0 text-[var(--text-muted)]">{label}</span>
+          <strong className="min-w-0 truncate text-right font-[500] text-[var(--text)] [font-variant-numeric:tabular-nums]">
+            {value}
+          </strong>
+        </div>
+      ))}
+      <small className="text-[var(--text-muted)] text-[10px] leading-[1.4]">
+        {t('chat:focusSession.sessionStatsHint')}
+      </small>
+    </div>
+  )
+}
 
 export function SessionUsageMetrics({
   usage,
@@ -112,10 +202,16 @@ export function SessionUsageMetrics({
 
 export function ContextUsageIndicator({
   usage,
+  sessionUsage,
+  model,
+  availableModels,
   onThresholdChange,
   compact = false,
 }: {
   usage?: EntityRecord | null
+  sessionUsage?: EntityRecord | null
+  model?: string
+  availableModels?: ModelOption[]
   onThresholdChange?: (thresholdPercent: number) => Promise<void> | void
   compact?: boolean
 }) {
@@ -228,10 +324,17 @@ export function ContextUsageIndicator({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="context-usage-popover [&_input[type='range']]:w-full [&_input[type='range']]:h-[20px] [&_input[type='range']]:m-0 [&_input[type='range']]:[accent-color:var(--brand-blue-strong)] [&_input[type='range']]:cursor-pointer [&_>_small]:min-h-[16px] [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[10px] [&_>_small]:leading-[1.4] [&_>_small.error]:text-[var(--danger)] w-[248px] gap-[8px] [padding:12px]"
+        className="context-usage-popover [&_input[type='range']]:w-full [&_input[type='range']]:h-[20px] [&_input[type='range']]:m-0 [&_input[type='range']]:[accent-color:var(--brand-blue-strong)] [&_input[type='range']]:cursor-pointer [&_>_small]:min-h-[16px] [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[10px] [&_>_small]:leading-[1.4] [&_>_small.error]:text-[var(--danger)] w-[272px] gap-[8px] [padding:12px]"
         align="end"
         sideOffset={8}
       >
+        <SessionStatsPanel
+          model={model}
+          availableModels={availableModels}
+          sessionUsage={sessionUsage}
+          contextUsage={usage}
+        />
+        <div role="separator" className="h-px w-full bg-[var(--stroke-soft)]" />
         {compactionCapacityText && (
           <small className="text-[var(--text-muted)]">{compactionCapacityText}</small>
         )}

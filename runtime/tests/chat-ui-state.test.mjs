@@ -84,16 +84,21 @@ test('new sessions inherit the most recently listed workspace', async () => {
 })
 
 test('workspace groups create chats with their exact working directory', async () => {
-  const [sidebar, events, chatPage, catalog, storage, english, chinese] = await Promise.all([
-    readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
-    readFile('src/features/chat/events.ts', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
-    readFile('src/app/storage.ts', 'utf8'),
-    readFile('src/locales/en-US/navigation.json', 'utf8').then(JSON.parse),
-    readFile('src/locales/zh-CN/navigation.json', 'utf8').then(JSON.parse),
-  ])
+  // 「最近会话」区块拆分懒加载后，工作区分组与会话列表的实现在
+  // SidebarRecentSessions.tsx，AppSidebar 只保留壳与懒加载入口。
+  const [sidebar, sidebarShell, events, chatPage, catalog, storage, english, chinese] =
+    await Promise.all([
+      readFile('src/components/layout/SidebarRecentSessions.tsx', 'utf8'),
+      readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
+      readFile('src/features/chat/events.ts', 'utf8'),
+      readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+      readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+      readFile('src/app/storage.ts', 'utf8'),
+      readFile('src/locales/en-US/navigation.json', 'utf8').then(JSON.parse),
+      readFile('src/locales/zh-CN/navigation.json', 'utf8').then(JSON.parse),
+    ])
 
+  assert.match(sidebarShell, /SidebarRecentSessions/)
   assert.match(sidebar, /requestSessionCreation\(cwd\)/)
   assert.match(sidebar, /onClick=\{\(\) => createSessionInWorkspace\(group\.cwd\)\}/)
   assert.match(sidebar, /<Plus size=\{14\}/)
