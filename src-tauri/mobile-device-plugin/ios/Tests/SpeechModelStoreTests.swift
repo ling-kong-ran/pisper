@@ -498,11 +498,19 @@ final class SpeechModelStoreTests: XCTestCase {
 
     func testAncestorMtimeDoesNotInvalidateContentProof() throws {
         let fixture = try fixture()
-        let store = try store(fixture)
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr")
-        let directory = try store.modelDirectory(modelId: "asr")
-        let files = try store.model(id: "asr").files
+        let root = temporary.appendingPathComponent("store")
+        let store = try store(fixture, root: root)
+        let model = try store.model(id: "asr")
+        let directory = root.appendingPathComponent(model.id, isDirectory: true)
+        // 本例验证内容证明，直接构造已安装文件，避免依赖无关的异步下载队列。
+        for file in model.files { try write(directory.appendingPathComponent(file.path), fixture.content[file.path]!) }
+        let marker: [String: Any] = [
+            "version": 1, "id": model.id, "fingerprint": model.fingerprint,
+            "files": model.files.map { ["path": $0.path, "bytes": $0.bytes, "sha256": $0.sha256] as [String: Any] },
+        ]
+        try write(directory.appendingPathComponent(SpeechFiles.marker), JSONSerialization.data(withJSONObject: marker))
+        XCTAssertEqual(try store.modelDirectory(modelId: "asr"), directory)
+        let files = model.files
         let before = try SpeechFiles.tree(directory, files: files, complete: true)
         try write(directory.deletingLastPathComponent().appendingPathComponent("unrelated"), Data([1]))
         let after = try SpeechFiles.tree(directory, files: files, complete: true)
