@@ -786,6 +786,7 @@ export class AgentRuntimeFacade {
     this.agentWakeupTimers.clear()
     this.providerModelDiscovery.abort?.()
     await this.providerModelRefreshPromise?.catch(() => {})
+    await this.providerModelCatalog.dispose()
     await this.workflows.dispose()
     await this.schedules.dispose()
     await this.channels.dispose()

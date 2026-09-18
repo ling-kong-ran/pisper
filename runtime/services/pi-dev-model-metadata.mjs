@@ -79,6 +79,8 @@ export class PiDevModelMetadataService {
     // 按尾部 token 分组的查找索引；与 this.models 同步赋值，避免两者状态错位。
     this.byTail = null
     this.fetching = null // 进行中的抓取 Promise（防并发）
+    this.controller = null
+    this.disposed = false
   }
 
   // 从落盘数据构建尾部 token 索引（尾部 token 是后缀对齐的必要条件，可先按它分桶）。
@@ -119,14 +121,23 @@ export class PiDevModelMetadataService {
    * （数据保持缺省，由上层优先级链兜底，下次启动自然重试）。
    */
   fetchOnceInBackground() {
-    if (this.fetching) return
+    if (this.disposed) return
+    if (this.fetching) return this.fetching
     this.fetching = this.fetchAndPersist()
       .catch((err) => {
-        console.warn('[PiDev] 模型元数据抓取失败:', err.message)
+        if (!this.disposed) console.warn('[PiDev] 模型元数据抓取失败:', err.message)
       })
       .finally(() => {
         this.fetching = null
       })
+    return this.fetching
+  }
+
+  async dispose() {
+    this.disposed = true
+    this.controller?.abort()
+    // 已进入原子写入的任务不能中途删除目录，必须等待它完成。
+    await this.fetching
   }
 
   /**
@@ -174,20 +185,20 @@ export class PiDevModelMetadataService {
    */
   async fetchAndPersist() {
     const controller = new AbortController()
+    this.controller = controller
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-    let response
     try {
-      response = await fetch(PI_DEV_MODELS_URL, { signal: controller.signal })
+      const response = await fetch(PI_DEV_MODELS_URL, { signal: controller.signal })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const models = parseModelsFromHtml(await response.text())
+      controller.signal.throwIfAborted()
+      if (models.size > 0) {
+        this.buildIndex(models)
+        await writeJsonAtomic(this.cachePath, { models: Object.fromEntries(models) })
+      }
     } finally {
       clearTimeout(timeoutId)
-    }
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-    const models = parseModelsFromHtml(await response.text())
-    if (models.size > 0) {
-      this.buildIndex(models)
-      await writeJsonAtomic(this.cachePath, { models: Object.fromEntries(models) })
+      this.controller = null
     }
   }
 }

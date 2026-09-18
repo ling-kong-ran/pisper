@@ -1,6 +1,6 @@
 // pi.dev 模型元数据匹配回归：网关前缀、矛盾条目取最大、后缀变体隔离。
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -12,6 +12,56 @@ function serviceWith(models) {
   service.buildIndex(new Map(Object.entries(models)))
   return service
 }
+
+test('dispose cancels response-body reads and prevents later background writes', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pidev-dispose-'))
+  const service = new PiDevModelMetadataService({ cachePath: join(directory, 'models.json') })
+  t.after(async () => {
+    await service.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  const reading = Promise.withResolvers()
+  let signal
+  let calls = 0
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    calls += 1
+    signal = options.signal
+    return {
+      ok: true,
+      text: () =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          reading.resolve()
+        }),
+    }
+  })
+  await service.init()
+  await reading.promise
+  await Promise.all([service.dispose(), service.dispose()])
+  assert.equal(signal.aborted, true)
+  assert.equal(service.fetching, null)
+  await service.fetchOnceInBackground()
+  assert.equal(calls, 1)
+  assert.deepEqual(await readdir(directory), [])
+})
+
+test('dispose waits for owned persistence to settle', async () => {
+  const service = serviceWith({})
+  const pending = Promise.withResolvers()
+  service.fetchAndPersist = () => pending.promise
+  const task = service.fetchOnceInBackground()
+  assert.equal(service.fetchOnceInBackground(), task)
+  let disposed = false
+  const closing = service.dispose().then(() => {
+    disposed = true
+  })
+  await Promise.resolve()
+  assert.equal(disposed, false)
+  pending.resolve()
+  await closing
+  assert.equal(disposed, true)
+  assert.equal(service.fetching, null)
+})
 
 test('prefixed gateway model ids resolve to the stored context window', () => {
   const service = serviceWith({

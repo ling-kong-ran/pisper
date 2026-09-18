@@ -184,6 +184,11 @@ export class ProviderModelCatalogService {
     }
   }
 
+  async dispose() {
+    await this.piDevMetadata?.dispose()
+    await this.writeQueue
+  }
+
   isCurrent(providerId, baseUrl) {
     const entry = this.state.providers?.[providerId]
     return Boolean(entry && normalizedBaseUrl(entry.baseUrl) === normalizedBaseUrl(baseUrl))
