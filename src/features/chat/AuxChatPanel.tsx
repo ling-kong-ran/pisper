@@ -4,13 +4,12 @@
 // 复用会话 HTTP/SSE API，与主对话互不干扰。
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, Plus, X } from 'lucide-react'
+import { FolderOpen, Loader2, Pencil, Plus, TreePine, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
 import { chatApi } from './chat-api'
 import { ComposerSendButton } from './focus-session-composer-bits'
-import { SessionActionsMenu } from './SessionActionsMenu'
 import { SessionTreeDialog } from './SessionTreeDialog'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 
@@ -345,16 +344,44 @@ export function AuxChatPanel({ cwd, onClose }: { cwd?: string; onClose: () => vo
               }
             }}
           />
-          <div className="focus-composer-footer flex min-w-0 items-center gap-1">
-            {/* ⋯ 会话操作菜单：与中栏会话操作同源（工作目录/追忆/重命名/关闭）。 */}
-            <SessionActionsMenu
-              session={{ id: activeId, name: titleOf(activeId, auxIds.indexOf(activeId)), cwd }}
-              streaming={streaming}
-              onClosePanel={onClose}
-              onWorkspace={() => setWorkspacePickerOpen(true)}
-              onSessionTree={() => setTreeOpen(true)}
-              onRename={() => void renameActive()}
-            />
+          <div className="focus-composer-footer flex min-w-0 items-center gap-[2px]">
+            {/* 常用操作静态平铺：工作目录 / 追忆 / 重命名 / 关闭面板，无折叠菜单。 */}
+            <button
+              type="button"
+              className="grid h-[34px] w-[34px] flex-none place-items-center border-0 rounded-[var(--r-sm)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              title={t('chat:focusSession.setWorkingDirectory')}
+              aria-label={t('chat:focusSession.setWorkingDirectory')}
+              onClick={() => setWorkspacePickerOpen(true)}
+            >
+              <FolderOpen size={16} />
+            </button>
+            <button
+              type="button"
+              className="grid h-[34px] w-[34px] flex-none place-items-center border-0 rounded-[var(--r-sm)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              title={t('chat:sessionTree.menu')}
+              aria-label={t('chat:sessionTree.menu')}
+              onClick={() => setTreeOpen(true)}
+            >
+              <TreePine size={16} />
+            </button>
+            <button
+              type="button"
+              className="grid h-[34px] w-[34px] flex-none place-items-center border-0 rounded-[var(--r-sm)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              title={t('chat:focusSession.renameChat')}
+              aria-label={t('chat:focusSession.renameChat')}
+              onClick={() => void renameActive()}
+            >
+              <Pencil size={16} />
+            </button>
+            <button
+              type="button"
+              className="grid h-[34px] w-[34px] flex-none place-items-center border-0 rounded-[var(--r-sm)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              title={t('chat:focusSession.closeTab')}
+              aria-label={t('chat:focusSession.closeTab')}
+              onClick={onClose}
+            >
+              <X size={16} />
+            </button>
             <div className="flex-1" />
             <ComposerSendButton
               streaming={streaming}

@@ -272,10 +272,10 @@ export function SidebarRecentSessions({
 
   return (
     <section
-      className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
+      className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden min-w-0 flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
       aria-label={t('navigation:appSidebar.recentChats')}
     >
-      <div className="flex h-[30px] items-center justify-between gap-[6px] [padding:0_4px]">
+      <div className="flex h-[30px] min-w-0 items-center justify-between gap-[6px] [padding:0_4px]">
         {/* ZCode 式：标题收敛为单个箭头图标，点击开/合整个会话列表。 */}
         <button
           className="nav-history-heading grid h-[26px] w-[26px] place-items-center rounded-[var(--r-xs)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
@@ -315,7 +315,7 @@ export function SidebarRecentSessions({
         >
           <ContextMenuTrigger asChild>
             <div
-              className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto overflow-x-hidden [animation:page-in_var(--d1)_var(--ease-out)]"
+              className="flex min-h-0 flex-1 flex-col gap-[2px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [animation:page-in_var(--d1)_var(--ease-out)]"
               id="sidebar-recent-sessions"
             >
               {sessionGroups.map((group) => {

@@ -2,7 +2,16 @@
 // 同步状态，管理 Dock 的初始化/持久化与多面板交互。
 // 移动端 App 不渲染 Dock：轻量标签栏切换活动会话，内容区只挂载一个会话，
 // dockview 及其样式经懒加载分包，移动端不下载。
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
 import {
   Clock,
@@ -308,6 +317,36 @@ export function ChatPage({
     setAuxOpen(open)
     localStorage.setItem('pisper-aux-open', open ? '1' : '0')
   }, [])
+  // 中右卡片比例（右栏占容器百分比）：默认 0.618 黄金分割，可拖拽调整，持久化。
+  const [auxRatio, setAuxRatio] = useState(() => {
+    const saved = Number(localStorage.getItem('pisper-aux-ratio'))
+    return saved >= 0.2 && saved <= 0.75 ? saved : 0.382
+  })
+  const auxRatioRef = useRef(auxRatio)
+  auxRatioRef.current = auxRatio
+  useEffect(() => {
+    localStorage.setItem('pisper-aux-ratio', String(Math.round(auxRatio * 1000) / 1000))
+  }, [auxRatio])
+  const auxRatioDrag = useRef<{ startX: number; startRatio: number; total: number } | null>(null)
+  const startAuxRatioDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const layout = event.currentTarget.parentElement
+    auxRatioDrag.current = {
+      startX: event.clientX,
+      startRatio: auxRatio,
+      total: layout ? layout.getBoundingClientRect().width : window.innerWidth,
+    }
+  }
+  const moveAuxRatioDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!auxRatioDrag.current || auxRatioDrag.current.total <= 0) return
+    // 向左拖 = 右栏变宽（clientX 减小 → 差值为正）。
+    const delta = (auxRatioDrag.current.startX - event.clientX) / auxRatioDrag.current.total
+    setAuxRatio(Math.min(0.75, Math.max(0.2, auxRatioDrag.current.startRatio + delta)))
+  }
+  const endAuxRatioDrag = () => {
+    auxRatioDrag.current = null
+  }
   // 中栏头部三件套的本地状态：侧栏开合（ui-store）与主题循环。
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
@@ -509,9 +548,22 @@ export function ChatPage({
                 </ChatDockContext.Provider>
               </div>
             </div>
+            {/* 中右之间的比例拖拽手柄：拖动调整右栏宽度占比（持久化）。 */}
+            {!mobileLayout && auxOpen && (
+              <div
+                className="relative z-[10] w-[6px] flex-none cursor-col-resize bg-transparent after:absolute after:inset-y-0 after:left-[2px] after:w-px after:bg-transparent hover:after:bg-[var(--stroke-hover)]"
+                onPointerDown={startAuxRatioDrag}
+                onPointerMove={moveAuxRatioDrag}
+                onPointerUp={endAuxRatioDrag}
+                aria-hidden="true"
+              />
+            )}
             {/* 右栏辅助对话：与中栏完全同款卡片（同边框/圆角/底色），栅格 6px 缝分隔；窄屏隐藏。 */}
             {!mobileLayout && auxOpen && (
-              <div className="relative min-h-0 flex-none overflow-hidden max-[1200px]:hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-subtle)]">
+              <div
+                className="relative min-h-0 overflow-hidden max-[1200px]:hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-subtle)]"
+                style={{ width: `${Math.round(auxRatio * 100)}%` }}
+              >
                 <Suspense fallback={null}>
                   <LazyAuxChatPanel
                     cwd={catalog.sessions.find((item) => item.id === catalog.activeId)?.cwd || ''}
