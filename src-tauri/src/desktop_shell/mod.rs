@@ -552,7 +552,9 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         .disable_drag_drop_handler()
         .title("Pisper")
         .inner_size(1440.0, 920.0)
-        .min_inner_size(980.0, 680.0)
+        // 最小宽度需要容纳侧栏 + 页头（标题/搜索/操作区）：过窄会导致
+        // 页头标题被压缩成逐字换行（见 PageHeader），因此保持 1080 起步。
+        .min_inner_size(1080.0, 680.0)
         .center()
         .initialization_script(DESKTOP_BRIDGE_SCRIPT)
         .on_navigation(move |target| {

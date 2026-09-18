@@ -132,7 +132,7 @@ export function PageHeader({
         <Menu size={19} />
       </SidebarTrigger>
       <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
-        <h1 className="text-base leading-[1.15] font-bold tracking-[0] max-[650px]:text-[21px]">
+        <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-bold tracking-[0] max-[650px]:text-[21px]">
           {meta[0]}
         </h1>
         <p
