@@ -41,7 +41,7 @@ npm run desktop:webview:build
 
 The root `package.json` and `package-lock.json` are the single npm dependency source for both build and runtime packaging. Keep browser source libraries and build/test tooling in `devDependencies`: Vite compiles browser imports into `dist/` before desktop packaging, so those packages are not installed as Node modules in the shipped application. Keep packages loaded by `runtime/`, Node-executed `shared/` modules, Skills, MCP integration, or other sidecar runtime paths in `dependencies`; `sidecar:sea` copies the root manifests and runs `npm ci --omit=dev` in `sidecar-runtime/` to install that production closure. A package used by both browser and sidecar code therefore belongs in `dependencies`.
 
-Do not create a second browser package manifest, npm workspace, or package-manager lockfile to represent this split. The repository supports Node.js 20 and newer for development and web/runtime execution, while release SEA builds continue to target Node.js 24.
+Do not create a second browser package manifest, npm workspace, or package-manager lockfile to represent this split. Source development, verification, and release SEA builds use Node.js 24 with a patch version that satisfies the locked dependencies. See [development-workflow.md](development-workflow.md) for host-specific requirements and the outstanding manifest compatibility mismatch; the legacy `engines: >=20` declaration does not establish Node 20 support for the current Runtime.
 
 `desktop:webview:build` selects native bundles for its host platform:
 
@@ -96,7 +96,7 @@ TUI and Runtime component archives are signed with the same minisign key used by
 
 The desktop update settings use one check action for the desktop package, TUI client, and Runtime, then expose install controls only for components with an available update. Standalone TUI distributions remain self-contained and do not expose component update commands.
 
-The npm launcher requires Node.js 20 or newer and receives Web, TUI, and the signed Node Runtime closure entirely through the configured npm registry. Its platform package contains no SEA executable. Installation verifies the minisign signatures locally and keeps the Node closure under `components/npm-runtime/` so it cannot replace Desktop or standalone TUI Runtime components. The launcher sets `PISPER_RUNTIME_NODE` to npm's current Node executable and fails with the direct Runtime diagnostic instead of falling back to SEA. npm installations update as one unit through `pisper update [--check]`.
+The npm launcher receives Web, TUI, and the signed Node Runtime closure entirely through the configured npm registry. Its platform package contains no SEA executable. Installation verifies the minisign signatures locally and keeps the Node closure under `components/npm-runtime/` so it cannot replace Desktop or standalone TUI Runtime components. The launcher sets `PISPER_RUNTIME_NODE` to npm's current Node executable, so that host must satisfy the downloaded Runtime's dependency requirements as well as the launcher's requirements. The current Pi dependency requires Node >=22.19; use the Node 24 baseline documented in [development-workflow.md](development-workflow.md). The launcher's existing Node >=20 metadata still needs alignment and does not prove that the full Runtime works on Node 20. The launcher fails with the direct Runtime diagnostic instead of falling back to SEA. npm installations update as one unit through `pisper update [--check]`.
 
 All scopes use four native jobs:
 
