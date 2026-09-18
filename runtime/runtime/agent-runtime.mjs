@@ -158,6 +158,7 @@ import {
 } from './stream-projection.mjs'
 import { archivePreviewImagePart, dispatchToolPreviewImage } from './tool-preview-images.mjs'
 import { releaseConsumedSessionInput, sessionInputQueueRevision } from './session-input-queue.mjs'
+import { createRequestTimingTracker, sessionRequestTiming } from './request-timing.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -1945,6 +1946,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.goalEmitters.set(session.sessionId, emit)
     this.planEmitters.set(session.sessionId, emit)
     this.agentEmitters.set(session.sessionId, emit)
+    live.sessionUsage.timing = sessionRequestTiming(this.sessionMeta, session.sessionId)
     // 首条用户消息自动命名（用户手动改过标题则跳过）。
     const firstTurn = !session.messages.some((item) => item.role === 'user')
     const sessionMeta = this.sessionMeta[session.sessionId]
@@ -1997,6 +1999,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 流式文本/思考分块记账：多个并发内容块（如并行工具调用后的多段文本）需要独立跟踪。
     const activeTextBlocks = new Set(),
       activeThinkingBlocks = new Set()
+    const requestTiming = createRequestTimingTracker()
     // 思考文本以“增量补丁 + 行尾裁剪”的方式同步，减少前端渲染压力。
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
@@ -2046,6 +2049,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.agents = backgroundAgents
       live.currentActivity = backgroundActivities.at(-1) || null
       live.activityFeed = backgroundActivities.slice(-MAX_LIVE_ACTIVITY_ITEMS)
+      this.saveSessionMeta().catch(() => {})
       return finishedAt
     }
     // 文件工具执行时已按所属会话归档；收尾补偿失败项，并发布本轮资产。
@@ -2075,11 +2079,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         if (!isInternalParentMessage(userText))
           value.pendingUserMessage = userText.split(ATTACHMENT_MARKER)[0]
       }
+      if (event.type === 'message_start') requestTiming.onMessageStart(event.message?.role)
       bridgeAgentSessionEvent(event, live, emit)
       // 文本/思考流事件：维护分块状态并把增量转发给前端。
       if (event.type === 'message_update') {
         const update = event.assistantMessageEvent
         const blockIndex = streamBlockIndex(update)
+        requestTiming.onStreamDelta(update.type)
         if (update.type === 'text_start') beginTextBlock(activeTextBlocks, blockIndex, live, emit)
         if (update.type === 'text_delta') {
           beginTextBlock(activeTextBlocks, blockIndex, live, emit)
@@ -2129,6 +2135,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         if (event.message?.role === 'assistant') {
           if (event.message.usage) {
             addSessionUsage(live.sessionUsage, event.message.usage)
+            // 结算本轮请求时序并累加进持久化统计；异常中止（无 usage）不计入。
+            requestTiming.settleInto(live.sessionUsage.timing)
             emit('session_usage', live.sessionUsage)
           }
           activeTextBlocks.clear()

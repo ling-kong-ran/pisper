@@ -927,6 +927,7 @@ export class StreamProjection {
   }
 
   // 会话累计 token 用量：优先读历史文件（增量），缺失时回退到内存消息。
+  // 附带 sessionMeta 上持久化的请求时序（首字耗时/响应时长），供前端统计弹窗展示。
   async getSessionTokenUsage(id) {
     const active = this.sessions().get(id)
     const activePath = active?.session.sessionFile
@@ -936,19 +937,23 @@ export class StreamProjection {
       path = (await this.findSessionInfo(id))?.path
       if (path) historyState.paths.set(id, path)
     }
+    const timing = this.sessionMeta()?.[id]?.timing || null
     if (path) {
       try {
         const history = await this.readSessionHistoryEntries(path)
-        return summarizeSessionUsage(
-          history.entries
-            .filter((entry) => entry?.type === 'message')
-            .map((entry) => entry.message),
+        return Object.assign(
+          summarizeSessionUsage(
+            history.entries
+              .filter((entry) => entry?.type === 'message')
+              .map((entry) => entry.message),
+          ),
+          { timing },
         )
       } catch (error) {
         if (error?.code !== 'ENOENT') throw error
       }
     }
-    return summarizeSessionUsage(active?.session?.messages || [])
+    return Object.assign(summarizeSessionUsage(active?.session?.messages || []), { timing })
   }
 
   // 历史消息：从会话文件重建当前分支（沿 parentId 回溯），图片附件按哈希映射到资产 URL。
