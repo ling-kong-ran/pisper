@@ -7,6 +7,7 @@ import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ApiKeyList } from './ApiKeyList'
+import { collectApiKeys } from './api-key-input'
 import { ManualModelIds } from './ManualModelIds'
 import { PROVIDER_APIS } from './provider-constants'
 import { SettingsBadge } from './settings-primitives'
@@ -67,7 +68,9 @@ export function QuickSetupWizard({
   const [provider, setProvider] = useState<ProviderConfig | null>(initialProvider)
   const [baseUrl, setBaseUrl] = useState(initialProvider?.baseUrl || '')
   const [api, setApi] = useState(initialProvider?.api || 'openai-responses')
-  const [apiKeys, setApiKeys] = useState<string[]>([])
+  const [listedApiKeys, setApiKeys] = useState<string[]>([])
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const apiKeys = collectApiKeys(listedApiKeys, apiKeyDraft)
   const [organization, setOrganization] = useState(initialProvider?.organization || '')
   const [connectionName, setConnectionName] = useState(initialProvider?.name || '')
   const [models, setModels] = useState<ProviderModel[]>([])
@@ -378,7 +381,13 @@ export function QuickSetupWizard({
                 />
               </FieldLabel>
             )}
-            <ApiKeyList keys={apiKeys} onChange={setApiKeys} existing={provider?.apiKeys || []} />
+            <ApiKeyList
+              keys={listedApiKeys}
+              onChange={setApiKeys}
+              draft={apiKeyDraft}
+              onDraftChange={setApiKeyDraft}
+              existing={provider?.apiKeys || []}
+            />
             <Button
               type="button"
               size="lg"

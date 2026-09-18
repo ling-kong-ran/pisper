@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { collectApiKeys } from '../../src/features/config/api-key-input.ts'
+
+test('current API key is usable before starting the next key', () => {
+  assert.deepEqual(collectApiKeys([], '  pasted-key  '), ['pasted-key'])
+  assert.deepEqual(collectApiKeys(['first-key'], 'second-key'), ['first-key', 'second-key'])
+  assert.deepEqual(collectApiKeys(['first-key'], ' first-key '), ['first-key'])
+  assert.deepEqual(collectApiKeys(['first-key'], ''), ['first-key'])
+  assert.deepEqual(collectApiKeys([], '   '), [])
+  assert.deepEqual(collectApiKeys([], 'edited-key'), ['edited-key'])
+})
 
 test('quick setup wizard saves provider config after fetching and selecting a model', async () => {
   const [wizardSource, modelsSettingsSource] = await Promise.all([

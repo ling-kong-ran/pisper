@@ -8,6 +8,7 @@ import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { PROVIDER_APIS } from './provider-constants'
 import { ApiKeyList } from './ApiKeyList'
+import { collectApiKeys } from './api-key-input'
 import { ManualModelIds } from './ManualModelIds'
 import { SettingsSwitch } from './settings-primitives'
 import type { FormEvent } from 'react'
@@ -81,7 +82,9 @@ export function ProviderConfigModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // 手动追加的额外模型 ID：保存时随主模型批量写入该连接（对话/视觉均支持）。
-  const [apiKeys, setApiKeys] = useState<string[]>([])
+  const [listedApiKeys, setApiKeys] = useState<string[]>([])
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const apiKeys = collectApiKeys(listedApiKeys, apiKeyDraft)
   const [extraModelIds, setExtraModelIds] = useState<string[]>([])
   const updateName = (name: string) =>
     setDraft((current) => ({
@@ -258,7 +261,9 @@ export function ProviderConfigModal({
           />
         </FieldLabel>
         <ApiKeyList
-          keys={apiKeys}
+          keys={listedApiKeys}
+          draft={apiKeyDraft}
+          onDraftChange={setApiKeyDraft}
           onChange={setApiKeys}
           existing={initialProvider?.apiKeys || []}
         />

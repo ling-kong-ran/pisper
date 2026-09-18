@@ -1,5 +1,5 @@
 // 多 API Key 追加输入：密码只在本次表单状态中存在，列表始终以掩码展示。
-import { useState } from 'react'
+import { useRef } from 'react'
 import { KeyRound, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 
@@ -11,6 +11,8 @@ type ApiKeySummary = { id: string; hint: string }
 type ApiKeyListProps = {
   keys: string[]
   onChange: (keys: string[]) => void
+  draft: string
+  onDraftChange: (draft: string) => void
   existing?: ApiKeySummary[]
 }
 
@@ -18,14 +20,21 @@ function maskKey(key: string) {
   return key.length <= 8 ? '********' : `${key.slice(0, 3)}...${key.slice(-4)}`
 }
 
-export function ApiKeyList({ keys, onChange, existing = [] }: ApiKeyListProps) {
+export function ApiKeyList({
+  keys,
+  onChange,
+  draft,
+  onDraftChange,
+  existing = [],
+}: ApiKeyListProps) {
   const { t } = useI18n()
-  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
   const add = () => {
     const key = draft.trim()
-    if (!key || keys.includes(key)) return
-    onChange([...keys, key])
-    setDraft('')
+    if (!key) return
+    if (!keys.includes(key)) onChange([...keys, key])
+    onDraftChange('')
+    inputRef.current?.focus()
   }
 
   return (
@@ -37,8 +46,9 @@ export function ApiKeyList({ keys, onChange, existing = [] }: ApiKeyListProps) {
             className="min-w-0 flex-1"
             type="password"
             autoComplete="new-password"
+            ref={inputRef}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter') return
               event.preventDefault()
