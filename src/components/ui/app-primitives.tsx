@@ -177,9 +177,7 @@ export function SegmentedTabs({
     <Tabs value={value} onValueChange={onChange} className={cn('block min-w-0', className)}>
       <TabsList
         className={cn(
-          // 滚动条双保险隐藏：scrollbar-width 覆盖 Firefox/新 Chromium，
-          // ::-webkit-scrollbar 覆盖未支持该属性的旧 WebView2 内核。
-          'segmented min-h-9 max-w-full justify-start gap-0.5 overflow-x-auto rounded-lg bg-surface-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          'segmented min-h-9 max-w-full justify-start gap-0.5 rounded-lg bg-surface-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           compact && 'compact w-auto border border-border bg-transparent',
         )}
       >

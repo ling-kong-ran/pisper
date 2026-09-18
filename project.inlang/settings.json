@@ -1,0 +1,25 @@
+{
+  "$schema": "https://inlang.com/schema/project-settings",
+  "baseLocale": "zh-CN",
+  "locales": ["zh-CN", "en-US"],
+  "modules": [
+    "https://cdn.jsdelivr.net/npm/@inlang/plugin-i18next@6.2.10/dist/index.js"
+  ],
+  "plugin.inlang.i18next": {
+    "pathPattern": {
+      "assets": "./src/locales/{locale}/assets.json",
+      "channels": "./src/locales/{locale}/channels.json",
+      "chat": "./src/locales/{locale}/chat.json",
+      "common": "./src/locales/{locale}/common.json",
+      "config": "./src/locales/{locale}/config.json",
+      "memory": "./src/locales/{locale}/memory.json",
+      "navigation": "./src/locales/{locale}/navigation.json",
+      "plugins": "./src/locales/{locale}/plugins.json",
+      "schedules": "./src/locales/{locale}/schedules.json",
+      "skills": "./src/locales/{locale}/skills.json",
+      "terminal": "./src/locales/{locale}/terminal.json",
+      "workflows": "./src/locales/{locale}/workflows.json"
+    },
+    "variableReferencePattern": ["{", "}"]
+  }
+}
