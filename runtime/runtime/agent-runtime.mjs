@@ -2049,7 +2049,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.agents = backgroundAgents
       live.currentActivity = backgroundActivities.at(-1) || null
       live.activityFeed = backgroundActivities.slice(-MAX_LIVE_ACTIVITY_ITEMS)
-      this.saveSessionMeta().catch(() => {})
       return finishedAt
     }
     // 文件工具执行时已按所属会话归档；收尾补偿失败项，并发布本轮资产。
@@ -2537,6 +2536,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         }
       }, 60_000)
       timer.unref?.()
+      // 完成事件不等待磁盘，但本轮 Promise 必须覆盖统计写入，避免退出或清理时仍在落盘。
+      await this.saveSessionMeta().catch(() => {})
     }
   }
   async captureConversationMemory(input) {

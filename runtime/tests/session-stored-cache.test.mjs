@@ -127,6 +127,63 @@ test('createSession updates the stored-session cache incrementally without a res
   )
 })
 
+for (const state of ['pending', 'resident', 'stored']) {
+  test(`renaming a ${state} session updates the warm catalog and survives eviction`, async (t) => {
+    const directory = await mkdtemp(join(tmpdir(), 'pisper-rename-catalog-'))
+    t.after(() => rm(directory, { recursive: true, force: true }))
+    const runtime = freshRuntime(directory)
+    await runtime.listStoredSessions()
+    const created = await runtime.createSession('原会话', directory)
+    const pending = runtime.pendingSessions.get(created.id)
+    await ensureSessionFilePersisted(pending.manager, '原会话', directory)
+    if (state !== 'pending') runtime.pendingSessions.delete(created.id)
+    if (state === 'resident') {
+      runtime.sessions.set(created.id, {
+        ...pending,
+        session: {
+          messages: [],
+          sessionFile: pending.manager.getSessionFile(),
+          setSessionName: (name) => pending.manager.appendSessionInfo(name),
+        },
+      })
+    }
+    assert.equal((await runtime.listSessions())[0].name, '原会话')
+    const originalListStored = runtime.listStoredSessions.bind(runtime)
+    let rescans = 0
+    runtime.listStoredSessions = (options) => {
+      if (options?.refresh) rescans += 1
+      return originalListStored(options)
+    }
+
+    assert.equal((await runtime.renameSession(created.id, '新标题')).name, '新标题')
+    assert.equal((await runtime.listSessions())[0].name, '新标题')
+    assert.equal((await runtime.findSessionInfo(created.id)).name, '新标题')
+    runtime.sessions.clear()
+    runtime.pendingSessions.clear()
+    assert.equal((await runtime.listSessions())[0].name, '新标题')
+    assert.equal(rescans, 0, 'renaming one session must not rescan every history file')
+
+    const reloaded = freshRuntime(directory)
+    reloaded.sessionMeta = JSON.parse(await readFile(runtime.sessionMetaPath, 'utf8'))
+    assert.equal((await reloaded.listSessions())[0].name, '新标题')
+    assert.equal((await reloaded.findSessionInfo(created.id)).name, '新标题')
+    assert.equal(reloaded.sessionMeta[created.id].manual, true)
+  })
+}
+
+test('the catalog prefers a persisted title over a stale stored-session snapshot', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-rename-stale-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+  await runtime.listStoredSessions()
+  const created = await runtime.createSession('缓存旧标题', directory)
+  runtime.pendingSessions.clear()
+  runtime.sessionMeta[created.id].name = '已经保存的新标题'
+  await runtime.saveSessionMeta()
+
+  assert.equal((await runtime.listSessions())[0].name, '已经保存的新标题')
+})
+
 test('createSession persists the workspace so idle eviction does not reset cwd', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-stored-cwd-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

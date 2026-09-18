@@ -366,7 +366,12 @@ export class SessionLifecycle {
         : sessionMeta[session.id]?.model || defaultModel
       return sessionValue(session.id, {
         id: session.id,
-        name: active?.name || session.name || session.firstMessage || DEFAULT_SESSION_NAME,
+        name:
+          active?.name ||
+          sessionMeta[session.id]?.name ||
+          session.name ||
+          session.firstMessage ||
+          DEFAULT_SESSION_NAME,
         firstMessage: session.firstMessage || '',
         messageCount: active
           ? active.session.messages.filter((message) =>
@@ -1033,14 +1038,15 @@ export class SessionLifecycle {
     if (this.sessionRunIsActive(id, active)) {
       throw new Error('当前会话正在运行，请完成或停止后再修改标题。')
     }
+    const modified = new Date().toISOString()
     if (active) {
       active.session.setSessionName(title)
       active.name = title
-      active.modified = new Date().toISOString()
+      active.modified = modified
     } else if (pending) {
       pending.manager.appendSessionInfo(title)
       pending.name = title
-      pending.modified = new Date().toISOString()
+      pending.modified = modified
     } else {
       const info = await this.findSessionInfo(id)
       if (!info) return null
@@ -1050,6 +1056,9 @@ export class SessionLifecycle {
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), name: title, manual: Boolean(manual) }
     await this.saveSessionMeta()
+    // 列表与查找共享长驻快照；同步更新单条，避免刷新后旧标题回流或全量重扫历史。
+    const cached = this.getRuntimeState().storedSessionsCache?.find((session) => session.id === id)
+    if (cached) this.upsertStoredSession({ ...cached, name: title, modified: new Date(modified) })
     this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
     return { id, name: title, manual: Boolean(manual) }
   }

@@ -78,11 +78,16 @@ function truncateDiff(diff) {
   return { diff: diff.slice(0, MAX_DIFF_CHARS), truncated: true }
 }
 
-// 统一 diff 头与 git 格式对齐（file-change-preview 同款），前端解析器无需区分来源。
+// Pi 已生成文件头，只替换路径；相同内容不能用仅含文件头的补丁冒充改动。
 function snapshotFileDiff(path, before, after, isNew) {
+  if (before === after) return ''
+  const quote = (value) => (/\s|"|\\/.test(value) ? JSON.stringify(value) : value)
+  const oldPath = quote(`a/${path}`)
+  const newPath = quote(`b/${path}`)
   const patch = generateUnifiedPatch(path, before, after)
-  const header = isNew ? `--- /dev/null\n+++ b/${path}\n` : `--- a/${path}\n+++ b/${path}\n`
-  return header + patch
+    .replace(/^--- .*$/m, () => `--- ${isNew ? '/dev/null' : oldPath}`)
+    .replace(/^\+\+\+ .*$/m, () => `+++ ${newPath}`)
+  return `diff --git ${oldPath} ${newPath}\n${isNew ? 'new file mode 100644\n' : ''}${patch}`
 }
 
 export class SessionFileChangesService {

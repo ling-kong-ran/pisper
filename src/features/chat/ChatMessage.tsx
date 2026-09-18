@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Eye,
   File,
   FileDiff,
   FolderOpen,
@@ -39,6 +40,7 @@ import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity
 import { chatErrorMessage } from './chat-errors'
 import { chatApi } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
+import { FileAttachmentPreview } from './FileAttachmentPreview'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 type PreviewImage = { attachment: ChatAttachment; source: string; attachmentIndex: number }
@@ -225,14 +227,16 @@ export function MessageAttachments({
 }: {
   attachments: ChatAttachment[]
   compact?: boolean
-  // 会话 ID：文件 chip 的操作面板依赖它查单文件 diff；
-  // 无会话上下文的场景（如迷你消息）退化为纯下载链接。
+  // 改动和撤销依赖会话上下文；文件内容预览只依赖附件资产。
   sessionId?: string
   sessionStreaming?: boolean
 }) {
   const { t } = useI18n()
   const [preview, setPreview] = useState<ImagePreview | null>(null)
   const [fileMenuFor, setFileMenuFor] = useState<string | null>(null)
+  const [filePreview, setFilePreview] = useState<ChatAttachment | null>(null)
+  const [loadingDiff, setLoadingDiff] = useState<string | null>(null)
+  const fileTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [confirmingRevertFor, setConfirmingRevertFor] = useState<string | null>(null)
   const [revertingFile, setRevertingFile] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState<{ diff: string; truncated: boolean } | null>(null)
@@ -261,8 +265,7 @@ export function MessageAttachments({
     }
   }
 
-  // 打开面板时探测该文件是否有可用 diff：无版本控制时回退到修改前快照，
-  // 无快照或无改动都不显示「查看改动」。结果按 chip 缓存，点击按钮直接复用。
+  // 菜单打开时探测快照撤销能力；内容预览和查看改动入口不依赖探测结果。
   const checkFileDiff = async (key: string, path: string) => {
     if (!sessionId) return
     try {
@@ -304,9 +307,25 @@ export function MessageAttachments({
     }
   }
 
-  const openFileDiff = (key: string) => {
-    const cached = diffInfo[key]
-    if (cached) setFileDiff(cached)
+  const openFileDiff = async (key: string, path: string) => {
+    if (!sessionId || loadingDiff) return
+    setLoadingDiff(key)
+    try {
+      const result = await chatApi.getFileDiff(sessionId, path)
+      if (result.diff?.trim()) {
+        setFileMenuFor(null)
+        setFileDiff({ diff: result.diff, truncated: Boolean(result.diffTruncated) })
+      } else {
+        emitFileNotice(t('chat:chatMessage.fileDiffEmpty'), 'info')
+      }
+    } catch (caught: unknown) {
+      emitFileNotice(
+        caught instanceof Error ? caught.message : t('chat:chatMessage.fileDiffFailed'),
+        'error',
+      )
+    } finally {
+      setLoadingDiff(null)
+    }
   }
 
   const downloadAttachment = (attachment: ChatAttachment) => {
@@ -322,7 +341,7 @@ export function MessageAttachments({
         className={`message-attachments flex flex-wrap gap-[6px] [margin-top:6px] ${compact ? 'compact' : ''}`}
       >
         {attachments.map((attachment, index) => {
-          const key = attachment.id || index
+          const key = String(attachment.id || index)
           const source =
             attachment.url ||
             (attachment.data ? `data:${attachment.mimeType};base64,${attachment.data}` : '')
@@ -359,46 +378,70 @@ export function MessageAttachments({
                 <small>{attachment.name || t('chat:chatMessage.generatedVideo')}</small>
               </div>
             )
-          if (attachment.path && sessionId)
+          if (attachment.kind !== 'link')
             return (
               <Popover
                 key={key}
                 open={fileMenuFor === key}
                 onOpenChange={(open) => {
-                  setFileMenuFor(open ? String(key) : null)
-                  if (open) void checkFileDiff(String(key), String(attachment.path))
+                  setFileMenuFor(open ? key : null)
+                  if (open && attachment.path && sessionId)
+                    void checkFileDiff(key, String(attachment.path))
                   else setConfirmingRevertFor(null)
                 }}
               >
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="message-file-attachment [.message-attachments_&]:inline-flex [.message-attachments_&]:items-center [.message-attachments_&]:gap-[5px] [.message-attachments_&]:[border:1px_solid_var(--stroke)] [.message-attachments_&]:rounded-[var(--r-xs)] [.message-attachments_&]:bg-[var(--solid)] [.message-attachments_&]:p-[5px_7px] [.message-attachments_&]:text-[var(--text-tertiary)] [.message-attachments_&]:text-[13px] [.message-attachments_&]:no-underline [.message-attachments_&]:[cursor:pointer]"
+                    onClick={(event) => {
+                      fileTriggerRef.current = event.currentTarget
+                    }}
+                    className="inline-flex max-w-full min-w-0 items-center gap-[5px] rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-[7px] py-[5px] text-[13px] text-[var(--text-tertiary)] cursor-pointer"
                   >
-                    <File size={12} />
-                    {attachment.name || t('chat:chatMessage.fileAttachment')}
+                    <File size={12} className="shrink-0" />
+                    <span className="truncate">
+                      {attachment.name || t('chat:chatMessage.fileAttachment')}
+                    </span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
                   sideOffset={6}
-                  className="flex w-[190px] flex-col gap-[2px] p-[4px]"
+                  className="flex w-[190px] max-w-[calc(100vw-2rem)] flex-col gap-[2px] p-[4px]"
                 >
+                  <FileActionButton
+                    icon={<Eye size={13} />}
+                    label={t('chat:chatMessage.fileActionPreview')}
+                    onClick={() => {
+                      setFileMenuFor(null)
+                      setFilePreview(attachment)
+                    }}
+                  />
                   <FileActionButton
                     icon={<Download size={13} />}
                     label={t('chat:chatMessage.fileActionDownload')}
+                    disabled={!attachment.downloadUrl}
                     onClick={() => downloadAttachment(attachment)}
                   />
-                  <FileActionButton
-                    icon={<FolderOpen size={13} />}
-                    label={t('chat:chatMessage.fileActionReveal')}
-                    onClick={() => void revealInFileManager(String(attachment.path))}
-                  />
-                  {diffInfo[String(key)] && (
+                  {attachment.path && (
                     <FileActionButton
-                      icon={<FileDiff size={13} />}
+                      icon={<FolderOpen size={13} />}
+                      label={t('chat:chatMessage.fileActionReveal')}
+                      onClick={() => void revealInFileManager(String(attachment.path))}
+                    />
+                  )}
+                  {sessionId && attachment.path && (
+                    <FileActionButton
+                      icon={
+                        loadingDiff === key ? (
+                          <LoaderCircle size={13} className="animate-spin" />
+                        ) : (
+                          <FileDiff size={13} />
+                        )
+                      }
                       label={t('chat:chatMessage.fileActionDiff')}
-                      onClick={() => openFileDiff(String(key))}
+                      disabled={Boolean(loadingDiff)}
+                      onClick={() => void openFileDiff(key, String(attachment.path))}
                     />
                   )}
                   {diffInfo[String(key)]?.canRevert && (
@@ -424,12 +467,14 @@ export function MessageAttachments({
             )
           return (
             <a
-              className="message-file-attachment [.message-attachments_&]:inline-flex [.message-attachments_&]:items-center [.message-attachments_&]:gap-[5px] [.message-attachments_&]:[border:1px_solid_var(--stroke)] [.message-attachments_&]:rounded-[var(--r-xs)] [.message-attachments_&]:bg-[var(--solid)] [.message-attachments_&]:p-[5px_7px] [.message-attachments_&]:text-[var(--text-tertiary)] [.message-attachments_&]:text-[13px] [.message-attachments_&]:no-underline"
+              className="inline-flex max-w-full min-w-0 items-center gap-[5px] rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-[7px] py-[5px] text-[13px] text-[var(--text-tertiary)] no-underline"
               href={attachment.downloadUrl || undefined}
               key={key}
             >
-              <File size={12} />
-              {attachment.name || t('chat:chatMessage.fileAttachment')}
+              <File size={12} className="shrink-0" />
+              <span className="truncate">
+                {attachment.name || t('chat:chatMessage.fileAttachment')}
+              </span>
             </a>
           )
         })}
@@ -446,6 +491,14 @@ export function MessageAttachments({
           />,
           document.body,
         )}
+      {filePreview && (
+        <FileAttachmentPreview
+          attachment={filePreview}
+          onClose={() => setFilePreview(null)}
+          onRestoreFocus={() => fileTriggerRef.current?.focus()}
+          onDownload={() => downloadAttachment(filePreview)}
+        />
+      )}
       {fileDiff && (
         <GitDiffDialog
           diff={fileDiff.diff}

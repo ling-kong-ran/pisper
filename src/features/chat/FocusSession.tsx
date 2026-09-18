@@ -1,8 +1,9 @@
 // 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
 // 拆分说明：props 类型在 focus-session-props，composer 状态与提交逻辑在
 // use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
-// focus-session-composer-bits；composer 主体与发送行为约定保留在本文件。
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+// focus-session-composer-bits，状态文案在 focus-session-status；
+// composer 主体与发送行为约定保留在本文件。
+import { memo, useEffect, useRef, useState } from 'react'
 import { AudioLines, Braces, Command, FolderOpen, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
@@ -11,7 +12,6 @@ import { workspaceName } from '@/lib/format'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
-import { runActivityStatusLabel } from './AgentRunActivity'
 import { AttachmentPicker } from './AttachmentPicker'
 import { AttachmentTray } from './AttachmentTray'
 import { ChatResourcePicker } from './ChatResourcePicker'
@@ -51,6 +51,7 @@ import {
   QueuedInputsTray,
 } from '@/features/chat/focus-session-composer-bits'
 import type { FocusSessionProps } from '@/features/chat/focus-session-props'
+import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
 import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
 import { useComposerToolbarStore } from '@/stores/composer-toolbar-store'
@@ -198,24 +199,8 @@ export const FocusSession = memo(function FocusSession({
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
-  // 呼吸灯胶囊直接复用活动区的实时状态推导：运行中显示「正在推进任务」等动态文案。
-  const composerStatusLabel = useMemo(
-    () =>
-      runActivityStatusLabel(
-        {
-          streaming,
-          text: messages.at(-1)?.role === 'agent' ? messages.at(-1)?.text || '' : '',
-          currentActivity,
-          thinkingText,
-          compaction,
-          error,
-          stopped: runStopped,
-          notice: runNotice,
-          lastActivityAt,
-        },
-        t,
-      ),
-    [
+  const composerStatusLabel = useFocusSessionStatusLabel(
+    {
       streaming,
       messages,
       currentActivity,
@@ -225,8 +210,8 @@ export const FocusSession = memo(function FocusSession({
       runStopped,
       runNotice,
       lastActivityAt,
-      t,
-    ],
+    },
+    t,
   )
   const toolTrayId = `composer-tool-tray-${session.id}`
   const quickActionsLabel = toolsOpen
