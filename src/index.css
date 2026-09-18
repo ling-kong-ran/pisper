@@ -113,10 +113,10 @@
   --user-bubble-code: rgba(255, 255, 255, .16);
 
   /* ── 圆角 / 阴影 / 动效 ── */
-  --r-xs: 6px;
-  --r-sm: 9px;
-  --r-md: 13px;
-  --r-lg: 18px;
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
   --r-pill: 999px;
   --sh-1: 0 1px 2px rgba(15, 23, 42, .05);
   --sh-edge: rgba(15, 23, 42, .04);
@@ -279,18 +279,18 @@
 :root[data-theme='dark'] {
     color-scheme: dark;
 
-    /* ── 暗色主题主操作反白，蓝色仍只承担状态语义 ── */
-    --star: #e2e2e5;
+    /* ── 暗色主题主操作反白；唯一彩色是青绿（仅焦点/链接/状态点） ── */
+    --star: #e6e6e9;
     --star-hover: #f2f2f4;
-    --star-strong: #ededf0;
-    --star-soft: rgba(255, 255, 255, .09);
-    --star-border: rgba(255, 255, 255, .24);
-    --on-accent: #1a1a1f;
-    --brand-blue: #5fa8e8;
-    --brand-blue-hover: #7ab8ef;
-    --brand-blue-strong: #93cbf5;
-    --brand-blue-soft: rgba(95, 168, 232, .13);
-    --brand-blue-border: rgba(95, 168, 232, .26);
+    --star-strong: #ececEE;
+    --star-soft: rgba(255, 255, 255, .08);
+    --star-border: rgba(255, 255, 255, .22);
+    --on-accent: #101013;
+    --brand-blue: #56c2b8;
+    --brand-blue-hover: #6fd0c6;
+    --brand-blue-strong: #8adcd3;
+    --brand-blue-soft: rgba(86, 194, 184, .12);
+    --brand-blue-border: rgba(86, 194, 184, .24);
 
     --blue: var(--star);
     --blue-2: var(--star-hover);
@@ -298,36 +298,36 @@
     --accent-soft: var(--star-soft);
     --accent-strong: var(--star-strong);
     --accent-border: var(--star-border);
-    --accent-ring: rgba(255, 255, 255, .13);
+    --accent-ring: rgba(255, 255, 255, .12);
     --focus: var(--brand-blue);
-    --focus-ring: rgba(95, 168, 232, .18);
+    --focus-ring: rgba(86, 194, 184, .16);
     --status-blue: var(--brand-blue);
-    --selection-ring: rgba(255, 255, 255, .11);
-    --node-active-ring: rgba(255, 255, 255, .16);
-    --node-pulse-color: rgba(255, 255, 255, .26);
+    --selection-ring: rgba(255, 255, 255, .1);
+    --node-active-ring: rgba(255, 255, 255, .15);
+    --node-pulse-color: rgba(255, 255, 255, .25);
 
-    /* ── 中性色：中性偏暖深灰 ── */
-    --bg: #141418;
-    --panel: #1b1b22;
-    --solid: #1f1f27;
-    --stroke: #2c2c35;
-    --stroke-soft: #26262f;
-    --stroke-hover: #46464f;
-    --text: #e8e5de;
-    --text-soft: #d5d2ca;
-    --text-secondary: #b8b5bd;
-    --text-tertiary: #a4a2ab;
-    --text-muted: #98958d;
-    --scrollbar-thumb: rgba(232, 229, 222, .22);
-    --scrollbar-thumb-hover: rgba(232, 229, 222, .34);
-    --selection-bg: rgba(98, 169, 242, .28);
-    --ink-strong: #0d0d13;
-    --on-ink: #e8e5de;
-    --surface-subtle: #1c1c23;
-    --surface-muted: #26262f;
-    --surface-hover: #2d2d37;
-    --surface-highlight: rgba(255, 255, 255, .09);
-    --control-muted: #46464f;
+    /* ── 中性色：纯中性锌灰，靠明度阶梯分层，无彩偏 ── */
+    --bg: #101013;
+    --panel: #151519;
+    --solid: #191920;
+    --stroke: #1e1e24;
+    --stroke-soft: #191920;
+    --stroke-hover: #2e2e36;
+    --text: #f1f1f3;
+    --text-soft: #d6d6da;
+    --text-secondary: #b4b4bb;
+    --text-tertiary: #9a9aa2;
+    --text-muted: #85858d;
+    --scrollbar-thumb: rgba(241, 241, 243, .2);
+    --scrollbar-thumb-hover: rgba(241, 241, 243, .32);
+    --selection-bg: rgba(86, 194, 184, .2);
+    --ink-strong: #0a0a0c;
+    --on-ink: #f1f1f3;
+    --surface-subtle: #16161b;
+    --surface-muted: #1c1c22;
+    --surface-hover: #24242b;
+    --surface-highlight: rgba(255, 255, 255, .08);
+    --control-muted: #3d3d44;
     --control-thumb: #fff;
     --control-selected-bg: var(--star);
     --control-selected-text: var(--on-accent);
@@ -352,27 +352,27 @@
     --status-muted: #8f8b85;
 
     /* ── 用户气泡：纸白底墨字 ── */
-    --user-bubble-bg: #e8e5de;
-    --user-bubble-text: #1d1d24;
-    --user-bubble-code: rgba(29, 29, 36, .08);
+    --user-bubble-bg: #ececee;
+    --user-bubble-text: #161619;
+    --user-bubble-code: rgba(22, 22, 25, .08);
 
     --sh-star: 0 6px 20px -8px rgba(0, 0, 0, .55);
     --sh-edge: rgba(0, 0, 0, .3);
 
     /* ── 表面与场景 ── */
-    --sidebar-bg: #17171e;
-    --sidebar-status-bg: #141419;
+    --sidebar-bg: #131316;
+    --sidebar-status-bg: #101013;
     --sidebar-shadow: rgba(0, 0, 0, .55);
-    --sidebar: #0d0d13;
-    --main-surface-bg: #18181f;
-    --main-surface-inset: rgba(255, 255, 255, .08);
+    --sidebar: #0b0b0d;
+    --main-surface-bg: #141417;
+    --main-surface-inset: rgba(255, 255, 255, .02);
     --main-surface-shadow: rgba(0, 0, 0, .4);
     --main-glow-start: rgba(255, 255, 255, .02);
     --main-glow-end: rgba(20, 20, 24, 0);
-    --search-bg: #17171e;
+    --search-bg: #131316;
     --menu-shadow: rgba(0, 0, 0, .6);
-    --media-bg: #0a0a0f;
-    --terminal-bg: #111318;
+    --media-bg: #0a0a0c;
+    --terminal-bg: #101114;
     --terminal-fg: #e5e7eb;
     --terminal-muted: rgba(229, 231, 235, .72);
     --terminal-hover: rgba(229, 231, 235, .08);
@@ -383,15 +383,15 @@
     --terminal-error-bg: #3a1f24;
     --terminal-error-border: rgba(248, 113, 113, .5);
     --terminal-error-fg: #e5e7eb;
-    --code-border: #35353f;
+    --code-border: #2c2c31;
     --asset-preview-blue-bg: var(--brand-blue-soft);
     --asset-preview-blue-text: var(--brand-blue-strong);
     --asset-preview-violet-bg: #22222c;
-    --subnav-bg: #17171e;
-    --progress-track: #2a2a34;
+    --subnav-bg: #131316;
+    --progress-track: #26262b;
     --floating-shadow: rgba(0, 0, 0, .6);
-    --canvas-bg: #17171e;
-    --canvas-grid: #26262f;
+    --canvas-bg: #131316;
+    --canvas-grid: #212126;
     --canvas-edge: #46464f;
     --node-shadow: #000;
     --violet-border: #4a4a5e;
@@ -582,6 +582,13 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .voice-capsule-pop { animation: voice-capsule-pop 260ms cubic-bezier(.2, .9, .3, 1.2) both; }
 @keyframes composer-energy-spin { to { transform: rotate(360deg); } }
 .chat-dock-workspace > .dockview-theme-pisper { width: 100%; height: 100%; }
+/* 扁平化：会话面板不再「盒中套盒」——去掉 dock 卡片的环线/边框/双层底色，
+   会话内容直接融入画布；仅保留 dockview 自身的标签条做分区。 */
+.session-dock-panel > .app-card {
+  border: 0;
+  box-shadow: none;
+  background: var(--main-surface-bg);
+}
 :root .dockview-theme-pisper { --dv-tabs-and-actions-container-height: 36px; --dv-tabs-and-actions-container-font-size: 12px; --dv-group-view-background-color: var(--panel); --dv-tabs-and-actions-container-background-color: var(--surface-subtle); --dv-activegroup-visiblepanel-tab-background-color: var(--panel); --dv-activegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel); --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--text-soft); --dv-inactivegroup-visiblepanel-tab-color: var(--text-soft); --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted); --dv-tab-divider-color: var(--stroke-soft); --dv-separator-border: var(--stroke); --dv-paneview-active-outline-color: var(--focus); --dv-drag-over-background-color: var(--focus-ring); --dv-drag-over-border-color: var(--focus); --dv-icon-hover-background-color: var(--surface-hover); --dv-tabs-container-scrollbar-color: var(--control-muted); --dv-scrollbar-background-color: var(--control-muted); --dv-sash-color: var(--stroke-soft); --dv-active-sash-color: var(--focus); --dv-border-radius: 0; --dv-tab-border-radius: 0; --dv-spacing-padding: 0; }
 .dockview-theme-pisper .dv-tabs-and-actions-container { border-bottom: 1px solid var(--stroke-soft); }
 .dockview-theme-pisper .dv-tab { font-weight: 600; }
