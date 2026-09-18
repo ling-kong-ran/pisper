@@ -347,8 +347,12 @@ function usageTokenCount(value) {
 
 // 判断上游是否真的上报过缓存用量字段：部分第三方中转只回传 input/output，
 // 把缺失当成 0 会让界面显示「0% 命中」，与「确实没命中」无法区分。
+// 判断上游是否真的上报过「有效」缓存用量：字段缺失是明确的未知情形
+//（部分第三方中转只回传 input/output），而固定回传 0 的中转同样无法与
+//「真实未命中」区分——两者都会让界面误显示「0% 命中」。因此只有出现过
+// 非零的 cacheRead/cacheWrite 才认为缓存统计可信，命中率才参与计算。
 function reportsCacheUsage(usage) {
-  return usage?.cacheRead != null || usage?.cacheWrite != null
+  return usageTokenCount(usage?.cacheRead) > 0 || usageTokenCount(usage?.cacheWrite) > 0
 }
 
 export function emptySessionUsage() {

@@ -58,16 +58,25 @@ test('session usage keeps the cache hit rate unknown when the provider omits cac
   assert.equal(omitted.cacheHitRate, null)
   assert.equal(omitted.cacheRead, 0)
 
-  // 上游上报了字段但确实未命中：应得到真实的 0%。
-  const missed = emptySessionUsage()
-  addSessionUsage(missed, { input: 500, output: 10, cacheRead: 0, cacheWrite: 0 })
-  assert.equal(missed.cacheReported, true)
-  assert.equal(missed.cacheHitRate, 0)
+  // 中转固定回传 0（实测：{"cacheRead":0,"cacheWrite":0}）同样不可知：
+  // 在单条消息层面「显式 0」与「字段缺失」无法区分是否真的未命中，
+  // 显示 0% 会误导用户，因此与缺失一致保持 null。
+  const zeroed = emptySessionUsage()
+  addSessionUsage(zeroed, { input: 500, output: 10, cacheRead: 0, cacheWrite: 0 })
+  assert.equal(zeroed.cacheReported, false)
+  assert.equal(zeroed.cacheHitRate, null)
 
-  // 同一会话中只要有任何一次请求上报过缓存，后续就能继续统计。
+  // 同一会话中只要有任何一次请求上报过非零缓存，缓存统计即视为可信，
+  // 命中率改用累计值计算。
   addSessionUsage(omitted, { input: 100, output: 5, cacheRead: 900 })
   assert.equal(omitted.cacheReported, true)
   assert.equal(omitted.cacheHitRate, (900 / 13313) * 100)
+
+  // 全 0 会话在出现非零回传（如 cacheWrite）后转入可信统计，
+  // 此后即使 cacheRead 为 0 也是可信的真实 0%。
+  addSessionUsage(zeroed, { input: 10, output: 2, cacheWrite: 40 })
+  assert.equal(zeroed.cacheReported, true)
+  assert.equal(zeroed.cacheHitRate, 0)
 })
 
 test('session usage falls back to field totals only when provider total is absent', () => {
