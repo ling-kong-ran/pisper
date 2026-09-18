@@ -57,7 +57,7 @@ export function WorkflowViewTabs({
 }) {
   return (
     <Tabs value={value} onValueChange={(next) => onChange(next as WorkflowView)}>
-      <TabsList className="workflow-filter-list [&_[data-slot='tabs-trigger']]:min-w-[56px] [&_[data-slot='tabs-trigger']]:flex-none [&_[data-slot='tabs-trigger']]:[padding-inline:12px] [&_[data-slot='tabs-trigger']]:text-[12px] w-fit max-w-[100%] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <TabsList className="[&_[data-slot='tabs-trigger']]:min-w-[56px] [&_[data-slot='tabs-trigger']]:flex-none [&_[data-slot='tabs-trigger']]:[padding-inline:12px] [&_[data-slot='tabs-trigger']]:text-[12px] [&_[data-slot='tabs-trigger']]:after:hidden w-fit max-w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none]! [&::-webkit-scrollbar]:hidden">
         <TabsTrigger value="workflows">{t('workflows:workflowsPage.workflows')}</TabsTrigger>
         <TabsTrigger value="runs">{t('workflows:workflowsPage.runHistory')}</TabsTrigger>
         <TabsTrigger value="templates">{t('workflows:workflowsPage.templates')}</TabsTrigger>
