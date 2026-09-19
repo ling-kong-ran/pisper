@@ -315,7 +315,7 @@ export function SidebarRecentSessions({
         >
           <ContextMenuTrigger asChild>
             <div
-              className="flex min-h-0 flex-1 flex-col gap-[2px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [animation:page-in_var(--d1)_var(--ease-out)]"
+              className="flex min-h-0 flex-1 flex-col gap-[2px] overflow-y-auto overflow-x-hidden [animation:page-in_var(--d1)_var(--ease-out)]"
               id="sidebar-recent-sessions"
             >
               {sessionGroups.map((group) => {

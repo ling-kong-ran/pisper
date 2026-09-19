@@ -2,7 +2,7 @@
 // 顶部标签条与 dockview 标签同款视觉（标签×、右侧＋新建）；每个标签对应一个
 // 独立会话，新建时沿用当前主会话的工作目录（同一个项目）；列表与激活项持久化。
 // 复用会话 HTTP/SSE API，与主对话互不干扰。
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FolderOpen, Loader2, Pencil, Plus, TreePine, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -15,7 +15,6 @@ import { WorkspacePicker } from '@/components/WorkspacePicker'
 
 const AUX_SESSIONS_KEY = 'pisper-aux-sessions'
 const AUX_ACTIVE_KEY = 'pisper-aux-active'
-const AUX_WIDTH_KEY = 'pisper-aux-width'
 
 type AuxMessage = { role: 'user' | 'agent'; text: string }
 
@@ -215,35 +214,8 @@ export function AuxChatPanel({ cwd, onClose }: { cwd?: string; onClose: () => vo
     }
   }
 
-  const widthDrag = useRef<{ startX: number; startWidth: number } | null>(null)
-  const [width, setWidth] = useState(() => Number(localStorage.getItem(AUX_WIDTH_KEY)) || 360)
-  const widthRef = useRef(width)
-  widthRef.current = width
-
-  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    widthDrag.current = { startX: event.clientX, startWidth: width }
-  }
-  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (!widthDrag.current) return
-    // 向左拖 = 变宽：clientX 减小、宽度增大。
-    const next = Math.min(
-      560,
-      Math.max(260, widthDrag.current.startWidth + (widthDrag.current.startX - event.clientX)),
-    )
-    setWidth(next)
-  }
-  const endDrag = () => {
-    widthDrag.current = null
-    localStorage.setItem(AUX_WIDTH_KEY, String(widthRef.current))
-  }
-
   return (
-    <div
-      className="aux-chat-panel relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--main-surface-bg)]"
-      style={{ width }}
-    >
+    <div className="aux-chat-panel relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--main-surface-bg)]">
       {/* 浏览器多标签式标签条：与中栏 dockview 标签同款视觉。 */}
       <div className="flex h-[36px] flex-none items-stretch gap-[2px] [border-bottom:1px_solid_var(--stroke-soft)] bg-[var(--surface-subtle)] [padding:0_6px]">
         <div className="flex min-w-0 flex-1 items-stretch gap-[2px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -394,14 +366,6 @@ export function AuxChatPanel({ cwd, onClose }: { cwd?: string; onClose: () => vo
           </div>
         </div>
       </form>
-      {/* 拖宽手柄：贴左缘 */}
-      <div
-        className="absolute top-0 bottom-0 left-0 z-[5] w-[5px] cursor-col-resize after:absolute after:inset-y-0 after:left-[2px] after:w-px hover:after:bg-[var(--stroke-hover)]"
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        aria-hidden="true"
-      />
       {treeOpen && (
         <SessionTreeDialog
           open

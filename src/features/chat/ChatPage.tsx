@@ -464,7 +464,13 @@ export function ChatPage({
   return (
     <>
       <div
-        className={`chat-layout relative grid w-full min-w-0 min-h-0 flex-1 gap-[6px] dock-layout max-[650px]:flex max-[650px]:flex-col max-[650px]:min-h-0 max-[650px]:gap-[0] -m-[6px] ${auxOpen && !mobileLayout ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)]'}`}
+        className="chat-layout relative grid w-full min-w-0 min-h-0 flex-1 gap-[6px] dock-layout max-[650px]:flex max-[650px]:flex-col max-[650px]:min-h-0 max-[650px]:gap-[0]"
+        style={{
+          gridTemplateColumns:
+            auxOpen && !mobileLayout
+              ? `minmax(0, 1fr) ${Math.round((auxRatio || 0.382) * 100)}%`
+              : 'minmax(0, 1fr)',
+        }}
       >
         {catalog.loading ? (
           <AppEmptyState>
@@ -548,28 +554,25 @@ export function ChatPage({
                 </ChatDockContext.Provider>
               </div>
             </div>
-            {/* 中右之间的比例拖拽手柄：拖动调整右栏宽度占比（持久化）。 */}
+            {/* 右栏（第二列）：拖拽手柄 + 辅助对话卡片包在同一个 flex 容器里，
+                保证网格只有两个子元素、两栏同行等高；比例持久化，窄屏隐藏。 */}
             {!mobileLayout && auxOpen && (
-              <div
-                className="relative z-[10] w-[6px] flex-none cursor-col-resize bg-transparent after:absolute after:inset-y-0 after:left-[2px] after:w-px after:bg-transparent hover:after:bg-[var(--stroke-hover)]"
-                onPointerDown={startAuxRatioDrag}
-                onPointerMove={moveAuxRatioDrag}
-                onPointerUp={endAuxRatioDrag}
-                aria-hidden="true"
-              />
-            )}
-            {/* 右栏辅助对话：与中栏完全同款卡片（同边框/圆角/底色），栅格 6px 缝分隔；窄屏隐藏。 */}
-            {!mobileLayout && auxOpen && (
-              <div
-                className="relative min-h-0 overflow-hidden max-[1200px]:hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-subtle)]"
-                style={{ width: `${Math.round(auxRatio * 100)}%` }}
-              >
-                <Suspense fallback={null}>
-                  <LazyAuxChatPanel
-                    cwd={catalog.sessions.find((item) => item.id === catalog.activeId)?.cwd || ''}
-                    onClose={() => updateAuxOpen(false)}
-                  />
-                </Suspense>
+              <div className="relative flex min-h-0 items-stretch max-[1200px]:hidden">
+                <div
+                  className="relative z-[10] w-[6px] flex-none cursor-col-resize bg-transparent after:absolute after:inset-y-0 after:left-[2px] after:w-px after:bg-transparent hover:after:bg-[var(--stroke-hover)]"
+                  onPointerDown={startAuxRatioDrag}
+                  onPointerMove={moveAuxRatioDrag}
+                  onPointerUp={endAuxRatioDrag}
+                  aria-hidden="true"
+                />
+                <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-subtle)]">
+                  <Suspense fallback={null}>
+                    <LazyAuxChatPanel
+                      cwd={catalog.sessions.find((item) => item.id === catalog.activeId)?.cwd || ''}
+                      onClose={() => updateAuxOpen(false)}
+                    />
+                  </Suspense>
+                </div>
               </div>
             )}
           </>
