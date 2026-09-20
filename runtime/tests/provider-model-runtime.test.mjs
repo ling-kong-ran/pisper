@@ -769,3 +769,96 @@ test('visual-only providers list every discovered model so users can pick the ki
   assert.ok(provider.models.some((model) => model.id === 'gpt-image-2'))
   assert.ok(provider.models.some((model) => model.id === 'grok-imagine-video'))
 })
+
+test('disabling or deleting the default Provider switches to the alternative saved default model', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-default-switch-'))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: {
+      async discover() {
+        return { models: [] }
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'relay-main',
+    name: 'Relay Main',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-main.example.test/v1',
+    apiKey: 'key-main',
+    model: 'main-first',
+  })
+  // relay-standby 先于 relay-backup 创建，自动切换按顺序先命中它。
+  await runtime.createProvider({
+    id: 'relay-standby',
+    name: 'Relay Standby',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-standby.example.test/v1',
+    apiKey: 'key-standby',
+    model: 'standby-first',
+  })
+  await runtime.addProviderModel('relay-standby', {
+    id: 'standby-second',
+    name: 'Standby Second',
+    kind: 'chat',
+  })
+  await runtime.createProvider({
+    id: 'relay-backup',
+    name: 'Relay Backup',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-backup.example.test/v1',
+    apiKey: 'key-backup',
+    model: 'backup-first',
+  })
+  await runtime.addProviderModel('relay-backup', {
+    id: 'backup-second',
+    name: 'Backup Second',
+    kind: 'chat',
+  })
+  // 两个备选 Provider 都保存了非首位的内部默认模型（不切换全局默认）。
+  await runtime.saveConfig({
+    provider: 'relay-standby',
+    model: 'standby-second',
+    setAsDefault: false,
+  })
+  await runtime.saveConfig({
+    provider: 'relay-backup',
+    model: 'backup-second',
+    setAsDefault: false,
+  })
+
+  // 停用当前默认 relay-main：自动切换必须使用备选 relay-standby 已保存的内部默认
+  // 模型 standby-second，而不是目录里的第一个模型；否则 settings 与配置视图错位
+  //（UI 显示 standby-second、新会话实际跑 standby-first，直到下一次 reconcile
+  // 才被悄悄改写）。
+  const disabled = await runtime.setProviderEnabled('relay-main', false)
+  assert.equal(disabled.defaultProvider, 'relay-standby')
+  assert.equal(disabled.defaultModel, 'standby-second')
+  assert.equal(disabled.model, 'standby-second')
+  const settingsAfterDisable = runtime.settingsManager.getGlobalSettings()
+  assert.equal(settingsAfterDisable.defaultProvider, 'relay-standby')
+  assert.equal(settingsAfterDisable.defaultModel, 'standby-second')
+  const created = await runtime.createSession('after-disable', directory)
+  assert.equal(created.model, 'relay-standby/standby-second')
+
+  // 再停用 relay-standby（当前默认）：切到 relay-backup，同样使用其内部默认模型。
+  const disabledAgain = await runtime.setProviderEnabled('relay-standby', false)
+  assert.equal(disabledAgain.defaultProvider, 'relay-backup')
+  assert.equal(disabledAgain.defaultModel, 'backup-second')
+
+  // 删除当前默认 relay-backup：备选里 relay-standby 排在 relay-main 前但已停用，
+  // 必须跳过它，落到重新启用的 relay-main 上。
+  await runtime.setProviderEnabled('relay-main', true)
+  const deleted = await runtime.deleteProvider('relay-backup')
+  assert.equal(deleted.defaultProvider, 'relay-main')
+  assert.equal(deleted.defaultModel, 'main-first')
+  const settingsAfterDelete = runtime.settingsManager.getGlobalSettings()
+  assert.equal(settingsAfterDelete.defaultProvider, 'relay-main')
+  assert.equal(settingsAfterDelete.defaultModel, 'main-first')
+})

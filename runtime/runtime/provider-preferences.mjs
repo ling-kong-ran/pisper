@@ -582,6 +582,27 @@ export class ProviderPreferences {
     return modelRuntime.getModel(String(provider), String(modelId)) || null
   }
 
+  // Provider 的默认对话模型（与 getConfig 视图一致）：已保存的内部默认优先
+  //（须仍在模型目录中，且当前全局默认属于该 Provider 时才回退用全局默认模型），
+  // 否则按 modelRank 选排名最高的对话模型。
+  // 停用/删除当前默认 Provider 触发的自动切换必须走这里，
+  // 否则 settings.defaultModel 会写成目录里的第一个模型，与配置页显示的内部默认错位。
+  providerChatDefaultModel(providerId, { appConfig = {}, settings = {} } = {}) {
+    const modelRuntime = this.getModelRuntime()
+    const chatModels = (modelRuntime?.getModels?.(providerId) || [])
+      .filter((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
+      .sort(
+        (left, right) =>
+          modelRank(providerId, right) - modelRank(providerId, left) ||
+          String(left.name || left.id).localeCompare(String(right.name || right.id)),
+      )
+    const preferred =
+      appConfig.providerDefaultModels?.[providerId] ||
+      (settings.defaultProvider === providerId ? settings.defaultModel : '')
+    if (preferred && chatModels.some((model) => model.id === preferred)) return preferred
+    return chatModels[0]?.id || ''
+  }
+
   // 发现外部 Provider 配置（CLI 登录/文件导入等），标注已导入/冲突状态。
   async getProviderDiscovery() {
     const modelRuntime = this.getModelRuntime()
@@ -1293,10 +1314,11 @@ export class ProviderPreferences {
         )
       })
       if (!alternative) throw new Error('至少需要保留一个已配置并启用的 Provider。')
-      const alternativeModel = modelRuntime
-        .getModels(alternative.id)
-        .find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-      settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
+      const alternativeModel = this.providerChatDefaultModel(alternative.id, {
+        appConfig,
+        settings,
+      })
+      settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel)
       await settingsManager.flush()
     }
     await writeJsonAtomic(this.appConfigPath, {
@@ -1802,12 +1824,14 @@ export class ProviderPreferences {
     const modelRuntime = this.getModelRuntime()
     if (settings.defaultProvider === provider) {
       const providerTypes = appConfig.providerTypes || {}
+      const disabledProviders = new Set(appConfig.disabledProviders || [])
       const alternative = modelRuntime.getProviders().find((item) => {
         const type =
           providerTypes[item.id] || inferredProviderType(modelsJson.providers?.[item.id] || {})
         return (
           item.id !== provider &&
           type !== 'visual' &&
+          !disabledProviders.has(item.id) &&
           credentials[item.id] &&
           modelRuntime
             .getModels(item.id)
@@ -1815,10 +1839,11 @@ export class ProviderPreferences {
         )
       })
       if (alternative) {
-        const alternativeModel = modelRuntime
-          .getModels(alternative.id)
-          .find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-        settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
+        const alternativeModel = this.providerChatDefaultModel(alternative.id, {
+          appConfig,
+          settings,
+        })
+        settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel)
         await settingsManager.flush()
       }
     }
