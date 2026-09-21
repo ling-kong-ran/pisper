@@ -26,6 +26,18 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  windows-shell:
+    name: Windows shell lifecycle
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx --test runtime/tests/host-bash.test.mjs
+
   ios-native:
     name: iOS native tests
     runs-on: macos-26

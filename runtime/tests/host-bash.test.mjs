@@ -1,13 +1,91 @@
 import { existsSync } from 'node:fs'
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   createPisperBashTool,
+  createWindowsSystemShellOperations,
   hostCommandEnvironment,
   selectHostShell,
   windowsPowerShellArguments,
   windowsPowerShellExecutable,
 } from '../tools/host-bash.mjs'
+
+function processExists(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    if (error.code === 'ESRCH') return false
+    throw error
+  }
+}
+
+for (const stop of ['abort', 'timeout']) {
+  test(
+    `PowerShell fallback ${stop} terminates interpreter descendants`,
+    { timeout: 15_000 },
+    async (t) => {
+      const directory = await mkdtemp(join(tmpdir(), 'pisper-shell-tree-'))
+      const environment =
+        process.platform === 'win32' ? process.env : { SystemRoot: join(directory, 'system') }
+      // 非 Windows 使用相同父子关系的可执行夹具；Windows 真正经过系统 PowerShell。
+      const fixture =
+        process.platform === 'win32'
+          ? join(directory, 'interpreter.cjs')
+          : windowsPowerShellExecutable(environment)
+      const pids = []
+      let execution
+      const abort = new AbortController()
+      t.after(async () => {
+        abort.abort()
+        await execution?.catch(() => {})
+        for (const pid of pids) {
+          if (processExists(pid)) process.kill(pid, 'SIGKILL')
+        }
+        await rm(directory, { recursive: true, force: true })
+      })
+      await writeFile(
+        fixture,
+        `#!${process.execPath}
+const { spawn } = require('node:child_process')
+const child = spawn(process.execPath, ['-e', "process.send('ready'); setInterval(() => {}, 1000)"], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
+child.on('message', () => process.stdout.write(JSON.stringify({ launcher: process.pid, worker: child.pid }) + '\\n'))
+setInterval(() => {}, 1000)
+`,
+      )
+      if (process.platform !== 'win32') await chmod(fixture, 0o700)
+      const operations = await createWindowsSystemShellOperations(environment)
+      const ready = Promise.withResolvers()
+      let output = ''
+      const quote = (value) => `'${value.replaceAll("'", "''")}'`
+      execution = operations.exec(`& ${quote(process.execPath)} ${quote(fixture)}`, directory, {
+        signal: abort.signal,
+        timeout: stop === 'timeout' ? 2 : 10,
+        env: process.env,
+        onData: (chunk) => {
+          output += chunk.toString()
+          if (!output.includes('\n') || pids.length) return
+          const result = JSON.parse(output.trim())
+          pids.push(result.launcher, result.worker)
+          ready.resolve()
+        },
+      })
+      const rejected = assert.rejects(execution, stop === 'abort' ? /aborted/ : /timeout:2/)
+      await Promise.race([ready.promise, execution])
+      assert.equal(pids.length, 2)
+      if (stop === 'abort') abort.abort()
+      await rejected
+      // 等操作系统回收已终止的进程，以状态为条件轮询，避免固定延时掩盖泄漏。
+      const deadline = Date.now() + 3000
+      while (pids.some(processExists) && Date.now() < deadline) await delay(20)
+      assert.deepEqual(pids.filter(processExists), [], 'interpreter processes outlived the tool')
+    },
+  )
+}
 
 test('host shell environment removes credentials and shell injection variables', () => {
   const environment = hostCommandEnvironment({

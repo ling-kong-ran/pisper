@@ -197,6 +197,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
+      - name: Verify Windows shell process cleanup
+        if: runner.os == 'Windows' && inputs.component != 'tui'
+        run: node --import tsx --test runtime/tests/host-bash.test.mjs
       - name: Require component signing credentials
         shell: bash
         run: |
