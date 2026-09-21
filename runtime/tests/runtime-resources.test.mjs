@@ -11,6 +11,7 @@ import {
   storedSessionModelId,
 } from '../runtime/agent-runtime.mjs'
 import { boundSessionModelRef } from '../runtime/session-model-ref.mjs'
+import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
 test('runtime initialization leaves stored conversations unloaded until requested', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-lazy-sessions-'))
@@ -273,10 +274,10 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.ok(
     value.session.resourceLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'),
   )
-  assert.ok(value.session.agent.state.systemPrompt.includes('runtime-skill'))
-  assert.match(value.session.agent.state.systemPrompt, /Application: Pisper/)
-  assert.match(value.session.agent.state.systemPrompt, /Active model:/)
-  assert.doesNotMatch(value.session.agent.state.systemPrompt, /You are Pisper/i)
+  assert.ok(applyPisperSystemPrompt(value.session).includes('runtime-skill'))
+  assert.match(applyPisperSystemPrompt(value.session), /Application: Pisper/)
+  assert.match(applyPisperSystemPrompt(value.session), /Active model:/)
+  assert.doesNotMatch(applyPisperSystemPrompt(value.session), /You are Pisper/i)
   assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
@@ -295,11 +296,11 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
     .execute('legacy-plan-read', {}, new AbortController().signal)
   assert.equal(compatibilityRead.details.plan.sessionId, value.session.sessionId)
   assert.equal(Object.hasOwn(compatibilityRead.details, 'taskList'), false)
-  assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
+  assert.doesNotMatch(applyPisperSystemPrompt(value.session), /get_task_list|update_task_list/)
   assert.ok(value.session.getActiveToolNames().includes('discover_tools'))
   assert.equal(value.session.getActiveToolNames().includes('generate_visual'), false)
   assert.ok(value.session.getActiveToolNames().includes('call_tool'))
-  assert.match(value.session.agent.state.systemPrompt, /discover_tools/)
+  assert.match(applyPisperSystemPrompt(value.session), /discover_tools/)
   assert.match(value.session.getToolDefinition('generate_visual').description, /mockup/)
   assert.deepEqual(
     value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.enum,
@@ -310,13 +311,13 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
     undefined,
   )
   const hotToolNames = value.session.getActiveToolNames()
-  const hotSystemPrompt = value.session.agent.state.systemPrompt
+  const hotSystemPrompt = applyPisperSystemPrompt(value.session)
 
   await runtime.selectToolsForMessage(value, '先给我来个设计图，我看看样式是什么样的。')
   assert.deepEqual(value.requestedToolNames, [])
   assert.equal(value.session.getActiveToolNames().includes('generate_visual'), false)
   assert.deepEqual(value.promotedToolNames, [])
-  assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
+  assert.equal(applyPisperSystemPrompt(value.session), hotSystemPrompt)
 
   await runtime.selectToolsForMessage(value, 'Use the selected memory search tool.', {
     requestedToolNames: ['memory_search'],
@@ -324,7 +325,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.deepEqual(value.requestedToolNames, ['memory_search'])
   assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
   assert.deepEqual(value.session.getActiveToolNames(), hotToolNames)
-  assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
+  assert.equal(applyPisperSystemPrompt(value.session), hotSystemPrompt)
   await runtime.selectToolsForMessage(value, 'Return to the stable tool prefix.')
 
   const discovery = await value.session
@@ -343,7 +344,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('mcp_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.deepEqual(value.session.getActiveToolNames().slice(0, hotToolNames.length), hotToolNames)
-  assert.equal(value.session.agent.state.systemPrompt, hotSystemPrompt)
+  assert.equal(applyPisperSystemPrompt(value.session), hotSystemPrompt)
   assert.match(
     value.session.getToolDefinition('mcp_manage').description,
     /Always use mcp_manage for MCP configuration/,
@@ -384,7 +385,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('get_task_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
   assert.deepEqual(value.requestedToolNames, ['get_task_list'])
-  assert.doesNotMatch(value.session.agent.state.systemPrompt, /get_task_list|update_task_list/)
+  assert.doesNotMatch(applyPisperSystemPrompt(value.session), /get_task_list|update_task_list/)
   await runtime.selectToolsForMessage(value, 'Return to canonical tools.')
   assert.deepEqual(value.requestedToolNames, [])
 
@@ -394,6 +395,46 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   })
   assert.ok(childLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'))
   assert.ok(childLoader.getAppendSystemPrompt().includes('CHILD AGENT PROMPT'))
+
+  // 验证真实会话经过 before_agent_start 后发送的提示词，而非只检查只读历史快照。
+  runtime.modelRuntime.hasConfiguredAuth = () => true
+  value.session.agent.getApiKey = async () => 'test-key'
+  value.session.agent.state.model = runtime.modelRuntime.getModels('openai')[0]
+  const requests = []
+  value.session.agent.streamFunction = async (model, context) => {
+    requests.push(context)
+    const message = {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'ok' }],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      stopReason: 'stop',
+      usage: {
+        input: 1,
+        output: 1,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 2,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      timestamp: Date.now(),
+    }
+    return {
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'done', reason: 'stop', message }
+      },
+      result: () => Promise.resolve(message),
+    }
+  }
+  await value.session.prompt('Verify the current prompt.')
+  assert.equal(requests.length, 1)
+  const leadingPrompt = requests[0].messages[0]
+  assert.equal(leadingPrompt.role, 'system')
+  assert.match(leadingPrompt.content, /Application: Pisper/)
+  assert.match(leadingPrompt.content, /runtime-skill/)
+  assert.match(leadingPrompt.content, /discover_tools/)
+  assert.doesNotMatch(leadingPrompt.content, /get_task_list|update_task_list/)
 })
 
 test('plugin catalog derives callable Tool names from the session execution policy', async () => {
