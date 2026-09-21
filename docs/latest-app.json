@@ -1,9 +1,9 @@
 {
-  "version": "0.1.44",
-  "tag": "app-v0.1.44",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.44",
+  "version": "0.1.45",
+  "tag": "app-v0.1.45",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.45",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- test(ios): 内容证明测试使用确定性的已安装模型数据\n- chore(release-runtime): runtime-v0.5.51\n- fix(config): 复用布局样式降低官方 Node 构建 CSS 体积\n- feat(config): 独立 Provider 单密钥、默认模型与克隆\n- fix(runtime): 过滤 OpenAI SDK 请求诊断头以改善端点兼容\n- fix(workflows): 修复高分屏标签栏滚动条与纵向溢出\n- fix(config): 当前输入的密钥直接参与模型发现与保存\n- fix(desktop): 工作流筛选条滚动条同样隐藏",
-  "releaseDate": "2026-09-18"
+  "notes": "- fix(build): 适配 Pi 0.86 平台原生模块闭包\n- fix(runtime): 兼容 Pi 0.86 只读提示词状态\n- chore(deps): update pi coding agent\n- fix(runtime): 回收 PowerShell 子进程并修复 MCP 连接竞态\n- feat: 添加决策模型与安全沙箱自定义组件\n- fix(config): 停用/删除默认 Provider 的自动切换尊重备选已保存的默认模型",
+  "releaseDate": "2026-09-21"
 }
