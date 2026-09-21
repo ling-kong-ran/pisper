@@ -73,8 +73,11 @@ Runtime contract:
 
 export function applyPisperSystemPrompt(session, model = session?.model) {
   if (!session?.agent?.state) return ''
-  const prompt = pisperSystemPrompt(session.agent.state.systemPrompt, model)
-  session.agent.state.systemPrompt = prompt
+  const prompt = pisperSystemPrompt(session.systemPrompt ?? session.agent.state.systemPrompt, model)
+  // Pi 0.86 的提示词由会话消息派生，只读快照不能回写；真实请求继续由
+  // before_agent_start 注入，避免为更新身份信息改写历史 system 消息。
+  const property = Object.getOwnPropertyDescriptor(session.agent.state, 'systemPrompt')
+  if (!property || property.writable || property.set) session.agent.state.systemPrompt = prompt
   return prompt
 }
 

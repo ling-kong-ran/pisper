@@ -1719,10 +1719,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     this.syncGoalTools(value, this.goals.get(session.sessionId))
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
-    applyPisperSystemPrompt(session, session.model)
     // 捕获提示词缓存形态：对比形状变化以诊断 prompt cache 失效原因。
     value.promptCache = capturePromptCacheShape({
-      systemPrompt: session.agent.state.systemPrompt,
+      systemPrompt: applyPisperSystemPrompt(session, session.model),
       tools: promptCacheTools(session),
       runtime: promptCacheRuntime(session),
     })
@@ -1911,7 +1910,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     value.promptCache = comparePromptCacheShapes(
       value.promptCache,
       capturePromptCacheShape({
-        systemPrompt: session.agent.state.systemPrompt,
+        systemPrompt: applyPisperSystemPrompt(session, session.model),
         tools: promptCacheTools(session),
         runtime: promptCacheRuntime(session),
       }),

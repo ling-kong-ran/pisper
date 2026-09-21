@@ -108,6 +108,29 @@ test('Pisper prompt can be applied directly to an Agent session', () => {
   assert.match(prompt, /Application: Pisper/)
 })
 
+test('readonly transcript prompts use the live session prompt without rewriting history', () => {
+  const messages = Object.freeze([{ role: 'system', content: 'Historical prompt' }])
+  const session = {
+    model: { provider: 'test', id: 'model' },
+    systemPrompt: piPrompt,
+    agent: {
+      state: {
+        messages,
+        get systemPrompt() {
+          return messages[0].content
+        },
+      },
+    },
+  }
+  const prompt = applyPisperSystemPrompt(session)
+  assert.match(prompt, /^You are an expert coding assistant operating inside Pisper/)
+  assert.match(prompt, /Active model: model/)
+  assert.equal(session.agent.state.systemPrompt, 'Historical prompt')
+  assert.equal(session.agent.state.messages, messages)
+  session.model = { provider: 'test', id: 'replacement' }
+  assert.match(applyPisperSystemPrompt(session), /Active model: replacement/)
+})
+
 test('Pisper extension modifies the final per-turn system prompt with the active model', async () => {
   let handler
   pisperPromptExtension({
