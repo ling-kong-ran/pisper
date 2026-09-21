@@ -1,0 +1,13 @@
+{
+  "customUiPage.loading": "Loading components…",
+  "customUiPage.emptyTitle": "No custom components yet",
+  "customUiPage.emptyHint": "Create a folder named after your component ID in the directory below, drop in a manifest.json and an index.html, and your own interface will be mounted here. Components run in an isolated sandbox and can only use the capabilities declared in the manifest.",
+  "customUiPage.rescan": "Rescan",
+  "customUiPage.installedComponents": "{count} components",
+  "customUiPage.directoryHint": "Component directory: {path} (click rescan above after editing files)",
+  "customUiPage.selectComponent": "Pick a component on the left to preview it",
+  "customUiPage.componentFailedToLoad": "The component failed to load. Check that the entry file path is correct.",
+  "customUiPage.permissionConfigRead": "Read model config",
+  "customUiPage.permissionSessionsRead": "Read session list",
+  "customUiPage.permissionNotify": "Send notifications"
+}

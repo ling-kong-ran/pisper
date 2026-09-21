@@ -348,6 +348,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     providerDiscovery,
     providerModelDiscovery,
     browserAutomationDriver,
+    decisionService,
     capabilities = desktopRuntimeCapabilities(),
     eventObserver,
   } = {}) {
@@ -382,6 +383,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath, { dataDir })
     this.webSearch = new WebSearchService({ configPath: this.appConfigPath })
+    // 决策服务由 app-runtime 统一创建并注入（HTTP 路由与 Agent 工具共享同一配置）；
+    // 独立构造时可不注入，保留官方工具与人工审批路径。
+    this.decisions = decisionService || null
     this.visualGeneration = new VisualGenerationService({
       modelsPath: this.modelsPath,
       authPath: this.authPath,
@@ -417,6 +421,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       agentDir: dataDir,
       cwd,
       configPath: this.appConfigPath,
+      decisionService: this.decisions,
       getSettingsManager: (skillsCwd = this.cwd) => {
         if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
           return this.settingsManager
@@ -493,6 +498,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
+      // 审批委派：仅在设置页开启开关时把待审批判断交给决策模型。
+      decideDelegation: async ({ toolName, args, risk, reason, signal }) => {
+        if (!this.decisions?.delegationEnabled()) return 'ask'
+        const result = await this.decisions.judgeToolCall(
+          { toolName, args, risk, reason },
+          { signal },
+        )
+        return result.verdict
+      },
     })
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
@@ -1569,6 +1583,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           memoryRuntime: this.memory,
           getUserMessage: () => runtimeValue?.pendingUserMessage || '',
           webSearchService: this.webSearch,
+          decisionService: this.decisions,
           browserAutomationService: this.browserAutomation,
           browserSessionId: runtimeSessionId,
           visualGenerationService: this.visualGeneration,

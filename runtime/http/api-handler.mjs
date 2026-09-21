@@ -11,6 +11,8 @@ import {
 } from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
+import { customUiRoutes } from './routes/custom-ui.mjs'
+import { decisionRoutes } from './routes/decisions.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
 import { memoryAssetRoutes } from './routes/memory-assets.mjs'
@@ -31,6 +33,8 @@ const registry = createRouteRegistry([
   ...runRoutes,
   ...integrationRoutes,
   ...desktopRoutes,
+  ...decisionRoutes,
+  ...customUiRoutes,
 ])
 
 // 错误信息对外统一脱敏，避免把密钥/令牌泄漏到响应体。
@@ -141,6 +145,8 @@ export function createApiHandler(
     speechCatalog,
     speechTerms,
     runs,
+    decisions,
+    customUi,
   } = {},
 ) {
   const services = {
@@ -154,6 +160,8 @@ export function createApiHandler(
     speechModels,
     speechCatalog,
     speechTerms,
+    decisions,
+    customUi,
     runs: runs || new RunRegistry(),
   }
   return async function handleApi(req, res, url) {

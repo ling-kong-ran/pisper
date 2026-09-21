@@ -12,6 +12,7 @@ import {
   Plug,
   RadioTower,
   RefreshCw,
+  Scale,
   Server,
   Sparkles,
   type LucideIcon,
@@ -48,7 +49,15 @@ export const CONFIG_SECTIONS = new Set([
   'about',
 ])
 
-export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
+export const SETTINGS_PAGES = new Set([
+  'config',
+  'channels',
+  'plugins',
+  'memory',
+  'mcp',
+  'skills',
+  'decisions',
+])
 
 // 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
 // mobileApp 为 true 时（手机经代理访问），用「服务器」替代桌面端的远程访问管理面。
@@ -108,6 +117,12 @@ export function getSettingsNavigation(
           label: t('navigation:navigation.skills'),
           icon: Sparkles,
           destination: { type: 'page', id: 'skills' },
+        },
+        {
+          key: 'page:decisions',
+          label: t('navigation:navigation.decisions'),
+          icon: Scale,
+          destination: { type: 'page', id: 'decisions' },
         },
       ],
     },

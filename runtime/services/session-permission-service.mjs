@@ -232,6 +232,7 @@ export class SessionPermissionService {
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
     computerUseSecureRefs = new SecureRefRegistry(),
+    decideDelegation = null,
   } = {}) {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
@@ -239,6 +240,9 @@ export class SessionPermissionService {
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
     this.computerUseSecureRefs = computerUseSecureRefs
+    // 决策模型委派：返回 'approve' | 'ask'，由调用方注入；缺省不启用。
+    // 未知返回值按 'ask' 处理（继承会话权限模式）。
+    this.decideDelegation = typeof decideDelegation === 'function' ? decideDelegation : null
     this.approvalPath = approvalPath
     this.approvalWrite = Promise.resolve()
     this.pending = new Map()
@@ -404,6 +408,24 @@ export class SessionPermissionService {
       (await this.hasRememberedApproval(rememberedKey))
     )
       return undefined
+    // 决策模型委派：硬拦截（requirement.block）、密码等 skipRemember 敏感关卡和
+    // 需要人工看 Diff 的文件修改预览永不委派。模型只能授予便利（approve 放行），
+    // 其余结果与委派失败（网络/未配置）一律继承当前会话的权限模式（回落人工审批）。
+    if (this.decideDelegation && !previewedFileChange && !requirement.skipRemember) {
+      try {
+        const verdict = await this.decideDelegation({
+          sessionId,
+          toolName,
+          args,
+          risk: requirement.risk,
+          reason: requirement.reason,
+          signal,
+        })
+        if (verdict === 'approve') return undefined
+      } catch {
+        // 委派调用失败时静默回落人工审批，不阻断正常流程。
+      }
+    }
     const approval = await this.requestApproval({
       sessionId,
       toolName,

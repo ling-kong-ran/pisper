@@ -493,7 +493,14 @@ test('route code and route-specific vendor styles remain lazy', async () => {
       readFile('src/index.css', 'utf8'),
     ])
 
-  assert.equal(routeElements.match(/await import\(/g)?.length, 12)
+  // 每个路由加载器都必须保持动态导入；页面数量变化不应破坏懒加载保护。
+  const loaders = [...routeElements.matchAll(/export async function (\w+Route)\(/g)]
+  assert.ok(loaders.length > 0)
+  for (const [index, loader] of loaders.entries()) {
+    const body = routeElements.slice(loader.index, loaders[index + 1]?.index)
+    assert.match(body, /await import\(/, `${loader[1]} must load its page lazily`)
+    assert.match(router, new RegExp(`lazy: ${loader[1]}\\b`))
+  }
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
   assert.doesNotMatch(router, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)

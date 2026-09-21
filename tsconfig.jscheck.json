@@ -16,6 +16,8 @@
   },
   "files": [
     "runtime/http/route-registry.mjs",
+    "runtime/services/decision-remote-client.mjs",
+    "runtime/services/decision-service.mjs",
     "runtime/runtime/workspace-directories.mjs",
     "runtime/services/openai-request-transport.mjs",
     "shared/app-update.mjs"

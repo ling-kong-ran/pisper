@@ -57,9 +57,15 @@
 | 责任范围 | 当前偏差 | 完成条件 |
 | --- | --- | --- |
 | 环境与打包 | 根清单、npm 启动器的 Node ≥20 声明低于当前 Runtime 依赖要求 | 分别核验各宿主，统一清单、生成产物与文档，并验证声明的最低支持版本 |
-| 架构守卫 | `runtime/tests/runtime-architecture.test.mjs` 和 `runtime/tests/chat-architecture.test.mjs` 仍有固定行数断言 | 说明原保护目标，保留或补齐依赖/行为检查后移除行数硬门槛；迁移前仍如实报告现有检查结果 |
+| 架构守卫 | `runtime/tests/chat-architecture.test.mjs` 仍有固定行数断言；Runtime 守卫已改为门面单向依赖与 HTTP 分层检查，路由守卫逐个验证动态导入而不固定页面数量 | 说明原保护目标，保留或补齐依赖/行为检查后移除行数硬门槛；迁移前仍如实报告现有检查结果 |
 | Runtime 类型与公共协议 | JS 类型检查只覆盖少量文件，`src/types/chat.ts` 仍有宽泛 `EntityRecord` | 按领域补充 JSDoc/checkJs、边界校验、明确字段及 Web/TUI 契约测试，未知扩展限制在独立区域 |
 | HTTP 与错误契约 | `src/lib/http.ts` 对 JSON 解析失败回退成功文本；Web/TUI 仍匹配部分错误文案 | 分离响应解析契约，以兼容方式增加稳定错误码，覆盖非法响应和旧客户端路径 |
 | 前端请求与生命周期 | Memory/Schedules 等页面自行管理请求；部分 Runtime 测试有异步清理错误 | 统一数据所有权、取消与去重，覆盖乱序响应；测试先等待服务及写入任务收尾再删除目录 |
 | Feature 归属与入口 | 缺少明确公共入口，MCP 页面位于 workflows，聊天专属 Store 位于全局 | 按领域归属迁移受影响模块，声明公开子入口并同步调用方、守卫、懒加载和依赖检查 |
 | Runtime/TUI 职责 | 核心 Runtime 仍通过继承、原型注入共享大量状态；TUI 混合多个渲染与交互职责 | 分批明确状态所有者和窄接口；按独立变化原因拆分或合并，保持行为与跨端契约，不能仅以减少行数验收 |
+
+### 决策审批与 Computer Use 验证接线
+
+决策服务仍由 App Runtime 持有，通过 `SkillsService` 的窄依赖传入资源加载器。`runtime/runtime/computer-use-verification.mjs` 只装饰 Pi 已加载的官方 `act_ui` 定义，复用其参数、执行闭包与会话生命周期；不再单独加载同名扩展或创建第二份 bridge 状态。主会话及 Runtime 派生的子代理共用此接线，未注入决策服务的独立加载器保留官方工具。
+
+审批参数先经过现有结构化凭据检测；命中时不外发、不对脱敏后的不完整输入自动批准，而是回落人工审批。检测复用 `runtime/security/secret-redaction.mjs` 的模式，属于保守的已知凭据检测，不能保证识别所有无标签秘密。验证入口为 `runtime/tests/computer-use-verification.test.mjs`、`runtime/tests/decision-service.test.mjs` 和既有脱敏测试。回滚应同时恢复加载器及工具装饰接线，不能恢复两份 `bridge.ts` 实例；无持久化迁移。

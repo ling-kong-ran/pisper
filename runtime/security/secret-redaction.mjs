@@ -47,12 +47,14 @@ const CLI_GENERIC_TOKEN = new RegExp(
   'gi',
 )
 
+/** @param {unknown} value */
 function normalizedKey(value) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
 }
 
+/** @param {unknown} value */
 function looksLikeSecret(value) {
   if (typeof value !== 'string') return false
   const text = value.trim()
@@ -65,6 +67,7 @@ function looksLikeSecret(value) {
   )
 }
 
+/** @param {unknown} value @param {unknown} content */
 function sensitiveKey(value, content) {
   const key = normalizedKey(value)
   if (key === 'token') return looksLikeSecret(content)
@@ -76,11 +79,18 @@ function sensitiveKey(value, content) {
   )
 }
 
+/** @param {unknown} value */
 export function redactSecretText(value) {
+  // Shell 引号中的 HTTP 头不满足普通 key=value 的左边界，单独覆盖整段头值。
   return String(value ?? '')
     .replace(
       /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
       REDACTED_SECRET,
+    )
+    .replace(
+      /\b((?:proxy-)?authorization|cookie|x-api-key)([ \t]*:[ \t]*)([^\r\n"']+)/gi,
+      (match, name, separator, secret) =>
+        secret.trim() === REDACTED_SECRET ? match : `${name}${separator}${REDACTED_SECRET}`,
     )
     .replace(/\b(Bearer\s+)[a-z0-9._~+/-]{8,}/gi, `$1${REDACTED_SECRET}`)
     .replace(
@@ -110,11 +120,13 @@ export function redactSecretText(value) {
     .replace(/\b(?:sk|rk|pk|pcl|ghp|github_pat|xox[baprs])[-_][a-z0-9_-]{12,}\b/gi, REDACTED_SECRET)
 }
 
+/** @param {unknown} value */
 export function containsSecretText(value) {
   const text = String(value ?? '')
   return redactSecretText(text) !== text
 }
 
+/** @param {unknown} value @param {string} [key] @param {WeakSet<object>} [seen] @returns {unknown} */
 export function redactSecretValue(value, key = '', seen = new WeakSet()) {
   if (sensitiveKey(key, value)) return value == null ? value : REDACTED_SECRET
   if (typeof value === 'string') return redactSecretText(value)

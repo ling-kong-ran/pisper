@@ -1,0 +1,13 @@
+{
+  "customUiPage.loading": "正在加载组件…",
+  "customUiPage.emptyTitle": "还没有自定义组件",
+  "customUiPage.emptyHint": "在下面的目录中创建一个以组件 ID 命名的文件夹，放入 manifest.json 与 index.html，即可把自己写的界面挂载到这里。组件运行在隔离沙箱中，只能使用 manifest 声明的能力。",
+  "customUiPage.rescan": "重新扫描",
+  "customUiPage.installedComponents": "{count} 个组件",
+  "customUiPage.directoryHint": "组件目录：{path}（修改文件后点击上方重新扫描）",
+  "customUiPage.selectComponent": "从左侧选择一个组件开始预览",
+  "customUiPage.componentFailedToLoad": "组件加载失败，请检查入口文件路径是否正确。",
+  "customUiPage.permissionConfigRead": "读取模型配置",
+  "customUiPage.permissionSessionsRead": "读取会话列表",
+  "customUiPage.permissionNotify": "发送通知"
+}

@@ -25,6 +25,7 @@ import {
   getComputerUseOcrExtensionPath,
   getOfficialComputerUseExtensionPath,
 } from '../runtime/computer-use-extension.mjs'
+import { withComputerUseVerification } from '../runtime/computer-use-verification.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const SKILLS_STATE_VERSION = 2
@@ -437,6 +438,7 @@ export class SkillsService {
     createPackageManager,
     configPath,
     extensionFactories = [],
+    decisionService = null,
   } = {}) {
     this.path = path
     this.agentDir = agentDir
@@ -446,6 +448,7 @@ export class SkillsService {
     this.getSettingsManager = getSettingsManager || (() => null)
     this.createPackageManager = createPackageManager || null
     this.extensionFactories = extensionFactories
+    this.decisionService = decisionService
     this.state = { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }
     this.write = Promise.resolve()
     this.createWrite = Promise.resolve()
@@ -546,19 +549,19 @@ export class SkillsService {
           ? [getOfficialComputerUseExtensionPath(), getComputerUseOcrExtensionPath()]
           : [],
       additionalSkillPaths: resources.map((item) => item.path),
-      ...(disabledExtensionRoots.length
-        ? {
-            extensionsOverride: (current) => ({
-              ...current,
-              extensions: current.extensions.filter(
-                (extension) =>
-                  !disabledExtensionRoots.some((root) =>
-                    pathInside(root, extension.resolvedPath || extension.path),
-                  ),
-              ),
-            }),
-          }
-        : {}),
+      extensionsOverride: (current) =>
+        withComputerUseVerification(
+          {
+            ...current,
+            extensions: current.extensions.filter(
+              (extension) =>
+                !disabledExtensionRoots.some((root) =>
+                  pathInside(root, extension.resolvedPath || extension.path),
+                ),
+            ),
+          },
+          this.decisionService,
+        ),
       ...(existsSync(promptDir)
         ? {
             additionalPromptTemplatePaths: [promptDir],

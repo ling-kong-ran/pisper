@@ -54,3 +54,16 @@ test('credential redaction preserves repeated object references while still stop
   circular.self = circular
   assert.equal(redactSecretValue(circular).self, '[CIRCULAR]')
 })
+
+test('quoted command headers are detected without exposing Basic, Cookie or API keys', () => {
+  for (const command of [
+    'curl -H "Authorization: Basic dXNlcjpwdw==" https://example.invalid',
+    "curl -H 'Cookie: sid=fixture' https://example.invalid",
+    'curl -H "X-API-Key: fixture" https://example.invalid',
+  ]) {
+    const redacted = redactSecretText(command)
+    assert.notEqual(redacted, command)
+    assert.ok(redacted.includes(REDACTED_SECRET))
+    assert.equal(redactSecretText(redacted), redacted)
+  }
+})

@@ -183,7 +183,6 @@ export async function mcpRoute() {
 
 export async function skillsRoute() {
   const { SkillsPage } = await import('@/features/skills/SkillsPage')
-
   function SkillsRoute() {
     const context = useAppRouteContext()
     return (
@@ -199,6 +198,28 @@ export async function skillsRoute() {
   }
 
   return { Component: SkillsRoute }
+}
+
+export async function componentsRoute() {
+  const { CustomUiPage } = await import('@/features/custom-ui/CustomUiPage')
+
+  function ComponentsRoute() {
+    const context = useAppRouteContext()
+    return <CustomUiPage notify={context.notify} />
+  }
+
+  return { Component: ComponentsRoute }
+}
+
+export async function decisionsRoute() {
+  const { DecisionsPage } = await import('@/features/decisions/DecisionsPage')
+
+  function DecisionsRoute() {
+    const context = useAppRouteContext()
+    return <DecisionsPage notify={context.notify} />
+  }
+
+  return { Component: DecisionsRoute }
 }
 
 export async function workflowsRoute() {

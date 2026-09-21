@@ -9,10 +9,12 @@ import enChannels from '@/locales/en-US/channels.json' with { type: 'json' }
 import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
+import enCustomUi from '@/locales/en-US/custom-ui.json' with { type: 'json' }
 import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
 import enSchedules from '@/locales/en-US/schedules.json' with { type: 'json' }
+import enDecisions from '@/locales/en-US/decisions.json' with { type: 'json' }
 import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
 import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
 import enWorkflows from '@/locales/en-US/workflows.json' with { type: 'json' }
@@ -21,10 +23,12 @@ import zhChannels from '@/locales/zh-CN/channels.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
+import zhCustomUi from '@/locales/zh-CN/custom-ui.json' with { type: 'json' }
 import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
 import zhSchedules from '@/locales/zh-CN/schedules.json' with { type: 'json' }
+import zhDecisions from '@/locales/zh-CN/decisions.json' with { type: 'json' }
 import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
 import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
 import zhWorkflows from '@/locales/zh-CN/workflows.json' with { type: 'json' }
@@ -52,10 +56,12 @@ export const I18N_NAMESPACES = Object.freeze([
   'navigation',
   'chat',
   'config',
+  'custom-ui',
   'memory',
   'plugins',
   'schedules',
   'skills',
+  'decisions',
   'terminal',
   'workflows',
 ] as const)
@@ -87,8 +93,10 @@ void i18n.use(initReactI18next).init({
       navigation: zhNavigation,
       chat: zhChat,
       config: zhConfig,
+      'custom-ui': zhCustomUi,
       memory: zhMemory,
       plugins: zhPlugins,
+      decisions: zhDecisions,
       schedules: zhSchedules,
       skills: zhSkills,
       terminal: zhTerminal,
@@ -101,8 +109,10 @@ void i18n.use(initReactI18next).init({
       navigation: enNavigation,
       chat: enChat,
       config: enConfig,
+      'custom-ui': enCustomUi,
       memory: enMemory,
       plugins: enPlugins,
+      decisions: enDecisions,
       schedules: enSchedules,
       skills: enSkills,
       terminal: enTerminal,
