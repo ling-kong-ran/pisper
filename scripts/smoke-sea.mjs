@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { collectNativeState, criticalRuntimeEntries } from './sea-runtime.mjs'
@@ -103,7 +104,7 @@ async function smokeStagedModules() {
     import(stagedUrl('node_modules/playwright-core/index.mjs')),
     import(
       stagedUrl(
-        'node_modules/@earendil-works/pi-coding-agent/node_modules/@mariozechner/clipboard/index.js',
+        'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/native-platform.js',
       )
     ),
   ])
@@ -119,9 +120,22 @@ async function smokeStagedModules() {
   if (typeof playwright.chromium?.launch !== 'function') {
     throw new Error('Staged playwright-core package did not import.')
   }
-  const clipboardBinding = clipboard.default || clipboard
-  if (typeof clipboardBinding.getText !== 'function') {
-    throw new Error('Current-platform staged clipboard native binding did not load.')
+  if (typeof clipboard.getNativeClipboard !== 'function') {
+    throw new Error('Staged clipboard loader did not import.')
+  }
+  // Linux 无 DISPLAY 时上游不会加载原生模块；直接验证绑定，且不读取用户剪贴板。
+  const require = createRequire(import.meta.url)
+  for (const nativePath of manifest.native.selection.piTuiNativeFiles || []) {
+    const binding = require(
+      join(
+        runtimeRoot,
+        'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui',
+        nativePath,
+      ),
+    )
+    if (typeof binding.getText !== 'function' || typeof binding.getImage !== 'function') {
+      throw new Error('Current-platform staged clipboard native binding did not load.')
+    }
   }
 
   return manifest
