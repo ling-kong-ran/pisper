@@ -500,7 +500,8 @@ export class ProviderPreferences {
         throw new Error('该 Provider 当前未启用。')
       }
     }
-    await this.modelMetadata.ensure(modelId)
+    // 内网模型的选择不依赖公网模型目录，后台结果供后续展示使用。
+    void this.modelMetadata.ensure(modelId).catch(() => {})
     const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
     if (!model) throw new Error('指定的模型不存在。')
     return model

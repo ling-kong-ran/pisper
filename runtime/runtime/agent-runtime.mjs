@@ -1410,7 +1410,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.modelRuntime,
       this.sessionMeta[runtimeSessionId],
     )
-    await this.modelMetadata.ensure(preferredModelRef?.modelId || settings.defaultModel)
+    // 公网目录仅补充展示元数据；会话使用已配置模型，不能等待公网可达。
+    void this.modelMetadata
+      .ensure(preferredModelRef?.modelId || settings.defaultModel)
+      .catch(() => {})
     const preferredModel =
       preferredModelRef &&
       this.modelRuntime?.getModel?.(preferredModelRef.provider, preferredModelRef.modelId)

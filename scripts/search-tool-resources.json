@@ -1,0 +1,68 @@
+{
+  "rg": {
+    "version": "15.2.0",
+    "source": "https://github.com/BurntSushi/ripgrep",
+    "license": "MIT OR Unlicense",
+    "licenseFiles": ["COPYING", "LICENSE-MIT", "UNLICENSE"],
+    "assets": {
+      "darwin-arm64": {
+        "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-apple-darwin.tar.gz",
+        "sha256": "3750b2e93f37e0c692657da574d7019a101c0084da05a790c83fd335bad973e4",
+        "archiveRoot": "ripgrep-15.2.0-aarch64-apple-darwin"
+      },
+      "darwin-x64": {
+        "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-apple-darwin.tar.gz",
+        "sha256": "af7825fcc69a2afc7a7aea55fc9af90e26421d8f20fe59df32e233c0b8a231c1",
+        "archiveRoot": "ripgrep-15.2.0-x86_64-apple-darwin"
+      },
+      "linux-x64": {
+        "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+        "sha256": "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c",
+        "archiveRoot": "ripgrep-15.2.0-x86_64-unknown-linux-musl"
+      },
+      "linux-arm64": {
+        "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz",
+        "sha256": "800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915",
+        "archiveRoot": "ripgrep-15.2.0-aarch64-unknown-linux-musl"
+      },
+      "win32-x64": {
+        "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+        "sha256": "71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5",
+        "archiveRoot": "ripgrep-15.2.0-x86_64-pc-windows-msvc"
+      }
+    }
+  },
+  "fd": {
+    "version": "10.5.0",
+    "source": "https://github.com/sharkdp/fd",
+    "license": "MIT OR Apache-2.0",
+    "licenseFiles": ["LICENSE-MIT", "LICENSE-APACHE"],
+    "assets": {
+      "darwin-arm64": {
+        "url": "https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-aarch64-apple-darwin.tar.gz",
+        "sha256": "b67e1836c468e42e411984b56e52fa7abec08c2bd22c867398e7cc134aac5e12",
+        "archiveRoot": "fd-v10.5.0-aarch64-apple-darwin"
+      },
+      "darwin-x64": {
+        "url": "https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-x86_64-apple-darwin.tar.gz",
+        "sha256": "7e31028c62c6955877735d0406807aa484c2a5e6f86235a59e26c29c301da590",
+        "archiveRoot": "fd-v10.5.0-x86_64-apple-darwin"
+      },
+      "linux-x64": {
+        "url": "https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-x86_64-unknown-linux-musl.tar.gz",
+        "sha256": "761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7",
+        "archiveRoot": "fd-v10.5.0-x86_64-unknown-linux-musl"
+      },
+      "linux-arm64": {
+        "url": "https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-aarch64-unknown-linux-musl.tar.gz",
+        "sha256": "d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4",
+        "archiveRoot": "fd-v10.5.0-aarch64-unknown-linux-musl"
+      },
+      "win32-x64": {
+        "url": "https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-x86_64-pc-windows-msvc.zip",
+        "sha256": "a227701b8551c35a9931d9f6da75503cf86d88e182d71fb849a70864c5d57cd7",
+        "archiveRoot": "fd-v10.5.0-x86_64-pc-windows-msvc"
+      }
+    }
+  }
+}

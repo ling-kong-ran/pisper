@@ -62,6 +62,7 @@ const APP_SHARED_FILES = new Set([
   'vite.config.ts',
   'scripts/build-sea.mjs',
   'scripts/patch-pi-mobile-compat.mjs',
+  'scripts/patch-pi-offline-compat.mjs',
   'scripts/sea-runtime.mjs',
   'scripts/stage-runtime-closure.mjs',
   'src-tauri/Cargo.lock',

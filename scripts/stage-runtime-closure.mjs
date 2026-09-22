@@ -19,6 +19,7 @@ import {
 import { bundleRuntime } from './runtime-bundle.mjs'
 import { stageSpeechModel } from './stage-speech-model.mjs'
 import { stageOcrModels } from './stage-ocr-models.mjs'
+import { searchToolCriticalEntries, stageSearchTools } from './stage-search-tools.mjs'
 
 const run = promisify(execFile)
 
@@ -85,6 +86,7 @@ export async function stageRuntimeClosure({
 
   const beforePrune = await collectRuntimeSnapshot(runtimeDir)
   const { audit, nativeSelection } = await pruneRuntime(runtimeDir, target)
+  await stageSearchTools({ root, runtimeDir, target })
   // bundleRuntime 会重建 runtime/ 目录，模型必须在 bundle 完成后再放入，避免被清理。
   if (includeSpeechModel) await stageSpeechModel({ root, runtimeDir })
   const afterPrune = await collectRuntimeSnapshot(runtimeDir)
@@ -92,6 +94,7 @@ export async function stageRuntimeClosure({
     inspectCriticalFiles(runtimeDir, [
       ...criticalRuntimeEntries(nativeSelection),
       ...speechNativeEntries(target),
+      ...searchToolCriticalEntries(target),
     ]),
     collectNativeState(runtimeDir, nativeSelection),
   ])

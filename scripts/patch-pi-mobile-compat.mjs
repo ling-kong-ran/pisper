@@ -3,6 +3,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
+import { patchPiOfflineCompat } from './patch-pi-offline-compat.mjs'
 
 const root = join(process.cwd(), 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist')
 
@@ -160,3 +161,4 @@ for (const patch of patches) {
 }
 
 console.log(`Pi mobile compatibility patch ready (${changed} files changed).`)
+await patchPiOfflineCompat(root)

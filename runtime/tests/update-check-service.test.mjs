@@ -2,6 +2,38 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveGitCommit, UpdateCheckService } from '../services/update-check-service.mjs'
 
+test('an unreachable update server times out and releases the in-flight check', async (t) => {
+  let controller
+  t.mock.method(AbortSignal, 'timeout', (milliseconds) => {
+    assert.equal(milliseconds, 10_000)
+    controller = new AbortController()
+    return controller.signal
+  })
+  let requests = 0
+  const service = new UpdateCheckService({
+    currentVersion: '0.1.2',
+    currentCommit: '1111111111111111111111111111111111111111',
+    fetcher: (_url, { signal }) => {
+      requests += 1
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    },
+  })
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const first = service.check()
+    const second = service.check()
+    const settled = Promise.allSettled([first, second])
+    controller.abort(new DOMException('Update check timed out', 'TimeoutError'))
+    for (const result of await settled) {
+      assert.equal(result.status, 'rejected')
+      assert.equal(result.reason.name, 'TimeoutError')
+    }
+    assert.equal(requests, attempt + 1)
+    assert.equal(service.pending, null)
+  }
+})
+
 test('runtime update checks always compare the current commit with main', async () => {
   let requests = 0
   let now = Date.parse('2026-07-23T00:00:00.000Z')
