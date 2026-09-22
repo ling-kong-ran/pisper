@@ -1,9 +1,9 @@
 {
-  "version": "0.1.46",
-  "tag": "app-v0.1.46",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.46",
+  "version": "0.1.47",
+  "tag": "app-v0.1.47",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.47",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- chore(deps): update pi coding agent\n- refactor: decouple decision models and streamline client configuration\n- fix(chat): present request failures as neutral collapsible notices",
+  "notes": "- chore(release-runtime): runtime-v0.5.54\n- fix(memory): prevent silent extraction failures and refresh resumed session time",
   "releaseDate": "2026-09-22"
 }
