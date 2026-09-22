@@ -20,6 +20,7 @@
     "runtime/services/decision-service.mjs",
     "runtime/runtime/workspace-directories.mjs",
     "runtime/services/openai-request-transport.mjs",
+    "runtime/services/memory/abortable-memory-operation.mjs",
     "shared/app-update.mjs"
   ]
 }

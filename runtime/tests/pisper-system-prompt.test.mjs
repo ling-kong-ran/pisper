@@ -147,3 +147,31 @@ test('Pisper extension modifies the final per-turn system prompt with the active
   assert.match(result.systemPrompt, /Active provider: xai/)
   assert.match(result.systemPrompt, /Active model: grok-4\.5/)
 })
+
+test('resuming a session three days later refreshes its clock without rewriting historical messages', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-19T10:11:12Z') })
+  let handler
+  pisperPromptExtension({
+    on(_event, callback) {
+      handler = callback
+    },
+  })
+  const context = { model: { provider: 'test', id: 'test-model' } }
+  const first = await handler({ systemPrompt: piPrompt }, context)
+  assert.match(first.systemPrompt, /Current UTC time: 2026-09-19T10:11:12\.000Z/)
+  const history = Object.freeze([{ role: 'system', content: first.systemPrompt }])
+  t.mock.timers.setTime(new Date('2026-09-22T23:59:59Z').getTime())
+  const resumed = await handler({ systemPrompt: history[0].content }, context)
+  assert.match(resumed.systemPrompt, /Current UTC time: 2026-09-22T23:59:59\.000Z/)
+  assert.match(resumed.systemPrompt, /Runtime time zone: /)
+  assert.doesNotMatch(resumed.systemPrompt, /2026-09-19T10:11:12/)
+  assert.equal(
+    resumed.systemPrompt.split('\n\nCurrent UTC time:')[0],
+    first.systemPrompt.split('\n\nCurrent UTC time:')[0],
+  )
+  assert.equal((resumed.systemPrompt.match(/<pisper_runtime>/g) || []).length, 1)
+  assert.match(history[0].content, /2026-09-19T10:11:12/)
+  t.mock.timers.setTime(new Date('2026-09-23T00:00:01Z').getTime())
+  const nextDay = await handler({ systemPrompt: resumed.systemPrompt }, context)
+  assert.match(nextDay.systemPrompt, /Current UTC time: 2026-09-23T00:00:01\.000Z/)
+})

@@ -42,7 +42,7 @@ import { SessionPermissionService } from '../services/session-permission-service
 import { MobileOperationService } from '../services/mobile-operation-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
-import { captureConversationMemory, localDayKey } from './conversation-memory-capture.mjs'
+import { ConversationMemoryCapture, localDayKey } from './conversation-memory-capture.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
@@ -404,6 +404,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.memorySummarizer = createSemanticMemorySummarizer({
       getModelRuntime: () => this.modelRuntime,
       getDefaultModel: () => this.resolveDefaultModel(),
+    })
+    this.memoryCapture = new ConversationMemoryCapture({
+      getModelRuntime: () => this.modelRuntime,
+      waitForInitialization: () => this.waitForInitialization('memory'),
+      memory: this.memory,
+      recordUsage: (...args) => this.recordUsage(...args),
     })
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
@@ -2489,7 +2495,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           user: message,
           assistant: assistantText,
           sourceTimestamp: live.startedAt,
-        }).catch(() => {})
+        }).catch(() => this.memoryCapture.diagnose('capture_failed', session.sessionId))
       }
     } catch (error) {
       // 出错路径：清空排队输入、记录错误、暂停活动目标并广播 error 事件。
@@ -2555,8 +2561,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
   }
   async captureConversationMemory(input) {
-    await this.waitForInitialization('memory')
-    return captureConversationMemory(this, input)
+    return this.memoryCapture.capture(input)
   }
 }
 Object.assign(AgentRuntimeService.prototype, agentSessionMethods)

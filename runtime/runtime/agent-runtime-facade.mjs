@@ -780,6 +780,7 @@ export class AgentRuntimeFacade {
 
   // 全局关闭流程：清理定时器、后台服务与挂起的写盘任务，保证进程可干净退出。
   async dispose() {
+    await this.memoryCapture.dispose()
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null
     for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
