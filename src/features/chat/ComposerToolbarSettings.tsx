@@ -16,7 +16,7 @@ import {
   type ComposerToolId,
   type ComposerToolLocation,
 } from '@/features/chat/composer-toolbar-layout'
-import { useComposerToolbarStore } from '@/stores/composer-toolbar-store'
+import { useComposerToolbarStore } from '@/features/chat/composer-toolbar-store'
 
 function sameLayout(left: ComposerToolbarLayout, right: ComposerToolbarLayout) {
   return (

@@ -1,5 +1,5 @@
-// 类型化决策工具：把 Jev 决策模型暴露给 Agent，用于分类、路由、护栏、打分等
-// 需要快速判断的场景。后端由决策服务统一配置（远端 Jev API），
+// 类型化决策工具：把决策模型暴露给 Agent，用于分类、路由、护栏、打分等
+// 需要快速判断的场景。后端由决策服务统一配置，
 // 配置入口在「设置 → 决策模型」页面。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
@@ -10,8 +10,8 @@ export const manifest = {
   category: 'analysis',
   risk: 'low',
   description:
-    'Ask a decision model typed questions (yes-no, choice, score) about a state and get calibrated probability answers.',
-  scope: 'Remote Jev decision API configured in settings',
+    'Ask a decision model typed questions (yes-no, choice, score) about a state and get typed answers and available probabilities.',
+  scope: 'Remote decision model configured in settings',
   capability:
     'Judge text or structured state with typed questions and return probabilities without generating text',
   source: 'app',
@@ -47,13 +47,13 @@ export function createDecisionTool({ decisionService }) {
     label: manifest.name,
     description: manifest.description,
     promptSnippet:
-      'Get fast calibrated judgments (noul/choice/score) from the decision model instead of reasoning yourself',
+      'Get typed judgments (noul/choice/score) from the decision model instead of reasoning yourself',
     promptGuidelines: [
       'Use typed_decide for cheap judgments: intent classification, routing, moderation, relevance checks, and scoring against a rubric.',
       'All questions in one call are evaluated independently against the same state in parallel; batch related questions instead of making sequential calls.',
       'noul returns p(yes) in 0–1; a value near 0.5 means the evidence is balanced, not a medium degree. Use score for degrees.',
       'Answers carry probabilities, not guaranteed facts. For high-stakes actions, apply a confidence threshold or verify with reasoning.',
-      'The tool needs a configured Jev API key (settings → decision models). If it reports config_missing or auth, tell the user to complete the configuration instead of retrying.',
+      'The tool needs a configured decision API key (settings → decision models). If it reports config_missing or auth, tell the user to complete the configuration instead of retrying.',
       'The state you send leaves the machine via the configured remote API. Do not include secrets or credentials in state or questions.',
     ],
     parameters: Type.Object({

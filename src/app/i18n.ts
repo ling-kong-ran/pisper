@@ -10,6 +10,7 @@ import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
 import enCustomUi from '@/locales/en-US/custom-ui.json' with { type: 'json' }
+import enMcp from '@/locales/en-US/mcp.json' with { type: 'json' }
 import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
@@ -24,6 +25,7 @@ import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
 import zhCustomUi from '@/locales/zh-CN/custom-ui.json' with { type: 'json' }
+import zhMcp from '@/locales/zh-CN/mcp.json' with { type: 'json' }
 import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
@@ -57,6 +59,7 @@ export const I18N_NAMESPACES = Object.freeze([
   'chat',
   'config',
   'custom-ui',
+  'mcp',
   'memory',
   'plugins',
   'schedules',
@@ -94,6 +97,7 @@ void i18n.use(initReactI18next).init({
       chat: zhChat,
       config: zhConfig,
       'custom-ui': zhCustomUi,
+      mcp: zhMcp,
       memory: zhMemory,
       plugins: zhPlugins,
       decisions: zhDecisions,
@@ -110,6 +114,7 @@ void i18n.use(initReactI18next).init({
       chat: enChat,
       config: enConfig,
       'custom-ui': enCustomUi,
+      mcp: enMcp,
       memory: enMemory,
       plugins: enPlugins,
       decisions: enDecisions,

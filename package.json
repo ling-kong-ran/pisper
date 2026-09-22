@@ -64,6 +64,7 @@
     "@tencent-connect/qqbot-connector": "^1.2.0",
     "@tesseract.js-data/chi_sim": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
+    "@typesafe-ai/sdk": "0.6.0",
     "html-void-elements": "3.0.0",
     "officeparser": "^7.3.0",
     "openai": "^6.26.0",

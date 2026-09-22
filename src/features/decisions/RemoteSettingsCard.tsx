@@ -1,7 +1,16 @@
 // 远端配置卡片：Provider / Base URL / 模型 ID / API Key 编辑，
 // 保存走 PUT /api/decisions/config；连通性测试走 POST /api/decisions/test。
-import { useEffect, useState } from 'react'
-import { CheckCircle2, FlaskConical, KeyRound, RefreshCw, Save, XCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  CheckCircle2,
+  ChevronDown,
+  CircleHelp,
+  FlaskConical,
+  KeyRound,
+  RefreshCw,
+  Save,
+  XCircle,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import { AppSelect } from '@/components/AppSelect'
@@ -14,9 +23,11 @@ import {
   AppSectionTitle as SectionTitle,
   StatusBadge as Badge,
 } from '@/components/ui/app-primitives'
-import { cn } from '@/lib/utils'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   REMOTE_PROVIDER_PRESETS,
+  DECISION_PROVIDER_OPTIONS,
+  isDecisionRemoteProvider,
   decisionErrorMessage,
   testDecisionsConnection,
   updateDecisionsConfig,
@@ -25,8 +36,6 @@ import {
   type DecisionRemoteProvider,
   type DecisionTestResult,
 } from './decisions-api'
-
-const PROVIDERS: DecisionRemoteProvider[] = ['typesafe', 'openrouter', 'custom']
 
 type TestState =
   | { status: 'idle' | 'running' }
@@ -48,6 +57,8 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [test, setTest] = useState<TestState>({ status: 'idle' })
+  const testRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => testRequest.current?.abort(), [])
 
   // 后端配置变化（保存成功/切换 Provider 后后端回填默认值）时重新同步表单。
   useEffect(() => {
@@ -55,11 +66,27 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
     setBaseUrl(remote.baseUrl)
     setModelId(remote.modelId)
     setApiKey('')
-  }, [remote])
+  }, [remote.provider, remote.baseUrl, remote.modelId, remote.hasKey])
 
+  useEffect(() => {
+    testRequest.current?.abort()
+    setTest({ status: 'idle' })
+  }, [provider, baseUrl, modelId, apiKey, remote.hasKey])
+
+  const dirty =
+    provider !== remote.provider ||
+    baseUrl.trim() !== remote.baseUrl ||
+    modelId.trim() !== remote.modelId ||
+    Boolean(apiKey.trim())
+  const providerLabel = (value: DecisionRemoteProvider) => {
+    if (value === 'custom') return t('decisions:remote.providerCustom')
+    if (value === 'typesafe') return t('decisions:remote.providerTypesafe')
+    if (value === 'openrouter') return t('decisions:remote.providerOpenrouter')
+    return value
+  }
   const busy = disabled || saving || test.status === 'running'
   const preset = REMOTE_PROVIDER_PRESETS[provider]
-  const baseUrlEditable = provider === 'custom'
+  const baseUrlEditable = !preset.baseUrl
 
   // 切换 Provider 时回填该 Provider 的默认地址与模型，避免遗留上一个 Provider 的值。
   const changeProvider = (next: DecisionRemoteProvider) => {
@@ -70,6 +97,7 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
 
   const save = async (patch?: { apiKey: string | null }) => {
     setSaving(true)
+    setTest({ status: 'idle' })
     try {
       const result = await updateDecisionsConfig({
         remote: patch ?? {
@@ -94,11 +122,17 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
   }
 
   const runTest = async () => {
+    if (dirty || !remote.hasKey) return
+    testRequest.current?.abort()
+    const controller = new AbortController()
+    testRequest.current = controller
     setTest({ status: 'running' })
     try {
-      const result = await testDecisionsConnection()
+      const result = await testDecisionsConnection(controller.signal)
+      if (controller.signal.aborted) return
       setTest({ status: 'ok', result })
     } catch (caught) {
+      if (controller.signal.aborted) return
       setTest({
         status: 'error',
         message: decisionErrorMessage(caught, t('decisions:remote.testFailed')),
@@ -111,7 +145,6 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
       <AppCardHeader>
         <div className="flex min-w-0 flex-col gap-1">
           <SectionTitle title={t('decisions:remote.title')} />
-          <p>{t('decisions:remote.subtitle')}</p>
         </div>
         <Badge tone={remote.hasKey ? 'green' : 'gray'}>
           <KeyRound size={11} className="mr-1 inline" />
@@ -126,17 +159,15 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
             value={provider}
             disabled={busy}
             aria-label={t('decisions:remote.provider')}
-            onChange={(event) =>
-              changeProvider(
-                PROVIDERS.includes(event.target.value as DecisionRemoteProvider)
-                  ? (event.target.value as DecisionRemoteProvider)
-                  : 'custom',
-              )
-            }
+            onChange={(event) => {
+              if (isDecisionRemoteProvider(event.target.value)) changeProvider(event.target.value)
+            }}
           >
-            <option value="typesafe">{t('decisions:remote.providerTypesafe')}</option>
-            <option value="openrouter">{t('decisions:remote.providerOpenrouter')}</option>
-            <option value="custom">{t('decisions:remote.providerCustom')}</option>
+            {DECISION_PROVIDER_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {providerLabel(value)}
+              </option>
+            ))}
           </AppSelect>
         </FieldLabel>
         <FieldLabel variant="control" className="mt-0">
@@ -144,25 +175,22 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
           <Input
             value={modelId}
             disabled={busy}
-            placeholder={preset.modelId}
+            placeholder={t('decisions:remote.modelIdPlaceholder')}
             onChange={(event) => setModelId(event.target.value)}
           />
         </FieldLabel>
       </div>
 
-      <FieldLabel variant="control">
-        {t('decisions:remote.baseUrl')}
-        <Input
-          value={baseUrl}
-          disabled={busy || !baseUrlEditable}
-          placeholder={baseUrlEditable ? 'https://…' : preset.baseUrl}
-          onChange={(event) => setBaseUrl(event.target.value)}
-        />
-      </FieldLabel>
-      {!baseUrlEditable && (
-        <p className="mt-1 text-[11px] text-content-muted">
-          {t('decisions:remote.baseUrlLockedHint')}
-        </p>
+      {(baseUrlEditable || baseUrl !== preset.baseUrl) && (
+        <FieldLabel variant="control">
+          {t('decisions:remote.baseUrl')}
+          <Input
+            value={baseUrl}
+            disabled={busy || !baseUrlEditable}
+            placeholder="https://…"
+            onChange={(event) => setBaseUrl(event.target.value)}
+          />
+        </FieldLabel>
       )}
 
       <FieldLabel variant="control">
@@ -182,11 +210,16 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
       </FieldLabel>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button size="sm" disabled={busy} onClick={() => void save()}>
+        <Button size="sm" disabled={busy || !dirty} onClick={() => void save()}>
           {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
           {t('decisions:remote.save')}
         </Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => void runTest()}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy || dirty || !remote.hasKey}
+          onClick={() => void runTest()}
+        >
           {test.status === 'running' ? (
             <RefreshCw size={13} className="animate-spin" />
           ) : (
@@ -198,7 +231,6 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
           <Button
             size="sm"
             variant="ghost"
-            className="text-danger"
             disabled={busy}
             onClick={() => void save({ apiKey: null })}
           >
@@ -208,29 +240,36 @@ export function RemoteSettingsCard({ remote, disabled, notify, onSaved }: Remote
         )}
       </div>
 
-      {test.status !== 'idle' && test.status !== 'running' && (
-        <div
-          className={cn(
-            'mt-3 flex items-start gap-2 rounded-[var(--r-xs)] p-2 text-[12px] leading-[1.5]',
-            test.status === 'ok'
-              ? 'bg-success-soft text-success-strong'
-              : 'bg-danger-soft text-danger',
-          )}
-          role={test.status === 'error' ? 'alert' : 'status'}
-        >
-          {test.status === 'ok' ? (
-            <CheckCircle2 size={14} className="mt-0.5 flex-none" />
-          ) : (
-            <XCircle size={14} className="mt-0.5 flex-none" />
-          )}
-          <span className="min-w-0 [overflow-wrap:anywhere]">
-            {test.status === 'ok'
-              ? t('decisions:remote.testSucceeded', { model: test.result.model })
-              : test.status === 'error'
-                ? `${t('decisions:remote.testFailed')}：${test.message}`
-                : ''}
-          </span>
+      {dirty && (
+        <p className="mt-2 text-xs text-content-muted">{t('decisions:remote.saveBeforeTest')}</p>
+      )}
+
+      {test.status === 'ok' && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-content-muted" role="status">
+          <CheckCircle2 size={14} className="shrink-0" />
+          {t('decisions:remote.testSucceeded', { model: test.result.model ?? remote.modelId })}
         </div>
+      )}
+      {test.status === 'error' && (
+        <Collapsible className="mt-3 rounded-md border border-border bg-muted/40 text-content-muted">
+          <div className="flex items-center justify-between gap-3 p-3">
+            <span className="flex items-center gap-2 text-xs" role="status">
+              <CircleHelp size={14} className="shrink-0" />
+              {t('decisions:remote.testFailed')}
+            </span>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="group shrink-0">
+                {t('decisions:remote.details')}
+                <ChevronDown className="size-3 transition-transform group-data-[state=open]:rotate-180" />
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent>
+            <p className="max-h-40 overflow-auto border-t border-border p-3 text-xs whitespace-pre-wrap [overflow-wrap:anywhere]">
+              {test.message}
+            </p>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </Panel>
   )

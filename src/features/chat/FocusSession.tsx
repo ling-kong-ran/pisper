@@ -54,7 +54,7 @@ import type { FocusSessionProps } from '@/features/chat/focus-session-props'
 import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
 import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
-import { useComposerToolbarStore } from '@/stores/composer-toolbar-store'
+import { useComposerToolbarStore } from '@/features/chat/composer-toolbar-store'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/shortcuts'
 

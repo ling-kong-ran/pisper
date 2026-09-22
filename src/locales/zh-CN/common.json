@@ -58,5 +58,6 @@
   "app.openSettings": "前往设置",
   "statusBar.reconnecting": "重连中…",
   "statusBar.connectionLost": "运行时连接已断开，正在重新连接…",
-  "statusBar.connectionRestored": "运行时连接已恢复"
+  "statusBar.connectionRestored": "运行时连接已恢复",
+  "api.invalidResponse": "服务器响应格式异常，请稍后重试。"
 }

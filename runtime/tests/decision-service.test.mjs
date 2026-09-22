@@ -19,11 +19,7 @@ import { DecisionService } from '../services/decision-service.mjs'
 import { createApiHandler } from '../http/api-handler.mjs'
 
 function jsonResponse(status, payload) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => JSON.stringify(payload),
-  }
+  return Response.json(payload, { status })
 }
 
 const REMOTE_CONFIG = {
@@ -95,7 +91,7 @@ test('normalizeDecideInput 校验问题类型与边界', () => {
   )
   assert.throws(
     () => normalizeDecideInput({ state: 's', questions: [{ type: 'bogus', instructions: 'x' }] }),
-    /noul \/ choice \/ score/,
+    /type 必须/,
   )
 })
 
@@ -284,12 +280,35 @@ test('callRemoteDecisions 缺少密钥直接报配置错误', async () => {
 async function makeService(t, extra = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), 'pisper-decisions-'))
   t.after(async () => {
+    await service.dispose()
     await rm(dataDir, { recursive: true, force: true })
   })
   const service = new DecisionService({ dataDir, ...extra })
   await service.init()
   return service
 }
+
+test('DecisionService 停止时取消在途判断并等待请求完成', async (t) => {
+  const started = Promise.withResolvers()
+  const service = await makeService(t, {
+    fetchImpl: async (_url, { signal }) =>
+      new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        started.resolve()
+      }),
+  })
+  await service.updateConfig({ remote: { apiKey: 'synthetic' } })
+  const pending = assert.rejects(
+    service.decide({ state: 'x', questions: [{ type: 'noul', instructions: '?' }] }),
+    { code: 'aborted' },
+  )
+  await started.promise
+  await service.dispose()
+  await pending
+  assert.equal(service.inFlight.size, 0)
+  await assert.rejects(service.testConnection(), { code: 'disposed' })
+  await service.dispose()
+})
 
 test('DecisionService 配置：密钥不回传，空密钥保留，null 清除', async (t) => {
   const service = await makeService(t)

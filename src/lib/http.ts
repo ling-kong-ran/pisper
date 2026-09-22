@@ -1,4 +1,8 @@
+import { ApiError } from '@/lib/api-error'
+import { readHttpError, readJsonResponse } from '@/lib/http-response'
 import { createAbortScope, waitWithAbort } from '@/lib/abort-signal'
+
+export { ApiError, type ApiErrorKind } from '@/lib/api-error'
 
 // 移动恢复实现按需加载，避免桌面/Web 的首屏入口携带原生恢复代码。
 export async function waitForMobileRuntimeReady(signal?: AbortSignal) {
@@ -22,20 +26,7 @@ export async function waitForMobileRuntimeReady(signal?: AbortSignal) {
 // - body/data 二选一作为负载，自动 JSON 序列化并补 Content-Type；
 // - 支持外部 AbortSignal 与内置超时（默认 30s），超时/取消/网络错误统一
 //   归一为 ApiError，便于调用方用 instanceof 统一处理；
-// - 204 或空响应返回 undefined，非 JSON 响应原样返回文本。
-type ApiErrorPayload = {
-  error?: string
-  [key: string]: unknown
-}
-
-export type ApiErrorKind = 'http' | 'timeout' | 'cancelled' | 'network'
-
-type ApiErrorOptions = {
-  status?: number
-  data?: ApiErrorPayload
-  kind?: ApiErrorKind
-}
-
+// - JSON、文本使用显式解析入口；旧调用的 204/空响应仍返回 undefined。
 export type HttpRequestOptions = Omit<RequestInit, 'body' | 'signal'> & {
   body?: unknown
   data?: unknown
@@ -45,37 +36,6 @@ export type HttpRequestOptions = Omit<RequestInit, 'body' | 'signal'> & {
 
 export const DEFAULT_HTTP_TIMEOUT_MS = 30_000
 
-export class ApiError extends Error {
-  status?: number
-  data?: ApiErrorPayload
-  kind?: ApiErrorKind
-
-  constructor(message: string, options: ApiErrorOptions = {}) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = options.status
-    this.data = options.data
-    this.kind = options.kind
-  }
-}
-
-// 从错误响应文本中提取结构化负载：能解析为对象则原样返回，
-// 纯字符串则包一层 error 字段，解析失败返回 undefined 让调用方降级。
-function errorPayload(text: string): ApiErrorPayload | undefined {
-  if (!text) return undefined
-  try {
-    const parsed: unknown = JSON.parse(text)
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed))
-      return parsed as ApiErrorPayload
-    return {
-      error: typeof parsed === 'string' ? parsed : text,
-      body: parsed,
-    }
-  } catch {
-    return { error: text }
-  }
-}
-
 // 归一化任意异常为可展示文案：优先取 Error.message，否则字符串本身，
 // 兜底用传入的 fallback（避免把 undefined/对象直接拼进用户界面）。
 function errorMessage(error: unknown, fallback: string) {
@@ -84,9 +44,10 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-export async function requestJson<T = unknown>(
+async function request<T>(
   path: string,
-  options: HttpRequestOptions = {},
+  options: HttpRequestOptions,
+  readResponse: (response: Response) => Promise<T>,
 ): Promise<T> {
   const {
     body,
@@ -127,26 +88,8 @@ export async function requestJson<T = unknown>(
       headers,
       signal: controller.signal,
     })
-    if (response.status === 204) return undefined as T
-
-    const text = await response.text()
-    if (!response.ok) {
-      const normalized = errorPayload(text)
-      throw new ApiError(
-        normalized?.error || response.statusText || `请求失败 (${response.status})`,
-        {
-          status: response.status,
-          data: normalized,
-          kind: 'http',
-        },
-      )
-    }
-    if (!text) return undefined as T
-    try {
-      return JSON.parse(text) as T
-    } catch {
-      return text as T
-    }
+    if (!response.ok) throw await readHttpError(response)
+    return await readResponse(response)
   } catch (error) {
     if (error instanceof ApiError) throw error
     if (timedOut) throw new ApiError(`请求超时 (${timeout}ms)`, { kind: 'timeout' })
@@ -157,4 +100,20 @@ export async function requestJson<T = unknown>(
     if (timeoutId !== undefined) clearTimeout(timeoutId)
     externalSignal?.removeEventListener('abort', abortFromCaller)
   }
+}
+
+// 兼容已有泛型调用；新领域 API 必须提供 parse，将 unknown 校验后再交给页面。
+export function requestJson<T = unknown>(
+  path: string,
+  options: HttpRequestOptions & { parse?: (value: unknown) => T } = {},
+): Promise<T> {
+  const { parse, ...requestOptions } = options
+  return request(path, requestOptions, async (response) => {
+    const value = await readJsonResponse(response)
+    return parse ? parse(value) : (value as T)
+  })
+}
+
+export function requestText(path: string, options: HttpRequestOptions = {}): Promise<string> {
+  return request(path, options, (response) => response.text())
 }

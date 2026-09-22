@@ -1,9 +1,15 @@
-// 决策模型（Jev）API 模块：封装 /api/decisions/* 端点与契约类型。
+// 决策模型 API 模块：封装 /api/decisions/* 端点与契约类型。
 // 所有请求走统一 HTTP 客户端（apiJson）；apiKey 为只写字段
 // （'' 表示保持现有密钥，null 表示清除），响应永不包含密钥明文。
 import { apiJson } from '@/lib/api'
+import { invalidResponseError } from '@/lib/http-response'
+import {
+  DECISION_PROVIDER_CATALOG,
+  type DecisionProviderId,
+} from '@shared/decision-provider-catalog.mjs'
 
-export type DecisionRemoteProvider = 'typesafe' | 'openrouter' | 'custom'
+export type DecisionRemoteProvider = DecisionProviderId
+export type DecisionApprovalStatus = 'ready' | 'model_unverified' | 'threshold_required'
 
 export type DecisionRemoteConfig = {
   provider: DecisionRemoteProvider
@@ -15,6 +21,7 @@ export type DecisionRemoteConfig = {
 export type DecisionConfig = {
   remote: DecisionRemoteConfig
   delegate: DecisionDelegateConfig
+  approval?: { status: DecisionApprovalStatus }
 }
 
 export type DecisionDelegateConfig = {
@@ -45,7 +52,7 @@ export type DecisionUsage = {
 export type DecisionTestResult = {
   backend: 'remote'
   ok: true
-  model: string
+  model: string | null
   usage?: DecisionUsage
 }
 
@@ -69,42 +76,103 @@ export type DecisionAnswer =
   | {
       type: 'score'
       score: number
-      legend: Record<string, string>
+      legend: Record<string, unknown> | null
       probabilities: Record<string, number>
       confidence: number | null
     }
 
 export type DecideResult = {
   backend: 'remote'
-  model: string
+  model: string | null
   usage?: DecisionUsage
   answers: Record<string, DecisionAnswer>
 }
 
-// 与 runtime REMOTE_PROVIDERS 预设保持一致，仅用于表单占位与切换默认值；
-// 真正生效的地址/模型以后端 config 为准。
-export const REMOTE_PROVIDER_PRESETS: Record<
-  DecisionRemoteProvider,
-  { baseUrl: string; modelId: string }
-> = {
-  typesafe: { baseUrl: 'https://api.typesafe.ai', modelId: 'jev-1.13.0' },
-  openrouter: { baseUrl: 'https://openrouter.ai/api', modelId: 'typesafe/jev-1.13' },
-  custom: { baseUrl: '', modelId: 'typesafe/jev-1.13' },
+// Runtime 和表单共用网关默认值；协议实现与模型审批策略不进入浏览器。
+export function isDecisionRemoteProvider(value: unknown): value is DecisionRemoteProvider {
+  return typeof value === 'string' && Object.hasOwn(DECISION_PROVIDER_CATALOG, value)
 }
 
-export function fetchDecisionsStatus(signal?: AbortSignal) {
-  return apiJson<DecisionsStatus>('/api/decisions/status', { signal })
+export const DECISION_PROVIDER_OPTIONS =
+  Object.keys(DECISION_PROVIDER_CATALOG).filter(isDecisionRemoteProvider)
+
+export const REMOTE_PROVIDER_PRESETS = Object.fromEntries(
+  Object.entries(DECISION_PROVIDER_CATALOG).map(([id, preset]) => [
+    id,
+    {
+      baseUrl: preset.defaultBaseUrl,
+      modelId: preset.defaultModelId,
+    },
+  ]),
+)
+
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-export function updateDecisionsConfig(patch: DecisionConfigPatch) {
-  return apiJson<{ config: DecisionConfig }>('/api/decisions/config', {
-    method: 'PUT',
-    body: patch,
+// 增量 approval 状态必须校验，避免错误枚举被当成可自动审批；旧服务缺省该字段仍可读取。
+export function parseDecisionsStatus(value: unknown): DecisionsStatus {
+  if (!record(value) || !record(value.config)) throw invalidResponseError()
+  const { remote, delegate, approval } = value.config
+  if (!record(remote) || !record(delegate)) throw invalidResponseError()
+  const { provider, baseUrl, modelId, hasKey } = remote
+  if (
+    !isDecisionRemoteProvider(provider) ||
+    typeof baseUrl !== 'string' ||
+    typeof modelId !== 'string' ||
+    typeof hasKey !== 'boolean' ||
+    typeof delegate.enabled !== 'boolean' ||
+    typeof delegate.verifyActions !== 'boolean' ||
+    typeof delegate.allowThreshold !== 'number' ||
+    !Number.isFinite(delegate.allowThreshold) ||
+    delegate.allowThreshold < 0.5 ||
+    delegate.allowThreshold > 1
+  )
+    throw invalidResponseError()
+  let status: DecisionApprovalStatus | undefined
+  if (approval !== undefined) {
+    if (
+      !record(approval) ||
+      (approval.status !== 'ready' &&
+        approval.status !== 'model_unverified' &&
+        approval.status !== 'threshold_required')
+    )
+      throw invalidResponseError()
+    status = approval.status
+  }
+  return {
+    config: {
+      remote: { provider, baseUrl, modelId, hasKey },
+      delegate: {
+        enabled: delegate.enabled,
+        verifyActions: delegate.verifyActions,
+        allowThreshold: delegate.allowThreshold,
+      },
+      ...(status ? { approval: { status } } : {}),
+    },
+  }
+}
+
+export async function fetchDecisionsStatus(signal?: AbortSignal) {
+  return parseDecisionsStatus(await apiJson('/api/decisions/status', { signal }))
+}
+
+export async function updateDecisionsConfig(patch: DecisionConfigPatch) {
+  return parseDecisionsStatus(
+    await apiJson('/api/decisions/config', {
+      method: 'PUT',
+      body: patch,
+    }),
+  )
+}
+
+export function testDecisionsConnection(signal?: AbortSignal) {
+  return apiJson<DecisionTestResult>('/api/decisions/test', {
+    method: 'POST',
+    body: {},
+    signal,
+    timeout: 180_000,
   })
-}
-
-export function testDecisionsConnection() {
-  return apiJson<DecisionTestResult>('/api/decisions/test', { method: 'POST', body: {} })
 }
 
 export function runDecision(state: string, questions: DecisionQuestionInput[]) {

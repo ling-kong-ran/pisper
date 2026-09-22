@@ -163,7 +163,7 @@ export async function memoryRoute() {
 }
 
 export async function mcpRoute() {
-  const { McpPage } = await import('@/features/workflows/PreviewPages')
+  const { McpPage } = await import('@/features/mcp/McpPage')
 
   function McpRoute() {
     const context = useAppRouteContext()

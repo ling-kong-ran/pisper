@@ -1,3 +1,4 @@
+import { readHttpError } from '@/lib/http-response'
 import { ApiError, requestJson, type HttpRequestOptions } from './http.ts'
 
 export type ApiJsonOptions = Omit<HttpRequestOptions, 'data'>
@@ -17,14 +18,7 @@ export async function consumeEventStream<T = Record<string, unknown>>(
   response: Response,
   onEvent: (event: string, data: T, meta: { id: string | null }) => boolean | void,
 ): Promise<void> {
-  if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string }
-    throw new ApiError(data.error || `请求失败 (${response.status})`, {
-      status: response.status,
-      data,
-      kind: 'http',
-    })
-  }
+  if (!response.ok) throw await readHttpError(response)
   if (!response.body) throw new Error('响应不包含可读取的数据流')
   const reader = response.body.getReader()
   const decoder = new TextDecoder()

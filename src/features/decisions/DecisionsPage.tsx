@@ -1,10 +1,10 @@
-// 决策模型页面：Jev 式类型化决策（noul/choice/score）远端 API 接入配置。
+// 决策模型页面：远端配置、连通性验证与型号审批状态。
 // 该能力面向 Agent（typed_decide 工具），页面只负责配置与连通性验证。
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
-import { AppCard as Panel, AppSectionTitle as SectionTitle } from '@/components/ui/app-primitives'
+import { AppCard as Panel } from '@/components/ui/app-primitives'
 import { RemoteSettingsCard } from './RemoteSettingsCard'
 import { DelegationCard } from './DelegationCard'
 import { decisionErrorMessage, fetchDecisionsStatus, type DecisionsStatus } from './decisions-api'
@@ -31,7 +31,7 @@ export function DecisionsPage({ notify }: { notify: Notify }) {
   if (loadError) {
     return (
       <div className="mx-auto max-w-3xl p-6">
-        <Panel className="p-6 text-sm text-danger">{loadError}</Panel>
+        <Panel className="p-6 text-sm text-content-muted">{loadError}</Panel>
       </div>
     )
   }
@@ -45,16 +45,6 @@ export function DecisionsPage({ notify }: { notify: Notify }) {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6 pt-0">
-      <Panel className="p-5">
-        <SectionTitle title={t('decisions:page.introTitle')} />
-        <p className="mt-2 text-[13px] leading-6 text-content-muted">
-          {t('decisions:page.introBody')}
-        </p>
-        <p className="mt-2 text-[13px] leading-6 text-content-muted">
-          {t('decisions:page.agentHint')}
-        </p>
-      </Panel>
-
       <RemoteSettingsCard
         remote={status.config.remote}
         disabled={false}
@@ -64,6 +54,7 @@ export function DecisionsPage({ notify }: { notify: Notify }) {
 
       <DelegationCard
         delegate={status.config.delegate}
+        approvalStatus={status.config.approval?.status}
         hasKey={status.config.remote.hasKey}
         notify={notify}
         onSaved={(next) => setStatus((prev) => (prev ? { ...prev, config: next } : prev))}

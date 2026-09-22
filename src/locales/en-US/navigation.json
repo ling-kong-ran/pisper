@@ -24,7 +24,7 @@
   "navigation.components": "Components",
   "navigation.componentsDescription": "Dock interfaces you craft yourself into the ship's windows",
   "navigation.decisions": "Decisions",
-  "navigation.decisionsDescription": "Connect Jev-style typed decision models via remote API",
+  "navigation.decisionsDescription": "Configure models for judgments, classification, and scoring",
   "navigation.skillsDescription": "Collect reusable techniques so capabilities can be invoked by each task",
   "navigation.workflows": "Workflows",
   "navigation.workflowsDescription": "Arrange ideas into paths and let multiple processes grow in parallel",

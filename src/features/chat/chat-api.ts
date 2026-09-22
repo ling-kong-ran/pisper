@@ -1,3 +1,4 @@
+// @public 聊天领域对应用壳和其他 Feature 提供的会话 API；不加载聊天页面。
 // 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
 // consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
 import { streamEventsWithResume } from '@/lib/api'

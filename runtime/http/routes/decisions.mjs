@@ -15,6 +15,7 @@ function withErrorCode(handler) {
     try {
       await handler(context)
     } catch (error) {
+      if (context.res.destroyed) return
       if (error && typeof error.code === 'string') {
         const status = Number.isInteger(error.statusCode) ? error.statusCode : 400
         context.json(status, { error: context.publicError(error), code: error.code })
@@ -23,6 +24,28 @@ function withErrorCode(handler) {
       throw error
     }
   }
+}
+
+// 测试与显式决策属于当前 HTTP 请求；客户端断开后不得留下后台推理和重试。
+function withDecisionRequest(handler) {
+  return withErrorCode(async (context) => {
+    const { req, res } = context
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    const close = () => {
+      if (!res.writableEnded) abort()
+    }
+    req.once?.('aborted', abort)
+    res.once?.('close', close)
+    if (req.aborted || res.destroyed) abort()
+    try {
+      if (controller.signal.aborted) return
+      await handler({ ...context, signal: controller.signal })
+    } finally {
+      req.removeListener?.('aborted', abort)
+      res.removeListener?.('close', close)
+    }
+  })
 }
 
 function fields(value, allowed) {
@@ -64,18 +87,21 @@ export const decisionRoutes = [
   {
     method: 'POST',
     path: '/api/decisions/test',
-    handler: withErrorCode(async function handler({ services, json }) {
+    handler: withDecisionRequest(async function handler({ services, json, signal }) {
       const decisions = requireDecisions(services)
-      json(200, await decisions.testConnection())
+      const result = await decisions.testConnection({ signal })
+      if (!signal.aborted) json(200, result)
     }),
   },
   {
     method: 'POST',
     path: '/api/decisions/decide',
-    handler: withErrorCode(async function handler({ services, body, json }) {
+    handler: withDecisionRequest(async function handler({ services, body, json, signal }) {
       const decisions = requireDecisions(services)
       const input = fields(await body(), ['state', 'questions'])
-      json(200, await decisions.decide(input))
+      if (signal.aborted) return
+      const result = await decisions.decide(input, { signal })
+      if (!signal.aborted) json(200, result)
     }),
   },
 ]

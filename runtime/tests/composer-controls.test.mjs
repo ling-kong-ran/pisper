@@ -21,7 +21,7 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
     readFile('src/features/chat/composer-toolbar-layout.ts', 'utf8'),
     readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
     readFile('src/features/chat/ComposerToolbarSettings.tsx', 'utf8'),
-    readFile('src/stores/composer-toolbar-store.ts', 'utf8'),
+    readFile('src/features/chat/composer-toolbar-store.ts', 'utf8'),
   ])
 
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)

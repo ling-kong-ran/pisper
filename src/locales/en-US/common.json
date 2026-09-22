@@ -58,5 +58,6 @@
   "app.openSettings": "Open settings",
   "statusBar.reconnecting": "Reconnecting…",
   "statusBar.connectionLost": "Runtime connection lost, reconnecting…",
-  "statusBar.connectionRestored": "Runtime connection restored"
+  "statusBar.connectionRestored": "Runtime connection restored",
+  "api.invalidResponse": "The server returned an invalid response. Please try again."
 }

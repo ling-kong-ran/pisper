@@ -35,7 +35,9 @@ export const useComposerToolbarStore = create<ComposerToolbarState>()(
       merge: (persisted, current) => ({
         ...current,
         layout: normalizeComposerToolbarLayout(
-          (persisted as Partial<ComposerToolbarState> | undefined)?.layout,
+          persisted && typeof persisted === 'object' && 'layout' in persisted
+            ? persisted.layout
+            : undefined,
         ),
       }),
     },

@@ -28,7 +28,7 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
-import { WebPreviewProvider } from '@/components/WebPreviewProvider'
+import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import {
   MobilePrimaryNavigation,
@@ -43,7 +43,6 @@ import {
   COMMAND_PALETTE_REQUESTED_EVENT,
   requestSessionSelection,
 } from '@/features/chat/events'
-import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import {
   fetchStartupQuery,
@@ -81,6 +80,16 @@ const CommandPalette = lazy(() =>
 )
 const QuickCreate = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({ default: module.QuickCreate })),
+)
+const WebDesktopPet = lazy(() =>
+  import('@/features/desktop-pet/WebDesktopPet').then((module) => ({
+    default: module.WebDesktopPet,
+  })),
+)
+const ConfigSearchBox = lazy(() =>
+  import('@/features/config/public-components').then((module) => ({
+    default: module.ConfigSearchBox,
+  })),
 )
 const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
@@ -698,7 +707,11 @@ function App() {
             />
           </Suspense>
         )}
-        {runtimeFeatureAvailable(capabilities, 'desktopPet') && <WebDesktopPet />}
+        {runtimeFeatureAvailable(capabilities, 'desktopPet') && (
+          <Suspense fallback={null}>
+            <WebDesktopPet />
+          </Suspense>
+        )}
         <SidebarProvider
           className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
           data-mobile-app={mobileLayout || undefined}
@@ -759,7 +772,18 @@ function App() {
                 configSection={configSection}
                 onMenu={() => setMobileNav(true)}
                 onPrimary={handlePrimary}
-                onConfigSearchSelect={setConfigSection}
+                searchSlot={
+                  page === 'config' ? (
+                    <Suspense fallback={null}>
+                      <ConfigSearchBox
+                        query={query}
+                        onQueryChange={setQuery}
+                        onSelect={setConfigSection}
+                        inputRef={searchInputRef}
+                      />
+                    </Suspense>
+                  ) : undefined
+                }
                 searchInputRef={searchInputRef}
                 theme={theme}
                 onCycleTheme={cycleTheme}
