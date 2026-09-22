@@ -1,9 +1,9 @@
 {
-  "version": "0.1.47",
-  "tag": "app-v0.1.47",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.47",
+  "version": "0.1.48",
+  "tag": "app-v0.1.48",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.48",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- chore(release-runtime): runtime-v0.5.54\n- fix(memory): prevent silent extraction failures and refresh resumed session time",
+  "notes": "- fix(runtime): bundle search tools and unblock offline sessions",
   "releaseDate": "2026-09-22"
 }
