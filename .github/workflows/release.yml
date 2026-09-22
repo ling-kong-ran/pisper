@@ -235,7 +235,7 @@ jobs:
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem release/tauri-artifacts -Filter '*-setup.exe')
+          $installers = @(Get-ChildItem release/tauri-artifacts -Recurse -File -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
           $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
           New-Item -ItemType Directory -Path $payloadDir | Out-Null
