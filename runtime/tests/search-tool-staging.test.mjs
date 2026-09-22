@@ -6,10 +6,24 @@ import test from 'node:test'
 import { isAppOwnedPath } from '../../scripts/app-paths.mjs'
 import { releaseComponentsForPath } from '../../scripts/release-changes.mjs'
 import {
+  searchArchiveCommand,
   searchToolEntries,
   searchToolCriticalEntries,
   stageSearchTools,
 } from '../../scripts/stage-search-tools.mjs'
+
+test('Windows archive extraction uses system bsdtar even when Git tar precedes it on PATH', () => {
+  assert.equal(
+    searchArchiveCommand('win32', { SystemRoot: 'D:\\Windows', PATH: 'C:\\Git\\usr\\bin' }),
+    'D:\\Windows\\System32\\tar.exe',
+  )
+  assert.equal(
+    searchArchiveCommand('win32', { WINDIR: 'E:\\Windows' }),
+    'E:\\Windows\\System32\\tar.exe',
+  )
+  assert.equal(searchArchiveCommand('win32', {}), 'C:\\Windows\\System32\\tar.exe')
+  assert.equal(searchArchiveCommand('darwin', {}), 'tar')
+})
 
 test('offline packaging changes reach Runtime and desktop releases, with shared patches reaching mobile', () => {
   for (const path of [

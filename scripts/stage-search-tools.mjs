@@ -1,13 +1,20 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, join, win32 } from 'node:path'
 import { promisify } from 'node:util'
 import resources from './search-tool-resources.json' with { type: 'json' }
 
 const run = promisify(execFile)
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 const TOOL_ROOT = 'node_modules/@earendil-works/pi-coding-agent/vendor/bin'
+
+export function searchArchiveCommand(platform = process.platform, env = process.env) {
+  // Git/MSYS 的 GNU tar 会把盘符当远端地址且不能解 ZIP；Windows 必须使用系统 bsdtar。
+  return platform === 'win32'
+    ? win32.join(env.SystemRoot || env.WINDIR || 'C:\\Windows', 'System32', 'tar.exe')
+    : 'tar'
+}
 
 export function searchToolEntries(target) {
   if (target.platform === 'mobile') return []
@@ -74,7 +81,11 @@ export async function stageSearchTools({ root, runtimeDir, target, fetchImpl = g
       // 使用独占临时副本解包；并行构建不能读取尚未写完的共享缓存。
       const archive = join(temporary, 'archive' + (asset.url.endsWith('.zip') ? '.zip' : '.tar.gz'))
       await writeFile(archive, bytes)
-      await run('tar', ['-xf', archive, '-C', temporary], { timeout: 30_000, windowsHide: true })
+      await run(searchArchiveCommand(), ['-xf', basename(archive)], {
+        cwd: temporary,
+        timeout: 30_000,
+        windowsHide: true,
+      })
       const extracted = join(temporary, asset.archiveRoot)
       await copyFile(join(extracted, filename), join(destination, filename))
       if (target.platform !== 'win32') await chmod(join(destination, filename), 0o755)
