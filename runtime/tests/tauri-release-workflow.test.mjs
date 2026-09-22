@@ -153,6 +153,21 @@ test('Windows GNU packages carry the WebView2 loader through an explicit Rust ta
   assert.match(staging, /process\.env\.PISPER_TAURI_BUNDLE_DIR/)
 })
 
+test('Windows installers include the full WebView2 runtime without a network bootstrapper', async () => {
+  const config = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'))
+  const updaterConfig = JSON.parse(await readFile('src-tauri/tauri.updater.conf.json', 'utf8'))
+  // 签名发布会合并 updater 配置；两条打包路径都必须保留离线安装策略。
+  for (const windows of [
+    config.bundle.windows,
+    { ...config.bundle.windows, ...updaterConfig.bundle?.windows },
+  ]) {
+    assert.equal(windows.webviewInstallMode.type, 'offlineInstaller')
+    assert.equal(windows.webviewInstallMode.silent, true)
+    // Tauri 的最低版本升级分支调用在线 Edge Update，不应重新引入安装时联网。
+    assert.ok(!windows.minimumWebview2Version)
+  }
+})
+
 test('desktop startup refreshes only an existing managed TUI installation', async () => {
   const [manager, desktop] = await Promise.all([
     readFile('src-tauri/src/desktop_shell/cli_manager.rs', 'utf8'),

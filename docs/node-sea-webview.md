@@ -51,6 +51,31 @@ macOS x64/ARM64      .app and .dmg
 Linux x64            .AppImage and .deb
 ```
 
+### Windows offline installation
+
+Windows NSIS packages use Tauri's `webviewInstallMode: offlineInstaller` and embed the
+complete Microsoft Evergreen WebView2 Runtime installer. The build machine downloads
+the runtime from Microsoft's distribution endpoint; the user's machine does not need
+internet access to install this prerequisite. Tauri checks for an existing WebView2
+installation and installs the bundled runtime silently when it is missing. Do not
+replace this with `embedBootstrapper`: that embeds only a downloader.
+
+The installer grows by the size of the WebView2 offline payload. Node and the production
+JavaScript dependency closure remain bundled in the SEA and `sidecar-runtime/`; users do
+not need to install Node, npm, Python, or Bash to launch Pisper. Optional tools, external
+MCP servers, model downloads, updates, and cloud APIs retain their own requirements.
+
+WebView2 is redistributed under Microsoft's terms and is maintained by Tauri's bundler,
+not copied into the repository. Windows release jobs extract the packaged payload,
+verify its Microsoft Authenticode signature, and record its version and SHA-256 in the
+build log. Pisper's updater signature covers the complete installer, including this payload. See
+[Tauri's Windows installer documentation](https://v2.tauri.app/distribute/windows-installer/#offline-installer).
+
+For acceptance, use a Windows VM with no WebView2 installed and disconnect its external
+network before running the installer. Verify both installation and first launch, then
+repeat installation with WebView2 already present. A build or a payload check alone is
+not evidence that this clean-machine offline acceptance has passed.
+
 Release assets are normalized so macOS architectures cannot collide:
 
 ```text

@@ -25,6 +25,21 @@
 
 这一兼容处理不能保证解除 Cloudflare 拦截。遇到 HTML 格式的 403 页面时，由端点管理员使用响应中的 Ray ID 查询安全事件，区分 IP/地区规则、机器人检测与 WAF 规则。页面显示来源 IP 或要求 Cookie，不足以确定封禁原因。不要提交 API Key、Cookie 或完整用户请求来排查。
 
+## Windows 内网安装提示缺少依赖
+
+Windows 桌面安装包内置完整的 WebView2 离线安装器，缺少 WebView2 时直接从安装包安装；
+已有 WebView2 时复用系统安装。Node 和生产 JavaScript 依赖也随包交付，启动 Pisper
+不要求用户额外安装 Node、npm、Python 或 Bash。安装包会因内置 WebView2 增大。
+
+旧包使用 Tauri 默认的在线 WebView2 引导器；缺少 WebView2 且无法访问微软下载服务时，
+会在安装阶段失败。0.5.68 与 0.5.71 的此项配置相同，因此“旧版能安装、新版不能”
+本身不足以确认是 WebView2 问题。应保留原始报错中的依赖名称，并区分安装阶段报错与
+安装完成后的启动报错；DLL 缺失或 `Cannot find module` 需要继续检查对应打包依赖。
+不要用卸载 WebView2、删除用户数据或批量清理运行环境来排查。
+
+离线安装的验收与发布产物检查见 [Windows 安装说明](../node-sea-webview.md#windows-offline-installation)。
+离线安装不等于云端模型或其他联网功能可以离线使用；可选工具仍遵循各自的运行要求。
+
 ## Windows Python 内存上涨、停止后进程仍在
 
 0.5.68 的无 Bash 回退路径使用系统 PowerShell。旧实现取消或超时只终止

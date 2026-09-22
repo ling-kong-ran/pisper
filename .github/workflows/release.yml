@@ -231,6 +231,29 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Verify bundled Windows offline prerequisite
+        if: runner.os == 'Windows' && inputs.component == 'desktop'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem release/tauri-artifacts -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
+          $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $payloadDir | Out-Null
+          try {
+            & 7z x $installers[0].FullName "-o$payloadDir" '*MicrosoftEdgeWebView2RuntimeInstaller.exe' -r -y | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
+            $payloads = @(Get-ChildItem $payloadDir -Recurse -Filter MicrosoftEdgeWebView2RuntimeInstaller.exe)
+            if ($payloads.Count -ne 1) { throw 'Windows installer is missing the offline WebView2 runtime.' }
+            $payload = $payloads[0]
+            $signature = Get-AuthenticodeSignature $payload.FullName
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
+              throw 'Bundled WebView2 runtime must have a valid Microsoft signature.'
+            }
+            $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
+            Write-Host "Bundled WebView2: version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
+          } finally {
+            Remove-Item $payloadDir -Recurse -Force
+          }
       - name: Test desktop shell on the release platform
         if: inputs.component == 'desktop'
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
