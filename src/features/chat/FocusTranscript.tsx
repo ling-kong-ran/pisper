@@ -12,7 +12,6 @@ import {
   type UIEvent,
 } from 'react'
 import {
-  AlertTriangle,
   ArrowDown,
   Bug,
   Code2,
@@ -46,6 +45,7 @@ import {
   type TranscriptPrependSnapshot,
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
+import { ChatRequestNotice } from './ChatRequestNotice'
 import { WelcomeBrandStage } from './welcome-brand'
 
 import { Button } from '@/components/ui/button'
@@ -493,11 +493,8 @@ export function FocusTranscript({
             />
           </div>
         )}
-        {error && (
-          <div className="flex w-[min(1040px,100%)] items-center gap-[7px] [margin:8px_auto] rounded-[var(--r-sm)] bg-[var(--danger-soft)] text-[var(--danger)] [padding:9px_11px] text-[13px]">
-            <AlertTriangle size={14} />
-            {error}
-          </div>
+        {error && error !== lastMessage?.error && (
+          <ChatRequestNotice error={error} className="mx-auto my-2 w-full max-w-[1040px]" />
         )}
       </div>
       {hasUnread && (

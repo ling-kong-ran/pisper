@@ -325,7 +325,6 @@
   "chatPage.onNarrowScreensChatsStayInASingleTabGroup": "窄屏模式下会话将保留在同一标签组中。",
   "chatPage.pleaseAnalyzeTheseAttachments": "请分析这些附件。",
   "chatPage.renameChat": "重命名会话",
-  "chatPage.retryingAttemptMaxAttemptsMessage": "正在重试 {attempt}/{maxAttempts}：{message}",
   "chatPage.save": "保存",
   "chatPage.splitToBottom": "拆分到下方",
   "chatPage.splitToLeft": "拆分到左侧",
@@ -658,5 +657,10 @@
   "chatMessage.fileActionRevert": "撤销改动",
   "chatMessage.fileActionConfirmRevert": "再次点击确认撤销",
   "chatMessage.fileActionRevertDone": "已撤销改动：{path}",
-  "chatMessage.fileActionRevertFailed": "撤销改动失败：{path}"
+  "chatMessage.fileActionRevertFailed": "撤销改动失败：{path}",
+  "requestNotice.incomplete": "本次请求未完成",
+  "requestNotice.showDetails": "查看详情",
+  "requestNotice.hideDetails": "收起详情",
+  "requestNotice.details": "请求详情",
+  "requestNotice.retryingAttempt": "正在自动重试（{attempt}/{maxAttempts}）"
 }

@@ -10,6 +10,7 @@ import { planFromActivity } from '@/lib/plan-protocol'
 import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { EntityRecord, TeamCommunication, TeamState, TeamTask } from '@/types/chat'
 import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
+import { ChatRequestNotice } from './ChatRequestNotice'
 import { latestComputerUseTarget } from './computer-use-live-support.ts'
 import {
   agentActivityTitle,
@@ -33,7 +34,7 @@ const EMPTY_LIST: EntityRecord[] = []
 // 运行状态图标的着色/尺寸规则在 summary 与 overview 两种容器、
 // 以及实时/历史多处视图中一字不差地重复，收敛为单一来源。
 const AGENT_RUN_STATUS_ICON_CLASS =
-  'agent-run-status-icon [.agent-thinking-window.running_&]:text-[var(--brand-blue-strong)] [.agent-run-summary.completed_&]:text-[var(--success)] [.agent-run-summary.plan_&]:text-[var(--success)] [.agent-run-overview.completed_&]:text-[var(--success)] [.agent-run-overview.plan_&]:text-[var(--success)] [.agent-run-summary.compacting_&]:text-[var(--star-strong)] [.agent-run-overview.compacting_&]:text-[var(--star-strong)] [.agent-run-summary.failed_&]:text-[var(--danger)] [.agent-run-overview.failed_&]:text-[var(--danger)] [.agent-run-summary.stopped_&]:text-[var(--text-muted)] [.agent-run-overview.stopped_&]:text-[var(--text-muted)] [.agent-run-activity.compact_&]:w-[24px] [.agent-run-activity.compact_&]:h-[24px] grid w-[28px] h-[28px] place-items-center text-[var(--brand-blue-strong)]'
+  'agent-run-status-icon [.agent-thinking-window.running_&]:text-[var(--brand-blue-strong)] [.agent-run-summary.completed_&]:text-[var(--success)] [.agent-run-summary.plan_&]:text-[var(--success)] [.agent-run-overview.completed_&]:text-[var(--success)] [.agent-run-overview.plan_&]:text-[var(--success)] [.agent-run-summary.compacting_&]:text-[var(--star-strong)] [.agent-run-overview.compacting_&]:text-[var(--star-strong)] [.agent-run-summary.failed_&]:text-[var(--text-muted)] [.agent-run-overview.failed_&]:text-[var(--text-muted)] [.agent-run-summary.stopped_&]:text-[var(--text-muted)] [.agent-run-overview.stopped_&]:text-[var(--text-muted)] [.agent-run-activity.compact_&]:w-[24px] [.agent-run-activity.compact_&]:h-[24px] grid w-[28px] h-[28px] place-items-center text-[var(--brand-blue-strong)]'
 const AnimatedList = lazy(() =>
   import('@/components/react-bits/AnimatedList').then((module) => ({
     default: module.AnimatedList,
@@ -249,7 +250,7 @@ function activityPresentation(
   } else if (activity.type === 'retry') {
     tone = 'waiting'
     title = t('chat:agentRunActivity.retryingRequest')
-    detail = activity.message || notice || ''
+    detail = activity.summary || notice || ''
   } else {
     const inactiveMs = Math.max(0, now - new Date(lastActivityAt || now).getTime())
     if (error) {
@@ -506,6 +507,16 @@ const ActivityCard = memo(function ActivityCard({
     now: Date.now(),
   })
   const showCommandOutput = activity.name === 'bash' && latest && Boolean(activity.output)
+  if (activity.type === 'retry') {
+    return (
+      <ChatRequestNotice
+        title={activity.summary || t('chat:agentRunActivity.retryingRequest')}
+        error={String(activity.message || '')}
+        pending={Boolean(streaming && latest)}
+        className="my-1"
+      />
+    )
+  }
   return (
     <ActivityElement
       activity={activity}

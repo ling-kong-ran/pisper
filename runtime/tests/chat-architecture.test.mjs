@@ -170,6 +170,9 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
 
   dispatcher.dispatch('retry', { attempt: 1, maxAttempts: 3, message: 'Temporary error' })
   assert.ok(state.runNotice)
+  assert.equal(state.currentActivity.summary, state.runNotice)
+  assert.equal(state.currentActivity.message, 'Temporary error')
+  assert.ok(!state.runNotice.includes('Temporary error'))
   dispatcher.dispatch('agent_lifecycle', {
     lifecycle: {
       phase: 'thinking',

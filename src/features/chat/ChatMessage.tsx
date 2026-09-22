@@ -3,7 +3,6 @@
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -38,6 +37,7 @@ import {
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
+import { ChatRequestNotice } from './ChatRequestNotice'
 import { chatApi } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
@@ -695,7 +695,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const [retrying, setRetrying] = useState(false)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
-  const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
+  // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
+  const displayText = message.error && fullText === message.error ? '' : fullText
   // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——否则首轮事件
   // 空窗期活动区渲染空壳，三点动画永远不会出现。
   const hasVisibleRunActivity = Boolean(
@@ -713,7 +714,6 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         'message mx-auto mb-8 w-full max-w-[1040px] min-w-0 gap-0',
         message.role === 'agent' ? 'items-stretch' : 'items-end',
         message.role,
-        message.error && 'has-error',
       )}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
@@ -774,11 +774,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           />
         )}
       </div>
-      {message.error && fullText && !streaming && (
-        <div className="message-error-notice mt-3 flex items-start gap-1.5 text-[13px] leading-[1.5] text-[var(--danger)]">
-          <AlertTriangle size={13} className="mt-[3px] flex-none" />
-          <span className="min-w-0">{String(message.error)}</span>
-        </div>
+      {message.error && !streaming && (
+        <ChatRequestNotice error={String(message.error)} className="mt-3" />
       )}
       {message.role === 'agent' &&
         !streaming &&

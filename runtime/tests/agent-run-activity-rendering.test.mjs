@@ -8,6 +8,21 @@ import { translateText } from '../../src/app/i18n.ts'
 const t = (key, values) => translateText(key, 'zh-CN', values)
 const render = (props) => renderToStaticMarkup(React.createElement(AgentRunActivity, props))
 
+test('retry notices show progress while keeping provider diagnostics collapsed', () => {
+  const rawError = '429 rate limit: long provider response'
+  const summary = t('chat:requestNotice.retryingAttempt', { attempt: 1, maxAttempts: 3 })
+  for (const activity of [
+    { type: 'retry', message: rawError, summary },
+    // 旧历史没有摘要，仍使用简短标题，详情按需展开。
+    { type: 'retry', message: rawError },
+  ]) {
+    const html = render({ streaming: true, activityFeed: [activity] })
+    assert.ok(html.includes(activity.summary || t('chat:agentRunActivity.retryingRequest')))
+    assert.match(html, /aria-expanded="false"/)
+    assert.doesNotMatch(html, /429 rate limit|long provider response/)
+  }
+})
+
 test('agent activity renders task names without canonical paths or sequence IDs', () => {
   for (const status of ['queued', 'running', 'completed', 'interrupted', 'failed']) {
     const agent = Object.freeze({

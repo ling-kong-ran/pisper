@@ -561,13 +561,17 @@ export function createStreamEventDispatcher({
     } else if (event === 'session_title') {
       updateSessionSummary((session) => ({ ...session, name: data.name }))
     } else if (event === 'retry') {
-      const retryNotice = t('chat:chatPage.retryingAttemptMaxAttemptsMessage', {
+      const retryNotice = t('chat:requestNotice.retryingAttempt', {
         attempt: data.attempt,
         maxAttempts: data.maxAttempts,
-        message: data.message,
       })
       updateSessionState(sessionId, (current) => {
-        const activity = { type: 'retry', message: retryNotice, updatedAt: eventAt }
+        const activity = {
+          type: 'retry',
+          message: data.message,
+          summary: retryNotice,
+          updatedAt: eventAt,
+        }
         return {
           ...current,
           runNotice: retryNotice,

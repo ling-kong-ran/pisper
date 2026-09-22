@@ -325,7 +325,6 @@
   "chatPage.onNarrowScreensChatsStayInASingleTabGroup": "On narrow screens, chats stay in a single tab group.",
   "chatPage.pleaseAnalyzeTheseAttachments": "Please analyze these attachments.",
   "chatPage.renameChat": "Rename chat",
-  "chatPage.retryingAttemptMaxAttemptsMessage": "Retrying {attempt}/{maxAttempts}: {message}",
   "chatPage.save": "Save",
   "chatPage.splitToBottom": "Split below",
   "chatPage.splitToLeft": "Split to left",
@@ -658,5 +657,10 @@
   "chatMessage.fileActionRevert": "Revert changes",
   "chatMessage.fileActionConfirmRevert": "Click again to confirm revert",
   "chatMessage.fileActionRevertDone": "Changes reverted: {path}",
-  "chatMessage.fileActionRevertFailed": "Failed to revert changes: {path}"
+  "chatMessage.fileActionRevertFailed": "Failed to revert changes: {path}",
+  "requestNotice.incomplete": "This request could not be completed",
+  "requestNotice.showDetails": "View details",
+  "requestNotice.hideDetails": "Hide details",
+  "requestNotice.details": "Request details",
+  "requestNotice.retryingAttempt": "Retrying automatically ({attempt}/{maxAttempts})"
 }

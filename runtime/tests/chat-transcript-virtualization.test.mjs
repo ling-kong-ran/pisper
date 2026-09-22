@@ -117,7 +117,8 @@ test('virtualization source owns only message rows and preserves stable render b
   const virtualBoundary = transcriptSource.indexOf('<VirtualMessageTranscript')
   assert.ok(transcriptSource.indexOf('history-page-loader') < virtualBoundary)
   assert.doesNotMatch(transcriptSource, /PlanBoard|plan-board-dock/)
-  assert.ok(transcriptSource.indexOf('{error && (') > virtualBoundary)
+  // 全局请求提示仍由转录容器持有，不随消息行虚拟化；条件可以排除消息内重复提示。
+  assert.ok(transcriptSource.indexOf('<ChatRequestNotice') > virtualBoundary)
   assert.doesNotMatch(sessionSource, /PlanBoard|plan-board-dock/)
   assert.ok(
     sessionSource.indexOf('<FocusTranscript') < sessionSource.indexOf('focus-composer-shell'),

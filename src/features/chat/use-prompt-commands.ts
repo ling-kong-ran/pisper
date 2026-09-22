@@ -420,7 +420,7 @@ export function usePromptCommands({
                   ...item,
                   streaming: false,
                   error: message,
-                  text: item.text || streamState.responseText || message,
+                  text: item.text || streamState.responseText,
                 }
               : item,
           ),

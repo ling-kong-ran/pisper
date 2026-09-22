@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
   const [page, liveSync, prompt] = await Promise.all([
@@ -178,12 +181,26 @@ test('image previews portal above session-level controls', async () => {
   assert.doesNotMatch(message, /image-lightbox-toolbar[^"\n]*(?:button|icon-button)/)
 })
 
-test('completed activity-only messages do not render an empty error bubble', async () => {
-  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
-  assert.match(message, /const displayText = fullText \|\| \(!showRunActivity/)
-  // 允许多行 JSX 形态（cwd 传参后 Prettier 会换行），语义仍是 displayText 条件渲染
-  assert.match(message, /\{displayText && \(?\s*<MarkdownMessage/)
-  assert.doesNotMatch(message, /\(fullText \|\| !streaming\)/)
+test('empty completed replies stay empty and request diagnostics never replace the reply body', () => {
+  const render = (message) =>
+    renderToStaticMarkup(
+      React.createElement(FocusChatMessage, {
+        sessionId: 'test',
+        message: { id: 'reply', role: 'agent', ...message },
+        agentState: 'idle',
+        showRunActivity: false,
+      }),
+    )
+  const rawError = '503 upstream unavailable: <html>provider response</html>'
+  const empty = render({ text: '' })
+  assert.doesNotMatch(empty, /markdown-body|aria-expanded/)
+  for (const text of ['', rawError, 'Partial answer remains readable']) {
+    const html = render({ text, error: rawError })
+    assert.match(html, /aria-expanded="false"/)
+    assert.doesNotMatch(html, /upstream unavailable|provider response|has-error/)
+    assert.equal(html.includes('Partial answer remains readable'), text.startsWith('Partial'))
+    assert.equal(html.includes('markdown-body'), text.startsWith('Partial'))
+  }
 })
 
 test('core chat activity loads synchronously with the message renderer', async () => {
