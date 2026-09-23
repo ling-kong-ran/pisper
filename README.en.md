@@ -113,6 +113,19 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
 
 Grab the installer for your platform from [Releases](https://github.com/ling-kong-ran/pisper/releases/latest). **TUI and Runtime are bundled — no Node.js required.**
 
+Choose your system and architecture on the [download page](https://ling-kong-ran.github.io/pisper/#download):
+
+| System | Package and offline requirements |
+| --- | --- |
+| Windows x64 standard (recommended) | `*-setup.exe` without `-offline-`: smaller download, reuses installed WebView2 or installs it online if missing. Works offline when WebView2 is already installed. |
+| Windows x64 full offline | `*-offline-setup.exe`: includes the complete WebView2 installer for offline machines where the runtime is missing or its availability is unknown. This makes the package substantially larger. |
+| macOS | Choose the Apple Silicon or Intel DMG. Uses the system WKWebView; no additional browser engine download. |
+| Linux x64 | AppImage may require FUSE; DEB is available for Debian / Ubuntu. Prepare distribution-specific system libraries before offline deployment; DEB may require packages such as WebKitGTK. |
+
+Windows automatic updates use the standard package, avoiding repeated WebView2 installer downloads. **The full offline package does not include on-demand local speech models.** Models, external MCP programs, and extensions still need separate preparation on every platform; conversations need a reachable model service, which can be on your intranet. Older releases may not offer both Windows variants; check the actual release assets. See the [offline deployment notes](docs/troubleshooting/offline-deployment.md).
+
+If WebView2 is missing, the standard installer explains what it is, why internet access is needed, and how to choose the offline package before installing the dependency. Installation failures retain error codes and recovery guidance. Missing bundled files and Runtime initialization failures also display native startup messages. For Linux system-library failures before the application can execute, launch it from a terminal to see the missing library name; see the deployment notes above.
+
 <details>
 <summary>macOS says the app "can't be opened"?</summary>
 
@@ -137,7 +150,7 @@ chmod +x Pisper_*_linux_x86_64.AppImage
 If FUSE is missing, install `libfuse2` or `libfuse2t64`, or use the `.deb` instead:
 
 ```bash
-sudo apt install ./Pisper-*-linux-amd64.deb
+sudo apt install ./Pisper_*_linux_x86_64.deb
 ```
 
 </details>

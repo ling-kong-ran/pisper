@@ -113,15 +113,15 @@
           <div class="guide-cards">
             <div class="guide-card">
               <h3>Windows</h3>
-              <p>下载 <code>.exe</code> 安装包，双击安装后即可启动。</p>
+              <p>优先选择普通 <code>-setup.exe</code>；已有 WebView2 可离线安装，缺失时联网补齐。离线电脑缺少 WebView2 或无法确认时，选择包含该依赖的 <code>-offline-setup.exe</code>。两种包都不包含按需下载的语音模型。</p>
             </div>
             <div class="guide-card">
               <h3>macOS</h3>
-              <p>下载 <code>.dmg</code>，拖入「应用程序」。尚未公证，首次打开见下方常见问题。</p>
+              <p>按 Apple Silicon / Intel 选择 <code>.dmg</code>，拖入「应用程序」。使用系统 WKWebView，无需额外内核包。尚未公证，首次打开见下方常见问题。</p>
             </div>
             <div class="guide-card">
               <h3>Linux</h3>
-              <p>可选 <code>.AppImage</code> 或 <code>.deb</code>；AppImage 需先加可执行权限。</p>
+              <p>可选 <code>.AppImage</code> 或 <code>.deb</code>；AppImage 需先加可执行权限，可能需要 FUSE。离线部署需预先准备发行版所需系统库，DEB 可能依赖 WebKitGTK 等包。</p>
             </div>
           </div>
 

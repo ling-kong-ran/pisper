@@ -1090,26 +1090,44 @@ async function readJson(url) {
   }
 }
 
-async function desktopReleaseAssetUrl(target) {
-  const release = await readJson(`${GITHUB_DOWNLOAD_MIRROR}${DESKTOP_RELEASE_API}`).catch(() =>
+let desktopReleasePromise
+
+async function desktopReleaseAssetUrl(target, options = {}) {
+  // 所有平台与离线入口共用一次清单请求，避免按钮数量放大 GitHub API 限流。
+  desktopReleasePromise ||= readJson(`${GITHUB_DOWNLOAD_MIRROR}${DESKTOP_RELEASE_API}`).catch(() =>
     readJson(DESKTOP_RELEASE_API),
   )
+  const release = await desktopReleasePromise
   const version = String(release?.tag_name || '').replace(/^v/, '')
   if (!/^\d+\.\d+\.\d+$/.test(version)) return DESKTOP_RELEASE_PAGE
 
-  const architecture = await detectDesktopArchitecture(target)
+  const architecture = options.architecture || (await detectDesktopArchitecture(target))
+  const windowsSuffix = options.variant === 'offline' ? '-offline-setup.exe' : '-setup.exe'
   const suffixes = {
     macos: [`darwin_${architecture}.dmg`, 'darwin_x86_64.dmg'],
-    windows: [`windows_${architecture}-setup.exe`, 'windows_x86_64-setup.exe'],
-    linux: ['linux_x86_64.AppImage'],
+    windows: [`windows_${architecture}${windowsSuffix}`, `windows_x86_64${windowsSuffix}`],
+    linux: [options.variant === 'deb' ? 'linux_x86_64.deb' : 'linux_x86_64.AppImage'],
   }
+  // 手动选择的架构不能悄悄换成另一个包；缺失资产时回到发布页。
+  if (options.architecture) suffixes[target] = suffixes[target]?.slice(0, 1)
   const expectedNames = [...new Set(suffixes[target] || [])].map(
     (suffix) => `Pisper_${version}_${suffix}`,
   )
   const asset = expectedNames
-    .map((name) => release.assets?.find((candidate) => candidate.name === name))
+    .map((name) => Array.isArray(release.assets) && release.assets.find((candidate) => candidate?.name === name))
     .find(Boolean)
-  return asset?.browser_download_url || DESKTOP_RELEASE_PAGE
+  return asset
+    ? `https://github.com/ling-kong-ran/pisper/releases/download/v${version}/${encodeURIComponent(asset.name)}`
+    : DESKTOP_RELEASE_PAGE
+}
+
+for (const link of document.querySelectorAll('[data-desktop-download]')) {
+  desktopReleaseAssetUrl(link.dataset.desktopDownload, {
+    architecture: link.dataset.downloadArchitecture,
+    variant: link.dataset.downloadVariant,
+  }).catch(() => DESKTOP_RELEASE_PAGE).then((url) => {
+    link.href = link.hasAttribute('data-official-download') ? url : acceleratedDownloadUrl(url)
+  })
 }
 
 const downloadTarget = detectDownloadTarget()

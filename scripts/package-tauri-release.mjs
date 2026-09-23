@@ -146,6 +146,16 @@ if (simpleIntelMacDmg) {
 const stageArgs = [path.join(root, 'scripts', 'stage-tauri-artifacts.mjs')]
 if (signingKey.trim()) stageArgs.push('--require-signature')
 await run(process.execPath, stageArgs, env)
+if (process.platform === 'win32') {
+  // 先暂存普通包，再单独构建离线包，避免同名 NSIS 输出覆盖普通更新资产。
+  await rm(bundleDir, { recursive: true, force: true })
+  await run(
+    process.execPath,
+    [...buildArgs, '--config', path.join(root, 'src-tauri', 'tauri.windows-offline.conf.json')],
+    env,
+  )
+  await run(process.execPath, [...stageArgs, '--windows-offline'], env)
+}
 if (signingKey.trim()) {
   await run(
     process.execPath,

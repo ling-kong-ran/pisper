@@ -231,26 +231,33 @@ jobs:
               exit 1
               ;;
           esac
-      - name: Verify bundled Windows offline prerequisite
+      - name: Verify Windows standard and offline prerequisites
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         shell: pwsh
         run: |
           $installers = @(Get-ChildItem release/tauri-artifacts -Recurse -File -Filter '*-setup.exe')
-          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
+          if ($installers.Count -ne 2) { throw 'Expected standard and offline Windows installers.' }
+          $offline = @($installers | Where-Object { $_.Name -like '*-offline-setup.exe' })
+          $standard = @($installers | Where-Object { $_.Name -notlike '*-offline-setup.exe' })
+          if ($offline.Count -ne 1 -or $standard.Count -ne 1) { throw 'Missing Windows installer variant.' }
           $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
           New-Item -ItemType Directory -Path $payloadDir | Out-Null
           try {
-            & 7z x $installers[0].FullName "-o$payloadDir" '*MicrosoftEdgeWebView2RuntimeInstaller.exe' -r -y | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
-            $payloads = @(Get-ChildItem $payloadDir -Recurse -Filter MicrosoftEdgeWebView2RuntimeInstaller.exe)
-            if ($payloads.Count -ne 1) { throw 'Windows installer is missing the offline WebView2 runtime.' }
-            $payload = $payloads[0]
-            $signature = Get-AuthenticodeSignature $payload.FullName
-            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
-              throw 'Bundled WebView2 runtime must have a valid Microsoft signature.'
+            foreach ($installer in $installers) {
+              $variantDir = Join-Path $payloadDir $installer.Name
+              & 7z x $installer.FullName "-o$variantDir" '*MicrosoftEdgeWebView2RuntimeInstaller.exe' '*MicrosoftEdgeWebview2Setup.exe' -r -y | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
+              $payloads = @(Get-ChildItem $variantDir -Recurse -File -Filter '*MicrosoftEdgeWeb*.exe')
+              $expected = if ($installer.Name -like '*-offline-setup.exe') { 'MicrosoftEdgeWebView2RuntimeInstaller.exe' } else { 'MicrosoftEdgeWebview2Setup.exe' }
+              if ($payloads.Count -ne 1 -or $payloads[0].Name -ne $expected) { throw "Incorrect WebView2 payload in $($installer.Name)." }
+              $payload = $payloads[0]
+              $signature = Get-AuthenticodeSignature $payload.FullName
+              if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
+                throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
+              }
+              $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
+              Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2=$expected version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
             }
-            $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
-            Write-Host "Bundled WebView2: version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
           } finally {
             Remove-Item $payloadDir -Recurse -Force
           }

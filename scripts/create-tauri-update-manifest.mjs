@@ -59,6 +59,7 @@ const updaterSuffixes = {
 }
 const expectedPlatforms = ['darwin-aarch64', 'darwin-x86_64', 'linux-x86_64', 'windows-x86_64']
 const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// 离线包仅供首次部署选择，更新入口始终匹配普通包，避免重复分发 WebView2。
 const artifactPattern = new RegExp(
   `^Pisper_${escapedVersion}_(darwin|linux|windows)_(aarch64|x86_64)(\\.app\\.tar\\.gz|\\.AppImage|-setup\\.exe)$`,
 )

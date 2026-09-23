@@ -113,6 +113,19 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 
 从 [Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载对应平台安装包，**自带 TUI 与 Runtime，无需安装 Node.js**。
 
+可在[下载页](https://ling-kong-ran.github.io/pisper/#download)按系统和架构选择：
+
+| 系统 | 安装包与离线条件 |
+| --- | --- |
+| Windows x64 普通包（推荐） | `*-setup.exe`（不含 `-offline-`）：体积较小，复用已有 WebView2；缺失时联网安装。已有 WebView2 的内网电脑也可使用。 |
+| Windows x64 完整离线包 | `*-offline-setup.exe`：额外包含完整 WebView2 安装器，适合缺少该运行时或无法确认的离线电脑；因此体积明显更大。 |
+| macOS | 按 Apple Silicon / Intel 选择 DMG，使用系统 WKWebView，无需额外分发浏览器内核。 |
+| Linux x64 | AppImage 可能需要 FUSE；Debian / Ubuntu 可选 DEB。离线部署需提前准备发行版所需系统库，DEB 可能依赖 WebKitGTK 等包。 |
+
+Windows 自动更新使用普通包，已有 WebView2 无需随每次更新重复下载。**完整离线包不包含按需下载的本地语音模型**；各平台的模型、MCP 外部程序和扩展仍需单独准备，模型对话需要可达的模型服务（可以是内网服务）。旧版本未提供两种 Windows 包时，以 Release 实际资产为准。详见[离线部署说明](docs/troubleshooting/offline-deployment.md)。
+
+普通安装包检测到 WebView2 缺失时，会先说明依赖用途、联网要求和离线包选项；失败时显示修复方向及安装错误码。桌面启动时发现随包文件缺失或 Runtime 初始化失败，也会显示原生错误提示。Linux 在程序执行前发生的系统库错误，请从终端启动查看具体库名，见上方离线部署说明。
+
 <details>
 <summary>macOS 提示「无法打开」？</summary>
 
@@ -137,7 +150,7 @@ chmod +x Pisper_*_linux_x86_64.AppImage
 缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可改用 `.deb`：
 
 ```bash
-sudo apt install ./Pisper-*-linux-amd64.deb
+sudo apt install ./Pisper_*_linux_x86_64.deb
 ```
 
 </details>

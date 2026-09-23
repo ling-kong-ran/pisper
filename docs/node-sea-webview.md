@@ -51,30 +51,50 @@ macOS x64/ARM64      .app and .dmg
 Linux x64            .AppImage and .deb
 ```
 
-### Windows offline installation
+### Platform packages and offline installation
 
-Windows NSIS packages use Tauri's `webviewInstallMode: offlineInstaller` and embed the
-complete Microsoft Evergreen WebView2 Runtime installer. The build machine downloads
-the runtime from Microsoft's distribution endpoint; the user's machine does not need
-internet access to install this prerequisite. Tauri checks for an existing WebView2
-installation and installs the bundled runtime silently when it is missing. Do not
-replace this with `embedBootstrapper`: that embeds only a downloader.
+Windows builds produce two NSIS installers from the same source and version:
 
-The installer grows by the size of the WebView2 offline payload. Node and the production
-JavaScript dependency closure remain bundled in the SEA and `sidecar-runtime/`; users do
-not need to install Node, npm, Python, or Bash to launch Pisper. Optional tools, external
-MCP servers, model downloads, updates, and cloud APIs retain their own requirements.
+- `Pisper_<version>_windows_x86_64-setup.exe`: the standard package uses
+  `webviewInstallMode: embedBootstrapper`. It reuses an installed WebView2 runtime;
+  when missing, the small Microsoft bootstrapper downloads and installs it online.
+- `Pisper_<version>_windows_x86_64-offline-setup.exe`: the full offline package merges
+  `tauri.windows-offline.conf.json` to embed Microsoft's complete Evergreen WebView2
+  installer. Use it on disconnected machines without WebView2, or when its presence is unknown.
+  Existing WebView2 installations are reused. This payload accounts for most of the extra size.
 
-WebView2 is redistributed under Microsoft's terms and is maintained by Tauri's bundler,
-not copied into the repository. Windows release jobs extract the packaged payload,
-verify its Microsoft Authenticode signature, and record its version and SHA-256 in the
-build log. Pisper's updater signature covers the complete installer, including this payload. See
-[Tauri's Windows installer documentation](https://v2.tauri.app/distribute/windows-installer/#offline-installer).
+Both packages include the same Node SEA, production JavaScript closure and TUI. Local
+speech models remain on-demand downloads. External MCP programs, extensions and model
+services retain their own prerequisites; “offline package” does not mean all features
+and models are available without preparation.
 
-For acceptance, use a Windows VM with no WebView2 installed and disconnect its external
-network before running the installer. Verify both installation and first launch, then
-repeat installation with WebView2 already present. A build or a payload check alone is
-not evidence that this clean-machine offline acceptance has passed.
+The packager stages the standard and offline outputs in separate directories before
+Tauri can overwrite its NSIS output. Both receive updater signatures for release integrity,
+but `latest.json` selects only the standard package: installed applications already have
+WebView2. CI requires both packages and their signatures before publishing, extracts
+both payloads, checks the expected bootstrapper/full-installer distinction, verifies
+Microsoft Authenticode signatures, and records sizes, versions and SHA-256 digests.
+WebView2 distribution is managed by Tauri's bundler under Microsoft's terms; no binary
+copies are committed. See [Tauri's installer options](https://v2.tauri.app/distribute/windows-installer/#webview2-installation-options).
+
+macOS DMGs use the system WKWebView; select Apple Silicon or Intel. Linux provides
+AppImage and DEB, with distribution-specific system prerequisites (including FUSE where
+needed for AppImage and WebKitGTK dependencies for DEB); neither is a universal offline
+OS dependency bundle. Android uses the system WebView and ships a signed APK; iOS uses
+WKWebView and the public IPA requires re-signing. These platforms do not gain a second
+browser-engine package merely to mirror the Windows variants.
+
+The homepage resolves each explicit platform/architecture/variant link against actual
+Release assets, shares a single desktop manifest request, and falls back to the Release
+page if metadata or an asset is unavailable. Existing versions before the split retain
+their original files. In particular, versions 0.5.72/0.5.73 used the ordinary filename
+for a package containing the full WebView2 installer; filenames are not renamed retroactively.
+
+Windows acceptance must cover the standard package with WebView2 already installed and
+network disconnected, the standard package without WebView2 with internet access, and
+the offline package without WebView2 with network disconnected. Also verify upgrading
+from either variant uses the standard package and preserves user data. CI payload checks
+are not evidence of clean-machine installation acceptance.
 
 Release assets are normalized so macOS architectures cannot collide:
 

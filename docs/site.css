@@ -992,6 +992,30 @@ main,
   gap: 12px;
 }
 
+.download-platforms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 24px;
+  width: 100%;
+}
+
+.download-platform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--dim);
+}
+
+.download-platform h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.download-platform-note {
+  width: 100%;
+}
+
 /* ============================================================
    终端窄带(主页)
    ============================================================ */
