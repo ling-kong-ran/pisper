@@ -190,6 +190,16 @@ test('Windows dependency notices precede downloads and provide localized recover
   assert.match(hooks, /MessageBox MB_OKCANCEL/)
   assert.match(hooks, /PISPER_OFFLINE_INSTALLER/)
   assert.match(hooks, /offline-setup\.exe/)
+  const offlineConfig = JSON.parse(
+    await readFile('src-tauri/tauri.windows-offline.conf.json', 'utf8'),
+  )
+  const offlineHooks = await readFile(
+    join('src-tauri', offlineConfig.bundle.windows.nsis.installerHooks),
+    'utf8',
+  )
+  // Windows makensis 无法解析盘符路径中的混合分隔符。
+  assert.ok(offlineHooks.includes('${__FILEDIR__}\\prerequisites.nsh'))
+  assert.doesNotMatch(offlineHooks, /\$\{__FILEDIR__\}\//)
   const requiredKeys = [
     'installingWebview2',
     'webview2Downloading',
