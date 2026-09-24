@@ -127,7 +127,7 @@
   "canvas.addHint": "Click to add into the selected container, or drag onto the canvas. Selecting a component adds to its parent container.",
   "canvas.moveUp": "Move up",
   "canvas.moveDown": "Move down",
-  "canvas.copy": "Duplicate decoration",
+  "canvas.copy": "Duplicate component",
   "canvas.delete": "Remove component",
   "canvas.requiredHint": "The root, messages, and composer are required. Move required components elsewhere before removing their container.",
   "canvas.moveInto": "Move into container",
@@ -141,7 +141,7 @@
   "canvas.padding": "Padding 16px",
   "canvas.radius": "Radius 12px",
   "canvas.gap": "Gap 12px",
-  "canvas.previewHint": "Select a component, then drag it into a container or before or after another component. Preview uses sample content and sends no messages.",
+  "canvas.previewHint": "Select and drag components to arrange them. Chat uses sample content; widgets render in a sandbox without session/config access or notifications during preview.",
   "canvas.tree": "Component hierarchy",
   "canvas.operationError": "This change could not be made. Check for duplicate chat components, moving a container into itself, or removing messages or the composer.",
   "canvas.editHint": "Add, nest and arrange components. Select one to edit its styles; move buttons work on mobile too.",
@@ -196,5 +196,10 @@
   "switcher.current": "Current layout",
   "switcher.applied": "Switched to {name}",
   "switcher.scope": "Applies to all chats on this device",
-  "switcher.saveCurrent": "Save current layout"
+  "switcher.saveCurrent": "Save current layout",
+  "canvas.customUi": "Standalone widgets",
+  "canvas.refreshWidgets": "Rescan standalone widgets",
+  "canvas.widgetsFailed": "Unable to load widgets. Try rescanning.",
+  "canvas.widgetsEmpty": "No widgets installed. Find the installation directory on the Standalone widgets page.",
+  "canvas.widgetStyleHint": "Styles control the widget’s size, spacing, and frame. Edit its own HTML / CSS to change the content inside."
 }

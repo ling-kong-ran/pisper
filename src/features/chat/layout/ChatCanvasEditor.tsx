@@ -18,6 +18,7 @@ import {
 import { parseCanvasCss } from './chat-canvas-style'
 import {
   CANVAS_KIND_DRAG,
+  CANVAS_CUSTOM_UI_DRAG,
   CANVAS_NODE_DRAG,
   canvasKindLabels,
   canvasNodes,
@@ -69,6 +70,7 @@ function CanvasTree({
         <span className="truncate">
           {labels[node.kind]}
           {node.kind === 'text' && node.text ? ` · ${node.text}` : ''}
+          {node.kind === 'custom-ui' ? ` · ${node.componentId}` : ''}
         </span>
       </button>
       {node.children?.length ? (
@@ -149,9 +151,9 @@ export function ChatCanvasEditor({
   const targetContainer = isCanvasContainerKind(selected.kind)
     ? selected
     : (canvasParent(root, selected.id) ?? root)
-  const add = (kind: ChatCanvasKind) => {
+  const add = (kind: ChatCanvasKind, componentId?: string) => {
     try {
-      const next = addCanvasNode(root, targetContainer.id, kind)
+      const next = addCanvasNode(root, targetContainer.id, kind, componentId)
       const added = findCanvasNode(next, targetContainer.id)?.children?.at(-1)
       commit(next)
       if (added) setSelectedId(added.id)
@@ -207,7 +209,8 @@ export function ChatCanvasEditor({
   const onDragOver: CanvasDropHandlers['onDragOver'] = (event, node) => {
     if (
       !event.dataTransfer.types.includes(CANVAS_NODE_DRAG) &&
-      !event.dataTransfer.types.includes(CANVAS_KIND_DRAG)
+      !event.dataTransfer.types.includes(CANVAS_KIND_DRAG) &&
+      !event.dataTransfer.types.includes(CANVAS_CUSTOM_UI_DRAG)
     )
       return
     event.preventDefault()
@@ -225,14 +228,15 @@ export function ChatCanvasEditor({
     const parent = zone === 'inside' ? node : canvasParent(root, node.id)
     if (!parent || !isCanvasContainerKind(parent.kind)) return
     const nodeId = event.dataTransfer.getData(CANVAS_NODE_DRAG)
-    const kind = CANVAS_KINDS.find(
-      (entry) => entry === event.dataTransfer.getData(CANVAS_KIND_DRAG),
-    )
+    const componentId = event.dataTransfer.getData(CANVAS_CUSTOM_UI_DRAG)
+    const kind = componentId
+      ? 'custom-ui'
+      : CANVAS_KINDS.find((entry) => entry === event.dataTransfer.getData(CANVAS_KIND_DRAG))
     try {
       let next = root
       let movingId = nodeId
       if (!movingId && kind) {
-        next = addCanvasNode(root, parent.id, kind)
+        next = addCanvasNode(root, parent.id, kind, componentId || undefined)
         movingId = findCanvasNode(next, parent.id)?.children?.at(-1)?.id ?? ''
       }
       if (!movingId || movingId === node.id) return

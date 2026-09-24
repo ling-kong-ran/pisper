@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Check, ChevronDown, LayoutTemplate, Settings2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
@@ -18,7 +18,15 @@ import { chatLayoutPresetLabels } from './chat-layout-preset-labels'
 import { ChatLayoutExportDialog, ChatLayoutImportDialog } from './ChatLayoutTransfer'
 import { layoutTransferErrorLabel } from './chat-layout-transfer'
 
-export function ChatLayoutSwitcher({ notify, onManage }: { notify: Notify; onManage: () => void }) {
+export function ChatLayoutSwitcher({
+  notify,
+  onManage,
+  widgetActionsSlot,
+}: {
+  notify: Notify
+  onManage: () => void
+  widgetActionsSlot?: ReactNode
+}) {
   const { t } = useI18n()
   const active = useChatLayoutStore((state) => state.active)
   const saved = useChatLayoutStore((state) => state.saved)
@@ -163,6 +171,9 @@ export function ChatLayoutSwitcher({ notify, onManage }: { notify: Notify; onMan
           <p role="status" className="text-xs leading-5 text-muted-foreground">
             {t('chat-layout:layout.storageError')}
           </p>
+        )}
+        {widgetActionsSlot && (
+          <div className="min-w-0 border-t border-border pt-3">{widgetActionsSlot}</div>
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
           <ChatLayoutImportDialog mode="apply" onImport={importAndApply} />

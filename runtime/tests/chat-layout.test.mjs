@@ -75,6 +75,22 @@ test('desktop and mobile appearance settings are independent', () => {
   assert.equal(template.mobile.fontSize, 13)
 })
 
+test('classic includes the removable built-in island without rewriting existing canvases', () => {
+  for (const device of ['desktop', 'mobile']) {
+    const nodes = DEFAULT_CHAT_LAYOUT[device].canvas.children
+    assert.deepEqual(
+      nodes.map((node) => node.kind),
+      ['header', 'custom-ui', 'messages', 'composer'],
+    )
+    assert.equal(nodes[1].componentId, 'pisper-island')
+    const existing = fresh()
+    existing[device].canvas.children = existing[device].canvas.children.filter(
+      (node) => node.kind !== 'custom-ui',
+    )
+    assert.deepEqual(parseChatLayout(existing)[device].canvas, existing[device].canvas)
+  }
+})
+
 test('layout names are trimmed and limited to 80 visible Unicode characters', () => {
   assert.equal(parseChatLayout({ ...fresh(), name: '  我的布局  ' }).name, '我的布局')
   assert.equal(parseChatLayout({ ...fresh(), name: '🌟'.repeat(80) }).name, '🌟'.repeat(80))

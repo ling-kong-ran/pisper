@@ -127,7 +127,7 @@
   "canvas.addHint": "点击添加到选中的容器，或拖到画布。非容器选中时，添加到它所在的容器。",
   "canvas.moveUp": "上移",
   "canvas.moveDown": "下移",
-  "canvas.copy": "复制装饰组件",
+  "canvas.copy": "复制组件",
   "canvas.delete": "删除组件",
   "canvas.requiredHint": "根容器、消息列表和输入框必须保留。要移走容器，请先移动里面的必需组件。",
   "canvas.moveInto": "移入容器",
@@ -141,7 +141,7 @@
   "canvas.padding": "内边距 16px",
   "canvas.radius": "圆角 12px",
   "canvas.gap": "间距 12px",
-  "canvas.previewHint": "点击组件选中；拖动到容器内部或其他组件前后。这里使用示例内容，不会发送消息。",
+  "canvas.previewHint": "点击选中、拖动编排组件。内置会话使用示例内容；独立组件展示沙箱预览，预览中不读取会话或配置，也不发送通知。",
   "canvas.tree": "组件层级",
   "canvas.operationError": "无法完成调整。请检查是否重复添加会话组件、移入自身，或删除了消息列表和输入框。",
   "canvas.editHint": "自由添加、嵌套和移动组件。选中组件后可编辑样式，手机上也可用移动按钮调整。",
@@ -196,5 +196,10 @@
   "switcher.current": "当前布局",
   "switcher.applied": "已切换为{name}",
   "switcher.scope": "应用到当前设备的所有会话",
-  "switcher.saveCurrent": "保存当前布局"
+  "switcher.saveCurrent": "保存当前布局",
+  "canvas.customUi": "独立组件",
+  "canvas.refreshWidgets": "重新扫描独立组件",
+  "canvas.widgetsFailed": "组件列表加载失败，请重新扫描。",
+  "canvas.widgetsEmpty": "暂无组件。可在“独立组件”页面查看安装目录。",
+  "canvas.widgetStyleHint": "样式控制组件的尺寸、间距和外框。组件内部样式在它自己的 HTML / CSS 中修改。"
 }

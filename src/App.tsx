@@ -27,7 +27,7 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
-import { ensureChatLayoutMessages } from '@/app/i18n'
+import { ensureChatLayoutMessages, ensureCustomUiMessages } from '@/app/i18n'
 import type { DesktopChatLayout } from '@/features/chat/layout/public'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -80,12 +80,20 @@ const AppShortcuts = lazy(() =>
 const ChatLayoutNavigation = lazy(() =>
   import('@/app/ChatLayoutNavigation').then((module) => ({ default: module.ChatLayoutNavigation })),
 )
-const ChatLayoutSwitcher = lazy(async () => {
-  const [{ ChatLayoutSwitcher }] = await Promise.all([
-    import('@/features/chat/layout/switcher'),
-    ensureChatLayoutMessages(),
+const FloatingWidgets = lazy(async () => {
+  const [{ FloatingWidgets }] = await Promise.all([
+    import('@/app/FloatingWidgets'),
+    ensureCustomUiMessages(),
   ])
-  return { default: ChatLayoutSwitcher }
+  return { default: FloatingWidgets }
+})
+const ChatLayoutSwitcher = lazy(async () => {
+  const [{ ChatLayoutMenu }] = await Promise.all([
+    import('@/app/ChatLayoutMenu'),
+    ensureChatLayoutMessages(),
+    ensureCustomUiMessages(),
+  ])
+  return { default: ChatLayoutMenu }
 })
 const CommandPalette = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({
@@ -253,6 +261,7 @@ function App() {
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const appShellRef = useRef<HTMLDivElement>(null)
+  const pageHeaderRef = useRef<HTMLElement>(null)
   const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
@@ -774,6 +783,7 @@ function App() {
           <SidebarInset className="main-surface before:[content:''] before:absolute before:z-[-1] before:inset-[0_0_auto] before:h-[220px] before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] before:pointer-events-none dark:bg-[var(--main-surface-bg)] dark:before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] dark:[background-image:radial-gradient(rgba(255,_255,_255,_.05)_1px,_transparent_1.3px),_radial-gradient(rgba(255,_255,_255,_.025)_1px,_transparent_1.3px)] dark:[background-size:26px_26px,_41px_41px] dark:[background-position:0_0,_13px_20px] relative flex min-w-0 flex-1 h-full flex-col overflow-hidden [border-left:0] bg-[var(--main-surface-bg)] shadow-[inset_0_1px_0_var(--main-surface-inset),_0_20px_60px_-28px_var(--main-surface-shadow)]">
             <Suspense fallback={null}>
               <PageHeader
+                elementRef={pageHeaderRef}
                 meta={activeMeta}
                 page={page}
                 query={query}
@@ -846,6 +856,9 @@ function App() {
             )}
           </SidebarInset>
         </SidebarProvider>
+        <Suspense fallback={null}>
+          <FloatingWidgets anchorRef={pageHeaderRef} notify={notify} />
+        </Suspense>
         {clientLoaded && !mobileApp && <StatusBar page={page} pluginStats={pluginStats} />}
         {toast && (
           <AppToast

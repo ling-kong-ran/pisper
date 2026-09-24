@@ -16,6 +16,7 @@ import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, join, normalize, resolve, sep } from 'node:path'
 import { readJson } from '../storage/json-file.mjs'
 import { displayCustomUiPath } from './custom-ui-path.mjs'
+import { BUILTIN_CUSTOM_UI_COMPONENTS } from './custom-ui-builtins.mjs'
 
 // 组件 id 即目录名：只允许安全的文件名字符，避免路径与 URL 编码问题。
 const COMPONENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/
@@ -143,10 +144,11 @@ const BRIDGE_SCRIPT = String.raw`// Pisper 自定义 UI 桥：与父页面（应
 `
 
 export class CustomUiService {
-  constructor({ dataDir, now = Date.now }) {
+  constructor({ dataDir, now = Date.now, builtinComponents = BUILTIN_CUSTOM_UI_COMPONENTS }) {
     this.root = join(dataDir, 'custom-ui')
     this.now = now
     this.views = new Map()
+    this.builtins = new Map(builtinComponents.map((component) => [component.id, component]))
   }
 
   // 仅由已鉴权的父页面签发；凭证只能读取单个组件静态资源，不能用于任何应用 API。
@@ -205,6 +207,8 @@ export class CustomUiService {
   }
 
   async readManifest(id) {
+    const builtin = this.builtins.get(id)
+    if (builtin) return normalizeComponentManifest(id, builtin.manifest)
     const manifestPath = join(this.componentDir(id), 'manifest.json')
     const info = await stat(manifestPath).catch(() => null)
     if (!info?.isFile() || info.size > MAX_MANIFEST_BYTES) return null
@@ -221,9 +225,19 @@ export class CustomUiService {
   // 列出全部可用组件（含目录路径，方便用户放置/编辑文件）。
   async listComponents() {
     const entries = await readdir(this.root, { withFileTypes: true }).catch(() => [])
-    const components = []
+    const components = [...this.builtins.values()].map((component) => ({
+      ...normalizeComponentManifest(component.id, component.manifest),
+      entryUrl: `/api/custom-ui/components/${encodeURIComponent(component.id)}/assets/${component.manifest.entry}`,
+      directory: '',
+      builtIn: true,
+    }))
     for (const entry of entries) {
-      if (!entry.isDirectory() || !COMPONENT_ID_PATTERN.test(entry.name)) continue
+      if (
+        !entry.isDirectory() ||
+        !COMPONENT_ID_PATTERN.test(entry.name) ||
+        this.builtins.has(entry.name)
+      )
+        continue
       const manifest = await this.readManifest(entry.name)
       if (!manifest) continue
       components.push({
@@ -250,6 +264,14 @@ export class CustomUiService {
     if (segments.some((segment) => segment.startsWith('.'))) return null
     // manifest 属于配置元数据，不作为静态资产提供。
     if (segments.length === 1 && segments[0] === 'manifest.json') return null
+    const builtin = this.builtins.get(id)
+    if (builtin) {
+      // 内置 ID 为保留项，缺失资源也不回退到同名用户目录。
+      const assetPath = segments.join('/')
+      if (!Object.hasOwn(builtin.assets, assetPath)) return null
+      const content = builtin.assets[assetPath]
+      return { assetPath, content, size: Buffer.byteLength(content) }
+    }
     const dir = resolve(this.componentDir(id))
     const file = resolve(dir, relative)
     if (file !== dir && !file.startsWith(`${dir}${sep}`)) return null
@@ -273,11 +295,13 @@ export class CustomUiService {
       json(404, { error: '组件资源不存在。' })
       return
     }
-    const mime = ASSET_MIME[extname(target.file).toLowerCase()] || 'application/octet-stream'
+    const mime =
+      ASSET_MIME[extname(target.assetPath ?? target.file).toLowerCase()] ||
+      'application/octet-stream'
     const headers = this.assetHeaders(resourceBase)
     // 保留旧的受鉴权资产 URL，但同样强制 CSP 沙箱；只有凭证入口改写桥脚本地址。
     if (resourceBase && mime.startsWith('text/html')) {
-      const document = parse(await readFile(target.file, 'utf8'))
+      const document = parse(target.content ?? (await readFile(target.file, 'utf8')))
       const rewriteBridge = (node) => {
         if (node.tagName === 'script') {
           const src = node.attrs?.find((attribute) => attribute.name === 'src')
@@ -296,6 +320,10 @@ export class CustomUiService {
       return
     }
     res.writeHead(200, { ...headers, 'Content-Type': mime, 'Content-Length': target.size })
+    if (target.content !== undefined) {
+      res.end(target.content)
+      return
+    }
     createReadStream(target.file)
       .on('error', () => {
         if (!res.headersSent) json(404, { error: '组件资源不存在。' })

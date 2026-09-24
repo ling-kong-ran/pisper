@@ -44,3 +44,4 @@ export type {
   ChatCanvasNode,
 } from '@/features/chat/layout/chat-canvas'
 export { CANVAS_CSS_MAX_LENGTH, parseCanvasCss } from '@/features/chat/layout/chat-canvas-style'
+export { collectFloatingCanvasIslands } from '@/features/chat/layout/chat-canvas-render'

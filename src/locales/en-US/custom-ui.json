@@ -10,5 +10,20 @@
   "customUiPage.componentFailedToLoad": "The component failed to load. Check that the entry file path is correct.",
   "customUiPage.permissionConfigRead": "Read model config",
   "customUiPage.permissionSessionsRead": "Read session list",
-  "customUiPage.permissionNotify": "Send notifications"
+  "customUiPage.permissionNotify": "Send notifications",
+  "widget.retry": "Retry",
+  "widget.catalogFailed": "Installed components could not be loaded. Please retry.",
+  "widget.missing": "Component \"{id}\" is not installed. Add it in Interface settings, then retry.",
+  "builtIn.badge": "Built-in",
+  "builtIn.islandName": "Dynamic Island",
+  "builtIn.islandDescription": "A floating clock and adjustable focus timer with completion reminders. Keeps running across pages without reading configuration or sessions.",
+  "floating.move": "Move floating widget",
+  "floating.moveHint": "Hold to drag; use arrow keys to move, Shift for larger steps, or Home to return to the top.",
+  "floating.resetPosition": "Reset to top",
+  "floating.close": "Close floating widget",
+  "floating.show": "Float widget",
+  "floating.hide": "Stop floating",
+  "floating.hint": "Drag floating widgets to move them. They keep running when you switch pages.",
+  "floating.storageFailed": "Could not save floating preferences. Check local storage or the number of enabled widgets.",
+  "floating.title": "Floating widgets"
 }

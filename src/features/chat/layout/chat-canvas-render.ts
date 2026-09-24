@@ -10,6 +10,15 @@ import { parseCanvasCss } from './chat-canvas-style'
 export { CHAT_CANVAS_SLOT_KINDS }
 export type { ChatCanvasSlotKind }
 
+export function isFloatingCanvasIsland(node: ChatCanvasNode): boolean {
+  return node.kind === 'custom-ui' && node.componentId === 'pisper-island'
+}
+
+export function collectFloatingCanvasIslands(root: ChatCanvasNode): ChatCanvasNode[] {
+  if (isFloatingCanvasIsland(root)) return [root]
+  return (root.children ?? []).flatMap(collectFloatingCanvasIslands)
+}
+
 export function isChatCanvasSlotKind(kind: ChatCanvasKind): kind is ChatCanvasSlotKind {
   return CHAT_CANVAS_SLOT_KINDS.some((slot) => slot === kind)
 }
@@ -51,7 +60,7 @@ export function chatCanvasNodeStyle(node: ChatCanvasNode, isRoot = false): CSSPr
   } else if (node.kind === 'divider') {
     style.borderTop = '1px solid var(--stroke-soft)'
     style.margin = 0
-  } else if (isChatCanvasSlotKind(node.kind)) {
+  } else if (isChatCanvasSlotKind(node.kind) || node.kind === 'custom-ui') {
     style.display = 'flex'
     style.flexDirection = 'column'
     if (node.kind === 'messages' || node.kind === 'context') style.overflow = 'hidden'

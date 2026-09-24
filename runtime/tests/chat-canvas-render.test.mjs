@@ -10,6 +10,7 @@ import {
   chatCanvasNodeStyle,
   collectChatCanvasSlots,
   createChatCanvasHosts,
+  collectFloatingCanvasIslands,
 } from '../../src/features/chat/layout/chat-canvas-render.ts'
 import { parseChatCanvas } from '../../src/features/chat/layout/chat-canvas.ts'
 
@@ -126,4 +127,47 @@ test('canvas sizing preserves default growing message content and accepts local 
 
 test('invalid duplicate functional slots are rejected before reaching the renderer', () => {
   assert.throws(() => canvas([leaf('messages'), leaf('composer'), leaf('composer', 'second')]))
+})
+
+test('custom UI nodes provide fillable host boxes without becoming singleton functional slots', () => {
+  const widget = {
+    id: 'widget-a',
+    kind: 'custom-ui',
+    componentId: 'weather-panel',
+    css: 'height: 240px; flex-shrink: 0;',
+  }
+  const root = canvas([leaf('messages'), widget, { ...widget, id: 'widget-b' }, leaf('composer')])
+  assert.deepEqual(collectChatCanvasSlots(root), ['messages', 'composer'])
+  const style = chatCanvasNodeStyle(widget)
+  assert.equal(style.display, 'flex')
+  assert.equal(style.flexDirection, 'column')
+  assert.equal(style.height, '240px')
+  assert.equal(style.flexShrink, '0')
+  assert.equal(style.flex, '0 0 auto')
+  assert.equal(chatCanvasNodeStyle({ ...widget, css: 'height: 320px;' }).height, '320px')
+})
+
+test('built-in floating islands are collected separately and occupy no conversation flow space', () => {
+  const island = {
+    id: 'my-island',
+    kind: 'custom-ui',
+    componentId: 'pisper-island',
+    css: 'height: 64px;',
+  }
+  const root = canvas([
+    { id: 'group', kind: 'column', css: '', children: [island, leaf('messages')] },
+    leaf('composer'),
+  ])
+  assert.deepEqual(collectFloatingCanvasIslands(root), [island])
+  assert.deepEqual(collectFloatingCanvasIslands(canvas([leaf('messages'), leaf('composer')])), [])
+  const html = renderToStaticMarkup(
+    React.createElement(ChatCanvasLayout, {
+      root,
+      slots: { messages: marker('messages'), composer: marker('composer') },
+    }),
+  )
+  assert.doesNotMatch(html, /data-canvas-node="my-island"/)
+  assert.doesNotMatch(html, /height:64px/)
+  assert.match(html, /data-test-block="messages"/)
+  assert.match(html, /data-test-block="composer"/)
 })

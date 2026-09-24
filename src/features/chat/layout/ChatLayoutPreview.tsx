@@ -4,8 +4,13 @@ import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
 import type { ChatCanvasNode } from './chat-canvas'
 import { isCanvasContainerKind } from './chat-canvas'
-import { chatCanvasNodeStyle } from './chat-canvas-render'
+import {
+  chatCanvasNodeStyle,
+  collectFloatingCanvasIslands,
+  isFloatingCanvasIsland,
+} from './chat-canvas-render'
 import { CANVAS_NODE_DRAG, canvasKindLabels } from './chat-canvas-editor-model'
+import { CanvasCustomUi } from './CanvasCustomUi'
 
 export type CanvasDropHandlers = {
   onDragOver: (event: DragEvent<HTMLElement>, node: ChatCanvasNode) => void
@@ -30,6 +35,7 @@ function PreviewNode({
   onSelect,
   onDragOver,
   onDrop,
+  floating = false,
 }: {
   node: ChatCanvasNode
   rootId: string
@@ -38,10 +44,13 @@ function PreviewNode({
   labels: Record<ChatCanvasNode['kind'], string>
   content: Partial<Record<ChatCanvasNode['kind'], ReactNode>>
   onSelect: (id: string) => void
+  floating?: boolean
 } & Pick<PreviewProps, 'selectedId' | 'dropHint'> &
   CanvasDropHandlers) {
   const container = isCanvasContainerKind(node.kind)
+  if (isFloatingCanvasIsland(node) && !floating) return null
   const selectWithKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       event.stopPropagation()
@@ -52,7 +61,7 @@ function PreviewNode({
     <div
       role="button"
       tabIndex={0}
-      aria-label={`${labels[node.kind]} · ${node.id}`}
+      aria-label={`${labels[node.kind]} · ${node.componentId ?? node.id}`}
       aria-pressed={node.id === selectedId}
       draggable={node.id !== rootId}
       onClick={(event) => {
@@ -75,6 +84,7 @@ function PreviewNode({
       )}
       style={{
         ...chatCanvasNodeStyle(node, node.id === rootId),
+        ...(floating ? { height: '100%', minHeight: 0, width: '100%' } : {}),
         ...(node.id === selectedId
           ? { outline: '2px solid var(--ring)', outlineOffset: '-2px' }
           : {}),
@@ -107,6 +117,10 @@ function PreviewNode({
         <hr className="w-full border-current opacity-25" />
       ) : node.kind === 'spacer' ? (
         <div className="min-h-5" />
+      ) : node.kind === 'custom-ui' && node.componentId ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <CanvasCustomUi componentId={node.componentId} preview />
+        </div>
       ) : (
         content[node.kind]
       )}
@@ -191,7 +205,7 @@ export function ChatLayoutPreview({
       <div className="max-h-[65dvh] min-h-80 min-w-0 overflow-auto rounded-xl border border-border bg-muted/30 p-3">
         <div
           className={cn(
-            'h-[500px] min-h-[420px] min-w-0 bg-background p-2 text-foreground shadow-sm',
+            'relative isolate h-[500px] min-h-[420px] min-w-0 bg-background p-2 text-foreground shadow-sm',
             mobile ? 'mx-auto max-w-[360px]' : 'w-full',
           )}
         >
@@ -206,6 +220,27 @@ export function ChatLayoutPreview({
             onDragOver={onDragOver}
             onDrop={onDrop}
           />
+          <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+            {collectFloatingCanvasIslands(root).map((node) => (
+              <div
+                key={node.id}
+                className="pointer-events-auto absolute left-1/2 top-0 h-16 w-[380px] max-w-full -translate-x-1/2"
+              >
+                <PreviewNode
+                  node={node}
+                  rootId={root.id}
+                  selectedId={selectedId}
+                  dropHint={dropHint}
+                  labels={labels}
+                  content={content}
+                  onSelect={onSelect}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                  floating
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <figcaption className="text-xs leading-5 text-muted-foreground">

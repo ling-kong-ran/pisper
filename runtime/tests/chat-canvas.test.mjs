@@ -49,6 +49,76 @@ test('nested containers and repeated decorative components are accepted and clon
   assert.equal(findCanvasNode(parsed, 'missing'), undefined)
 })
 
+test('custom UI instances retain component references through editing and JSON round trips', () => {
+  const original = fresh()
+  const first = addCanvasNode(original, original.id, 'custom-ui', 'my.widget-v2')
+  const firstId = lastChild(first).id
+  const second = addCanvasNode(first, first.id, 'custom-ui', 'my.widget-v2')
+  const secondId = lastChild(second).id
+  assert.notEqual(firstId, secondId)
+  assert.equal(findCanvasNode(second, firstId).componentId, 'my.widget-v2')
+  assert.equal(lastChild(second).componentId, 'my.widget-v2')
+  assert.equal(lastChild(second).css, 'height: 240px; flex-shrink: 0;')
+  assert.deepEqual(parseChatCanvas(JSON.parse(JSON.stringify(second))), second)
+  const moved = moveCanvasNode(second, secondId, second.id, 0)
+  assert.equal(moved.children[0].componentId, 'my.widget-v2')
+  const changed = updateCanvasNode(moved, firstId, { componentId: 'other_widget' })
+  assert.equal(findCanvasNode(changed, firstId).componentId, 'other_widget')
+  assert.equal(findCanvasNode(second, firstId).componentId, 'my.widget-v2')
+  assert.equal(canvasHasKind(original, 'custom-ui'), false)
+  assert.equal(findCanvasNode(removeCanvasNode(changed, firstId), firstId), undefined)
+})
+
+test('custom UI component references reject missing, unsafe and misplaced identifiers', () => {
+  const root = fresh()
+  for (const componentId of [
+    undefined,
+    null,
+    7,
+    '',
+    'Upper',
+    '../escape',
+    '/absolute',
+    'x/y',
+    'x\\y',
+    'two words',
+    '<widget>',
+    'x'.repeat(65),
+  ]) {
+    assert.throws(() => addCanvasNode(root, root.id, 'custom-ui', componentId), {
+      code: 'invalid_canvas',
+    })
+  }
+  assert.doesNotThrow(() => addCanvasNode(root, root.id, 'custom-ui', 'x'.repeat(64)))
+  for (const kind of ['text', 'column', 'spacer']) {
+    assert.throws(() => addCanvasNode(root, root.id, kind, 'widget'), { code: 'invalid_canvas' })
+  }
+  for (const componentId of ['widget', undefined]) {
+    const misplaced = structuredClone(root)
+    misplaced.children[0].componentId = componentId
+    assert.throws(() => parseChatCanvas(misplaced), { code: 'invalid_canvas' })
+  }
+  assert.throws(() => updateCanvasNode(root, 'canvas-header', { componentId: 'widget' }), {
+    code: 'invalid_canvas',
+  })
+  const custom = addCanvasNode(root, root.id, 'custom-ui', 'widget')
+  assert.throws(() => updateCanvasNode(custom, lastChild(custom).id, { componentId: '../bad' }), {
+    code: 'invalid_canvas',
+  })
+  const container = structuredClone(custom)
+  lastChild(container).children = []
+  assert.throws(() => parseChatCanvas(container), { code: 'invalid_canvas' })
+  let invoked = false
+  Object.defineProperty(lastChild(custom), 'componentId', {
+    get() {
+      invoked = true
+      return 'widget'
+    },
+  })
+  assert.throws(() => parseChatCanvas(custom), { code: 'invalid_canvas' })
+  assert.equal(invoked, false)
+})
+
 test('tree edits are immutable and core functional blocks cannot be duplicated or removed', () => {
   const root = fresh()
   const before = structuredClone(root)

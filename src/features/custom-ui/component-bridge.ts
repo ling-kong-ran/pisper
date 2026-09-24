@@ -11,6 +11,7 @@ import type { CustomUiComponent } from './custom-ui-api'
 export type PisperBridgeTheme = {
   mode: 'dark' | 'light'
   variables: Record<string, string>
+  locale?: string
 }
 
 // 透传给组件的设计变量：保持与 src/index.css 的核心表面/文字/强调色一致，
@@ -70,6 +71,8 @@ type BridgeRequest = {
 type BridgeHostOptions = {
   component: CustomUiComponent
   notify: (message: string) => void
+  preview?: boolean
+  locale?: string
 }
 
 // 方法 → 所需权限；ready 是握手，任何组件都可调用。
@@ -88,15 +91,22 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 // 绑定一个组件 iframe 的桥接宿主；返回清理函数（组件卸载/切换时调用）。
 export function attachComponentBridge(
   iframe: HTMLIFrameElement,
-  { component, notify }: BridgeHostOptions,
+  {
+    component,
+    notify,
+    preview = false,
+    locale = document.documentElement.lang || 'zh-CN',
+  }: BridgeHostOptions,
 ): () => void {
-  const permissions = new Set(component.permissions)
+  // 编辑画布只预览外观，不允许组件读取真实配置、会话或触发通知。
+  const grantedPermissions = preview ? [] : component.permissions
+  const permissions = new Set(grantedPermissions)
+  const controller = new AbortController()
+  const theme = () => ({ ...currentBridgeTheme(), locale })
 
   const postTheme = () => {
-    iframe.contentWindow?.postMessage(
-      { pisperBridge: 1, type: 'theme', theme: currentBridgeTheme() },
-      '*',
-    )
+    if (controller.signal.aborted) return
+    iframe.contentWindow?.postMessage({ pisperBridge: 1, type: 'theme', theme: theme() }, '*')
   }
 
   // 主题与强调色变化都体现在根元素 class / data-* 上，统一用属性观察转发。
@@ -107,6 +117,7 @@ export function attachComponentBridge(
   })
 
   const reply = (id: number, ok: boolean, result: unknown) => {
+    if (controller.signal.aborted) return
     iframe.contentWindow?.postMessage(
       ok
         ? { pisperBridge: 1, id, ok: true, result }
@@ -123,9 +134,10 @@ export function attachComponentBridge(
           id: component.id,
           name: component.name,
           version: component.version,
-          permissions: component.permissions,
+          permissions: grantedPermissions,
         },
-        theme: currentBridgeTheme(),
+        locale,
+        theme: theme(),
       }
     }
     const permission = METHOD_PERMISSIONS[method]
@@ -133,10 +145,10 @@ export function attachComponentBridge(
     if (!permissions.has(permission)) {
       throw new Error(`组件未在 manifest.json 声明权限 ${permission}。`)
     }
-    if (method === 'getConfig') return apiJson('/api/config')
+    if (method === 'getConfig') return apiJson('/api/config', { signal: controller.signal })
     if (method === 'listSessions') {
       const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 200)
-      return apiJson(`/api/sessions?limit=${limit}`)
+      return apiJson(`/api/sessions?limit=${limit}`, { signal: controller.signal })
     }
     if (method === 'notify') {
       const message = String(params.message || '')
@@ -151,19 +163,27 @@ export function attachComponentBridge(
   const onMessage = (event: MessageEvent) => {
     // 只处理来自自己 iframe 的消息；opaque origin 下 event.origin 恒为 'null'，
     // 来源区分完全依赖 event.source 与内容Window 的引用相等性。
-    if (event.source !== iframe.contentWindow) return
+    if (controller.signal.aborted || event.source !== iframe.contentWindow) return
     const data: BridgeRequest = asRecord(event.data) || {}
     if (data.pisperBridge !== 1) return
-    if (typeof data.id !== 'number' || typeof data.method !== 'string') return
+    if (
+      typeof data.id !== 'number' ||
+      !Number.isSafeInteger(data.id) ||
+      typeof data.method !== 'string'
+    )
+      return
+    const id = data.id
     void handleRequest(data.method, asRecord(data.params) || {}).then(
-      (result) => reply(data.id as number, true, result ?? null),
-      (error: unknown) =>
-        reply(data.id as number, false, error instanceof Error ? error.message : String(error)),
+      (result) => reply(id, true, result ?? null),
+      (error: unknown) => reply(id, false, error instanceof Error ? error.message : String(error)),
     )
   }
 
   window.addEventListener('message', onMessage)
+  // 重接语言或权限时同步当前外观，不必重载 iframe 丢失组件自身状态。
+  postTheme()
   return () => {
+    controller.abort()
     window.removeEventListener('message', onMessage)
     themeObserver.disconnect()
   }

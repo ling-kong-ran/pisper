@@ -63,7 +63,7 @@ export const DEFAULT_CHAT_LAYOUT: ChatLayoutTemplate = Object.freeze({
   accent: 'inherit',
   desktop: Object.freeze({
     ...appearance,
-    canvas: freezeCanvas(createDefaultCanvas(appearance)),
+    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: true })),
     navigationSide: 'left',
     navigationWidth: 236,
     navigationCollapsed: null,
@@ -74,7 +74,7 @@ export const DEFAULT_CHAT_LAYOUT: ChatLayoutTemplate = Object.freeze({
   }),
   mobile: Object.freeze({
     ...appearance,
-    canvas: freezeCanvas(createDefaultCanvas(appearance)),
+    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: true })),
     openContextOnCompletion: true,
   }),
 })
@@ -94,6 +94,7 @@ export const CHAT_LAYOUT_PRESETS: readonly ChatLayoutPreset[] = Object.freeze([
       desktop: Object.freeze({
         ...DEFAULT_CHAT_LAYOUT.desktop,
         contentWidth: 880,
+        canvas: freezeCanvas(createDefaultCanvas(appearance)),
         navigationCollapsed: true,
         contextVisibility: 'closed',
         openContextOnCompletion: false,
@@ -102,6 +103,7 @@ export const CHAT_LAYOUT_PRESETS: readonly ChatLayoutPreset[] = Object.freeze([
       mobile: Object.freeze({
         ...DEFAULT_CHAT_LAYOUT.mobile,
         messageStyle: 'plain',
+        canvas: freezeCanvas(createDefaultCanvas(appearance)),
         openContextOnCompletion: false,
       }),
     }),
@@ -114,12 +116,17 @@ export const CHAT_LAYOUT_PRESETS: readonly ChatLayoutPreset[] = Object.freeze([
       desktop: Object.freeze({
         ...DEFAULT_CHAT_LAYOUT.desktop,
         contentWidth: 1200,
+        canvas: freezeCanvas(createDefaultCanvas(appearance)),
         navigationCollapsed: false,
         contextSide: 'left',
         contextWidth: 440,
         density: 'compact',
       }),
-      mobile: Object.freeze({ ...DEFAULT_CHAT_LAYOUT.mobile, density: 'compact' }),
+      mobile: Object.freeze({
+        ...DEFAULT_CHAT_LAYOUT.mobile,
+        canvas: freezeCanvas(createDefaultCanvas(appearance)),
+        density: 'compact',
+      }),
     }),
   }),
   Object.freeze({

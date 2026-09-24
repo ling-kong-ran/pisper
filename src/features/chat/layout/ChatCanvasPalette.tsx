@@ -1,13 +1,18 @@
-import { GripVertical, Plus } from 'lucide-react'
+import { GripVertical, Plus, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { customUiComponentLabel, useCustomUiComponents } from '@/features/custom-ui/catalog'
 import {
   canvasHasKind,
   isCanvasContainerKind,
   type ChatCanvasKind,
   type ChatCanvasNode,
 } from './chat-canvas'
-import { CANVAS_KIND_DRAG, canvasKindLabels } from './chat-canvas-editor-model'
+import {
+  CANVAS_CUSTOM_UI_DRAG,
+  CANVAS_KIND_DRAG,
+  canvasKindLabels,
+} from './chat-canvas-editor-model'
 
 const groups: ChatCanvasKind[][] = [
   ['row', 'column', 'grid'],
@@ -20,9 +25,10 @@ export function ChatCanvasPalette({
   onAdd,
 }: {
   root: ChatCanvasNode
-  onAdd: (kind: ChatCanvasKind) => void
+  onAdd: (kind: ChatCanvasKind, componentId?: string) => void
 }) {
   const { t } = useI18n()
+  const catalog = useCustomUiComponents()
   const labels = canvasKindLabels(t)
   const titles = [
     t('chat-layout:canvas.containers'),
@@ -69,6 +75,58 @@ export function ChatCanvasPalette({
           </div>
         </section>
       ))}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-xs font-medium text-muted-foreground">
+            {t('chat-layout:canvas.customUi')}
+          </h4>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={catalog.isFetching}
+            onClick={() => void catalog.refetch()}
+            aria-label={t('chat-layout:canvas.refreshWidgets')}
+            title={t('chat-layout:canvas.refreshWidgets')}
+          >
+            <RefreshCw className="size-3.5" />
+          </Button>
+        </div>
+        {catalog.isPending ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            {t('custom-ui:customUiPage.loading')}
+          </p>
+        ) : catalog.error ? (
+          <p role="alert" className="text-xs leading-5">
+            {t('chat-layout:canvas.widgetsFailed')}
+          </p>
+        ) : !catalog.data?.components.length ? (
+          <p className="text-xs leading-5 text-muted-foreground">
+            {t('chat-layout:canvas.widgetsEmpty')}
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {catalog.data.components.map((component) => (
+              <Button
+                key={component.id}
+                variant="outline"
+                className="w-full min-w-0 justify-start px-2 text-xs"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(CANVAS_CUSTOM_UI_DRAG, component.id)
+                  event.dataTransfer.effectAllowed = 'copy'
+                }}
+                onClick={() => onAdd('custom-ui', component.id)}
+                title={t('chat-layout:canvas.addComponent', {
+                  name: customUiComponentLabel(component, t),
+                })}
+              >
+                <Plus className="size-3 shrink-0" />
+                <span className="truncate">{customUiComponentLabel(component, t)}</span>
+              </Button>
+            ))}
+          </div>
+        )}
+      </section>
       <p className="text-xs leading-5 text-muted-foreground">{t('chat-layout:canvas.addHint')}</p>
     </div>
   )

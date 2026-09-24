@@ -1,25 +1,22 @@
 // 自定义组件页：加载 dataDir/custom-ui/ 下用户自写的静态 UI 组件，
 // 左侧组件列表 + 右侧沙箱 iframe 渲染。组件与应用的交互全部经过
 // component-bridge 的 postMessage 代理（权限按 manifest 声明过滤）。
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Blocks, FolderCode, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+import { Blocks, FolderCode, PanelsTopLeft, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppCard as Panel, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Notify } from '@/app/route-context'
-import { attachComponentBridge } from './component-bridge'
-import {
-  listCustomUiComponents,
-  createCustomUiView,
-  renewCustomUiView,
-  releaseCustomUiView,
-  type CustomUiComponent,
-  type CustomUiView,
-} from './custom-ui-api'
+import { CustomUiFrame } from './CustomUiFrame'
+import { useCustomUiComponents } from './useCustomUiComponents'
+import { customUiComponentLabel, customUiComponentDescription } from './custom-ui-labels'
+import { resolveFloatingWidgetIds, useFloatingWidgetsStore } from './floating-widgets-store'
+import type { CustomUiComponent } from './custom-ui-api'
 
 type CustomUiPageProps = {
   notify: Notify
+  floatingDefaults?: readonly string[]
 }
 
 function permissionLabel(permission: string, t: ReturnType<typeof useI18n>['t']) {
@@ -30,70 +27,52 @@ function permissionLabel(permission: string, t: ReturnType<typeof useI18n>['t'])
 }
 
 // 单个组件的渲染面板：iframe 以 opaque origin 沙箱加载，挂载后接桥。
-function ComponentStage({ component, notify }: { component: CustomUiComponent; notify: Notify }) {
+function ComponentStage({
+  component,
+  notify,
+  floating,
+  onToggleFloating,
+}: {
+  component: CustomUiComponent
+  notify: Notify
+  floating: boolean
+  onToggleFloating: () => void
+}) {
   const { t } = useI18n()
-  const frameRef = useRef<HTMLIFrameElement | null>(null)
-  const [failed, setFailed] = useState(false)
-  const [view, setView] = useState<CustomUiView | null>(null)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    let activeView: CustomUiView | null = null
-    let timer: ReturnType<typeof setTimeout> | undefined
-    setFailed(false)
-    setView(null)
-    // 父页面持有鉴权，定期续期；卸载主动撤销，异常断开时服务端五分钟自动过期。
-    const renew = async () => {
-      if (!activeView || controller.signal.aborted) return
-      try {
-        await renewCustomUiView(activeView.id, controller.signal)
-        if (!controller.signal.aborted) timer = setTimeout(() => void renew(), 60_000)
-      } catch {
-        if (!controller.signal.aborted) setFailed(true)
-      }
-    }
-    void createCustomUiView(component.id, controller.signal)
-      .then((next) => {
-        activeView = next
-        if (controller.signal.aborted) {
-          void releaseCustomUiView(next.id).catch(() => undefined)
-          return
-        }
-        setView(next)
-        timer = setTimeout(() => void renew(), 60_000)
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true)
-      })
-    return () => {
-      controller.abort()
-      clearTimeout(timer)
-      // 撤销失败不重试写操作；服务器 TTL 保证失联预览最终被清理。
-      if (activeView) void releaseCustomUiView(activeView.id).catch(() => undefined)
-    }
-  }, [component])
-
-  useEffect(() => {
-    const iframe = frameRef.current
-    if (!iframe) return
-    return attachComponentBridge(iframe, { component, notify: (message) => notify(message) })
-  }, [component, notify, view])
 
   return (
     <Panel className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden p-3">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[14px]">
-          {component.name}
+          {customUiComponentLabel(component, t)}
         </strong>
+        {component.builtIn && (
+          <span className="rounded bg-[var(--surface-muted)] px-1.5 py-0.5 text-xs text-[var(--text-muted)]">
+            {t('custom-ui:builtIn.badge')}
+          </span>
+        )}
         {component.version && (
           <span className="flex-none text-[12px] text-[var(--text-muted)]">
             v{component.version}
           </span>
         )}
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-pressed={floating}
+          title={t('custom-ui:floating.hint')}
+          onClick={onToggleFloating}
+        >
+          <PanelsTopLeft size={13} />
+          {floating ? t('custom-ui:floating.hide') : t('custom-ui:floating.show')}
+        </Button>
       </div>
+      <p className="m-0 text-xs leading-5 text-[var(--text-muted)]">
+        {t('custom-ui:floating.hint')}
+      </p>
       {component.description && (
         <p className="m-0 text-[12px] leading-[1.55] text-[var(--text-secondary)]">
-          {component.description}
+          {customUiComponentDescription(component, t)}
         </p>
       )}
       {component.permissions.length > 0 && (
@@ -109,64 +88,34 @@ function ComponentStage({ component, notify }: { component: CustomUiComponent; n
           ))}
         </div>
       )}
-      {failed ? (
-        <div className="grid min-h-[240px] flex-1 place-items-center rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] text-[12px] text-[var(--text-muted)]">
-          {t('custom-ui:customUiPage.componentFailedToLoad')}
-        </div>
-      ) : !view ? (
-        <p>{t('custom-ui:customUiPage.loading')}</p>
-      ) : (
-        <iframe
-          key={component.id}
-          ref={frameRef}
-          title={component.name}
-          src={view.entryUrl}
-          referrerPolicy="no-referrer"
-          // 不加 allow-same-origin：组件处于 opaque origin，只能经桥与应用交互。
-          sandbox="allow-scripts"
-          className="min-h-[240px] flex-1 rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)]"
-          onError={() => setFailed(true)}
-        />
-      )}
+      <div className="min-h-[240px] flex-1 overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)]">
+        <CustomUiFrame component={component} notify={notify} />
+      </div>
     </Panel>
   )
 }
 
-export function CustomUiPage({ notify }: CustomUiPageProps) {
+export function CustomUiPage({ notify, floatingDefaults = [] }: CustomUiPageProps) {
   const { t } = useI18n()
-  const [components, setComponents] = useState<CustomUiComponent[]>([])
-  const [root, setRoot] = useState('')
+  const catalog = useCustomUiComponents()
+  const components = catalog.data?.components || []
+  const root = catalog.data?.root || ''
   const [selectedId, setSelectedId] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState('')
-
-  const load = useCallback(async (initial: boolean) => {
-    if (initial) setLoading(true)
-    else setRefreshing(true)
-    setError('')
+  const loading = catalog.isPending
+  const refreshing = catalog.isFetching
+  const error = catalog.error ? t('custom-ui:widget.catalogFailed') : ''
+  const selected = components.find((item) => item.id === selectedId) || components[0] || null
+  const prefs = useFloatingWidgetsStore((state) => state.prefs)
+  const storageError = useFloatingWidgetsStore((state) => state.storageError)
+  const floatingIds = resolveFloatingWidgetIds(floatingDefaults, prefs)
+  const toggleFloating = () => {
+    if (!selected) return
     try {
-      const data = await listCustomUiComponents()
-      setComponents(data.components)
-      setRoot(data.root)
-      setSelectedId((current) =>
-        data.components.some((item) => item.id === current)
-          ? current
-          : data.components[0]?.id || '',
-      )
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
+      useFloatingWidgetsStore.getState().setVisible(selected.id, !floatingIds.includes(selected.id))
+    } catch {
+      notify(t('custom-ui:floating.storageFailed'))
     }
-  }, [])
-
-  useEffect(() => {
-    void load(true)
-  }, [load])
-
-  const selected = components.find((item) => item.id === selectedId) || null
+  }
 
   if (loading) {
     return (
@@ -197,7 +146,7 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
             variant="outline"
             size="sm"
             disabled={refreshing}
-            onClick={() => void load(false)}
+            onClick={() => void catalog.refetch()}
           >
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             {t('custom-ui:customUiPage.rescan')}
@@ -215,6 +164,7 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
           <span>{error}</span>
         </AppNotice>
       )}
+      {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-[12px] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
         <Panel className="flex min-h-0 flex-col gap-[8px] overflow-y-auto p-2">
           <div className="flex items-center justify-between px-1 pt-1">
@@ -228,7 +178,7 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
               title={t('custom-ui:customUiPage.rescan')}
               aria-label={t('custom-ui:customUiPage.rescan')}
               disabled={refreshing}
-              onClick={() => void load(false)}
+              onClick={() => void catalog.refetch()}
             >
               <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             </Button>
@@ -240,7 +190,7 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
               onClick={() => setSelectedId(component.id)}
               className={cn(
                 'flex min-w-0 cursor-pointer flex-col gap-[2px] rounded-[var(--r-md)] border-0 px-[10px] py-[8px] text-left transition-colors',
-                component.id === selectedId
+                component.id === selected?.id
                   ? 'bg-[var(--accent-soft)] text-[var(--text)]'
                   : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]',
               )}
@@ -248,9 +198,14 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
               <span className="flex min-w-0 items-center gap-[6px]">
                 <Blocks size={13} className="flex-none text-[var(--star-strong)]" />
                 <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                  {component.name}
+                  {customUiComponentLabel(component, t)}
                 </strong>
               </span>
+              {component.builtIn && (
+                <small className="pl-[19px] text-xs text-[var(--text-muted)]">
+                  {t('custom-ui:builtIn.badge')}
+                </small>
+              )}
               <small className="overflow-hidden text-ellipsis whitespace-nowrap pl-[19px] text-[11px] text-[var(--text-muted)]">
                 {component.id}
               </small>
@@ -261,7 +216,13 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
           </p>
         </Panel>
         {selected ? (
-          <ComponentStage key={selected.id} component={selected} notify={notify} />
+          <ComponentStage
+            key={`${selected.id}:${catalog.dataUpdatedAt}`}
+            component={selected}
+            notify={notify}
+            floating={floatingIds.includes(selected.id)}
+            onToggleFloating={toggleFloating}
+          />
         ) : (
           <Panel className="grid place-items-center text-[12px] text-[var(--text-muted)]">
             {t('custom-ui:customUiPage.selectComponent')}

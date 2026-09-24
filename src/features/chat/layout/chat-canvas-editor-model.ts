@@ -26,6 +26,7 @@ export function canvasKindLabels(t: Translate): Record<ChatCanvasKind, string> {
     usage: t('chat-layout:canvas.usage'),
     workspace: t('chat-layout:canvas.workspace'),
     context: t('chat-layout:canvas.context'),
+    'custom-ui': t('chat-layout:canvas.customUi'),
   }
 }
 
@@ -44,7 +45,8 @@ export function canvasNodes(root: ChatCanvasNode): ChatCanvasNode[] {
 export function canCopyCanvasNode(node: ChatCanvasNode): boolean {
   return canvasNodes(node).every(
     (entry) =>
-      isCanvasContainerKind(entry.kind) || ['text', 'divider', 'spacer'].includes(entry.kind),
+      isCanvasContainerKind(entry.kind) ||
+      ['text', 'divider', 'spacer', 'custom-ui'].includes(entry.kind),
   )
 }
 
@@ -64,7 +66,7 @@ export function copyCanvasNode(root: ChatCanvasNode, id: string): ChatCanvasNode
     source: ChatCanvasNode,
     parentId: string,
   ): ChatCanvasNode => {
-    let next = addCanvasNode(tree, parentId, source.kind)
+    let next = addCanvasNode(tree, parentId, source.kind, source.componentId)
     const copy = findCanvasNode(next, parentId)?.children?.at(-1)
     if (!copy) return tree
     next = updateCanvasNode(next, copy.id, {
@@ -79,6 +81,7 @@ export function copyCanvasNode(root: ChatCanvasNode, id: string): ChatCanvasNode
 
 export const CANVAS_NODE_DRAG = 'application/x-pisper-canvas-node'
 export const CANVAS_KIND_DRAG = 'application/x-pisper-canvas-kind'
+export const CANVAS_CUSTOM_UI_DRAG = 'application/x-pisper-canvas-custom-ui'
 
 export function replaceCanvasCssDeclaration(css: string, property: string, value: string): string {
   const declarations = splitCanvasCssDeclarations(css).filter(

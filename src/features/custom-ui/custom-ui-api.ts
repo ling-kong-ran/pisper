@@ -11,6 +11,7 @@ export type CustomUiComponent = {
   permissions: string[]
   entryUrl: string
   directory: string
+  builtIn?: boolean
 }
 
 export type CustomUiComponentsData = {
@@ -29,7 +30,8 @@ function isComponent(value: unknown): value is CustomUiComponent {
       (key) => typeof value[key] === 'string',
     ) &&
     Array.isArray(value.permissions) &&
-    value.permissions.every((item) => typeof item === 'string')
+    value.permissions.every((item) => typeof item === 'string') &&
+    (value.builtIn === undefined || typeof value.builtIn === 'boolean')
   )
 }
 

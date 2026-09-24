@@ -68,6 +68,12 @@ export function ChatCanvasInspector({
         <h3 className="text-sm font-medium">{labels[node.kind]}</h3>
         <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{node.id}</p>
       </div>
+      {node.kind === 'custom-ui' && (
+        <div className="space-y-1.5 rounded-lg border border-border p-3 text-xs leading-5">
+          <p className="break-all font-mono">{node.componentId}</p>
+          <p className="text-muted-foreground">{t('chat-layout:canvas.widgetStyleHint')}</p>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <Button
           variant="outline"

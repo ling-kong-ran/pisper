@@ -16,6 +16,7 @@ export const CANVAS_KINDS = [
   'usage',
   'workspace',
   'context',
+  'custom-ui',
 ] as const
 export type ChatCanvasKind = (typeof CANVAS_KINDS)[number]
 export type ChatCanvasNode = {
@@ -23,6 +24,7 @@ export type ChatCanvasNode = {
   kind: ChatCanvasKind
   css: string
   text?: string
+  componentId?: string
   children?: ChatCanvasNode[]
 }
 
@@ -58,7 +60,10 @@ function record(input: unknown): Record<string, unknown> {
   if (prototype !== Object.prototype && prototype !== null) invalid()
   const value: Record<string, unknown> = {}
   for (const key of Reflect.ownKeys(input)) {
-    if (typeof key !== 'string' || !['id', 'kind', 'css', 'text', 'children'].includes(key))
+    if (
+      typeof key !== 'string' ||
+      !['id', 'kind', 'css', 'text', 'componentId', 'children'].includes(key)
+    )
       invalid()
     const descriptor = Object.getOwnPropertyDescriptor(input, key)
     if (!descriptor || !('value' in descriptor)) invalid()
@@ -89,6 +94,14 @@ export function parseChatCanvas(input: unknown): ChatCanvasNode {
     if (typeof value.css !== 'string') invalid('canvas.css')
     parseCanvasCss(value.css)
     const node: ChatCanvasNode = { id: value.id, kind, css: value.css }
+    if (kind === 'custom-ui') {
+      if (
+        typeof value.componentId !== 'string' ||
+        !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value.componentId)
+      )
+        invalid('canvas.componentId')
+      node.componentId = value.componentId
+    } else if ('componentId' in value) invalid('canvas.componentId')
     if (kind === 'text') {
       if (
         value.text !== undefined &&
@@ -117,6 +130,7 @@ export function parseChatCanvas(input: unknown): ChatCanvasNode {
 
 export function createDefaultCanvas(appearance: {
   composerPosition: 'top' | 'bottom'
+  includeIsland?: boolean
 }): ChatCanvasNode {
   const header: ChatCanvasNode = { id: 'canvas-header', kind: 'header', css: 'flex-shrink: 0;' }
   const messages: ChatCanvasNode = {
@@ -129,14 +143,21 @@ export function createDefaultCanvas(appearance: {
     kind: 'composer',
     css: 'flex-shrink: 0;',
   }
+  const island: ChatCanvasNode = {
+    id: 'canvas-island',
+    kind: 'custom-ui',
+    componentId: 'pisper-island',
+    css: 'height: 64px; flex-shrink: 0;',
+  }
+  const heading = appearance.includeIsland ? [header, island] : [header]
   return {
     id: 'canvas-root',
     kind: 'column',
     css: 'height: 100%; min-height: 0;',
     children:
       appearance.composerPosition === 'top'
-        ? [header, composer, messages]
-        : [header, messages, composer],
+        ? [...heading, composer, messages]
+        : [...heading, messages, composer],
   }
 }
 
@@ -167,13 +188,19 @@ export function addCanvasNode(
   root: ChatCanvasNode,
   parentId: string,
   kind: ChatCanvasKind,
+  componentId?: string,
 ): ChatCanvasNode {
+  if (kind !== 'custom-ui' && componentId !== undefined) invalid('canvas.componentId')
   const next = parseChatCanvas(root)
   const parent = findCanvasNode(next, parentId)
   if (!parent || !isCanvasContainerKind(parent.kind)) invalid()
   const node: ChatCanvasNode = { id: newId(next, kind), kind, css: '' }
   if (kind === 'text') node.text = ''
   if (kind === 'spacer') node.css = 'min-height: 16px;'
+  if (kind === 'custom-ui') {
+    node.componentId = componentId
+    node.css = `height: ${componentId === 'pisper-island' ? 64 : 240}px; flex-shrink: 0;`
+  }
   if (isCanvasContainerKind(kind)) node.children = []
   parent.children = [...(parent.children ?? []), node]
   return parseChatCanvas(next)
@@ -227,13 +254,13 @@ export function removeCanvasNode(root: ChatCanvasNode, id: string): ChatCanvasNo
 export function updateCanvasNode(
   root: ChatCanvasNode,
   id: string,
-  patch: { css?: string; text?: string },
+  patch: { css?: string; text?: string; componentId?: string },
 ): ChatCanvasNode {
   const next = parseChatCanvas(root)
   const node = findCanvasNode(next, id)
   if (!node || !patch || typeof patch !== 'object' || Array.isArray(patch)) invalid()
   for (const key of Reflect.ownKeys(patch)) {
-    if (key !== 'css' && key !== 'text') invalid()
+    if (key !== 'css' && key !== 'text' && key !== 'componentId') invalid()
     const descriptor = Object.getOwnPropertyDescriptor(patch, key)
     if (!descriptor || !('value' in descriptor) || typeof descriptor.value !== 'string') invalid()
     node[key] = descriptor.value

@@ -15,6 +15,7 @@
     "types": ["node"]
   },
   "files": [
+    "runtime/services/custom-ui-builtins.mjs",
     "runtime/services/custom-ui-path.mjs",
     "runtime/http/route-registry.mjs",
     "runtime/services/decision-remote-client.mjs",

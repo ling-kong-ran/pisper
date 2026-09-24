@@ -9,12 +9,14 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { CanvasCustomUi } from './CanvasCustomUi'
 import type { ChatCanvasNode } from './chat-canvas'
 import {
   CHAT_CANVAS_SLOT_KINDS,
   chatCanvasNodeStyle,
   createChatCanvasHosts,
   isChatCanvasSlotKind,
+  isFloatingCanvasIsland,
   type ChatCanvasSlotKind,
 } from './chat-canvas-render'
 
@@ -28,6 +30,7 @@ type CanvasContextValue = {
   slots: ChatCanvasSlots
   getHost: ((kind: ChatCanvasSlotKind) => HTMLDivElement) | null
   focusSnapshots: Map<ChatCanvasSlotKind, CanvasFocusSnapshot>
+  notify?: (message: string) => void
 }
 
 const CanvasContext = createContext<CanvasContextValue | null>(null)
@@ -97,6 +100,8 @@ const CanvasNode = memo(function CanvasNode({
   node: ChatCanvasNode
   root?: boolean
 }) {
+  const context = useContext(CanvasContext)
+  if (isFloatingCanvasIsland(node)) return null
   return (
     <div
       data-canvas-node={node.id}
@@ -109,6 +114,8 @@ const CanvasNode = memo(function CanvasNode({
         <ChatCanvasSlot kind={node.kind} />
       ) : node.kind === 'text' ? (
         node.text
+      ) : node.kind === 'custom-ui' && node.componentId ? (
+        <CanvasCustomUi componentId={node.componentId} notify={context?.notify} />
       ) : (
         node.children?.map((child) => <CanvasNode key={child.id} node={child} />)
       )}
@@ -119,9 +126,11 @@ const CanvasNode = memo(function CanvasNode({
 export function ChatCanvasLayout({
   root,
   slots,
+  notify,
 }: {
   root: ChatCanvasNode
   slots: ChatCanvasSlots
+  notify?: (message: string) => void
 }) {
   const [getHost] = useState(() =>
     typeof document === 'undefined'
@@ -136,8 +145,8 @@ export function ChatCanvasLayout({
   const fallbackSlots = getHost ? EMPTY_CANVAS_SLOTS : slots
   const [focusSnapshots] = useState(() => new Map<ChatCanvasSlotKind, CanvasFocusSnapshot>())
   const context = useMemo(
-    () => ({ slots: fallbackSlots, getHost, focusSnapshots }),
-    [getHost, fallbackSlots, focusSnapshots],
+    () => ({ slots: fallbackSlots, getHost, focusSnapshots, notify }),
+    [getHost, fallbackSlots, focusSnapshots, notify],
   )
   return (
     <CanvasContext.Provider value={context}>

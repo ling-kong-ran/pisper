@@ -56,6 +56,30 @@ test('editor prevents copying functional blocks or containers containing them', 
   assert.equal(copyCanvasNode(tree, tree.id), tree)
 })
 
+test('editor copies custom UI instances and nested groups while retaining their component references', () => {
+  const initial = structuredClone(DEFAULT_CHAT_LAYOUT.desktop.canvas)
+  const group = append(initial, initial.id, 'column')
+  let tree = addCanvasNode(group.root, group.id, 'custom-ui', 'weather-panel')
+  const widget = findCanvasNode(tree, group.id).children[0]
+  tree = updateCanvasNode(tree, widget.id, { css: 'height: 320px; border-radius: 12px;' })
+  assert.equal(canCopyCanvasNode(findCanvasNode(tree, group.id)), true)
+  assert.equal(canCopyCanvasNode(widget), true)
+  tree = copyCanvasNode(tree, widget.id)
+  const instances = findCanvasNode(tree, group.id).children
+  assert.equal(instances.length, 2)
+  for (const instance of instances) {
+    assert.equal(instance.componentId, 'weather-panel')
+    assert.equal(instance.css, 'height: 320px; border-radius: 12px;')
+  }
+  const copied = copyCanvasNode(tree, group.id)
+  assert.equal(copied.children.at(-1).children.length, 2)
+  for (const instance of copied.children.at(-1).children)
+    assert.equal(instance.componentId, 'weather-panel')
+  const ids = canvasNodes(copied).map((node) => node.id)
+  assert.equal(ids.length, new Set(ids).size)
+  assert.equal(findCanvasNode(tree, group.id).children.length, 2)
+})
+
 test('editor delete controls protect mandatory regions and their containing ancestors', () => {
   const tree = structuredClone(DEFAULT_CHAT_LAYOUT.desktop.canvas)
   for (const node of canvasNodes(tree)) {

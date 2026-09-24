@@ -117,7 +117,7 @@ test('manifest normalization rejects invalid name and entry traversal', () => {
 test('listComponents scans valid components and skips invalid directories', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-'))
   t.after(async () => rm(directory, { recursive: true, force: true }))
-  const service = new CustomUiService({ dataDir: directory })
+  const service = new CustomUiService({ dataDir: directory, builtinComponents: [] })
   // 目录不存在 → 空列表而不是抛错。
   assert.deepEqual(await service.listComponents(), {
     root: displayCustomUiPath(service.root),
@@ -257,7 +257,12 @@ test('custom UI HTTP API lists components, serves assets and bridge script', asy
     { name: 'Demo', permissions: ['notify'] },
     { 'index.html': '<h1>demo</h1>' },
   )
-  const handler = createApiHandler({}, { customUi: new CustomUiService({ dataDir: directory }) })
+  const handler = createApiHandler(
+    {},
+    {
+      customUi: new CustomUiService({ dataDir: directory, builtinComponents: [] }),
+    },
+  )
   const request = (method, pathname) =>
     new Promise((resolvePromise, rejectPromise) => {
       const chunks = []

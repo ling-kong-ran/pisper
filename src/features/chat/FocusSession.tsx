@@ -827,6 +827,7 @@ export const FocusSession = memo(function FocusSession({
     >
       <ChatCanvasLayout
         root={appearance.canvas}
+        notify={notify}
         slots={{
           header: headerBlock,
           messages: transcriptBlock,
