@@ -99,18 +99,21 @@ async function smokeStagedModules() {
   if (!text?.includes(docxText))
     throw new Error('Staged officeparser failed to parse the DOCX fixture.')
 
-  const [client, sse, stdio, streamableHttp, playwright, clipboard] = await Promise.all([
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js')),
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/sse.js')),
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js')),
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js')),
-    import(stagedUrl('node_modules/playwright-core/index.mjs')),
-    import(
-      stagedUrl(
-        'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/native-platform.js',
-      )
-    ),
-  ])
+  const [client, sse, stdio, streamableHttp, mcpServer, mcpHttpServer, playwright, clipboard] =
+    await Promise.all([
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/sse.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js')),
+      import(stagedUrl('node_modules/playwright-core/index.mjs')),
+      import(
+        stagedUrl(
+          'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/native-platform.js',
+        )
+      ),
+    ])
   if (typeof client.Client !== 'function') throw new Error('Staged MCP Client did not import.')
   if (typeof sse.SSEClientTransport !== 'function')
     throw new Error('Staged MCP SSE transport did not import.')
@@ -119,6 +122,12 @@ async function smokeStagedModules() {
   }
   if (typeof streamableHttp.StreamableHTTPClientTransport !== 'function') {
     throw new Error('Staged MCP streamable HTTP transport did not import.')
+  }
+  if (typeof mcpServer.McpServer !== 'function') {
+    throw new Error('Staged MCP Server did not import.')
+  }
+  if (typeof mcpHttpServer.StreamableHTTPServerTransport !== 'function') {
+    throw new Error('Staged MCP streamable HTTP server transport did not import.')
   }
   if (typeof playwright.chromium?.launch !== 'function') {
     throw new Error('Staged playwright-core package did not import.')

@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Alert } from '@/components/ui/alert'
 import { mcpApi, type McpService, type McpTool } from './mcp-api'
+import { McpHostPanel } from './McpHostPanel'
 import { useMcpDashboard } from './useMcpDashboard'
 import { relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -226,6 +227,7 @@ export function McpPage({
 
   return (
     <div className="preview-page flex min-h-[100%] flex-col">
+      <McpHostPanel notify={notify} requestConfirm={requestConfirm} />
       {loading && !error && <p role="status">{t('mcp:loading')}</p>}
       {error && (
         <Alert

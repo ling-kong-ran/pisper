@@ -8,7 +8,6 @@ import enAssets from '@/locales/en-US/assets.json' with { type: 'json' }
 import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
-import enMcp from '@/locales/en-US/mcp.json' with { type: 'json' }
 import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
@@ -21,7 +20,6 @@ import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
-import zhMcp from '@/locales/zh-CN/mcp.json' with { type: 'json' }
 import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
@@ -92,7 +90,6 @@ void i18n.use(initReactI18next).init({
       navigation: zhNavigation,
       chat: zhChat,
       config: zhConfig,
-      mcp: zhMcp,
       memory: zhMemory,
       plugins: zhPlugins,
       decisions: zhDecisions,
@@ -107,7 +104,6 @@ void i18n.use(initReactI18next).init({
       navigation: enNavigation,
       chat: enChat,
       config: enConfig,
-      mcp: enMcp,
       memory: enMemory,
       plugins: enPlugins,
       decisions: enDecisions,
@@ -128,6 +124,7 @@ void i18n.use(initReactI18next).init({
 })
 
 let channelsMessagesPromise: Promise<void> | null = null
+let mcpMessagesPromise: Promise<void> | null = null
 let chatLayoutMessagesPromise: Promise<void> | null = null
 let customUiMessagesPromise: Promise<void> | null = null
 
@@ -183,6 +180,25 @@ export function ensureChannelsMessages(): Promise<void> {
       throw error
     })
   return channelsMessagesPromise
+}
+
+// MCP 页面单独加载两种语言，新增服务端配置文案不占用会话首屏预算。
+export function ensureMcpMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'mcp') && i18n.hasResourceBundle('en-US', 'mcp'))
+    return Promise.resolve()
+  mcpMessagesPromise ??= Promise.all([
+    import('@/locales/zh-CN/mcp.json'),
+    import('@/locales/en-US/mcp.json'),
+  ])
+    .then(([zh, en]) => {
+      i18n.addResourceBundle('zh-CN', 'mcp', zh.default)
+      i18n.addResourceBundle('en-US', 'mcp', en.default)
+    })
+    .catch((error: unknown) => {
+      mcpMessagesPromise = null
+      throw error
+    })
+  return mcpMessagesPromise
 }
 
 // 非 React 场景翻译：固定语言取翻译，避免依赖当前组件实例状态；

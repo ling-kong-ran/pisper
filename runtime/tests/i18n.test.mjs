@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
-import { ensureChannelsMessages, i18n, translateText } from '../../src/app/i18n.ts'
+import {
+  ensureChannelsMessages,
+  ensureMcpMessages,
+  i18n,
+  translateText,
+} from '../../src/app/i18n.ts'
 
 test('English interface translations resolve static and interpolated messages', () => {
   assert.equal(translateText('navigation:navigation.settings', 'en-US'), 'Settings')
@@ -84,4 +89,13 @@ test('channels route messages load for both languages before navigation and rema
     '渠道已经连接',
   )
   await ensureChannelsMessages()
+})
+
+test('MCP route messages load for both languages before navigation', async () => {
+  assert.equal(i18n.hasResourceBundle('zh-CN', 'mcp'), false)
+  assert.equal(i18n.hasResourceBundle('en-US', 'mcp'), false)
+  await ensureMcpMessages()
+  assert.equal(translateText('mcp:hostTitle', 'zh-CN'), 'Pisper 内置 MCP 服务')
+  assert.equal(translateText('mcp:hostTitle', 'en-US'), 'Pisper MCP server')
+  await ensureMcpMessages()
 })

@@ -66,6 +66,7 @@
               <li><a href="#parallel">并行会话与分屏</a></li>
               <li><a href="#branch">追忆分支与 Turn 标签</a></li>
               <li><a href="#tools">工具、插件与 MCP</a></li>
+              <li><a href="#mcp-host">让其他 Agent 调用 Pisper</a></li>
               <li><a href="#voice">语音输入 对话模式</a></li>
               <li><a href="#permission">执行模式与审批模式</a></li>
             </ul>
@@ -268,6 +269,20 @@ pisper web    # 打开 Web 前端与配置页</code></pre>
           <h3>缺能力时直接说</h3>
           <p>
             不必先去找插件。描述你需要什么，Pisper 会编写、校验并安装本地插件，下一轮对话即可调用。
+          </p>
+        </section>
+
+        <section class="guide-section" id="mcp-host">
+          <h2>让其他 Agent 调用 Pisper</h2>
+          <p>
+            Pisper 可以连接外部 MCP 服务，也可以作为内置 MCP 服务供同一台电脑上的其他 Agent 调用。
+            服务默认关闭，在 Pisper 的 MCP 页面开启后，复制地址与令牌到支持 Streamable HTTP
+            和自定义 Authorization 请求头的客户端。
+          </p>
+          <p>
+            内置服务只监听本机回环地址。持有令牌的客户端可以读取会话与记忆、发送消息并调用已开放的工作流等能力；
+            会话内的工具继续遵守已有审批规则。请保管好令牌，需要时可在 Pisper 中轮换。
+            <a href="mcp-host.md">查看完整连接步骤与工具清单 →</a>
           </p>
         </section>
 

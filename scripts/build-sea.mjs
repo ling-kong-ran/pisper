@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -46,7 +46,11 @@ async function injectSea() {
   }
   await writeFile(seaConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
   await run(process.execPath, ['--experimental-sea-config', seaConfigPath], { cwd: root })
+  // 上次失败留下的只读可执行文件不能被 copyFile 原地覆盖。
+  await rm(executablePath, { force: true })
   await copyFile(process.execPath, executablePath)
+  // Homebrew 等发行方式会把 Node 可执行文件设为只读；注入 SEA 时只修改暂存副本。
+  if (process.platform !== 'win32') await chmod(executablePath, 0o755)
   if (process.platform === 'darwin') {
     await run('codesign', ['--remove-signature', executablePath], { cwd: root })
   }

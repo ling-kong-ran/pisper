@@ -27,6 +27,8 @@ import { DecisionService } from './services/decision-service.mjs'
 import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
 import { SpeechTermsService } from './services/speech-terms-service.mjs'
 import { CustomUiService } from './services/custom-ui-service.mjs'
+import { McpHostService } from './services/mcp-host-service.mjs'
+import { createMcpHostAdapter } from './runtime/mcp-host-adapter.mjs'
 import { handleCustomUiResource } from './http/routes/custom-ui.mjs'
 
 // 运行时尚未初始化完成时的 503 响应：避免把半初始化状态当成正常服务暴露。
@@ -97,8 +99,10 @@ export async function createPisperRuntime({
 
   const desktopPet = new WebDesktopPetService({ dataDir: agentDir })
   const customUi = new CustomUiService({ dataDir: agentDir })
+  const mcpHost = new McpHostService({ dataDir: agentDir, getRuntime: () => mcpHostAdapter })
   const serveProduction = createStaticHandler(appRoot, { distRoot: frontendRoot })
   let runtime = null
+  let mcpHostAdapter = null
   let handleApi = null
   let vite = null
   let speech = null
@@ -301,6 +305,7 @@ export async function createPisperRuntime({
         }
       },
     })
+    mcpHostAdapter = createMcpHostAdapter(runtime)
     stage('runtime-created')
     let resolveRuntimeBase
     let rejectRuntimeBase
@@ -366,6 +371,7 @@ export async function createPisperRuntime({
       speechTerms,
       decisions,
       customUi,
+      mcpHost,
       engineVersion,
       remoteAccess,
       remoteControl,
@@ -377,6 +383,7 @@ export async function createPisperRuntime({
     const background = await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
     const failure = background.find((result) => result.status === 'rejected')
     if (failure) throw failure.reason
+    if (capabilities.features.mcp) await mcpHost.startIfEnabled()
     initialization.background = 'ready'
     stage('runtime-initialized')
     return runtime
@@ -503,6 +510,7 @@ export async function createPisperRuntime({
     dataDir: agentDir,
     capabilities,
     remoteControl,
+    mcpHost,
     get runtime() {
       return runtime
     },
@@ -517,6 +525,7 @@ export async function createPisperRuntime({
         await stopRemote()
         await initialized.catch(() => null)
         await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
+        await mcpHost.close()
         await speech?.dispose()
         await speechModels?.dispose()
         await decisionsInitialized?.catch(() => null)

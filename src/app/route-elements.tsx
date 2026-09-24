@@ -2,7 +2,7 @@
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
 import { Navigate, useOutletContext } from 'react-router-dom'
-import { ensureChannelsMessages } from './i18n'
+import { ensureChannelsMessages, ensureMcpMessages } from './i18n'
 import type { AppRouteContext } from './route-context'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
@@ -173,7 +173,7 @@ export async function memoryRoute() {
 }
 
 export async function mcpRoute() {
-  const { McpPage } = await import('@/features/mcp/McpPage')
+  const [{ McpPage }] = await Promise.all([import('@/features/mcp/McpPage'), ensureMcpMessages()])
 
   function McpRoute() {
     const context = useAppRouteContext()

@@ -56,11 +56,13 @@
 
 | 🌿 Parallel & branching | 🧩 Extensibility |
 | --- | --- |
-| Split-view parallel sessions · Session Tree branching · Stable Turn labels · Ctrl+K cross-session jump · Per-session model/directory/permissions | Self-generated local plugins · MCP servers · Skill center · Multi-provider model configuration |
+| Split-view parallel sessions · Session Tree branching · Stable Turn labels · Ctrl+K cross-session jump · Per-session model/directory/permissions | Self-generated local plugins · Connect external MCP servers · Built-in MCP server for other local agents · Skill center · Multi-provider model configuration |
 | **⚡ Automation & notifications** | **🖥️ Desktop & terminal, one core** |
 | Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
 
 [Voice Input · Conversation Mode](https://ling-kong-ran.github.io/pisper/guide.html#voice)
+
+Want another agent on the same computer to use Pisper? Enable the built-in server on the MCP page and copy its connection settings. It exposes sessions, memory, workflows, and more behind a token. See the [built-in MCP guide](docs/mcp-host.en.md).
 
 <a id="pi-runtime"></a>
 
@@ -171,7 +173,7 @@ On first launch, the Android / iOS app starts its bundled on-device Runtime and 
 
 1. On first launch, wait for the bundled Runtime to become ready; the app then opens the normal Pisper interface. To return from a remote Desktop, open **Settings → Servers → Run on this device**.
 2. Configure a Provider and model. Sessions, Provider settings, and the workspace stay in the App's private data directory.
-3. The Runtime listens only on a random loopback port. Android/iOS hides unsupported Shell, MCP, workflow, and related features according to the embedded Node host's actual module capabilities.
+3. The Runtime API listens only on a loopback port. If the user enables the built-in MCP server, it also listens on 127.0.0.1:5175. Android/iOS hides unsupported Shell, MCP, workflow, and related features according to the embedded Node host's actual module capabilities.
 
 </details>
 
@@ -230,11 +232,12 @@ Data lives in `~/.pisper/agent` by default; override with `PISPER_AGENT_DIR`.
 
 ## 🔒 Data safety
 
-There is no "our cloud" in Pisper. Your data is held by the local runtime, and only the providers, MCP servers, search or channels you explicitly configure and call ever receive what a request needs.
+There is no "our cloud" in Pisper. Your data is held by the local Runtime. Providers, external MCP servers, search and channels you configure and call, or local MCP clients you explicitly enable and give a token, can receive the data needed for their requests.
 
 - **Loopback by default**: the Desktop Runtime binds its normal endpoint to 127.0.0.1; the on-device mobile Runtime listens only on a random loopback port. LAN HTTPS and Iroh P2P start only after Desktop remote access is explicitly enabled. Iroh transports raw encrypted bytes while TLS fingerprint pinning and device Bearer tokens protect the upper layer. Pi telemetry is off by default.
 - **Redaction and sandboxed credentials**: common API keys, Bearer/JWT tokens, private keys, and connection strings are replaced before memories are persisted or summaries are shown. On-device Provider credentials and remote device tokens currently remain in the App-private directory under OS sandbox and file permissions; Android Keystore / iOS Keychain integration is still pending.
 - **Permission boundaries**: approval-required, workspace-write and full-access modes; credentials are never echoed back to agents through ordinary config APIs, and the host shell strips common credential environment variables.
+- **Opt-in MCP server**: off by default, bound to 127.0.0.1, and protected by a separate Bearer token. A local client holding that token can call every exposed tool. See [connection and token details](docs/mcp-host.en.md).
 - **Memory on approval**: automatically inferred memories sit in a review queue and are never recalled until you confirm them.
 
 > Honest boundary: redaction only recognizes common secret formats; it is not full DLP, a sandbox, or end-to-end encryption. Desktop Runtime Provider credentials still live in the local Agent data directory, so protect that directory and its backups. Mobile secure storage does not replace device lock screens, OS updates, or trusted sideload sources. Full details on the [website's data safety section](https://ling-kong-ran.github.io/pisper/#safety).

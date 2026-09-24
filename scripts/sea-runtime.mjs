@@ -522,6 +522,8 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/sse.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js'],
+    ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js'],
+    ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js'],
     ['playwright', 'node_modules/playwright-core/index.mjs'],
     ['locales', 'node_modules/zod/v4/locales/index.js'],
     ['native', `${PI_TUI}/dist/native-platform.js`],
