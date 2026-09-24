@@ -950,6 +950,12 @@ export class AgentRuntimeFacade {
     return { cwd, ...(await this.getFileChangesService().list(id, cwd)) }
   }
 
+  // 会话目录的轻量改动摘要只来自本会话写工具快照，不混用工作区 Git/SVN 状态。
+  async getSessionChangeSummary(id) {
+    const cwd = await this.sessionWorkspaceCwd(id)
+    return this.getFileChangesService().summary(id, cwd)
+  }
+
   async getSessionFileChangeDiff(id, filePath) {
     const cwd = await this.sessionWorkspaceCwd(id)
     const relPath = this.fileChangeRelPath(cwd, filePath)

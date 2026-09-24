@@ -132,6 +132,7 @@ try {
     const errors = []
     const unexpectedRequests = []
     const mutations = []
+    const organizationMutations = []
     page.on('pageerror', (error) => errors.push(error.message))
     // 拦截所有请求，未声明的 API 一律失败，绝不落到正在运行的用户 Runtime。
     await page.route('**/*', async (route) => {
@@ -143,6 +144,25 @@ try {
         return route.fulfill({ contentType: 'text/javascript', body: fixture.outputFiles[0].text })
       if (url.origin === origin && url.pathname === '/api/sessions' && request.method() === 'GET')
         return route.fulfill({ json: { sessions: await runtime.listSessions() } })
+      if (
+        url.origin === origin &&
+        url.pathname === `/api/sessions/${created.id}/change-summary` &&
+        request.method() === 'GET'
+      )
+        return route.fulfill({ json: await runtime.getSessionChangeSummary(created.id) })
+      if (
+        url.origin === origin &&
+        url.pathname === `/api/sessions/${created.id}/organization` &&
+        request.method() === 'PATCH'
+      ) {
+        const patch = request.postDataJSON()
+        const updated = await runtime.updateSessionOrganization(created.id, patch)
+        organizationMutations.push(patch)
+        return route.fulfill({
+          status: updated ? 200 : 404,
+          json: updated || { error: 'Not found' },
+        })
+      }
       if (
         url.origin === origin &&
         url.pathname === `/api/sessions/${created.id}` &&
@@ -206,7 +226,14 @@ try {
         await sidebar.getByRole('button', { name, exact: true }).click({ button: 'right' })
         await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       } else {
-        await history.getByRole('button', { name: '重命名会话', exact: true }).click()
+        await history.getByRole('button', { name: `${name} 的更多操作`, exact: true }).click()
+        for (const direction of ['左侧', '右侧', '上方', '下方']) {
+          assert.equal(
+            await page.getByRole('menuitem', { name: `拆分到${direction}`, exact: true }).count(),
+            width > 900 ? 1 : 0,
+          )
+        }
+        await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       }
       await dialog.waitFor()
       assert.equal(await dialog.getByRole('textbox').inputValue(), name)
@@ -233,7 +260,11 @@ try {
       await sidebar.locator('.nav-history-view-all').click()
       await assertSynchronized(initialName)
       let currentName = initialName
-      for (const entry of ['sidebar', 'history']) {
+      // 手动标题只改第 20 字后的内容，防止自动标题的截断规则误用于手动重命名。
+      const sharedPrefix = 'Repeat title prefix!'
+      assert.equal(Array.from(sharedPrefix).length, 20)
+      const entries = ['sidebar', 'sidebar', 'history', 'history']
+      for (const [index, entry] of entries.entries()) {
         const before = mutations.length
         await openRename(entry, currentName)
         await dialog.getByRole('textbox').fill('   ')
@@ -243,10 +274,10 @@ try {
         assert.equal(mutations.length, before)
 
         await openRename(entry, currentName)
-        const nextName = `${entry} renamed ${width}`
+        const nextName = `${sharedPrefix} ${entry} ${index + 1}`
         await dialog.getByRole('textbox').fill(`  ${nextName}  `)
         await page.screenshot({
-          path: join(screenshots, `${entry}-dialog-${width}.png`),
+          path: join(screenshots, `${entry}-${index + 1}-dialog-${width}.png`),
           fullPage: true,
         })
         const updated = await saveRename(`  ${nextName}  `, 200)
@@ -255,7 +286,7 @@ try {
         assert.equal(mutations.at(-1).name, nextName)
         await assertSynchronized(nextName)
         await page.screenshot({
-          path: join(screenshots, `${entry}-saved-${width}.png`),
+          path: join(screenshots, `${entry}-${index + 1}-saved-${width}.png`),
           fullPage: true,
         })
         await runtime.sessionMetaWrite
@@ -263,7 +294,7 @@ try {
         await page.reload()
         await assertSynchronized(nextName)
         await page.screenshot({
-          path: join(screenshots, `${entry}-reloaded-${width}.png`),
+          path: join(screenshots, `${entry}-${index + 1}-reloaded-${width}.png`),
           fullPage: true,
         })
         currentName = nextName
@@ -278,26 +309,70 @@ try {
         await assertSynchronized(currentName)
         runtime.liveSessions.delete(created.id)
         await page.screenshot({
-          path: join(screenshots, `${entry}-error-${width}.png`),
+          path: join(screenshots, `${entry}-${index + 1}-error-${width}.png`),
           fullPage: true,
         })
         await page.reload()
         await assertSynchronized(currentName)
       }
+      // 整理状态必须跨侧栏、历史页和重载同步；归档只改变列表可见性，不删除会话。
+      const openActions = () =>
+        history.getByRole('button', { name: `${currentName} 的更多操作` }).click()
+      await openActions()
+      await page.getByRole('menuitem', { name: '置顶', exact: true }).click()
+      await sidebar.getByRole('button', { name: `已置顶 ${currentName}` }).waitFor()
+      assert.equal(
+        (await runtime.listSessions()).find((item) => item.id === created.id)?.pinned,
+        true,
+      )
+      await page.reload()
+      await assertSynchronized(currentName)
+      await sidebar.getByRole('button', { name: `已置顶 ${currentName}` }).waitFor()
+      await openActions()
+      await page.getByRole('menuitem', { name: '归档', exact: true }).click()
+      await history.getByRole('heading', { name: '暂无未归档会话' }).waitFor()
+      assert.equal(await sidebar.getByRole('button', { name: `已置顶 ${currentName}` }).count(), 0)
+      assert.equal(
+        (await runtime.listSessions()).find((item) => item.id === created.id)?.archived,
+        true,
+      )
+      await history.getByRole('button', { name: '已归档（1）' }).click()
+      await history.getByRole('button', { name: `打开会话 ${currentName}` }).waitFor()
+      await page.reload()
+      await history.getByRole('button', { name: '已归档（1）' }).click()
+      await openActions()
+      await page.getByRole('menuitem', { name: '恢复', exact: true }).click()
+      assert.equal(
+        (await runtime.listSessions()).find((item) => item.id === created.id)?.archived,
+        false,
+      )
+      await history.getByRole('button', { name: '未归档' }).click()
+      await assertSynchronized(currentName)
+      assert.deepEqual(organizationMutations, [
+        { pinned: true },
+        { archived: true },
+        { archived: false },
+      ])
       assert.deepEqual(errors, [])
       assert.deepEqual(unexpectedRequests, [])
       assert.deepEqual(
         mutations.map((item) => item.status),
-        [200, 409, 200, 409],
+        entries.flatMap(() => [200, 409]),
       )
       console.log(
-        `PASS ${width}px: real dialog, sidebar/history rename, shared refresh, reload, disk title, cancel/empty, Runtime errors`,
+        `PASS ${width}px: repeated rename, persisted pin/archive/restore, sidebar/history sync and Runtime errors`,
       )
     } catch (error) {
       await page
         .screenshot({ path: join(screenshots, `failure-${width}.png`), fullPage: true })
         .catch(() => {})
-      console.error(JSON.stringify({ width, mutations, errors, unexpectedRequests }, null, 2))
+      console.error(
+        JSON.stringify(
+          { width, mutations, organizationMutations, errors, unexpectedRequests },
+          null,
+          2,
+        ),
+      )
       throw error
     } finally {
       await context.close()

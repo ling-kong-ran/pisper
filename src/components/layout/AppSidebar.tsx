@@ -117,7 +117,7 @@ export function AppSidebar({
           <X size={18} />
         </button>
         <div
-          className={`nav-list [&_button]:relative [&_button]:flex [&_button]:w-full [&_button]:h-[34px] [&_button]:items-center [&_button]:gap-[10px] [&_button]:border-0 [&_button]:rounded-[var(--r-sm)] [&_button]:bg-transparent [&_button]:p-[0_10px] [&_button]:text-[var(--text-secondary)] [&_button]:text-left [&_button]:text-[12px] [&_button]:font-[500] [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--text)] [&_button.active]:font-[600] [&_button.active::before]:[content:''] [&_button.active::before]:absolute [&_button.active::before]:left-[2px] [&_button.active::before]:top-[8px] [&_button.active::before]:bottom-[8px] [&_button.active::before]:w-[3px] [&_button.active::before]:rounded-[var(--r-pill)] [&_button.active::before]:bg-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&_button]:justify-center min-[901px]:[.sidebar.collapsed_&_button]:gap-[0] min-[901px]:[.sidebar.collapsed_&_button]:p-0 min-[901px]:[.sidebar.collapsed_&_button_span]:hidden min-[901px]:[.sidebar.collapsed_&_button.active::before]:left-0 dark:[&_button.active]:bg-[var(--surface-hover)] min-[901px]:[[data-density='compact']_&_button]:h-[30px] flex min-h-0 flex-col gap-[3px] overflow-y-auto ${settingsActive ? 'nav-settings-mode gap-[10px]' : ''}`}
+          className={`nav-list [&_button]:relative [&_button]:flex [&_button]:w-full [&_button]:h-[34px] [&_button]:items-center [&_button]:gap-[10px] [&_button]:border-0 [&_button]:rounded-[var(--r-sm)] [&_button]:bg-transparent [&_button]:p-[0_10px] [&_button]:text-[var(--text-secondary)] [&_button]:text-left [&_button]:text-[length:var(--app-font-size)] [&_button]:font-medium [&_button]:[transition:var(--d1)_var(--ease-out)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] [&_button.active]:bg-[var(--star-soft)] [&_button.active]:text-[var(--text)] [&_button.active::before]:[content:''] [&_button.active::before]:absolute [&_button.active::before]:left-[2px] [&_button.active::before]:top-[8px] [&_button.active::before]:bottom-[8px] [&_button.active::before]:w-[3px] [&_button.active::before]:rounded-[var(--r-pill)] [&_button.active::before]:bg-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&_button]:justify-center min-[901px]:[.sidebar.collapsed_&_button]:gap-[0] min-[901px]:[.sidebar.collapsed_&_button]:p-0 min-[901px]:[.sidebar.collapsed_&_button_span]:hidden min-[901px]:[.sidebar.collapsed_&_button.active::before]:left-0 dark:[&_button.active]:bg-[var(--surface-hover)] min-[901px]:[[data-density='compact']_&_button]:h-[30px] flex min-h-0 flex-col gap-[3px] overflow-y-auto ${settingsActive ? 'nav-settings-mode gap-[10px]' : ''}`}
         >
           {settingsActive ? (
             <nav
@@ -125,7 +125,7 @@ export function AppSidebar({
               aria-label={t('config:settingsShell.settingsNavigation')}
             >
               <button
-                className="nav-settings-back [.nav-list_&]:mb-[13px] [.nav-list_&]:[border-bottom:1px_solid_var(--stroke-soft)] [.nav-list_&]:rounded-[0] [.nav-list_&]:p-[0_8px_10px] [.nav-list_&]:text-[var(--text)] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
+                className="nav-settings-back [.nav-list_&]:mb-[13px] [.nav-list_&]:[border-bottom:1px_solid_var(--stroke-soft)] [.nav-list_&]:rounded-[0] [.nav-list_&]:p-[0_8px_10px] [.nav-list_&]:text-[var(--text)] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
                 title={t('navigation:appSidebar.backToApp')}
                 onClick={exitSettings}
               >
@@ -137,7 +137,7 @@ export function AppSidebar({
                   className="nav-group [.nav-group_+_&]:mt-[10px] [.nav-settings-mode_.nav-group_+_&]:mt-[13px] min-[901px]:[.sidebar.collapsed_.nav-group_+_&]:mt-[8px] flex flex-col gap-[3px]"
                   key={group.label}
                 >
-                  <span className="nav-group-label min-[901px]:[.sidebar.collapsed_&]:hidden [padding:0_10px_4px] text-[var(--text-muted)] text-[11px] font-[700] tracking-[.12em]">
+                  <span className="nav-group-label min-[901px]:[.sidebar.collapsed_&]:hidden [padding:0_10px_4px] text-[var(--text-muted)] text-[12px] font-medium tracking-normal">
                     {group.label}
                   </span>
                   {group.items.map((item) => {
@@ -169,7 +169,7 @@ export function AppSidebar({
                   className="nav-group [.nav-group_+_&]:mt-[10px] [.nav-settings-mode_.nav-group_+_&]:mt-[13px] min-[901px]:[.sidebar.collapsed_.nav-group_+_&]:mt-[8px] flex flex-col gap-[3px]"
                   key={group}
                 >
-                  <span className="nav-group-label min-[901px]:[.sidebar.collapsed_&]:hidden [padding:0_10px_4px] text-[var(--text-muted)] text-[11px] font-[700] tracking-[.12em]">
+                  <span className="nav-group-label min-[901px]:[.sidebar.collapsed_&]:hidden [padding:0_10px_4px] text-[var(--text-muted)] text-[12px] font-medium tracking-normal">
                     {group}
                   </span>
                   {items.map(([id, label, Icon]) => (
@@ -201,7 +201,7 @@ export function AppSidebar({
         <div className="mt-auto grid gap-2">
           {!settingsActive && (
             <button
-              className="sidebar-settings hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&.active]:bg-[var(--surface-hover)] [&.active]:text-[var(--text)] [&.active_svg]:text-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-[0] min-[901px]:[.sidebar.collapsed_&]:p-0 min-[901px]:[.sidebar.collapsed_&_span]:hidden flex w-full h-[34px] flex-none items-center gap-[9px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:0_10px] text-[var(--text-muted)] text-[12px] font-[600] text-left"
+              className="sidebar-settings hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&.active]:bg-[var(--surface-hover)] [&.active]:text-[var(--text)] [&.active_svg]:text-[var(--brand-blue)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-[0] min-[901px]:[.sidebar.collapsed_&]:p-0 min-[901px]:[.sidebar.collapsed_&_span]:hidden flex w-full h-[34px] flex-none items-center gap-[9px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:0_10px] text-[var(--text-muted)] text-[length:var(--app-font-size)] font-medium text-left"
               title={t('navigation:navigation.settings')}
               onClick={() => navigateFromSidebar('config')}
             >
@@ -211,7 +211,7 @@ export function AppSidebar({
           )}
           <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
           <button
-            className="sidebar-collapse hover:bg-[var(--surface-hover)] hover:text-[var(--text)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-[0] min-[901px]:[.sidebar.collapsed_&]:p-0 min-[901px]:[.sidebar.collapsed_&_span]:hidden max-[900px]:hidden flex h-[34px] flex-none items-center gap-[8px] [margin-top:auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-transparent [padding:0_10px] text-[var(--text-muted)] text-[12px] cursor-pointer [transition:var(--d1)_var(--ease-out)] !mt-0"
+            className="sidebar-collapse hover:bg-[var(--surface-hover)] hover:text-[var(--text)] min-[901px]:[.sidebar.collapsed_&]:justify-center min-[901px]:[.sidebar.collapsed_&]:gap-[0] min-[901px]:[.sidebar.collapsed_&]:p-0 min-[901px]:[.sidebar.collapsed_&_span]:hidden max-[900px]:hidden flex h-[34px] flex-none items-center gap-[8px] [margin-top:auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-transparent [padding:0_10px] text-[var(--text-muted)] text-[length:var(--app-font-size)] font-medium cursor-pointer [transition:var(--d1)_var(--ease-out)] !mt-0"
             title={
               collapsed
                 ? t('navigation:appSidebar.expandSidebar')
@@ -284,8 +284,10 @@ function SidebarUpdateStatus({
       <Icon className={downloading ? 'animate-spin shrink-0' : 'shrink-0'} size={16} />
       {!collapsed && (
         <span className="min-w-0">
-          <strong className="block truncate text-[12px]">{label}</strong>
-          <small className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
+          <strong className="block truncate text-[length:var(--app-font-size)] font-medium">
+            {label}
+          </strong>
+          <small className="mt-0.5 block truncate text-[12px] font-normal text-[var(--text-muted)]">
             {detail}
           </small>
         </span>

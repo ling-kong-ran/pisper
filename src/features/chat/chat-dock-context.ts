@@ -11,6 +11,7 @@ import type {
 } from '@/types/chat'
 import type { SessionOpenDisposition } from './dock-layout'
 import type { WithdrawnInput } from './chat-api'
+import type { SessionContextTab } from './SessionContextPanel'
 
 export type ChatDockContextValue = {
   sessions: SessionSummary[]
@@ -23,6 +24,10 @@ export type ChatDockContextValue = {
   globalError: string
   activeId: string
   compactDock: boolean
+  contextTab: SessionContextTab | null
+  contextCompact: boolean
+  contextPanelId: string
+  toggleSessionContext: (sessionId: string, open: boolean) => void
   sessionTreePulseSessionId: string
   sessionTreePulseToken: number
   pendingAsset: PendingAsset | null

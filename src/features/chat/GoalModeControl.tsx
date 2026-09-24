@@ -1,10 +1,10 @@
 // Composer 执行模式控制：默认按 Plan 单轮推进，也可以切换到 Goal 或多智能体 Team。
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, ListTodo, RefreshCw, Target, Users } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { formatTokenCount } from '@/lib/format'
 import type { EntityRecord } from '@/types/chat'
-import { useViewportMenuOffset } from './use-viewport-menu-offset'
+import { AnchoredPopupMenu } from './AnchoredPopupMenu'
 
 import { Button } from '@/components/ui/button'
 
@@ -41,6 +41,7 @@ export function ExecutionModeControl({
   const [open, setOpen] = useState(false)
   const [savingBudget, setSavingBudget] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const activeGoal = goal?.status === 'active'
   const hasExistingGoal = Boolean(goal?.id)
@@ -107,25 +108,27 @@ export function ExecutionModeControl({
   const label = [t('chat:focusSession.executionMode'), current.label, detail, usage]
     .filter(Boolean)
     .join(' · ')
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (open) menuRef.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()
+  }, [open])
 
   useEffect(() => {
     if (!open) return undefined
     const close = (event: MouseEvent) => {
       const target = event.target instanceof Node ? event.target : null
-      if (!rootRef.current?.contains(target)) setOpen(false)
-    }
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      // 菜单通过 portal 离开了按钮容器，内部选项和预算输入仍属于本控件。
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
     }
     document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', escape)
     return () => {
       document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', escape)
     }
   }, [open])
-
-  useViewportMenuOffset(open, menuRef)
 
   // 保存已存在 Goal 的预算；空输入会保存为 null，表示不限制 Token。
   const saveBudget = async () => {
@@ -141,9 +144,10 @@ export function ExecutionModeControl({
   return (
     <div
       ref={rootRef}
-      className={`task-execution-mode-select [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative w-[38px] h-[38px] text-[var(--text-tertiary)] ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
+      className={`task-execution-mode-select relative w-[38px] h-[38px] text-[var(--text-tertiary)] ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
     >
       <button
+        ref={triggerRef}
         type="button"
         className="task-execution-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.task-execution-mode-select.open_&]:border-[var(--accent-border)] [.task-execution-mode-select.open_&]:bg-[var(--accent-soft)] [.task-execution-mode-select.open_&]:text-[var(--star-strong)] [.task-execution-mode-select.active_&]:text-[var(--star-strong)] grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer disabled:cursor-not-allowed disabled:opacity-[.55]"
         title={label}
@@ -156,13 +160,17 @@ export function ExecutionModeControl({
         <CurrentIcon size={14} />
       </button>
       {open && (
-        <div
-          ref={menuRef}
-          className="task-execution-mode-menu [translate:var(--menu-x-offset,_0px)_var(--menu-y-offset,_0px)] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_p]:m-[1px_7px_4px_47px] [&_p]:text-[var(--text-muted)] [&_p]:text-[11px] max-[650px]:[.focus-composer_&]:right-[auto] max-[650px]:[.focus-composer_&]:left-0 max-[650px]:[.focus-composer_&]:w-[min(270px,calc(100vw_-_76px))] absolute z-[35] [bottom:calc(100%_+_8px)] left-0 w-[min(270px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
+        <AnchoredPopupMenu
+          open={open}
+          anchorRef={triggerRef}
+          menuRef={menuRef}
+          placement="top"
+          className="anchored-popup-menu task-execution-mode-menu [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_small]:overflow-hidden [&_small]:text-[var(--text-secondary)] [&_small]:text-[length:var(--app-small-size)] [&_small]:font-normal [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_p]:m-[1px_7px_4px_47px] [&_p]:text-[var(--text-secondary)] [&_p]:text-[length:var(--app-small-size)] w-[min(270px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
           role="menu"
-          aria-label={t('chat:focusSession.executionMode')}
+          ariaLabel={t('chat:focusSession.executionMode')}
+          onClose={closeMenu}
         >
-          <div className="[padding:6px_8px_4px] text-[var(--text-muted)] text-[11px] font-[700] tracking-[.04em] [text-transform:uppercase]">
+          <div className="[padding:6px_8px_4px] text-[var(--text-secondary)] text-[length:var(--app-small-size)] font-semibold">
             {t('chat:focusSession.executionMode')}
           </div>
           {options.map((option) => {
@@ -177,7 +185,7 @@ export function ExecutionModeControl({
                 key={option.value}
                 onClick={() => {
                   onChange(option.value)
-                  setOpen(false)
+                  closeMenu()
                 }}
               >
                 <span className="grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)]">
@@ -194,7 +202,7 @@ export function ExecutionModeControl({
           {(selectedMode === 'goal' || selectedMode === 'team' || hasExistingGoal) && (
             <>
               {usage && <p>{usage}</p>}
-              <div className="goal-mode-budget-row [&_label]:text-[var(--text-secondary)] [&_label]:text-[11px] [&_label]:font-[600] [&_input]:w-full [&_input]:min-w-0 [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[5px_7px] [&_input]:text-inherit [&_input]:text-[12px] [&_input:focus]:border-[var(--focus)] [&_input:focus]:[outline:none] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[6px] [margin:2px_7px_2px]">
+              <div className="goal-mode-budget-row [&_label]:text-[var(--text-secondary)] [&_label]:text-[length:var(--app-small-size)] [&_label]:font-medium [&_input]:w-full [&_input]:min-w-0 [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[5px_7px] [&_input]:text-inherit [&_input]:text-[length:var(--app-font-size)] [&_input:focus]:border-[var(--focus)] [&_input:focus]:[outline:none] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[6px] [margin:2px_7px_2px]">
                 <label htmlFor="goal-token-budget-input">
                   {selectedMode === 'team'
                     ? t('chat:focusSession.teamTokenBudget')
@@ -241,7 +249,7 @@ export function ExecutionModeControl({
                   </Button>
                 )}
               </div>
-              <small className="block [margin:0_7px_5px] text-[var(--text-muted)] text-[10px]">
+              <small className="block [margin:0_7px_5px] text-[var(--text-secondary)] text-[length:var(--app-small-size)]">
                 {selectedMode === 'team'
                   ? t('chat:focusSession.teamTokenBudgetHint')
                   : hasExistingGoal
@@ -250,7 +258,7 @@ export function ExecutionModeControl({
               </small>
             </>
           )}
-        </div>
+        </AnchoredPopupMenu>
       )}
     </div>
   )

@@ -51,6 +51,77 @@ test('session settings manager exposes the adaptive threshold and preserves meth
   assert.equal(wrapped.getMarker(), 'base')
 })
 
+test('retained context adapts to smaller windows and lower thresholds without enlarging a user limit', () => {
+  const base = { enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 }
+  for (const [window, threshold] of [
+    [8_192, 80],
+    [16_000, 80],
+    [32_000, 50],
+    [128_000, 10],
+  ]) {
+    const settings = effectiveCompactionSettings(base, window, threshold)
+    const trigger = window - settings.reserveTokens
+    assert.ok(settings.keepRecentTokens <= trigger / 2)
+    assert.ok(settings.keepRecentTokens > 0)
+  }
+  assert.equal(
+    effectiveCompactionSettings({ ...base, keepRecentTokens: 100 }, 16_000).keepRecentTokens,
+    100,
+  )
+  assert.equal(effectiveCompactionSettings(base, 0).keepRecentTokens, 20_000)
+  assert.equal(base.keepRecentTokens, 20_000)
+  let window = 128_000
+  let threshold = 80
+  const wrapped = createCompactionSettingsManager(
+    { getCompactionSettings: () => base },
+    () => window,
+    () => threshold,
+  )
+  assert.equal(wrapped.getCompactionSettings().keepRecentTokens, 20_000)
+  window = 16_000
+  const smallWindow = wrapped.getCompactionSettings().keepRecentTokens
+  assert.ok(smallWindow < 20_000)
+  threshold = 10
+  assert.ok(wrapped.getCompactionSettings().keepRecentTokens < smallWindow)
+})
+
+test('summary output and the kept tail leave room below the next compaction trigger', async () => {
+  let handler
+  let preparation
+  pisperCompactionExtension(
+    {
+      on: (_event, callback) => {
+        handler = callback
+      },
+    },
+    {
+      compactSession: async (value) => {
+        preparation = value
+        return { summary: 'summary' }
+      },
+    },
+  )
+  for (const [contextWindow, threshold] of [
+    [8_192, 80],
+    [32_000, 50],
+    [128_000, 10],
+    [128_000, 80],
+  ]) {
+    const settings = effectiveCompactionSettings({}, contextWindow, threshold)
+    const event = { preparation: { settings }, signal: new AbortController().signal }
+    await handler(event, {
+      model: { contextWindow },
+      modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: 'test' }) },
+    })
+    const worstCaseSummary =
+      Math.floor(preparation.settings.reserveTokens * 0.8) +
+      Math.floor(preparation.settings.reserveTokens * 0.5)
+    assert.ok(worstCaseSummary + settings.keepRecentTokens < contextWindow - settings.reserveTokens)
+    assert.equal(event.preparation.settings, settings)
+    assert.ok(preparation.settings.reserveTokens <= COMPACTION_SUMMARY_RESERVE_TOKENS)
+  }
+})
+
 test('tool turns compact before the next provider request and resume with rebuilt context', async () => {
   const originalContext = { systemPrompt: 'current', messages: ['before'], tools: ['read'] }
   const refreshedContext = { ...originalContext, systemPrompt: 'refreshed' }

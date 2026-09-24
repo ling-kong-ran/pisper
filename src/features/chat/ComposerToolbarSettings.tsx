@@ -1,15 +1,18 @@
 // 快捷栏布局编辑器：用户可在输入框与收纳区之间移动工具，并调整各区顺序。
-import { Archive, ArrowDown, ArrowUp, Pin, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import { useLayoutEffect, useRef } from 'react'
+import { Archive, ArrowDown, ArrowUp, Pin, RotateCcw, SlidersHorizontal, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import {
   DEFAULT_COMPOSER_TOOLBAR_LAYOUT,
   type ComposerToolbarLayout,
@@ -31,12 +34,14 @@ function ToolList({
   labels,
   onMove,
   onReorder,
+  onMoveButtonRef,
 }: {
   ids: ComposerToolId[]
   location: ComposerToolLocation
   labels: Record<ComposerToolId, string>
   onMove: (id: ComposerToolId, location: ComposerToolLocation) => void
   onReorder: (id: ComposerToolId, direction: -1 | 1) => void
+  onMoveButtonRef: (id: ComposerToolId, button: HTMLButtonElement | null) => void
 }) {
   const { t } = useI18n()
   const target = location === 'inline' ? 'overflow' : 'inline'
@@ -47,17 +52,18 @@ function ToolList({
       : t('chat:focusSession.pinShortcutToComposer')
 
   return (
-    <div className="divide-y divide-[var(--stroke-soft)] border-y border-[var(--stroke-soft)]">
+    <ul className="divide-y divide-[var(--stroke-soft)]">
       {ids.map((id, index) => (
-        <div className="flex min-h-11 min-w-0 items-center gap-2 py-1.5" key={id}>
-          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold text-[var(--text)]">
+        <li className="flex min-h-12 min-w-0 items-center gap-1 py-0.5" key={id}>
+          <span className="min-w-0 flex-1 px-1 text-xs leading-5 text-[var(--text)]">
             {labels[id]}
           </span>
-          <div className="flex flex-none items-center gap-1">
+          <div className="flex flex-none items-center">
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="size-11 text-[var(--text-muted)]"
               title={t('chat:focusSession.moveShortcutEarlier')}
               aria-label={t('chat:focusSession.moveShortcutEarlierName', { name: labels[id] })}
               disabled={index === 0}
@@ -69,6 +75,7 @@ function ToolList({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="size-11 text-[var(--text-muted)]"
               title={t('chat:focusSession.moveShortcutLater')}
               aria-label={t('chat:focusSession.moveShortcutLaterName', { name: labels[id] })}
               disabled={index === ids.length - 1}
@@ -77,9 +84,11 @@ function ToolList({
               <ArrowDown />
             </Button>
             <Button
+              ref={(button) => onMoveButtonRef(id, button)}
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
+              className="h-11 min-w-11 gap-1 px-2 text-xs"
               title={moveLabel}
               aria-label={t('chat:focusSession.moveShortcutName', {
                 name: labels[id],
@@ -88,80 +97,162 @@ function ToolList({
               onClick={() => onMove(id, target)}
             >
               <MoveIcon />
+              {location === 'inline'
+                ? t('chat:focusSession.storeShortcut')
+                : t('chat:focusSession.showShortcut')}
             </Button>
           </div>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }
 
-export function ComposerToolbarSettings({ labels }: { labels: Record<ComposerToolId, string> }) {
+export function ComposerToolbarSettings({
+  labels,
+  labeled = false,
+}: {
+  labels: Record<ComposerToolId, string>
+  labeled?: boolean
+}) {
   const { t } = useI18n()
   const layout = useComposerToolbarStore((state) => state.layout)
   const setToolLocation = useComposerToolbarStore((state) => state.setToolLocation)
+  const setAllToolsLocation = useComposerToolbarStore((state) => state.setAllToolsLocation)
   const moveTool = useComposerToolbarStore((state) => state.moveTool)
   const resetLayout = useComposerToolbarStore((state) => state.resetLayout)
+  const moveButtons = useRef(new Map<ComposerToolId, HTMLButtonElement>())
+  const movedTool = useRef<ComposerToolId | null>(null)
+
+  // 跨区移动会重挂载行，把焦点留给刚移动的按钮，键盘用户可继续调整。
+  useLayoutEffect(() => {
+    if (!movedTool.current) return
+    moveButtons.current.get(movedTool.current)?.focus()
+    movedTool.current = null
+  }, [layout])
+
+  const handleMove = (id: ComposerToolId, location: ComposerToolLocation) => {
+    movedTool.current = id
+    setToolLocation(id, location)
+  }
+  const setMoveButtonRef = (id: ComposerToolId, button: HTMLButtonElement | null) => {
+    if (button) moveButtons.current.set(id, button)
+    else moveButtons.current.delete(id)
+  }
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button
+        <Button
           type="button"
-          className="grid size-9 min-w-9 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-muted)] text-[var(--text-muted)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)]"
+          variant="ghost"
+          className={cn(
+            'h-11 gap-2 text-[var(--text-muted)]',
+            labeled ? 'w-full justify-start px-2 text-xs' : 'w-11 px-0',
+          )}
           title={t('chat:focusSession.customizeShortcuts')}
           aria-label={t('chat:focusSession.customizeShortcuts')}
         >
-          <SlidersHorizontal size={16} />
-        </button>
+          <SlidersHorizontal />
+          {labeled && <span>{t('chat:focusSession.customizeShortcuts')}</span>}
+        </Button>
       </DialogTrigger>
       <DialogContent
-        className="gap-4 rounded-[var(--r-md)] p-4"
-        style={{ width: 'min(640px, calc(100vw - 24px))', maxWidth: 640 }}
+        showCloseButton={false}
+        overlayClassName="z-[70]"
+        className="z-[71] flex max-h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-[720px] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[720px]"
       >
-        <DialogHeader className="pr-9">
-          <DialogTitle>{t('chat:focusSession.customizeShortcuts')}</DialogTitle>
-          <DialogDescription className="sr-only">
-            {t('chat:focusSession.customizeShortcutsDescription')}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid min-w-0 grid-cols-2 gap-5 max-[650px]:grid-cols-1">
-          <section className="min-w-0">
-            <h3 className="mb-2 text-[12px] font-bold text-[var(--text-soft)]">
+        <div className="flex flex-none items-start gap-3 border-b border-[var(--stroke-soft)] p-4">
+          <DialogHeader className="min-w-0 flex-1 gap-2 pt-1">
+            <DialogTitle>{t('chat:focusSession.customizeShortcuts')}</DialogTitle>
+            <DialogDescription className="text-xs leading-5">
+              {t('chat:focusSession.customizeShortcutsDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              aria-label={t('common:ui.closeDialog')}
+            >
+              <X />
+            </Button>
+          </DialogClose>
+        </div>
+        <div className="grid min-h-0 min-w-0 grid-cols-1 gap-5 overflow-y-auto overscroll-contain p-4 sm:grid-cols-2">
+          <section className="min-w-0" aria-label={t('chat:focusSession.composerShortcuts')}>
+            <h3 className="mb-1 flex h-8 items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
+              <Pin size={14} />
               {t('chat:focusSession.composerShortcuts')}
+              <span className="text-[var(--text-muted)]">{layout.inline.length}</span>
             </h3>
-            <ToolList
-              ids={layout.inline}
-              location="inline"
-              labels={labels}
-              onMove={setToolLocation}
-              onReorder={moveTool}
-            />
+            {layout.inline.length ? (
+              <ToolList
+                ids={layout.inline}
+                location="inline"
+                labels={labels}
+                onMove={handleMove}
+                onReorder={moveTool}
+                onMoveButtonRef={setMoveButtonRef}
+              />
+            ) : (
+              <p className="py-4 text-xs leading-5 text-[var(--text-muted)]">
+                {t('chat:focusSession.noInlineShortcuts')}
+              </p>
+            )}
           </section>
-          <section className="min-w-0">
-            <h3 className="mb-2 text-[12px] font-bold text-[var(--text-soft)]">
+          <section className="min-w-0" aria-label={t('chat:focusSession.overflowShortcuts')}>
+            <h3 className="mb-1 flex h-8 items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
+              <Archive size={14} />
               {t('chat:focusSession.overflowShortcuts')}
+              <span className="text-[var(--text-muted)]">{layout.overflow.length}</span>
             </h3>
             {layout.overflow.length ? (
               <ToolList
                 ids={layout.overflow}
                 location="overflow"
                 labels={labels}
-                onMove={setToolLocation}
+                onMove={handleMove}
                 onReorder={moveTool}
+                onMoveButtonRef={setMoveButtonRef}
               />
             ) : (
-              <p className="border-y border-[var(--stroke-soft)] py-3 text-[12px] text-[var(--text-muted)]">
+              <p className="py-4 text-xs leading-5 text-[var(--text-muted)]">
                 {t('chat:focusSession.noOverflowShortcuts')}
               </p>
             )}
           </section>
         </div>
-        <div className="flex justify-end border-t border-[var(--stroke-soft)] pt-3">
+        <div className="flex flex-none flex-wrap items-center gap-x-1 border-t border-[var(--stroke-soft)] px-3 py-2">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className="h-11 text-xs"
+            disabled={layout.overflow.length === 0}
+            onClick={() => setAllToolsLocation('inline')}
+          >
+            <Pin />
+            {t('chat:focusSession.showAllShortcuts')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-11 text-xs"
+            disabled={layout.inline.length === 0}
+            onClick={() => setAllToolsLocation('overflow')}
+          >
+            <Archive />
+            {t('chat:focusSession.storeAllShortcuts')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-11 text-xs text-[var(--text-muted)]"
             disabled={sameLayout(layout, DEFAULT_COMPOSER_TOOLBAR_LAYOUT)}
             onClick={resetLayout}
           >

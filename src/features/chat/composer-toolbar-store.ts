@@ -2,9 +2,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
-  DEFAULT_COMPOSER_TOOLBAR_LAYOUT,
   moveComposerTool,
   normalizeComposerToolbarLayout,
+  setAllComposerToolsLocation,
   setComposerToolLocation,
   type ComposerToolbarLayout,
   type ComposerToolId,
@@ -14,6 +14,7 @@ import {
 type ComposerToolbarState = {
   layout: ComposerToolbarLayout
   setToolLocation: (id: ComposerToolId, location: ComposerToolLocation) => void
+  setAllToolsLocation: (location: ComposerToolLocation) => void
   moveTool: (id: ComposerToolId, direction: -1 | 1) => void
   resetLayout: () => void
 }
@@ -21,15 +22,18 @@ type ComposerToolbarState = {
 export const useComposerToolbarStore = create<ComposerToolbarState>()(
   persist(
     (set) => ({
-      layout: DEFAULT_COMPOSER_TOOLBAR_LAYOUT,
+      layout: normalizeComposerToolbarLayout(undefined),
       setToolLocation: (id, location) =>
         set((state) => ({ layout: setComposerToolLocation(state.layout, id, location) })),
+      setAllToolsLocation: (location) =>
+        set((state) => ({ layout: setAllComposerToolsLocation(state.layout, location) })),
       moveTool: (id, direction) =>
         set((state) => ({ layout: moveComposerTool(state.layout, id, direction) })),
-      resetLayout: () => set({ layout: DEFAULT_COMPOSER_TOOLBAR_LAYOUT }),
+      resetLayout: () => set({ layout: normalizeComposerToolbarLayout(undefined) }),
     }),
     {
       name: 'pisper-composer-toolbar',
+      // 存储形状保持兼容；新增和恢复的工具统一由 merge 归一，不重置用户排序。
       version: 1,
       partialize: ({ layout }) => ({ layout }),
       merge: (persisted, current) => ({

@@ -131,7 +131,7 @@ export function PageHeader({
         <Menu size={19} />
       </SidebarTrigger>
       <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
-        <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-bold tracking-[0] max-[650px]:text-[21px]">
+        <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]">
           {meta[0]}
         </h1>
         <p
@@ -186,7 +186,7 @@ export function PageHeader({
           >
             <Search size={15} />
             <input
-              className="w-full min-w-0 border-0 bg-transparent text-[13px] text-[var(--text)] outline-none"
+              className="w-full min-w-0 border-0 bg-transparent text-[length:var(--app-font-size)] font-normal text-[var(--text)] outline-none"
               ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}

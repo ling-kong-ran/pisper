@@ -29,6 +29,7 @@ export type ComposerToolbarAllocation = {
 }
 
 const COMPOSER_TOOL_ID_SET = new Set<string>(COMPOSER_TOOL_IDS)
+const RESTORED_INLINE_TOOL_IDS = new Set<ComposerToolId>(['model', 'permission', 'run-mode'])
 
 export const DEFAULT_COMPOSER_TOOLBAR_LAYOUT: ComposerToolbarLayout = {
   inline: [...COMPOSER_TOOL_IDS],
@@ -46,13 +47,22 @@ function validToolIds(value: unknown): ComposerToolId[] {
 // 旧版本、损坏数据和新增工具都在这里归一，保证每个已知工具恰好出现一次。
 export function normalizeComposerToolbarLayout(value: unknown): ComposerToolbarLayout {
   const stored = value && typeof value === 'object' ? (value as Partial<ComposerToolbarLayout>) : {}
+  if (!Array.isArray(stored.inline) && !Array.isArray(stored.overflow)) {
+    return {
+      inline: [...DEFAULT_COMPOSER_TOOLBAR_LAYOUT.inline],
+      overflow: [...DEFAULT_COMPOSER_TOOLBAR_LAYOUT.overflow],
+    }
+  }
   const inline = validToolIds(stored.inline)
   const inlineSet = new Set(inline)
   const overflow = validToolIds(stored.overflow).filter((id) => !inlineSet.has(id))
   const known = new Set([...inline, ...overflow])
 
   for (const id of COMPOSER_TOOL_IDS) {
-    if (!known.has(id)) inline.push(id)
+    if (known.has(id)) continue
+    // 这三项曾被强制移到输入框外；恢复可配置按钮时保持可见，不改动已有工具位置。
+    if (RESTORED_INLINE_TOOL_IDS.has(id)) inline.push(id)
+    else overflow.push(id)
   }
 
   return { inline, overflow }
@@ -69,6 +79,15 @@ export function setComposerToolLocation(
   if (location === 'inline') inline.push(id)
   else overflow.push(id)
   return { inline, overflow }
+}
+
+export function setAllComposerToolsLocation(
+  layout: ComposerToolbarLayout,
+  location: ComposerToolLocation,
+): ComposerToolbarLayout {
+  const normalized = normalizeComposerToolbarLayout(layout)
+  const tools = [...normalized.inline, ...normalized.overflow]
+  return location === 'inline' ? { inline: tools, overflow: [] } : { inline: [], overflow: tools }
 }
 
 export function moveComposerTool(

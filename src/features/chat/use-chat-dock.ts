@@ -14,7 +14,11 @@ import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { SessionState, SessionSummary } from '@/types/chat'
-import { SESSION_SELECTED_EVENT, consumeSessionSelectionRequest } from './events'
+import {
+  SESSION_SELECTED_EVENT,
+  consumeSessionSelectionRequest,
+  subscribeSessionDeletionUpdates,
+} from './events'
 import {
   createDockLayoutEnvelope,
   dockPositionForDisposition,
@@ -409,6 +413,28 @@ export function useChatDock({
     window.addEventListener(SESSION_SELECTED_EVENT, selectSession)
     return () => window.removeEventListener(SESSION_SELECTED_EVENT, selectSession)
   }, [loadSessionMessages, openSessionInDock])
+
+  useEffect(() => {
+    return subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
+      const deleted = new Set(deletedIds)
+      setMobileOpenedSessionIds((current) => current.filter((id) => !deleted.has(id)))
+      if (pendingDockRequestRef.current && deleted.has(pendingDockRequestRef.current.sessionId)) {
+        pendingDockRequestRef.current = null
+      }
+      const api = dockApiRef.current
+      if (!api || !dockInitializedRef.current) return
+      const panels = deletedIds.flatMap((id) => {
+        const panel = api.getPanel(panelIdForSession(id))
+        return panel ? [panel] : []
+      })
+      for (const panel of panels) panel.api.close()
+      if (panels.length && !api.panels.some((panel) => sessionIdFromPanel(panel))) {
+        const fallback = sessionsRef.current.find((session) => !deleted.has(session.id))
+        if (fallback) openSessionInDock(fallback.id)
+        else setActiveId('')
+      }
+    })
+  }, [openSessionInDock, sessionsRef, setActiveId])
 
   useEffect(() => {
     const openPreview = (event: Event) => {

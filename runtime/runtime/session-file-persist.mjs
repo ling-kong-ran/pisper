@@ -3,6 +3,8 @@ import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 
+const pendingPersistence = new WeakMap()
+
 // Pi persists a session file lazily: nothing hits disk until the first
 // assistant message arrives. A fresh conversation interrupted before the model
 // replied therefore has no file, so releasing its resident runtime (forced
@@ -10,7 +12,22 @@ import { dirname } from 'node:path'
 // workspace switch fails with "session not found". Write the minimal valid
 // file (session header + session_info, CURRENT_SESSION_VERSION = 3) at
 // materialization so the session stays addressable and recoverable.
-export async function ensureSessionFilePersisted(sessionManager, name = '', cwd = '') {
+export function ensureSessionFilePersisted(sessionManager, name = '', cwd = '') {
+  if (!sessionManager) return Promise.resolve()
+  const existing = pendingPersistence.get(sessionManager)
+  if (existing) return existing
+  const operation = persistSessionFile(sessionManager, name, cwd)
+  pendingPersistence.set(sessionManager, operation)
+  void operation
+    .finally(() => {
+      if (pendingPersistence.get(sessionManager) === operation)
+        pendingPersistence.delete(sessionManager)
+    })
+    .catch(() => {})
+  return operation
+}
+
+async function persistSessionFile(sessionManager, name, cwd) {
   const file = sessionManager?.sessionFile
   if (!file) return
   const exists = await stat(file)
@@ -34,7 +51,12 @@ export async function ensureSessionFilePersisted(sessionManager, name = '', cwd 
     }),
   ]
   await mkdir(dirname(file), { recursive: true })
-  await writeFile(file, `${lines.map((line) => `${line}\n`).join('')}`)
+  try {
+    await writeFile(file, `${lines.map((line) => `${line}\n`).join('')}`, { flag: 'wx' })
+  } catch (error) {
+    // 另一个管理者刚创建了同一会话文件时，不得截断其内容。
+    if (error?.code !== 'EEXIST') throw error
+  }
   // The manager still considers a new session unflushed and would try to
   // recreate this file with `wx` when the first assistant message arrives.
   // Reloading the file synchronizes its in-memory entries and persistence state.

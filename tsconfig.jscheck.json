@@ -18,6 +18,7 @@
     "runtime/http/route-registry.mjs",
     "runtime/services/decision-remote-client.mjs",
     "runtime/services/decision-service.mjs",
+    "runtime/services/chat-session-organization.mjs",
     "runtime/runtime/workspace-directories.mjs",
     "runtime/services/openai-request-transport.mjs",
     "runtime/services/memory/abortable-memory-operation.mjs",

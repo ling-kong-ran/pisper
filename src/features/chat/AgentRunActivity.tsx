@@ -402,7 +402,7 @@ function CommandOutput({
 
   return (
     <details
-      className="agent-run-command-output [.agent-run-feed:has(&[open])]:max-h-[320px] [&_>_summary]:grid [&_>_summary]:min-h-[30px] [&_>_summary]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_summary]:items-center [&_>_summary]:gap-[7px] [&_>_summary]:[list-style:none] [&_>_summary]:p-[5px_8px] [&_>_summary]:text-[var(--text-muted)] [&_>_summary]:text-[11px] [&_>_summary]:font-[600] [&_>_summary]:cursor-pointer [&_>_summary::-webkit-details-marker]:hidden [&_>_summary:hover]:bg-[var(--surface-hover)] [&_>_summary:hover]:text-[var(--text-secondary)] [&_>_summary:focus-visible]:[outline:2px_solid_var(--accent-border)] [&_>_summary:focus-visible]:[outline-offset:-2px] [&_>_summary_>_svg:first-child]:text-[var(--brand-blue-strong)] [&_>_pre]:max-h-[112px] [&_>_pre]:overflow-auto [&_>_pre]:m-0 [&_>_pre]:[border-top:1px_solid_var(--stroke-soft)] [&_>_pre]:bg-[var(--surface-subtle)] [&_>_pre]:p-[9px_10px] [&_>_pre]:text-[var(--text-secondary)] [&_>_pre]:font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] [&_>_pre]:text-[11px] [&_>_pre]:leading-[1.55] [&_>_pre]:whitespace-pre-wrap [&_>_pre]:[overflow-wrap:anywhere] [.agent-run-activity.compact_&]:[grid-column:1/-1] min-w-0 [grid-column:1/-1] overflow-hidden [margin:2px_0_1px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--solid)]"
+      className="agent-run-command-output [.agent-run-feed:has(&[open])]:max-h-[320px] [&_>_summary]:grid [&_>_summary]:min-h-[30px] [&_>_summary]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_summary]:items-center [&_>_summary]:gap-[7px] [&_>_summary]:[list-style:none] [&_>_summary]:p-[5px_8px] [&_>_summary]:text-[var(--text-muted)] [&_>_summary]:text-[12px] [&_>_summary]:font-medium [&_>_summary]:cursor-pointer [&_>_summary::-webkit-details-marker]:hidden [&_>_summary:hover]:bg-[var(--surface-hover)] [&_>_summary:hover]:text-[var(--text-secondary)] [&_>_summary:focus-visible]:[outline:2px_solid_var(--accent-border)] [&_>_summary:focus-visible]:[outline-offset:-2px] [&_>_summary_>_svg:first-child]:text-[var(--brand-blue-strong)] [&_>_pre]:max-h-[112px] [&_>_pre]:overflow-auto [&_>_pre]:m-0 [&_>_pre]:[border-top:1px_solid_var(--stroke-soft)] [&_>_pre]:bg-[var(--surface-subtle)] [&_>_pre]:p-[9px_10px] [&_>_pre]:text-[var(--text-secondary)] [&_>_pre]:font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] [&_>_pre]:text-[11px] [&_>_pre]:leading-[1.55] [&_>_pre]:whitespace-pre-wrap [&_>_pre]:[overflow-wrap:anywhere] [.agent-run-activity.compact_&]:[grid-column:1/-1] min-w-0 [grid-column:1/-1] overflow-hidden [margin:2px_0_1px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--solid)]"
       data-truncated={display.truncated || undefined}
       open={streaming || undefined}
     >
@@ -520,12 +520,12 @@ const ActivityCard = memo(function ActivityCard({
   return (
     <ActivityElement
       activity={activity}
-      className={`agent-run-summary grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)] [align-items:start] gap-[9px] p-[6px_0] hover:bg-[var(--surface-hover)] hover:opacity-100 [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] @max-[700px]:grid-cols-[28px_minmax(0,1fr)] @max-[700px]:[&_>_svg]:hidden flex-none opacity-[.82] [transition:background_var(--d1)_var(--ease-out),_opacity_var(--d1)_var(--ease-out)] ${presentation.tone}    ${latest ? 'current [.agent-run-summary&]:bg-[var(--surface-subtle)] [.agent-run-summary&]:opacity-100' : ''}`}
+      className={`agent-run-summary grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)] [align-items:start] gap-[9px] p-[6px_0] hover:bg-[var(--surface-hover)] [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] @max-[700px]:grid-cols-[28px_minmax(0,1fr)] @max-[700px]:[&_>_svg]:hidden flex-none [transition:background_var(--d1)_var(--ease-out)] ${presentation.tone}    ${latest ? 'current [.agent-run-summary&]:bg-[var(--surface-subtle)]' : ''}`}
     >
       <span className={AGENT_RUN_STATUS_ICON_CLASS}>
         <ActivityIcon tone={presentation.tone} />
       </span>
-      <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:font-[620] [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
+      <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
         <strong>{presentation.title}</strong>
         {presentation.detail &&
           (presentation.command ? (
@@ -674,7 +674,7 @@ function AgentRunActivity({
                 size={14}
               />
             </span>
-            <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:font-[620] [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
+            <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
               <strong>
                 {streaming
                   ? t('chat:agentRunActivity.reasoningInProgress')
@@ -731,7 +731,7 @@ function AgentRunActivity({
                           : 'bg-[var(--accent-strong)] [animation:agent-status-pulse_1.6s_ease-in-out_infinite]'
                   }`}
                 />
-                <span className="min-w-0 truncate text-[12px] font-[650]">
+                <span className="min-w-0 truncate text-[12px] font-medium">
                   {team.status === 'complete'
                     ? t('chat:agentRunActivity.teamComplete')
                     : team.status === 'budget_limited'
@@ -743,7 +743,7 @@ function AgentRunActivity({
                           : t('chat:agentRunActivity.teamActive')}
                 </span>
                 {teamTotal > 0 && (
-                  <small className="shrink-0 text-[11px] font-[550] text-[var(--text-muted)]">
+                  <small className="shrink-0 text-[11px] font-normal text-[var(--text-muted)]">
                     {teamCompleted}/{teamTotal} · {teamProgress}%
                   </small>
                 )}
@@ -799,7 +799,7 @@ function AgentRunActivity({
                         }`}
                       />
                       <span className="grid min-w-0 gap-[1px]">
-                        <strong className="break-words font-[620]">
+                        <strong className="break-words font-medium">
                           {role
                             ? t('chat:agentRunActivity.teamTaskStatus', {
                                 name: task.taskName,
@@ -850,7 +850,7 @@ function AgentRunActivity({
                       key={communication.id}
                       className="grid min-w-0 gap-[1px] rounded-[var(--r-xs)] bg-[var(--surface-muted)] [border-left:2px_solid_var(--accent-border)] [padding:4px_6px]"
                     >
-                      <strong className="break-all text-[11px] font-[620]">
+                      <strong className="break-all text-[12px] font-medium">
                         {communication.fromTaskName || communication.fromAgentId || 'lead'} -&gt;{' '}
                         {communication.toTaskName || communication.toAgentId}
                       </strong>
@@ -903,7 +903,7 @@ function AgentRunActivity({
                 size={14}
               />
             </span>
-            <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:font-[620] [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
+            <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
               <strong>
                 {t('chat:agentRunActivity.countCompletedOperations', {
                   count: completedActivityCount,

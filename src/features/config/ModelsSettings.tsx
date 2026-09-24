@@ -1,7 +1,8 @@
 // 模型设置页：快速配置向导是唯一配置主路径。
 // 结构：当前模型摘要 → 连接管理（本地导入/连接列表/运行策略，默认折叠）
 // → 视觉生成专区。折叠状态持久化到 localStorage。
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
@@ -9,6 +10,7 @@ import { ConnectionList } from './ConnectionList'
 import { CurrentModelSummary } from './CurrentModelSummary'
 import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
+import { providerDiscoveryHasImportable } from './provider-discovery-state'
 import { QuickSetupWizard } from './QuickSetupWizard'
 import { RuntimePolicySettings } from './RuntimeSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
@@ -47,6 +49,8 @@ export function ModelsSettings({
   requestConfirm,
 }: ModelsSettingsProps) {
   const { t } = useI18n()
+  const location = useLocation()
+  const importRequested = new URLSearchParams(location.search).get('import') === '1'
   const [wizard, setWizard] = useState<WizardTarget | null>(null)
   // 连接弹窗按需新建或编辑；视觉连接也必须能修改 Key、URL 和模型定义。
   const [providerModal, setProviderModal] = useState<{
@@ -54,7 +58,12 @@ export function ModelsSettings({
     provider?: ProviderConfig
     cloneProvider?: ProviderConfig
   } | null>(null)
-  const [manageOpen, setManageOpen] = useState<boolean | null>(storedManageOpen)
+  const [manageOpen, setManageOpen] = useState<boolean | null>(() =>
+    importRequested ? true : storedManageOpen(),
+  )
+  useEffect(() => {
+    if (importRequested) setManageOpen(true)
+  }, [importRequested])
   const settings = useProvidersConfig({ notify, requestConfirm, t })
   const { config } = settings
   const discovery = useProviderDiscovery({
@@ -90,8 +99,8 @@ export function ModelsSettings({
 
   const defaultProviderId = config.defaultProvider || config.provider
   const defaultProvider = config.providers.find((item) => item.id === defaultProviderId)
-  // 管理区默认折叠（新用户也一样）：首屏只留摘要 + 视觉生成。
-  const manageOpenEffective = manageOpen ?? false
+  // 有本地可导入配置时展开入口；显式折叠/展开过的用户偏好仍然优先。
+  const manageOpenEffective = manageOpen ?? providerDiscoveryHasImportable(discovery.discovery)
   const setManageOpenPersisted = (open: boolean) => {
     setManageOpen(open)
     window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
@@ -141,6 +150,7 @@ export function ModelsSettings({
             discovering={discovery.discovering}
             error={discovery.error || discovery.operationError}
             importing={discovery.importing}
+            forceVisible={importRequested}
             onRefresh={discovery.refresh}
             onImport={discovery.importProvider}
           />

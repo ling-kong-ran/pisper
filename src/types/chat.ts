@@ -107,6 +107,12 @@ export type SessionSummary = EntityRecord & {
   id: string
   name?: string
   modified?: string
+  pinned?: boolean
+  archived?: boolean
+  unread?: boolean
+  needsAttention?: boolean
+  attentionReason?: 'approval' | 'failure' | null
+  lastCompletedAt?: string | null
   firstMessage?: string
   model?: string
   thinkingLevel?: string

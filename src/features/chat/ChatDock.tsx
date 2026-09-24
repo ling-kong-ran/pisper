@@ -2,7 +2,7 @@
 // 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { AlertTriangle, MessageSquare, Plus, X } from 'lucide-react'
+import { AlertTriangle, History, MessageSquare, Plus, X } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
@@ -50,6 +50,7 @@ type MobileSessionPanelProps = {
   sessionIds?: string[]
   onSelectSession: (sessionId: string) => void
   onCreateSession: () => void | Promise<unknown>
+  onOpenHistory: () => void
 }
 
 const MOBILE_SESSION_TAB_LIMIT = 6
@@ -73,6 +74,7 @@ export function MobileSessionPanel({
   sessionIds = [],
   onSelectSession,
   onCreateSession,
+  onOpenHistory,
 }: MobileSessionPanelProps) {
   const { t } = useI18n()
   const context = useContext(ChatDockContext)
@@ -132,12 +134,26 @@ export function MobileSessionPanel({
 
   return (
     <div className="mobile-session-shell flex h-full min-h-0 min-w-0 flex-col bg-[var(--panel)]">
-      <nav
-        className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)]"
-        role="tablist"
-        aria-label={t('chat:chatPage.openChats')}
-      >
-        <div className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)]">
+        <button
+          type="button"
+          className="flex min-h-11 flex-none items-center gap-1.5 border-0 border-r border-[var(--stroke-soft)] bg-transparent px-3 text-[length:var(--app-small-size)] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
+          title={t('navigation:appSidebar.viewAllCountChats', {
+            count: context?.sessions.length || 0,
+          })}
+          aria-label={t('navigation:appSidebar.viewAllCountChats', {
+            count: context?.sessions.length || 0,
+          })}
+          onClick={onOpenHistory}
+        >
+          <History size={16} aria-hidden="true" />
+          <span>{t('navigation:appSidebar.viewAll')}</span>
+        </button>
+        <div
+          className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label={t('chat:chatPage.openChats')}
+        >
           {visibleTabs.map((session) => {
             const title = session.name || t('chat:chatPage.untitledChat')
             const active = session.id === sessionId
@@ -153,7 +169,7 @@ export function MobileSessionPanel({
                   id={`mobile-session-tab-${session.id}`}
                   aria-selected={active}
                   aria-controls="mobile-session-tabpanel"
-                  className={`flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent py-0 pl-3 text-left text-[13px] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)] ${active ? 'font-[650]' : 'font-[500]'}`}
+                  className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent py-0 pl-3 text-left text-[length:var(--app-font-size)] font-medium focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
                   title={title}
                   onClick={() => onSelectSession(session.id)}
                 >
@@ -168,7 +184,7 @@ export function MobileSessionPanel({
                 </button>
                 <button
                   type="button"
-                  className="grid w-9 flex-none place-items-center border-0 bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
+                  className="grid min-h-11 w-11 flex-none place-items-center border-0 bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
                   title={t('chat:chatPage.closeChat', { title })}
                   aria-label={t('chat:chatPage.closeChat', { title })}
                   onClick={() => closeSessionTab(session.id)}
@@ -188,7 +204,7 @@ export function MobileSessionPanel({
         >
           <Plus size={20} aria-hidden="true" />
         </button>
-      </nav>
+      </div>
       <div
         className="min-h-0 min-w-0 flex-1"
         role="tabpanel"
@@ -318,6 +334,7 @@ function SessionPanel({
       onSplitTop: () => context?.splitDockPanel(panelId, 'above'),
       onSplitBottom: () => context?.splitDockPanel(panelId, 'below'),
       onClosePanel: () => context?.closeDockPanel(panelId),
+      onToggleContext: (open: boolean) => context?.toggleSessionContext(sessionId, open),
       onSend: (
         value: string,
         attachments: ChatAttachment[],
@@ -346,7 +363,7 @@ function SessionPanel({
 
   if (!context || !session) {
     return (
-      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-secondary)] text-[12px]">
+      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-secondary)] text-[length:var(--app-font-size)]">
         <AlertTriangle size={16} />
         {context ? 'Session unavailable' : 'Loading session'}
       </div>
@@ -415,6 +432,9 @@ function SessionPanel({
         onCompactionThresholdChange={context.setCompactionThreshold}
         canSplit={canSplitPanel}
         canClosePanel={canClosePanel}
+        contextOpen={Boolean(context.contextTab && context.activeId === sessionId)}
+        contextCompact={context.contextCompact}
+        contextPanelId={context.contextPanelId}
         {...handlers}
       />
     </div>
@@ -431,9 +451,9 @@ type ChatDockWatermarkProps = {
 export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDockWatermarkProps) {
   const { t } = useI18n()
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[12px] text-[var(--text-secondary)]">
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
       <MessageSquare size={34} />
-      <strong className="text-[14px] text-[var(--text)]">
+      <strong className="text-[14px] font-semibold text-[var(--text)]">
         {t('chat:chatDock.openAChatToBegin')}
       </strong>
       <span className="max-w-[320px] leading-[1.55]">
@@ -442,13 +462,13 @@ export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDock
       {onNewSession ? (
         <button
           type="button"
-          className="mt-[10px] inline-flex cursor-pointer items-center gap-[6px] rounded-[var(--r-sm)] border-0 bg-[var(--brand-blue)] px-[16px] py-[8px] text-[12px] font-[600] text-white transition-colors duration-[var(--d1)] hover:bg-[var(--brand-blue-hover)] focus-visible:outline-[2px] focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
+          className="mt-[10px] inline-flex cursor-pointer items-center gap-[6px] rounded-[var(--r-sm)] border-0 bg-[var(--brand-blue)] px-[16px] py-[8px] text-[length:var(--app-font-size)] font-medium text-white transition-colors duration-[var(--d1)] hover:bg-[var(--brand-blue-hover)] focus-visible:outline-[2px] focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
           onClick={() => void onNewSession()}
         >
           <Plus size={14} aria-hidden="true" />
           {t('chat:chatDock.newChat')}
           {newSessionShortcut ? (
-            <kbd className="ml-[2px] rounded-[4px] border border-white/35 bg-white/10 px-[5px] py-[1px] font-sans text-[10px] font-[500] leading-[1.4]">
+            <kbd className="ml-[2px] rounded-[4px] border border-white/35 bg-white/10 px-[5px] py-[1px] font-sans text-[length:var(--app-small-size)] font-medium leading-[1.4]">
               {newSessionShortcut}
             </kbd>
           ) : null}

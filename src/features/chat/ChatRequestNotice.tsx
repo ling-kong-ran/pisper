@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, Info, LoaderCircle } from 'lucide-react'
+import { ChevronDown, Info, LoaderCircle, RotateCcw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -10,15 +10,18 @@ export function ChatRequestNotice({
   error,
   title,
   pending = false,
+  onRetry,
   className,
 }: {
   error: string
   title?: string
   pending?: boolean
+  onRetry?: () => Promise<void> | void
   className?: string
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const Icon = pending ? LoaderCircle : Info
 
   return (
@@ -41,13 +44,39 @@ export function ChatRequestNotice({
             />
             <span>{title || t('chat:requestNotice.incomplete')}</span>
           </div>
+          {onRetry && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-11 shrink-0 gap-1 px-2 text-xs text-[var(--text-secondary)]"
+              disabled={pending || retrying}
+              onClick={async () => {
+                if (retrying) return
+                setRetrying(true)
+                try {
+                  await onRetry()
+                } catch {
+                  // 重试失败由会话请求状态呈现；按钮在这里恢复为可操作。
+                } finally {
+                  setRetrying(false)
+                }
+              }}
+            >
+              <RotateCcw
+                aria-hidden="true"
+                className={cn('size-3.5', retrying && 'animate-spin')}
+              />
+              {t('chat:chatMessage.retry')}
+            </Button>
+          )}
           {error && (
             <CollapsibleTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 shrink-0 gap-1 px-2 text-xs text-[var(--text-muted)]"
+                className="min-h-11 shrink-0 gap-1 px-2 text-xs text-[var(--text-muted)]"
               >
                 {open ? t('chat:requestNotice.hideDetails') : t('chat:requestNotice.showDetails')}
                 <ChevronDown

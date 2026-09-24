@@ -45,7 +45,6 @@ import {
   type TranscriptPrependSnapshot,
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
-import { ChatRequestNotice } from './ChatRequestNotice'
 import { WelcomeBrandStage } from './welcome-brand'
 
 import { Button } from '@/components/ui/button'
@@ -113,7 +112,7 @@ function TranscriptLoading({ label }: { label: string }) {
         <span className="grid h-[34px] w-[34px] place-items-center rounded-[11px] border border-[color-mix(in_srgb,#A855F7_24%,var(--stroke))] bg-[var(--solid)] shadow-[var(--sh-1)]">
           <BrandLogo size={19} />
         </span>
-        <strong className="text-[13px] font-[650] text-[var(--text-soft)]">{label}</strong>
+        <strong className="text-[13px] font-medium text-[var(--text-soft)]">{label}</strong>
         <span className="flex items-end gap-[3px] pb-[3px]" aria-hidden="true">
           <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_infinite]" />
           <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_.16s_infinite]" />
@@ -361,7 +360,7 @@ export function FocusTranscript({
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <button
         type="button"
-        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--accent-strong)] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)]"
+        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[length:var(--app-font-size)] [&_>_strong]:font-medium [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--accent-strong)] [&_>_small]:text-[12px] [&_>_small]:font-medium hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[length:var(--app-font-size)] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)]"
         data-target-cursor
         title={cwd}
         aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
@@ -382,7 +381,7 @@ export function FocusTranscript({
             key={chip.label}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
-            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-[620] text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)]"
+            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-medium text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)]"
           >
             <chip.icon
               size={14}
@@ -459,7 +458,7 @@ export function FocusTranscript({
           <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
         )}
         {transcriptLoadState === 'ready' && !messages.length && (
-          <div className="agent-welcome [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-[800] [&_h2]:leading-[1.2] [&_h2]:tracking-[-.02em] [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
+          <div className="agent-welcome [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-semibold [&_h2]:leading-[1.2] [&_h2]:tracking-normal [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
             <Suspense
               fallback={
                 <WelcomeFallback title={welcomeTitles[0]}>{welcomeContent}</WelcomeFallback>
@@ -492,9 +491,6 @@ export function FocusTranscript({
               onRetryLastTurn={onRetryLastTurn}
             />
           </div>
-        )}
-        {error && error !== lastMessage?.error && (
-          <ChatRequestNotice error={error} className="mx-auto my-2 w-full max-w-[1040px]" />
         )}
       </div>
       {hasUnread && (

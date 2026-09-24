@@ -2,6 +2,7 @@
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
 import { useOutletContext } from 'react-router-dom'
+import { ensureChannelsMessages } from './i18n'
 import type { AppRouteContext } from './route-context'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
@@ -70,7 +71,10 @@ export async function assetsRoute() {
 }
 
 export async function channelsRoute() {
-  const { ChannelsPage } = await import('@/features/channels/ChannelsPage')
+  const [{ ChannelsPage }] = await Promise.all([
+    import('@/features/channels/ChannelsPage'),
+    ensureChannelsMessages(),
+  ])
 
   function ChannelsRoute() {
     const context = useAppRouteContext()

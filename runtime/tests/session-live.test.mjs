@@ -707,6 +707,10 @@ test('stream completion publishes an authoritative terminal snapshot', async (t)
     send: (event, data) => events.push({ event, data }),
   })
 
+  assert.equal(runtime.sessionMeta[session.sessionId].organization.unread, true)
+  assert.equal(runtime.sessionMeta[session.sessionId].organization.failed, false)
+  assert.ok(runtime.sessionMeta[session.sessionId].organization.lastCompletedAt)
+
   const meta = events.find((item) => item.event === 'meta')?.data
   assert.equal(meta.plan.sessionId, session.sessionId)
   assert.equal(meta.lifecycle.event, 'prompt_submitted')
@@ -1337,6 +1341,8 @@ test('stream failures emit a single terminal error snapshot without throwing', a
   assert.equal(live.streaming, false)
   assert.equal(live.error, 'model failed')
   assert.equal(live.lifecycle.event, 'runtime_error')
+  assert.equal(runtime.sessionMeta[session.sessionId].organization.unread, true)
+  assert.equal(runtime.sessionMeta[session.sessionId].organization.failed, true)
 })
 
 test('context usage reports the current window share and earlier automatic compaction threshold', async (t) => {

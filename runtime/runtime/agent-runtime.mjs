@@ -631,6 +631,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       saveUsageLedger: () => this.saveUsageLedger(),
       getUsageLedger: () => this.usageLedger,
       createSessionRuntime: (manager, name) => this.createSessionRuntime(manager, name),
+      markSessionTracked: (id, cwd) => this.getFileChangesService().markSessionTracked(id, cwd),
       setSessionModel: (id, provider, model) => this.setSessionModel(id, provider, model),
       syncGoalTools: (value, goal) => this.syncGoalTools(value, goal),
       pauseSessionGoal: (id) => this.pauseSessionGoal(id),
@@ -2023,6 +2024,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const activeTextBlocks = new Set(),
       activeThinkingBlocks = new Set()
     const requestTiming = createRequestTimingTracker()
+    let completionWrite = Promise.resolve()
     // 思考文本以“增量补丁 + 行尾裁剪”的方式同步，减少前端渲染压力。
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
@@ -2049,6 +2051,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.streaming = false
       live.finishedAt = finishedAt
       live.lastActivityAt = finishedAt
+      completionWrite = this.sessionLifecycle.recordSessionCompletion(
+        session.sessionId,
+        Boolean(error),
+        finishedAt,
+      )
+      void completionWrite.catch(() => {})
       live.lifecycle = finishAgentLifecycle(live.lifecycle, error, finishedAt)
       live.tools = live.tools.map((tool) =>
         tool.status === 'running'
@@ -2560,6 +2568,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }, 60_000)
       timer.unref?.()
       // 完成事件不等待磁盘，但本轮 Promise 必须覆盖统计写入，避免退出或清理时仍在落盘。
+      await completionWrite.catch(() => {})
       await this.saveSessionMeta().catch(() => {})
     }
   }

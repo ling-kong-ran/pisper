@@ -458,7 +458,7 @@ export function useSessionCommands({
       try {
         const updated = await chatApi.renameSession(session.id, name)
         updateSessionSummary(session.id, (current) => ({ ...current, name: updated.name }))
-        announceSessionsUpdated()
+        announceSessionsUpdated({ id: session.id, name: updated.name })
         notify(t('chat:chatPage.chatTitleUpdated'))
       } catch (error) {
         setGlobalError(chatErrorMessage(error))

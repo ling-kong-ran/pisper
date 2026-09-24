@@ -16,6 +16,16 @@ export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
+export type SessionTitleUpdate = { id: string; name: string }
+export type SessionDeletionUpdate = { deletedIds: string[] }
+export type SessionOrganizationUpdate = {
+  id: string
+  pinned: boolean
+  archived: boolean
+  unread: boolean
+  needsAttention: boolean
+  attentionReason: 'approval' | 'failure' | null
+}
 // 会话创建请求：cwd 可为空串（默认工作区）；prompt 存在时创建后自动发送
 //（如视觉生成卡片的「试试示例」一键体验）。
 export type SessionCreateRequest = { cwd: string; prompt?: string }
@@ -127,7 +137,89 @@ export function announceActiveSession(id: string, model = '') {
   )
 }
 
-// 广播“会话列表已更新”，供依赖列表快照的面板刷新。
-export function announceSessionsUpdated() {
-  window.dispatchEvent(new Event(SESSIONS_UPDATED_EVENT))
+// 广播“会话列表已更新”；携带已确认的变更供打开中的会话直接同步。
+export function announceSessionsUpdated(
+  update?: SessionTitleUpdate | SessionDeletionUpdate | SessionOrganizationUpdate,
+) {
+  window.dispatchEvent(
+    update
+      ? new CustomEvent(SESSIONS_UPDATED_EVENT, { detail: update })
+      : new Event(SESSIONS_UPDATED_EVENT),
+  )
+}
+
+export function sessionOrganizationUpdateFromEvent(event: Event): SessionOrganizationUpdate | null {
+  const detail: unknown = 'detail' in event ? event.detail : null
+  if (!detail || typeof detail !== 'object') return null
+  const { id, pinned, archived, unread, needsAttention, attentionReason } = detail as Record<
+    string,
+    unknown
+  >
+  if (
+    typeof id !== 'string' ||
+    !id ||
+    typeof pinned !== 'boolean' ||
+    typeof archived !== 'boolean' ||
+    typeof unread !== 'boolean' ||
+    typeof needsAttention !== 'boolean' ||
+    (attentionReason !== null && attentionReason !== 'approval' && attentionReason !== 'failure')
+  )
+    return null
+  return { id, pinned, archived, unread, needsAttention, attentionReason }
+}
+
+export function subscribeSessionOrganizationUpdates(
+  target: EventTarget,
+  onUpdate: (update: SessionOrganizationUpdate) => void,
+) {
+  const listener = (event: Event) => {
+    const update = sessionOrganizationUpdateFromEvent(event)
+    if (update) onUpdate(update)
+  }
+  target.addEventListener(SESSIONS_UPDATED_EVENT, listener)
+  return () => target.removeEventListener(SESSIONS_UPDATED_EVENT, listener)
+}
+
+export function sessionTitleUpdateFromEvent(event: Event): SessionTitleUpdate | null {
+  const detail: unknown = 'detail' in event ? event.detail : null
+  if (!detail || typeof detail !== 'object') return null
+  const { id, name } = detail as Record<string, unknown>
+  return typeof id === 'string' && id.length > 0 && typeof name === 'string' ? { id, name } : null
+}
+
+export function subscribeSessionTitleUpdates(
+  target: EventTarget,
+  onUpdate: (update: SessionTitleUpdate) => void,
+) {
+  const listener = (event: Event) => {
+    const update = sessionTitleUpdateFromEvent(event)
+    if (update) onUpdate(update)
+  }
+  target.addEventListener(SESSIONS_UPDATED_EVENT, listener)
+  return () => target.removeEventListener(SESSIONS_UPDATED_EVENT, listener)
+}
+
+export function sessionDeletionUpdateFromEvent(event: Event): SessionDeletionUpdate | null {
+  const detail: unknown = 'detail' in event ? event.detail : null
+  if (!detail || typeof detail !== 'object') return null
+  const { deletedIds } = detail as Record<string, unknown>
+  if (
+    !Array.isArray(deletedIds) ||
+    !deletedIds.length ||
+    !deletedIds.every((id) => typeof id === 'string' && id.length > 0)
+  )
+    return null
+  return { deletedIds: [...new Set<string>(deletedIds)] }
+}
+
+export function subscribeSessionDeletionUpdates(
+  target: EventTarget,
+  onUpdate: (update: SessionDeletionUpdate) => void,
+) {
+  const listener = (event: Event) => {
+    const update = sessionDeletionUpdateFromEvent(event)
+    if (update) onUpdate(update)
+  }
+  target.addEventListener(SESSIONS_UPDATED_EVENT, listener)
+  return () => target.removeEventListener(SESSIONS_UPDATED_EVENT, listener)
 }

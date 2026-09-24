@@ -3,8 +3,28 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { sessionRuntimeRoutes } from '../http/routes/sessions-runtime.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { ensureSessionFilePersisted } from '../runtime/session-file-persist.mjs'
+
+const renameRoute = sessionRuntimeRoutes.find(
+  (route) => route.method === 'PATCH' && route.path === '/api/sessions/:sessionId',
+)
+
+async function patchSessionTitle(runtime, id, name) {
+  assert.ok(renameRoute)
+  let response
+  await renameRoute.handler({
+    runtime,
+    params: { sessionId: id },
+    body: async () => ({ name }),
+    json: (status, body) => {
+      assert.equal(status, 200)
+      response = body
+    },
+  })
+  return response
+}
 
 function freshRuntime(directory) {
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
@@ -155,21 +175,41 @@ for (const state of ['pending', 'resident', 'stored']) {
       return originalListStored(options)
     }
 
-    assert.equal((await runtime.renameSession(created.id, '新标题')).name, '新标题')
-    assert.equal((await runtime.listSessions())[0].name, '新标题')
-    assert.equal((await runtime.findSessionInfo(created.id)).name, '新标题')
+    const firstTitle = '这是超过二十个字的完整会话标题，第一次修改为甲'
+    const secondTitle = '这是超过二十个字的完整会话标题，第一次修改为乙'
+    assert.equal(firstTitle.slice(0, 20), secondTitle.slice(0, 20))
+    assert.equal((await patchSessionTitle(runtime, created.id, firstTitle)).name, firstTitle)
+    assert.equal((await patchSessionTitle(runtime, created.id, secondTitle)).name, secondTitle)
+    assert.equal((await runtime.listSessions())[0].name, secondTitle)
+    assert.equal((await runtime.findSessionInfo(created.id)).name, secondTitle)
+    assert.equal(
+      runtime.openStoredSession(pending.manager.getSessionFile()).getSessionName(),
+      secondTitle,
+    )
     runtime.sessions.clear()
     runtime.pendingSessions.clear()
-    assert.equal((await runtime.listSessions())[0].name, '新标题')
+    assert.equal((await runtime.listSessions())[0].name, secondTitle)
     assert.equal(rescans, 0, 'renaming one session must not rescan every history file')
 
     const reloaded = freshRuntime(directory)
     reloaded.sessionMeta = JSON.parse(await readFile(runtime.sessionMetaPath, 'utf8'))
-    assert.equal((await reloaded.listSessions())[0].name, '新标题')
-    assert.equal((await reloaded.findSessionInfo(created.id)).name, '新标题')
+    assert.equal((await reloaded.listSessions())[0].name, secondTitle)
+    assert.equal((await reloaded.findSessionInfo(created.id)).name, secondTitle)
     assert.equal(reloaded.sessionMeta[created.id].manual, true)
   })
 }
+
+test('manual session titles accept 120 characters and reject longer input without changing the name', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-rename-length-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+  const created = await runtime.createSession('原会话', directory)
+  const title = '长'.repeat(120)
+
+  assert.equal((await runtime.renameSession(created.id, title)).name, title)
+  await assert.rejects(() => runtime.renameSession(created.id, `${title}字`), /不能超过 120 个字符/)
+  assert.equal((await runtime.listSessions())[0].name, title)
+})
 
 test('the catalog prefers a persisted title over a stale stored-session snapshot', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-rename-stale-'))

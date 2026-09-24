@@ -657,6 +657,7 @@ type FocusChatMessageProps = {
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
   /** 最近一条前置用户消息 ID：存在时最新助手消息上展示重试按钮。 */
   retryUserMessageId?: string
+  hideErrorNotice?: boolean
   onRetryLastTurn: () => Promise<void> | void
 }
 
@@ -672,6 +673,7 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.onBranchFromHere === next.onBranchFromHere &&
     prev.onCreateChildSession === next.onCreateChildSession &&
     prev.retryUserMessageId === next.retryUserMessageId &&
+    prev.hideErrorNotice === next.hideErrorNotice &&
     prev.onRetryLastTurn === next.onRetryLastTurn
   )
 }
@@ -687,6 +689,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   onBranchFromHere,
   onCreateChildSession,
   retryUserMessageId,
+  hideErrorNotice,
   onRetryLastTurn,
 }: FocusChatMessageProps) {
   const { t } = useI18n()
@@ -774,13 +777,13 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           />
         )}
       </div>
-      {message.error && !streaming && (
+      {message.error && !streaming && !hideErrorNotice && (
         <ChatRequestNotice error={String(message.error)} className="mt-3" />
       )}
       {message.role === 'agent' &&
         !streaming &&
         (message.turnBoundaryEntryId || retryUserMessageId) && (
-          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
             {message.turnBoundaryEntryId && (
               <>
                 <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />

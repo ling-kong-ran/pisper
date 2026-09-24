@@ -4,7 +4,16 @@
 // focus-session-composer-bits，状态文案在 focus-session-status；
 // composer 主体与发送行为约定保留在本文件。
 import { memo, useEffect, useRef, useState } from 'react'
-import { AudioLines, Braces, Command, FolderOpen, Plus, X } from 'lucide-react'
+import {
+  AudioLines,
+  Braces,
+  Command,
+  FolderOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Plus,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
@@ -24,6 +33,7 @@ import {
 } from './composer-toolbar-layout'
 import { ComposerToolTray } from './ComposerToolTray'
 import { ComposerToolbarSettings } from './ComposerToolbarSettings'
+import { ChatRequestNotice } from './ChatRequestNotice'
 import { requestCommandPalette } from './events'
 import {
   ApprovalModeSelect as ExecutionModeSelect,
@@ -64,10 +74,9 @@ export type { FocusSessionProps }
 // 对话框与浮层（Git diff 对话框、Radix Dialog/AlertDialog/Popover/DropdownMenu/Select/Sheet）。
 // 缺了它们时，点击浮层会被当成外部点击而收起托盘，托盘卸载又连带销毁面板状态
 //（典型场景：审阅 diff 时切换文件，整个 diff 对话框直接消失）。
-const TRAY_FLOATING_SELECTOR = [
-  '.composer-tools-trigger',
-  '.composer-tool-tray-shell',
+const TRAY_CHILD_FLOATING_SELECTOR = [
   '.anchored-popup-menu',
+  '.permission-mode-menu',
   '.voice-input-popup',
   '.git-diff-dialog-backdrop',
   "[data-slot='dialog-content']",
@@ -80,6 +89,11 @@ const TRAY_FLOATING_SELECTOR = [
   "[data-slot='select-content']",
   "[data-slot='sheet-content']",
   "[data-slot='sheet-overlay']",
+].join(', ')
+const TRAY_FLOATING_SELECTOR = [
+  '.composer-tools-trigger',
+  '.composer-tool-tray-shell',
+  TRAY_CHILD_FLOATING_SELECTOR,
 ].join(', ')
 
 export const FocusSession = memo(function FocusSession({
@@ -128,6 +142,10 @@ export const FocusSession = memo(function FocusSession({
   pendingAsset,
   canSplit,
   canClosePanel = true,
+  contextOpen,
+  contextCompact,
+  contextPanelId,
+  onToggleContext,
   notify,
   onOpenModelSettings,
   onAssetConsumed,
@@ -176,6 +194,7 @@ export const FocusSession = memo(function FocusSession({
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
+  const contextOpenAtPointerDownRef = useRef<boolean | null>(null)
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
   // 语音实时转写与草稿的合并基准：录音开始时记住原文本，部分转写反复覆盖增量段。
@@ -272,6 +291,9 @@ export const FocusSession = memo(function FocusSession({
     setToolsOpen,
     requestTranscriptBottom,
   })
+  const latestAgentMessage = messages.at(-1)?.role === 'agent' ? messages.at(-1) : null
+  const currentError = error || (!streaming ? String(latestAgentMessage?.error || '') : '')
+  const canRetryLastTurn = !streaming && messages.some((message) => message.role === 'user')
 
   useEffect(() => {
     setResourcePickerOpen(false)
@@ -286,7 +308,11 @@ export const FocusSession = memo(function FocusSession({
   useEffect(() => {
     if (!toolsOpen) return undefined
     const close = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setToolsOpen(false)
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      // Escape 先交给托盘中的设置或工具弹层，避免卸载子弹层并丢失返回焦点。
+      if (document.querySelector(TRAY_CHILD_FLOATING_SELECTOR)) return
+      setToolsOpen(false)
+      toolTrayAnchorRef.current?.focus()
     }
     const closeOnPointerDown = (event: PointerEvent) => {
       const target = event.target
@@ -473,7 +499,7 @@ export const FocusSession = memo(function FocusSession({
   )
   const renderComposerTool = (id: ComposerToolId) => (
     <div
-      className="composer-toolbar-slot grid size-9 min-w-9 flex-none place-items-center overflow-visible [&>button]:!size-9 [&>button]:!min-w-9 [&>div]:!size-9 [&>div]:!min-w-9 [&>div>button]:!size-9 [&_.git-changes-trigger>i]:!right-0.5 [&_.git-changes-trigger>i]:!top-0.5 [&_.file-changes-trigger>i]:!right-0.5 [&_.file-changes-trigger>i]:!top-0.5"
+      className="composer-toolbar-slot grid size-9 min-w-9 flex-none place-items-center overflow-visible [&>button]:!size-9 [&>button]:!min-w-9 [&>div]:!size-9 [&>div]:!min-w-9 [&>div>button]:!size-9 max-[650px]:!size-11 max-[650px]:!min-w-11 max-[650px]:[&>button]:!size-11 max-[650px]:[&>button]:!min-w-11 max-[650px]:[&>div]:!size-11 max-[650px]:[&>div]:!min-w-11 max-[650px]:[&>div>button]:!size-11 [&_.git-changes-trigger>i]:!right-0.5 [&_.git-changes-trigger>i]:!top-0.5 [&_.file-changes-trigger>i]:!right-0.5 [&_.file-changes-trigger>i]:!top-0.5"
       data-composer-tool-id={id}
       key={id}
     >
@@ -484,233 +510,277 @@ export const FocusSession = memo(function FocusSession({
     <Panel
       className={`focus-session [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-[500px] flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`}
     >
-      {!hasConversation && (
-        <AppCardHeader className="relative z-4 min-h-12 flex-none items-center border-b border-[var(--stroke-soft)] bg-[var(--panel)] px-3 py-[7px]">
-          <div className="flex [margin-left:auto] items-center gap-[6px]">{sessionActionsMenu}</div>
-        </AppCardHeader>
-      )}
-      <SessionTreeControl
-        visible={messages.length > 0}
-        open={sessionTreeOpen}
-        sessionId={session.id}
-        streaming={Boolean(streaming)}
-        revision={sessionTreeRevision}
-        pulseToken={sessionTreePulse}
-        onOpenChange={setSessionTreeOpen}
-        onNavigated={async (editorText) => {
-          if (editorText !== null) applyWelcomeChip(editorText)
-          await onTreeNavigated?.()
-          requestTranscriptBottom()
-        }}
-        onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
-      />
-      <FocusTranscript
-        sessionId={session.id}
-        messages={messages}
-        transcriptLoadState={transcriptLoadState}
-        messageStart={messageStart}
-        hasOlder={hasOlder}
-        loadingOlder={loadingOlder}
-        olderError={olderError}
-        currentActivity={currentActivity}
-        team={team}
-        activityFeed={activityFeed}
-        tools={tools}
-        thinkingText={thinkingText}
-        compaction={compaction}
-        streaming={streaming}
-        runStartedAt={runStartedAt}
-        lastActivityAt={lastActivityAt}
-        runFinishedAt={runFinishedAt}
-        runStopped={runStopped}
-        runNotice={runNotice}
-        error={error}
-        scrollRequest={scrollRequest}
-        cwd={cwd}
-        lineage={session.lineage}
-        switchingCwd={switchingCwd}
-        onLoadOlder={onLoadOlder}
-        onBranchFromHere={onBranchFromHere}
-        onCreateChildSession={onCreateChildSession}
-        onRetryLastTurn={onRetryLastTurn}
-        onPromptSelect={applyWelcomeChip}
-        onWorkspace={onWorkspace}
-      />
-      <form
-        className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(1040px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(1040px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
-        onSubmit={submit}
-      >
-        <ToolApproval approvals={approvals} onResolve={onApproval} />
-        {queuedInputs.length > 0 && (
-          <QueuedInputsTray
-            queuedInputs={queuedInputs}
-            withdrawingInputIds={withdrawingInputIds}
-            onWithdraw={onWithdrawQueuedInput ? withdrawQueuedInput : undefined}
-          />
-        )}
-        {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
-        {invocation && (
-          <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />
-        )}
-        <AttachmentTray attachments={selection.attachments} onRemove={selection.removeAttachment} />
-        {selection.attachmentError && (
-          <span className="text-[var(--danger)] text-[13px]">{selection.attachmentError}</span>
-        )}
-        <ComposerStatusPill
-          compaction={compaction}
-          streaming={streaming}
-          statusLabel={composerStatusLabel}
-        />
-        <div className="focus-composer [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_3px_var(--focus-ring)] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[48px] [&_textarea]:max-h-[220px] [&_textarea]:[align-self:start] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:p-[5px_6px_8px] [&_textarea]:text-[var(--text)] [&_textarea]:text-[14px] [&_textarea]:leading-[1.5] [.focus-session.has-conversation_&]:shadow-[0_10px_28px_-24px_var(--shadow-strong)] [.focus-session.has-conversation_&_textarea]:min-h-[50px] [.focus-session.has-conversation_&_textarea]:p-[6px_7px_8px] dark:bg-[var(--solid)] dark:text-[var(--text)] @max-[700px]:grid-cols-[70px_36px_36px_auto_minmax(0,1fr)_36px] @max-[700px]:grid-rows-[minmax(48px,1fr)_36px] relative flex min-w-0 flex-col items-stretch gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:8px] shadow-[0_14px_34px_-24px_var(--shadow-strong)] [transition:border-color_var(--d1)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out)]">
-          <ComposerCommandMenu
+      <AppCardHeader className="relative z-4 min-h-12 flex-none items-center border-b border-[var(--stroke-soft)] bg-[var(--panel)] px-3 py-[4px]">
+        <strong
+          className="min-w-0 flex-1 truncate text-sm font-semibold"
+          title={session.name || ''}
+        >
+          {session.name || t('chat:chatPage.untitledChat')}
+        </strong>
+        <div className="flex flex-none items-center gap-1">
+          <SessionTreeControl
+            visible={messages.length > 0}
+            open={sessionTreeOpen}
             sessionId={session.id}
-            value={value}
-            onChange={updateValue}
-            inputRef={promptRef}
-          />
-          <textarea
-            ref={promptRef}
-            rows={1}
-            value={value}
-            onChange={(event) => {
-              updateValue(event.target.value)
-              event.currentTarget.style.height = 'auto'
-              event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
+            streaming={Boolean(streaming)}
+            revision={sessionTreeRevision}
+            pulseToken={sessionTreePulse}
+            onOpenChange={setSessionTreeOpen}
+            onNavigated={async (editorText) => {
+              if (editorText !== null) applyWelcomeChip(editorText)
+              await onTreeNavigated?.()
+              requestTranscriptBottom()
             }}
-            onPaste={selection.pasteFiles}
-            onCompositionStart={() => (imeComposingRef.current = true)}
-            onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
-            onKeyDown={(event) => {
-              // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
-              const composing = event.nativeEvent.isComposing || imeComposingRef.current
-              if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
-                event.preventDefault()
-                event.currentTarget.form?.requestSubmit()
-              }
-            }}
-            data-mobile-composer-input={mobileLayout || undefined}
-            enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
-            placeholder={composerPlaceholder}
+            onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
           />
-          <div className="focus-composer-footer flex min-w-0 items-center gap-1">
-            <div
-              ref={toolbarRef}
-              className="focus-composer-quick-actions flex min-w-0 flex-1 items-center gap-1"
-            >
-              <button
-                ref={toolTrayAnchorRef}
-                type="button"
-                className={`composer-tools-trigger grid size-9 min-w-9 flex-none place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] cursor-pointer transition-[background-color,color,border-color,box-shadow] duration-150 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)] ${toolsOpen ? 'active border-[var(--brand-blue)] bg-[var(--brand-blue-soft)] text-[var(--brand-blue-strong)]' : ''}`}
-                title={quickActionsLabel}
-                aria-label={quickActionsLabel}
-                aria-expanded={toolsOpen}
-                aria-controls={toolTrayId}
-                onClick={() => setToolsOpen((open) => !open)}
-              >
-                {toolsOpen ? <X size={17} /> : <Plus size={18} />}
-              </button>
-              <div className="focus-composer-visible-tools flex min-w-0 flex-none items-center gap-1">
-                {toolbarAllocation.inline.map(renderComposerTool)}
-              </div>
-              <ComposerToolTray
-                open={toolsOpen}
-                label={t('chat:focusSession.quickActions')}
-                trayId={toolTrayId}
-                anchorRef={toolTrayAnchorRef}
-                menuRef={toolTrayMenuRef}
-              >
-                {toolbarAllocation.overflow.map(renderComposerTool)}
-                {toolbarAllocation.overflow.length > 0 && (
-                  <span
-                    className="mx-0.5 h-6 w-px flex-none bg-[var(--stroke-soft)]"
-                    aria-hidden="true"
-                  />
-                )}
-                <ComposerToolbarSettings labels={composerToolLabels} />
-              </ComposerToolTray>
-            </div>
-            <div className="focus-composer-secondary flex h-11 min-w-0 flex-none items-center justify-end">
-              <ContextUsageIndicator
-                usage={contextUsage}
-                sessionUsage={sessionUsage}
-                model={model}
-                availableModels={availableModels}
-                onThresholdChange={onCompactionThresholdChange}
-                compact
+          <button
+            type="button"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-md px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+            aria-label={
+              contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')
+            }
+            title={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
+            aria-expanded={contextOpen}
+            aria-controls={contextPanelId}
+            aria-haspopup={contextCompact ? 'dialog' : undefined}
+            onPointerDown={() => {
+              // 指针点击其他 Dock 面板时，焦点会先切换活动会话；保留点击时看到的开关状态。
+              contextOpenAtPointerDownRef.current = contextOpen
+            }}
+            onPointerCancel={() => {
+              contextOpenAtPointerDownRef.current = null
+            }}
+            onClick={() => {
+              const wasOpen = contextOpenAtPointerDownRef.current ?? contextOpen
+              contextOpenAtPointerDownRef.current = null
+              onToggleContext(!wasOpen)
+            }}
+          >
+            {contextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+            <span className="@max-[470px]:sr-only">{t('chat:sessionContext.title')}</span>
+          </button>
+          {!hasConversation && <div className="flex items-center gap-1">{sessionActionsMenu}</div>}
+        </div>
+      </AppCardHeader>
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <FocusTranscript
+            sessionId={session.id}
+            messages={messages}
+            transcriptLoadState={transcriptLoadState}
+            messageStart={messageStart}
+            hasOlder={hasOlder}
+            loadingOlder={loadingOlder}
+            olderError={olderError}
+            currentActivity={currentActivity}
+            team={team}
+            activityFeed={activityFeed}
+            tools={tools}
+            thinkingText={thinkingText}
+            compaction={compaction}
+            streaming={streaming}
+            runStartedAt={runStartedAt}
+            lastActivityAt={lastActivityAt}
+            runFinishedAt={runFinishedAt}
+            runStopped={runStopped}
+            runNotice={runNotice}
+            error={error}
+            scrollRequest={scrollRequest}
+            cwd={cwd}
+            lineage={session.lineage}
+            switchingCwd={switchingCwd}
+            onLoadOlder={onLoadOlder}
+            onBranchFromHere={onBranchFromHere}
+            onCreateChildSession={onCreateChildSession}
+            onRetryLastTurn={onRetryLastTurn}
+            onPromptSelect={applyWelcomeChip}
+            onWorkspace={onWorkspace}
+          />
+          <form
+            className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(1040px,calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(1040px,calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
+            onSubmit={submit}
+          >
+            <ToolApproval approvals={approvals} onResolve={onApproval} />
+            {queuedInputs.length > 0 && (
+              <QueuedInputsTray
+                queuedInputs={queuedInputs}
+                withdrawingInputIds={withdrawingInputIds}
+                onWithdraw={onWithdrawQueuedInput ? withdrawQueuedInput : undefined}
               />
-            </div>
-            <>
-              <button
-                type="button"
-                className="grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]"
-                title={t('chat:voiceMode.open')}
-                aria-label={t('chat:voiceMode.open')}
-                onClick={() => setVoiceModeOpen(true)}
-              >
-                <AudioLines size={17} />
-              </button>
-              <VoiceInputControl
-                sessionId={session.id}
-                shortcutEnabled={shortcutEnabled}
-                onLiveText={(text) => {
-                  if (text === null) {
-                    // 录音取消/失败：回滚到录音前的草稿。
-                    if (voiceDraftBaseRef.current !== null) {
-                      applyVoiceDraft(voiceDraftBaseRef.current)
-                      voiceDraftBaseRef.current = null
-                    }
-                    return
-                  }
-                  if (voiceDraftBaseRef.current === null) {
-                    voiceDraftBaseRef.current = (promptRef.current?.value ?? value).trimEnd()
-                  }
-                  const base = voiceDraftBaseRef.current
-                  applyVoiceDraft(base && text ? `${base}\n${text}` : base || text)
-                }}
-                onInsert={(transcript) => {
-                  // 最终转写替换实时部分文本（基准段 + 终稿）。
-                  const base =
-                    voiceDraftBaseRef.current ?? (promptRef.current?.value ?? value).trimEnd()
-                  voiceDraftBaseRef.current = null
-                  applyVoiceDraft(base ? `${base}\n${transcript}` : transcript)
-                  requestAnimationFrame(() => promptRef.current?.focus())
-                }}
-              />
-            </>
-            <ComposerSendButton
-              streaming={streaming}
-              queueing={queueing}
-              disabled={
-                !streaming &&
-                (queueing || (!value.trim() && !selection.attachments.length && !invocation))
-              }
-              onAbort={onAbort}
+            )}
+            {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
+            {invocation && (
+              <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />
+            )}
+            <AttachmentTray
+              attachments={selection.attachments}
+              onRemove={selection.removeAttachment}
             />
-          </div>
+            {selection.attachmentError && (
+              <span className="text-[var(--danger)] text-[13px]">{selection.attachmentError}</span>
+            )}
+            {currentError && (
+              <ChatRequestNotice
+                error={currentError}
+                onRetry={canRetryLastTurn ? onRetryLastTurn : undefined}
+                className="w-full"
+              />
+            )}
+            <ComposerStatusPill
+              compaction={compaction}
+              streaming={streaming}
+              statusLabel={composerStatusLabel}
+            />
+            <div className="focus-composer [&:focus-within]:border-[var(--focus)] [&:focus-within]:shadow-[0_0_0_3px_var(--focus-ring)] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[48px] [&_textarea]:max-h-[220px] [&_textarea]:[align-self:start] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:p-[5px_6px_8px] [&_textarea]:text-neutral-700 dark:[&_textarea]:text-neutral-200 [&_textarea]:placeholder:text-neutral-500 dark:[&_textarea]:placeholder:text-neutral-400 [&_textarea]:font-normal [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:leading-[1.6] [.focus-session.has-conversation_&]:shadow-[0_10px_28px_-24px_var(--shadow-strong)] [.focus-session.has-conversation_&_textarea]:min-h-[50px] [.focus-session.has-conversation_&_textarea]:p-[6px_7px_8px] dark:bg-[var(--solid)] dark:text-[var(--text)] @max-[700px]:grid-cols-[70px_36px_36px_auto_minmax(0,1fr)_36px] @max-[700px]:grid-rows-[minmax(48px,1fr)_36px] relative flex min-w-0 flex-col items-stretch gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:8px] shadow-[0_14px_34px_-24px_var(--shadow-strong)] [transition:border-color_var(--d1)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out)]">
+              <ComposerCommandMenu
+                sessionId={session.id}
+                value={value}
+                onChange={updateValue}
+                inputRef={promptRef}
+              />
+              <textarea
+                ref={promptRef}
+                rows={1}
+                value={value}
+                onChange={(event) => {
+                  updateValue(event.target.value)
+                  event.currentTarget.style.height = 'auto'
+                  event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
+                }}
+                onPaste={selection.pasteFiles}
+                onCompositionStart={() => (imeComposingRef.current = true)}
+                onCompositionEnd={() =>
+                  window.setTimeout(() => (imeComposingRef.current = false), 0)
+                }
+                onKeyDown={(event) => {
+                  // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
+                  const composing = event.nativeEvent.isComposing || imeComposingRef.current
+                  if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
+                    event.preventDefault()
+                    event.currentTarget.form?.requestSubmit()
+                  }
+                }}
+                data-mobile-composer-input={mobileLayout || undefined}
+                enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
+                placeholder={composerPlaceholder}
+              />
+              <div className="focus-composer-footer flex min-w-0 items-center gap-1">
+                <div
+                  ref={toolbarRef}
+                  className="focus-composer-quick-actions flex min-w-0 flex-1 items-center gap-1"
+                >
+                  <button
+                    ref={toolTrayAnchorRef}
+                    type="button"
+                    className={`composer-tools-trigger grid size-9 min-w-9 max-[650px]:size-11 max-[650px]:min-w-11 flex-none place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] cursor-pointer transition-[background-color,color,border-color,box-shadow] duration-150 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)] ${toolsOpen ? 'active border-[var(--brand-blue)] bg-[var(--brand-blue-soft)] text-[var(--brand-blue-strong)]' : ''}`}
+                    title={quickActionsLabel}
+                    aria-label={quickActionsLabel}
+                    aria-expanded={toolsOpen}
+                    aria-controls={toolTrayId}
+                    onClick={() => setToolsOpen((open) => !open)}
+                  >
+                    {toolsOpen ? <X size={17} /> : <Plus size={18} />}
+                  </button>
+                  <div className="focus-composer-visible-tools flex min-w-0 flex-none items-center gap-1">
+                    {toolbarAllocation.inline.map(renderComposerTool)}
+                  </div>
+                  <ComposerToolTray
+                    open={toolsOpen}
+                    label={t('chat:focusSession.quickActions')}
+                    trayId={toolTrayId}
+                    anchorRef={toolTrayAnchorRef}
+                    menuRef={toolTrayMenuRef}
+                  >
+                    {toolbarAllocation.overflow.map(renderComposerTool)}
+                    <div className="w-full border-t border-[var(--stroke-soft)] pt-1">
+                      <ComposerToolbarSettings labels={composerToolLabels} labeled />
+                    </div>
+                  </ComposerToolTray>
+                </div>
+                <div className="focus-composer-secondary flex h-11 min-w-0 flex-none items-center justify-end">
+                  <ContextUsageIndicator
+                    usage={contextUsage}
+                    sessionUsage={sessionUsage}
+                    model={model}
+                    availableModels={availableModels}
+                    onThresholdChange={onCompactionThresholdChange}
+                    compact
+                  />
+                </div>
+                <>
+                  <button
+                    type="button"
+                    className="grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]"
+                    title={t('chat:voiceMode.open')}
+                    aria-label={t('chat:voiceMode.open')}
+                    onClick={() => setVoiceModeOpen(true)}
+                  >
+                    <AudioLines size={17} />
+                  </button>
+                  <VoiceInputControl
+                    sessionId={session.id}
+                    shortcutEnabled={shortcutEnabled}
+                    onLiveText={(text) => {
+                      if (text === null) {
+                        // 录音取消/失败：回滚到录音前的草稿。
+                        if (voiceDraftBaseRef.current !== null) {
+                          applyVoiceDraft(voiceDraftBaseRef.current)
+                          voiceDraftBaseRef.current = null
+                        }
+                        return
+                      }
+                      if (voiceDraftBaseRef.current === null) {
+                        voiceDraftBaseRef.current = (promptRef.current?.value ?? value).trimEnd()
+                      }
+                      const base = voiceDraftBaseRef.current
+                      applyVoiceDraft(base && text ? `${base}\n${text}` : base || text)
+                    }}
+                    onInsert={(transcript) => {
+                      // 最终转写替换实时部分文本（基准段 + 终稿）。
+                      const base =
+                        voiceDraftBaseRef.current ?? (promptRef.current?.value ?? value).trimEnd()
+                      voiceDraftBaseRef.current = null
+                      applyVoiceDraft(base ? `${base}\n${transcript}` : transcript)
+                      requestAnimationFrame(() => promptRef.current?.focus())
+                    }}
+                  />
+                </>
+                <ComposerSendButton
+                  streaming={streaming}
+                  queueing={queueing}
+                  disabled={
+                    !streaming &&
+                    (queueing || (!value.trim() && !selection.attachments.length && !invocation))
+                  }
+                  onAbort={onAbort}
+                />
+              </div>
+            </div>
+            <div className="flex min-w-0 min-h-[26px] items-center gap-[6px] [margin:0_8px_5px] text-[var(--text-tertiary)]">
+              {hasConversation && (
+                <button
+                  type="button"
+                  className="composer-workspace-status [&_span]:min-w-0 [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&:hover:not(:disabled)]:text-[var(--star-strong)] disabled:opacity-[.55] disabled:[cursor:not-allowed] @max-[470px]:w-[24px] @max-[470px]:p-0 @max-[470px]:justify-center @max-[470px]:[&_span]:hidden inline-flex max-w-[180px] min-w-0 h-[24px] flex-none items-center gap-[4px] overflow-hidden border-0 rounded-[0] bg-transparent [padding:2px_0] text-inherit text-[length:var(--app-small-size)] font-normal cursor-pointer"
+                  title={cwd}
+                  aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
+                    workspace: workspaceName(cwd, language),
+                  })}
+                  onClick={onWorkspace}
+                  disabled={streaming || switchingCwd}
+                >
+                  <FolderOpen size={12} />
+                  <span>{workspaceName(cwd, language)}</span>
+                </button>
+              )}
+              <SessionUsageMetrics
+                usage={sessionUsage}
+                plan={plansAvailable ? plan : null}
+                compact={mobileLayout}
+              />
+            </div>
+          </form>
         </div>
-        <div className="flex min-w-0 min-h-[26px] items-center gap-[6px] [margin:0_8px_5px] text-[var(--text-tertiary)]">
-          {hasConversation && (
-            <button
-              type="button"
-              className="composer-workspace-status [&_span]:min-w-0 [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&:hover:not(:disabled)]:text-[var(--star-strong)] disabled:opacity-[.55] disabled:[cursor:not-allowed] @max-[470px]:w-[24px] @max-[470px]:p-0 @max-[470px]:justify-center @max-[470px]:[&_span]:hidden inline-flex max-w-[180px] min-w-0 h-[24px] flex-none items-center gap-[4px] overflow-hidden border-0 rounded-[0] bg-transparent [padding:2px_0] text-inherit text-[10px] cursor-pointer"
-              title={cwd}
-              aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
-                workspace: workspaceName(cwd, language),
-              })}
-              onClick={onWorkspace}
-              disabled={streaming || switchingCwd}
-            >
-              <FolderOpen size={12} />
-              <span>{workspaceName(cwd, language)}</span>
-            </button>
-          )}
-          <SessionUsageMetrics
-            usage={sessionUsage}
-            plan={plansAvailable ? plan : null}
-            compact={mobileLayout}
-          />
-        </div>
-      </form>
+      </div>
       <ChatResourcePicker
         open={resourcePickerOpen}
         sessionId={session.id}

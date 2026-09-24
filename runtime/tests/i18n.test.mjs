@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
-import { i18n, translateText } from '../../src/app/i18n.ts'
+import { ensureChannelsMessages, i18n, translateText } from '../../src/app/i18n.ts'
 
 test('English interface translations resolve static and interpolated messages', () => {
   assert.equal(translateText('navigation:navigation.settings', 'en-US'), 'Settings')
@@ -65,4 +65,23 @@ test('i18next owns the active language and resolves namespaced interpolation', a
     'Search Memory',
   )
   await i18n.changeLanguage('zh-CN')
+})
+
+test('channels route messages load for both languages before navigation and remain ready after switching', async () => {
+  assert.equal(i18n.hasResourceBundle('zh-CN', 'channels'), false)
+  assert.equal(i18n.hasResourceBundle('en-US', 'channels'), false)
+  await ensureChannelsMessages()
+  assert.equal(translateText('channels:channelsPage.online', 'zh-CN'), '在线')
+  assert.equal(translateText('channels:channelsPage.online', 'en-US'), 'Online')
+  await i18n.changeLanguage('en-US')
+  assert.equal(
+    translateText('channels:channelsPage.channelConnected', i18n.resolvedLanguage),
+    'Channel connected',
+  )
+  await i18n.changeLanguage('zh-CN')
+  assert.equal(
+    translateText('channels:channelsPage.channelConnected', i18n.resolvedLanguage),
+    '渠道已经连接',
+  )
+  await ensureChannelsMessages()
 })

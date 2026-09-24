@@ -61,6 +61,10 @@ export type FocusSessionProps = {
   canSplit?: boolean
   // 是否提供「关闭面板」入口：移动端单会话视图没有可关闭的面板。
   canClosePanel?: boolean
+  contextOpen: boolean
+  contextCompact: boolean
+  contextPanelId: string
+  onToggleContext: (open: boolean) => void
   notify?: Notify
   onOpenModelSettings?: () => void
   onAssetConsumed?: () => void

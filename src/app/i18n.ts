@@ -5,7 +5,6 @@
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import enAssets from '@/locales/en-US/assets.json' with { type: 'json' }
-import enChannels from '@/locales/en-US/channels.json' with { type: 'json' }
 import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
@@ -20,7 +19,6 @@ import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
 import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
 import enWorkflows from '@/locales/en-US/workflows.json' with { type: 'json' }
 import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
-import zhChannels from '@/locales/zh-CN/channels.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
@@ -91,7 +89,6 @@ void i18n.use(initReactI18next).init({
   resources: {
     'zh-CN': {
       assets: zhAssets,
-      channels: zhChannels,
       common: zhCommon,
       navigation: zhNavigation,
       chat: zhChat,
@@ -108,7 +105,6 @@ void i18n.use(initReactI18next).init({
     },
     'en-US': {
       assets: enAssets,
-      channels: enChannels,
       common: enCommon,
       navigation: enNavigation,
       chat: enChat,
@@ -133,6 +129,27 @@ void i18n.use(initReactI18next).init({
   nsSeparator: ':',
   initAsync: false,
 })
+
+let channelsMessagesPromise: Promise<void> | null = null
+
+// 通道词条只由通道页使用；在路由挂载前同时注册两种语言，避免切换语言时闪现键名。
+export function ensureChannelsMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'channels') && i18n.hasResourceBundle('en-US', 'channels'))
+    return Promise.resolve()
+  channelsMessagesPromise ??= Promise.all([
+    import('@/locales/zh-CN/channels.json', { with: { type: 'json' } }),
+    import('@/locales/en-US/channels.json', { with: { type: 'json' } }),
+  ])
+    .then(([zh, en]) => {
+      i18n.addResourceBundle('zh-CN', 'channels', zh.default)
+      i18n.addResourceBundle('en-US', 'channels', en.default)
+    })
+    .catch((error: unknown) => {
+      channelsMessagesPromise = null
+      throw error
+    })
+  return channelsMessagesPromise
+}
 
 // 非 React 场景翻译：固定语言取翻译，避免依赖当前组件实例状态；
 // 供事件派发、工具函数等非组件代码使用。

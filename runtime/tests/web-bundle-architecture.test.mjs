@@ -498,7 +498,8 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.ok(loaders.length > 0)
   for (const [index, loader] of loaders.entries()) {
     const body = routeElements.slice(loader.index, loaders[index + 1]?.index)
-    assert.match(body, /await import\(/, `${loader[1]} must load its page lazily`)
+    assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
+    assert.match(body, /await (?:import\(|Promise\.all\()/, `${loader[1]} must await its page`)
     assert.match(router, new RegExp(`lazy: ${loader[1]}\\b`))
   }
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)

@@ -1,7 +1,7 @@
 // 应用外壳：持有全站共享状态（当前页/搜索词/活动会话/Toast/对话框/通知
 // 设置/更新控制器/工作流动作），组装侧边栏 + 页头 + 内容 Outlet + 状态栏，
 // 并通过 Outlet 上下文向各页面注入公共能力。启动时探测是否已配置可用
-// Provider，未配置则引导用户进设置页；同时提供全局快捷键（Cmd+K 命令面板、
+// Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键（Cmd+K 命令面板、
 // Cmd+N 主操作、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
@@ -55,6 +55,7 @@ import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
 import { useIsMobile, useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
+import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
@@ -91,6 +92,11 @@ const ConfigSearchBox = lazy(() =>
     default: module.ConfigSearchBox,
   })),
 )
+const ModelOnboardingDialog = lazy(() =>
+  import('@/features/config/public-components').then((module) => ({
+    default: module.ModelOnboardingDialog,
+  })),
+)
 const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
 )
@@ -104,16 +110,6 @@ const MobileViewportStabilizer = lazy(() =>
     default: module.MobileViewportStabilizer,
   })),
 )
-type ProviderConfig = {
-  configured: boolean
-  enabled: boolean
-  models: Array<{ kind: string }>
-}
-
-type AppConfig = {
-  providers?: ProviderConfig[]
-}
-
 type ToastState = {
   id: number
   message: string
@@ -123,19 +119,6 @@ type ToastState = {
 type PluginStats = {
   enabled: number
   total: number
-}
-
-// 是否存在可用 Provider：已配置 + 启用 + 含 chat 类模型的 Provider 至少一个。
-// 启动时据此决定是否引导用户先去配置页。
-function hasUsableProvider(config: AppConfig) {
-  return Boolean(
-    config?.providers?.some(
-      (provider) =>
-        provider.configured &&
-        provider.enabled &&
-        provider.models.some((model) => model.kind === 'chat'),
-    ),
-  )
 }
 
 // 渲染通知模板：把 {{a.b}} 占位符替换为事件数据中的嵌套字段值，
@@ -204,6 +187,8 @@ function App() {
   const motion = useUiStore((state) => state.motion)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [modal, setModal] = useState<string | null>(null)
+  const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
+  const modelOnboardingPresented = useRef(false)
   const requestedConfigSection =
     page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
   const configSection =
@@ -217,7 +202,7 @@ function App() {
     data: configData,
     isPending: configPending,
     isSuccess: configSucceeded,
-  } = useQuery(startupQueryOptions<AppConfig>('config'))
+  } = useQuery(startupQueryOptions<ModelOnboardingConfig>('config'))
   const { data: notificationData } = useQuery(
     startupQueryOptions<NotificationSettingsData>('notification-settings'),
   )
@@ -453,6 +438,30 @@ function App() {
     [capabilities, routerNavigate],
   )
 
+  const dismissModelOnboarding = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.modelOnboardingDismissed, '1')
+    } catch {
+      // 存储受限时仍允许关闭；本次应用会话内不会再次打开。
+    }
+    setModelOnboardingOpen(false)
+  }, [])
+
+  const openModelSettingsFromOnboarding = useCallback(() => {
+    dismissModelOnboarding()
+    // 用户主动选择设置时，把模型页主操作排队；页面挂载后直接打开快速配置向导。
+    primaryActions.clear()
+    primaryActions.invoke()
+    setConfigSection('models')
+  }, [dismissModelOnboarding, primaryActions, setConfigSection])
+
+  const openImportableSettingsFromOnboarding = useCallback(() => {
+    dismissModelOnboarding()
+    // 导入页保持连接管理区展开；无需经过新建连接向导。
+    routerNavigate('/config/models?import=1')
+    setQuery('')
+  }, [dismissModelOnboarding, routerNavigate])
+
   const openUpdateSettings = useCallback(() => setConfigSection('updates'), [setConfigSection])
 
   const openNotificationSettings = useCallback(
@@ -481,7 +490,8 @@ function App() {
 
   const providerScanStarted = useRef(false)
   useEffect(() => {
-    if (!startupReady || providerScanStarted.current) return
+    // 首次模型引导已提供“查找本地配置”入口；避免连续弹出第二个确认框。
+    if (!startupReady || modelOnboardingPresented.current || providerScanStarted.current) return
     providerScanStarted.current = true
     void (async () => {
       try {
@@ -560,7 +570,7 @@ function App() {
 
   useEffect(() => {
     const openCommandPalette = () => {
-      if (!appDialog.dialog && !modal) setPaletteOpen(true)
+      if (!appDialog.dialog && !modal && !modelOnboardingOpen) setPaletteOpen(true)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return
@@ -577,7 +587,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, mobileNav, modal, paletteOpen])
+  }, [appDialog.dialog, mobileNav, modal, modelOnboardingOpen, paletteOpen])
 
   const startupConfigHandled = useRef(false)
   useEffect(() => {
@@ -587,12 +597,17 @@ function App() {
     // 配置失败只结束等待，不把网络故障当作未配置，也不因后续刷新再次重定向。
     if (!configSucceeded || !configData) return
     markStartupPhase('config-loaded')
-    if (!hasUsableProvider(configData)) {
-      primaryActions.clear()
-      primaryActions.invoke()
-      if (!SETTINGS_PAGES.has(startupPageRef.current)) navigate('config', { replace: true })
+    let dismissed = false
+    try {
+      dismissed = localStorage.getItem(STORAGE_KEYS.modelOnboardingDismissed) === '1'
+    } catch {
+      // 存储不可读时按未关闭处理，仍允许用户在界面上跳过。
     }
-  }, [configData, configPending, configSucceeded, navigate, primaryActions])
+    if (startupPageRef.current !== 'config' && shouldShowModelOnboarding(configData, dismissed)) {
+      modelOnboardingPresented.current = true
+      setModelOnboardingOpen(true)
+    }
+  }, [configData, configPending, configSucceeded])
 
   useEffect(() => {
     if (startupReady && capabilitiesLoaded && page === 'chat') {
@@ -722,7 +737,7 @@ function App() {
         >
           <Suspense fallback={null}>
             <AppShortcuts
-              blocked={Boolean(appDialog.dialog || modal || paletteOpen)}
+              blocked={Boolean(appDialog.dialog || modal || modelOnboardingOpen || paletteOpen)}
               onCommandPalette={() => setPaletteOpen(true)}
               onPrimary={handlePrimary}
               onToggleSidebar={() =>
@@ -844,6 +859,16 @@ function App() {
           onClose={appDialog.close}
           onFinish={appDialog.finish}
         />
+        <Suspense fallback={null}>
+          {modelOnboardingOpen && (
+            <ModelOnboardingDialog
+              open
+              onDismiss={dismissModelOnboarding}
+              onOpenImport={openImportableSettingsFromOnboarding}
+              onOpenSettings={openModelSettingsFromOnboarding}
+            />
+          )}
+        </Suspense>
         <Suspense fallback={null}>
           {paletteOpen && (
             <CommandPalette

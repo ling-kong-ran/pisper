@@ -17,4 +17,5 @@ export const STORAGE_KEYS = Object.freeze({
   shortcuts: 'pisper-shortcuts',
   terminalPanel: 'pisper-terminal-panel',
   sponsorDismissals: 'pisper-sponsor-dismissals',
+  modelOnboardingDismissed: 'pisper-model-onboarding-v1-dismissed',
 } as const)

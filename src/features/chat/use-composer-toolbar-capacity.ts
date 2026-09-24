@@ -12,19 +12,25 @@ export function useComposerToolbarCapacity(ref: RefObject<HTMLElement | null>) {
     if (!element) return undefined
 
     const update = () => {
-      const availableWidth = element.getBoundingClientRect().width - TOOL_TRIGGER_WIDTH
-      setCapacity(Math.max(0, Math.floor(availableWidth / TOOL_SLOT_WIDTH)))
+      const narrowViewport = window.innerWidth <= 650
+      const availableWidth =
+        element.getBoundingClientRect().width - (narrowViewport ? 44 : TOOL_TRIGGER_WIDTH)
+      setCapacity(Math.max(0, Math.floor(availableWidth / (narrowViewport ? 48 : TOOL_SLOT_WIDTH))))
     }
 
     update()
+    // 窗口跨过触控断点时，容器宽度可能不变，但按钮会从 36px 变成 44px。
+    window.addEventListener('resize', update)
     if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', update)
       return () => window.removeEventListener('resize', update)
     }
 
     const observer = new ResizeObserver(update)
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', update)
+    }
   }, [ref])
 
   return capacity

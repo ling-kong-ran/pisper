@@ -238,6 +238,10 @@ export const agentSessionMethods = {
     return this.sessionLifecycle.renameSession(id, name, options)
   },
 
+  async updateSessionOrganization(id, patch) {
+    return this.sessionLifecycle.updateSessionOrganization(id, patch)
+  },
+
   async setSessionModel(id, provider, modelId) {
     if (!supportsLightweightSessionConfiguration(this) || this.sessions.has(id)) {
       const result = await this.providerPreferences.setSessionModel(id, provider, modelId)

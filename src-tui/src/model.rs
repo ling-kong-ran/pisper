@@ -66,6 +66,7 @@ impl PromptMode {
 
 /// 会话摘要：会话列表与当前会话的基础信息。
 /// `plan` 兼容历史字段名 `taskList`（见 `plan_protocol` 模块）。
+/// 尚未展示的组织状态由 Serde 忽略，保持与 Runtime 增量字段兼容。
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSummary {
@@ -798,5 +799,56 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(legacy.plan.as_ref().unwrap().items[0].id, "old");
+    }
+
+    /// TUI 未展示的组织扩展字段不得影响新旧 Runtime 的会话导航信息。
+    #[test]
+    fn session_navigation_survives_optional_organization_extensions() {
+        for extensions in [
+            serde_json::json!({}),
+            serde_json::json!({
+                "pinned": true,
+                "archived": true,
+                "unread": true,
+                "needsAttention": true,
+                "attentionReason": "failure",
+                "lastCompletedAt": "2026-09-24T00:00:00.000Z"
+            }),
+            serde_json::json!({
+                "pinned": false,
+                "archived": false,
+                "unread": false,
+                "needsAttention": false,
+                "attentionReason": null,
+                "lastCompletedAt": null
+            }),
+        ] {
+            let mut payload = serde_json::json!({
+                "id": "session",
+                "name": "会话标题",
+                "cwd": "/workspace/project",
+                "streaming": true,
+                "executionMode": "goal"
+            });
+            payload
+                .as_object_mut()
+                .unwrap()
+                .extend(extensions.as_object().unwrap().clone());
+            let summary: SessionSummary = serde_json::from_value(payload).unwrap();
+            assert_eq!(summary.id, "session");
+            assert_eq!(summary.name, "会话标题");
+            assert_eq!(summary.cwd, "/workspace/project");
+            assert!(summary.streaming);
+            assert_eq!(summary.execution_mode, "goal");
+        }
+
+        let legacy: SessionSummary = serde_json::from_value(serde_json::json!({
+            "id": "legacy"
+        }))
+        .unwrap();
+        assert_eq!(legacy.id, "legacy");
+        assert!(legacy.name.is_empty());
+        assert!(legacy.cwd.is_empty());
+        assert!(!legacy.streaming);
     }
 }

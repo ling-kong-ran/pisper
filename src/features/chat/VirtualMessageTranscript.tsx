@@ -212,6 +212,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}
               retryUserMessageId={isLatestAgent ? retryUserIdByIndex[virtualItem.index] : undefined}
+              hideErrorNotice={isLatestAgent && Boolean(message.error)}
               onRetryLastTurn={onRetryLastTurn}
             />
           </div>

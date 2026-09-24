@@ -98,7 +98,7 @@ test('session open requests accept horizontal and vertical dispositions', () => 
   assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"bottom"}'), null)
 })
 
-test('chat split controls expose left, right, top and bottom actions', async () => {
+test('chat split controls expose four directions only where layout supports them', async () => {
   const [dock, focus, dockHook, history, page, catalog, app, header] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
@@ -115,11 +115,15 @@ test('chat split controls expose left, right, top and bottom actions', async () 
   assert.match(focus, /onSplitBottom/)
   assert.match(dockHook, /splitDockPanel\(panel\.id, 'above'\)/)
   assert.match(dockHook, /splitDockPanel\(panel\.id, 'below'\)/)
-  assert.match(history, /openSession\(session\.id, 'above'\)/)
-  assert.match(history, /openSession\(session\.id, 'below'\)/)
+  assert.match(history, /canSplitHistorySessions\(compactDock, mobileApp\)/)
+  assert.match(history, /\{canSplit && \(/)
+  assert.match(history, /<DropdownMenu>/)
+  for (const disposition of ['left', 'right', 'above', 'below']) {
+    assert.match(history, new RegExp(`openSession\\(session\\.id, '${disposition}'\\)`))
+  }
   assert.match(dock, /role="tablist"/)
   assert.match(dock, /role="tab"/)
-  assert.match(dock, /<nav[\s\S]*role="tablist"/)
+  assert.match(dock, /onOpenHistory/)
   assert.match(dock, /onCreateSession/)
   assert.match(dock, /closeMobileSessionTab/)
   assert.match(dock, /chat:chatPage\.closeChat/)

@@ -135,14 +135,15 @@ test('new chats expose their working directory in the welcome surface', async ()
   assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
 })
 
-test('conversation layout keeps Pisper identity without a persistent avatar card', async () => {
+test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
   const [focus, message, transcript] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
-  assert.match(focus, /\{!hasConversation && \(/)
+  assert.match(focus, /<AppCardHeader[\s\S]*session\.name \|\| t\('chat:chatPage\.untitledChat'\)/)
+  assert.match(focus, /!hasConversation && <div[^>]*>\{sessionActionsMenu\}<\/div>/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
   assert.match(message, /message mx-auto mb-8 w-full max-w-\[1040px\]/)
