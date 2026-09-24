@@ -59,6 +59,12 @@ export function usePromptCommands({
     new Map<string, { promise: Promise<void>; resolve: () => void }>(),
   )
   const withdrawingInputsRef = useRef(new Set<string>())
+  const abortingSessionsRef = useRef(
+    new Map<
+      string,
+      { matchesRun: (state: SessionState | undefined) => boolean; promise: Promise<void> }
+    >(),
+  )
 
   // 发送提示词：无会话先建会话，流式中拒绝；乐观插入用户消息并
   // 注册本地流结算 Promise（供后续 wait），随后发起 SSE 流并分发事件，
@@ -561,56 +567,91 @@ export function usePromptCommands({
   // 中止会话运行：调运行时 abort 并本地结算状态（清队列、停流、
   // 中止中的压缩标记为 aborted）。
   const abort = useCallback(
-    async (sessionId: string) => {
-      if (!sessionId) return
-      const result = await chatApi.abort(sessionId)
-      // Abort 后以服务端快照为准，并使旧 SSE 失去写入资格，避免断流时保留旧 Team 状态。
-      await syncLiveSession(sessionId, { force: true })
-      const runFinishedAt = new Date().toISOString()
-      updateSessionState(sessionId, (current) => ({
-        ...current,
-        streaming: false,
-        queuedInputs: [],
-        hadQueuedInput: false,
-        goal: result.goal ?? null,
-        team: Object.hasOwn(result, 'team') ? (result.team ?? null) : current.team,
-        compaction: current.compaction?.active
-          ? {
-              ...current.compaction,
-              active: false,
-              status: 'aborted',
-              aborted: true,
-              finishedAt: runFinishedAt,
-            }
-          : current.compaction,
-        runFinishedAt,
-        lastActivityAt: runFinishedAt,
-        runStopped: true,
-        runNotice: '',
-        approvals: [],
-        tools: settleToolCalls(current.tools, {
-          finishedAt: runFinishedAt,
-          error: t('chat:chatPage.stopped'),
-        }),
-        messages: current.messages.map((item) =>
-          item.streaming ? { ...item, streaming: false } : item,
-        ),
-      }))
-      updateSessions((current) =>
-        current.map((session) =>
-          session.id === sessionId
+    (sessionId: string): Promise<void> => {
+      if (!sessionId) return Promise.resolve()
+      const previous = sessionStatesRef.current[sessionId]
+      const pending = abortingSessionsRef.current.get(sessionId)
+      if (pending?.matchesRun(previous)) return pending.promise
+      const runStartedAt: unknown = previous?.runStartedAt
+      const queuedInputRunId: unknown = previous?.queuedInputRunId
+      const wasStopped = Boolean(previous?.runStopped)
+      // 本地轮次 ID 不随 meta/live 校准开始时间而变化；恢复的轮次回退到服务端时间。
+      const isSameRun = (current: SessionState | undefined) =>
+        Boolean(
+          current &&
+          (queuedInputRunId
+            ? current.queuedInputRunId === queuedInputRunId
+            : !current.queuedInputRunId && current.runStartedAt === runStartedAt),
+        )
+      // 停止响应前仍可能收到 done；先记录意图，避免把这段竞态误当成功结束。
+      updateSessionState(sessionId, { runStopped: true })
+      const request = (async () => {
+        let result: Awaited<ReturnType<typeof chatApi.abort>>
+        try {
+          result = await chatApi.abort(sessionId)
+        } catch (error) {
+          const current = sessionStatesRef.current[sessionId]
+          // 失败只回滚原来那一轮；旧请求不能改写用户已开始的新一轮状态。
+          if (isSameRun(current) && current?.runStopped)
+            updateSessionState(sessionId, { runStopped: wasStopped })
+          throw error
+        }
+        if (!isSameRun(sessionStatesRef.current[sessionId])) return
+        // Abort 后以服务端快照为准，并使旧 SSE 失去写入资格，避免断流时保留旧 Team 状态。
+        await syncLiveSession(sessionId, { force: true })
+        if (!isSameRun(sessionStatesRef.current[sessionId])) return
+        const runFinishedAt = new Date().toISOString()
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          streaming: false,
+          queuedInputs: [],
+          hadQueuedInput: false,
+          goal: result.goal ?? null,
+          team: Object.hasOwn(result, 'team') ? (result.team ?? null) : current.team,
+          compaction: current.compaction?.active
             ? {
-                ...session,
-                streaming: false,
-                goal: result.goal ?? session.goal ?? null,
-                team: Object.hasOwn(result, 'team') ? (result.team ?? null) : session.team,
+                ...current.compaction,
+                active: false,
+                status: 'aborted',
+                aborted: true,
+                finishedAt: runFinishedAt,
               }
-            : session,
-        ),
-      )
-      notify(t('chat:chatPage.currentRunStopped'), 'info')
+            : current.compaction,
+          runFinishedAt,
+          lastActivityAt: runFinishedAt,
+          runStopped: true,
+          runNotice: '',
+          approvals: [],
+          tools: settleToolCalls(current.tools, {
+            finishedAt: runFinishedAt,
+            error: t('chat:chatPage.stopped'),
+          }),
+          messages: current.messages.map((item) =>
+            item.streaming ? { ...item, streaming: false } : item,
+          ),
+        }))
+        updateSessions((current) =>
+          current.map((session) =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  streaming: false,
+                  goal: result.goal ?? session.goal ?? null,
+                  team: Object.hasOwn(result, 'team') ? (result.team ?? null) : session.team,
+                }
+              : session,
+          ),
+        )
+        notify(t('chat:chatPage.currentRunStopped'), 'info')
+      })()
+      const settled = request.finally(() => {
+        if (abortingSessionsRef.current.get(sessionId)?.promise === settled)
+          abortingSessionsRef.current.delete(sessionId)
+      })
+      abortingSessionsRef.current.set(sessionId, { matchesRun: isSameRun, promise: settled })
+      return settled
     },
-    [notify, syncLiveSession, t, updateSessionState, updateSessions],
+    [notify, sessionStatesRef, syncLiveSession, t, updateSessionState, updateSessions],
   )
 
   const withdrawQueuedInput = useCallback(

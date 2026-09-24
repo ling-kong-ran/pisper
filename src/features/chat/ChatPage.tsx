@@ -40,9 +40,12 @@ import { updateSessionOrganization } from './session-organization-api'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
 import {
   resolveSessionContextPresentation,
+  shouldRevealSessionContext,
   type SessionContextPreference,
+  type SessionContextRun,
 } from './session-context-layout'
 import type { SessionContextTab } from './SessionContextPanel'
+import { SessionContextLayout } from './SessionContextLayout'
 
 // Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
 const LazyChatDockView = lazy(() =>
@@ -95,6 +98,7 @@ export function ChatPage({
   const [contextWidth, setContextWidth] = useState(0)
   const [contextPreference, setContextPreference] = useState<SessionContextPreference>('auto')
   const [contextTab, setContextTab] = useState<SessionContextTab>('files')
+  const contextRunRef = useRef<SessionContextRun | null>(null)
   useLayoutEffect(() => {
     const layout = chatLayoutRef.current
     if (!layout) return
@@ -156,6 +160,23 @@ export function ChatPage({
   const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
   const activeSessionState = catalog.sessionStates[catalog.activeId]
   const activeStreaming = Boolean(activeSessionState?.streaming || activeSession?.streaming)
+  const activeCompleted = Boolean(
+    activeSessionState?.lifecycle?.phase === 'completed' &&
+    !activeSessionState.error &&
+    !activeSessionState.runStopped,
+  )
+  useEffect(() => {
+    const current = {
+      sessionId: catalog.activeId,
+      streaming: activeStreaming,
+      completed: activeCompleted,
+    }
+    if (shouldRevealSessionContext(contextRunRef.current, current)) {
+      setContextTab('files')
+      setContextPreference('open')
+    }
+    contextRunRef.current = current
+  }, [catalog.activeId, activeStreaming, activeCompleted])
   const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
   const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
   const contextPresentation = resolveSessionContextPresentation({
@@ -443,69 +464,76 @@ export function ChatPage({
     ],
   )
 
+  const contextPanel = activeSession && contextPresentation !== 'closed' && (
+    <Suspense
+      fallback={
+        contextPresentation === 'aside' ? (
+          <aside
+            className="h-full min-h-0 w-full rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--panel)] p-4 text-sm text-[var(--text-muted)]"
+            role="status"
+          >
+            {t('chat:focusSession.gitLoading')}
+          </aside>
+        ) : null
+      }
+    >
+      <LazySessionContextPanel
+        key={activeSession.id}
+        panelId={SESSION_CONTEXT_PANEL_ID}
+        compact={contextPresentation === 'sheet'}
+        sessionId={activeSession.id}
+        tab={contextTab}
+        plan={runtimeFeatureAvailable(capabilities, 'plans') ? visiblePlan : null}
+        streaming={activeStreaming}
+        plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
+        requestConfirm={requestConfirm}
+        onTabChange={setContextTab}
+        onClose={() => setContextPreference('closed')}
+      />
+    </Suspense>
+  )
+
   return (
     <>
       <div
         ref={chatLayoutRef}
-        className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1 gap-2"
+        className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1"
       >
-        {catalog.loading ? (
-          <AppEmptyState>
-            <RefreshCw className="animate-spin" size={24} />
-            <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
-            <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-          </AppEmptyState>
-        ) : (
-          <div className="chat-dock-workspace relative min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
-            <ChatDockContext.Provider value={dockContextValue}>
-              {clientLoaded && mobileLayout ? (
-                <MobileSessionPanel
-                  sessionIds={dock.mobileSessionIds}
-                  onSelectSession={openSessionInDock}
-                  onCreateSession={createSession}
-                  onOpenHistory={() => navigate('chatHistory')}
-                />
-              ) : clientLoaded ? (
-                <Suspense fallback={null}>
-                  <LazyChatDockView
-                    compactDock={dock.compactDock}
-                    onDockReady={dock.onDockReady}
-                    getTabContextMenuItems={dock.getTabContextMenuItems}
-                    createSession={createSession}
+        <SessionContextLayout
+          availableWidth={contextWidth}
+          presentation={contextPresentation}
+          context={contextPanel}
+        >
+          {catalog.loading ? (
+            <AppEmptyState>
+              <RefreshCw className="animate-spin" size={24} />
+              <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
+              <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
+            </AppEmptyState>
+          ) : (
+            <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
+              <ChatDockContext.Provider value={dockContextValue}>
+                {clientLoaded && mobileLayout ? (
+                  <MobileSessionPanel
+                    sessionIds={dock.mobileSessionIds}
+                    onSelectSession={openSessionInDock}
+                    onCreateSession={createSession}
+                    onOpenHistory={() => navigate('chatHistory')}
                   />
-                </Suspense>
-              ) : null}
-            </ChatDockContext.Provider>
-          </div>
-        )}
-        {activeSession && contextPresentation !== 'closed' && (
-          <Suspense
-            fallback={
-              contextPresentation === 'aside' ? (
-                <aside
-                  className="h-full min-h-0 w-[min(360px,42%)] flex-none rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--panel)] p-4 text-sm text-[var(--text-muted)]"
-                  role="status"
-                >
-                  {t('chat:focusSession.gitLoading')}
-                </aside>
-              ) : null
-            }
-          >
-            <LazySessionContextPanel
-              key={activeSession.id}
-              panelId={SESSION_CONTEXT_PANEL_ID}
-              compact={contextPresentation === 'sheet'}
-              sessionId={activeSession.id}
-              tab={contextTab}
-              plan={runtimeFeatureAvailable(capabilities, 'plans') ? visiblePlan : null}
-              streaming={activeStreaming}
-              vcsAvailable={runtimeFeatureAvailable(capabilities, 'vcs')}
-              plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
-              onTabChange={setContextTab}
-              onClose={() => setContextPreference('closed')}
-            />
-          </Suspense>
-        )}
+                ) : clientLoaded ? (
+                  <Suspense fallback={null}>
+                    <LazyChatDockView
+                      compactDock={dock.compactDock}
+                      onDockReady={dock.onDockReady}
+                      getTabContextMenuItems={dock.getTabContextMenuItems}
+                      createSession={createSession}
+                    />
+                  </Suspense>
+                ) : null}
+              </ChatDockContext.Provider>
+            </div>
+          )}
+        </SessionContextLayout>
       </div>
       {sessionCommands.workspaceSession && (
         <WorkspacePicker

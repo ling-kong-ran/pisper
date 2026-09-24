@@ -1,26 +1,17 @@
-// 会话上下文只在用户打开时挂载；改动和文件列表按当前标签请求，不复制聊天状态。
-import { useEffect, useState } from 'react'
-import {
-  ExternalLink,
-  FileDiff,
-  Files,
-  GitBranch,
-  Globe2,
-  ListTodo,
-  RefreshCw,
-  X,
-} from 'lucide-react'
+// 会话上下文只在用户打开时挂载；文件列表按当前标签请求，不复制聊天状态。
+import { useState } from 'react'
+import { ExternalLink, Files, Globe2, ListTodo, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { WebPreview, WebPreviewBody } from '@/components/ai-elements/web-preview'
 import { normalizeWebPreviewInput } from '@/lib/web-preview'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { Plan } from '@/types/chat'
-import { chatApi, type GitChangesResponse, type SessionFileChangesResponse } from './chat-api'
 import PlanBoard from './PlanBoard'
+import { SessionFilesPane } from './SessionFilesPane'
 
-export type SessionContextTab = 'changes' | 'files' | 'plan' | 'browser'
-const MAX_VISIBLE_FILES = 100
+export type SessionContextTab = 'files' | 'plan' | 'browser'
 
 type SessionContextPanelProps = {
   panelId: string
@@ -29,225 +20,10 @@ type SessionContextPanelProps = {
   tab: SessionContextTab
   plan: Plan | null
   streaming: boolean
-  vcsAvailable: boolean
   plansAvailable: boolean
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onTabChange: (tab: SessionContextTab) => void
   onClose: () => void
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function ChangesPane({ sessionId, streaming }: { sessionId: string; streaming: boolean }) {
-  const { t } = useI18n()
-  const [revision, setRevision] = useState(0)
-  const [changes, setChanges] = useState<GitChangesResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError('')
-    void chatApi
-      .getVcsChanges(sessionId)
-      .then(
-        (data) => {
-          if (active) setChanges(data)
-        },
-        (caught: unknown) => {
-          if (active) setError(errorMessage(caught))
-        },
-      )
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [revision, sessionId, streaming])
-
-  return (
-    <section
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
-      aria-label={t('chat:focusSession.gitChanges')}
-    >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p
-            className="truncate text-[length:var(--app-font-size)] font-medium"
-            title={changes?.cwd || ''}
-          >
-            {changes?.branch || changes?.cwd || t('chat:focusSession.gitChanges')}
-          </p>
-          {changes?.isRepo && (
-            <p className="text-[length:var(--app-small-size)] text-[var(--text-muted)]">
-              {t('chat:focusSession.gitFilesChanged', { count: changes.files.length })}
-            </p>
-          )}
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('chat:focusSession.gitRefresh')}
-          title={t('chat:focusSession.gitRefresh')}
-          disabled={loading}
-          onClick={() => setRevision((current) => current + 1)}
-        >
-          <RefreshCw className={loading ? 'animate-spin' : ''} size={16} />
-        </Button>
-      </div>
-      {error ? (
-        <p role="alert" className="text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
-          {error}
-        </p>
-      ) : loading && !changes ? (
-        <p role="status" className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          {t('chat:focusSession.gitLoading')}
-        </p>
-      ) : changes?.error ? (
-        <p role="alert" className="text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
-          {changes.error}
-        </p>
-      ) : !changes?.isRepo ? (
-        <p className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          {changes?.gitAvailable === false && changes.svnAvailable === false
-            ? t('chat:focusSession.gitUnavailable')
-            : t('chat:focusSession.gitNotARepository')}
-        </p>
-      ) : changes.files.length === 0 ? (
-        <p className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          {t('chat:focusSession.gitNoChanges')}
-        </p>
-      ) : (
-        <ul className="space-y-1" aria-label={t('chat:focusSession.gitChanges')}>
-          {changes.files.slice(0, MAX_VISIBLE_FILES).map((file) => (
-            <li
-              key={`${file.status}:${file.path}`}
-              className="flex min-w-0 items-center gap-2 rounded-md bg-[var(--surface-subtle)] px-2 py-2 text-[length:var(--app-small-size)]"
-            >
-              <code className="w-5 flex-none font-semibold text-[var(--star-strong)]">
-                {file.status}
-              </code>
-              <span className="min-w-0 truncate" title={file.path}>
-                {file.path}
-              </span>
-            </li>
-          ))}
-          {changes.files.length > MAX_VISIBLE_FILES && (
-            <li className="px-2 py-1 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
-              {t('chat:focusSession.gitMoreFiles', {
-                count: changes.files.length - MAX_VISIBLE_FILES,
-              })}
-            </li>
-          )}
-        </ul>
-      )}
-    </section>
-  )
-}
-
-function FilesPane({ sessionId, streaming }: { sessionId: string; streaming: boolean }) {
-  const { t } = useI18n()
-  const [revision, setRevision] = useState(0)
-  const [changes, setChanges] = useState<SessionFileChangesResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError('')
-    void chatApi
-      .getSessionFileChanges(sessionId)
-      .then(
-        (data) => {
-          if (active) setChanges(data)
-        },
-        (caught: unknown) => {
-          if (active) setError(errorMessage(caught))
-        },
-      )
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [revision, sessionId, streaming])
-
-  return (
-    <section
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
-      aria-label={t('chat:focusSession.fileChanges')}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-[length:var(--app-font-size)] font-medium">
-            {t('chat:focusSession.fileChanges')}
-          </p>
-          {changes && (
-            <p className="text-[length:var(--app-small-size)] text-[var(--text-muted)]">
-              {t('chat:focusSession.fileChangesCount', { count: changes.summary.files })}
-              {' · '}+{changes.summary.added} −{changes.summary.removed}
-              {changes.summary.pending > 0 &&
-                ` · ${t('chat:focusSession.fileChangesPending', { count: changes.summary.pending })}`}
-            </p>
-          )}
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('chat:focusSession.gitRefresh')}
-          title={t('chat:focusSession.gitRefresh')}
-          disabled={loading}
-          onClick={() => setRevision((current) => current + 1)}
-        >
-          <RefreshCw className={loading ? 'animate-spin' : ''} size={16} />
-        </Button>
-      </div>
-      {error ? (
-        <p role="alert" className="text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
-          {error}
-        </p>
-      ) : loading && !changes ? (
-        <p role="status" className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          {t('chat:focusSession.gitLoading')}
-        </p>
-      ) : !changes?.files.length ? (
-        <p className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          {t('chat:focusSession.fileChangesEmpty')}
-        </p>
-      ) : (
-        <ul className="space-y-1" aria-label={t('chat:focusSession.fileChanges')}>
-          {changes.files.slice(0, MAX_VISIBLE_FILES).map((file) => (
-            <li
-              key={file.path}
-              className="flex min-w-0 items-center gap-2 rounded-md bg-[var(--surface-subtle)] px-2 py-2 text-[length:var(--app-small-size)]"
-            >
-              <FileDiff size={14} className="flex-none text-[var(--star-strong)]" />
-              <span className="min-w-0 flex-1 truncate" title={file.path}>
-                {file.path}
-              </span>
-              <span className="flex-none text-[var(--text-muted)]">
-                +{file.added} −{file.removed}
-              </span>
-            </li>
-          ))}
-          {changes.files.length > MAX_VISIBLE_FILES && (
-            <li className="px-2 py-1 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
-              {t('chat:focusSession.gitMoreFiles', {
-                count: changes.files.length - MAX_VISIBLE_FILES,
-              })}
-            </li>
-          )}
-        </ul>
-      )}
-    </section>
-  )
 }
 
 function BrowserPane() {
@@ -330,16 +106,13 @@ export function SessionContextPanel({
   tab,
   plan,
   streaming,
-  vcsAvailable,
   plansAvailable,
+  requestConfirm,
   onTabChange,
   onClose,
 }: SessionContextPanelProps) {
   const { t } = useI18n()
   const tabs = [
-    ...(vcsAvailable
-      ? [{ id: 'changes' as const, icon: GitBranch, label: t('chat:focusSession.gitChanges') }]
-      : []),
     { id: 'files' as const, icon: Files, label: t('chat:focusSession.fileChanges') },
     ...(plansAvailable
       ? [{ id: 'plan' as const, icon: ListTodo, label: t('chat:sessionContext.plan') }]
@@ -408,10 +181,13 @@ export function SessionContextPanel({
         className="flex min-h-0 flex-1 flex-col"
         aria-label={tabs.find((item) => item.id === selectedTab)?.label}
       >
-        {selectedTab === 'changes' && vcsAvailable ? (
-          <ChangesPane sessionId={sessionId} streaming={streaming} />
-        ) : selectedTab === 'files' ? (
-          <FilesPane sessionId={sessionId} streaming={streaming} />
+        {selectedTab === 'files' ? (
+          <SessionFilesPane
+            key={sessionId}
+            sessionId={sessionId}
+            streaming={streaming}
+            requestConfirm={requestConfirm}
+          />
         ) : selectedTab === 'plan' && plansAvailable ? (
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {plan?.items?.length ? (
@@ -432,7 +208,7 @@ export function SessionContextPanel({
     return (
       <aside
         id={panelId}
-        className="h-full min-h-0 w-[min(360px,42%)] flex-none overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke-soft)]"
+        className="h-full min-h-0 w-full overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke-soft)]"
         aria-label={t('chat:sessionContext.title')}
       >
         {content}

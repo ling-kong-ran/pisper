@@ -8,8 +8,6 @@ export const COMPOSER_TOOL_IDS = [
   'run-mode',
   'thinking',
   'commands',
-  'git-changes',
-  'file-changes',
   'compact-context',
   'session-actions',
 ] as const
@@ -44,7 +42,7 @@ function validToolIds(value: unknown): ComposerToolId[] {
   )
 }
 
-// 旧版本、损坏数据和新增工具都在这里归一，保证每个已知工具恰好出现一次。
+// 旧版本、损坏数据和新增工具都在这里归一；移除的入口自动过滤，不改变其余工具的位置。
 export function normalizeComposerToolbarLayout(value: unknown): ComposerToolbarLayout {
   const stored = value && typeof value === 'object' ? (value as Partial<ComposerToolbarLayout>) : {}
   if (!Array.isArray(stored.inline) && !Array.isArray(stored.overflow)) {
