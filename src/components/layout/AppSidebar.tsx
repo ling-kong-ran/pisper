@@ -9,6 +9,8 @@ import {
   ExternalLink,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   RefreshCw,
   Rocket,
   Settings,
@@ -54,6 +56,8 @@ type AppSidebarProps = {
   navigateSettings: (destination: SettingsDestination) => void
   onExitSettings: () => void
   collapsed: boolean
+  side?: 'left' | 'right'
+  width?: number
   onToggleCollapse: () => void
   update: SidebarUpdate
   onOpenUpdates: () => void
@@ -70,6 +74,8 @@ export function AppSidebar({
   navigateSettings,
   onExitSettings,
   collapsed,
+  side = 'left',
+  width,
   onToggleCollapse,
   update,
   onOpenUpdates,
@@ -105,8 +111,9 @@ export function AppSidebar({
   }
 
   return (
-    <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container">
+    <ShadcnSidebar side={side} collapsible="icon" className="pisper-sidebar-container">
       <aside
+        style={!isMobile && !collapsed && width ? { width, minWidth: width } : undefined}
         className={`sidebar dark:border-[var(--stroke)] dark:bg-[var(--sidebar-bg)] dark:shadow-[0_14px_40px_-18px_var(--sidebar-shadow)] max-[1150px]:w-[205px] max-[1150px]:min-w-[205px] max-[1150px]:p-[16px_14px] max-[900px]:fixed max-[900px]:inset-[0_auto_0_0] max-[900px]:w-[236px] max-[900px]:[transform:translateX(-102%)] max-[900px]:[transition:transform_var(--d2)_var(--ease-out)] max-[900px]:[&.is-open]:[transform:translateX(0)] relative z-[30] w-[236px] min-w-[236px] h-full flex flex-col gap-[18px] [padding:18px] [border-right:1px_solid_var(--stroke)] bg-[var(--sidebar-bg)] shadow-[0_14px_40px_-18px_var(--sidebar-shadow)] shadcn-sidebar-content max-[900px]:[.sidebar&]:relative max-[900px]:[.sidebar&]:inset-[auto] max-[900px]:[.sidebar&]:w-[236px] max-[900px]:[.sidebar&]:min-w-[236px] max-[900px]:[.sidebar&]:[transform:none] max-[900px]:[.sidebar&]:[transition:none] ${collapsed ? "collapsed min-[901px]:[.sidebar&]:w-[64px] min-[901px]:[.sidebar&]:min-w-[64px] min-[901px]:[.sidebar&]:gap-[12px] min-[901px]:[.sidebar&]:p-[14px_10px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:w-[218px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:min-w-[218px] min-[901px]:[[data-density='compact']_.sidebar:not(&)]:p-[14px]" : ''}`}
       >
         <button
@@ -224,7 +231,17 @@ export function AppSidebar({
             }
             onClick={onToggleCollapse}
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {side === 'right' ? (
+              collapsed ? (
+                <PanelRightOpen size={16} />
+              ) : (
+                <PanelRightClose size={16} />
+              )
+            ) : collapsed ? (
+              <PanelLeftOpen size={16} />
+            ) : (
+              <PanelLeftClose size={16} />
+            )}
             <span>
               {collapsed
                 ? t('navigation:appSidebar.expandSidebar')

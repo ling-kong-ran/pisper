@@ -48,6 +48,7 @@ type PageHeaderProps = {
   onMenu: () => void
   onPrimary: () => void
   searchSlot?: ReactNode
+  actionsSlot?: ReactNode
   theme: ThemeMode
   onCycleTheme: () => void
   searchInputRef: RefObject<HTMLInputElement | null>
@@ -67,6 +68,7 @@ export function PageHeader({
   onMenu,
   onPrimary,
   searchSlot,
+  actionsSlot,
   theme,
   onCycleTheme,
   searchInputRef,
@@ -200,6 +202,7 @@ export function PageHeader({
             />
           </label>
         )}
+        {actionsSlot}
         {primary && (
           <Button
             size="lg"

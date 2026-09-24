@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
@@ -26,6 +27,8 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
+import { ensureChatLayoutMessages } from '@/app/i18n'
+import type { DesktopChatLayout } from '@/features/chat/layout/public'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
@@ -74,6 +77,16 @@ import type { WorkflowActions } from '@/types/workflow'
 const AppShortcuts = lazy(() =>
   import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
 )
+const ChatLayoutNavigation = lazy(() =>
+  import('@/app/ChatLayoutNavigation').then((module) => ({ default: module.ChatLayoutNavigation })),
+)
+const ChatLayoutSwitcher = lazy(async () => {
+  const [{ ChatLayoutSwitcher }] = await Promise.all([
+    import('@/features/chat/layout/switcher'),
+    ensureChatLayoutMessages(),
+  ])
+  return { default: ChatLayoutSwitcher }
+})
 const CommandPalette = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({
     default: module.CommandPalette,
@@ -176,6 +189,7 @@ function App() {
   const mobileLayout = mobileApp || phoneViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
+  const [chatNavigation, setChatNavigation] = useState<DesktopChatLayout | null>(null)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
@@ -426,12 +440,14 @@ function App() {
 
   // 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
   const setConfigSection = useCallback(
-    (section: string) => {
+    (section: string, view?: 'appearance' | 'layout' | 'widgets') => {
       const nextSection =
         CONFIG_SECTIONS.has(section) && runtimeConfigSectionAvailable(capabilities, section)
           ? section
           : 'models'
-      routerNavigate(`/config/${nextSection}`)
+      const search =
+        nextSection === 'interface' && view && view !== 'appearance' ? `?view=${view}` : ''
+      routerNavigate(`/config/${nextSection}${search}`)
       setQuery('')
     },
     [capabilities, routerNavigate],
@@ -679,6 +695,9 @@ function App() {
         data-mobile-app={mobileLayout || undefined}
       >
         <WebPreviewProvider />
+        <Suspense fallback={null}>
+          <ChatLayoutNavigation onChange={setChatNavigation} />
+        </Suspense>
         {mobileLayout && (
           <Suspense fallback={null}>
             <MobileViewportStabilizer
@@ -693,7 +712,15 @@ function App() {
           </Suspense>
         )}
         <SidebarProvider
-          className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
+          data-chat-navigation={
+            page === 'chat' && !drawerSidebar ? chatNavigation?.navigationSide : undefined
+          }
+          style={
+            page === 'chat' && !drawerSidebar && chatNavigation
+              ? ({ '--sidebar-width': `${chatNavigation.navigationWidth}px` } as CSSProperties)
+              : undefined
+          }
+          className="app-body data-[chat-navigation=right]:[&>[data-slot=sidebar]]:order-2 max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
           data-mobile-app={mobileLayout || undefined}
           open={!sidebarCollapsed}
           onOpenChange={(open) => setSidebarCollapsed(!open)}
@@ -735,6 +762,8 @@ function App() {
             navigateSettings={navigateSettings}
             onExitSettings={exitSettings}
             collapsed={sidebarCollapsed}
+            side={page === 'chat' && !drawerSidebar ? chatNavigation?.navigationSide : 'left'}
+            width={page === 'chat' && !drawerSidebar ? chatNavigation?.navigationWidth : undefined}
             onToggleCollapse={toggleSidebarCollapsed}
             update={appUpdate}
             onOpenUpdates={openUpdateSettings}
@@ -765,6 +794,16 @@ function App() {
                   ) : undefined
                 }
                 searchInputRef={searchInputRef}
+                actionsSlot={
+                  page === 'chat' ? (
+                    <Suspense fallback={null}>
+                      <ChatLayoutSwitcher
+                        notify={notify}
+                        onManage={() => setConfigSection('interface', 'layout')}
+                      />
+                    </Suspense>
+                  ) : undefined
+                }
                 theme={theme}
                 onCycleTheme={cycleTheme}
                 workflowActions={workflowActions}

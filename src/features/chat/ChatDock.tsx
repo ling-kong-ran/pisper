@@ -422,12 +422,14 @@ function SessionPanel({
         lastActivityAt={state.lastActivityAt}
         runFinishedAt={state.runFinishedAt}
         runStopped={state.runStopped}
+        runCompleted={state.lifecycle?.phase === 'completed' && !state.error && !state.runStopped}
         runNotice={state.runNotice}
         approvals={state.approvals || EMPTY_LIST}
         error={state.error || (context.activeId === sessionId ? context.globalError : '')}
         pendingAsset={pending}
         onAssetConsumed={context.onAssetConsumed}
         notify={context.notify}
+        requestConfirm={context.requestConfirm}
         onOpenModelSettings={context.openModelSettings}
         onCompactionThresholdChange={context.setCompactionThreshold}
         canSplit={canSplitPanel}

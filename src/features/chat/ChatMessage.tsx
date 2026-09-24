@@ -714,8 +714,10 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
       className={cn(
-        'message mx-auto mb-8 w-full max-w-[1040px] min-w-0 gap-0',
-        message.role === 'agent' ? 'items-stretch' : 'items-end',
+        'message mx-auto mb-[var(--chat-message-gap,32px)] w-full max-w-[var(--chat-content-width,1040px)] min-w-0 gap-0',
+        message.role === 'agent'
+          ? 'items-stretch'
+          : "items-end [[data-chat-message-style='plain']_&]:items-start",
         message.role,
       )}
       data-pisper-message-id={message.id}
@@ -740,7 +742,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           'message-content relative min-w-0',
           message.role === 'agent'
             ? 'w-full'
-            : 'w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%]',
+            : "w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%] [[data-chat-message-style='plain']_&]:w-full [[data-chat-message-style='plain']_&]:max-w-full",
         )}
       >
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
@@ -762,8 +764,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             className={cn(
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
               message.role === 'agent'
-                ? 'w-full py-1 leading-[1.75]'
-                : 'rounded-[22px] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.6] text-[var(--user-bubble-text)]',
+                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.72] [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
+                : "rounded-[22px] border border-[var(--stroke-soft)] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.72] text-[var(--user-bubble-text)] shadow-none [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}

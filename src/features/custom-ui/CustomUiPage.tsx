@@ -178,18 +178,21 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
 
   if (!components.length && !error) {
     return (
-      <div className="flex min-h-[100%] flex-col gap-[12px]">
+      <div className="flex min-h-[100%] min-w-0 flex-col gap-[12px]">
         <AppEmptyState className="flex flex-1 flex-col items-center justify-center gap-[10px] p-[40px_24px] text-center">
           <Blocks size={28} className="text-[var(--text-muted)]" />
           <strong className="text-[14px]">{t('custom-ui:customUiPage.emptyTitle')}</strong>
           <p className="m-0 max-w-[520px] text-[12px] leading-[1.7] text-[var(--text-secondary)]">
             {t('custom-ui:customUiPage.emptyHint')}
           </p>
-          <code className="rounded-[var(--r-sm)] bg-[var(--surface-muted)] px-[8px] py-[4px] text-[11px] text-[var(--text-soft)]">
-            {root
-              ? `${root}/<component-id>/manifest.json`
-              : 'custom-ui/<component-id>/manifest.json'}
-          </code>
+          {root && (
+            <code className="max-w-full break-all rounded-[var(--r-sm)] bg-[var(--surface-muted)] px-[8px] py-[4px] text-[11px] text-[var(--text-soft)]">
+              {root}
+            </code>
+          )}
+          <p className="m-0 max-w-[520px] text-[11px] leading-[1.6] text-[var(--text-muted)]">
+            {t('custom-ui:customUiPage.directoryLocationHint')}
+          </p>
           <Button
             variant="outline"
             size="sm"
@@ -253,7 +256,7 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
               </small>
             </button>
           ))}
-          <p className="m-0 mt-auto px-1 pb-1 text-[11px] leading-[1.6] text-[var(--text-muted)]">
+          <p className="m-0 mt-auto break-all px-1 pb-1 text-[11px] leading-[1.6] text-[var(--text-muted)]">
             {t('custom-ui:customUiPage.directoryHint', { path: root })}
           </p>
         </Panel>

@@ -146,8 +146,10 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.match(focus, /!hasConversation && <div[^>]*>\{sessionActionsMenu\}<\/div>/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
-  assert.match(message, /message mx-auto mb-8 w-full max-w-\[1040px\]/)
-  assert.match(message, /message\.role === 'agent' \? 'items-stretch' : 'items-end'/)
+  // 模板可调宽度/间距；保留默认 1040px / 32px，非法配置由布局契约测试拒绝。
+  assert.match(message, /max-w-\[var\(--chat-content-width,1040px\)\]/)
+  assert.match(message, /mb-\[var\(--chat-message-gap,32px\)\]/)
+  assert.match(message, /message\.role === 'agent'\s*\? 'items-stretch'\s*:\s*["']items-end/)
   assert.match(message, /message-content[\s\S]*message\.role === 'agent'[\s\S]*'w-full'/)
   assert.match(message, /agent-message-mark/)
   assert.match(message, /data-state=\{agentState\}/)
@@ -331,10 +333,9 @@ test('background Agent completion uses code-level UI state without prompt or cus
 
 test('stale streaming queue errors settle the old stream and resend as a new turn', async () => {
   const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
-  const queueHandler = source.slice(
-    source.indexOf('const queuePrompt'),
-    source.indexOf('const abort'),
-  )
+  const queueStart = source.indexOf('const queuePrompt')
+  // 从队列处理之后找函数边界，避免命中前面新增的 abortingSessionsRef。
+  const queueHandler = source.slice(queueStart, source.indexOf('const abort =', queueStart))
   assert.match(queueHandler, /isEndedSessionQueueError\(error\)/)
   assert.match(queueHandler, /if \(activeStream\) await activeStream\.promise/)
   assert.match(queueHandler, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)

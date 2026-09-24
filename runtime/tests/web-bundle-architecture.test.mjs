@@ -233,7 +233,7 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
   assert.match(focusSession, /const mobileLayout = mobileApp \|\| phoneViewport/)
   assert.match(
     focusSession,
-    /enterKeyHint=\{mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\}/,
+    /enterKeyHint=\{\s*mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\s*\}/,
   )
   assert.match(focusSession, /const composerPlaceholder = mobileLayout/)
   assert.match(focusSession, /data-mobile-composer-input=\{mobileLayout \|\| undefined\}/)
@@ -242,7 +242,8 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
   assert.match(focusSession, /<ComposerToolTray[\s\S]*?anchorRef={toolTrayAnchorRef}/)
   assert.match(capacity, /new ResizeObserver\(update\)/)
   assert.match(toolTray, /<AnchoredPopupMenu/)
-  assert.match(toolTray, /placement="top"/)
+  assert.match(toolTray, /placement = 'top'/)
+  assert.match(toolTray, /placement=\{placement\}/)
   assert.match(toolTray, /flex-wrap/)
   assert.doesNotMatch(toolTray, /AnimatedContent|AnimatedList|overflow-x-auto/)
   assert.match(pageHeader, /page === 'chat'[\s\S]*?max-\[650px\]:!min-h-0/)
@@ -481,7 +482,7 @@ test('mobile device permissions are requested by native operations', async () =>
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {
-  const [router, routeElements, main, chat, chatDock, dockView, workflows, styles] =
+  const [router, routeElements, main, chat, chatDock, dockView, workflows, styles, appearance] =
     await Promise.all([
       readFile('src/app/router.tsx', 'utf8'),
       readFile('src/app/route-elements.tsx', 'utf8'),
@@ -491,19 +492,28 @@ test('route code and route-specific vendor styles remain lazy', async () => {
       readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
       readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
       readFile('src/index.css', 'utf8'),
+      readFile('src/app/ChatAppearancePage.tsx', 'utf8'),
     ])
 
-  // 每个路由加载器都必须保持动态导入；页面数量变化不应破坏懒加载保护。
+  // 实际页面保持动态导入；旧组件地址只重定向到设置，不应为了迁移额外加载页面。
   const loaders = [...routeElements.matchAll(/export async function (\w+Route)\(/g)]
   assert.ok(loaders.length > 0)
   for (const [index, loader] of loaders.entries()) {
     const body = routeElements.slice(loader.index, loaders[index + 1]?.index)
-    assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
-    assert.match(body, /await (?:import\(|Promise\.all\()/, `${loader[1]} must await its page`)
+    if (loader[1] === 'componentsRoute') {
+      assert.match(body, /<Navigate to="\/config\/interface\?view=layout" replace/)
+      assert.doesNotMatch(body, /@\/features\//)
+    } else {
+      assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
+      assert.match(body, /await (?:import\(|Promise\.all\()/, `${loader[1]} must await its page`)
+    }
     assert.match(router, new RegExp(`lazy: ${loader[1]}\\b`))
   }
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
   assert.doesNotMatch(router, /from '@\/features\//)
+  assert.match(appearance, /import\('@\/features\/chat\/layout\/editor'\)/)
+  assert.match(appearance, /import\('@\/features\/custom-ui\/public'\)/)
+  assert.doesNotMatch(appearance, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
   // dockview 及其样式只在桌面端懒加载分包中：移动端使用轻量标签栏，
   // 内容区一次只挂载一个会话，不下载 dockview。

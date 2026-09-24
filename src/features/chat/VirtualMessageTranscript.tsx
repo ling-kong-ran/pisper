@@ -19,6 +19,7 @@ import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from './transcript-v
 
 type VirtualMessageTranscriptProps = {
   sessionId: string
+  layoutMeasurementKey?: string
   messages: ChatMessage[]
   streaming?: boolean
   latestRunProps: AgentRunActivityProps
@@ -87,6 +88,7 @@ function useTranscriptScrollMargin(
 
 export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   sessionId,
+  layoutMeasurementKey,
   messages,
   streaming,
   latestRunProps,
@@ -138,6 +140,52 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   })
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
+
+  const remeasureLayout = useCallback(() => {
+    const list = listRef.current
+    if (!list || !scrollElement || list.getBoundingClientRect().width < 1) return
+    const scrollTop = scrollElement.scrollTop
+    const anchor = virtualizer.getVirtualItems().find((item) => item.end > scrollTop)
+    const anchorOffset = anchor ? Math.max(0, scrollTop - anchor.start) : 0
+    // ResizeObserver 只覆盖挂载行；模板与列宽改变时也要作废屏幕外的旧字号/旧宽度行高。
+    virtualizer.measure()
+    virtualizer.getTotalSize()
+    for (const row of list.children) {
+      if (row instanceof HTMLDivElement) virtualizer.measureElement(row)
+    }
+    virtualizer.getTotalSize()
+    if (anchor) {
+      const offset = virtualizer.getOffsetForIndex(anchor.index, 'start')?.[0]
+      if (offset !== undefined) virtualizer.scrollToOffset(offset + anchorOffset)
+    }
+    onContentSizeChange()
+  }, [onContentSizeChange, scrollElement, virtualizer])
+
+  useLayoutEffect(() => {
+    remeasureLayout()
+  }, [layoutMeasurementKey, remeasureLayout])
+
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list || typeof ResizeObserver === 'undefined') return
+    let width = list.getBoundingClientRect().width
+    let frame: number | null = null
+    const observer = new ResizeObserver(() => {
+      const nextWidth = list.getBoundingClientRect().width
+      if (Math.abs(nextWidth - width) < 1) return
+      width = nextWidth
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+        remeasureLayout()
+      })
+    })
+    observer.observe(list)
+    return () => {
+      observer.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [remeasureLayout])
 
   useLayoutEffect(() => {
     onContentSizeChange()

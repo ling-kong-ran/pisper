@@ -61,7 +61,9 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
   assert.match(store, /normalizeComposerToolbarLayout/)
 
   assert.match(tray, /<AnchoredPopupMenu/)
-  assert.match(tray, /placement="top"/)
+  // 底部输入仍默认向上；模板将输入置顶时允许向下并由弹层约束视口。
+  assert.match(tray, /placement = 'top'/)
+  assert.match(tray, /placement=\{placement\}/)
   assert.match(tray, /composer-tool-tray[^"\n]*flex-wrap/)
   assert.doesNotMatch(tray, /AnimatedContent|AnimatedList|composer-energy-spin/)
   assert.match(settings, /setToolLocation/)
@@ -102,7 +104,7 @@ test('composer plain Enter submits, Shift+Enter inserts a newline, and IME compo
   assert.match(session, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
   assert.match(
     session,
-    /enterKeyHint=\{mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\}/,
+    /enterKeyHint=\{\s*mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\s*\}/,
   )
   // IME 组词保护双保险：Chromium 靠 isComposing；Mac WebKit 的确认 Enter
   // 在 compositionend 之后派发，靠自行跟踪的 imeComposingRef 延迟复位覆盖。

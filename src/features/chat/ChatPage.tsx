@@ -46,6 +46,8 @@ import {
 } from './session-context-layout'
 import type { SessionContextTab } from './SessionContextPanel'
 import { SessionContextLayout } from './SessionContextLayout'
+import { useChatLayoutStore } from './layout/chat-layout-store'
+import { canvasHasKind } from './layout/chat-canvas'
 
 // Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
 const LazyChatDockView = lazy(() =>
@@ -93,12 +95,23 @@ export function ChatPage({
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  const layoutTemplate = useChatLayoutStore((state) => state.active)
+  const layoutRevision = useChatLayoutStore((state) => state.revision)
+  const deviceLayout = mobileLayout ? layoutTemplate.mobile : layoutTemplate.desktop
+  const embeddedContext = canvasHasKind(deviceLayout.canvas, 'context')
+  const openContextOnCompletion = deviceLayout.openContextOnCompletion && !embeddedContext
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const chatLayoutRef = useRef<HTMLDivElement>(null)
   const [contextWidth, setContextWidth] = useState(0)
-  const [contextPreference, setContextPreference] = useState<SessionContextPreference>('auto')
+  const [contextPreference, setContextPreference] = useState<SessionContextPreference>(
+    () => layoutTemplate.desktop.contextVisibility,
+  )
   const [contextTab, setContextTab] = useState<SessionContextTab>('files')
   const contextRunRef = useRef<SessionContextRun | null>(null)
+  useEffect(() => {
+    // 模板只设定初始显示方式，之后仍允许用户手动打开和关闭上下文。
+    setContextPreference(mobileLayout ? 'auto' : layoutTemplate.desktop.contextVisibility)
+  }, [layoutTemplate.desktop.contextVisibility, layoutRevision, mobileLayout])
   useLayoutEffect(() => {
     const layout = chatLayoutRef.current
     if (!layout) return
@@ -171,18 +184,18 @@ export function ChatPage({
       streaming: activeStreaming,
       completed: activeCompleted,
     }
-    if (shouldRevealSessionContext(contextRunRef.current, current)) {
+    if (openContextOnCompletion && shouldRevealSessionContext(contextRunRef.current, current)) {
       setContextTab('files')
       setContextPreference('open')
     }
     contextRunRef.current = current
-  }, [catalog.activeId, activeStreaming, activeCompleted])
+  }, [catalog.activeId, activeStreaming, activeCompleted, openContextOnCompletion])
   const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
   const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
   const contextPresentation = resolveSessionContextPresentation({
     availableWidth: contextWidth,
     mobileLayout,
-    hasSession: Boolean(activeSession),
+    hasSession: Boolean(activeSession) && !embeddedContext,
     preference: contextPreference,
   })
   const contextCompact = mobileLayout || contextWidth < 800
@@ -392,6 +405,7 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
+      requestConfirm,
       openModelSettings,
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
@@ -438,6 +452,7 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
+      requestConfirm,
       openModelSettings,
       liveSync.loadSessionMessages,
       liveSync.loadOlderMessages,
@@ -503,6 +518,7 @@ export function ChatPage({
           availableWidth={contextWidth}
           presentation={contextPresentation}
           context={contextPanel}
+          side={layoutTemplate.desktop.contextSide}
         >
           {catalog.loading ? (
             <AppEmptyState>

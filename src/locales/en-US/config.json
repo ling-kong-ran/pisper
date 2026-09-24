@@ -627,5 +627,9 @@
   "configPage.visualUnavailableNotify": "No visual model available — add one first, or check the provider key and enabled state",
   "configPage.discoverFailedUsingExisting": "Couldn't fetch the model list ({message}) — you can pick from the existing models",
   "configSearch.placeholder": "Search settings (model, notifications…)",
-  "configSearch.noResults": "No matching settings found"
+  "configSearch.noResults": "No matching settings found",
+  "interfaceSettings.tabsLabel": "Interface settings categories",
+  "interfaceSettings.appearanceTab": "Appearance",
+  "interfaceSettings.chatLayoutTab": "Chat layout",
+  "interfaceSettings.customUiTab": "Standalone widgets"
 }

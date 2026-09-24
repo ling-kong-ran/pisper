@@ -57,6 +57,7 @@ export const I18N_NAMESPACES = Object.freeze([
   'chat',
   'config',
   'custom-ui',
+  'chat-layout',
   'mcp',
   'memory',
   'plugins',
@@ -131,6 +132,26 @@ void i18n.use(initReactI18next).init({
 })
 
 let channelsMessagesPromise: Promise<void> | null = null
+let chatLayoutMessagesPromise: Promise<void> | null = null
+
+// 布局编辑器的文案只在进入该页时加载，不挤占会话首屏预算。
+export function ensureChatLayoutMessages(): Promise<void> {
+  if (
+    i18n.hasResourceBundle('zh-CN', 'chat-layout') &&
+    i18n.hasResourceBundle('en-US', 'chat-layout')
+  )
+    return Promise.resolve()
+  chatLayoutMessagesPromise ??= import('./chat-layout-messages')
+    .then(({ chatLayoutMessages: { zh, en } }) => {
+      i18n.addResourceBundle('zh-CN', 'chat-layout', zh)
+      i18n.addResourceBundle('en-US', 'chat-layout', en)
+    })
+    .catch((error: unknown) => {
+      chatLayoutMessagesPromise = null
+      throw error
+    })
+  return chatLayoutMessagesPromise
+}
 
 // 通道词条只由通道页使用；在路由挂载前同时注册两种语言，避免切换语言时闪现键名。
 export function ensureChannelsMessages(): Promise<void> {

@@ -13,9 +13,9 @@ import { randomBytes } from 'node:crypto'
 import { parse, serialize } from 'parse5'
 import { createReadStream } from 'node:fs'
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { extname, isAbsolute, join, normalize, resolve, sep } from 'node:path'
 import { readJson } from '../storage/json-file.mjs'
+import { displayCustomUiPath } from './custom-ui-path.mjs'
 
 // 组件 id 即目录名：只允许安全的文件名字符，避免路径与 URL 编码问题。
 const COMPONENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/
@@ -54,15 +54,6 @@ const MAX_VIEWS = 128
 
 function asRecord(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : null
-}
-
-// 展示路径缩写：不把用户完整 home 目录路径泄漏到界面/日志。
-function displayPath(path) {
-  const home = homedir()
-  if (home && (path === home || path.startsWith(`${home}${sep}`))) {
-    return `~${path.slice(home.length)}`
-  }
-  return path
 }
 
 // 归一化 manifest；非法字段抛错（带组件 id，便于用户定位自己的配置问题）。
@@ -241,11 +232,11 @@ export class CustomUiService {
           .split('/')
           .map(encodeURIComponent)
           .join('/')}`,
-        directory: displayPath(this.componentDir(manifest.id)),
+        directory: displayCustomUiPath(this.componentDir(manifest.id)),
       })
     }
     components.sort((left, right) => left.name.localeCompare(right.name))
-    return { root: displayPath(this.root), components }
+    return { root: displayCustomUiPath(this.root), components }
   }
 
   // 资产解析：返回组件目录内的绝对路径；任何越界尝试返回 null。

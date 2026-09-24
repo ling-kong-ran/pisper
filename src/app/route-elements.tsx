@@ -1,7 +1,7 @@
 // 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载聊天页。
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
-import { useOutletContext } from 'react-router-dom'
+import { Navigate, useOutletContext } from 'react-router-dom'
 import { ensureChannelsMessages } from './i18n'
 import type { AppRouteContext } from './route-context'
 
@@ -109,7 +109,10 @@ export async function schedulesRoute() {
 }
 
 export async function configRoute() {
-  const { ConfigPage } = await import('@/features/config/ConfigPage')
+  const [{ ConfigPage }, { ChatAppearancePage }] = await Promise.all([
+    import('@/features/config/ConfigPage'),
+    import('@/app/ChatAppearancePage'),
+  ])
 
   function ConfigRoute() {
     const context = useAppRouteContext()
@@ -121,6 +124,9 @@ export async function configRoute() {
         onBrowserNotificationChange={context.setNotificationSettings}
         requestConfirm={context.requestConfirm}
         update={context.appUpdate}
+        renderInterfaceSettings={(appearance) => (
+          <ChatAppearancePage appearance={appearance} notify={context.notify} />
+        )}
       />
     )
   }
@@ -205,14 +211,10 @@ export async function skillsRoute() {
 }
 
 export async function componentsRoute() {
-  const { CustomUiPage } = await import('@/features/custom-ui/CustomUiPage')
-
-  function ComponentsRoute() {
-    const context = useAppRouteContext()
-    return <CustomUiPage notify={context.notify} />
+  function LegacyComponentsRoute() {
+    return <Navigate to="/config/interface?view=layout" replace />
   }
-
-  return { Component: ComponentsRoute }
+  return { Component: LegacyComponentsRoute }
 }
 
 export async function decisionsRoute() {

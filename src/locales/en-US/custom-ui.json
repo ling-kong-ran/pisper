@@ -1,7 +1,8 @@
 {
   "customUiPage.loading": "Loading components…",
   "customUiPage.emptyTitle": "No custom components yet",
-  "customUiPage.emptyHint": "Create a folder named after your component ID in the directory below, drop in a manifest.json and an index.html, and your own interface will be mounted here. Components run in an isolated sandbox and can only use the capabilities declared in the manifest.",
+  "customUiPage.emptyHint": "Create a component folder (for example, my-board) in the directory below, add manifest.json and index.html, and your own interface will be mounted here. Components run in an isolated sandbox and can only use the capabilities declared in the manifest.",
+  "customUiPage.directoryLocationHint": "This path belongs to the connected Pisper service. For a remote connection, create the component files on the server.",
   "customUiPage.rescan": "Rescan",
   "customUiPage.installedComponents": "{count} components",
   "customUiPage.directoryHint": "Component directory: {path} (click rescan above after editing files)",

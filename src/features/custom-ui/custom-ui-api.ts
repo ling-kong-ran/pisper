@@ -1,5 +1,5 @@
 // 自定义 UI 组件的类型与 API 封装：与 runtime/services/custom-ui-service.mjs
-// 的清单输出保持契约一致（列表响应不含目录绝对路径的 homedir 前缀，Runtime 已缩写为 ~）。
+// 的清单输出保持契约一致。目录来自 Runtime；用户主目录按服务端平台缩写为 ~ 或 %USERPROFILE%。
 import { apiJson } from '@/lib/api'
 
 export type CustomUiComponent = {

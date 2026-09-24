@@ -16,6 +16,7 @@ export type SessionContextTab = 'files' | 'plan' | 'browser'
 type SessionContextPanelProps = {
   panelId: string
   compact: boolean
+  embedded?: boolean
   sessionId: string
   tab: SessionContextTab
   plan: Plan | null
@@ -102,6 +103,7 @@ function BrowserPane() {
 export function SessionContextPanel({
   panelId,
   compact,
+  embedded = false,
   sessionId,
   tab,
   plan,
@@ -208,6 +210,7 @@ export function SessionContextPanel({
     return (
       <aside
         id={panelId}
+        tabIndex={embedded ? -1 : undefined}
         className="h-full min-h-0 w-full overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke-soft)]"
         aria-label={t('chat:sessionContext.title')}
       >

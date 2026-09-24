@@ -17,6 +17,7 @@ type SessionContextLayoutProps = {
   presentation: SessionContextPresentation
   children: ReactNode
   context: ReactNode
+  side?: 'left' | 'right'
 }
 
 export function SessionContextLayout({
@@ -24,6 +25,7 @@ export function SessionContextLayout({
   presentation,
   children,
   context,
+  side = 'right',
 }: SessionContextLayoutProps) {
   const { t } = useI18n()
   const width = useSessionContextStore((state) => state.width)
@@ -36,7 +38,51 @@ export function SessionContextLayout({
   useLayoutEffect(() => {
     // 窗口变窄只限制当前布局；变宽后恢复偏好，不把临时受限的宽度写回。
     if (aside && availableWidth > 0) contextRef.current?.resize(width)
-  }, [aside, availableWidth, contextRef, width])
+  }, [aside, availableWidth, contextRef, width, side])
+
+  // 同一组 keyed 节点换序，移动左右栏时保留主会话、输入草稿和滚动容器。
+  const conversation = (
+    <ResizablePanel
+      key="conversation"
+      id="chat-conversation"
+      minSize={aside ? SESSION_CHAT_MIN_WIDTH : 0}
+    >
+      {children}
+    </ResizablePanel>
+  )
+  const separator = (
+    <ResizableHandle
+      key="separator"
+      elementRef={handleElementRef}
+      aria-label={t('chat:sessionContext.resize')}
+      title={t('chat:sessionContext.resizeHint')}
+      withHandle
+      disableDoubleClick
+      onDoubleClick={() => {
+        setWidth(SESSION_CONTEXT_DEFAULT_WIDTH)
+        contextRef.current?.resize(SESSION_CONTEXT_DEFAULT_WIDTH)
+      }}
+      className="w-2 bg-transparent after:w-2 focus-visible:ring-inset [&>div]:h-10 [&>div]:bg-[var(--stroke-soft)] hover:[&>div]:bg-[var(--brand-blue)] focus-visible:[&>div]:bg-[var(--brand-blue)]"
+    />
+  )
+  const contextPanel = (
+    <ResizablePanel
+      key="context"
+      id="chat-context"
+      panelRef={contextRef}
+      defaultSize={width}
+      minSize={SESSION_CONTEXT_MIN_WIDTH}
+      maxSize={SESSION_CONTEXT_MAX_WIDTH}
+      groupResizeBehavior="preserve-pixel-size"
+    >
+      {context}
+    </ResizablePanel>
+  )
+  const panels = !aside
+    ? [conversation]
+    : side === 'left'
+      ? [contextPanel, separator, conversation]
+      : [conversation, separator, contextPanel]
 
   return (
     <>
@@ -57,35 +103,7 @@ export function SessionContextLayout({
           if (panelSpace > 0) setWidth((panelSpace * percent) / 100)
         }}
       >
-        <ResizablePanel id="chat-conversation" minSize={aside ? SESSION_CHAT_MIN_WIDTH : 0}>
-          {children}
-        </ResizablePanel>
-        {aside && (
-          <>
-            <ResizableHandle
-              elementRef={handleElementRef}
-              aria-label={t('chat:sessionContext.resize')}
-              title={t('chat:sessionContext.resizeHint')}
-              withHandle
-              disableDoubleClick
-              onDoubleClick={() => {
-                setWidth(SESSION_CONTEXT_DEFAULT_WIDTH)
-                contextRef.current?.resize(SESSION_CONTEXT_DEFAULT_WIDTH)
-              }}
-              className="w-2 bg-transparent after:w-2 focus-visible:ring-inset [&>div]:h-10 [&>div]:bg-[var(--stroke-soft)] hover:[&>div]:bg-[var(--brand-blue)] focus-visible:[&>div]:bg-[var(--brand-blue)]"
-            />
-            <ResizablePanel
-              id="chat-context"
-              panelRef={contextRef}
-              defaultSize={width}
-              minSize={SESSION_CONTEXT_MIN_WIDTH}
-              maxSize={SESSION_CONTEXT_MAX_WIDTH}
-              groupResizeBehavior="preserve-pixel-size"
-            >
-              {context}
-            </ResizablePanel>
-          </>
-        )}
+        {panels}
       </ResizablePanelGroup>
       {presentation === 'sheet' && context}
     </>

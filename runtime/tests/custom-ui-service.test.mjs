@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { displayCustomUiPath } from '../services/custom-ui-path.mjs'
 import {
   CUSTOM_UI_PERMISSIONS,
   CustomUiService,
@@ -21,6 +22,72 @@ async function createComponent(root, id, manifest, files = {}) {
   }
   return dir
 }
+
+test('Windows 组件目录用可展开的主目录变量且不展示用户名', () => {
+  const options = { home: 'C:\\Users\\Fixture User', platform: 'win32' }
+  assert.equal(
+    displayCustomUiPath('C:\\Users\\Fixture User\\.pisper\\agent\\custom-ui', options),
+    '%USERPROFILE%\\.pisper\\agent\\custom-ui',
+  )
+  assert.equal(
+    displayCustomUiPath('c:/users/FIXTURE USER/.pisper/agent/custom-ui/my-board', options),
+    '%USERPROFILE%\\.pisper\\agent\\custom-ui\\my-board',
+  )
+  assert.equal(displayCustomUiPath('C:\\Users\\Fixture User\\', options), '%USERPROFILE%')
+})
+
+test('Windows 主目录边界不缩写相似用户名、自定义盘符和外部 UNC 目录', () => {
+  const options = { home: 'C:\\Users\\Fixture', platform: 'win32' }
+  for (const path of [
+    'C:\\Users\\Fixture-other\\agent\\custom-ui',
+    'C:\\Users\\Fixture\\..\\Other\\custom-ui',
+    'D:\\Pisper Data\\agent\\custom-ui',
+    '\\\\fileserver\\Pisper Data\\agent\\custom-ui',
+  ]) {
+    assert.equal(displayCustomUiPath(path, options), path)
+  }
+  assert.equal(
+    displayCustomUiPath('\\\\fileserver\\profiles\\Fixture\\agent\\custom-ui', {
+      home: '\\\\FILESERVER\\profiles\\Fixture',
+      platform: 'win32',
+    }),
+    '%USERPROFILE%\\agent\\custom-ui',
+  )
+})
+
+test('POSIX 组件目录保留主目录缩写并尊重大小写和配置覆盖', () => {
+  const options = { home: '/home/fixture', platform: 'linux' }
+  assert.equal(
+    displayCustomUiPath('/home/fixture/.pisper/agent/custom-ui', options),
+    '~/.pisper/agent/custom-ui',
+  )
+  assert.equal(displayCustomUiPath('/home/fixture/', options), '~')
+  for (const path of [
+    '/home/fixture-other/agent/custom-ui',
+    '/home/Fixture/agent/custom-ui',
+    '/srv/pisper data/agent/custom-ui',
+  ]) {
+    assert.equal(displayCustomUiPath(path, options), path)
+  }
+  assert.equal(
+    displayCustomUiPath('/Users/fixture/.pisper/agent/custom-ui', {
+      home: '/Users/fixture',
+      platform: 'darwin',
+    }),
+    '~/.pisper/agent/custom-ui',
+  )
+})
+
+test('主目录未知时不猜测组件路径归属', () => {
+  assert.equal(
+    displayCustomUiPath('C:\\Pisper\\agent\\custom-ui', { home: '', platform: 'win32' }),
+    'C:\\Pisper\\agent\\custom-ui',
+  )
+  assert.equal(
+    displayCustomUiPath('agent/custom-ui', { home: '/home/fixture', platform: 'linux' }),
+    'agent/custom-ui',
+  )
+})
 
 test('manifest normalization trims fields and filters unknown permissions', () => {
   const manifest = normalizeComponentManifest('demo', {
@@ -53,7 +120,7 @@ test('listComponents scans valid components and skips invalid directories', asyn
   const service = new CustomUiService({ dataDir: directory })
   // 目录不存在 → 空列表而不是抛错。
   assert.deepEqual(await service.listComponents(), {
-    root: service.root,
+    root: displayCustomUiPath(service.root),
     components: [],
   })
   const root = join(directory, 'custom-ui')
@@ -68,12 +135,13 @@ test('listComponents scans valid components and skips invalid directories', asyn
   await mkdir(join(root, 'UPPER CASE!'), { recursive: true })
   await createComponent(root, 'broken', { entry: 'index.html' })
   const listed = await service.listComponents()
+  assert.equal(listed.root, displayCustomUiPath(root))
   assert.equal(listed.components.length, 1)
   const [component] = listed.components
   assert.equal(component.id, 'demo-board')
   assert.equal(component.name, 'Demo Board')
   assert.equal(component.entryUrl, '/api/custom-ui/components/demo-board/assets/index.html')
-  assert.equal(component.directory, service.componentDir('demo-board'))
+  assert.equal(component.directory, displayCustomUiPath(service.componentDir('demo-board')))
 })
 
 test('resolveAssetPath blocks traversal, hidden files, manifest and symlinks', async (t) => {
@@ -234,8 +302,10 @@ test('custom UI HTTP API lists components, serves assets and bridge script', asy
   const list = await request('GET', '/api/custom-ui/components')
   assert.equal(list.status, 200)
   const payload = JSON.parse(list.body)
+  assert.equal(payload.root, displayCustomUiPath(root))
   assert.equal(payload.components.length, 1)
   assert.equal(payload.components[0].id, 'demo')
+  assert.equal(payload.components[0].directory, displayCustomUiPath(join(root, 'demo')))
   assert.deepEqual(payload.components[0].permissions, ['notify'])
 
   const entry = await request('GET', '/api/custom-ui/components/demo/assets/index.html')

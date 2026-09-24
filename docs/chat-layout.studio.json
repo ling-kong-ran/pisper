@@ -1,0 +1,99 @@
+{
+  "version": 2,
+  "name": "Studio",
+  "accent": "inherit",
+  "desktop": {
+    "composerPosition": "bottom",
+    "contentWidth": 960,
+    "fontSize": 15,
+    "fontFamily": "system",
+    "density": "comfortable",
+    "messageStyle": "bubble",
+    "showUsage": true,
+    "canvas": {
+      "id": "studio-root",
+      "kind": "column",
+      "css": "height: 100%; min-height: 0; box-sizing: border-box; padding: 12px; gap: 10px; background: color-mix(in srgb, var(--muted) 55%, var(--background)); color: var(--foreground); letter-spacing: .01em; --user-bubble-bg: var(--muted); --user-bubble-text: var(--foreground); --chat-message-gap: 28px; --chat-transcript-block-padding: 24px; --chat-message-paragraph-gap: .8em;",
+      "children": [
+        {
+          "id": "studio-header",
+          "kind": "header",
+          "css": "flex-shrink: 0; border-radius: 12px; overflow: hidden;"
+        },
+        {
+          "id": "studio-conversation",
+          "kind": "column",
+          "css": "flex: 1 1 0%; min-height: 0; min-width: 0; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 5%, transparent);",
+          "children": [
+            {
+              "id": "studio-messages",
+              "kind": "messages",
+              "css": "flex: 1 1 0%; min-height: 0;"
+            },
+            {
+              "id": "studio-divider",
+              "kind": "divider",
+              "css": "margin-inline: 24px; border-color: var(--border);"
+            },
+            {
+              "id": "studio-composer",
+              "kind": "composer",
+              "css": "flex-shrink: 0; padding-bottom: 6px;"
+            }
+          ]
+        }
+      ]
+    },
+    "navigationSide": "left",
+    "navigationWidth": 216,
+    "navigationCollapsed": null,
+    "contextSide": "right",
+    "contextVisibility": "auto",
+    "contextWidth": 340,
+    "openContextOnCompletion": true
+  },
+  "mobile": {
+    "composerPosition": "bottom",
+    "contentWidth": 960,
+    "fontSize": null,
+    "fontFamily": "system",
+    "density": "comfortable",
+    "messageStyle": "bubble",
+    "showUsage": true,
+    "canvas": {
+      "id": "studio-root",
+      "kind": "column",
+      "css": "height: 100%; min-height: 0; box-sizing: border-box; padding: 6px; gap: 6px; background: color-mix(in srgb, var(--muted) 55%, var(--background)); color: var(--foreground); letter-spacing: .01em; --user-bubble-bg: var(--muted); --user-bubble-text: var(--foreground); --chat-message-gap: 28px; --chat-transcript-block-padding: 16px; --chat-message-paragraph-gap: .8em;",
+      "children": [
+        {
+          "id": "studio-header",
+          "kind": "header",
+          "css": "flex-shrink: 0; border-radius: 12px; overflow: hidden;"
+        },
+        {
+          "id": "studio-conversation",
+          "kind": "column",
+          "css": "flex: 1 1 0%; min-height: 0; min-width: 0; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 5%, transparent);",
+          "children": [
+            {
+              "id": "studio-messages",
+              "kind": "messages",
+              "css": "flex: 1 1 0%; min-height: 0;"
+            },
+            {
+              "id": "studio-divider",
+              "kind": "divider",
+              "css": "margin-inline: 12px; border-color: var(--border);"
+            },
+            {
+              "id": "studio-composer",
+              "kind": "composer",
+              "css": "flex-shrink: 0; padding-bottom: 2px;"
+            }
+          ]
+        }
+      ]
+    },
+    "openContextOnCompletion": true
+  }
+}
