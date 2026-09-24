@@ -59,6 +59,10 @@ Windows 桌面安装包内置完整的 WebView2 离线安装器，缺少 WebView
 离线安装的验收与发布产物检查见 [Windows 安装说明](../node-sea-webview.md#windows-offline-installation)。
 离线安装不等于云端模型或其他联网功能可以离线使用；可选工具仍遵循各自的运行要求。
 
+## Windows CLI 出现 `MZ` / Node 语法错误
+
+外部程序启动 CLI 时出现 `pisper.exe:1 MZ` 和 Node 语法错误，可使用[Windows CLI 诊断脚本](windows-cli.md)检查受管文件、命令解析，并在重现时采样潜在调用方。报告不包含原始进程命令行或个人路径；没有捕获到进程不能排除误调用。
+
 ## Windows Python 内存上涨、停止后进程仍在
 
 0.5.68 的无 Bash 回退路径使用系统 PowerShell。旧实现取消或超时只终止

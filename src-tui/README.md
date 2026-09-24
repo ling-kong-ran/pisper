@@ -4,6 +4,10 @@
 
 参数约定：`<参数>` 必填，`[参数]` 可选。
 
+Windows 桌面版安装到 `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe` 的是原生可执行文件。其他程序或脚本调用时，应直接启动该文件并单独传入参数，不要用 `node` 执行 `.exe`；npm 包的 JavaScript 启动器会自行启动对应的原生程序。
+
+若外部程序启动时出现 `MZ` 和 Node 语法错误，可以使用 [Windows CLI 诊断工具](../docs/troubleshooting/windows-cli.md) 收集入口线索，无需事先知道调用命令。
+
 ## CLI 命令
 
 | 命令 | 解释 |
@@ -40,7 +44,7 @@
 | `/changes` | 打开 Git 或 SVN 改动视图。视图内 `R` 刷新、`C` 提交、`P` 推送 Git、连续两次 `V` 撤销；SVN 不提供 Push。 |
 | `/changes commit <message>` | 使用指定提交信息提交当前 Git 或 SVN 工作区改动。 |
 | `/chat` | 从其他视图返回 Chat 消息流。 |
-| `/model` | 打开模型选择器并切换当前会话模型；只列出已配置 Provider 的模型，Agent 运行期间不可切换。 |
+| `/model` | 打开模型选择器并切换当前会话模型；默认保留上下文，可直接继续发送，需要压缩时使用 `/compact`。只列出已配置 Provider 的模型，Agent 运行期间不可切换。 |
 | `/thinking` | 刷新并选择当前模型支持的思考等级；Agent 运行期间不可切换。 |
 | `/provider [id]` | 编辑 Provider 协议、当前生效 Base URL 与掩码 API Key；传入 `id` 可直达指定 Provider。 |
 | `/apikey [id]` | `/provider` 的兼容别名。 |
