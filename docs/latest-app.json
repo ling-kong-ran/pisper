@@ -1,9 +1,9 @@
 {
-  "version": "0.1.49",
-  "tag": "app-v0.1.49",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.49",
+  "version": "0.1.50",
+  "tag": "app-v0.1.50",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.50",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- feat: improve chat workspaces, onboarding, and readability\n- chore(deps): update pi coding agent",
+  "notes": "- test(ios): await speech download completion before asserting\n- chore(release-runtime): runtime-v0.5.57\n- fix(mcp): keep host panel within CSS bundle budget\n- feat(mcp): expose opt-in local Pisper MCP server\n- feat(custom-ui): add floating widgets and adjustable island timer\n- feat(chat): add customizable layouts and named template library\n- fix(config): replace provider discovery popup with an inline hint\n- feat(chat): add resizable context panel and consolidate file review",
   "releaseDate": "2026-09-24"
 }
