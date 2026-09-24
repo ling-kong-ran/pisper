@@ -299,7 +299,7 @@ export function McpPage({
                 tone="amber"
               />
             </div>
-            <McpPanel className="mcp-tools-panel [.mcp-center_>_&]:flex-1 [.mcp-center_>_&]:min-h-0 [.mcp-center_>_&]:overflow-y-auto">
+            <McpPanel className="mcp-tools-panel min-h-0 flex-1 overflow-y-auto">
               <McpSectionTitle>
                 {t('mcp:toolCapabilities')} · {tools.length}
               </McpSectionTitle>
@@ -416,7 +416,7 @@ export function McpPage({
                 </Button>
               </div>
             </McpPanel>
-            <McpPanel className="mcp-calls-panel [.mcp-layout_&]:flex-1 [.mcp-layout_&]:min-h-0 [.mcp-layout_&]:overflow-y-auto">
+            <McpPanel className="mcp-calls-panel min-h-0 flex-1 overflow-y-auto">
               <McpSectionTitle>{t('mcp:recentCalls')}</McpSectionTitle>
               {calls.length ? (
                 calls.slice(0, 8).map((activity) => (

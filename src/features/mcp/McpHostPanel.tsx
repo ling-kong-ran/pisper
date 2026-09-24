@@ -163,7 +163,7 @@ export function McpHostPanel({
 
   return (
     <>
-      <Card className="mb-3 gap-3 border-border/70 p-4 shadow-none sm:p-5">
+      <Card className="mb-3 gap-3 p-4 shadow-none">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <span className="mt-0.5 rounded-lg bg-muted p-2 text-foreground" aria-hidden="true">
@@ -251,7 +251,7 @@ export function McpHostPanel({
               readOnly
               spellCheck={false}
               aria-label={t('mcp:hostConfigTitle')}
-              className="min-h-44 max-h-[45dvh] resize-y font-mono text-xs [overflow-wrap:anywhere]"
+              className="h-52 max-h-[45dvh] resize-y font-mono text-xs [overflow-wrap:anywhere]"
               onFocus={(event) => event.currentTarget.select()}
             />
           )}
