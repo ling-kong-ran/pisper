@@ -904,6 +904,17 @@ public final class SpeechModelStore {
         return snapshot(model, state)
     }
 
+    // XCTest 和其他同进程调用者可等待一次已提交任务的最终状态，避免频繁 list() 干扰文件校验。
+    func waitForCurrentDownload(modelId: String) throws -> [String: Any] {
+        let model = try self.model(id: modelId)
+        Self.lock.lock()
+        let job = state(model).job
+        Self.lock.unlock()
+        job?.wait()
+        Self.lock.lock(); defer { Self.lock.unlock() }
+        return snapshot(model, state(model))
+    }
+
     private func schedule(_ model: SpeechModel, _ state: State, download: Bool) {
         if Self.states.values.filter({ $0.job != nil }).count >= 64 {
             state.status = "error"; state.error = SpeechStorageError.busy.rawValue

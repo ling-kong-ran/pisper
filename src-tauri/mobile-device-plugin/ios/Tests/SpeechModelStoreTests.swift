@@ -12,6 +12,29 @@ final class SpeechModelStoreTests: XCTestCase {
     private var temporary: URL!
     private var stores: [SpeechModelStore] = []
 
+    private final class DownloadOutcome: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Result<[String: Any], Error>?
+
+        func set(_ result: Result<[String: Any], Error>) {
+            lock.lock(); defer { lock.unlock() }
+            value = result
+        }
+
+        func get() -> Result<[String: Any], Error>? {
+            lock.lock(); defer { lock.unlock() }
+            return value
+        }
+    }
+
+    private struct ArchiveObservation {
+        let content: Data
+        let prefix: String
+        let fileCount: Int
+        let destinationExisted: Bool
+        let parentMode: mode_t
+    }
+
     override func setUpWithError() throws {
         // 测试根必须保留真实祖先，避免 Foundation 将 /private/var 改回符号链接 /var。
         let physical = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))
@@ -88,7 +111,7 @@ final class SpeechModelStoreTests: XCTestCase {
         let store = try SpeechModelStore(
             catalogData: JSONSerialization.data(withJSONObject: fixture.catalog), storageDirectory: root,
             archiveExtractor: extractor ?? { _, destination, prefix, files, check in
-                XCTAssertEqual(prefix, "fixture/")
+                try speechRequire(prefix == "fixture/", .integrity)
                 try check()
                 for spec in files { try self.write(destination.appendingPathComponent(spec.path), fixture.content[spec.path]!) }
             },
@@ -113,20 +136,22 @@ final class SpeechModelStoreTests: XCTestCase {
     }
 
     private func waitFor(_ store: SpeechModelStore, id: String, status: String = "installed") throws {
-        // 这是异步任务同步预算，不是推理性能断言；CI 调度暂停后先检查终态再判超时。
-        let deadline = ProcessInfo.processInfo.systemUptime + 30
-        while true {
+        // 任务结束事件驱动等待；主测试线程保持可调度，归档提取器也不会被高频 list() 争用文件系统。
+        let finished = expectation(description: "Model \(id) download finished")
+        let outcome = DownloadOutcome()
+        DispatchQueue.global(qos: .userInitiated).async {
+            outcome.set(Result { try store.waitForCurrentDownload(modelId: id) })
+            finished.fulfill()
+        }
+        guard XCTWaiter.wait(for: [finished], timeout: 30) == .completed else {
             let current = try snapshot(store, id: id)
-            if current["status"] as? String == status { return }
-            if current["status"] as? String == "error" {
-                XCTFail("Unexpected status: \(current["error"] ?? "error")")
-                throw SpeechStorageError.storage
-            }
-            if ProcessInfo.processInfo.systemUptime >= deadline {
-                XCTFail("Model \(id) did not reach \(status); last status=\(current["status"] ?? "unknown"), error=\(current["error"] ?? "none")")
-                throw SpeechStorageError.busy
-            }
-            Thread.sleep(forTimeInterval: 0.01)
+            XCTFail("Model \(id) did not finish; last status=\(current["status"] ?? "unknown"), error=\(current["error"] ?? "none")")
+            throw SpeechStorageError.busy
+        }
+        let current = try XCTUnwrap(outcome.get()).get()
+        guard current["status"] as? String == status else {
+            XCTFail("Model \(id) ended with status=\(current["status"] ?? "unknown"), error=\(current["error"] ?? "none")")
+            throw SpeechStorageError.storage
         }
     }
 
@@ -286,19 +311,29 @@ final class SpeechModelStoreTests: XCTestCase {
 
     func testArchiveExtractionUsesVerifiedManifestAndIndependentTreeCheck() throws {
         let fixture = try fixture(archive: true)
+        let observationLock = NSLock()
+        var observation: ArchiveObservation?
         let store = try store(fixture, extractor: { archive, directory, prefix, files, check in
-            XCTAssertEqual(try Data(contentsOf: archive), fixture.content["archive.tar.bz2"])
-            XCTAssertEqual(prefix, "fixture/")
-            XCTAssertEqual(files.count, 2)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
             let parent = try SpeechFiles.directory(directory.deletingLastPathComponent())
             defer { Darwin.close(parent) }
-            XCTAssertEqual(try SpeechFiles.attributes(parent).st_mode & 0o777, 0o700)
+            let observed = ArchiveObservation(
+                content: try Data(contentsOf: archive), prefix: prefix, fileCount: files.count,
+                destinationExisted: FileManager.default.fileExists(atPath: directory.path),
+                parentMode: try SpeechFiles.attributes(parent).st_mode & 0o777
+            )
+            observationLock.lock(); observation = observed; observationLock.unlock()
             try check()
             for file in files { try self.write(directory.appendingPathComponent(file.path), fixture.content[file.path]!) }
         })
         _ = try store.startDownload(modelId: "asr")
         try waitFor(store, id: "asr")
+        observationLock.lock(); let observed = observation; observationLock.unlock()
+        let actual = try XCTUnwrap(observed)
+        XCTAssertEqual(actual.content, fixture.content["archive.tar.bz2"])
+        XCTAssertEqual(actual.prefix, "fixture/")
+        XCTAssertEqual(actual.fileCount, 2)
+        XCTAssertFalse(actual.destinationExisted)
+        XCTAssertEqual(actual.parentMode, 0o700)
         XCTAssertNoThrow(try store.modelDirectory(modelId: "asr"))
     }
 
