@@ -1,9 +1,9 @@
 {
-  "version": "0.1.48",
-  "tag": "app-v0.1.48",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.48",
+  "version": "0.1.49",
+  "tag": "app-v0.1.49",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.49",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix(runtime): bundle search tools and unblock offline sessions",
-  "releaseDate": "2026-09-22"
+  "notes": "- feat: improve chat workspaces, onboarding, and readability\n- chore(deps): update pi coding agent",
+  "releaseDate": "2026-09-24"
 }
