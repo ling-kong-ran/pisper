@@ -188,7 +188,6 @@ function App() {
   const [toast, setToast] = useState<ToastState | null>(null)
   const [modal, setModal] = useState<string | null>(null)
   const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
-  const modelOnboardingPresented = useRef(false)
   const requestedConfigSection =
     page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
   const configSection =
@@ -488,39 +487,6 @@ function App() {
     setQuery('')
   }, [routerNavigate])
 
-  const providerScanStarted = useRef(false)
-  useEffect(() => {
-    // 首次模型引导已提供“查找本地配置”入口；避免连续弹出第二个确认框。
-    if (!startupReady || modelOnboardingPresented.current || providerScanStarted.current) return
-    providerScanStarted.current = true
-    void (async () => {
-      try {
-        const data = await apiJson<{
-          providers?: Array<{
-            importable?: boolean
-            imported?: boolean
-            conflict?: boolean
-          }>
-        }>('/api/providers/discovery')
-        const count = (data.providers || []).filter(
-          (provider) => provider.importable && !provider.imported && !provider.conflict,
-        ).length
-        if (count <= 0) return
-        const approved = await appDialog.confirm({
-          title: t('common:app.importableProvidersTitle'),
-          message: t('common:app.importableProvidersMessage', { count }),
-          confirmLabel: t('common:app.openSettings'),
-          tone: 'primary',
-        })
-        if (approved) {
-          setConfigSection('models')
-        }
-      } catch {
-        // 本地配置扫描失败时静默忽略，不影响启动
-      }
-    })()
-  }, [appDialog, setConfigSection, startupReady, t])
-
   // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
     if (!sessionId) return ''
@@ -604,7 +570,6 @@ function App() {
       // 存储不可读时按未关闭处理，仍允许用户在界面上跳过。
     }
     if (startupPageRef.current !== 'config' && shouldShowModelOnboarding(configData, dismissed)) {
-      modelOnboardingPresented.current = true
       setModelOnboardingOpen(true)
     }
   }, [configData, configPending, configSucceeded])

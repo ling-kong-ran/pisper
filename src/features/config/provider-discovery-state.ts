@@ -1,11 +1,15 @@
 // Provider 发现状态辅助：判断扫描结果里是否有可导入且未冲突的项。
 import type { DiscoveryData } from './config-types'
 
-// 是否存在可导入的 Provider（可导入 + 未导入 + 无冲突）。
-export function providerDiscoveryHasImportable(discovery: DiscoveryData) {
-  return (discovery.providers || []).some(
+// 提示数量与导入入口使用同一筛选条件，已导入和冲突项不计入提示。
+export function providerDiscoveryImportableCount(discovery: DiscoveryData) {
+  return (discovery.providers || []).filter(
     (provider) => provider.importable && !provider.imported && !provider.conflict,
-  )
+  ).length
+}
+
+export function providerDiscoveryHasImportable(discovery: DiscoveryData) {
+  return providerDiscoveryImportableCount(discovery) > 0
 }
 
 // 是否应折叠发现区：非扫描中且没有可导入项时收起（减少噪音）。

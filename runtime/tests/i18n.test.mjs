@@ -15,8 +15,8 @@ test('English interface translations resolve static and interpolated messages', 
   )
   assert.equal(translateText('config:configPage.countModels', 'en-US', { count: 3 }), '3 models')
   assert.equal(
-    translateText('common:app.importableProvidersMessage', 'en-US', { count: 2 }),
-    'Found 2 importable provider(s) in local Codex/Claude configs. Open settings to review?',
+    translateText('config:configPage.localProviderImportHint', 'en-US', { count: 2 }),
+    '2 local configuration(s) available to import',
   )
   assert.equal(
     translateText('common:workspacePicker.selectWorkspaceForChat', 'en-US', { name: 'Review' }),
@@ -35,8 +35,8 @@ test('Chinese remains the default interface language', () => {
   assert.equal(translateText('config:languageSettings.displayLanguage'), '界面语言')
   assert.equal(translateText('config:configPage.countModels', 'zh-CN', { count: 3 }), '3 个模型')
   assert.equal(
-    translateText('common:app.importableProvidersMessage', 'zh-CN', { count: 2 }),
-    '从本地 Codex/Claude 配置中检测到 2 个可导入的提供商，是否前往设置页查看？',
+    translateText('config:configPage.localProviderImportHint', 'zh-CN', { count: 2 }),
+    '发现 2 项可导入的本地配置',
   )
   assert.equal(
     translateText('common:workspacePicker.selectWorkspaceForChat', 'zh-CN', { name: '评审' }),

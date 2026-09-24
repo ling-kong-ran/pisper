@@ -6,11 +6,12 @@ import { useLocation } from 'react-router-dom'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { Button } from '@/components/ui/button'
 import { ConnectionList } from './ConnectionList'
 import { CurrentModelSummary } from './CurrentModelSummary'
 import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
-import { providerDiscoveryHasImportable } from './provider-discovery-state'
+import { providerDiscoveryImportableCount } from './provider-discovery-state'
 import { QuickSetupWizard } from './QuickSetupWizard'
 import { RuntimePolicySettings } from './RuntimeSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
@@ -99,8 +100,9 @@ export function ModelsSettings({
 
   const defaultProviderId = config.defaultProvider || config.provider
   const defaultProvider = config.providers.find((item) => item.id === defaultProviderId)
-  // 有本地可导入配置时展开入口；显式折叠/展开过的用户偏好仍然优先。
-  const manageOpenEffective = manageOpen ?? providerDiscoveryHasImportable(discovery.discovery)
+  // 扫描结果只提供轻提示，不覆盖用户的折叠偏好，也不自动展开管理区。
+  const manageOpenEffective = manageOpen ?? false
+  const importableCount = providerDiscoveryImportableCount(discovery.discovery)
   const setManageOpenPersisted = (open: boolean) => {
     setManageOpen(open)
     window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
@@ -122,6 +124,22 @@ export function ModelsSettings({
           defaultProvider ? openWizardFor(defaultProvider) : setWizard({ providerType: 'chat' })
         }
       />
+      {importableCount > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
+          <span>{t('config:configPage.localProviderImportHint', { count: importableCount })}</span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto min-h-11 shrink-0 px-1 py-0 font-normal text-[var(--text-secondary)] sm:min-h-8"
+            aria-expanded={manageOpenEffective}
+            aria-controls="model-connection-management"
+            onClick={() => setManageOpenPersisted(true)}
+          >
+            {t('config:configPage.reviewLocalProviders')}
+          </Button>
+        </div>
+      )}
       <Collapsible
         open={manageOpenEffective}
         onOpenChange={setManageOpenPersisted}
@@ -144,7 +162,7 @@ export function ModelsSettings({
             </span>
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent id="model-connection-management">
           <ProviderDiscovery
             discovery={discovery.discovery}
             discovering={discovery.discovering}
