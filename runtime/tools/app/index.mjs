@@ -14,6 +14,7 @@ import {
 import { createSkillCreateTool, manifest as skillCreateManifest } from './skill-create.mjs'
 import { createPluginCreateTool, manifest as pluginCreateManifest } from './plugin-create.mjs'
 import { createMobileDeviceTool, manifest as mobileDeviceManifest } from './mobile-device.mjs'
+import { createDecisionTool, manifest as decisionManifest } from './decision.mjs'
 
 // Multi-agent tools are internal runtime tools (like goal/plan) and are intentionally
 // omitted from the plugins catalog so they stay hidden from the frontend tool list.
@@ -24,6 +25,7 @@ export const APP_TOOL_CATALOG = [
   skillCreateManifest,
   pluginCreateManifest,
   mobileDeviceManifest,
+  decisionManifest,
   ...memoryManifests,
   ...mcpManifests,
 ]
@@ -36,6 +38,7 @@ const APP_TOOL_FACTORIES = {
   [skillCreateManifest.id]: createSkillCreateTool,
   [pluginCreateManifest.id]: createPluginCreateTool,
   [mobileDeviceManifest.id]: createMobileDeviceTool,
+  [decisionManifest.id]: createDecisionTool,
   ...memoryFactories,
   ...mcpFactories,
 }

@@ -15,6 +15,9 @@
 
 - 新增或升级 npm、Rust、原生、模型和二进制依赖前，记录用途、来源、版本、许可证、维护状态、安全风险、体积影响和平台兼容性。
 - 升级依赖后至少检查锁文件、类型检查、相关测试、构建产物、许可证、安全报告和 Node/Rust/原生工具链要求。检查应分别说明源码宿主、打包宿主与用户运行环境。安全修复或会改变发布产物的依赖更新按实际影响判断是否需要发布。
+- Pi 0.86 的 `agent.state.systemPrompt` 是历史消息派生的只读值。Pisper 通过 `before_agent_start` 注入每轮身份和运行时约束，缓存诊断读取当前 `session.systemPrompt` 的投影，不改写历史 system 消息。提示词测试同时覆盖旧可写状态和新只读状态；内置 Provider 测试验证当前目录中的型号能保存和解析，不把上游某个历史型号当作永久契约。
+- Pi 0.86 的剪贴板与终端原生辅助模块统一位于 `pi-tui/native/<platform>/prebuilds/`；SEA 按目标平台保留并审计 `*-platform.node`（Linux 为 `linux-platform-x11.node`），移动端仍移除桌面绑定。更新 Pi 后须运行 `sidecar:sea` 和 `sidecar:sea:smoke`，验证动态原生依赖的实际加载，不能仅凭源码测试判断打包兼容。
+- macOS SEA 构建需要包含 `NODE_SEA_FUSE` 标记的独立 Node 可执行文件；动态链接的小型启动器不能作为注入目标。若打包提示缺少 sentinel，请使用 Node.js 官方独立发行包中的 Node 24 可执行文件，并核对发行包的官方 SHA-256；日常源码检查仍可使用符合版本要求的其他 Node 24 安装方式。
 - `src/vendor/`、移动端生成工程、补丁产物和发布暂存目录必须通过对应脚本维护。修改生成源或脚本后重新生成，不要直接编辑下次构建会覆盖的结果。
 - 资源、模型和二进制文件应记录来源、版本、校验摘要和打包路径；不得把临时副本或个人测试数据放入源码和发布目录。
 
@@ -37,7 +40,7 @@
 
 ## 检查范围与结果解释
 
-- `npm run typecheck` 覆盖 `src/`、Vite 配置和 `tsconfig.jscheck.json` 的指定文件及其依赖图，不等于全部 Runtime 已检查。当前 JS 配置仅列出 `runtime/http/route-registry.mjs`、`runtime/runtime/workspace-directories.mjs` 和 `shared/app-update.mjs`；扩大覆盖时记录实际纳入的范围，避免用宽泛 `any` 消除错误。
+- `npm run typecheck` 覆盖 `src/`、Vite 配置和 `tsconfig.jscheck.json` 的指定文件及其依赖图，不等于全部 Runtime 已检查。当前 JS 配置列出 `runtime/http/route-registry.mjs`、`runtime/services/decision-remote-client.mjs`、`runtime/services/decision-service.mjs`、`runtime/runtime/workspace-directories.mjs`、`runtime/services/openai-request-transport.mjs` 和 `shared/app-update.mjs`，并检查它们引入的依赖（包括决策领域契约、模型注册表、Jev SDK 适配与答案校验）；扩大覆盖时记录实际纳入的范围，避免用宽泛 `any` 消除错误。
 - `npm test` 当前只匹配 `runtime/tests/*.test.mjs`，其中包含 Runtime、前端纯逻辑、协议、构建和源码守卫。新增其他目录或嵌套目录时，同步执行入口、CI 和测试资产路径，验证默认命令确实发现新测试；不要求为了目录整齐搬迁现有测试。
 - `npm run check` 按顺序执行类型、lint、i18n、格式和启动检查；任一步失败会阻断后续步骤。`npm run build` 中编译、体积预算和语法兼容检查也按顺序执行。报告应区分已通过、失败、跳过和未执行，不能用前一步成功概括整条命令通过。
 - 源码守卫应保护依赖边界、安全、兼容性和构建约定。重构前用 `node scripts/list-source-guards.mjs --source <文件>` 辅助定位，再检索动态路径或间接读取；该脚本不是完整静态分析器。更新守卫时记录原保护目标和替代的行为、契约或依赖检查。
@@ -57,9 +60,19 @@
 | 责任范围 | 当前偏差 | 完成条件 |
 | --- | --- | --- |
 | 环境与打包 | 根清单、npm 启动器的 Node ≥20 声明低于当前 Runtime 依赖要求 | 分别核验各宿主，统一清单、生成产物与文档，并验证声明的最低支持版本 |
-| 架构守卫 | `runtime/tests/runtime-architecture.test.mjs` 和 `runtime/tests/chat-architecture.test.mjs` 仍有固定行数断言 | 说明原保护目标，保留或补齐依赖/行为检查后移除行数硬门槛；迁移前仍如实报告现有检查结果 |
+| 架构守卫 | 聊天行数断言已由编排检查和真实导入图检查替代，Runtime/路由已有依赖与动态导入检查 | 新增领域沿用依赖/行为检查；动态计算路径仍需人工核对，详见[客户端边界记录](architecture/frontend-boundaries.md) |
 | Runtime 类型与公共协议 | JS 类型检查只覆盖少量文件，`src/types/chat.ts` 仍有宽泛 `EntityRecord` | 按领域补充 JSDoc/checkJs、边界校验、明确字段及 Web/TUI 契约测试，未知扩展限制在独立区域 |
-| HTTP 与错误契约 | `src/lib/http.ts` 对 JSON 解析失败回退成功文本；Web/TUI 仍匹配部分错误文案 | 分离响应解析契约，以兼容方式增加稳定错误码，覆盖非法响应和旧客户端路径 |
+| HTTP 与错误契约 | JSON/文本解析已分离，JSON/SSE 共用 HTTP 错误解析，MCP 使用字段校验；其他旧泛型调用尚未普遍校验字段，Web/TUI 仍匹配部分错误文案 | 逐域迁移 unknown 解码；以兼容方式补齐稳定错误码及旧客户端契约 |
 | 前端请求与生命周期 | Memory/Schedules 等页面自行管理请求；部分 Runtime 测试有异步清理错误 | 统一数据所有权、取消与去重，覆盖乱序响应；测试先等待服务及写入任务收尾再删除目录 |
-| Feature 归属与入口 | 缺少明确公共入口，MCP 页面位于 workflows，聊天专属 Store 位于全局 | 按领域归属迁移受影响模块，声明公开子入口并同步调用方、守卫、懒加载和依赖检查 |
+| Feature 归属与入口 | MCP 已归独立领域并使用查询缓存，聊天工具栏 Store 已归聊天，当前跨 Feature 导入已有公开契约与守卫；其他领域仍需核验入口和全局模型归属 | 按领域继续治理，避免无选择的聚合导出，保持懒加载和依赖检查 |
 | Runtime/TUI 职责 | 核心 Runtime 仍通过继承、原型注入共享大量状态；TUI 混合多个渲染与交互职责 | 分批明确状态所有者和窄接口；按独立变化原因拆分或合并，保持行为与跨端契约，不能仅以减少行数验收 |
+
+### 决策审批与 Computer Use 验证接线
+
+决策服务仍由 App Runtime 持有，通过 `SkillsService` 的窄依赖传入资源加载器。`runtime/runtime/computer-use-verification.mjs` 只装饰 Pi 已加载的官方 `act_ui` 定义，复用其参数、执行闭包与会话生命周期；不再单独加载同名扩展或创建第二份 bridge 状态。主会话及 Runtime 派生的子代理共用此接线，未注入决策服务的独立加载器保留官方工具。
+
+审批参数先经过现有结构化凭据检测；命中时不外发、不对脱敏后的不完整输入自动批准，而是回落人工审批。检测复用 `runtime/security/secret-redaction.mjs` 的模式，属于保守的已知凭据检测，不能保证识别所有无标签秘密。验证入口为 `runtime/tests/computer-use-verification.test.mjs`、`runtime/tests/decision-service.test.mjs` 和既有脱敏测试。回滚应同时恢复加载器及工具装饰接线，不能恢复两份 `bridge.ts` 实例；无持久化迁移。
+
+### 决策模型扩展
+
+决策服务通过静态注册表选择供应商、协议和型号能力，新增协议由窄适配器实现。自动审批策略按精确型号登记，阈值绑定供应商、型号、端点和策略版本；无策略或绑定不匹配时回落会话权限。现有 Jev 默认型号采用兼容策略，不代表新模型自动获得同样的概率解释。迁移、回滚及三端范围见[决策模型边界](architecture/decision-models.md)，测试入口为 `runtime/tests/decision-models.test.mjs` 及原决策协议测试。

@@ -7,34 +7,23 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
-import {
-  Clock,
-  Menu,
-  MonitorCog,
-  Moon,
-  PanelRightClose,
-  PanelRightOpen,
-  RefreshCw,
-  Sun,
-  TerminalSquare,
-  type LucideIcon,
-} from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
+import { waitForMobileRuntimeReady } from '@/lib/http'
+import { isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
-import { useUiStore, type ThemeMode } from '@/stores/ui-store'
-import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
@@ -47,28 +36,27 @@ import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
+import { updateSessionOrganization } from './session-organization-api'
+import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
 import {
-  AUX_CHAT_TOGGLE_EVENT,
-  SESSION_CREATE_REQUESTED_EVENT,
-  consumeSessionCreationRequest,
-  requestAuxChatToggle,
-} from './events'
-
-// 中栏头部主题图标：与 PageHeader 的 THEME_META 保持一致顺序。
-const CHAT_THEME_META: Record<ThemeMode, LucideIcon> = {
-  system: MonitorCog,
-  scheduled: Clock,
-  light: Sun,
-  dark: Moon,
-}
+  resolveSessionContextPresentation,
+  shouldRevealSessionContext,
+  type SessionContextPreference,
+  type SessionContextRun,
+} from './session-context-layout'
+import type { SessionContextTab } from './SessionContextPanel'
+import { SessionContextLayout } from './SessionContextLayout'
+import { useChatLayoutStore } from './layout/chat-layout-store'
+import { canvasHasKind } from './layout/chat-canvas'
 
 // Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
-const LazyAuxChatPanel = lazy(() =>
-  import('./AuxChatPanel').then((module) => ({ default: module.AuxChatPanel })),
-)
 const LazyChatDockView = lazy(() =>
   import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
 )
+const LazySessionContextPanel = lazy(() =>
+  import('./SessionContextPanel').then((module) => ({ default: module.SessionContextPanel })),
+)
+const SESSION_CONTEXT_PANEL_ID = 'chat-session-context-panel'
 
 function invokeMobile<T>(command: string): Promise<T> {
   const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
@@ -90,8 +78,6 @@ type ChatPageProps = {
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
-  terminalOpen: boolean
-  onToggleTerminal: () => void
 }
 
 export function ChatPage({
@@ -103,23 +89,66 @@ export function ChatPage({
   onAssetConsumed,
   requestText,
   requestConfirm,
-  terminalOpen,
-  onToggleTerminal,
 }: ChatPageProps) {
   const { t } = useI18n()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  const layoutTemplate = useChatLayoutStore((state) => state.active)
+  const layoutRevision = useChatLayoutStore((state) => state.revision)
+  const deviceLayout = mobileLayout ? layoutTemplate.mobile : layoutTemplate.desktop
+  const embeddedContext = canvasHasKind(deviceLayout.canvas, 'context')
+  const openContextOnCompletion = deviceLayout.openContextOnCompletion && !embeddedContext
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
-  // 终端依赖桌面壳 PTY：网页端（浏览器/dev）不可用，按钮随之隐藏。
-  const terminalAvailable =
-    runtimeFeatureAvailable(capabilities, 'terminal') &&
-    Boolean(window.pisperDesktop?.terminalProfiles)
+  const chatLayoutRef = useRef<HTMLDivElement>(null)
+  const [contextWidth, setContextWidth] = useState(0)
+  const [contextPreference, setContextPreference] = useState<SessionContextPreference>(
+    () => layoutTemplate.desktop.contextVisibility,
+  )
+  const [contextTab, setContextTab] = useState<SessionContextTab>('files')
+  const contextRunRef = useRef<SessionContextRun | null>(null)
+  useEffect(() => {
+    // 模板只设定初始显示方式，之后仍允许用户手动打开和关闭上下文。
+    setContextPreference(mobileLayout ? 'auto' : layoutTemplate.desktop.contextVisibility)
+  }, [layoutTemplate.desktop.contextVisibility, layoutRevision, mobileLayout])
+  useLayoutEffect(() => {
+    const layout = chatLayoutRef.current
+    if (!layout) return
+    const measure = () => setContextWidth(layout.clientWidth)
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(layout)
+    return () => observer.disconnect()
+  }, [])
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
   const resumeSyncRef = useRef<Promise<void> | null>(null)
   const catalog = useSessionCatalog({ notify })
+  const markingReadRef = useRef(new Set<string>())
+  useEffect(() => {
+    const markViewed = () => {
+      const id = catalog.activeId
+      if (
+        !id ||
+        document.visibilityState !== 'visible' ||
+        !catalog.sessions.some((session) => session.id === id && session.unread) ||
+        markingReadRef.current.has(id)
+      )
+        return
+      markingReadRef.current.add(id)
+      void updateSessionOrganization(id, { read: true })
+        .catch(() => undefined)
+        .finally(() => markingReadRef.current.delete(id))
+    }
+    markViewed()
+    document.addEventListener('visibilitychange', markViewed)
+    return () => document.removeEventListener('visibilitychange', markViewed)
+  }, [catalog.activeId, catalog.sessions])
   const liveSync = useLiveSessionSync({
     sessionStates: catalog.sessionStates,
     sessionStatesRef: catalog.sessionStatesRef,
@@ -141,6 +170,48 @@ export function ChatPage({
     singleSessionLayout: mobileLayout,
     notify,
   })
+  const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
+  const activeSessionState = catalog.sessionStates[catalog.activeId]
+  const activeStreaming = Boolean(activeSessionState?.streaming || activeSession?.streaming)
+  const activeCompleted = Boolean(
+    activeSessionState?.lifecycle?.phase === 'completed' &&
+    !activeSessionState.error &&
+    !activeSessionState.runStopped,
+  )
+  useEffect(() => {
+    const current = {
+      sessionId: catalog.activeId,
+      streaming: activeStreaming,
+      completed: activeCompleted,
+    }
+    if (openContextOnCompletion && shouldRevealSessionContext(contextRunRef.current, current)) {
+      setContextTab('files')
+      setContextPreference('open')
+    }
+    contextRunRef.current = current
+  }, [catalog.activeId, activeStreaming, activeCompleted, openContextOnCompletion])
+  const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
+  const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
+  const contextPresentation = resolveSessionContextPresentation({
+    availableWidth: contextWidth,
+    mobileLayout,
+    hasSession: Boolean(activeSession) && !embeddedContext,
+    preference: contextPreference,
+  })
+  const contextCompact = mobileLayout || contextWidth < 800
+  const setActiveId = catalog.setActiveId
+  const toggleSessionContext = useCallback(
+    (sessionId: string, open: boolean) => {
+      if (!sessionId) return
+      if (open) {
+        setActiveId(sessionId)
+        setContextPreference('open')
+      } else {
+        setContextPreference('closed')
+      }
+    },
+    [setActiveId],
+  )
 
   const createSessionRecord = catalog.createSessionRecord
   const loadSessionMessages = liveSync.loadSessionMessages
@@ -311,69 +382,6 @@ export function ChatPage({
     [notify, openSessionInDock, refreshSessions, requestText, setGlobalError, t],
   )
 
-  // 右栏辅助对话：新建默认打开；开合状态持久化。
-  const [auxOpen, setAuxOpen] = useState(() => localStorage.getItem('pisper-aux-open') !== '0')
-  const updateAuxOpen = useCallback((open: boolean) => {
-    setAuxOpen(open)
-    localStorage.setItem('pisper-aux-open', open ? '1' : '0')
-  }, [])
-  // 中右卡片比例（右栏占容器百分比）：默认 0.618 黄金分割，可拖拽调整，持久化。
-  const [auxRatio, setAuxRatio] = useState(() => {
-    const saved = Number(localStorage.getItem('pisper-aux-ratio'))
-    return saved >= 0.2 && saved <= 0.75 ? saved : 0.382
-  })
-  const auxRatioRef = useRef(auxRatio)
-  auxRatioRef.current = auxRatio
-  useEffect(() => {
-    localStorage.setItem('pisper-aux-ratio', String(Math.round(auxRatio * 1000) / 1000))
-  }, [auxRatio])
-  const auxRatioDrag = useRef<{ startX: number; startRatio: number; total: number } | null>(null)
-  const startAuxRatioDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    const layout = event.currentTarget.parentElement
-    auxRatioDrag.current = {
-      startX: event.clientX,
-      startRatio: auxRatio,
-      total: layout ? layout.getBoundingClientRect().width : window.innerWidth,
-    }
-  }
-  const moveAuxRatioDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!auxRatioDrag.current || auxRatioDrag.current.total <= 0) return
-    // 向左拖 = 右栏变宽（clientX 减小 → 差值为正）。
-    const delta = (auxRatioDrag.current.startX - event.clientX) / auxRatioDrag.current.total
-    setAuxRatio(Math.min(0.75, Math.max(0.2, auxRatioDrag.current.startRatio + delta)))
-  }
-  const endAuxRatioDrag = () => {
-    auxRatioDrag.current = null
-  }
-  // 中栏头部三件套的本地状态：侧栏开合（ui-store）与主题循环。
-  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
-  const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
-  const toggleSidebar = useCallback(
-    () => setSidebarCollapsed(!sidebarCollapsed),
-    [setSidebarCollapsed, sidebarCollapsed],
-  )
-  const theme = useUiStore((state) => state.theme)
-  const cycleTheme = useUiStore((state) => state.cycleTheme)
-  const ThemeIcon = CHAT_THEME_META[theme]
-  const themeLabel =
-    theme === 'light'
-      ? t('navigation:pageHeader.light')
-      : theme === 'dark'
-        ? t('navigation:pageHeader.dark')
-        : theme === 'scheduled'
-          ? t('navigation:pageHeader.scheduled')
-          : t('navigation:pageHeader.system')
-  // 页头图标簇的辅助对话按钮经事件总线联动（PageHeader 与 ChatPage 跨层）。
-  const auxOpenRef = useRef(auxOpen)
-  auxOpenRef.current = auxOpen
-  useEffect(() => {
-    const toggle = () => updateAuxOpen(!auxOpenRef.current)
-    window.addEventListener(AUX_CHAT_TOGGLE_EVENT, toggle)
-    return () => window.removeEventListener(AUX_CHAT_TOGGLE_EVENT, toggle)
-  }, [updateAuxOpen])
-
   const openModelSettings = useCallback(() => navigate('config'), [navigate])
   // 会话状态不进 context：流式期间 sessionStates 每帧变化，
   // 若随 context 广播会让所有 Dock 面板每帧重渲染。面板改为按会话订阅，
@@ -388,11 +396,16 @@ export function ChatPage({
       globalError: catalog.globalError,
       activeId: catalog.activeId,
       compactDock: dock.compactDock,
+      contextTab: contextPresentation === 'closed' ? null : contextTab,
+      contextCompact,
+      contextPanelId: SESSION_CONTEXT_PANEL_ID,
+      toggleSessionContext,
       sessionTreePulseSessionId: recallPulse.sessionId,
       sessionTreePulseToken: recallPulse.token,
       pendingAsset,
       onAssetConsumed,
       notify,
+      requestConfirm,
       openModelSettings,
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
@@ -428,6 +441,10 @@ export function ChatPage({
       catalog.globalError,
       catalog.activeId,
       dock.compactDock,
+      contextPresentation,
+      contextTab,
+      contextCompact,
+      toggleSessionContext,
       dock.splitDockPanel,
       dock.closeDockPanel,
       recallPulse.sessionId,
@@ -435,6 +452,7 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
+      requestConfirm,
       openModelSettings,
       liveSync.loadSessionMessages,
       liveSync.loadOlderMessages,
@@ -461,122 +479,77 @@ export function ChatPage({
     ],
   )
 
+  const contextPanel = activeSession && contextPresentation !== 'closed' && (
+    <Suspense
+      fallback={
+        contextPresentation === 'aside' ? (
+          <aside
+            className="h-full min-h-0 w-full rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--panel)] p-4 text-sm text-[var(--text-muted)]"
+            role="status"
+          >
+            {t('chat:focusSession.gitLoading')}
+          </aside>
+        ) : null
+      }
+    >
+      <LazySessionContextPanel
+        key={activeSession.id}
+        panelId={SESSION_CONTEXT_PANEL_ID}
+        compact={contextPresentation === 'sheet'}
+        sessionId={activeSession.id}
+        tab={contextTab}
+        plan={runtimeFeatureAvailable(capabilities, 'plans') ? visiblePlan : null}
+        streaming={activeStreaming}
+        plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
+        requestConfirm={requestConfirm}
+        onTabChange={setContextTab}
+        onClose={() => setContextPreference('closed')}
+      />
+    </Suspense>
+  )
+
   return (
     <>
       <div
-        className="chat-layout relative grid w-full min-w-0 min-h-0 flex-1 gap-[6px] dock-layout max-[650px]:flex max-[650px]:flex-col max-[650px]:min-h-0 max-[650px]:gap-[0]"
-        style={{
-          gridTemplateColumns:
-            auxOpen && !mobileLayout
-              ? `minmax(0, 1fr) ${Math.round((auxRatio || 0.382) * 100)}%`
-              : 'minmax(0, 1fr)',
-        }}
+        ref={chatLayoutRef}
+        className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1"
       >
-        {catalog.loading ? (
-          <AppEmptyState>
-            <RefreshCw className="animate-spin" size={24} />
-            <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
-            <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-          </AppEmptyState>
-        ) : (
-          <>
-            <div className="chat-dock-workspace max-[650px]:[flex:1_1_0] max-[650px]:min-h-0 relative flex min-w-0 min-h-0 flex-col [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-muted)]">
-              {/* 中栏头部：桌面聊天页的应用页头三件套移到这里（汉堡/标题/工具簇）。 */}
-              {!mobileLayout && (
-                <div className="chat-column-header flex h-[40px] flex-none items-center gap-[4px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:0_8px]">
-                  <button
-                    type="button"
-                    className="grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-                    title={t('navigation:appSidebar.expandSidebar')}
-                    aria-label={t('navigation:appSidebar.expandSidebar')}
-                    onClick={toggleSidebar}
-                  >
-                    <Menu size={17} />
-                  </button>
-                  <span className="ml-[2px] text-[13px] font-[650] text-[var(--text)]">
-                    {t('common:app.sessions')}
-                  </span>
-                  <div className="flex-1" />
-                  {terminalAvailable && (
-                    <button
-                      type="button"
-                      className={`grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)] max-[1200px]:hidden ${terminalOpen ? 'bg-[var(--surface-hover)] text-[var(--brand-blue)]' : 'text-[var(--text-muted)]'}`}
-                      title={t('navigation:pageHeader.toggleTerminal')}
-                      aria-label={t('navigation:pageHeader.toggleTerminal')}
-                      aria-pressed={terminalOpen}
-                      onClick={onToggleTerminal}
-                    >
-                      <TerminalSquare size={16} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)] max-[1200px]:hidden"
-                    title={t('navigation:pageHeader.auxChat')}
-                    aria-label={t('navigation:pageHeader.auxChat')}
-                    onClick={requestAuxChatToggle}
-                  >
-                    {auxOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="grid h-[28px] w-[28px] flex-none place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-                    title={t('navigation:pageHeader.themeThemeClickToSwitch', {
-                      theme: themeLabel,
-                    })}
-                    aria-label={t('navigation:pageHeader.themeThemeClickToSwitchThemes', {
-                      theme: themeLabel,
-                    })}
-                    onClick={cycleTheme}
-                  >
-                    <ThemeIcon size={16} />
-                  </button>
-                </div>
-              )}
-              <div className="relative flex min-h-0 flex-1 flex-col">
-                <ChatDockContext.Provider value={dockContextValue}>
-                  {clientLoaded && mobileLayout ? (
-                    <MobileSessionPanel
-                      sessionIds={dock.mobileSessionIds}
-                      onSelectSession={openSessionInDock}
-                      onCreateSession={createSession}
-                    />
-                  ) : clientLoaded ? (
-                    <Suspense fallback={null}>
-                      <LazyChatDockView
-                        compactDock={dock.compactDock}
-                        onDockReady={dock.onDockReady}
-                        getTabContextMenuItems={dock.getTabContextMenuItems}
-                        createSession={createSession}
-                      />
-                    </Suspense>
-                  ) : null}
-                </ChatDockContext.Provider>
-              </div>
-            </div>
-            {/* 右栏（第二列）：拖拽手柄 + 辅助对话卡片包在同一个 flex 容器里，
-                保证网格只有两个子元素、两栏同行等高；比例持久化，窄屏隐藏。 */}
-            {!mobileLayout && auxOpen && (
-              <div className="relative flex min-h-0 items-stretch max-[1200px]:hidden">
-                <div
-                  className="relative z-[10] w-[6px] flex-none cursor-col-resize bg-transparent after:absolute after:inset-y-0 after:left-[2px] after:w-px after:bg-transparent hover:after:bg-[var(--stroke-hover)]"
-                  onPointerDown={startAuxRatioDrag}
-                  onPointerMove={moveAuxRatioDrag}
-                  onPointerUp={endAuxRatioDrag}
-                  aria-hidden="true"
-                />
-                <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--surface-subtle)]">
+        <SessionContextLayout
+          availableWidth={contextWidth}
+          presentation={contextPresentation}
+          context={contextPanel}
+          side={layoutTemplate.desktop.contextSide}
+        >
+          {catalog.loading ? (
+            <AppEmptyState>
+              <RefreshCw className="animate-spin" size={24} />
+              <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
+              <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
+            </AppEmptyState>
+          ) : (
+            <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
+              <ChatDockContext.Provider value={dockContextValue}>
+                {clientLoaded && mobileLayout ? (
+                  <MobileSessionPanel
+                    sessionIds={dock.mobileSessionIds}
+                    onSelectSession={openSessionInDock}
+                    onCreateSession={createSession}
+                    onOpenHistory={() => navigate('chatHistory')}
+                  />
+                ) : clientLoaded ? (
                   <Suspense fallback={null}>
-                    <LazyAuxChatPanel
-                      cwd={catalog.sessions.find((item) => item.id === catalog.activeId)?.cwd || ''}
-                      onClose={() => updateAuxOpen(false)}
+                    <LazyChatDockView
+                      compactDock={dock.compactDock}
+                      onDockReady={dock.onDockReady}
+                      getTabContextMenuItems={dock.getTabContextMenuItems}
+                      createSession={createSession}
                     />
                   </Suspense>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+                ) : null}
+              </ChatDockContext.Provider>
+            </div>
+          )}
+        </SessionContextLayout>
       </div>
       {sessionCommands.workspaceSession && (
         <WorkspacePicker

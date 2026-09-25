@@ -47,7 +47,7 @@ test('URL bar input and dock panel metadata normalize preview destinations', () 
 test('application routes external links into a right-side Dockview Web Preview panel', async () => {
   const [app, provider, dockView, dockHook, dockPanel, component] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/components/WebPreviewProvider.tsx', 'utf8'),
+    readFile('src/app/WebPreviewProvider.tsx', 'utf8'),
     readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),

@@ -78,6 +78,11 @@ export async function createBashTool(cwd, options) {
   return runtime.createBashTool(cwd, options)
 }
 
+export async function createLocalShellOperations(shellName, resolveShellConfig) {
+  const runtime = await packageModule('./core/tools/bash.js')
+  return runtime.createLocalShellOperations(shellName, resolveShellConfig)
+}
+
 export async function getShellConfig(customShellPath) {
   const runtime = await packageModule('./utils/shell.js')
   return runtime.getShellConfig(customShellPath)

@@ -8,9 +8,11 @@ test('quick setup wizard saves provider config after fetching and selecting a mo
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
   ])
 
-  assert.match(wizardSource, /setAsDefault: true/)
+  assert.match(wizardSource, /setAsDefault: false/)
   assert.match(wizardSource, /enabled: true/)
-  assert.match(wizardSource, /apiKeys,/)
+  assert.match(wizardSource, /apiKey,/)
+  assert.match(wizardSource, /apiKeyDraft\.trim\(\)/)
+  assert.match(wizardSource, /createProviderConnectionId/)
   // 向导先填写 Base URL，再选择协议，第三步获取模型列表。
   assert.match(wizardSource, /configPage\.quickSetupStepBaseUrl/)
   assert.match(wizardSource, /configPage\.quickSetupStepProtocol/)
@@ -25,18 +27,18 @@ test('quick setup wizard saves provider config after fetching and selecting a mo
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
 })
 
-test('Provider API key input appends multiple masked keys without returning their plaintext', async () => {
+test('Provider API key input uses a single password value without an add confirmation', async () => {
   const [wizardSource, dialogSource, keyListSource] = await Promise.all([
     readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
     readFile('src/features/config/ProviderDialogs.tsx', 'utf8'),
-    readFile('src/features/config/ApiKeyList.tsx', 'utf8'),
+    readFile('src/features/config/ApiKeyInput.tsx', 'utf8'),
   ])
-  assert.match(wizardSource, /<ApiKeyList/)
-  assert.match(dialogSource, /<ApiKeyList/)
+  assert.match(wizardSource, /<ApiKeyInput/)
+  assert.match(dialogSource, /<ApiKeyInput/)
   assert.match(keyListSource, /type="password"/)
   assert.match(keyListSource, /autoComplete="new-password"/)
-  assert.match(keyListSource, /maskKey\(key\)/)
-  assert.match(keyListSource, /onChange\(\[\.\.\.keys, key\]\)/)
+  assert.doesNotMatch(keyListSource, /Plus|onKeyDown/)
+  assert.match(dialogSource, /apiKeyDraft\.trim\(\)/)
 })
 
 test('visual Provider settings expose a direct connection editor and hide unused presets', async () => {

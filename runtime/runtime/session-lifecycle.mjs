@@ -4,12 +4,19 @@
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 import { SessionManager } from './pi-coding-agent.mjs'
+import { ensureSessionFilePersisted } from './session-file-persist.mjs'
 import {
   DEFAULT_EXECUTION_MODE,
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
+import {
+  applySessionOrganizationPatch,
+  parseSessionOrganizationPatch,
+  projectSessionOrganization,
+  recordSessionCompletion,
+} from '../services/chat-session-organization.mjs'
 import {
   appendTreePosition,
   findPendingTreePosition,
@@ -19,6 +26,19 @@ import {
 } from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
+const MAX_MANUAL_SESSION_TITLE_CHARS = 120
+
+// 手动输入的标题独立于首条消息自动命名；超过输入框上限时明确报错，避免静默截断。
+function cleanManualSessionTitle(value) {
+  const title = String(value || '')
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+  if (title.length > MAX_MANUAL_SESSION_TITLE_CHARS) {
+    throw new Error(`会话标题不能超过 ${MAX_MANUAL_SESSION_TITLE_CHARS} 个字符。`)
+  }
+  return title
+}
+
 // Composer 运行模式（plan/goal/team）：会话级偏好，随 sessionMeta 持久化。
 const COMPOSER_RUN_MODES = new Set(['plan', 'goal', 'team'])
 export const DEFAULT_COMPOSER_RUN_MODE = 'plan'
@@ -55,6 +75,7 @@ export class SessionLifecycle {
     saveUsageLedger,
     getUsageLedger,
     createSessionRuntime,
+    markSessionTracked,
     setSessionModel,
     syncGoalTools,
     pauseSessionGoal,
@@ -89,6 +110,7 @@ export class SessionLifecycle {
     this.saveUsageLedger = saveUsageLedger
     this.getUsageLedger = getUsageLedger
     this.createSessionRuntime = createSessionRuntime
+    this.markSessionTracked = markSessionTracked
     this.setSessionModel = setSessionModel
     this.syncGoalTools = syncGoalTools
     this.pauseSessionGoal = pauseSessionGoal
@@ -103,6 +125,7 @@ export class SessionLifecycle {
     this.sessionLabelIndex = null
     this.sessionLabelIndexDirty = false
     this.sessionLabelIndexFlush = null
+    this.organizationUpdate = Promise.resolve()
   }
 
   touchSessionRuntime(value) {
@@ -358,6 +381,7 @@ export class SessionLifecycle {
           ? { childSessionIds: childrenByParent.get(id) }
           : null,
       ...value,
+      ...projectSessionOrganization(sessionMeta[id], this.getPermissions().getPending(id).length),
     })
     const result = sessions.map((session) => {
       const active = this.sessions.get(session.id)
@@ -435,7 +459,7 @@ export class SessionLifecycle {
     return result
   }
 
-  // 创建会话：只物化 SessionManager 与元数据，真正的运行时等首次消息时才装配。
+  // 创建会话：先写最小会话文件供重启与并发整理定位，真正的运行时等首次消息时才装配。
   async createSession(name, cwd) {
     const resolvedName = this.cleanSessionTitle(name) || DEFAULT_SESSION_NAME
     const effectiveCwd = await this.resolveDirectory(cwd, this.cwd)
@@ -443,6 +467,7 @@ export class SessionLifecycle {
     const id = manager.getSessionId()
     const now = new Date().toISOString()
     manager.appendSessionInfo(resolvedName)
+    await ensureSessionFilePersisted(manager, resolvedName, effectiveCwd)
     this.pendingSessions.set(id, {
       manager,
       name: resolvedName,
@@ -460,6 +485,12 @@ export class SessionLifecycle {
       permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
     }
     await this.saveSessionMeta()
+    try {
+      await this.markSessionTracked?.(id, effectiveCwd)
+    } catch {
+      // 索引失败时不阻止新建会话；日志不包含会话 ID、路径或原始异常。
+      console.warn('新会话文件变更索引创建失败。')
+    }
     // 新会话文件已落盘；把它的信息增量插入存储会话缓存，使 listSessions /
     // findSessionInfo 立即可见，而无需为单个新文件全量重扫所有会话（listAll
     // 会逐行读完每个 .jsonl，会话多时非常慢）。
@@ -490,6 +521,7 @@ export class SessionLifecycle {
       created: now,
       modified: now,
       permissionMode: sessionMeta[id].permissionMode,
+      ...projectSessionOrganization(sessionMeta[id]),
       executionMode: this.getExecutionMode(id),
       goal: null,
       plan: this.getPlans().get(id),
@@ -1002,6 +1034,7 @@ export class SessionLifecycle {
       permissionMode: sessionMeta[derivedId].permissionMode,
       executionMode: sessionMeta[derivedId].executionMode,
       runMode: sessionMeta[derivedId].runMode || DEFAULT_COMPOSER_RUN_MODE,
+      ...projectSessionOrganization(sessionMeta[derivedId]),
       goal: null,
       plan: null,
       agents: [],
@@ -1031,7 +1064,7 @@ export class SessionLifecycle {
 
   // 重命名会话：同时更新运行时/待物化/存储三处名称并写回元数据。
   async renameSession(id, name, { manual = true } = {}) {
-    const title = this.cleanSessionTitle(name)
+    const title = cleanManualSessionTitle(name)
     if (!title) throw new Error('会话标题不能为空。')
     const active = this.sessions.get(id)
     const pending = this.pendingSessions.get(id)
@@ -1061,6 +1094,55 @@ export class SessionLifecycle {
     if (cached) this.upsertStoredSession({ ...cached, name: title, modified: new Date(modified) })
     this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
     return { id, name: title, manual: Boolean(manual) }
+  }
+
+  // 组织状态独立于重命名接口；同一进程中的并发 PATCH 按写入顺序落盘。
+  updateSessionOrganization(id, input) {
+    const patch = parseSessionOrganizationPatch(input)
+    const update = this.organizationUpdate
+      .catch(() => {})
+      .then(async () => {
+        if (
+          !this.sessions.has(id) &&
+          !this.pendingSessions.has(id) &&
+          !(await this.findSessionInfo(id))
+        )
+          return null
+        const pending = this.pendingSessions.get(id)
+        if (
+          pending &&
+          this.pendingSessions.get(id) !== pending &&
+          !this.sessions.has(id) &&
+          !(await this.findSessionInfo(id))
+        )
+          return null
+        const sessionMeta = this.getSessionMeta()
+        const previous = sessionMeta[id]
+        const next = applySessionOrganizationPatch(previous, patch)
+        sessionMeta[id] = next
+        try {
+          await this.saveSessionMeta()
+        } catch (error) {
+          if (sessionMeta[id] === next) {
+            if (previous === undefined) delete sessionMeta[id]
+            else sessionMeta[id] = previous
+          }
+          throw error
+        }
+        this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
+        return (await this.listSessions()).find((session) => session.id === id) || null
+      })
+    this.organizationUpdate = update
+    return update
+  }
+
+  // 只在 Agent 轮次真正结算时标记未读；成功回复同时清掉旧失败状态。
+  recordSessionCompletion(id, failed, completedAt = new Date().toISOString()) {
+    if (!this.sessions.has(id) && !this.pendingSessions.has(id)) return Promise.resolve()
+    const sessionMeta = this.getSessionMeta()
+    sessionMeta[id] = recordSessionCompletion(sessionMeta[id], { failed, completedAt })
+    this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
+    return this.saveSessionMeta()
   }
 
   // 切换权限模式：非 ask 模式立即结算（approve/deny）全部待审批项。

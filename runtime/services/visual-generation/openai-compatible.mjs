@@ -1,6 +1,7 @@
 // OpenAI 兼容视觉驱动：适用于 OpenAI/OpenRouter 等 OpenAI 协议兼容的图像/视频生成。
 import { basename } from 'node:path'
 import OpenAI, { toFile } from 'openai'
+import { createOpenAIRequestFetch } from '../openai-request-transport.mjs'
 
 function dataUrlImage(value) {
   const match = String(value || '').match(/^data:([^;]+);base64,(.+)$/)
@@ -197,6 +198,7 @@ export async function generateOpenAICompatible(model, request, { signal, onProgr
     apiKey: model.apiKey,
     baseURL: model.baseUrl,
     defaultHeaders: model.headers,
+    fetch: createOpenAIRequestFetch(),
     timeout: request.kind === 'video' ? 10 * 60_000 : 3 * 60_000,
     maxRetries: 1,
   })

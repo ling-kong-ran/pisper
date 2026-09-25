@@ -3,6 +3,14 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { createPrimaryActionRegistry } from '../../src/app/primary-action.ts'
 import {
+  SESSIONS_UPDATED_EVENT,
+  announceSessionsUpdated,
+  subscribeSessionDeletionUpdates,
+  subscribeSessionTitleUpdates,
+} from '../../src/features/chat/events.ts'
+import {
+  applySessionTitleUpdate,
+  createSessionTitleReconciler,
   mergeSessionLists,
   recentSessionCwd,
   sessionCwdForCreate,
@@ -56,6 +64,220 @@ test('stale initial session lists preserve an optimistically created session', (
   const stale = [{ id: 'existing-session', name: '旧会话' }]
 
   assert.deepEqual(mergeSessionLists([optimistic], stale), [stale[0], optimistic])
+})
+
+test('saved session title events update an open catalog twice without changing other sessions', () => {
+  const priorWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  const target = new EventTarget()
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: target })
+  const other = { id: 'other', name: 'Other chat' }
+  let sessions = [{ id: 'selected', name: '新会话' }, other]
+  const unsubscribe = subscribeSessionTitleUpdates(target, (update) => {
+    sessions = applySessionTitleUpdate(sessions, update)
+  })
+
+  try {
+    const first = 'Repeat title prefix! first'
+    const second = 'Repeat title prefix! second'
+    announceSessionsUpdated({ id: 'selected', name: first })
+    assert.equal(sessions[0].name, first)
+    announceSessionsUpdated({ id: 'selected', name: second })
+    assert.equal(sessions[0].name, second)
+    assert.equal(sessions[1], other)
+
+    const unchanged = sessions
+    announceSessionsUpdated()
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, { detail: { id: 1, name: 'invalid' } }),
+    )
+    announceSessionsUpdated({ id: 'unknown', name: 'ignored' })
+    assert.equal(sessions, unchanged)
+
+    unsubscribe()
+    announceSessionsUpdated({ id: 'selected', name: 'after unsubscribe' })
+    assert.equal(sessions, unchanged)
+  } finally {
+    unsubscribe()
+    if (priorWindow) Object.defineProperty(globalThis, 'window', priorWindow)
+    else delete globalThis.window
+  }
+})
+
+test('a title saved before the initial catalog is installed survives a delayed configuration response', async () => {
+  const target = new EventTarget()
+  const titles = createSessionTitleReconciler()
+  const config = Promise.withResolvers()
+  const snapshot = [{ id: 'selected', name: 'Original title' }]
+  let sessions = []
+  const unsubscribe = subscribeSessionTitleUpdates(target, (update) => {
+    titles.record(update)
+    sessions = applySessionTitleUpdate(sessions, update)
+  })
+  const requestRevision = titles.getRevision()
+  const listResponse = Promise.resolve(snapshot)
+  const initialization = Promise.all([listResponse, config.promise]).then(([incoming]) => {
+    sessions = mergeSessionLists(sessions, titles.reconcile(incoming, requestRevision))
+  })
+
+  try {
+    // 目录已返回、配置尚未完成时，侧栏已经可以确认重命名。
+    await listResponse
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, {
+        detail: { id: 'selected', name: 'Saved while loading' },
+      }),
+    )
+    assert.deepEqual(sessions, [])
+    config.resolve({})
+    await initialization
+    assert.equal(sessions[0].name, 'Saved while loading')
+    assert.equal(snapshot[0].name, 'Original title', 'the received snapshot is not mutated')
+  } finally {
+    config.resolve({})
+    await initialization
+    unsubscribe()
+  }
+})
+
+test('two confirmed titles survive older refreshes without changing another open session or run data', () => {
+  const target = new EventTarget()
+  const titles = createSessionTitleReconciler()
+  const active = { id: 'active', name: 'Active chat', model: 'provider/model' }
+  const background = {
+    id: 'background',
+    name: 'Background chat',
+    streaming: true,
+    goal: { status: 'active', objective: 'Keep working' },
+    plan: { steps: [{ title: 'Existing step', status: 'in_progress' }] },
+    agents: [{ id: 'existing-agent', status: 'running' }],
+  }
+  const snapshot = [active, background]
+  let sessions = snapshot
+  const firstRequest = titles.getRevision()
+  const unsubscribe = subscribeSessionTitleUpdates(target, (update) => {
+    titles.record(update)
+    sessions = applySessionTitleUpdate(sessions, update)
+  })
+
+  try {
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, {
+        detail: { id: 'background', name: 'First saved title' },
+      }),
+    )
+    const secondRequest = titles.getRevision()
+    const intermediateSnapshot = sessions
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, {
+        detail: { id: 'background', name: 'Second saved title' },
+      }),
+    )
+    assert.equal(sessions[1].name, 'Second saved title')
+
+    for (const [incoming, revision] of [
+      [intermediateSnapshot, secondRequest],
+      [snapshot, firstRequest],
+    ]) {
+      sessions = titles.reconcile(incoming, revision)
+      assert.equal(sessions[1].name, 'Second saved title')
+      assert.equal(sessions[0], active)
+      assert.equal(sessions[1].streaming, true)
+      assert.equal(sessions[1].goal, background.goal)
+      assert.equal(sessions[1].plan, background.plan)
+      assert.equal(sessions[1].agents, background.agents)
+    }
+    assert.equal(snapshot[1].name, 'Background chat')
+    assert.equal(intermediateSnapshot[1].name, 'First saved title')
+  } finally {
+    unsubscribe()
+  }
+})
+
+test('a refresh started after local renaming accepts a newer title saved by another client', () => {
+  const titles = createSessionTitleReconciler()
+  titles.record({ id: 'selected', name: 'Local title' })
+  const requestRevision = titles.getRevision()
+  const remote = { id: 'selected', name: 'Newer title from another client' }
+
+  assert.equal(titles.reconcile([remote], requestRevision)[0], remote)
+  assert.deepEqual(titles.reconcile([], requestRevision), [])
+  const matching = { id: 'selected', name: 'Local title' }
+  assert.equal(titles.reconcile([matching], requestRevision - 1)[0], matching)
+})
+
+test('deleted title updates are removed and disposed subscribers stop recording subsequent renames', () => {
+  const target = new EventTarget()
+  const titles = createSessionTitleReconciler()
+  const requestRevision = titles.getRevision()
+  const unsubscribeTitle = subscribeSessionTitleUpdates(target, (update) => titles.record(update))
+  const unsubscribeDeletion = subscribeSessionDeletionUpdates(target, ({ deletedIds }) => {
+    titles.remove(deletedIds)
+  })
+
+  try {
+    for (const id of ['deleted', 'retained']) {
+      target.dispatchEvent(
+        new CustomEvent(SESSIONS_UPDATED_EVENT, { detail: { id, name: `Saved ${id}` } }),
+      )
+    }
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, { detail: { deletedIds: ['deleted'] } }),
+    )
+    const snapshot = [
+      { id: 'deleted', name: 'Original deleted' },
+      { id: 'retained', name: 'Original retained' },
+    ]
+    const reconciled = titles.reconcile(snapshot, requestRevision)
+    assert.equal(reconciled[0], snapshot[0], 'deletion also removes the pending title override')
+    assert.equal(reconciled[1].name, 'Saved retained')
+
+    unsubscribeTitle()
+    unsubscribeDeletion()
+    const revisionAtDisposal = titles.getRevision()
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, {
+        detail: { id: 'retained', name: 'After disposal' },
+      }),
+    )
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, { detail: { deletedIds: ['retained'] } }),
+    )
+    assert.equal(titles.getRevision(), revisionAtDisposal)
+    assert.equal(titles.reconcile(snapshot, requestRevision)[1].name, 'Saved retained')
+  } finally {
+    unsubscribeTitle()
+    unsubscribeDeletion()
+  }
+})
+
+test('confirmed deletion events reach open views without treating refreshes or titles as deletions', () => {
+  const priorWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  const target = new EventTarget()
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: target })
+  const received = []
+  const unsubscribe = subscribeSessionDeletionUpdates(target, ({ deletedIds }) => {
+    received.push(deletedIds)
+  })
+
+  try {
+    announceSessionsUpdated()
+    announceSessionsUpdated({ id: 'first', name: 'Renamed' })
+    target.dispatchEvent(
+      new CustomEvent(SESSIONS_UPDATED_EVENT, { detail: { deletedIds: ['first', 3] } }),
+    )
+    assert.deepEqual(received, [])
+
+    announceSessionsUpdated({ deletedIds: ['first', 'second', 'first'] })
+    assert.deepEqual(received, [['first', 'second']])
+
+    unsubscribe()
+    announceSessionsUpdated({ deletedIds: ['third'] })
+    assert.deepEqual(received, [['first', 'second']])
+  } finally {
+    unsubscribe()
+    if (priorWindow) Object.defineProperty(globalThis, 'window', priorWindow)
+    else delete globalThis.window
+  }
 })
 
 test('new sessions inherit the most recently listed workspace', async () => {

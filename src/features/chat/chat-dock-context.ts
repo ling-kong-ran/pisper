@@ -1,6 +1,7 @@
 // 会话打开请求 / Dock 布局事件的处理封装，供各组件复用。
 import { createContext } from 'react'
 import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type {
   ChatAttachment,
   ModelOption,
@@ -11,6 +12,7 @@ import type {
 } from '@/types/chat'
 import type { SessionOpenDisposition } from './dock-layout'
 import type { WithdrawnInput } from './chat-api'
+import type { SessionContextTab } from './SessionContextPanel'
 
 export type ChatDockContextValue = {
   sessions: SessionSummary[]
@@ -23,12 +25,17 @@ export type ChatDockContextValue = {
   globalError: string
   activeId: string
   compactDock: boolean
+  contextTab: SessionContextTab | null
+  contextCompact: boolean
+  contextPanelId: string
+  toggleSessionContext: (sessionId: string, open: boolean) => void
   sessionTreePulseSessionId: string
   sessionTreePulseToken: number
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   // 通用通知与「打开模型设置」入口（视觉生成引导等场景使用）。
   notify: Notify
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   openModelSettings: () => void
   loadSessionMessages: (id: string, options?: { force?: boolean; limit?: number }) => Promise<void>
   loadOlderMessages: (id: string) => Promise<boolean>

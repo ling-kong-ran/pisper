@@ -780,6 +780,7 @@ export class AgentRuntimeFacade {
 
   // 全局关闭流程：清理定时器、后台服务与挂起的写盘任务，保证进程可干净退出。
   async dispose() {
+    await this.memoryCapture.dispose()
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null
     for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
@@ -787,6 +788,7 @@ export class AgentRuntimeFacade {
     this.providerModelDiscovery.abort?.()
     await this.providerModelRefreshPromise?.catch(() => {})
     await this.providerModelCatalog.dispose()
+    await this.modelMetadata.dispose()
     await this.workflows.dispose()
     await this.schedules.dispose()
     await this.channels.dispose()
@@ -948,6 +950,12 @@ export class AgentRuntimeFacade {
     return { cwd, ...(await this.getFileChangesService().list(id, cwd)) }
   }
 
+  // 会话目录的轻量改动摘要只来自本会话写工具快照，不混用工作区 Git/SVN 状态。
+  async getSessionChangeSummary(id) {
+    const cwd = await this.sessionWorkspaceCwd(id)
+    return this.getFileChangesService().summary(id, cwd)
+  }
+
   async getSessionFileChangeDiff(id, filePath) {
     const cwd = await this.sessionWorkspaceCwd(id)
     const relPath = this.fileChangeRelPath(cwd, filePath)
@@ -1084,6 +1092,10 @@ export class AgentRuntimeFacade {
 
   async setProviderEnabled(id, enabled) {
     return this.providerPreferences.setProviderEnabled(id, enabled)
+  }
+
+  async cloneProvider(id, input) {
+    return this.providerPreferences.cloneProvider(id, input)
   }
 
   async createProvider(input) {

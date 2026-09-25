@@ -352,7 +352,7 @@ pub struct App {
     pub vcs_scroll: Cell<u16>,
     pub vcs_max_scroll: Cell<u16>,
     pub compacting_context: bool,
-    pub confirm_model_compaction: bool,
+    pub suggest_model_compaction: bool,
     pub status: String,
     pub status_error: bool,
     pub status_frame: u64,
@@ -440,7 +440,7 @@ impl App {
             vcs_scroll: Cell::new(0),
             vcs_max_scroll: Cell::new(0),
             compacting_context: false,
-            confirm_model_compaction: false,
+            suggest_model_compaction: false,
             sessions,
             session,
             messages,
@@ -1169,7 +1169,7 @@ impl App {
             command("/dir", "Change the active conversation directory"),
             command("/changes", "Inspect Git or SVN workspace changes"),
             command("/chat", "Return to the conversation"),
-            command("/model", "Switch the active session model"),
+            command("/model", "Switch model; keep context (/compact optional)"),
             command("/thinking", "Switch the active session thinking level"),
             command(
                 "/provider",
@@ -1271,21 +1271,12 @@ impl App {
             let composer_character = matches!(key.code, KeyCode::Char(_))
                 && self.view == View::Chat
                 && self.accepts_composer_input()
-                && !self.confirm_model_compaction
                 && !key
                     .modifiers
                     .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT);
             if !navigation && !composer_character {
                 return Action::None;
             }
-        }
-        if key.modifiers.contains(KeyModifiers::CONTROL)
-            && key.code == KeyCode::Char('c')
-            && self.confirm_model_compaction
-        {
-            self.confirm_model_compaction = false;
-            self.status = "model changed · context kept".to_owned();
-            return Action::None;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             // Ctrl+C：运行中先中止，第二次再按强制退出；空闲时直接退出。
@@ -1299,21 +1290,6 @@ impl App {
                 }
             } else {
                 Action::Quit
-            };
-        }
-        if self.confirm_model_compaction {
-            // 换模型后的「是否压缩上下文」确认弹层。
-            return match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => {
-                    self.confirm_model_compaction = false;
-                    Action::Compact
-                }
-                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                    self.confirm_model_compaction = false;
-                    self.status = "model changed · context kept".to_owned();
-                    Action::None
-                }
-                _ => Action::None,
             };
         }
         if let Some(approval) = self.approval.clone() {
@@ -2539,6 +2515,7 @@ impl App {
     /// 启动一轮提示：写入用户消息、创建流式 LiveTurn，
     /// 并返回 Submit 动作（草稿会话由事件循环先物化再提交）。
     fn start_prompt(&mut self, prompt: QueuedPrompt) -> Action {
+        self.suggest_model_compaction = false;
         let display_message = prompt
             .display_message
             .clone()
@@ -2735,7 +2712,7 @@ impl App {
         self.vcs_scroll.set(0);
         self.vcs_max_scroll.set(0);
         self.compacting_context = false;
-        self.confirm_model_compaction = false;
+        self.suggest_model_compaction = false;
         self.session = session;
         self.messages = messages;
         self.image_thumbnails.clear();
@@ -2933,6 +2910,7 @@ impl App {
 
     /// 草稿会话中预选模型（仅本地记录，物化时同步到 Runtime）。
     pub fn set_draft_model(&mut self, provider: String, model: String) {
+        self.suggest_model_compaction = false;
         self.model = format!("{provider}/{model}");
         self.session.model.clone_from(&self.model);
         self.thinking_level.clear();
@@ -3022,8 +3000,9 @@ impl App {
         self.status_error = false;
     }
 
-    /// 应用模型变更；若已有消息则提示是否顺带压缩上下文。
+    /// 换模型默认保留上下文；压缩建议只作展示，不能抢占输入或阻止发送。
     pub fn set_model(&mut self, updated: SessionModelUpdate) {
+        self.suggest_model_compaction = self.model != updated.model && !self.messages.is_empty();
         self.model = updated.model;
         self.session.model.clone_from(&self.model);
         self.set_thinking_state(ThinkingLevelUpdate {
@@ -3040,12 +3019,7 @@ impl App {
         {
             session.model.clone_from(&self.model);
         }
-        self.confirm_model_compaction = !self.messages.is_empty();
-        self.status = if self.confirm_model_compaction {
-            format!("model changed · {} · compact context? [y/N]", self.model)
-        } else {
-            format!("model changed · {}", self.model)
-        };
+        self.status = format!("model changed · {}", self.model);
         self.status_error = false;
     }
 
@@ -3290,6 +3264,7 @@ impl App {
 
     /// 开始上下文压缩（显示进行中状态）。
     pub fn begin_context_compaction(&mut self) {
+        self.suggest_model_compaction = false;
         self.compacting_context = true;
         self.status = "compacting context".to_owned();
         self.status_error = false;
@@ -4629,9 +4604,98 @@ mod tests {
         assert_eq!(app.input_text(), "@");
     }
 
-    /// 验证切换模型时，已有消息的会话会询问是否顺带压缩上下文。
+    /// 换模型后仍可编辑已有草稿，普通字符不能被隐式确认状态吞掉。
     #[test]
-    fn model_switch_offers_context_compaction_for_existing_messages() {
+    fn model_switch_keeps_draft_editable_and_enter_sends() {
+        let mut app = test_app(Vec::new());
+        app.messages.push(ChatMessage {
+            role: "user".to_owned(),
+            text: "hello".to_owned(),
+            ..Default::default()
+        });
+        app.set_input("继续 ");
+        app.set_model(SessionModelUpdate {
+            model: "provider/model-b".to_owned(),
+            ..Default::default()
+        });
+        assert!(app.suggest_model_compaction);
+        assert!(app.accepts_composer_input());
+        for character in "yes no 你好".chars() {
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE)),
+                Action::None
+            ));
+        }
+        assert_eq!(app.input_text(), "继续 yes no 你好");
+        let mut repeated = KeyEvent::new(KeyCode::Char('!'), KeyModifiers::NONE);
+        repeated.kind = crossterm::event::KeyEventKind::Repeat;
+        assert!(matches!(app.handle_key(repeated), Action::None));
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::Submit { message, .. } if message == "继续 yes no 你好!"
+        ));
+        assert_eq!(app.model, "provider/model-b");
+        assert!(app.is_streaming());
+        assert!(!app.compacting_context);
+        assert!(!app.suggest_model_compaction);
+    }
+
+    /// 显式粘贴与突发粘贴都必须能在换模型后由回车提交。
+    #[test]
+    fn model_switch_allows_pasted_message_submission() {
+        for detected in [false, true] {
+            let mut app = test_app(Vec::new());
+            app.messages.push(ChatMessage {
+                role: "user".to_owned(),
+                text: "hello".to_owned(),
+                ..Default::default()
+            });
+            app.set_model(SessionModelUpdate {
+                model: "provider/model-b".to_owned(),
+                ..Default::default()
+            });
+            let pasted = "你好\ncontinue with this model";
+            if detected {
+                app.insert_detected_paste(pasted);
+            } else {
+                app.insert_paste(pasted);
+            }
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+                Action::Submit { message, .. } if message == pasted
+            ));
+        }
+    }
+
+    /// 空会话和相同模型重选无需提示压缩，均保留正常发送路径。
+    #[test]
+    fn model_switch_only_suggests_compaction_for_changed_models_with_history() {
+        let mut app = test_app(Vec::new());
+        app.set_model(SessionModelUpdate {
+            model: "provider/model-b".to_owned(),
+            ..Default::default()
+        });
+        assert!(!app.suggest_model_compaction);
+        app.messages.push(ChatMessage {
+            role: "user".to_owned(),
+            text: "hello".to_owned(),
+            ..Default::default()
+        });
+        app.set_model(SessionModelUpdate {
+            model: app.model.clone(),
+            ..Default::default()
+        });
+        assert!(!app.suggest_model_compaction);
+        app.set_input("continue");
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::Submit { message, .. } if message == "continue"
+        ));
+    }
+
+    /// 压缩仍须由用户显式调用；压缩或切换会话后不遗留建议。
+    #[test]
+    fn model_switch_compaction_suggestion_is_optional_and_session_scoped() {
         let mut app = test_app(Vec::new());
         app.messages.push(ChatMessage {
             role: "user".to_owned(),
@@ -4642,29 +4706,55 @@ mod tests {
             model: "provider/model-b".to_owned(),
             ..Default::default()
         });
-        assert!(app.confirm_model_compaction);
+        app.set_input("/compact");
         assert!(matches!(
-            app.handle_key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE)),
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
             Action::Compact
         ));
-        assert!(!app.confirm_model_compaction);
-    }
-
-    /// 验证空会话切换模型不询问压缩（无上下文可压）。
-    #[test]
-    fn model_switch_does_not_offer_compaction_for_empty_sessions() {
-        let mut app = test_app(Vec::new());
+        app.begin_context_compaction();
+        assert!(!app.suggest_model_compaction);
+        app.finish_context_compaction(None, None);
         app.set_model(SessionModelUpdate {
-            model: "provider/model-b".to_owned(),
+            model: "provider/model-c".to_owned(),
             ..Default::default()
         });
-        assert!(!app.confirm_model_compaction);
+        assert!(app.suggest_model_compaction);
+        app.replace_session(
+            SessionSummary {
+                id: "other-session".to_owned(),
+                ..Default::default()
+            },
+            Vec::new(),
+            None,
+        );
+        assert!(!app.suggest_model_compaction);
+    }
+
+    /// 新会话的预选模型不能影响现有草稿或首次发送。
+    #[test]
+    fn draft_model_switch_keeps_first_message_sendable() {
+        let mut app = test_app(Vec::new());
+        app.session.id.clear();
+        app.set_input("first message");
+        app.set_draft_model("provider".to_owned(), "model-b".to_owned());
+        assert!(!app.suggest_model_compaction);
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::Submit { message, .. } if message == "first message"
+        ));
     }
 
     /// 验证 /model 与 /thinking 斜杠命令打开选择器并应用所选值。
     #[test]
     fn model_and_thinking_slash_commands_open_pickers_and_apply_selection() {
         let mut app = test_app(Vec::new());
+        let model_help = app
+            .slash_items()
+            .into_iter()
+            .find(|item| item.command == "/model")
+            .unwrap();
+        assert!(model_help.detail.contains("keep context"));
+        assert!(model_help.detail.contains("/compact optional"));
         app.model = "provider/model-a".to_owned();
         app.set_model_options(vec![
             ModelOption {

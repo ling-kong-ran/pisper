@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -68,7 +68,7 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   assert.equal(visualStatus.image?.id, 'relay-image-v1')
 })
 
-test('one Provider merges multiple API key catalogs and resolves each model with its source key', async (t) => {
+test('one Provider rejects multiple keys and ignores stored legacy extra keys', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-multi-key-'))
   const calls = []
   const runtime = new AgentRuntimeService({
@@ -102,33 +102,34 @@ test('one Provider merges multiple API key catalogs and resolves each model with
     await rm(directory, { recursive: true, force: true })
   })
   await runtime.init()
-  await runtime.createProvider({
+  const input = {
     id: 'multi-relay',
     name: 'Multi relay',
     api: 'openai-responses',
     baseUrl: 'https://relay.example.test/v1',
-    apiKeys: ['key-alpha', 'key-beta'],
     model: 'alpha-only',
-  })
+  }
+  await assert.rejects(runtime.createProvider({ ...input, apiKeys: ['key-alpha', 'key-beta'] }))
+  await runtime.createProvider({ ...input, apiKey: 'key-alpha' })
+  await runtime.providerKeyring.add('multi-relay', ['key-beta'], 'key-alpha')
 
   const discovered = await runtime.discoverProviderModels('multi-relay')
-  assert.deepEqual(calls, ['key-alpha', 'key-beta'])
+  assert.deepEqual(calls, ['key-alpha'])
   assert.deepEqual(discovered.models.map((model) => model.id).sort(), [
     'alpha-only',
-    'beta-only',
     'shared-model',
   ])
   const alpha = runtime.modelRuntime.getModel('multi-relay', 'alpha-only')
-  const beta = runtime.modelRuntime.getModel('multi-relay', 'beta-only')
+  assert.equal(runtime.modelRuntime.getModel('multi-relay', 'beta-only'), undefined)
   assert.equal((await runtime.modelRuntime.getAuth(alpha)).auth.apiKey, 'key-alpha')
-  assert.equal((await runtime.modelRuntime.getAuth(beta)).auth.apiKey, 'key-beta')
   const config = await runtime.getConfig()
-  assert.equal(config.providers.find((provider) => provider.id === 'multi-relay').apiKeys.length, 2)
+  assert.equal(config.providers.find((provider) => provider.id === 'multi-relay').apiKeys.length, 1)
+  assert.equal((await runtime.providerKeyring.records('multi-relay')).length, 2)
   assert.equal(JSON.stringify(config).includes('key-alpha'), false)
   assert.equal(JSON.stringify(config).includes('key-beta'), false)
 })
 
-test('same URL connections share model catalogs while retaining the key that discovered each model', async (t) => {
+test('same URL connections keep model catalogs and credentials independent', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-shared-url-'))
   const runtime = new AgentRuntimeService({
     cwd: directory,
@@ -164,20 +165,137 @@ test('same URL connections share model catalogs while retaining the key that dis
     model: 'model-b',
   })
 
-  // 后添加连接尚未单独拉取时，初始模型已经与同 URL 已发现目录合并。
+  // 同 URL 的独立账号不能借用彼此的模型权限或凭据。
   assert.deepEqual(
-    runtime.modelRuntime
-      .getModels('relay-a')
-      .map((model) => model.id)
-      .sort(),
-    ['model-a', 'model-b'],
+    runtime.modelRuntime.getModels('relay-a').map((model) => model.id),
+    ['model-a'],
   )
   await runtime.discoverProviderModels('relay-b')
-  const models = runtime.modelRuntime.getModels('relay-a')
-  assert.deepEqual(models.map((model) => model.id).sort(), ['model-a', 'model-b'])
-  const peerModel = runtime.modelRuntime.getModel('relay-a', 'model-b')
-  assert.equal(peerModel.pisperAuthProvider, 'relay-b')
-  assert.equal((await runtime.modelRuntime.getAuth(peerModel)).auth.apiKey, 'key-b')
+  assert.deepEqual(
+    runtime.modelRuntime.getModels('relay-a').map((model) => model.id),
+    ['model-a'],
+  )
+  assert.equal(runtime.modelRuntime.getModel('relay-a', 'model-b'), undefined)
+  const ownModel = runtime.modelRuntime.getModel('relay-b', 'model-b')
+  assert.equal((await runtime.modelRuntime.getAuth(ownModel)).auth.apiKey, 'key-b')
+  const createdSession = await runtime.createSession('Pinned model', directory)
+  const sessionBefore = await runtime.getOrCreateSession(createdSession.id)
+  const pinnedModel = {
+    provider: sessionBefore.session.model.provider,
+    id: sessionBefore.session.model.id,
+  }
+  const switched = await runtime.saveConfig({ provider: 'relay-b', setAsDefault: true })
+  const sessionAfter = await runtime.getOrCreateSession(createdSession.id)
+  assert.deepEqual(
+    { provider: sessionAfter.session.model.provider, id: sessionAfter.session.model.id },
+    pinnedModel,
+  )
+  assert.equal(switched.defaultProvider, 'relay-b')
+  assert.equal(switched.defaultModel, 'model-b')
+  const configBeforeClone = await runtime.addProviderModel('relay-b', {
+    id: 'model-b-extra',
+    name: 'Extra',
+    kind: 'chat',
+    reasoning: false,
+  })
+  const cloned = await runtime.cloneProvider('relay-b', { name: 'Backup relay' })
+  const cloneId = cloned.createdProviderId
+  assert.deepEqual(
+    cloned.providers
+      .find((entry) => entry.id === cloneId)
+      .models.map((entry) => entry.id)
+      .sort(),
+    configBeforeClone.providers
+      .find((entry) => entry.id === 'relay-b')
+      .models.map((entry) => entry.id)
+      .sort(),
+  )
+  assert.notEqual(cloneId, 'relay-b')
+  assert.equal(cloned.defaultProvider, 'relay-b')
+  assert.equal(cloned.providers.find((entry) => entry.id === cloneId).defaultModel, 'model-b')
+  assert.equal(
+    (await runtime.modelRuntime.getAuth(runtime.modelRuntime.getModel(cloneId, 'model-b'))).auth
+      .apiKey,
+    'key-b',
+  )
+  await runtime.setProviderApiKey(cloneId, { apiKey: 'replacement-key' })
+  assert.equal(
+    (await runtime.modelRuntime.getAuth(runtime.modelRuntime.getModel('relay-b', 'model-b'))).auth
+      .apiKey,
+    'key-b',
+  )
+  assert.equal(
+    (await runtime.modelRuntime.getAuth(runtime.modelRuntime.getModel(cloneId, 'model-b'))).auth
+      .apiKey,
+    'replacement-key',
+  )
+  assert.equal(JSON.stringify(cloned).includes('key-b'), false)
+  const configBeforeError = await runtime.getConfig()
+  await assert.rejects(runtime.cloneProvider('relay-b', { id: 'relay-a' }), /已存在/)
+  await assert.rejects(runtime.cloneProvider('missing-source'), /不存在/)
+  assert.deepEqual(await runtime.getConfig(), configBeforeError)
+  const before = runtime.settingsManager.getGlobalSettings()
+  await runtime.saveConfig({ provider: 'relay-b', model: 'model-b-extra', setAsDefault: false })
+  const after = await runtime.getConfig()
+  assert.equal(after.defaultProvider, 'relay-b')
+  assert.equal(after.defaultModel, 'model-b-extra')
+  assert.equal(
+    after.providers.find((entry) => entry.id === 'relay-b').baseUrl,
+    'https://relay.example.test/v1',
+  )
+  assert.equal(
+    runtime.settingsManager.getGlobalSettings().defaultThinkingLevel,
+    before.defaultThinkingLevel,
+  )
+  const keyringReplace = runtime.providerKeyring.replace.bind(runtime.providerKeyring)
+  runtime.providerKeyring.replace = async () => {
+    throw new Error('injected credential write failure')
+  }
+  await assert.rejects(runtime.cloneProvider('relay-b', { id: 'failed-clone' }), /injected/)
+  runtime.providerKeyring.replace = keyringReplace
+  assert.equal(
+    (await runtime.getConfig()).providers.some((entry) => entry.id === 'failed-clone'),
+    false,
+  )
+  assert.equal(runtime.modelRuntime.getModel('failed-clone', 'model-b'), undefined)
+})
+
+test('cloning preserves custom headers and never converts OAuth tokens into API keys', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-clone-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'clone-source',
+    name: 'Source',
+    api: 'openai-responses',
+    baseUrl: 'https://clone.example.test/v1',
+    apiKey: 'private-clone-key',
+    model: 'source-model',
+    organization: 'test-org',
+    enabled: false,
+  })
+  const modelsPath = join(directory, 'models.json')
+  const models = JSON.parse(await readFile(modelsPath, 'utf8'))
+  models.providers['clone-source'].headers['X-Test-Version'] = 'version-1'
+  await writeFile(modelsPath, JSON.stringify(models))
+  const result = await runtime.cloneProvider('clone-source', { id: 'clone-target' })
+  assert.equal(result.providers.find((entry) => entry.id === 'clone-target').enabled, false)
+  const saved = JSON.parse(await readFile(modelsPath, 'utf8'))
+  assert.deepEqual(
+    saved.providers['clone-target'].headers,
+    models.providers['clone-source'].headers,
+  )
+  const authPath = join(directory, 'auth.json')
+  const auth = JSON.parse(await readFile(authPath, 'utf8'))
+  auth['clone-source'] = { type: 'oauth', access: 'test-oauth-token' }
+  await writeFile(authPath, JSON.stringify(auth))
+  await assert.rejects(runtime.cloneProvider('clone-source', { id: 'oauth-copy' }), /API Key/)
+  assert.equal(JSON.parse(await readFile(modelsPath, 'utf8')).providers['oauth-copy'], undefined)
+  assert.equal(JSON.stringify(result).includes('private-clone-key'), false)
 })
 
 test('connection discovery fetches models without creating a provider and isolates visual kinds', async (t) => {
@@ -542,7 +660,7 @@ test('provider refresh API returns the asynchronously refreshed configuration', 
   assert.equal(JSON.parse(response.body).config.model, 'current-model')
 })
 
-test('dedicated visual Providers remove shared visual models from chat Provider catalogs', async (t) => {
+test('dedicated visual Providers do not remove models from same URL peer catalogs', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-shadowed-visual-'))
   const runtime = new AgentRuntimeService({
     cwd: directory,
@@ -587,14 +705,14 @@ test('dedicated visual Providers remove shared visual models from chat Provider 
   const result = await runtime.discoverProviderModels('shared-chat')
   assert.deepEqual(
     result.models.map((model) => model.id),
-    ['relay-chat-v2'],
+    ['relay-chat-v2', 'gpt-image-2'],
   )
-  assert.equal(runtime.modelRuntime.getModel('shared-chat', 'gpt-image-2'), undefined)
+  assert.ok(runtime.modelRuntime.getModel('shared-chat', 'gpt-image-2'))
   const chatProvider = result.config.providers.find((provider) => provider.id === 'shared-chat')
   const visualProvider = result.config.providers.find((provider) => provider.id === 'shared-visual')
   assert.equal(
     chatProvider.models.some((model) => model.id === 'gpt-image-2'),
-    false,
+    true,
   )
   assert.equal(
     visualProvider.models.some((model) => model.id === 'gpt-image-2'),
@@ -650,4 +768,97 @@ test('visual-only providers list every discovered model so users can pick the ki
   )
   assert.ok(provider.models.some((model) => model.id === 'gpt-image-2'))
   assert.ok(provider.models.some((model) => model.id === 'grok-imagine-video'))
+})
+
+test('disabling or deleting the default Provider switches to the alternative saved default model', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-default-switch-'))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: {
+      async discover() {
+        return { models: [] }
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'relay-main',
+    name: 'Relay Main',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-main.example.test/v1',
+    apiKey: 'key-main',
+    model: 'main-first',
+  })
+  // relay-standby 先于 relay-backup 创建，自动切换按顺序先命中它。
+  await runtime.createProvider({
+    id: 'relay-standby',
+    name: 'Relay Standby',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-standby.example.test/v1',
+    apiKey: 'key-standby',
+    model: 'standby-first',
+  })
+  await runtime.addProviderModel('relay-standby', {
+    id: 'standby-second',
+    name: 'Standby Second',
+    kind: 'chat',
+  })
+  await runtime.createProvider({
+    id: 'relay-backup',
+    name: 'Relay Backup',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-backup.example.test/v1',
+    apiKey: 'key-backup',
+    model: 'backup-first',
+  })
+  await runtime.addProviderModel('relay-backup', {
+    id: 'backup-second',
+    name: 'Backup Second',
+    kind: 'chat',
+  })
+  // 两个备选 Provider 都保存了非首位的内部默认模型（不切换全局默认）。
+  await runtime.saveConfig({
+    provider: 'relay-standby',
+    model: 'standby-second',
+    setAsDefault: false,
+  })
+  await runtime.saveConfig({
+    provider: 'relay-backup',
+    model: 'backup-second',
+    setAsDefault: false,
+  })
+
+  // 停用当前默认 relay-main：自动切换必须使用备选 relay-standby 已保存的内部默认
+  // 模型 standby-second，而不是目录里的第一个模型；否则 settings 与配置视图错位
+  //（UI 显示 standby-second、新会话实际跑 standby-first，直到下一次 reconcile
+  // 才被悄悄改写）。
+  const disabled = await runtime.setProviderEnabled('relay-main', false)
+  assert.equal(disabled.defaultProvider, 'relay-standby')
+  assert.equal(disabled.defaultModel, 'standby-second')
+  assert.equal(disabled.model, 'standby-second')
+  const settingsAfterDisable = runtime.settingsManager.getGlobalSettings()
+  assert.equal(settingsAfterDisable.defaultProvider, 'relay-standby')
+  assert.equal(settingsAfterDisable.defaultModel, 'standby-second')
+  const created = await runtime.createSession('after-disable', directory)
+  assert.equal(created.model, 'relay-standby/standby-second')
+
+  // 再停用 relay-standby（当前默认）：切到 relay-backup，同样使用其内部默认模型。
+  const disabledAgain = await runtime.setProviderEnabled('relay-standby', false)
+  assert.equal(disabledAgain.defaultProvider, 'relay-backup')
+  assert.equal(disabledAgain.defaultModel, 'backup-second')
+
+  // 删除当前默认 relay-backup：备选里 relay-standby 排在 relay-main 前但已停用，
+  // 必须跳过它，落到重新启用的 relay-main 上。
+  await runtime.setProviderEnabled('relay-main', true)
+  const deleted = await runtime.deleteProvider('relay-backup')
+  assert.equal(deleted.defaultProvider, 'relay-main')
+  assert.equal(deleted.defaultModel, 'main-first')
+  const settingsAfterDelete = runtime.settingsManager.getGlobalSettings()
+  assert.equal(settingsAfterDelete.defaultProvider, 'relay-main')
+  assert.equal(settingsAfterDelete.defaultModel, 'main-first')
 })

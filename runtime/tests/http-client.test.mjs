@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { apiJson } from '../../src/lib/api.ts'
-import { ApiError, DEFAULT_HTTP_TIMEOUT_MS, requestJson } from '../../src/lib/http.ts'
+import { apiJson, consumeEventStream } from '../../src/lib/api.ts'
+import { invalidResponseError } from '../../src/lib/http-response.ts'
+import { ApiError, DEFAULT_HTTP_TIMEOUT_MS, requestJson, requestText } from '../../src/lib/http.ts'
 
 async function withFetch(fetchImplementation, callback) {
   const originalFetch = globalThis.fetch
@@ -58,7 +59,7 @@ test('fetch JSON client preserves request body and header compatibility', async 
   for (const request of requests) assert.ok(request.options.signal instanceof AbortSignal)
 })
 
-test('fetch JSON client handles JSON, text, 204, and empty success responses', async () => {
+test('explicit JSON and text clients preserve 204 and empty success compatibility', async () => {
   const responses = [
     new Response(JSON.stringify({ value: 42 })),
     new Response('plain text'),
@@ -69,7 +70,7 @@ test('fetch JSON client handles JSON, text, 204, and empty success responses', a
     async () => responses.shift(),
     async () => {
       assert.deepEqual(await requestJson('/json'), { value: 42 })
-      assert.equal(await requestJson('/text'), 'plain text')
+      assert.equal(await requestText('/text'), 'plain text')
       assert.equal(await requestJson('/no-content'), undefined)
       assert.equal(await requestJson('/empty'), undefined)
     },
@@ -194,4 +195,76 @@ test('fetch JSON client normalizes network failures as ApiError', async () => {
       })
     },
   )
+})
+
+test('invalid success responses fail as protocol errors without exposing the body', async () => {
+  for (const body of ['<html>private diagnostic</html>', '{"incomplete":', 'plain text']) {
+    await withFetch(
+      async () => new Response(body),
+      async () => {
+        await assert.rejects(requestJson('/invalid'), (error) => {
+          assert.ok(error instanceof ApiError)
+          assert.equal(error.kind, 'protocol')
+          assert.equal(error.status, 200)
+          assert.equal(error.data.code, 'INVALID_RESPONSE')
+          assert.ok(!error.message.includes(body))
+          return true
+        })
+      },
+    )
+  }
+})
+
+test('JSON domain decoders validate success and empty payloads at the HTTP boundary', async () => {
+  const parse = (value) => {
+    if (typeof value?.count !== 'number') throw invalidResponseError()
+    return { count: value.count }
+  }
+  await withFetch(
+    async () => new Response('{"count":3,"extra":true}'),
+    async () => {
+      assert.deepEqual(await requestJson('/validated', { parse }), { count: 3 })
+    },
+  )
+  for (const body of ['{"count":"three"}', 'null', '']) {
+    await withFetch(
+      async () => new Response(body),
+      async () => {
+        await assert.rejects(requestJson('/validated', { parse }), { kind: 'protocol' })
+      },
+    )
+  }
+})
+
+test('JSON and SSE normalize malformed error fields through the same contract', async () => {
+  for (const body of [
+    '{"error":{"message":"nested"},"code":"denied"}',
+    '"rejected"',
+    'null',
+    '<html>gateway unavailable</html>',
+  ]) {
+    const response = () => new Response(body, { status: 502, statusText: 'Bad Gateway' })
+    let jsonError
+    await withFetch(
+      async () => response(),
+      async () => {
+        try {
+          await requestJson('/failed')
+        } catch (error) {
+          jsonError = error
+        }
+      },
+    )
+    await assert.rejects(
+      consumeEventStream(response(), () => assert.fail('must not dispatch')),
+      (error) => {
+        assert.ok(error instanceof ApiError)
+        assert.equal(error.kind, 'http')
+        assert.equal(error.message, jsonError.message)
+        assert.ok(!error.message.includes('[object Object]'))
+        assert.deepEqual(error.data, jsonError.data)
+        return true
+      },
+    )
+  }
 })

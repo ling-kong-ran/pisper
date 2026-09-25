@@ -1,11 +1,13 @@
 // Provider 偏好与配置管理：负责模型运行时装配、Provider 配置（连接/密钥/模型）读写、
 // 模型发现与目录同步、默认模型对账、会话模型/思考等级切换，以及配置迁移与安全校验。
+import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
+import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
 
 // 内置 Provider 标识与展示名；其余自定义 Provider 由用户配置。
 const KNOWN_PROVIDERS = [
@@ -137,7 +139,7 @@ function configuredProviderSecret(credential, providerConfig) {
   return reference
 }
 
-// 新 UI 以数组追加 Key；保留旧 apiKey 字段以兼容已发布客户端与脚本调用。
+// 旧客户端的单元素数组仍可读取，多 Key 写入必须显式拒绝。
 function inputApiKeys(input = {}) {
   const values = Array.isArray(input.apiKeys) ? input.apiKeys : [input.apiKey]
   const seen = new Set()
@@ -146,8 +148,10 @@ function inputApiKeys(input = {}) {
     const key = String(value || '').trim()
     if (!key || seen.has(key)) continue
     seen.add(key)
+    if (key.length > 16_384) throw new Error('API Key 过长。')
     keys.push(key)
   }
+  if (keys.length > 1) throw new Error('每个 Provider 只能配置一个 API Key，请创建独立 Provider。')
   return keys
 }
 
@@ -190,50 +194,6 @@ function inferredProviderType(providerConfig) {
   return models.every((model) => inferModelKind(model.id, model.kind) !== 'chat')
     ? 'visual'
     : 'chat'
-}
-
-// 视觉模型“占用”键：同一端点 + 同一模型 ID + 同一 kind 被视为同一个视觉模型。
-function visualModelClaimKey(baseUrl, modelId, kind) {
-  return [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), kind].join('\0')
-}
-
-// 收集各视觉 Provider 的模型占用：用于避免同一视觉模型被多个 Provider 重复列出。
-function dedicatedVisualModelClaims(modelsJson, appConfig) {
-  const claims = new Map()
-  const disabled = new Set(appConfig.disabledProviders || [])
-  for (const [providerId, provider] of Object.entries(modelsJson.providers || {})) {
-    if (disabled.has(providerId)) continue
-    const type = appConfig.providerTypes?.[providerId] || inferredProviderType(provider)
-    if (type !== 'visual') continue
-    for (const model of provider.models || []) {
-      const kind = inferModelKind(model.id, model.kind)
-      if (kind === 'chat') continue
-      const baseUrl =
-        model.baseUrl || provider.baseUrl || PROVIDER_DEFAULT_BASE_URLS[providerId] || ''
-      if (!baseUrl) continue
-      const key = visualModelClaimKey(baseUrl, model.id, kind)
-      const providerIds = claims.get(key) || new Set()
-      providerIds.add(providerId)
-      claims.set(key, providerIds)
-    }
-  }
-  return claims
-}
-
-function claimedByOtherVisualProvider(claims, providerId, baseUrl, modelId, kind) {
-  const providerIds = claims.get(visualModelClaimKey(baseUrl, modelId, kind))
-  return Boolean(providerIds && [...providerIds].some((id) => id !== providerId))
-}
-
-function claimedByOtherVisualProviderAnyKind(claims, providerId, baseUrl, modelId) {
-  const prefix = [normalizedProviderBaseUrl(baseUrl), String(modelId || '').toLowerCase(), ''].join(
-    '\0',
-  )
-  for (const [key, providerIds] of claims) {
-    if (!key.startsWith(prefix)) continue
-    if ([...providerIds].some((id) => id !== providerId)) return true
-  }
-  return false
 }
 
 // 扩展思考等级表（按强度升序），用于把请求等级收敛到模型可用等级。
@@ -381,6 +341,7 @@ export class ProviderPreferences {
     this.discoverProviderModelsFacade = discoverProviderModels
     this.reconcileDefaultModelFacade = reconcileDefaultModel
     this.providerState = providerState
+    this.providerCreationQueue = Promise.resolve()
   }
 
   // 凭据文件始终以私有权限原子写入；避免 rename 覆盖后退回到进程 umask。
@@ -390,10 +351,10 @@ export class ProviderPreferences {
 
   async providerKeyRecords(provider, credentials, overlay) {
     const primary = configuredProviderSecret(credentials[provider], overlay)
-    return this.providerKeyring.records(provider, primary)
+    return primary ? [{ id: this.providerKeyring.id(primary), key: primary }] : []
   }
 
-  // 多 Key 依次发现并按精确模型 ID 合并；仅在内部保留模型到 Key 的关联，响应绝不返回 Key。
+  // 模型发现仅使用该 Provider 当前的单个凭据，显式输入覆盖已保存凭据。
   async discoverWithKeys({
     provider,
     credentials,
@@ -405,12 +366,9 @@ export class ProviderPreferences {
     input,
   }) {
     const explicitKeys = inputApiKeys(input)
-    const records = [...(await this.providerKeyRecords(provider, credentials, overlay))]
-    for (const key of explicitKeys) {
-      if (!records.some((record) => record.key === key)) {
-        records.push({ id: this.providerKeyring.id(key), key })
-      }
-    }
+    const records = explicitKeys.length
+      ? explicitKeys.map((key) => ({ id: this.providerKeyring.id(key), key }))
+      : await this.providerKeyRecords(provider, credentials, overlay)
     const attempts = records.length ? records : [{ id: '', key: '' }]
     const models = new Map()
     const modelKeyIds = {}
@@ -515,6 +473,18 @@ export class ProviderPreferences {
       configuredApiKeys,
       configuredProviderTypes,
     )
+    // complete/completeSimple/fetchDeferred 委托对应 stream，统一覆盖会话、压缩和直接调用。
+    for (const method of ['stream', 'streamSimple', 'streamDeferred', 'cancelDeferred']) {
+      const original = modelRuntime[method].bind(modelRuntime)
+      modelRuntime[method] = (model, input, options) =>
+        original(
+          model,
+          input,
+          usesOpenAISdk(model)
+            ? { ...options, fetch: createOpenAIRequestFetch(options?.fetch) }
+            : options,
+        )
+    }
     this.setModelRuntime(modelRuntime)
     this.invalidateProjection('', { allUsage: true })
   }
@@ -530,7 +500,8 @@ export class ProviderPreferences {
         throw new Error('该 Provider 当前未启用。')
       }
     }
-    await this.modelMetadata.ensure(modelId)
+    // 内网模型的选择不依赖公网模型目录，后台结果供后续展示使用。
+    void this.modelMetadata.ensure(modelId).catch(() => {})
     const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
     if (!model) throw new Error('指定的模型不存在。')
     return model
@@ -610,6 +581,27 @@ export class ProviderPreferences {
     const modelRuntime = this.getModelRuntime()
     if (!provider || !modelId || !modelRuntime?.getModel) return null
     return modelRuntime.getModel(String(provider), String(modelId)) || null
+  }
+
+  // Provider 的默认对话模型（与 getConfig 视图一致）：已保存的内部默认优先
+  //（须仍在模型目录中，且当前全局默认属于该 Provider 时才回退用全局默认模型），
+  // 否则按 modelRank 选排名最高的对话模型。
+  // 停用/删除当前默认 Provider 触发的自动切换必须走这里，
+  // 否则 settings.defaultModel 会写成目录里的第一个模型，与配置页显示的内部默认错位。
+  providerChatDefaultModel(providerId, { appConfig = {}, settings = {} } = {}) {
+    const modelRuntime = this.getModelRuntime()
+    const chatModels = (modelRuntime?.getModels?.(providerId) || [])
+      .filter((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
+      .sort(
+        (left, right) =>
+          modelRank(providerId, right) - modelRank(providerId, left) ||
+          String(left.name || left.id).localeCompare(String(right.name || right.id)),
+      )
+    const preferred =
+      appConfig.providerDefaultModels?.[providerId] ||
+      (settings.defaultProvider === providerId ? settings.defaultModel : '')
+    if (preferred && chatModels.some((model) => model.id === preferred)) return preferred
+    return chatModels[0]?.id || ''
   }
 
   // 发现外部 Provider 配置（CLI 登录/文件导入等），标注已导入/冲突状态。
@@ -843,14 +835,15 @@ export class ProviderPreferences {
       ...new Set([...KNOWN_PROVIDERS, ...Object.keys(modelsJson.providers || {})]),
     ]
     const disabledProviders = new Set(appConfig.disabledProviders || [])
-    const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
     const keySummaries = Object.fromEntries(
       await Promise.all(
         providerIds.map(async (id) => [
           id,
-          await this.providerKeyring.summaries(
-            id,
-            configuredProviderSecret(credentials[id], modelsJson.providers?.[id]),
+          (await this.providerKeyRecords(id, credentials, modelsJson.providers?.[id])).map(
+            ({ id: keyId, key }) => ({
+              id: keyId,
+              hint: key.length <= 8 ? '********' : `${key.slice(0, 3)}...${key.slice(-4)}`,
+            }),
           ),
         ]),
       ),
@@ -885,9 +878,7 @@ export class ProviderPreferences {
           })
           .filter((model) => {
             if (type === 'visual') return model.kind !== 'chat'
-            if (model.kind === 'chat') return true
-            const baseUrl = model.baseUrl || overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[id] || ''
-            return !claimedByOtherVisualProvider(visualClaims, id, baseUrl, model.id, model.kind)
+            return true
           })
           .sort(
             (left, right) =>
@@ -949,6 +940,41 @@ export class ProviderPreferences {
     const provider = String(input.provider || '').trim()
     const model = String(input.model || '').trim()
     if (!provider) throw new Error('Provider 不能为空。')
+    if (
+      model &&
+      input.setAsDefault === false &&
+      Object.keys(input).every((key) => ['provider', 'model', 'setAsDefault'].includes(key))
+    ) {
+      const config = await this.getConfigFacade()
+      const target = config.providers.find((entry) => entry.id === provider)
+      if (!target || !target.models.some((entry) => entry.id === model && entry.kind === 'chat'))
+        throw new Error('指定的对话模型不属于该 Provider。')
+      const appConfig = await readJson(this.appConfigPath, {})
+      await writeJsonAtomic(this.appConfigPath, {
+        ...appConfig,
+        providerDefaultModels: { ...appConfig.providerDefaultModels, [provider]: model },
+      })
+      const settingsManager = this.getSettingsManager()
+      if (settingsManager.getGlobalSettings().defaultProvider === provider) {
+        settingsManager.setDefaultModelAndProvider(provider, model)
+        await settingsManager.flush()
+        const errors = settingsManager.drainErrors()
+        if (errors.length) throw errors[0].error
+      }
+      return this.getConfigFacade()
+    }
+    if (input.setAsDefault === true && !model) {
+      const config = await this.getConfigFacade()
+      const target = config.providers.find((entry) => entry.id === provider)
+      if (!target?.configured || !target.enabled || target.type !== 'chat' || !target.defaultModel)
+        throw new Error('请选择已配置并启用且有默认对话模型的 Provider。')
+      const settingsManager = this.getSettingsManager()
+      settingsManager.setDefaultModelAndProvider(provider, target.defaultModel)
+      await settingsManager.flush()
+      const errors = settingsManager.drainErrors()
+      if (errors.length) throw errors[0].error
+      return this.getConfigFacade()
+    }
     if (this.providerState.refreshPromise) {
       await this.providerState.refreshPromise.catch(() => {})
     }
@@ -1002,11 +1028,7 @@ export class ProviderPreferences {
       await this.providerKeyring.remove(provider)
       apiKeyUpdated = true
     } else if (Array.isArray(input.apiKeys) && apiKeys.length) {
-      const records = await this.providerKeyring.add(
-        provider,
-        apiKeys,
-        configuredProviderSecret(credentials[provider], providerOverlay),
-      )
+      const records = await this.providerKeyring.replace(provider, apiKeys)
       credentials[provider] = { type: 'api_key', key: records[0].key }
       apiKeyUpdated = true
     } else if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
@@ -1122,7 +1144,10 @@ export class ProviderPreferences {
 
     const settingsManager = this.getSettingsManager()
     const setAsDefault = input.setAsDefault !== false
-    const defaultUpdated = setAsDefault && providerType !== 'visual' && Boolean(model)
+    const defaultUpdated =
+      (setAsDefault || settingsManager.getGlobalSettings().defaultProvider === provider) &&
+      providerType !== 'visual' &&
+      Boolean(model)
     if (defaultUpdated) settingsManager.setDefaultModelAndProvider(provider, model)
     settingsManager.setDefaultThinkingLevel(input.thinkingLevel || 'medium')
     await settingsManager.flush()
@@ -1213,9 +1238,7 @@ export class ProviderPreferences {
     let apiKeyUpdated = false
     if (apiKeys.length) {
       const credentials = await readJson(this.authPath, {})
-      const records = Array.isArray(input.apiKeys)
-        ? await this.providerKeyring.add(provider, apiKeys, credentialSecret(credentials[provider]))
-        : await this.providerKeyring.replace(provider, apiKeys)
+      const records = await this.providerKeyring.replace(provider, apiKeys)
       credentials[provider] = { type: 'api_key', key: records[0].key }
       await this.writeAuth(credentials)
       apiKeyUpdated = true
@@ -1243,9 +1266,7 @@ export class ProviderPreferences {
       throw new Error('Provider 不存在。')
     }
     const credentials = await readJson(this.authPath, {})
-    const records = Array.isArray(input.apiKeys)
-      ? await this.providerKeyring.add(provider, apiKeys, credentialSecret(credentials[provider]))
-      : await this.providerKeyring.replace(provider, apiKeys)
+    const records = await this.providerKeyring.replace(provider, apiKeys)
     credentials[provider] = { type: 'api_key', key: records[0].key }
     await this.writeAuth(credentials)
     await this.reloadModelRuntime()
@@ -1294,10 +1315,11 @@ export class ProviderPreferences {
         )
       })
       if (!alternative) throw new Error('至少需要保留一个已配置并启用的 Provider。')
-      const alternativeModel = modelRuntime
-        .getModels(alternative.id)
-        .find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-      settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
+      const alternativeModel = this.providerChatDefaultModel(alternative.id, {
+        appConfig,
+        settings,
+      })
+      settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel)
       await settingsManager.flush()
     }
     await writeJsonAtomic(this.appConfigPath, {
@@ -1308,8 +1330,93 @@ export class ProviderPreferences {
     return this.getConfigFacade()
   }
 
+  async cloneProvider(sourceId, input = {}) {
+    const config = await this.getConfigFacade()
+    const source = config.providers.find((entry) => entry.id === sourceId)
+    if (!source) throw new Error('Provider 不存在。')
+    const [modelsJson, credentials] = await Promise.all([
+      readJson(this.modelsPath, { providers: {} }),
+      readJson(this.authPath, {}),
+    ])
+    const overlay = modelsJson.providers?.[sourceId] || {}
+    const suppliedKeys = inputApiKeys(input)
+    const apiKey = suppliedKeys[0] || configuredProviderSecret(credentials[sourceId], overlay)
+    if (!apiKey) throw new Error('该 Provider 没有可复制的 API Key，请为克隆连接填写 API Key。')
+    const models = this.getModelRuntime()
+      .getModels(sourceId)
+      .map((model) => ({
+        id: model.id,
+        name: model.name,
+        api: model.api,
+        kind: inferModelKind(model.id, model.pisperKind),
+        reasoning: model.reasoning,
+        input: model.input,
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+        ...(overlay.models?.find((entry) => entry.id === model.id) || {}),
+      }))
+    const model = source.defaultModel || models[0]?.id
+    return this.createProvider(
+      {
+        ...input,
+        id: input.id || `${sourceId.slice(0, 40)}-copy-${randomUUID().slice(0, 8)}`,
+        name: String(input.name || `${source.name} (copy)`),
+        api: input.api || source.api,
+        baseUrl: input.baseUrl || source.baseUrl,
+        organization: input.organization ?? source.organization,
+        providerType: source.type,
+        model: input.model || model,
+        modelKind: models.find((entry) => entry.id === (input.model || model))?.kind,
+        apiKey,
+        apiKeys: undefined,
+        enabled: source.enabled,
+      },
+      { models, overlay, skipBootstrap: true },
+    )
+  }
+
   // 新建自定义 Provider（含初始模型与密钥）。
-  async createProvider(input) {
+  async createProvider(input, clone = null) {
+    const task = this.providerCreationQueue.then(async () => {
+      const id = providerProfileId(input.id || input.name)
+      if (
+        this.getModelRuntime()
+          .getProviders()
+          .some((entry) => entry.id === id) ||
+        KNOWN_PROVIDERS.includes(id)
+      )
+        throw new Error('Provider ID 已存在，请使用不同的连接标识。')
+      try {
+        return await this.createProviderRecord(input, clone)
+      } catch (error) {
+        if (clone) {
+          // 只清理本次新建 ID，保留其他连接在此期间的修改。
+          const models = await readJson(this.modelsPath, { providers: {} })
+          delete models.providers?.[id]
+          await writeJsonAtomic(this.modelsPath, models)
+          const credentials = await readJson(this.authPath, {})
+          delete credentials[id]
+          await this.writeAuth(credentials)
+          await this.providerKeyring.remove(id)
+          await this.providerModelCatalog.remove(id)
+          const appConfig = await readJson(this.appConfigPath, {})
+          delete appConfig.providerTypes?.[id]
+          delete appConfig.providerDefaultModels?.[id]
+          if (Array.isArray(appConfig.disabledProviders))
+            appConfig.disabledProviders = appConfig.disabledProviders.filter(
+              (value) => value !== id,
+            )
+          await writeJsonAtomic(this.appConfigPath, appConfig)
+          await this.reloadModelRuntime()
+        }
+        throw error
+      }
+    })
+    this.providerCreationQueue = task.catch(() => {})
+    return task
+  }
+
+  async createProviderRecord(input, clone = null) {
     const id = providerProfileId(input.id || input.name)
     const name = String(input.name || '').trim()
     const api = String(input.api || 'openai-responses').trim()
@@ -1348,14 +1455,21 @@ export class ProviderPreferences {
       initialModel.thinkingLevelMap = thinkingLevelMapFromSelection(input.thinkingLevels)
     }
     modelsJson.providers[id] = {
+      ...(clone?.overlay || {}),
       name,
       api,
       baseUrl,
       ...(String(input.organization || '').trim()
-        ? { headers: { 'OpenAI-Organization': String(input.organization).trim() } }
+        ? {
+            headers: {
+              ...(clone?.overlay?.headers || {}),
+              'OpenAI-Organization': String(input.organization).trim(),
+            },
+          }
         : {}),
-      models: [initialModel],
+      models: clone?.models || [initialModel],
     }
+    delete modelsJson.providers[id].apiKey
     await writeJsonAtomic(this.modelsPath, modelsJson)
 
     let keyRecords = []
@@ -1365,11 +1479,11 @@ export class ProviderPreferences {
       credentials[id] = { type: 'api_key', key: keyRecords[0].key }
       await this.writeAuth(credentials)
     }
-    // 新连接的首个模型也加入同 URL 目录，使已有连接立刻看到合并后的模型集合。
+    // 每个连接独立维护目录，同 URL 不共享模型权限。
     await this.providerModelCatalog.sync(id, {
       baseUrl,
       api,
-      models: [initialModel],
+      models: clone?.models || [initialModel],
       modelKeyIds: keyRecords[0] ? { [modelId]: [keyRecords[0].id] } : {},
     })
     const appConfig = await readJson(this.appConfigPath, {
@@ -1392,7 +1506,7 @@ export class ProviderPreferences {
     this.invalidateSessionRuntimes()
     // 首次安装兜底：新建连接后若还没有可用默认模型，用新连接补齐。
     // 创建时即停用的连接不参与兜底（无法服务请求）。
-    if (providerType === 'chat' && input.enabled !== false)
+    if (!clone?.skipBootstrap && providerType === 'chat' && input.enabled !== false)
       await this.bootstrapDefaultModel(id, modelId)
     return { ...(await this.getConfigFacade()), createdProviderId: id }
   }
@@ -1575,14 +1689,7 @@ export class ProviderPreferences {
       input.providerType === 'visual' || input.providerType === 'chat'
         ? input.providerType
         : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
-    const visualClaims = dedicatedVisualModelClaims(modelsJson, appConfig)
-    const models =
-      scope === 'visual'
-        ? discovered.models
-        : discovered.models.filter(
-            (model) =>
-              !claimedByOtherVisualProviderAnyKind(visualClaims, provider, baseUrl, model.id),
-          )
+    const models = discovered.models
     if (!models.length) throw new Error('Provider 没有返回可用的模型。')
     const result = { ...discovered, count: models.length, models, scope }
     const previousModelIds = new Set(modelRuntime.getModels(provider).map((model) => model.id))
@@ -1718,12 +1825,14 @@ export class ProviderPreferences {
     const modelRuntime = this.getModelRuntime()
     if (settings.defaultProvider === provider) {
       const providerTypes = appConfig.providerTypes || {}
+      const disabledProviders = new Set(appConfig.disabledProviders || [])
       const alternative = modelRuntime.getProviders().find((item) => {
         const type =
           providerTypes[item.id] || inferredProviderType(modelsJson.providers?.[item.id] || {})
         return (
           item.id !== provider &&
           type !== 'visual' &&
+          !disabledProviders.has(item.id) &&
           credentials[item.id] &&
           modelRuntime
             .getModels(item.id)
@@ -1731,10 +1840,11 @@ export class ProviderPreferences {
         )
       })
       if (alternative) {
-        const alternativeModel = modelRuntime
-          .getModels(alternative.id)
-          .find((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
-        settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel.id)
+        const alternativeModel = this.providerChatDefaultModel(alternative.id, {
+          appConfig,
+          settings,
+        })
+        settingsManager.setDefaultModelAndProvider(alternative.id, alternativeModel)
         await settingsManager.flush()
       }
     }

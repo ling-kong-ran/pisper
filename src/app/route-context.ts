@@ -26,9 +26,6 @@ export type AppRouteContext = {
   onUseAsset: (asset: ChatAttachment) => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
-  // 终端面板开合状态与切换（聊天中栏头部终端按钮使用）。
-  terminalOpen: boolean
-  toggleTerminal: () => void
   openNotificationSettings: () => void
   configSection: string
   setConfigSection: (section: string) => void

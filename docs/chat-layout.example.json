@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "name": "Default",
+  "accent": "inherit",
+  "desktop": {
+    "composerPosition": "bottom",
+    "contentWidth": 1040,
+    "fontSize": null,
+    "fontFamily": "inherit",
+    "density": "comfortable",
+    "messageStyle": "bubble",
+    "showUsage": true,
+    "canvas": {
+      "id": "canvas-root",
+      "kind": "column",
+      "css": "height: 100%; min-height: 0;",
+      "children": [
+        {
+          "id": "canvas-header",
+          "kind": "header",
+          "css": "flex-shrink: 0;"
+        },
+        {
+          "id": "canvas-messages",
+          "kind": "messages",
+          "css": "flex: 1; min-height: 0;"
+        },
+        {
+          "id": "canvas-composer",
+          "kind": "composer",
+          "css": "flex-shrink: 0;"
+        }
+      ]
+    },
+    "navigationSide": "left",
+    "navigationWidth": 236,
+    "navigationCollapsed": null,
+    "contextSide": "right",
+    "contextVisibility": "auto",
+    "contextWidth": 360,
+    "openContextOnCompletion": true
+  },
+  "mobile": {
+    "composerPosition": "bottom",
+    "contentWidth": 1040,
+    "fontSize": null,
+    "fontFamily": "inherit",
+    "density": "comfortable",
+    "messageStyle": "bubble",
+    "showUsage": true,
+    "canvas": {
+      "id": "canvas-root",
+      "kind": "column",
+      "css": "height: 100%; min-height: 0;",
+      "children": [
+        {
+          "id": "canvas-header",
+          "kind": "header",
+          "css": "flex-shrink: 0;"
+        },
+        {
+          "id": "canvas-messages",
+          "kind": "messages",
+          "css": "flex: 1; min-height: 0;"
+        },
+        {
+          "id": "canvas-composer",
+          "kind": "composer",
+          "css": "flex-shrink: 0;"
+        }
+      ]
+    },
+    "openContextOnCompletion": true
+  }
+}

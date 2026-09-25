@@ -340,6 +340,17 @@ function combineSignal(signal, timeoutMs) {
   return signal ? AbortSignal.any([signal, timeout]) : timeout
 }
 
+// 连接由服务共享；单个会话取消等待不能中止其他会话正在使用的连接。
+function waitForConnection(promise, signal) {
+  if (!signal) return promise
+  signal.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
+  })
+}
+
 function utf8Prefix(value, maxBytes) {
   const buffer = Buffer.from(value, 'utf8')
   if (buffer.length <= maxBytes) return value
@@ -543,6 +554,7 @@ export class McpService {
     this.connections = new Map()
     this.calls = this.state.calls
     this.write = Promise.resolve()
+    this.closed = false
   }
 
   async init() {
@@ -607,6 +619,8 @@ export class McpService {
         client: null,
         transport: null,
         connecting: null,
+        controller: null,
+        closing: null,
         error: '',
         stderr: '',
         latencyMs: null,
@@ -623,16 +637,25 @@ export class McpService {
   async closeConnection(id) {
     const connection = this.connections.get(id)
     if (!connection) return
-    connection.closing = true
+    if (connection.closing) return connection.closing
+    connection.controller?.abort(new Error('MCP connection closed.'))
+    connection.closing = Promise.resolve().then(async () => {
+      // 等待创建中的客户端完成取消和清理，避免关闭后又启动一个无人持有的进程。
+      await connection.connecting?.catch(() => {})
+      try {
+        await connection.client?.close?.()
+      } finally {
+        connection.client = null
+        connection.transport = null
+        connection.status = this.getServer(id)?.enabled === false ? 'disabled' : 'offline'
+        connection.nextRetryAt = 0
+      }
+    })
     try {
-      await connection.client?.close?.()
-    } catch {}
-    connection.client = null
-    connection.transport = null
-    connection.connecting = null
-    connection.status = this.getServer(id)?.enabled === false ? 'disabled' : 'offline'
-    connection.nextRetryAt = 0
-    connection.closing = false
+      await connection.closing
+    } finally {
+      connection.closing = null
+    }
   }
 
   async listAllTools(client, server, signal) {
@@ -642,7 +665,6 @@ export class McpService {
       const result = await client.listTools(cursor ? { cursor } : undefined, {
         signal,
         timeout: server.requestTimeoutMs,
-        resetTimeoutOnProgress: true,
       })
       tools.push(...(result.tools || []))
       if (tools.length >= MAX_MCP_TOOLS_PER_SERVER) break
@@ -654,24 +676,32 @@ export class McpService {
 
   // 确保服务器连接就绪（必要时重建）。
   async ensureConnected(id, { force = false, signal } = {}) {
+    if (this.closed) throw new Error('MCP service closed.')
+    signal?.throwIfAborted()
     const server = this.getServer(id)
     if (!server) throw new Error('MCP 服务不存在。')
     if (!server.enabled) throw new Error('MCP 服务已禁用。')
     const connection = this.connectionFor(id)
+    if (connection.closing) {
+      await waitForConnection(connection.closing, signal)
+      return this.ensureConnected(id, { force, signal })
+    }
+    if (connection.connecting) return waitForConnection(connection.connecting, signal)
     if (!force && connection.status === 'online' && connection.client) return connection
-    if (!force && connection.connecting) return connection.connecting
     if (!force && connection.nextRetryAt > Date.now())
       throw new Error(connection.error || 'MCP 服务暂时离线，请稍后重试。')
-    if (force) await this.closeConnection(id)
-
+    const controller = new AbortController()
+    connection.controller = controller
     connection.status = 'connecting'
     connection.error = ''
     connection.stderr = ''
-    connection.connecting = (async () => {
+    // 在首次 await 之前登记连接任务，强制刷新也必须合并到同一次连接。
+    connection.connecting = Promise.resolve().then(async () => {
       const startedAt = Date.now()
       const connectTimeoutMs = Math.min(server.requestTimeoutMs, MCP_CONNECT_TIMEOUT_MS)
-      const requestSignal = combineSignal(signal, connectTimeoutMs)
+      const requestSignal = combineSignal(controller.signal, connectTimeoutMs)
       let client
+      let transport
       const handlers = {
         onToolsChanged: async (error, tools) => {
           if (client && connection.client !== client) return
@@ -680,43 +710,56 @@ export class McpService {
             return
           }
           try {
-            server.tools = client
+            const updatedTools = client
               ? await this.listAllTools(client, server, combineSignal(undefined, connectTimeoutMs))
               : normalizeTools(tools)
+            if (connection.closing || connection.client !== client) return
+            server.tools = updatedTools
             server.toolStates = pruneToolStates(server.toolStates, server.tools)
             server.updatedAt = nowIso()
             await this.save()
           } catch (refreshError) {
+            if (connection.closing || connection.client !== client) return
             connection.error =
               refreshError instanceof Error ? refreshError.message : String(refreshError)
           }
         },
       }
-      client = await this.createClient(server, handlers)
-      const transport = await this.createTransport(server, (message) => {
-        connection.stderr = message
-      })
-      connection.client = client
-      connection.transport = transport
-      client.onclose = () => {
-        if (connection.closing || connection.client !== client) return
-        connection.status = 'offline'
+      try {
+        const previous = connection.client
         connection.client = null
         connection.transport = null
-      }
-      client.onerror = (error) => {
-        if (connection.client === client)
-          connection.error = error instanceof Error ? error.message : String(error)
-      }
-      try {
+        await previous?.close?.()
+        requestSignal.throwIfAborted()
+        client = await this.createClient(server, handlers)
+        requestSignal.throwIfAborted()
+        transport = await this.createTransport(server, (message) => {
+          connection.stderr = message
+        })
+        requestSignal.throwIfAborted()
+        connection.client = client
+        connection.transport = transport
+        client.onclose = () => {
+          if (connection.closing || connection.client !== client) return
+          connection.status = 'offline'
+          connection.client = null
+          connection.transport = null
+        }
+        client.onerror = (error) => {
+          if (connection.client === client)
+            connection.error = error instanceof Error ? error.message : String(error)
+        }
         await client.connect(transport, { signal: requestSignal, timeout: connectTimeoutMs })
+        requestSignal.throwIfAborted()
         if (transport.stderr?.on && !transport[STDERR_ATTACHED]) {
           transport[STDERR_ATTACHED] = true
           transport.stderr.on('data', (chunk) => {
             connection.stderr = safeString(chunk, 2_000)
           })
         }
-        server.tools = await this.listAllTools(client, server, requestSignal)
+        const tools = await this.listAllTools(client, server, requestSignal)
+        requestSignal.throwIfAborted()
+        server.tools = tools
         server.toolStates = pruneToolStates(server.toolStates, server.tools)
         server.updatedAt = nowIso()
         connection.status = 'online'
@@ -734,16 +777,19 @@ export class McpService {
         connection.error = error instanceof Error ? error.message : String(error)
         connection.nextRetryAt = Date.now() + 30_000
         try {
-          await client.close?.()
+          await client?.close?.()
         } catch {}
+        // connect 之前失败时 SDK 尚未持有 transport，仍由本次连接负责释放。
+        await transport?.close?.().catch(() => {})
         connection.client = null
         connection.transport = null
         throw error
       } finally {
         connection.connecting = null
+        connection.controller = null
       }
-    })()
-    return connection.connecting
+    })
+    return waitForConnection(connection.connecting, signal)
   }
 
   async refreshAll({ force = false } = {}) {
@@ -871,8 +917,8 @@ export class McpService {
   async remove(id) {
     const index = this.state.servers.findIndex((server) => server.id === id)
     if (index < 0) return false
-    await this.closeConnection(id)
     this.state.servers.splice(index, 1)
+    await this.closeConnection(id)
     this.connections.delete(id)
     await this.save()
     return true
@@ -895,7 +941,6 @@ export class McpService {
     await connection.client.ping({
       signal: combineSignal(signal, this.getServer(id).requestTimeoutMs),
       timeout: this.getServer(id).requestTimeoutMs,
-      resetTimeoutOnProgress: true,
     })
     connection.latencyMs = Date.now() - startedAt
     connection.lastPingAt = nowIso()
@@ -931,18 +976,15 @@ export class McpService {
           const currentServer = service.getServer(server.id)
           if (!currentServer?.enabled || currentServer.toolStates?.[tool.name] === false)
             throw new Error('该 MCP 工具当前已禁用。')
-          const currentConnection = service.connectionFor(server.id)
           const connection = await service.ensureConnected(server.id, {
             signal,
-            force: !currentConnection.client,
           })
           const result = await connection.client.callTool(
             { name: tool.name, arguments: params || {} },
             undefined,
             {
-              signal,
+              signal: combineSignal(signal, currentServer.requestTimeoutMs),
               timeout: currentServer.requestTimeoutMs,
-              resetTimeoutOnProgress: true,
               onprogress: (progress) =>
                 onUpdate?.({
                   content: [{ type: 'text', text: progressText(progress) }],
@@ -1020,6 +1062,7 @@ export class McpService {
   }
 
   async dispose() {
+    this.closed = true
     await Promise.allSettled([...this.connections.keys()].map((id) => this.closeConnection(id)))
     this.connections.clear()
     await this.write.catch(() => {})

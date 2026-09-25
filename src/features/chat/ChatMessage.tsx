@@ -3,7 +3,6 @@
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -38,6 +37,7 @@ import {
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
+import { ChatRequestNotice } from './ChatRequestNotice'
 import { chatApi } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
@@ -657,6 +657,7 @@ type FocusChatMessageProps = {
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
   /** 最近一条前置用户消息 ID：存在时最新助手消息上展示重试按钮。 */
   retryUserMessageId?: string
+  hideErrorNotice?: boolean
   onRetryLastTurn: () => Promise<void> | void
 }
 
@@ -672,6 +673,7 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.onBranchFromHere === next.onBranchFromHere &&
     prev.onCreateChildSession === next.onCreateChildSession &&
     prev.retryUserMessageId === next.retryUserMessageId &&
+    prev.hideErrorNotice === next.hideErrorNotice &&
     prev.onRetryLastTurn === next.onRetryLastTurn
   )
 }
@@ -687,6 +689,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   onBranchFromHere,
   onCreateChildSession,
   retryUserMessageId,
+  hideErrorNotice,
   onRetryLastTurn,
 }: FocusChatMessageProps) {
   const { t } = useI18n()
@@ -695,7 +698,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const [retrying, setRetrying] = useState(false)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
-  const displayText = fullText || (!showRunActivity ? String(message.error || '') : '')
+  // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
+  const displayText = message.error && fullText === message.error ? '' : fullText
   // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——否则首轮事件
   // 空窗期活动区渲染空壳，三点动画永远不会出现。
   const hasVisibleRunActivity = Boolean(
@@ -710,10 +714,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
       className={cn(
-        'message mx-auto mb-8 w-full max-w-[1040px] min-w-0 gap-0',
-        message.role === 'agent' ? 'items-stretch' : 'items-end',
+        'message mx-auto mb-[var(--chat-message-gap,32px)] w-full max-w-[var(--chat-content-width,1040px)] min-w-0 gap-0',
+        message.role === 'agent'
+          ? 'items-stretch'
+          : "items-end [[data-chat-message-style='plain']_&]:items-start",
         message.role,
-        message.error && 'has-error',
       )}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
@@ -737,7 +742,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           'message-content relative min-w-0',
           message.role === 'agent'
             ? 'w-full'
-            : 'w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%]',
+            : "w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%] [[data-chat-message-style='plain']_&]:w-full [[data-chat-message-style='plain']_&]:max-w-full",
         )}
       >
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
@@ -759,8 +764,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             className={cn(
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
               message.role === 'agent'
-                ? 'w-full py-1 leading-[1.75]'
-                : 'rounded-[22px] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.6] text-[var(--user-bubble-text)]',
+                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.72] [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
+                : "rounded-[22px] border border-[var(--stroke-soft)] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.72] text-[var(--user-bubble-text)] shadow-none [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}
@@ -774,16 +779,13 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           />
         )}
       </div>
-      {message.error && fullText && !streaming && (
-        <div className="message-error-notice mt-3 flex items-start gap-1.5 text-[13px] leading-[1.5] text-[var(--danger)]">
-          <AlertTriangle size={13} className="mt-[3px] flex-none" />
-          <span className="min-w-0">{String(message.error)}</span>
-        </div>
+      {message.error && !streaming && !hideErrorNotice && (
+        <ChatRequestNotice error={String(message.error)} className="mt-3" />
       )}
       {message.role === 'agent' &&
         !streaming &&
         (message.turnBoundaryEntryId || retryUserMessageId) && (
-          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
             {message.turnBoundaryEntryId && (
               <>
                 <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />

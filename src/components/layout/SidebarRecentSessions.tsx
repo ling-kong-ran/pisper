@@ -1,16 +1,31 @@
 // 侧边栏「最近会话」区块：搜索、按工作区分组的会话列表与右键菜单
-//（空白处新建项目/删除项目、分组上新建会话/删除项目）。
+//（空白处新建项目/删除项目、分组上新建会话/重命名项目/删除项目）。
 // 从 AppSidebar 拆出并懒加载：应用壳属于 eager 入口、受打包预算约束，
 // 目录选择弹窗与 radix 右键菜单原语只在区块内按需加载。
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Archive,
+  ArchiveRestore,
   ChevronRight,
+  CircleAlert,
   FolderClosed,
   FolderPlus,
   MessageSquare,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
+  RotateCcw,
+  Search,
   Trash2,
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
@@ -24,7 +39,24 @@ import {
   announceSessionsUpdated,
   requestSessionCreation,
   requestSessionSelection,
+  subscribeSessionDeletionUpdates,
 } from '@/features/chat/events'
+import {
+  SessionOrganizationProtocolError,
+  updateSessionOrganization,
+} from '@/features/chat/session-organization-api'
+import { orderVisibleSessions } from '@/features/chat/session-list'
+import {
+  deleteSessionsSequentially,
+  groupSessionsByWorkspace,
+  orderWorkspaceGroups,
+  recentWorkspaceGroups,
+  replacementActiveSessionId,
+  sessionWorkspaceKey,
+  sessionsInWorkspace,
+  type WorkspaceSessionGroup,
+} from '@/features/chat/session-workspaces'
+import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
@@ -38,6 +70,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { useSidebar } from '@/components/ui/sidebar'
+import { Button } from '@/components/ui/button'
 
 // 目录选择器只在「新建项目」时用到：按需加载。
 const WorkspacePicker = lazy(() =>
@@ -49,9 +82,13 @@ type SessionSummary = {
   name?: string
   modified: string
   cwd?: string
+  pinned?: boolean
+  archived?: boolean
+  unread?: boolean
+  needsAttention?: boolean
 }
 
-type SessionGroup = { key: string; cwd: string; sessions: SessionSummary[] }
+type SessionGroup = WorkspaceSessionGroup<SessionSummary>
 
 type SidebarRecentSessionsProps = {
   navigate: (page: string) => void
@@ -62,29 +99,27 @@ type SidebarRecentSessionsProps = {
 
 const RECENT_SESSION_LIMIT = 24
 
-function workspaceKey(cwd = '') {
-  const normalized = cwd.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-  return /^[A-Za-z]:\//.test(normalized) ? normalized.toLowerCase() : normalized
-}
-
-// 极简相对时间（ZCode 式列表标注）：刚刚 / 18分 / 1时 / 3天 / 9/12。
-function shortRelativeTime(value: string, locale = 'zh-CN') {
-  if (!value) return ''
-  const distance = Date.now() - new Date(value).getTime()
-  if (distance < 60_000) return locale === 'en-US' ? 'now' : '刚刚'
-  if (distance < 3_600_000) {
-    const minutes = Math.floor(distance / 60_000)
-    return locale === 'en-US' ? `${minutes}m` : `${minutes}分`
-  }
-  if (distance < 86_400_000) {
-    const hours = Math.floor(distance / 3_600_000)
-    return locale === 'en-US' ? `${hours}h` : `${hours}时`
-  }
-  if (distance < 7 * 86_400_000) {
-    const days = Math.floor(distance / 86_400_000)
-    return locale === 'en-US' ? `${days}d` : `${days}天`
-  }
-  return new Date(value).toLocaleDateString(locale, { month: 'numeric', day: 'numeric' })
+function WorkspaceActionButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="!size-7 !min-h-7 !shrink-0 !p-0 !text-[var(--text-muted)] hover:!bg-[var(--surface-hover)] hover:!text-[var(--text)] max-[900px]:!size-11 max-[900px]:!min-h-11"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
 }
 
 export function SidebarRecentSessions({
@@ -94,9 +129,15 @@ export function SidebarRecentSessions({
   notify,
 }: SidebarRecentSessionsProps) {
   const { t, language } = useI18n()
+  const queryClient = useQueryClient()
   const { isMobile, setOpenMobile } = useSidebar()
   const [historyExpanded, setHistoryExpanded] = useState(true)
+  const [sessionQuery, setSessionQuery] = useState('')
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
+  const workspaceOrder = useWorkspaceOrderStore((state) => state.order)
+  const rememberWorkspaces = useWorkspaceOrderStore((state) => state.rememberWorkspaces)
+  const workspaceNames = useWorkspaceOrderStore((state) => state.names)
+  const setWorkspaceName = useWorkspaceOrderStore((state) => state.setWorkspaceName)
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
@@ -112,29 +153,56 @@ export function SidebarRecentSessions({
     ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
     refetchInterval: 20_000,
   })
-  // 搜索框已按反馈移除（列表本身带分组与快捷键直达，搜索入口鸡肋）。
-  const visibleSessions = useMemo(
+  useEffect(
     () =>
-      [...(sidebarSessionData?.sessions || [])].sort(
-        (a, b) => Date.parse(b.modified) - Date.parse(a.modified),
-      ),
+      subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
+        const deleted = new Set(deletedIds)
+        queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (current) =>
+          current
+            ? {
+                ...current,
+                sessions: current.sessions.filter((session) => !deleted.has(session.id)),
+              }
+            : current,
+        )
+      }),
+    [queryClient],
+  )
+  const sessions = useMemo(
+    () => orderVisibleSessions(sidebarSessionData?.sessions || []),
     [sidebarSessionData],
   )
-  const sessionGroups = useMemo(() => {
-    const groups = new Map<string, SessionGroup>()
-    for (const session of visibleSessions.slice(0, RECENT_SESSION_LIMIT)) {
-      const key = workspaceKey(session.cwd) || '__no_workspace__'
-      const group = groups.get(key) || { key, cwd: session.cwd || '', sessions: [] }
-      group.sessions.push(session)
-      groups.set(key, group)
-    }
-    return [...groups.values()]
-  }, [visibleSessions])
-  const menuTargetGroup = sessionGroups.find((group) => group.key === menuTargetKey) || null
-  const menuTargetSession =
-    visibleSessions.find((session) => session.id === menuTargetSessionId) || null
+  const visibleSessions = useMemo(() => {
+    const needle = sessionQuery.trim().toLocaleLowerCase(language)
+    if (!needle) return sessions.filter((session) => !session.archived)
+    return sessions.filter((session) =>
+      `${session.name || ''} ${session.cwd || ''} ${workspaceNames[sessionWorkspaceKey(session)] || ''}`
+        .toLocaleLowerCase(language)
+        .includes(needle),
+    )
+  }, [language, sessionQuery, sessions, workspaceNames])
+  const allSessionGroups = useMemo(() => groupSessionsByWorkspace(sessions), [sessions])
+  useEffect(() => {
+    rememberWorkspaces(allSessionGroups.map((group) => group.key))
+  }, [allSessionGroups, rememberWorkspaces])
+  const sessionGroups = useMemo(
+    () =>
+      orderWorkspaceGroups(
+        recentWorkspaceGroups(visibleSessions, RECENT_SESSION_LIMIT, activeSessionId),
+        workspaceOrder,
+      ),
+    [visibleSessions, workspaceOrder, activeSessionId],
+  )
+  const workspaceCounts = useMemo(
+    () => new Map(allSessionGroups.map((group) => [group.key, group.sessions.length])),
+    [allSessionGroups],
+  )
+  const menuTargetGroup = allSessionGroups.find((group) => group.key === menuTargetKey) || null
+  const menuTargetSession = sessions.find((session) => session.id === menuTargetSessionId) || null
   const workspaceLabel = (group: SessionGroup) =>
-    group.cwd ? workspaceName(group.cwd, language) : t('navigation:appSidebar.noWorkspace')
+    group.cwd
+      ? workspaceNames[group.key] || workspaceName(group.cwd, language)
+      : t('navigation:appSidebar.noWorkspace')
 
   useEffect(() => {
     const refresh = () => {
@@ -166,46 +234,110 @@ export function SidebarRecentSessions({
 
   const createSessionInWorkspace = (cwd: string) => {
     if (!requestSessionCreation(cwd)) return
+    setSessionQuery('')
+    setHistoryExpanded(true)
+    setCollapsedWorkspaces((current) => {
+      const next = new Set(current)
+      next.delete(sessionWorkspaceKey({ id: '', cwd }))
+      return next
+    })
     navigate('chat')
     if (isMobile) setOpenMobile(false)
   }
 
-  // 删除执行体：逐个调用会话删除接口，命中活动会话时切换到剩余会话，最后广播刷新。
-  const removeSessions = async (targets: SessionSummary[]) => {
-    const deletedIds = new Set(targets.map((session) => session.id))
-    for (const session of targets) {
-      await apiJson(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' })
+  // 删除途中失败也刷新目录并重新选择活动会话；只有 API 确认成功的 id 算入已删除数。
+  const removeSessions = async (targets: SessionSummary[], baseline = sessions) => {
+    const result = await deleteSessionsSequentially(
+      targets.map((session) => session.id),
+      (id) => apiJson(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    )
+    announceSessionsUpdated(
+      result.deletedIds.length ? { deletedIds: result.deletedIds } : undefined,
+    )
+    let refreshed: SessionSummary[] | null = null
+    try {
+      refreshed = (await fetchStartupQuery<{ sessions: SessionSummary[] }>('sessions', true))
+        .sessions
+    } catch {
+      // 删除结果已被记录；目录暂时不可用时不把项目误报为完全删除。
     }
-    if (deletedIds.has(activeSessionId)) {
-      const nextId = visibleSessions.find((session) => !deletedIds.has(session.id))?.id || ''
+    const deletedIds = new Set(result.deletedIds)
+    const remaining = refreshed ?? baseline.filter((session) => !deletedIds.has(session.id))
+    const currentActiveId = localStorage.getItem(STORAGE_KEYS.activeSession) || activeSessionId
+    const nextId = replacementActiveSessionId(
+      currentActiveId,
+      remaining,
+      deletedIds,
+      refreshed !== null,
+    )
+    if (nextId !== null) {
       setActiveSessionId(nextId)
-      if (nextId) localStorage.setItem(STORAGE_KEYS.activeSession, nextId)
-      else localStorage.removeItem(STORAGE_KEYS.activeSession)
-      announceActiveSession(nextId)
+      if (nextId) requestSessionSelection(nextId)
+      else {
+        localStorage.removeItem(STORAGE_KEYS.activeSession)
+        announceActiveSession('')
+      }
     }
-    announceSessionsUpdated()
-    void fetchStartupQuery('sessions', true).catch(() => {})
+    return { ...result, sessions: remaining, verified: refreshed !== null }
   }
 
-  // 删除项目：按侧边栏的语义，项目=同一工作目录下的会话分组；删除前确认。
+  // 删除项目：重新读取完整目录，确认和执行都不依赖搜索结果与最近 24 条。
   const deleteProject = async (group: SessionGroup) => {
-    if (!group.sessions.length || deletingKey) return
-    const label = workspaceLabel(group)
-    const approved = await requestConfirm({
-      title: t('navigation:appSidebar.deleteProject'),
-      message: t('navigation:appSidebar.deleteProjectConfirm', {
-        project: label,
-        count: group.sessions.length,
-      }),
-      confirmLabel: t('navigation:appSidebar.deleteProjectAction'),
-    })
-    if (!approved) return
+    if (deletingKey) return
+    // 同名目录可能位于不同父目录；危险操作始终展示完整路径以明确范围。
+    const label = group.cwd ? `${workspaceLabel(group)} · ${group.cwd}` : workspaceLabel(group)
     setDeletingKey(group.key)
     try {
-      await removeSessions(group.sessions)
+      const freshSessions = (
+        await fetchStartupQuery<{ sessions: SessionSummary[] }>('sessions', true)
+      ).sessions
+      const targets = sessionsInWorkspace(freshSessions, group.key)
+      if (!targets.length) {
+        notify(t('navigation:appSidebar.projectNoChats', { project: label }), 'info')
+        return
+      }
+      const approved = await requestConfirm({
+        title: t('navigation:appSidebar.deleteProject'),
+        message: t('navigation:appSidebar.deleteProjectConfirm', {
+          project: label,
+          count: targets.length,
+        }),
+        confirmLabel: t('navigation:appSidebar.deleteProjectAction'),
+      })
+      if (!approved) return
+      const result = await removeSessions(targets, freshSessions)
+      if (!result.verified) {
+        notify(
+          t('navigation:appSidebar.projectDeleteUnverified', {
+            project: label,
+            deleted: result.deletedIds.length,
+          }),
+          'error',
+        )
+        return
+      }
+      const remainingCount = sessionsInWorkspace(result.sessions, group.key).length
+      if (result.failedId !== null || remainingCount) {
+        notify(
+          t('navigation:appSidebar.projectDeletePartial', {
+            project: label,
+            deleted: result.deletedIds.length,
+            remaining: remainingCount,
+          }),
+          'error',
+        )
+        return
+      }
       notify(t('navigation:appSidebar.projectDeleted', { project: label }))
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error')
+      notify(
+        error instanceof SessionOrganizationProtocolError
+          ? t('chat:chatHistoryPage.sessionUpdateFailed')
+          : error instanceof Error
+            ? error.message
+            : String(error),
+        'error',
+      )
     } finally {
       setDeletingKey('')
     }
@@ -225,7 +357,9 @@ export function SidebarRecentSessions({
     if (!approved) return
     setDeletingKey(session.id)
     try {
-      await removeSessions([session])
+      const result = await removeSessions([session])
+      if (result.failedId !== null)
+        throw result.error ?? new Error(t('navigation:appSidebar.chatDeleteFailed'))
       notify(t('chat:chatHistoryPage.chatDeleted'))
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error')
@@ -244,13 +378,64 @@ export function SidebarRecentSessions({
     })
     if (name === null || name === session.name) return
     try {
-      await apiJson(`/api/sessions/${encodeURIComponent(session.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name }),
-      })
-      announceSessionsUpdated()
+      const updated = await apiJson<{ name: string }>(
+        `/api/sessions/${encodeURIComponent(session.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ name }),
+        },
+      )
+      announceSessionsUpdated({ id: session.id, name: updated.name })
       void fetchStartupQuery('sessions', true).catch(() => {})
       notify(t('chat:chatHistoryPage.chatTitleUpdated'))
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error), 'error')
+    }
+  }
+
+  const saveProjectName = (group: SessionGroup, name: string) => {
+    try {
+      setWorkspaceName(group.cwd, name)
+      notify(t('navigation:appSidebar.projectNameUpdated'))
+    } catch {
+      notify(t('navigation:appSidebar.projectNameSaveFailed'), 'error')
+    }
+  }
+
+  const renameProject = async (group: SessionGroup) => {
+    if (!group.cwd) return
+    const currentName = workspaceLabel(group)
+    const name = await requestText({
+      title: t('navigation:appSidebar.renameProject'),
+      message: t('navigation:appSidebar.renameProjectDescription'),
+      inputLabel: t('navigation:appSidebar.projectName'),
+      value: currentName,
+      maxLength: 120,
+      confirmLabel: t('chat:chatHistoryPage.save'),
+    })
+    if (name === null || !name.trim() || name.trim() === currentName) return
+    saveProjectName(group, name.trim())
+  }
+
+  const organizeSession = async (
+    session: SessionSummary,
+    patch: { pinned?: boolean; archived?: boolean; read?: boolean },
+    message: string,
+  ) => {
+    if (deletingKey) return
+    try {
+      const updated = await updateSessionOrganization(session.id, patch)
+      queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (current) =>
+        current
+          ? {
+              ...current,
+              sessions: current.sessions.map((item) =>
+                item.id === updated.id ? { ...item, ...updated } : item,
+              ),
+            }
+          : current,
+      )
+      notify(message)
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error')
     }
@@ -265,6 +450,16 @@ export function SidebarRecentSessions({
     })
   }
 
+  const setContextMenuTarget = (key = '', sessionId = '') => {
+    setMenuTargetKey(key)
+    setMenuTargetSessionId(sessionId)
+  }
+
+  // Radix 的触摸长按直接从 pointerdown 打开菜单，不会触发浏览器 contextmenu。
+  const prepareTouchMenu = (event: PointerEvent, key = '', sessionId = '') => {
+    if (event.pointerType !== 'mouse') setContextMenuTarget(key, sessionId)
+  }
+
   const navigateFromSection = (id: string) => {
     navigate(id)
     if (isMobile) setOpenMobile(false)
@@ -272,38 +467,50 @@ export function SidebarRecentSessions({
 
   return (
     <section
-      className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden min-w-0 flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
+      className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
       aria-label={t('navigation:appSidebar.recentChats')}
     >
-      <div className="flex h-[30px] min-w-0 items-center justify-between gap-[6px] [padding:0_4px]">
-        {/* ZCode 式：标题收敛为单个箭头图标，点击开/合整个会话列表。 */}
+      <Button
+        type="button"
+        variant="outline"
+        className="mb-1 w-full !h-9 !justify-start !gap-2 !border !border-[var(--stroke)] !bg-[var(--surface-subtle)] hover:!bg-[var(--surface-hover)] max-[900px]:!h-11"
+        aria-haspopup="dialog"
+        aria-expanded={projectPickerOpen}
+        onClick={() => setProjectPickerOpen(true)}
+      >
+        <FolderPlus aria-hidden="true" />
+        {t('navigation:appSidebar.newProject')}
+      </Button>
+      <div className="flex h-[34px] items-center justify-between gap-[6px] [padding:0_4px]">
         <button
-          className="nav-history-heading grid h-[26px] w-[26px] place-items-center rounded-[var(--r-xs)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+          className="nav-history-heading [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[28px] [.nav-list_&]:[flex:0_1_auto] [.nav-list_&]:gap-[4px] [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text-secondary)] [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_svg]:flex-none [&_svg]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg.is-open]:[transform:rotate(90deg)]"
           aria-controls="sidebar-recent-sessions"
           aria-expanded={historyExpanded}
-          aria-label={t('navigation:appSidebar.recentChats')}
-          title={t('navigation:appSidebar.recentChats')}
           onClick={() => setHistoryExpanded((value) => !value)}
         >
-          <ChevronRight
-            className={
-              historyExpanded
-                ? 'rotate-90 [transition:transform_var(--d1)_var(--ease-out)]'
-                : '[transition:transform_var(--d1)_var(--ease-out)]'
-            }
-            size={14}
-          />
+          <span>{t('navigation:appSidebar.recentChats')}</span>
+          <ChevronRight className={historyExpanded ? 'is-open' : ''} size={14} />
         </button>
         <button
-          className="nav-history-view-all h-[26px] flex-none rounded-[var(--r-xs)] border-0 bg-transparent p-[0_6px] text-[var(--text-muted)] text-[11px] font-[500] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
+          className="nav-history-view-all [.nav-list_&]:w-auto [.nav-list_&]:h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
           aria-label={t('navigation:appSidebar.viewAllCountChats', {
-            count: visibleSessions.length,
+            count: sessions.length,
           })}
           onClick={() => navigateFromSection('chatHistory')}
         >
           {t('navigation:appSidebar.viewAll')}
         </button>
       </div>
+      <label className="min-[901px]:[.sidebar.collapsed_&]:hidden flex h-8 flex-none items-center gap-2 rounded-[var(--r-xs)] border border-[var(--stroke-soft)] bg-[var(--solid)] px-2 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
+        <Search size={13} aria-hidden="true" />
+        <input
+          className="min-w-0 flex-1 border-0 bg-transparent text-[length:var(--app-font-size)] font-normal text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
+          value={sessionQuery}
+          onChange={(event) => setSessionQuery(event.target.value)}
+          placeholder={t('navigation:appSidebar.searchChats')}
+          aria-label={t('navigation:appSidebar.searchChats')}
+        />
+      </label>
       {historyExpanded && (
         <ContextMenu
           onOpenChange={(open) => {
@@ -315,8 +522,10 @@ export function SidebarRecentSessions({
         >
           <ContextMenuTrigger asChild>
             <div
-              className="flex min-h-0 flex-1 flex-col gap-[2px] overflow-y-auto overflow-x-hidden [animation:page-in_var(--d1)_var(--ease-out)]"
+              className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto [animation:page-in_var(--d1)_var(--ease-out)]"
               id="sidebar-recent-sessions"
+              onPointerDownCapture={(event) => prepareTouchMenu(event)}
+              onContextMenuCapture={() => setContextMenuTarget()}
             >
               {sessionGroups.map((group) => {
                 const groupCollapsed = collapsedWorkspaces.has(group.key)
@@ -329,57 +538,89 @@ export function SidebarRecentSessions({
                     <div
                       className="group/workspace flex min-w-0 items-center gap-[2px]"
                       onContextMenu={() => setMenuTargetKey(group.key)}
+                      onPointerDown={(event) => prepareTouchMenu(event, group.key)}
                     >
                       <button
-                        className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[11px] [.nav-list_&]:font-[650] [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
+                        className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[length:var(--app-font-size)] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_svg:first-child]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg:first-child.is-open]:[transform:rotate(90deg)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
                         aria-expanded={!groupCollapsed}
                         onClick={() => toggleWorkspace(group.key)}
                         title={group.cwd || label}
                       >
+                        <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
                         <FolderClosed size={13} />
                         <span>{label}</span>
-                        <small>{group.sessions.length}</small>
+                        <small>{workspaceCounts.get(group.key) || group.sessions.length}</small>
                       </button>
                       {group.cwd && (
-                        <button
-                          type="button"
-                          className="nav-workspace-create [.nav-list_&]:grid [.nav-list_&]:w-[28px] [.nav-list_&]:h-[28px] [.nav-list_&]:min-h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:place-items-center [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-0 [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&:hover]:bg-[var(--surface-hover)] [.nav-list_&:hover]:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset"
-                          title={t('navigation:appSidebar.newChatInWorkspace', {
-                            workspace: group.cwd,
-                          })}
-                          aria-label={t('navigation:appSidebar.newChatInWorkspace', {
-                            workspace: group.cwd,
-                          })}
-                          onClick={() => createSessionInWorkspace(group.cwd)}
-                        >
-                          <Plus size={14} />
-                        </button>
+                        <>
+                          <WorkspaceActionButton
+                            label={t('navigation:appSidebar.renameProjectNamed', {
+                              project: label,
+                            })}
+                            onClick={() => void renameProject(group)}
+                          >
+                            <Pencil size={14} aria-hidden="true" />
+                          </WorkspaceActionButton>
+                          <WorkspaceActionButton
+                            label={t('navigation:appSidebar.newChatInWorkspace', {
+                              workspace: group.cwd,
+                            })}
+                            onClick={() => createSessionInWorkspace(group.cwd)}
+                          >
+                            <Plus size={14} />
+                          </WorkspaceActionButton>
+                        </>
                       )}
                     </div>
                     {!groupCollapsed &&
                       group.sessions.map((session) => (
                         <button
-                          className={`nav-history-item [.nav-list_&]:flex [.nav-list_&]:w-full [.nav-list_&]:h-[32px] [.nav-list_&]:min-h-[32px] [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_8px_0_24px] [.nav-list_&]:text-[var(--text-secondary)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-[500] [.nav-list_&]:gap-[8px] [&_>_span]:flex-1 [&_>_span]:min-w-0 [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_>_small]:flex-none [&_>_small]:shrink-0 [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[11px] [&_>_small]:font-[400] [.nav-list_&:hover]:bg-[var(--surface-muted)] [.nav-list_&:hover]:text-[var(--text)] [.nav-list_&:hover_>_small]:opacity-100 min-[901px]:[[data-density='compact']_.nav-list_&]:h-[30px] min-[901px]:[[data-density='compact']_.nav-list_&]:min-h-[30px] ${session.id === activeSessionId ? 'active-session [.nav-list_.nav-history-item&]:bg-[var(--surface-muted)] [.nav-list_.nav-history-item&]:text-[var(--text)] [.nav-list_.nav-history-item&]:shadow-[inset_2px_0_var(--brand-blue)]' : ''}`}
+                          className={`nav-history-item [.nav-list_&]:flex [.nav-list_&]:w-full [.nav-list_&]:h-[34px] [.nav-list_&]:min-h-[34px] [.nav-list_&]:rounded-[var(--r-sm)] [.nav-list_&]:p-[0_8px_0_24px] [.nav-list_&]:text-[var(--text-secondary)] [.nav-list_&]:text-[length:var(--app-font-size)] [.nav-list_&]:font-normal [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [.nav-list_&:hover]:bg-[var(--surface-muted)] [.nav-list_&:hover]:text-[var(--text)] min-[901px]:[[data-density='compact']_.nav-list_&]:h-[32px] min-[901px]:[[data-density='compact']_.nav-list_&]:min-h-[32px] ${session.id === activeSessionId ? 'active-session [.nav-list_.nav-history-item&]:bg-[var(--surface-muted)] [.nav-list_.nav-history-item&]:text-[var(--text)] [.nav-list_.nav-history-item&]:shadow-[inset_2px_0_var(--brand-blue)]' : ''}`}
                           aria-current={session.id === activeSessionId ? 'page' : undefined}
                           title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
                           onClick={() => openRecentSession(session.id)}
                           onContextMenu={() => setMenuTargetSessionId(session.id)}
+                          onPointerDown={(event) => prepareTouchMenu(event, '', session.id)}
                           key={session.id}
                         >
+                          {session.pinned && (
+                            <Pin
+                              className="mr-1 size-3 shrink-0"
+                              aria-label={t('navigation:appSidebar.pinned')}
+                            />
+                          )}
+                          {session.needsAttention && (
+                            <CircleAlert
+                              className="mr-1 size-3 shrink-0"
+                              aria-label={t('navigation:appSidebar.needsAttention')}
+                            />
+                          )}
+                          {session.unread && (
+                            <span
+                              className="mr-1 size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]"
+                              aria-label={t('navigation:appSidebar.unread')}
+                            />
+                          )}
                           <span className="select-none">
                             {session.name || t('navigation:appSidebar.untitledChat')}
                           </span>
-                          <small className="opacity-70">
-                            {shortRelativeTime(session.modified, language)}
-                          </small>
+                          {session.archived && (
+                            <span className="ml-auto text-[11px] font-normal text-muted-foreground">
+                              {t('navigation:appSidebar.archived')}
+                            </span>
+                          )}
                         </button>
                       ))}
                   </div>
                 )
               })}
               {!visibleSessions.length && (
-                <span className="[padding:8px] text-[var(--text-muted)] text-[11px]">
-                  {t('navigation:appSidebar.noChatHistoryYet')}
+                <span className="[padding:8px] text-[var(--text-muted)] text-[12px] font-normal">
+                  {sessionQuery.trim()
+                    ? t('navigation:appSidebar.noMatchingChats')
+                    : sessions.length
+                      ? t('navigation:appSidebar.noActiveChats')
+                      : t('navigation:appSidebar.noChatHistoryYet')}
                 </span>
               )}
             </div>
@@ -396,6 +637,55 @@ export function SidebarRecentSessions({
                   {t('chat:chatHistoryPage.renameChat')}
                 </ContextMenuItem>
                 <ContextMenuItem
+                  onSelect={() =>
+                    void organizeSession(
+                      menuTargetSession,
+                      { pinned: !menuTargetSession.pinned },
+                      menuTargetSession.pinned
+                        ? t('navigation:appSidebar.unpinned')
+                        : t('navigation:appSidebar.pinned'),
+                    )
+                  }
+                >
+                  {menuTargetSession.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+                  {menuTargetSession.pinned
+                    ? t('navigation:appSidebar.unpin')
+                    : t('navigation:appSidebar.pin')}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() =>
+                    void organizeSession(
+                      menuTargetSession,
+                      { archived: !menuTargetSession.archived },
+                      menuTargetSession.archived
+                        ? t('navigation:appSidebar.restored')
+                        : t('navigation:appSidebar.movedToArchive'),
+                    )
+                  }
+                >
+                  {menuTargetSession.archived ? (
+                    <ArchiveRestore size={13} />
+                  ) : (
+                    <Archive size={13} />
+                  )}
+                  {menuTargetSession.archived
+                    ? t('navigation:appSidebar.restore')
+                    : t('navigation:appSidebar.archive')}
+                </ContextMenuItem>
+                {menuTargetSession.unread && (
+                  <ContextMenuItem
+                    onSelect={() =>
+                      void organizeSession(
+                        menuTargetSession,
+                        { read: true },
+                        t('navigation:appSidebar.markedRead'),
+                      )
+                    }
+                  >
+                    {t('navigation:appSidebar.markRead')}
+                  </ContextMenuItem>
+                )}
+                <ContextMenuItem
                   variant="destructive"
                   disabled={Boolean(deletingKey)}
                   onSelect={() => void deleteSingleSession(menuTargetSession)}
@@ -407,10 +697,22 @@ export function SidebarRecentSessions({
             ) : menuTargetGroup ? (
               <>
                 {menuTargetGroup.cwd && (
-                  <ContextMenuItem onSelect={() => createSessionInWorkspace(menuTargetGroup.cwd)}>
-                    <Plus size={13} />
-                    {t('navigation:appSidebar.newChat')}
-                  </ContextMenuItem>
+                  <>
+                    <ContextMenuItem onSelect={() => createSessionInWorkspace(menuTargetGroup.cwd)}>
+                      <Plus size={13} />
+                      {t('navigation:appSidebar.newChat')}
+                    </ContextMenuItem>
+                    <ContextMenuItem onSelect={() => void renameProject(menuTargetGroup)}>
+                      <Pencil size={13} />
+                      {t('navigation:appSidebar.renameProject')}
+                    </ContextMenuItem>
+                    {workspaceNames[menuTargetGroup.key] && (
+                      <ContextMenuItem onSelect={() => saveProjectName(menuTargetGroup, '')}>
+                        <RotateCcw size={13} />
+                        {t('navigation:appSidebar.resetProjectName')}
+                      </ContextMenuItem>
+                    )}
+                  </>
                 )}
                 <ContextMenuItem
                   variant="destructive"
@@ -428,14 +730,18 @@ export function SidebarRecentSessions({
                   {t('navigation:appSidebar.newProject')}
                 </ContextMenuItem>
                 <ContextMenuSub>
-                  <ContextMenuSubTrigger disabled={!sessionGroups.length || Boolean(deletingKey)}>
+                  <ContextMenuSubTrigger
+                    disabled={!allSessionGroups.length || Boolean(deletingKey)}
+                  >
                     <Trash2 size={13} />
                     {t('navigation:appSidebar.deleteProject')}
                   </ContextMenuSubTrigger>
-                  <ContextMenuSubContent className="max-w-[280px]">
-                    {sessionGroups.map((group) => (
+                  <ContextMenuSubContent className="max-h-[70vh] max-w-[280px] overflow-y-auto">
+                    {allSessionGroups.map((group) => (
                       <ContextMenuItem key={group.key} onSelect={() => void deleteProject(group)}>
-                        <span className="truncate">{workspaceLabel(group)}</span>
+                        <span className="truncate" title={group.cwd || workspaceLabel(group)}>
+                          {workspaceLabel(group)}
+                        </span>
                       </ContextMenuItem>
                     ))}
                   </ContextMenuSubContent>

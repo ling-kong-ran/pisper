@@ -197,6 +197,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
+      - name: Verify Windows shell process cleanup
+        if: runner.os == 'Windows' && inputs.component != 'tui'
+        run: node --import tsx --test runtime/tests/host-bash.test.mjs
       - name: Require component signing credentials
         shell: bash
         run: |
@@ -228,6 +231,36 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Verify Windows standard and offline prerequisites
+        if: runner.os == 'Windows' && inputs.component == 'desktop'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem release/tauri-artifacts -Recurse -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 2) { throw 'Expected standard and offline Windows installers.' }
+          $offline = @($installers | Where-Object { $_.Name -like '*-offline-setup.exe' })
+          $standard = @($installers | Where-Object { $_.Name -notlike '*-offline-setup.exe' })
+          if ($offline.Count -ne 1 -or $standard.Count -ne 1) { throw 'Missing Windows installer variant.' }
+          $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $payloadDir | Out-Null
+          try {
+            foreach ($installer in $installers) {
+              $variantDir = Join-Path $payloadDir $installer.Name
+              & 7z x $installer.FullName "-o$variantDir" '*MicrosoftEdgeWebView2RuntimeInstaller.exe' '*MicrosoftEdgeWebview2Setup.exe' -r -y | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
+              $payloads = @(Get-ChildItem $variantDir -Recurse -File -Filter '*MicrosoftEdgeWeb*.exe')
+              $expected = if ($installer.Name -like '*-offline-setup.exe') { 'MicrosoftEdgeWebView2RuntimeInstaller.exe' } else { 'MicrosoftEdgeWebview2Setup.exe' }
+              if ($payloads.Count -ne 1 -or $payloads[0].Name -ne $expected) { throw "Incorrect WebView2 payload in $($installer.Name)." }
+              $payload = $payloads[0]
+              $signature = Get-AuthenticodeSignature $payload.FullName
+              if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
+                throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
+              }
+              $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
+              Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2=$expected version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
+            }
+          } finally {
+            Remove-Item $payloadDir -Recurse -Force
+          }
       - name: Test desktop shell on the release platform
         if: inputs.component == 'desktop'
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked

@@ -1,10 +1,13 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 import { collectNativeState, criticalRuntimeEntries } from './sea-runtime.mjs'
+import { searchToolCriticalEntries } from './stage-search-tools.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const seaRoot = join(root, 'release', 'sea')
@@ -40,7 +43,7 @@ async function smokeStagedModules() {
       `SEA executable size manifest mismatch: ${manifest.sidecarExecutableBytes} !== ${executableBytes}.`,
     )
   }
-  for (const entry of criticalRuntimeEntries()) {
+  for (const entry of [...criticalRuntimeEntries(), ...searchToolCriticalEntries(manifest)]) {
     if (!manifest.criticalFiles.some((audited) => audited.path === entry.path)) {
       throw new Error(`SEA runtime audit is missing a required entry: ${entry.path}`)
     }
@@ -67,6 +70,7 @@ async function smokeStagedModules() {
   }
   await smokeSpeechNative()
   await smokeSpeechWorker()
+  await smokeOfflineSearchTools()
 
   const native = await collectNativeState(runtimeRoot, manifest.native.selection)
   if (!native.pass) throw new Error('Staged native package selection failed smoke verification.')
@@ -95,18 +99,21 @@ async function smokeStagedModules() {
   if (!text?.includes(docxText))
     throw new Error('Staged officeparser failed to parse the DOCX fixture.')
 
-  const [client, sse, stdio, streamableHttp, playwright, clipboard] = await Promise.all([
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js')),
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/sse.js')),
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js')),
-    import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js')),
-    import(stagedUrl('node_modules/playwright-core/index.mjs')),
-    import(
-      stagedUrl(
-        'node_modules/@earendil-works/pi-coding-agent/node_modules/@mariozechner/clipboard/index.js',
-      )
-    ),
-  ])
+  const [client, sse, stdio, streamableHttp, mcpServer, mcpHttpServer, playwright, clipboard] =
+    await Promise.all([
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/sse.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js')),
+      import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js')),
+      import(stagedUrl('node_modules/playwright-core/index.mjs')),
+      import(
+        stagedUrl(
+          'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/native-platform.js',
+        )
+      ),
+    ])
   if (typeof client.Client !== 'function') throw new Error('Staged MCP Client did not import.')
   if (typeof sse.SSEClientTransport !== 'function')
     throw new Error('Staged MCP SSE transport did not import.')
@@ -116,15 +123,107 @@ async function smokeStagedModules() {
   if (typeof streamableHttp.StreamableHTTPClientTransport !== 'function') {
     throw new Error('Staged MCP streamable HTTP transport did not import.')
   }
+  if (typeof mcpServer.McpServer !== 'function') {
+    throw new Error('Staged MCP Server did not import.')
+  }
+  if (typeof mcpHttpServer.StreamableHTTPServerTransport !== 'function') {
+    throw new Error('Staged MCP streamable HTTP server transport did not import.')
+  }
   if (typeof playwright.chromium?.launch !== 'function') {
     throw new Error('Staged playwright-core package did not import.')
   }
-  const clipboardBinding = clipboard.default || clipboard
-  if (typeof clipboardBinding.getText !== 'function') {
-    throw new Error('Current-platform staged clipboard native binding did not load.')
+  if (typeof clipboard.getNativeClipboard !== 'function') {
+    throw new Error('Staged clipboard loader did not import.')
+  }
+  // Linux 无 DISPLAY 时上游不会加载原生模块；直接验证绑定，且不读取用户剪贴板。
+  const require = createRequire(import.meta.url)
+  for (const nativePath of manifest.native.selection.piTuiNativeFiles || []) {
+    const binding = require(
+      join(
+        runtimeRoot,
+        'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui',
+        nativePath,
+      ),
+    )
+    if (typeof binding.getText !== 'function' || typeof binding.getImage !== 'function') {
+      throw new Error('Current-platform staged clipboard native binding did not load.')
+    }
   }
 
   return manifest
+}
+
+// 在独立 SEA 中清空 PATH、工具缓存并拒绝 fetch，防止开发机已装 rg/fd 掩盖漏包。
+async function offlineSearchProbe(runtimeDir, workspace) {
+  const { pathToFileURL } = await import('node:url')
+  const { join } = await import('node:path')
+  const assert = (await import('node:assert/strict')).default
+  let requests = 0
+  globalThis.fetch = () => {
+    requests += 1
+    return Promise.reject(new Error('Offline search must not download dependencies'))
+  }
+  const root = join(runtimeDir, 'node_modules', '@earendil-works', 'pi-coding-agent')
+  const load = (path) => import(pathToFileURL(join(root, 'dist', path)).href)
+  const { getToolPath } = await load('utils/tools-manager.js')
+  for (const name of ['rg', 'fd']) {
+    assert.equal(
+      getToolPath(name),
+      join(root, 'vendor', 'bin', name + (process.platform === 'win32' ? '.exe' : '')),
+    )
+  }
+  const { createGrepTool } = await load('core/tools/grep.js')
+  const { createFindTool } = await load('core/tools/find.js')
+  const found = await createFindTool(workspace).execute('find', { pattern: '*.txt' })
+  const searched = await createGrepTool(workspace).execute('grep', { pattern: 'offline needle' })
+  for (const result of [found, searched]) {
+    const text = result.content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+    assert.match(text, /中文 sample\.txt/)
+    assert.doesNotMatch(text, /ignored\.txt/)
+  }
+  assert.equal(requests, 0)
+  console.log('PISPER_SEA_OFFLINE_SEARCH_OK')
+}
+
+export async function smokeOfflineSearchTools({
+  executablePath = executable,
+  runtimeDir = runtimeRoot,
+} = {}) {
+  const probeRoot = await mkdtemp(join(tmpdir(), 'pisper-sea-offline-search-'))
+  const workspace = join(probeRoot, 'workspace with spaces')
+  try {
+    await mkdir(join(probeRoot, 'runtime'))
+    await mkdir(join(workspace, '.git'), { recursive: true })
+    await writeFile(join(workspace, '.gitignore'), 'ignored.txt\n')
+    await writeFile(join(workspace, '中文 sample.txt'), 'offline needle\n')
+    await writeFile(join(workspace, 'ignored.txt'), 'offline needle\n')
+    await writeFile(
+      join(probeRoot, 'runtime', 'sidecar.mjs'),
+      `await (${offlineSearchProbe.toString()})(${JSON.stringify(resolve(runtimeDir))}, ${JSON.stringify(workspace)})\n`,
+    )
+    const { stdout } = await promisify(execFile)(executablePath, [], {
+      cwd: workspace,
+      env: {
+        ...(process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot } : {}),
+        PATH: '',
+        HOME: probeRoot,
+        USERPROFILE: probeRoot,
+        PI_CODING_AGENT_DIR: join(probeRoot, 'agent'),
+        PISPER_APP_ROOT: probeRoot,
+      },
+      timeout: 20_000,
+      killSignal: 'SIGKILL',
+      windowsHide: true,
+      maxBuffer: 64 * 1024,
+    })
+    if (stdout !== 'PISPER_SEA_OFFLINE_SEARCH_OK\n')
+      throw new Error('SEA offline search smoke failed')
+  } finally {
+    await rm(probeRoot, { recursive: true, force: true })
+  }
 }
 
 async function speechNativeProbe(runtimeDir) {

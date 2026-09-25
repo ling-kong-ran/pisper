@@ -16,6 +16,7 @@ type ProviderDiscoveryProps = {
   discovering: boolean
   error: string
   importing: string
+  forceVisible?: boolean
   onRefresh: () => void | Promise<void>
   onImport: (provider: DiscoveredProvider) => void | Promise<void>
 }
@@ -55,6 +56,7 @@ export function ProviderDiscovery({
   discovering,
   error,
   importing,
+  forceVisible = false,
   onRefresh,
   onImport,
 }: ProviderDiscoveryProps) {
@@ -62,8 +64,9 @@ export function ProviderDiscovery({
   const [collapsed, setCollapsed] = useState<boolean | null>(null)
   const providers = discovery.providers || []
   const errors = discovery.errors || []
-  if (!providerDiscoveryShouldRender(discovery, discovering, error)) return null
-  const isCollapsed = collapsed ?? providerDiscoveryShouldCollapse(discovery, discovering)
+  if (!forceVisible && !providerDiscoveryShouldRender(discovery, discovering, error)) return null
+  const isCollapsed =
+    collapsed ?? (forceVisible ? false : providerDiscoveryShouldCollapse(discovery, discovering))
   const handleRefresh = () => {
     setCollapsed(null)
     return onRefresh()

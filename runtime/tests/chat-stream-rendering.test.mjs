@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
   const [page, liveSync, prompt] = await Promise.all([
@@ -132,18 +135,21 @@ test('new chats expose their working directory in the welcome surface', async ()
   assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
 })
 
-test('conversation layout keeps Pisper identity without a persistent avatar card', async () => {
+test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
   const [focus, message, transcript] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
-  assert.match(focus, /\{!hasConversation && \(/)
+  assert.match(focus, /<AppCardHeader[\s\S]*session\.name \|\| t\('chat:chatPage\.untitledChat'\)/)
+  assert.match(focus, /!hasConversation && <div[^>]*>\{sessionActionsMenu\}<\/div>/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
-  assert.match(message, /message mx-auto mb-8 w-full max-w-\[1040px\]/)
-  assert.match(message, /message\.role === 'agent' \? 'items-stretch' : 'items-end'/)
+  // 模板可调宽度/间距；保留默认 1040px / 32px，非法配置由布局契约测试拒绝。
+  assert.match(message, /max-w-\[var\(--chat-content-width,1040px\)\]/)
+  assert.match(message, /mb-\[var\(--chat-message-gap,32px\)\]/)
+  assert.match(message, /message\.role === 'agent'\s*\? 'items-stretch'\s*:\s*["']items-end/)
   assert.match(message, /message-content[\s\S]*message\.role === 'agent'[\s\S]*'w-full'/)
   assert.match(message, /agent-message-mark/)
   assert.match(message, /data-state=\{agentState\}/)
@@ -178,12 +184,26 @@ test('image previews portal above session-level controls', async () => {
   assert.doesNotMatch(message, /image-lightbox-toolbar[^"\n]*(?:button|icon-button)/)
 })
 
-test('completed activity-only messages do not render an empty error bubble', async () => {
-  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
-  assert.match(message, /const displayText = fullText \|\| \(!showRunActivity/)
-  // 允许多行 JSX 形态（cwd 传参后 Prettier 会换行），语义仍是 displayText 条件渲染
-  assert.match(message, /\{displayText && \(?\s*<MarkdownMessage/)
-  assert.doesNotMatch(message, /\(fullText \|\| !streaming\)/)
+test('empty completed replies stay empty and request diagnostics never replace the reply body', () => {
+  const render = (message) =>
+    renderToStaticMarkup(
+      React.createElement(FocusChatMessage, {
+        sessionId: 'test',
+        message: { id: 'reply', role: 'agent', ...message },
+        agentState: 'idle',
+        showRunActivity: false,
+      }),
+    )
+  const rawError = '503 upstream unavailable: <html>provider response</html>'
+  const empty = render({ text: '' })
+  assert.doesNotMatch(empty, /markdown-body|aria-expanded/)
+  for (const text of ['', rawError, 'Partial answer remains readable']) {
+    const html = render({ text, error: rawError })
+    assert.match(html, /aria-expanded="false"/)
+    assert.doesNotMatch(html, /upstream unavailable|provider response|has-error/)
+    assert.equal(html.includes('Partial answer remains readable'), text.startsWith('Partial'))
+    assert.equal(html.includes('markdown-body'), text.startsWith('Partial'))
+  }
 })
 
 test('core chat activity loads synchronously with the message renderer', async () => {
@@ -313,10 +333,9 @@ test('background Agent completion uses code-level UI state without prompt or cus
 
 test('stale streaming queue errors settle the old stream and resend as a new turn', async () => {
   const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
-  const queueHandler = source.slice(
-    source.indexOf('const queuePrompt'),
-    source.indexOf('const abort'),
-  )
+  const queueStart = source.indexOf('const queuePrompt')
+  // 从队列处理之后找函数边界，避免命中前面新增的 abortingSessionsRef。
+  const queueHandler = source.slice(queueStart, source.indexOf('const abort =', queueStart))
   assert.match(queueHandler, /isEndedSessionQueueError\(error\)/)
   assert.match(queueHandler, /if \(activeStream\) await activeStream\.promise/)
   assert.match(queueHandler, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)

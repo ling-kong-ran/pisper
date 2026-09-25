@@ -252,12 +252,15 @@ export function selectClipboardPackage({ platform, arch, libc = null }) {
 }
 
 export function selectPiTuiNativeFiles({ platform, arch }) {
-  if (platform === 'linux' || platform === 'mobile') return []
+  if (platform === 'mobile') return []
+  if (platform === 'linux' && (arch === 'x64' || arch === 'arm64')) {
+    return [`native/linux/prebuilds/linux-${arch}/linux-platform-x11.node`]
+  }
   if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) {
-    return [`native/win32/prebuilds/win32-${arch}/win32-console-mode.node`]
+    return [`native/win32/prebuilds/win32-${arch}/win32-platform.node`]
   }
   if (platform === 'darwin' && (arch === 'x64' || arch === 'arm64')) {
-    return [`native/darwin/prebuilds/darwin-${arch}/darwin-modifiers.node`]
+    return [`native/darwin/prebuilds/darwin-${arch}/darwin-platform.node`]
   }
   return null
 }
@@ -299,15 +302,20 @@ async function pruneClipboardPackages(runtimeDir, target, audit) {
   const scope = runtimePath(runtimeDir, CLIPBOARD_SCOPE)
   const selectedPackage = selectClipboardPackage(target)
   const pruneAll = target.platform === 'mobile'
-  if (!selectedPackage && !pruneAll) return null
 
   let entries
   try {
     entries = await readdir(scope, { withFileTypes: true })
   } catch (error) {
-    if (error?.code === 'ENOENT') return selectedPackage || false
+    // Pi 0.86 已将剪贴板原生实现合并到 pi-tui，不再安装旧平台包。
+    if (error?.code === 'ENOENT') return false
     throw error
   }
+  const hasClipboardPackages = entries.some(
+    (entry) => entry.isDirectory() && entry.name.startsWith('clipboard-'),
+  )
+  if (!hasClipboardPackages) return false
+  if (!selectedPackage && !pruneAll) return null
   for (const entry of entries) {
     if (
       entry.isDirectory() &&
@@ -514,12 +522,16 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/sse.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js'],
+    ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js'],
+    ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js'],
     ['playwright', 'node_modules/playwright-core/index.mjs'],
     ['locales', 'node_modules/zod/v4/locales/index.js'],
-    ['native', `${CLIPBOARD_SCOPE}/clipboard/index.js`],
+    ['native', `${PI_TUI}/dist/native-platform.js`],
+    ['native', `${PI_TUI}/dist/native-module-path.js`],
   ]
 
   if (typeof nativeSelection.clipboardPackage === 'string') {
+    entries.push(['native', `${CLIPBOARD_SCOPE}/clipboard/index.js`])
     const packageName = nativeSelection.clipboardPackage
     const packageRoot = `${CLIPBOARD_SCOPE}/${packageName}`
     entries.push(['native', `${packageRoot}/package.json`])

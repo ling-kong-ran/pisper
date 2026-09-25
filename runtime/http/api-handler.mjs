@@ -11,9 +11,12 @@ import {
 } from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
+import { customUiRoutes } from './routes/custom-ui.mjs'
+import { decisionRoutes } from './routes/decisions.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
 import { memoryAssetRoutes } from './routes/memory-assets.mjs'
+import { mcpHostRoutes } from './routes/mcp-host.mjs'
 import { remoteRoutes } from './routes/remote.mjs'
 import { runRoutes } from './routes/runs.mjs'
 import { sessionRuntimeRoutes } from './routes/sessions-runtime.mjs'
@@ -30,7 +33,10 @@ const registry = createRouteRegistry([
   ...remoteRoutes,
   ...runRoutes,
   ...integrationRoutes,
+  ...mcpHostRoutes,
   ...desktopRoutes,
+  ...decisionRoutes,
+  ...customUiRoutes,
 ])
 
 // 错误信息对外统一脱敏，避免把密钥/令牌泄漏到响应体。
@@ -49,6 +55,7 @@ function errorStatus(error) {
 const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
+  { pattern: /^\/api\/mcp-host(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/plugins\/web-search\/test$/, feature: 'webSearch' },
   { pattern: /^\/api\/plugins(?:\/|$)/, feature: 'plugins' },
   { pattern: /^\/api\/extensions(?:\/|$)/, feature: 'extensions' },
@@ -141,6 +148,9 @@ export function createApiHandler(
     speechCatalog,
     speechTerms,
     runs,
+    decisions,
+    customUi,
+    mcpHost,
   } = {},
 ) {
   const services = {
@@ -154,6 +164,9 @@ export function createApiHandler(
     speechModels,
     speechCatalog,
     speechTerms,
+    decisions,
+    customUi,
+    mcpHost,
     runs: runs || new RunRegistry(),
   }
   return async function handleApi(req, res, url) {

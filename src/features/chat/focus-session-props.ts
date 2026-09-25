@@ -1,6 +1,7 @@
 // 聚焦会话视图的组件 props 类型：从 FocusSession.tsx 拆出以控制单文件体积。
 // FocusSession.tsx 通过 re-export 保持对外导出签名不变。
 import type { Notify } from '@/app/route-context'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -54,13 +55,20 @@ export type FocusSessionProps = {
   lastActivityAt?: string | null
   runFinishedAt?: string | null
   runStopped?: boolean
+  runCompleted?: boolean
   runNotice?: string
   approvals: EntityRecord[]
   error?: string
   pendingAsset?: ChatAttachment | null
+  canSplit?: boolean
   // 是否提供「关闭面板」入口：移动端单会话视图没有可关闭的面板。
   canClosePanel?: boolean
+  contextOpen: boolean
+  contextCompact: boolean
+  contextPanelId: string
+  onToggleContext: (open: boolean) => void
   notify?: Notify
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onOpenModelSettings?: () => void
   onAssetConsumed?: () => void
   onLoadOlder?: () => Promise<boolean> | boolean
@@ -79,6 +87,10 @@ export type FocusSessionProps = {
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
   onTreeNavigated?: () => Promise<void> | void
+  onSplitLeft: () => void
+  onSplitRight: () => void
+  onSplitTop: () => void
+  onSplitBottom: () => void
   onClosePanel: () => void
   onSend: (
     value: string,

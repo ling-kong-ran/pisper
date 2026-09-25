@@ -6,6 +6,7 @@ import { useI18n } from '@/app/use-i18n'
 import { chatApi, type SessionFileChangesResponse } from './chat-api'
 import { AnchoredPopupMenu } from './AnchoredPopupMenu'
 import { GitDiffDialog } from './GitDiffViewer'
+import { invalidateSessionChangeSummary } from './session-change-summary-api'
 
 import { Button } from '@/components/ui/button'
 
@@ -103,6 +104,7 @@ export function FileChangesControl({
     try {
       const result = await chatApi.revertSessionFileChanges(sessionId, path)
       setChanges(result)
+      void invalidateSessionChangeSummary(sessionId)
       setNotice(
         result.reverted
           ? t('chat:focusSession.fileChangesRevertDone')
@@ -119,6 +121,7 @@ export function FileChangesControl({
     try {
       const result = await chatApi.approveSessionFileChanges(sessionId, path)
       setChanges(result)
+      void invalidateSessionChangeSummary(sessionId)
     } catch (caught) {
       setError(isError(caught))
     }
@@ -140,6 +143,7 @@ export function FileChangesControl({
           ? await chatApi.approveSessionFileChanges(sessionId)
           : await chatApi.revertSessionFileChanges(sessionId)
       setChanges(result)
+      void invalidateSessionChangeSummary(sessionId)
       if (action === 'approve-all') {
         setNotice(t('chat:focusSession.fileChangesApproveDone'))
       } else if (!result.reverted) {

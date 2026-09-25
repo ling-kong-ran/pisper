@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
+  providerDiscoveryImportableCount,
   providerDiscoveryShouldCollapse,
   providerDiscoveryShouldRender,
 } from '../../src/features/config/provider-discovery-state.ts'
@@ -9,6 +10,19 @@ import {
 function discovery(providers = [], errors = []) {
   return { providers, errors }
 }
+
+test('local import hint counts only available configurations and disappears after import', () => {
+  assert.equal(providerDiscoveryImportableCount(discovery()), 0)
+  const candidates = discovery([
+    { importable: true, imported: false },
+    { importable: true, imported: false, conflict: true },
+    { importable: true, imported: true },
+    { importable: false, imported: false },
+  ])
+  assert.equal(providerDiscoveryImportableCount(candidates), 1)
+  candidates.providers[0].imported = true
+  assert.equal(providerDiscoveryImportableCount(candidates), 0)
+})
 
 test('provider discovery hides only settled configurations without actionable results', () => {
   assert.equal(providerDiscoveryShouldRender(discovery(), false, ''), false)

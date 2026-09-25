@@ -1,6 +1,7 @@
 // 会话运行时路由：健康检查、诊断、用量、会话 CRUD、会话运行（SSE 流式）、
 // 消息/历史/树/标签、权限审批、模型/工作目录切换等核心 API。
 import { projectStoredTeam } from '../../services/team-workflow.mjs'
+import { SessionOrganizationInputError } from '../../services/chat-session-organization.mjs'
 import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
@@ -358,6 +359,13 @@ export const sessionRuntimeRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/sessions/:sessionId/change-summary',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSessionChangeSummary(params.sessionId))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/sessions/:sessionId/file-changes/diff',
     async handler({ runtime, params, url, json }) {
       json(
@@ -445,6 +453,22 @@ export const sessionRuntimeRoutes = [
       )
       if (!resolution.found) json(404, { error: '授权请求不存在。' })
       else json(200, resolution)
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/sessions/:sessionId/organization',
+    async handler({ runtime, params, body, json }) {
+      let updated
+      try {
+        updated = await runtime.updateSessionOrganization(params.sessionId, await body())
+      } catch (error) {
+        if (!(error instanceof SessionOrganizationInputError)) throw error
+        json(400, { error: error.message, code: error.code })
+        return
+      }
+      if (!updated) json(404, { error: '会话不存在。', code: 'session_not_found' })
+      else json(200, updated)
     },
   },
   {

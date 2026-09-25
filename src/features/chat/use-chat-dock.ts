@@ -14,7 +14,11 @@ import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { SessionState, SessionSummary } from '@/types/chat'
-import { SESSION_SELECTED_EVENT, consumeSessionSelectionRequest } from './events'
+import {
+  SESSION_SELECTED_EVENT,
+  consumeSessionSelectionRequest,
+  subscribeSessionDeletionUpdates,
+} from './events'
 import {
   createDockLayoutEnvelope,
   dockPositionForDisposition,
@@ -369,8 +373,6 @@ export function useChatDock({
       for (const disposable of dockDisposablesRef.current) disposable.dispose()
       dockDisposablesRef.current = []
       dockApiRef.current = api
-      // 标签头改由 CSS 隐藏（.dv-tabs-and-actions-container display:none），
-      // 不依赖 dock API 时序，恢复布局/新建/拆分分组均稳定生效。
       dockDisposablesRef.current.push(
         api.onDidActivePanelChange(({ panel }) => {
           const sessionId = sessionIdFromPanel(panel)
@@ -411,6 +413,28 @@ export function useChatDock({
     window.addEventListener(SESSION_SELECTED_EVENT, selectSession)
     return () => window.removeEventListener(SESSION_SELECTED_EVENT, selectSession)
   }, [loadSessionMessages, openSessionInDock])
+
+  useEffect(() => {
+    return subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
+      const deleted = new Set(deletedIds)
+      setMobileOpenedSessionIds((current) => current.filter((id) => !deleted.has(id)))
+      if (pendingDockRequestRef.current && deleted.has(pendingDockRequestRef.current.sessionId)) {
+        pendingDockRequestRef.current = null
+      }
+      const api = dockApiRef.current
+      if (!api || !dockInitializedRef.current) return
+      const panels = deletedIds.flatMap((id) => {
+        const panel = api.getPanel(panelIdForSession(id))
+        return panel ? [panel] : []
+      })
+      for (const panel of panels) panel.api.close()
+      if (panels.length && !api.panels.some((panel) => sessionIdFromPanel(panel))) {
+        const fallback = sessionsRef.current.find((session) => !deleted.has(session.id))
+        if (fallback) openSessionInDock(fallback.id)
+        else setActiveId('')
+      }
+    })
+  }, [openSessionInDock, sessionsRef, setActiveId])
 
   useEffect(() => {
     const openPreview = (event: Event) => {

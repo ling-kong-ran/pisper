@@ -26,13 +26,13 @@ export function CurrentModelSummary({
   const ready = Boolean(provider?.configured && provider?.enabled && modelId)
 
   return (
-    <SettingsCard className="[margin-bottom:12px]" data-config-card="models-current-model">
-      <div className="flex flex-wrap items-center gap-[12px] max-[650px]:grid max-[650px]:grid-cols-[40px_minmax(0,1fr)]">
-        <span className="grid w-[40px] h-[40px] flex-none place-items-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--star-strong)]">
+    <SettingsCard className="mb-3" data-config-card="models-current-model">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="grid size-10 flex-none place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--star-strong)]">
           <Bot size={19} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-          <span className="text-[12px] font-[600] text-[var(--text-muted)]">
+          <span className="text-xs font-semibold text-muted-foreground">
             {t('config:configPage.currentChatModel')}
           </span>
           {ready ? (
@@ -57,7 +57,7 @@ export function CurrentModelSummary({
             </span>
           )}
         </div>
-        <div className="flex min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] max-[650px]:col-span-full">
+        <div className="flex w-full min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] sm:w-auto">
           {ready && provider && (
             <Button variant="outline" className="bg-surface-subtle" onClick={onChangeModel}>
               <PencilLine size={13} />

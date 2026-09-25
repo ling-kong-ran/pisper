@@ -42,7 +42,7 @@ import { SessionPermissionService } from '../services/session-permission-service
 import { MobileOperationService } from '../services/mobile-operation-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
-import { captureConversationMemory, localDayKey } from './conversation-memory-capture.mjs'
+import { ConversationMemoryCapture, localDayKey } from './conversation-memory-capture.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
@@ -348,6 +348,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     providerDiscovery,
     providerModelDiscovery,
     browserAutomationDriver,
+    decisionService,
     capabilities = desktopRuntimeCapabilities(),
     eventObserver,
   } = {}) {
@@ -382,6 +383,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath, { dataDir })
     this.webSearch = new WebSearchService({ configPath: this.appConfigPath })
+    // 决策服务由 app-runtime 统一创建并注入（HTTP 路由与 Agent 工具共享同一配置）；
+    // 独立构造时可不注入，保留官方工具与人工审批路径。
+    this.decisions = decisionService || null
     this.visualGeneration = new VisualGenerationService({
       modelsPath: this.modelsPath,
       authPath: this.authPath,
@@ -401,6 +405,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getModelRuntime: () => this.modelRuntime,
       getDefaultModel: () => this.resolveDefaultModel(),
     })
+    this.memoryCapture = new ConversationMemoryCapture({
+      getModelRuntime: () => this.modelRuntime,
+      waitForInitialization: () => this.waitForInitialization('memory'),
+      memory: this.memory,
+      recordUsage: (...args) => this.recordUsage(...args),
+    })
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
     this.vcsChanges = new VcsChangesService({ git: this.gitChanges })
@@ -417,6 +427,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       agentDir: dataDir,
       cwd,
       configPath: this.appConfigPath,
+      decisionService: this.decisions,
       getSettingsManager: (skillsCwd = this.cwd) => {
         if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
           return this.settingsManager
@@ -493,6 +504,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
+      // 审批委派：仅在设置页开启开关时把待审批判断交给决策模型。
+      decideDelegation: async ({ toolName, args, risk, reason, signal }) => {
+        if (!this.decisions?.delegationEnabled()) return 'ask'
+        const result = await this.decisions.judgeToolCall(
+          { toolName, args, risk, reason },
+          { signal },
+        )
+        return result.verdict
+      },
     })
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
@@ -611,6 +631,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       saveUsageLedger: () => this.saveUsageLedger(),
       getUsageLedger: () => this.usageLedger,
       createSessionRuntime: (manager, name) => this.createSessionRuntime(manager, name),
+      markSessionTracked: (id, cwd) => this.getFileChangesService().markSessionTracked(id, cwd),
       setSessionModel: (id, provider, model) => this.setSessionModel(id, provider, model),
       syncGoalTools: (value, goal) => this.syncGoalTools(value, goal),
       pauseSessionGoal: (id) => this.pauseSessionGoal(id),
@@ -1390,7 +1411,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.modelRuntime,
       this.sessionMeta[runtimeSessionId],
     )
-    await this.modelMetadata.ensure(preferredModelRef?.modelId || settings.defaultModel)
+    // 公网目录仅补充展示元数据；会话使用已配置模型，不能等待公网可达。
+    void this.modelMetadata
+      .ensure(preferredModelRef?.modelId || settings.defaultModel)
+      .catch(() => {})
     const preferredModel =
       preferredModelRef &&
       this.modelRuntime?.getModel?.(preferredModelRef.provider, preferredModelRef.modelId)
@@ -1569,6 +1593,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           memoryRuntime: this.memory,
           getUserMessage: () => runtimeValue?.pendingUserMessage || '',
           webSearchService: this.webSearch,
+          decisionService: this.decisions,
           browserAutomationService: this.browserAutomation,
           browserSessionId: runtimeSessionId,
           visualGenerationService: this.visualGeneration,
@@ -1704,10 +1729,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     this.syncGoalTools(value, this.goals.get(session.sessionId))
     this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
-    applyPisperSystemPrompt(session, session.model)
     // 捕获提示词缓存形态：对比形状变化以诊断 prompt cache 失效原因。
     value.promptCache = capturePromptCacheShape({
-      systemPrompt: session.agent.state.systemPrompt,
+      systemPrompt: applyPisperSystemPrompt(session, session.model),
       tools: promptCacheTools(session),
       runtime: promptCacheRuntime(session),
     })
@@ -1896,7 +1920,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     value.promptCache = comparePromptCacheShapes(
       value.promptCache,
       capturePromptCacheShape({
-        systemPrompt: session.agent.state.systemPrompt,
+        systemPrompt: applyPisperSystemPrompt(session, session.model),
         tools: promptCacheTools(session),
         runtime: promptCacheRuntime(session),
       }),
@@ -2000,6 +2024,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const activeTextBlocks = new Set(),
       activeThinkingBlocks = new Set()
     const requestTiming = createRequestTimingTracker()
+    let completionWrite = Promise.resolve()
     // 思考文本以“增量补丁 + 行尾裁剪”的方式同步，减少前端渲染压力。
     const streamBlockIndex = (update) =>
       Number.isInteger(update?.contentIndex) ? update.contentIndex : 0
@@ -2026,6 +2051,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.streaming = false
       live.finishedAt = finishedAt
       live.lastActivityAt = finishedAt
+      completionWrite = this.sessionLifecycle.recordSessionCompletion(
+        session.sessionId,
+        Boolean(error),
+        finishedAt,
+      )
+      void completionWrite.catch(() => {})
       live.lifecycle = finishAgentLifecycle(live.lifecycle, error, finishedAt)
       live.tools = live.tools.map((tool) =>
         tool.status === 'running'
@@ -2475,7 +2506,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           user: message,
           assistant: assistantText,
           sourceTimestamp: live.startedAt,
-        }).catch(() => {})
+        }).catch(() => this.memoryCapture.diagnose('capture_failed', session.sessionId))
       }
     } catch (error) {
       // 出错路径：清空排队输入、记录错误、暂停活动目标并广播 error 事件。
@@ -2537,12 +2568,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }, 60_000)
       timer.unref?.()
       // 完成事件不等待磁盘，但本轮 Promise 必须覆盖统计写入，避免退出或清理时仍在落盘。
+      await completionWrite.catch(() => {})
       await this.saveSessionMeta().catch(() => {})
     }
   }
   async captureConversationMemory(input) {
-    await this.waitForInitialization('memory')
-    return captureConversationMemory(this, input)
+    return this.memoryCapture.capture(input)
   }
 }
 Object.assign(AgentRuntimeService.prototype, agentSessionMethods)

@@ -1,7 +1,7 @@
 // 应用外壳：持有全站共享状态（当前页/搜索词/活动会话/Toast/对话框/通知
 // 设置/更新控制器/工作流动作），组装侧边栏 + 页头 + 内容 Outlet + 状态栏，
 // 并通过 Outlet 上下文向各页面注入公共能力。启动时探测是否已配置可用
-// Provider，未配置则引导用户进设置页；同时提供全局快捷键（Cmd+K 命令面板、
+// Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键（Cmd+K 命令面板、
 // Cmd+N 主操作、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
@@ -26,9 +27,11 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
+import { ensureChatLayoutMessages, ensureCustomUiMessages } from '@/app/i18n'
+import type { DesktopChatLayout } from '@/features/chat/layout/public'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
-import { WebPreviewProvider } from '@/components/WebPreviewProvider'
+import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import {
   MobilePrimaryNavigation,
@@ -43,7 +46,6 @@ import {
   COMMAND_PALETTE_REQUESTED_EVENT,
   requestSessionSelection,
 } from '@/features/chat/events'
-import { WebDesktopPet } from '@/features/desktop-pet/WebDesktopPet'
 import { apiJson } from '@/lib/api'
 import {
   fetchStartupQuery,
@@ -56,6 +58,7 @@ import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
 import { useIsMobile, useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
+import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
@@ -74,6 +77,24 @@ import type { WorkflowActions } from '@/types/workflow'
 const AppShortcuts = lazy(() =>
   import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
 )
+const ChatLayoutNavigation = lazy(() =>
+  import('@/app/ChatLayoutNavigation').then((module) => ({ default: module.ChatLayoutNavigation })),
+)
+const FloatingWidgets = lazy(async () => {
+  const [{ FloatingWidgets }] = await Promise.all([
+    import('@/app/FloatingWidgets'),
+    ensureCustomUiMessages(),
+  ])
+  return { default: FloatingWidgets }
+})
+const ChatLayoutSwitcher = lazy(async () => {
+  const [{ ChatLayoutMenu }] = await Promise.all([
+    import('@/app/ChatLayoutMenu'),
+    ensureChatLayoutMessages(),
+    ensureCustomUiMessages(),
+  ])
+  return { default: ChatLayoutMenu }
+})
 const CommandPalette = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({
     default: module.CommandPalette,
@@ -81,6 +102,21 @@ const CommandPalette = lazy(() =>
 )
 const QuickCreate = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({ default: module.QuickCreate })),
+)
+const WebDesktopPet = lazy(() =>
+  import('@/features/desktop-pet/WebDesktopPet').then((module) => ({
+    default: module.WebDesktopPet,
+  })),
+)
+const ConfigSearchBox = lazy(() =>
+  import('@/features/config/public-components').then((module) => ({
+    default: module.ConfigSearchBox,
+  })),
+)
+const ModelOnboardingDialog = lazy(() =>
+  import('@/features/config/public-components').then((module) => ({
+    default: module.ModelOnboardingDialog,
+  })),
 )
 const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
@@ -95,16 +131,6 @@ const MobileViewportStabilizer = lazy(() =>
     default: module.MobileViewportStabilizer,
   })),
 )
-type ProviderConfig = {
-  configured: boolean
-  enabled: boolean
-  models: Array<{ kind: string }>
-}
-
-type AppConfig = {
-  providers?: ProviderConfig[]
-}
-
 type ToastState = {
   id: number
   message: string
@@ -114,19 +140,6 @@ type ToastState = {
 type PluginStats = {
   enabled: number
   total: number
-}
-
-// 是否存在可用 Provider：已配置 + 启用 + 含 chat 类模型的 Provider 至少一个。
-// 启动时据此决定是否引导用户先去配置页。
-function hasUsableProvider(config: AppConfig) {
-  return Boolean(
-    config?.providers?.some(
-      (provider) =>
-        provider.configured &&
-        provider.enabled &&
-        provider.models.some((model) => model.kind === 'chat'),
-    ),
-  )
 }
 
 // 渲染通知模板：把 {{a.b}} 占位符替换为事件数据中的嵌套字段值，
@@ -184,6 +197,7 @@ function App() {
   const mobileLayout = mobileApp || phoneViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
+  const [chatNavigation, setChatNavigation] = useState<DesktopChatLayout | null>(null)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
@@ -195,6 +209,7 @@ function App() {
   const motion = useUiStore((state) => state.motion)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [modal, setModal] = useState<string | null>(null)
+  const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
   const requestedConfigSection =
     page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
   const configSection =
@@ -208,7 +223,7 @@ function App() {
     data: configData,
     isPending: configPending,
     isSuccess: configSucceeded,
-  } = useQuery(startupQueryOptions<AppConfig>('config'))
+  } = useQuery(startupQueryOptions<ModelOnboardingConfig>('config'))
   const { data: notificationData } = useQuery(
     startupQueryOptions<NotificationSettingsData>('notification-settings'),
   )
@@ -239,7 +254,6 @@ function App() {
     [t],
   )
   const [terminalOpen, setTerminalOpen] = useState(() => Boolean(readStoredTerminalPanel().open))
-  const toggleTerminal = useCallback(() => setTerminalOpen((open) => !open), [])
   const [terminalHeight, setTerminalHeight] = useState(() =>
     Math.max(180, Math.min(640, Number(readStoredTerminalPanel().height) || 300)),
   )
@@ -247,6 +261,7 @@ function App() {
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const appShellRef = useRef<HTMLDivElement>(null)
+  const pageHeaderRef = useRef<HTMLElement>(null)
   const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
@@ -434,16 +449,42 @@ function App() {
 
   // 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
   const setConfigSection = useCallback(
-    (section: string) => {
+    (section: string, view?: 'appearance' | 'layout' | 'widgets') => {
       const nextSection =
         CONFIG_SECTIONS.has(section) && runtimeConfigSectionAvailable(capabilities, section)
           ? section
           : 'models'
-      routerNavigate(`/config/${nextSection}`)
+      const search =
+        nextSection === 'interface' && view && view !== 'appearance' ? `?view=${view}` : ''
+      routerNavigate(`/config/${nextSection}${search}`)
       setQuery('')
     },
     [capabilities, routerNavigate],
   )
+
+  const dismissModelOnboarding = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.modelOnboardingDismissed, '1')
+    } catch {
+      // 存储受限时仍允许关闭；本次应用会话内不会再次打开。
+    }
+    setModelOnboardingOpen(false)
+  }, [])
+
+  const openModelSettingsFromOnboarding = useCallback(() => {
+    dismissModelOnboarding()
+    // 用户主动选择设置时，把模型页主操作排队；页面挂载后直接打开快速配置向导。
+    primaryActions.clear()
+    primaryActions.invoke()
+    setConfigSection('models')
+  }, [dismissModelOnboarding, primaryActions, setConfigSection])
+
+  const openImportableSettingsFromOnboarding = useCallback(() => {
+    dismissModelOnboarding()
+    // 导入页保持连接管理区展开；无需经过新建连接向导。
+    routerNavigate('/config/models?import=1')
+    setQuery('')
+  }, [dismissModelOnboarding, routerNavigate])
 
   const openUpdateSettings = useCallback(() => setConfigSection('updates'), [setConfigSection])
 
@@ -470,38 +511,6 @@ function App() {
     routerNavigate(lastAppPathRef.current)
     setQuery('')
   }, [routerNavigate])
-
-  const providerScanStarted = useRef(false)
-  useEffect(() => {
-    if (!startupReady || providerScanStarted.current) return
-    providerScanStarted.current = true
-    void (async () => {
-      try {
-        const data = await apiJson<{
-          providers?: Array<{
-            importable?: boolean
-            imported?: boolean
-            conflict?: boolean
-          }>
-        }>('/api/providers/discovery')
-        const count = (data.providers || []).filter(
-          (provider) => provider.importable && !provider.imported && !provider.conflict,
-        ).length
-        if (count <= 0) return
-        const approved = await appDialog.confirm({
-          title: t('common:app.importableProvidersTitle'),
-          message: t('common:app.importableProvidersMessage', { count }),
-          confirmLabel: t('common:app.openSettings'),
-          tone: 'primary',
-        })
-        if (approved) {
-          setConfigSection('models')
-        }
-      } catch {
-        // 本地配置扫描失败时静默忽略，不影响启动
-      }
-    })()
-  }, [appDialog, setConfigSection, startupReady, t])
 
   // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
@@ -552,7 +561,7 @@ function App() {
 
   useEffect(() => {
     const openCommandPalette = () => {
-      if (!appDialog.dialog && !modal) setPaletteOpen(true)
+      if (!appDialog.dialog && !modal && !modelOnboardingOpen) setPaletteOpen(true)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return
@@ -569,7 +578,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, mobileNav, modal, paletteOpen])
+  }, [appDialog.dialog, mobileNav, modal, modelOnboardingOpen, paletteOpen])
 
   const startupConfigHandled = useRef(false)
   useEffect(() => {
@@ -579,12 +588,16 @@ function App() {
     // 配置失败只结束等待，不把网络故障当作未配置，也不因后续刷新再次重定向。
     if (!configSucceeded || !configData) return
     markStartupPhase('config-loaded')
-    if (!hasUsableProvider(configData)) {
-      primaryActions.clear()
-      primaryActions.invoke()
-      if (!SETTINGS_PAGES.has(startupPageRef.current)) navigate('config', { replace: true })
+    let dismissed = false
+    try {
+      dismissed = localStorage.getItem(STORAGE_KEYS.modelOnboardingDismissed) === '1'
+    } catch {
+      // 存储不可读时按未关闭处理，仍允许用户在界面上跳过。
     }
-  }, [configData, configPending, configSucceeded, navigate, primaryActions])
+    if (startupPageRef.current !== 'config' && shouldShowModelOnboarding(configData, dismissed)) {
+      setModelOnboardingOpen(true)
+    }
+  }, [configData, configPending, configSucceeded])
 
   useEffect(() => {
     if (startupReady && capabilitiesLoaded && page === 'chat') {
@@ -641,10 +654,11 @@ function App() {
 
   const activeMeta: readonly [string, string] =
     page === 'chat'
-      ? [t('common:app.sessions'), '']
+      ? [
+          t('common:app.sessions'),
+          mobileLayout ? '' : t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
+        ]
       : pageMeta[page] || [t('common:app.sessions'), '']
-  // 桌面聊天页：应用页头隐藏，汉堡/标题/工具簇由聊天中栏自带。
-  const desktopChatPage = page === 'chat'
 
   const updateNotificationSettings = useCallback((settings: NotificationSettingsData) => {
     // 回调须稳定，否则通知表单会因依赖变化重复加载；保存值不能被较早的请求覆盖。
@@ -665,8 +679,6 @@ function App() {
     onUseAsset: useAsset,
     requestText: appDialog.prompt,
     requestConfirm: appDialog.confirm,
-    terminalOpen,
-    toggleTerminal,
     openNotificationSettings,
     configSection,
     setConfigSection,
@@ -692,6 +704,9 @@ function App() {
         data-mobile-app={mobileLayout || undefined}
       >
         <WebPreviewProvider />
+        <Suspense fallback={null}>
+          <ChatLayoutNavigation onChange={setChatNavigation} />
+        </Suspense>
         {mobileLayout && (
           <Suspense fallback={null}>
             <MobileViewportStabilizer
@@ -700,9 +715,21 @@ function App() {
             />
           </Suspense>
         )}
-        {runtimeFeatureAvailable(capabilities, 'desktopPet') && <WebDesktopPet />}
+        {runtimeFeatureAvailable(capabilities, 'desktopPet') && (
+          <Suspense fallback={null}>
+            <WebDesktopPet />
+          </Suspense>
+        )}
         <SidebarProvider
-          className="app-body max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
+          data-chat-navigation={
+            page === 'chat' && !drawerSidebar ? chatNavigation?.navigationSide : undefined
+          }
+          style={
+            page === 'chat' && !drawerSidebar && chatNavigation
+              ? ({ '--sidebar-width': `${chatNavigation.navigationWidth}px` } as CSSProperties)
+              : undefined
+          }
+          className="app-body data-[chat-navigation=right]:[&>[data-slot=sidebar]]:order-2 max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
           data-mobile-app={mobileLayout || undefined}
           open={!sidebarCollapsed}
           onOpenChange={(open) => setSidebarCollapsed(!open)}
@@ -711,7 +738,7 @@ function App() {
         >
           <Suspense fallback={null}>
             <AppShortcuts
-              blocked={Boolean(appDialog.dialog || modal || paletteOpen)}
+              blocked={Boolean(appDialog.dialog || modal || modelOnboardingOpen || paletteOpen)}
               onCommandPalette={() => setPaletteOpen(true)}
               onPrimary={handlePrimary}
               onToggleSidebar={() =>
@@ -736,51 +763,66 @@ function App() {
               onSettings={() => navigate('config')}
             />
           </Suspense>
-          {/* 收起时完全隐藏侧栏（ZCode 式），页头汉堡负责展开；移动端抽屉不受影响 */}
-          {(!sidebarCollapsed || mobileNav) && (
-            <AppSidebar
-              page={page}
-              configSection={configSection}
-              navigation={navigation}
-              navigate={navigate}
-              navigateSettings={navigateSettings}
-              onExitSettings={exitSettings}
-              collapsed={false}
-              update={appUpdate}
-              onOpenUpdates={openUpdateSettings}
-              requestText={appDialog.prompt}
-              requestConfirm={appDialog.confirm}
-              notify={notify}
-            />
-          )}
+          <AppSidebar
+            page={page}
+            configSection={configSection}
+            navigation={navigation}
+            navigate={navigate}
+            navigateSettings={navigateSettings}
+            onExitSettings={exitSettings}
+            collapsed={sidebarCollapsed}
+            side={page === 'chat' && !drawerSidebar ? chatNavigation?.navigationSide : 'left'}
+            width={page === 'chat' && !drawerSidebar ? chatNavigation?.navigationWidth : undefined}
+            onToggleCollapse={toggleSidebarCollapsed}
+            update={appUpdate}
+            onOpenUpdates={openUpdateSettings}
+            requestText={appDialog.prompt}
+            requestConfirm={appDialog.confirm}
+            notify={notify}
+          />
           <SidebarInset className="main-surface before:[content:''] before:absolute before:z-[-1] before:inset-[0_0_auto] before:h-[220px] before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] before:pointer-events-none dark:bg-[var(--main-surface-bg)] dark:before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] dark:[background-image:radial-gradient(rgba(255,_255,_255,_.05)_1px,_transparent_1.3px),_radial-gradient(rgba(255,_255,_255,_.025)_1px,_transparent_1.3px)] dark:[background-size:26px_26px,_41px_41px] dark:[background-position:0_0,_13px_20px] relative flex min-w-0 flex-1 h-full flex-col overflow-hidden [border-left:0] bg-[var(--main-surface-bg)] shadow-[inset_0_1px_0_var(--main-surface-inset),_0_20px_60px_-28px_var(--main-surface-shadow)]">
-            {/* 桌面聊天页的页头三件套（汉堡/标题/工具簇）由中栏自带，应用页头隐藏；移动端仍用应用页头。 */}
-            {(!desktopChatPage || mobileLayout) && (
-              <Suspense fallback={null}>
-                <PageHeader
-                  meta={activeMeta}
-                  page={page}
-                  query={query}
-                  setQuery={setQuery}
-                  configSection={configSection}
-                  onMenu={() => {
-                    // 移动端开导航抽屉；桌面端负责侧栏的收起/展开（ZCode 式完全隐藏）。
-                    if (mobileLayout) setMobileNav(true)
-                    else toggleSidebarCollapsed()
-                  }}
-                  onPrimary={handlePrimary}
-                  onConfigSearchSelect={setConfigSection}
-                  searchInputRef={searchInputRef}
-                  theme={theme}
-                  onCycleTheme={cycleTheme}
-                  workflowActions={workflowActions}
-                  desktopPlatform={window.pisperDesktop?.platform || ''}
-                  mobileApp={mobileApp}
-                  terminalOpen={terminalOpen}
-                  onToggleTerminal={() => setTerminalOpen((value) => !value)}
-                />
-              </Suspense>
-            )}
+            <Suspense fallback={null}>
+              <PageHeader
+                elementRef={pageHeaderRef}
+                meta={activeMeta}
+                page={page}
+                query={query}
+                setQuery={setQuery}
+                configSection={configSection}
+                onMenu={() => setMobileNav(true)}
+                onPrimary={handlePrimary}
+                searchSlot={
+                  page === 'config' ? (
+                    <Suspense fallback={null}>
+                      <ConfigSearchBox
+                        query={query}
+                        onQueryChange={setQuery}
+                        onSelect={setConfigSection}
+                        inputRef={searchInputRef}
+                      />
+                    </Suspense>
+                  ) : undefined
+                }
+                searchInputRef={searchInputRef}
+                actionsSlot={
+                  page === 'chat' ? (
+                    <Suspense fallback={null}>
+                      <ChatLayoutSwitcher
+                        notify={notify}
+                        onManage={() => setConfigSection('interface', 'layout')}
+                      />
+                    </Suspense>
+                  ) : undefined
+                }
+                theme={theme}
+                onCycleTheme={cycleTheme}
+                workflowActions={workflowActions}
+                desktopPlatform={window.pisperDesktop?.platform || ''}
+                mobileApp={mobileApp}
+                terminalOpen={terminalOpen}
+                onToggleTerminal={() => setTerminalOpen((value) => !value)}
+              />
+            </Suspense>
             {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
               <MobileSettingsNavigation
                 page={page}
@@ -814,6 +856,9 @@ function App() {
             )}
           </SidebarInset>
         </SidebarProvider>
+        <Suspense fallback={null}>
+          <FloatingWidgets anchorRef={pageHeaderRef} notify={notify} />
+        </Suspense>
         {clientLoaded && !mobileApp && <StatusBar page={page} pluginStats={pluginStats} />}
         {toast && (
           <AppToast
@@ -831,6 +876,16 @@ function App() {
           onClose={appDialog.close}
           onFinish={appDialog.finish}
         />
+        <Suspense fallback={null}>
+          {modelOnboardingOpen && (
+            <ModelOnboardingDialog
+              open
+              onDismiss={dismissModelOnboarding}
+              onOpenImport={openImportableSettingsFromOnboarding}
+              onOpenSettings={openModelSettingsFromOnboarding}
+            />
+          )}
+        </Suspense>
         <Suspense fallback={null}>
           {paletteOpen && (
             <CommandPalette

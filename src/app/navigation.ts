@@ -52,6 +52,14 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
     memory: [t('navigation:navigation.memory'), t('navigation:navigation.memoryDescription')],
     mcp: [t('navigation:navigation.mcp'), t('navigation:navigation.mcpDescription')],
     skills: [t('navigation:navigation.skills'), t('navigation:navigation.skillsDescription')],
+    components: [
+      t('navigation:navigation.components'),
+      t('navigation:navigation.componentsDescription'),
+    ],
+    decisions: [
+      t('navigation:navigation.decisions'),
+      t('navigation:navigation.decisionsDescription'),
+    ],
     workflows: [
       t('navigation:navigation.workflows'),
       t('navigation:navigation.workflowsDescription'),

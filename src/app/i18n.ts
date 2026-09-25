@@ -5,7 +5,6 @@
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import enAssets from '@/locales/en-US/assets.json' with { type: 'json' }
-import enChannels from '@/locales/en-US/channels.json' with { type: 'json' }
 import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
@@ -13,11 +12,11 @@ import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
 import enSchedules from '@/locales/en-US/schedules.json' with { type: 'json' }
+import enDecisions from '@/locales/en-US/decisions.json' with { type: 'json' }
 import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
 import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
 import enWorkflows from '@/locales/en-US/workflows.json' with { type: 'json' }
 import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
-import zhChannels from '@/locales/zh-CN/channels.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
@@ -25,6 +24,7 @@ import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
 import zhSchedules from '@/locales/zh-CN/schedules.json' with { type: 'json' }
+import zhDecisions from '@/locales/zh-CN/decisions.json' with { type: 'json' }
 import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
 import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
 import zhWorkflows from '@/locales/zh-CN/workflows.json' with { type: 'json' }
@@ -52,10 +52,14 @@ export const I18N_NAMESPACES = Object.freeze([
   'navigation',
   'chat',
   'config',
+  'custom-ui',
+  'chat-layout',
+  'mcp',
   'memory',
   'plugins',
   'schedules',
   'skills',
+  'decisions',
   'terminal',
   'workflows',
 ] as const)
@@ -82,13 +86,13 @@ void i18n.use(initReactI18next).init({
   resources: {
     'zh-CN': {
       assets: zhAssets,
-      channels: zhChannels,
       common: zhCommon,
       navigation: zhNavigation,
       chat: zhChat,
       config: zhConfig,
       memory: zhMemory,
       plugins: zhPlugins,
+      decisions: zhDecisions,
       schedules: zhSchedules,
       skills: zhSkills,
       terminal: zhTerminal,
@@ -96,13 +100,13 @@ void i18n.use(initReactI18next).init({
     },
     'en-US': {
       assets: enAssets,
-      channels: enChannels,
       common: enCommon,
       navigation: enNavigation,
       chat: enChat,
       config: enConfig,
       memory: enMemory,
       plugins: enPlugins,
+      decisions: enDecisions,
       schedules: enSchedules,
       skills: enSkills,
       terminal: enTerminal,
@@ -118,6 +122,84 @@ void i18n.use(initReactI18next).init({
   nsSeparator: ':',
   initAsync: false,
 })
+
+let channelsMessagesPromise: Promise<void> | null = null
+let mcpMessagesPromise: Promise<void> | null = null
+let chatLayoutMessagesPromise: Promise<void> | null = null
+let customUiMessagesPromise: Promise<void> | null = null
+
+// 独立组件的文案随目录或沙箱宿主加载，普通会话无须预载全部组件提示。
+export function ensureCustomUiMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'custom-ui') && i18n.hasResourceBundle('en-US', 'custom-ui'))
+    return Promise.resolve()
+  customUiMessagesPromise ??= import('./custom-ui-messages')
+    .then(({ customUiMessages: { zh, en } }) => {
+      i18n.addResourceBundle('zh-CN', 'custom-ui', zh)
+      i18n.addResourceBundle('en-US', 'custom-ui', en)
+    })
+    .catch((error: unknown) => {
+      customUiMessagesPromise = null
+      throw error
+    })
+  return customUiMessagesPromise
+}
+
+// 布局编辑器的文案只在进入该页时加载，不挤占会话首屏预算。
+export function ensureChatLayoutMessages(): Promise<void> {
+  if (
+    i18n.hasResourceBundle('zh-CN', 'chat-layout') &&
+    i18n.hasResourceBundle('en-US', 'chat-layout')
+  )
+    return Promise.resolve()
+  chatLayoutMessagesPromise ??= import('./chat-layout-messages')
+    .then(({ chatLayoutMessages: { zh, en } }) => {
+      i18n.addResourceBundle('zh-CN', 'chat-layout', zh)
+      i18n.addResourceBundle('en-US', 'chat-layout', en)
+    })
+    .catch((error: unknown) => {
+      chatLayoutMessagesPromise = null
+      throw error
+    })
+  return chatLayoutMessagesPromise
+}
+
+// 通道词条只由通道页使用；在路由挂载前同时注册两种语言，避免切换语言时闪现键名。
+export function ensureChannelsMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'channels') && i18n.hasResourceBundle('en-US', 'channels'))
+    return Promise.resolve()
+  channelsMessagesPromise ??= Promise.all([
+    import('@/locales/zh-CN/channels.json', { with: { type: 'json' } }),
+    import('@/locales/en-US/channels.json', { with: { type: 'json' } }),
+  ])
+    .then(([zh, en]) => {
+      i18n.addResourceBundle('zh-CN', 'channels', zh.default)
+      i18n.addResourceBundle('en-US', 'channels', en.default)
+    })
+    .catch((error: unknown) => {
+      channelsMessagesPromise = null
+      throw error
+    })
+  return channelsMessagesPromise
+}
+
+// MCP 页面单独加载两种语言，新增服务端配置文案不占用会话首屏预算。
+export function ensureMcpMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'mcp') && i18n.hasResourceBundle('en-US', 'mcp'))
+    return Promise.resolve()
+  mcpMessagesPromise ??= Promise.all([
+    import('@/locales/zh-CN/mcp.json'),
+    import('@/locales/en-US/mcp.json'),
+  ])
+    .then(([zh, en]) => {
+      i18n.addResourceBundle('zh-CN', 'mcp', zh.default)
+      i18n.addResourceBundle('en-US', 'mcp', en.default)
+    })
+    .catch((error: unknown) => {
+      mcpMessagesPromise = null
+      throw error
+    })
+  return mcpMessagesPromise
+}
 
 // 非 React 场景翻译：固定语言取翻译，避免依赖当前组件实例状态；
 // 供事件派发、工具函数等非组件代码使用。

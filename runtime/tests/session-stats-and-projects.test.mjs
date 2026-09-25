@@ -102,7 +102,7 @@ test('sidebar and usage popover wire project context menu and session stats pane
   assert.match(sidebar, /chat:chatHistoryPage\.renameChat/)
   assert.match(sidebar, /onSelect=\{\(\) => void deleteSingleSession\(menuTargetSession\)\}/)
   assert.match(sidebar, /<WorkspacePicker[\s\S]*?onSelect=/)
-  assert.match(sidebar, /announceSessionsUpdated\(\)/)
+  assert.match(sidebar, /announceSessionsUpdated\(\s*result\.deletedIds\.length/)
   assert.match(
     appSidebar,
     /requestText: \(options\?: PromptDialogOptions\) => Promise<string \| null>/,

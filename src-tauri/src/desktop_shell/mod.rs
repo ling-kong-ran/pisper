@@ -4,6 +4,7 @@ mod computer_use;
 mod desktop_bridge;
 mod desktop_pet;
 mod desktop_terminal;
+mod startup_diagnostics;
 mod tunnel_lifecycle;
 
 #[cfg(all(test, target_os = "windows"))]
@@ -755,6 +756,11 @@ pub fn run() {
         .first()
         .is_some_and(|value| value == "--pisper-cli")
         .then(|| process_args[1..].to_vec());
+    #[cfg(target_os = "windows")]
+    if cli_args.is_none() && tauri::webview_version().is_err() {
+        startup_diagnostics::show_before_runtime(startup_diagnostics::WEBVIEW2_GUIDANCE);
+        std::process::exit(1);
+    }
     let mut builder = tauri::Builder::default()
         .on_menu_event(|app, event| handle_desktop_menu_event(app, event.id().as_ref()));
     if cli_args.is_none() {
@@ -836,48 +842,79 @@ pub fn run() {
                 return Ok(());
             }
 
-            if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
-                eprintln!("Failed to refresh the managed Pisper CLI: {error}");
-            }
-
-            app.manage(DesktopTunnelState::default());
-            stop_desktop_tunnel(app.handle());
-            let (child, ready) = start_sidecar(app)?;
-            app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
-                child,
-                pid: ready.pid,
-            }))));
-            app.manage(desktop_pet::DesktopPetWindowState::new(
-                ready.bootstrap_url.clone(),
-            ));
-            if ready.remote_enabled {
-                start_desktop_tunnel(app.handle());
-            }
-            if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
-                stop_sidecar(app.handle());
-                return Err(error.into());
-            }
-            let result = create_tray(app)
-                .map_err(|error| error.to_string())
-                .and_then(|_| create_pet_context_menu(app).map_err(|error| error.to_string()))
-                .and_then(|_| create_main_window(app, &ready))
-                .and_then(|_| {
-                    sync_desktop_pet_menu_enabled(app.handle(), ready.desktop_pet_running);
-                    if ready.desktop_pet_running {
-                        desktop_pet::create_pet_window(app.handle(), &ready.bootstrap_url)?;
-                        desktop_pet::show_pet_window(app.handle())
-                    } else {
-                        Ok(())
+            let mut stage = startup_diagnostics::StartupStage::Resources;
+            let mut missing_resource = None;
+            let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+                if !cfg!(debug_assertions) {
+                    let executable = std::env::current_exe()?;
+                    let executable_dir =
+                        executable.parent().ok_or("Missing executable directory")?;
+                    if let Some(missing) = startup_diagnostics::missing_bundled_file(
+                        executable_dir,
+                        &app.path().resource_dir()?,
+                        platform_binary_name(),
+                    ) {
+                        missing_resource = Some(missing);
+                        return Err(format!("Required bundled file is missing: {missing}").into());
                     }
-                });
-            // 镜像管道启动自测（仅 debug 构建 + 显式环境变量）：在主窗口就绪后启动。
-            #[cfg(all(debug_assertions, target_os = "macos"))]
-            {
-                computer_use::maybe_run_startup_self_test(app.handle().clone());
-            }
-            if let Err(error) = result {
+                }
+                if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
+                    eprintln!("Failed to refresh the managed Pisper CLI: {error}");
+                }
+
+                app.manage(DesktopTunnelState::default());
+                stop_desktop_tunnel(app.handle());
+                stage = startup_diagnostics::StartupStage::Runtime;
+                let (child, ready) = start_sidecar(app)?;
+                app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
+                    child,
+                    pid: ready.pid,
+                }))));
+                app.manage(desktop_pet::DesktopPetWindowState::new(
+                    ready.bootstrap_url.clone(),
+                ));
+                if ready.remote_enabled {
+                    start_desktop_tunnel(app.handle());
+                }
+                if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
+                    stop_sidecar(app.handle());
+                    return Err(error.into());
+                }
+                stage = startup_diagnostics::StartupStage::Desktop;
+                let result = create_tray(app)
+                    .map_err(|error| error.to_string())
+                    .and_then(|_| create_pet_context_menu(app).map_err(|error| error.to_string()))
+                    .and_then(|_| create_main_window(app, &ready))
+                    .and_then(|_| {
+                        sync_desktop_pet_menu_enabled(app.handle(), ready.desktop_pet_running);
+                        if ready.desktop_pet_running {
+                            desktop_pet::create_pet_window(app.handle(), &ready.bootstrap_url)?;
+                            desktop_pet::show_pet_window(app.handle())
+                        } else {
+                            Ok(())
+                        }
+                    });
+                // 镜像管道启动自测（仅 debug 构建 + 显式环境变量）：在主窗口就绪后启动。
+                #[cfg(all(debug_assertions, target_os = "macos"))]
+                {
+                    computer_use::maybe_run_startup_self_test(app.handle().clone());
+                }
+                if let Err(error) = result {
+                    stop_sidecar(app.handle());
+                    return Err(error.into());
+                }
+                Ok(())
+            })();
+            if result.is_err() {
                 stop_sidecar(app.handle());
-                return Err(error.into());
+                stop_desktop_tunnel(app.handle());
+                // 不把底层错误中的个人路径、令牌或会话数据写入弹窗与日志。
+                let mut message = startup_diagnostics::guidance(stage).to_string();
+                if let Some(missing) = missing_resource {
+                    message.push_str(&format!("\n缺失文件 / Missing file: {missing}"));
+                }
+                eprintln!("{message}");
+                startup_diagnostics::show(app.handle(), &message);
             }
             Ok(())
         })
@@ -898,9 +935,16 @@ pub fn run() {
             }
         });
 
-    let application = builder
-        .build(tauri::generate_context!())
-        .expect("failed to build Pisper WebView application");
+    let application = match builder.build(tauri::generate_context!()) {
+        Ok(application) => application,
+        Err(_) => {
+            let message = startup_diagnostics::guidance(startup_diagnostics::StartupStage::Desktop);
+            eprintln!("{message}");
+            #[cfg(target_os = "windows")]
+            startup_diagnostics::show_before_runtime(message);
+            std::process::exit(1);
+        }
+    };
     application.run(|app, event| {
         #[cfg(target_os = "macos")]
         if matches!(&event, RunEvent::Reopen { .. }) {

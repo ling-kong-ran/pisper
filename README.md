@@ -56,11 +56,13 @@
 
 | 🌿 并行与分叉 | 🧩 能力扩展 |
 | --- | --- |
-| 并行会话分屏 · 追忆分支树 · 稳定 Turn 标签 · Ctrl+K 跨会话直达 · 会话级模型/目录/权限 | 本地插件自动生成 · MCP 服务 · 技能中心 · 多 Provider 模型配置 |
+| 并行会话分屏 · 追忆分支树 · 稳定 Turn 标签 · Ctrl+K 跨会话直达 · 会话级模型/目录/权限 | 本地插件自动生成 · 接入外部 MCP 服务 · 内置 MCP 服务供本机其他 Agent 调用 · 技能中心 · 多 Provider 模型配置 |
 | **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
 | 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
 
 [语音输入 对话模式](https://ling-kong-ran.github.io/pisper/guide.html#voice)
+
+需要让同一台电脑上的其他 Agent 调用 Pisper？在 MCP 页面自行开启内置服务，复制连接配置。支持会话、记忆、工作流等能力；连接需要令牌。[查看内置 MCP 使用说明](docs/mcp-host.md)。
 
 <a id="pi-runtime"></a>
 
@@ -113,6 +115,19 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 
 从 [Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载对应平台安装包，**自带 TUI 与 Runtime，无需安装 Node.js**。
 
+可在[下载页](https://ling-kong-ran.github.io/pisper/#download)按系统和架构选择：
+
+| 系统 | 安装包与离线条件 |
+| --- | --- |
+| Windows x64 普通包（推荐） | `*-setup.exe`（不含 `-offline-`）：体积较小，复用已有 WebView2；缺失时联网安装。已有 WebView2 的内网电脑也可使用。 |
+| Windows x64 完整离线包 | `*-offline-setup.exe`：额外包含完整 WebView2 安装器，适合缺少该运行时或无法确认的离线电脑；因此体积明显更大。 |
+| macOS | 按 Apple Silicon / Intel 选择 DMG，使用系统 WKWebView，无需额外分发浏览器内核。 |
+| Linux x64 | AppImage 可能需要 FUSE；Debian / Ubuntu 可选 DEB。离线部署需提前准备发行版所需系统库，DEB 可能依赖 WebKitGTK 等包。 |
+
+Windows 自动更新使用普通包，已有 WebView2 无需随每次更新重复下载。**完整离线包不包含按需下载的本地语音模型**；各平台的模型、MCP 外部程序和扩展仍需单独准备，模型对话需要可达的模型服务（可以是内网服务）。旧版本未提供两种 Windows 包时，以 Release 实际资产为准。详见[离线部署说明](docs/troubleshooting/offline-deployment.md)。
+
+普通安装包检测到 WebView2 缺失时，会先说明依赖用途、联网要求和离线包选项；失败时显示修复方向及安装错误码。桌面启动时发现随包文件缺失或 Runtime 初始化失败，也会显示原生错误提示。Linux 在程序执行前发生的系统库错误，请从终端启动查看具体库名，见上方离线部署说明。
+
 <details>
 <summary>macOS 提示「无法打开」？</summary>
 
@@ -137,7 +152,7 @@ chmod +x Pisper_*_linux_x86_64.AppImage
 缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可改用 `.deb`：
 
 ```bash
-sudo apt install ./Pisper-*-linux-amd64.deb
+sudo apt install ./Pisper_*_linux_x86_64.deb
 ```
 
 </details>
@@ -158,7 +173,7 @@ Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌
 
 1. 首次启动等待内置 Runtime 就绪，App 会直接打开正常 Pisper 界面；从远程桌面返回时可进入 **设置 → 服务器 → 在本机运行**。
 2. 配置 Provider 和模型；会话、Provider 配置与工作区只保存在手机 App 私有目录。
-3. 本机 Runtime 仅监听随机回环端口。Android/iOS 会按 embedded Node 的实际模块清单隐藏 Shell、MCP、工作流等不可用能力。
+3. 本机 Runtime API 仅监听回环端口；用户开启内置 MCP 服务后，另在 127.0.0.1:5175 监听。Android/iOS 会按 embedded Node 的实际模块清单隐藏 Shell、MCP、工作流等不可用能力。
 
 </details>
 
@@ -216,11 +231,12 @@ npm run desktop:webview:build
 
 ## 🔒 数据安全
 
-Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有，只有你配置并实际调用的 Provider、MCP、搜索或渠道，才会收到完成请求所需的内容。
+Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；你配置并实际调用的 Provider、外部 MCP、搜索或渠道，以及你主动开启并授权令牌的本机 MCP 客户端，才能取得相应任务所需的数据。
 
 - **默认只听本机**：桌面 Runtime 常规入口绑定 127.0.0.1；手机本机 Runtime 只监听随机回环端口。只有显式开启桌面远程访问后，才会额外启动 LAN HTTPS 与 Iroh P2P endpoint。Iroh 只承载原始加密字节，上层仍由 TLS 指纹和设备 Bearer 令牌保护。Pi 遥测默认关闭。
 - **敏感先脱敏、凭据留在沙箱**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘与摘要展示前被替换。手机本机 Provider 凭据与远程设备令牌当前保存在 App 私有目录，依赖系统沙箱与文件权限保护，尚未迁入 Android Keystore 或 iOS Keychain。
 - **权限有边界**：需审批、工作区写入、完全访问三档；凭据不经普通接口回显给 Agent，宿主 Shell 会移除常见凭据环境变量。
+- **对外 MCP 自行开启**：内置服务默认关闭，只监听 127.0.0.1，使用单独的 Bearer 令牌；持有令牌的本机客户端可以调用所有已开放工具。[连接与令牌说明](docs/mcp-host.md)。
 - **记忆需确认**：自动推断的记忆先进入待确认区，你点头之前不参与召回。
 
 > 边界说明：脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。桌面 Runtime 的 Provider 凭据仍位于本机 Agent 数据目录，请保护该目录和备份；手机安全存储也不能替代设备锁屏、系统更新与可信侧载来源。完整说明见[项目主页数据安全部分](https://ling-kong-ran.github.io/pisper/#safety)。

@@ -78,6 +78,7 @@ export class UpdateCheckService {
     const response = await this.fetcher(
       `${REPOSITORY_API}/compare/${this.currentCommit}...${encodeURIComponent(this.branch)}`,
       {
+        signal: AbortSignal.timeout(10_000),
         headers: {
           Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',

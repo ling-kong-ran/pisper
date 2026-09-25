@@ -15,8 +15,20 @@ import type { Notify } from '@/app/route-context'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
-import { announceActiveSession, announceSessionsUpdated } from './events'
-import { mergeSessionLists, sessionCwdForCreate } from './session-list'
+import {
+  announceActiveSession,
+  announceSessionsUpdated,
+  subscribeSessionDeletionUpdates,
+  subscribeSessionOrganizationUpdates,
+  subscribeSessionTitleUpdates,
+} from './events'
+import {
+  applySessionOrganizationUpdate,
+  applySessionTitleUpdate,
+  createSessionTitleReconciler,
+  mergeSessionLists,
+  sessionCwdForCreate,
+} from './session-list'
 
 export const FOCUS_MESSAGE_PAGE_SIZE = 40
 
@@ -47,6 +59,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 流式帧只通知引用发生变化的会话，避免扇出到所有面板。
   const sessionStateListenersRef = useRef(new Map<string, Set<() => void>>())
   const creatingSessionRef = useRef<Promise<string> | null>(null)
+  const [titleReconciler] = useState(createSessionTitleReconciler)
 
   // 更新会话列表（函数式或替换），同步 ref 与 state。
   const updateSessions = useCallback((update: SessionsUpdate) => {
@@ -56,6 +69,21 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     setSessions(next)
     return next
   }, [])
+
+  useEffect(() => {
+    return subscribeSessionTitleUpdates(window, (titleUpdate) => {
+      titleReconciler.record(titleUpdate)
+      updateSessions((current) => applySessionTitleUpdate(current, titleUpdate))
+    })
+  }, [titleReconciler, updateSessions])
+
+  useEffect(
+    () =>
+      subscribeSessionOrganizationUpdates(window, (update) => {
+        updateSessions((current) => applySessionOrganizationUpdate(current, update))
+      }),
+    [updateSessions],
+  )
 
   // 整体替换会话状态表（供批量恢复/清空）。
   const replaceSessionStates = useCallback((states: Record<string, SessionState>) => {
@@ -70,6 +98,23 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       if (listeners) for (const listener of [...listeners]) listener()
     }
   }, [])
+
+  useEffect(() => {
+    return subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
+      titleReconciler.remove(deletedIds)
+      const deleted = new Set(deletedIds)
+      const remaining = updateSessions((current) =>
+        current.filter((session) => !deleted.has(session.id)),
+      )
+      setActiveId((current) => (deleted.has(current) ? remaining[0]?.id || '' : current))
+      const states = sessionStatesRef.current
+      if (deletedIds.some((id) => id in states)) {
+        replaceSessionStates(
+          Object.fromEntries(Object.entries(states).filter(([id]) => !deleted.has(id))),
+        )
+      }
+    })
+  }, [replaceSessionStates, titleReconciler, updateSessions])
 
   // 订阅单个会话状态（配 useSyncExternalStore）：返回退订函数。
   const subscribeSessionState = useCallback((id: string, listener: () => void) => {
@@ -121,11 +166,12 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 恢复阶段若服务端暂时返回空列表，保留已有目录，避免活动页签短暂失去会话摘要。
   const refreshSessions = useCallback(
     async (preferredId?: string, { preserveExistingOnEmpty = false } = {}) => {
+      const titleRevision = titleReconciler.getRevision()
       const data = await chatApi.listSessions()
       const nextSessions =
         preserveExistingOnEmpty && !data.sessions.length && sessionsRef.current.length
           ? sessionsRef.current
-          : data.sessions
+          : titleReconciler.reconcile(data.sessions, titleRevision)
       updateSessions(nextSessions)
       if (preferredId) setActiveId(preferredId)
       else
@@ -137,7 +183,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       announceSessionsUpdated()
       return nextSessions
     },
-    [updateSessions],
+    [titleReconciler, updateSessions],
   )
 
   // 创建会话记录：按调用方决定是否继承最近会话的工作目录；
@@ -207,6 +253,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
 
   useEffect(() => {
     let active = true
+    let titleRevision = titleReconciler.getRevision()
     // 懒加载聊天页可能晚于壳层请求完成，首次读取也须复用尚未失效的共享快照。
     Promise.all([chatApi.listSessions({ refresh: false }), chatApi.getConfig()])
       .then(async ([sessionData, configData]) => {
@@ -238,6 +285,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
         ) {
           await creatingSessionRef.current
           if (!active) return
+          titleRevision = titleReconciler.getRevision()
           list = (await chatApi.listSessions()).sessions
         }
         if (!list.length) {
@@ -245,6 +293,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           list = [created]
         }
         if (!active) return
+        list = titleReconciler.reconcile(list, titleRevision)
         updateSessions((current) => mergeSessionLists(current, list))
         for (const session of list) {
           updateSessionState(session.id, {
@@ -298,10 +347,11 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     return () => {
       active = false
     }
-  }, [notify, t, updateSessionState, updateSessions])
+  }, [notify, t, titleReconciler, updateSessionState, updateSessions])
 
   useEffect(() => {
     if (activeId) localStorage.setItem(STORAGE_KEYS.activeSession, activeId)
+    else localStorage.removeItem(STORAGE_KEYS.activeSession)
   }, [activeId])
 
   const activeSession = sessions.find((session) => session.id === activeId)

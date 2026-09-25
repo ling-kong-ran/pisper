@@ -26,7 +26,7 @@ function serializedSchemas(session) {
 }
 
 function snapshot(session, label) {
-  const systemPrompt = session.agent.state.systemPrompt
+  const systemPrompt = applyPisperSystemPrompt(session, session.model)
   const schemas = serializedSchemas(session)
   return {
     label,

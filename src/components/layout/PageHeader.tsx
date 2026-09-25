@@ -1,10 +1,10 @@
 // 页头：当前页标题/描述 + 搜索框 + 主操作按钮 + 主题/终端/菜单等工具。
 // 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import {
-  Clock,
   Link2,
   Menu,
+  Clock,
   MonitorCog,
   Moon,
   Plus,
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
-import { ConfigSearchBox } from '@/features/config/ConfigSearch'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -41,6 +40,7 @@ type WorkflowActions = {
 }
 
 type PageHeaderProps = {
+  elementRef?: RefObject<HTMLElement | null>
   meta: readonly [string, string]
   page: string
   query: string
@@ -48,7 +48,8 @@ type PageHeaderProps = {
   configSection: string
   onMenu: () => void
   onPrimary: () => void
-  onConfigSearchSelect: (section: string) => void
+  searchSlot?: ReactNode
+  actionsSlot?: ReactNode
   theme: ThemeMode
   onCycleTheme: () => void
   searchInputRef: RefObject<HTMLInputElement | null>
@@ -60,6 +61,7 @@ type PageHeaderProps = {
 }
 
 export function PageHeader({
+  elementRef,
   meta,
   page,
   query,
@@ -67,7 +69,8 @@ export function PageHeader({
   configSection,
   onMenu,
   onPrimary,
-  onConfigSearchSelect,
+  searchSlot,
+  actionsSlot,
   theme,
   onCycleTheme,
   searchInputRef,
@@ -114,6 +117,7 @@ export function PageHeader({
 
   return (
     <header
+      ref={elementRef}
       className={cn(
         'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
         page === 'chat' &&
@@ -124,7 +128,7 @@ export function PageHeader({
     >
       <SidebarTrigger
         className={cn(
-          'size-[34px] place-items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--solid)]',
+          'hidden size-[34px] place-items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--solid)] max-[900px]:grid',
           desktop && '[-webkit-app-region:no-drag]',
         )}
         onClick={onMenu}
@@ -132,7 +136,7 @@ export function PageHeader({
         <Menu size={19} />
       </SidebarTrigger>
       <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
-        <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-bold tracking-[0] max-[650px]:text-[21px]">
+        <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]">
           {meta[0]}
         </h1>
         <p
@@ -179,12 +183,7 @@ export function PageHeader({
             </Button>
           </>
         ) : page === 'chat' ? null : page === 'config' ? (
-          <ConfigSearchBox
-            query={query}
-            onQueryChange={setQuery}
-            onSelect={onConfigSearchSelect}
-            inputRef={searchInputRef}
-          />
+          searchSlot
         ) : (
           <label
             className="flex h-[34px] w-[min(250px,24vw)] items-center gap-[7px] rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--search-bg)] px-2.5 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:shadow-[0_0_0_3px_var(--focus-ring)] in-data-[density=compact]:h-[30px] max-[900px]:w-[190px] max-[650px]:col-start-1 max-[650px]:row-start-1 max-[650px]:w-full max-[650px]:min-w-0"
@@ -192,7 +191,7 @@ export function PageHeader({
           >
             <Search size={15} />
             <input
-              className="w-full min-w-0 border-0 bg-transparent text-[13px] text-[var(--text)] outline-none"
+              className="w-full min-w-0 border-0 bg-transparent text-[length:var(--app-font-size)] font-normal text-[var(--text)] outline-none"
               ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -206,6 +205,7 @@ export function PageHeader({
             />
           </label>
         )}
+        {actionsSlot}
         {primary && (
           <Button
             size="lg"

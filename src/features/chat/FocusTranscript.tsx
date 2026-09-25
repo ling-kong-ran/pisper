@@ -12,7 +12,6 @@ import {
   type UIEvent,
 } from 'react'
 import {
-  AlertTriangle,
   ArrowDown,
   Bug,
   Code2,
@@ -59,6 +58,7 @@ export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 type FocusTranscriptProps = {
   sessionId: string
   messages: ChatMessage[]
+  layoutMeasurementKey?: string
   transcriptLoadState?: TranscriptLoadState
   messageStart?: number | null
   hasOlder?: boolean
@@ -113,7 +113,7 @@ function TranscriptLoading({ label }: { label: string }) {
         <span className="grid h-[34px] w-[34px] place-items-center rounded-[11px] border border-[color-mix(in_srgb,#A855F7_24%,var(--stroke))] bg-[var(--solid)] shadow-[var(--sh-1)]">
           <BrandLogo size={19} />
         </span>
-        <strong className="text-[13px] font-[650] text-[var(--text-soft)]">{label}</strong>
+        <strong className="text-[13px] font-medium text-[var(--text-soft)]">{label}</strong>
         <span className="flex items-end gap-[3px] pb-[3px]" aria-hidden="true">
           <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_infinite]" />
           <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_.16s_infinite]" />
@@ -182,6 +182,7 @@ function welcomeChips(t: Translate, plansAvailable: boolean) {
 export function FocusTranscript({
   sessionId,
   messages,
+  layoutMeasurementKey,
   transcriptLoadState = 'ready',
   messageStart,
   hasOlder,
@@ -361,7 +362,7 @@ export function FocusTranscript({
       <p>{t('chat:focusSession.readyToWorkWithTheCurrentDirectoryAndHelpCompleteTheTask')}</p>
       <button
         type="button"
-        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[12.5px] [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--accent-strong)] [&_>_small]:text-[12px] [&_>_small]:font-[700] hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[12.5px] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)]"
+        className="welcome-workspace [&_>_svg]:flex-none [&_>_span]:flex-none [&_>_strong]:min-w-0 [&_>_strong]:overflow-hidden [&_>_strong]:text-[var(--text-soft)] [&_>_strong]:text-[length:var(--app-font-size)] [&_>_strong]:font-medium [&_>_strong]:text-ellipsis [&_>_small]:flex-none [&_>_small]:ml-[3px] [&_>_small]:text-[var(--accent-strong)] [&_>_small]:text-[12px] [&_>_small]:font-medium hover:border-[var(--stroke-hover)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&:hover_>_strong]:text-[var(--text)] focus-visible:[outline:2px_solid_var(--brand-blue)] focus-visible:[outline-offset:1px] disabled:[cursor:wait] disabled:opacity-[.62] @max-[470px]:max-w-[100%] @max-[470px]:[&_>_span]:hidden flex max-w-[min(460px,100%)] min-h-[36px] items-center gap-[7px] overflow-hidden [margin-top:18px] border border-[var(--stroke)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:6px_14px] text-[var(--text-muted)] text-[length:var(--app-font-size)] whitespace-nowrap shadow-[var(--sh-1)] [transition:background_var(--d1)_var(--ease-out),_color_var(--d1)_var(--ease-out),_border-color_var(--d1)_var(--ease-out)]"
         data-target-cursor
         title={cwd}
         aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
@@ -382,7 +383,7 @@ export function FocusTranscript({
             key={chip.label}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
-            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-[620] text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)]"
+            className="group inline-flex min-h-[38px] items-center gap-[7px] rounded-[var(--r-pill)] border border-[var(--stroke)] bg-[var(--solid)] px-[16px] text-[13px] font-medium text-[var(--text-soft)] shadow-[var(--sh-1)] [transition:all_var(--d1)_var(--ease-out)] hover:-translate-y-[1px] hover:border-[color-mix(in_srgb,#A855F7_45%,var(--stroke))] hover:text-[var(--text)] hover:shadow-[0_10px_24px_-16px_rgba(168,85,247,.5)]"
           >
             <chip.icon
               size={14}
@@ -398,7 +399,7 @@ export function FocusTranscript({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[30px_max(24px,calc((100%_-_90%)/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_90%)/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
+        className="transcript [.focus-session.has-conversation_&]:p-[var(--chat-transcript-block-padding,30px)_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
@@ -408,7 +409,7 @@ export function FocusTranscript({
         <div className="[display:flow-root] w-full" ref={transcriptPrefixRef}>
           {lineage?.parentSessionId && (
             <div
-              className="history-page-loader flex w-[min(90%,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
+              className="history-page-loader flex w-[min(var(--chat-content-width,1040px),100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
               data-pisper-parent-session={lineage.parentSessionId}
             >
               <GitFork size={13} />
@@ -420,7 +421,7 @@ export function FocusTranscript({
             </div>
           )}
           {(hasOlder || loadingOlder || olderError) && (
-            <div className="history-page-loader flex w-[min(90%,100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px]">
+            <div className="history-page-loader flex w-[min(var(--chat-content-width,1040px),100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px]">
               {olderError ? (
                 <Button
                   type="button"
@@ -459,7 +460,7 @@ export function FocusTranscript({
           <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
         )}
         {transcriptLoadState === 'ready' && !messages.length && (
-          <div className="agent-welcome [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-[800] [&_h2]:leading-[1.2] [&_h2]:tracking-[-.02em] [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
+          <div className="agent-welcome [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none [&_h2]:mt-[18px] [&_h2]:text-[clamp(28px,_3vw,_38px)] [&_h2]:font-semibold [&_h2]:leading-[1.2] [&_h2]:tracking-normal [&_p]:max-w-[600px] [&_p]:mt-[14px] [&_p]:text-[15px] [&_p]:leading-[1.75] relative grid min-h-[100%] place-content-center justify-items-center overflow-hidden text-[var(--text-muted)] text-center">
             <Suspense
               fallback={
                 <WelcomeFallback title={welcomeTitles[0]}>{welcomeContent}</WelcomeFallback>
@@ -473,6 +474,7 @@ export function FocusTranscript({
           <div className="[animation:transcript-reveal-enter_.22s_var(--ease-out)_both]">
             <VirtualMessageTranscript
               key={sessionId}
+              layoutMeasurementKey={layoutMeasurementKey}
               sessionId={sessionId}
               messages={messages}
               streaming={streaming}
@@ -491,12 +493,6 @@ export function FocusTranscript({
               onCreateChildSession={onCreateChildSession}
               onRetryLastTurn={onRetryLastTurn}
             />
-          </div>
-        )}
-        {error && (
-          <div className="flex w-[min(90%,100%)] items-center gap-[7px] [margin:8px_auto] rounded-[var(--r-sm)] bg-[var(--danger-soft)] text-[var(--danger)] [padding:9px_11px] text-[13px]">
-            <AlertTriangle size={14} />
-            {error}
           </div>
         )}
       </div>

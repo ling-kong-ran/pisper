@@ -12,6 +12,8 @@ export const PAGE_PATHS = Object.freeze({
   memory: '/memory',
   mcp: '/mcp',
   skills: '/skills',
+  components: '/components',
+  decisions: '/decisions',
   workflows: '/workflows',
   workflowCreate: '/workflows/new',
   config: '/config/models',

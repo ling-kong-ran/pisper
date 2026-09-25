@@ -129,12 +129,80 @@ test('homepage download controls are platform-aware and resolve release assets',
   assert.match(siteScript, /getHighEntropyValues\(\['architecture', 'bitness'\]\)/)
   assert.match(siteScript, /apple silicon|\\bagx\\b/)
   assert.match(siteScript, /api\.github\.com\/repos\/ling-kong-ran\/pisper\/releases\/latest/)
-  assert.match(siteScript, /windows_x86_64-setup\.exe/)
-  assert.match(siteScript, /windows_\$\{architecture\}-setup\.exe/)
+  assert.match(homepage, /data-download-variant="offline"/)
   assert.match(siteScript, /darwin_\$\{architecture\}\.dmg/)
   assert.match(siteScript, /linux_x86_64\.AppImage/)
   assert.match(siteScript, /appReleaseAssetUrl\(appReleaseUrl, appAssets\[downloadTarget\.type\]\)/)
   assert.match(siteScript, /catch\(\(\) => DESKTOP_RELEASE_PAGE\)/)
+})
+
+test('homepage selects explicit platform variants, shares metadata, and falls back for missing assets', async () => {
+  const source = await readFile('docs/site.js', 'utf8')
+  const start = source.indexOf('let desktopReleasePromise')
+  const end = source.indexOf(
+    "\nfor (const link of document.querySelectorAll('[data-desktop-download]'))",
+    start,
+  )
+  assert.ok(start >= 0 && end > start)
+  const releasePage = 'https://github.com/ling-kong-ran/pisper/releases/latest'
+  const suffixes = [
+    'windows_x86_64-setup.exe',
+    'windows_x86_64-offline-setup.exe',
+    'darwin_aarch64.dmg',
+    'darwin_x86_64.dmg',
+    'linux_x86_64.AppImage',
+    'linux_x86_64.deb',
+  ]
+  const release = {
+    tag_name: 'v1.2.3',
+    assets: suffixes.map((suffix) => ({
+      name: `Pisper_1.2.3_${suffix}`,
+      browser_download_url: 'https://untrusted.invalid/file',
+    })),
+  }
+  let requests = 0
+  const context = vm.createContext({
+    DESKTOP_RELEASE_PAGE: releasePage,
+    DESKTOP_RELEASE_API: 'https://api.github.com/release',
+    GITHUB_DOWNLOAD_MIRROR: 'https://mirror.invalid/',
+    readJson: async () => {
+      requests++
+      return release
+    },
+    detectDesktopArchitecture: async () => 'x86_64',
+  })
+  vm.runInContext(source.slice(start, end), context)
+  const cases = [
+    ['windows', {}],
+    ['windows', { variant: 'offline' }],
+    ['macos', { architecture: 'aarch64' }],
+    ['macos', { architecture: 'x86_64' }],
+    ['linux', {}],
+    ['linux', { variant: 'deb' }],
+  ]
+  const urls = await Promise.all(
+    cases.map(([target, options]) => context.desktopReleaseAssetUrl(target, options)),
+  )
+  assert.deepEqual(
+    urls,
+    suffixes.map(
+      (suffix) =>
+        `https://github.com/ling-kong-ran/pisper/releases/download/v1.2.3/Pisper_1.2.3_${suffix}`,
+    ),
+  )
+  assert.equal(requests, 1)
+  release.assets = release.assets.filter(
+    (asset) => !asset.name.includes('offline') && !asset.name.includes('aarch64'),
+  )
+  assert.equal(await context.desktopReleaseAssetUrl('windows', { variant: 'offline' }), releasePage)
+  assert.equal(
+    await context.desktopReleaseAssetUrl('macos', { architecture: 'aarch64' }),
+    releasePage,
+  )
+  release.assets = null
+  assert.equal(await context.desktopReleaseAssetUrl('linux'), releasePage)
+  release.tag_name = '../invalid'
+  assert.equal(await context.desktopReleaseAssetUrl('windows'), releasePage)
 })
 
 test('homepage detects Apple Silicon when Safari reports an Intel-compatible Mac UA', async () => {

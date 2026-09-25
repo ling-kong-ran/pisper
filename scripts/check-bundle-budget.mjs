@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 const KIB = 1024
 
 export const BUNDLE_BUDGETS = {
-  totalCssGzip: 88 * KIB,
+  // 决策模型设置页（懒加载）新增少量布局/进度条样式类。
+  totalCssGzip: 88 * KIB + 128,
   // 移动端恢复门禁保留在统一请求层，入口只增加极小的按需加载开销。
   // 状态栏新增连接探针与重连提示（自适应轮询 + 内置 toast）后，入口文件小幅增长。
   entryFileGzip: 57 * KIB + 384,
@@ -36,7 +37,7 @@ const ROUTE_SOURCES = [
   'src/features/config/ConfigPage.tsx',
   'src/features/plugins/PluginsPage.tsx',
   'src/features/memory/MemoryPage.tsx',
-  'src/features/workflows/PreviewPages.tsx',
+  'src/features/mcp/McpPage.tsx',
   'src/features/skills/SkillsPage.tsx',
   'src/features/workflows/WorkflowsPage.tsx',
 ]

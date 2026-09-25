@@ -52,6 +52,7 @@ type VisualGenerationSettingsProps = {
   toggling: string
   onToggleProvider: (provider: ProviderConfig, enabled: boolean) => void | Promise<void>
   onDeleteProvider: (provider: ProviderConfig) => void | Promise<void>
+  onCloneProvider: (provider: ProviderConfig) => void
   onQuickSetup: () => void
   onEditVisualProvider: (providerId: string) => void
 }
@@ -62,6 +63,7 @@ export function VisualGenerationSettings({
   toggling,
   onToggleProvider,
   onDeleteProvider,
+  onCloneProvider,
   onQuickSetup,
   onEditVisualProvider,
 }: VisualGenerationSettingsProps) {
@@ -179,8 +181,8 @@ export function VisualGenerationSettings({
     <section className="[margin-top:12px]">
       {/* 当前视觉模型摘要卡：与「当前对话模型」卡片同构 */}
       <SettingsCard className="[margin-bottom:12px]" data-config-card="models-visual">
-        <div className="flex flex-wrap items-center gap-[12px] max-[650px]:grid max-[650px]:grid-cols-[40px_minmax(0,1fr)]">
-          <span className="grid w-[40px] h-[40px] flex-none place-items-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--star-strong)]">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="grid size-10 flex-none place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--star-strong)]">
             <Sparkles size={19} />
           </span>
           <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
@@ -222,7 +224,7 @@ export function VisualGenerationSettings({
               </span>
             )}
           </div>
-          <div className="flex min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] max-[650px]:col-span-full">
+          <div className="flex w-full min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] sm:w-auto">
             {status?.image && (
               <Button
                 variant="outline"
@@ -294,6 +296,7 @@ export function VisualGenerationSettings({
             <ConnectionCardGrid
               providers={visualProviders}
               toggling={toggling}
+              onClone={onCloneProvider}
               onConfigure={(provider) => onEditVisualProvider(provider.id)}
               onToggle={onToggleProvider}
               onDelete={onDeleteProvider}

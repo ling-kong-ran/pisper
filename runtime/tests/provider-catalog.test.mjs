@@ -30,12 +30,14 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
   assert.equal(glm.name, 'GLM')
   assert.equal(glm.api, 'openai-completions')
   assert.equal(glm.baseUrl, 'https://open.bigmodel.cn/api/paas/v4')
-  assert.ok(glm.models.some((model) => model.id === 'glm-5.2'))
+  // 上游会更新内置型号；此处保护目录和配置行为，不绑定某次目录快照。
+  const glmModel = glm.models.find((model) => model.id.startsWith('glm-'))
+  assert.ok(glmModel)
 
   const saved = await runtime.saveConfig({
     provider: 'zai-coding-cn',
     providerName: '自定义 GLM 连接',
-    model: 'glm-5.2',
+    model: glmModel.id,
     apiKey: 'test-key',
     baseUrl: glm.baseUrl,
     thinkingLevel: 'medium',
@@ -46,7 +48,7 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
     '自定义 GLM 连接',
   )
   assert.equal(
-    runtime.modelRuntime.getModel('zai-coding-cn', 'glm-5.2').baseUrl,
+    runtime.modelRuntime.getModel('zai-coding-cn', glmModel.id).baseUrl,
     'https://open.bigmodel.cn/api/paas/v4',
   )
   assert.equal(
@@ -479,11 +481,12 @@ test('each chat provider keeps its saved default model independently', async (t)
     setAsDefault: false,
   })
   const retainedDefault = runtime.settingsManager.getGlobalSettings()
-  assert.equal(savedWithoutDefault.defaultUpdated, false)
+  // 修改当前默认 Provider 的内部默认模型，同步 SDK 的 provider/model 对。
+  assert.equal(savedWithoutDefault.defaultUpdated, true)
   assert.equal(savedWithoutDefault.defaultProvider, originalDefault.defaultProvider)
-  assert.equal(savedWithoutDefault.defaultModel, originalDefault.defaultModel)
+  assert.equal(savedWithoutDefault.defaultModel, 'relay-one-second')
   assert.equal(retainedDefault.defaultProvider, originalDefault.defaultProvider)
-  assert.equal(retainedDefault.defaultModel, originalDefault.defaultModel)
+  assert.equal(retainedDefault.defaultModel, 'relay-one-second')
 
   const savedAsDefault = await runtime.saveConfig({
     provider: 'relay-two',

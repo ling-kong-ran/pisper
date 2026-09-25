@@ -31,8 +31,18 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "languages": ["English", "SimpChinese"],
+        "installerHooks": "installer/prerequisites.nsh",
+        "customLanguageFiles": {
+          "English": "installer/English.nsh",
+          "SimpChinese": "installer/SimpChinese.nsh"
+        }
       }
     }
   }

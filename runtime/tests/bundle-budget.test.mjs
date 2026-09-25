@@ -11,7 +11,7 @@ const ROUTE_SOURCES = [
   'src/features/config/ConfigPage.tsx',
   'src/features/plugins/PluginsPage.tsx',
   'src/features/memory/MemoryPage.tsx',
-  'src/features/workflows/PreviewPages.tsx',
+  'src/features/mcp/McpPage.tsx',
   'src/features/skills/SkillsPage.tsx',
   'src/features/workflows/WorkflowsPage.tsx',
 ]

@@ -4,6 +4,10 @@
 
 Argument notation: `<argument>` is required; `[argument]` is optional.
 
+The Windows desktop app installs a native executable at `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe`. Other programs and scripts should launch that file directly with separate arguments, not pass the `.exe` to `node`. The npm package's JavaScript launcher starts its native executable itself.
+
+For an external launch failure containing `MZ` and a Node syntax error, use the [Windows CLI diagnostic tool](../docs/troubleshooting/windows-cli.md) to collect launch clues without knowing the caller's command in advance.
+
 ## CLI Commands
 
 | Command | Explanation |
@@ -40,7 +44,7 @@ Argument notation: `<argument>` is required; `[argument]` is optional.
 | `/changes` | Open the Git or SVN changes view. In that view, `R` refreshes, `C` commits, `P` pushes Git, and pressing `V` twice reverts. SVN has no Push operation. |
 | `/changes commit <message>` | Commit the current Git or SVN changes with an explicit message. |
 | `/chat` | Return to the Chat message stream from another view. |
-| `/model` | Open the model picker and switch the active conversation model. Only configured Provider models are listed. Unavailable during an Agent run. |
+| `/model` | Open the model picker and switch the active conversation model. Context is kept and you can send immediately; use `/compact` if desired. Only configured Provider models are listed. Unavailable during an Agent run. |
 | `/thinking` | Refresh and select thinking levels supported by the active model. Unavailable during an Agent run. |
 | `/provider [id]` | Edit a Provider's protocol, effective Base URL, and masked API key. Pass `id` to open a known Provider directly. |
 | `/apikey [id]` | Compatibility alias for `/provider`. |

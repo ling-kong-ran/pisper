@@ -488,13 +488,11 @@ export function TerminalPanel({
   }
 
   if (!supported) return null
-  // 关闭时整个面板不渲染：避免留下 35px 的空横条（终端收起 = 视觉上完全消失）。
-  if (!open) return null
 
   return (
     <section
-      className="terminal-panel is-open relative z-[3] flex min-h-[180px] flex-none flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)]"
-      style={{ height }}
+      className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : ''}`}
+      style={open ? { height } : undefined}
       aria-label={labels.terminal}
     >
       {open && (

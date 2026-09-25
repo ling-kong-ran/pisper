@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { relativeTime } from '@/lib/format'
 import type { Workflow, WorkflowRun, WorkflowsData } from './types'
 import {
@@ -26,19 +27,9 @@ import {
   type WorkflowTranslate,
 } from './workflow-templates'
 
-// 视图切换复用 SegmentedTabs（与资产/插件/技能页同一组件）：
-// 之前手写的 TabsList 样式与其它页面不一致，且滚动条处理遗漏。
-import { AppEmptyState, SegmentedTabs as Segmented } from '@/components/ui/app-primitives'
+import { AppEmptyState } from '@/components/ui/app-primitives'
 
 export type WorkflowView = 'workflows' | 'runs' | 'templates'
-
-const WORKFLOW_VIEWS: WorkflowView[] = ['workflows', 'runs', 'templates']
-
-function workflowViewLabel(view: WorkflowView, t: WorkflowTranslate) {
-  if (view === 'runs') return t('workflows:workflowsPage.runHistory')
-  if (view === 'templates') return t('workflows:workflowsPage.templates')
-  return t('workflows:workflowsPage.workflows')
-}
 
 function durationLabel(durationMs?: number) {
   const seconds = Math.max(0, Math.round((Number(durationMs) || 0) / 1000))
@@ -65,13 +56,13 @@ export function WorkflowViewTabs({
   t: WorkflowTranslate
 }) {
   return (
-    <Segmented
-      options={WORKFLOW_VIEWS.map((view) => workflowViewLabel(view, t))}
-      value={workflowViewLabel(value, t)}
-      onChange={(label) =>
-        onChange(WORKFLOW_VIEWS.find((view) => workflowViewLabel(view, t) === label) || 'workflows')
-      }
-    />
+    <Tabs value={value} onValueChange={(next) => onChange(next as WorkflowView)}>
+      <TabsList className="[&_[data-slot='tabs-trigger']]:min-w-[56px] [&_[data-slot='tabs-trigger']]:flex-none [&_[data-slot='tabs-trigger']]:[padding-inline:12px] [&_[data-slot='tabs-trigger']]:text-[12px] [&_[data-slot='tabs-trigger']]:after:hidden w-fit max-w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none]! [&::-webkit-scrollbar]:hidden">
+        <TabsTrigger value="workflows">{t('workflows:workflowsPage.workflows')}</TabsTrigger>
+        <TabsTrigger value="runs">{t('workflows:workflowsPage.runHistory')}</TabsTrigger>
+        <TabsTrigger value="templates">{t('workflows:workflowsPage.templates')}</TabsTrigger>
+      </TabsList>
+    </Tabs>
   )
 }
 

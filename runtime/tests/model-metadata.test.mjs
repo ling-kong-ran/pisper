@@ -185,8 +185,10 @@ test('confirmed missing models are cached while network failures remain retryabl
   t.after(() => rm(directory, { recursive: true, force: true }))
   let calls = 0
   let fail = true
+  let now = 1_000
   const metadata = new ModelMetadataService({
     path: join(directory, 'metadata.json'),
+    now: () => now,
     fetchImpl: async () => {
       calls += 1
       if (fail) throw new Error('offline')
@@ -199,7 +201,36 @@ test('confirmed missing models are cached while network failures remain retryabl
 
   assert.equal(await metadata.ensure('missing-model'), null)
   fail = false
+  assert.equal(await metadata.ensure('another-internal-model'), null)
+  assert.equal(calls, 1)
+  now += 5 * 60_000
   assert.equal(await metadata.ensure('missing-model'), null)
   assert.equal(await metadata.ensure('missing-model'), null)
   assert.equal(calls, 2)
+})
+
+test('metadata shutdown cancels shared lookup and prevents further network requests', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-model-metadata-cancel-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  let calls = 0
+  let signal
+  const metadata = new ModelMetadataService({
+    path: join(directory, 'metadata.json'),
+    fetchImpl: (_url, options) => {
+      calls += 1
+      signal = options.signal
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    },
+  })
+  await metadata.init()
+  const first = metadata.ensure('internal-a')
+  const second = metadata.ensure('internal-b')
+  assert.equal(calls, 1)
+  await metadata.dispose()
+  assert.equal(signal.aborted, true)
+  assert.deepEqual(await Promise.all([first, second]), [null, null])
+  assert.equal(await metadata.ensure('internal-c'), null)
+  assert.equal(calls, 1)
 })

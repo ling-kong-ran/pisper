@@ -1,14 +1,17 @@
 // 模型设置页：快速配置向导是唯一配置主路径。
 // 结构：当前模型摘要 → 连接管理（本地导入/连接列表/运行策略，默认折叠）
 // → 视觉生成专区。折叠状态持久化到 localStorage。
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { Button } from '@/components/ui/button'
 import { ConnectionList } from './ConnectionList'
 import { CurrentModelSummary } from './CurrentModelSummary'
 import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
+import { providerDiscoveryImportableCount } from './provider-discovery-state'
 import { QuickSetupWizard } from './QuickSetupWizard'
 import { RuntimePolicySettings } from './RuntimeSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
@@ -47,13 +50,21 @@ export function ModelsSettings({
   requestConfirm,
 }: ModelsSettingsProps) {
   const { t } = useI18n()
+  const location = useLocation()
+  const importRequested = new URLSearchParams(location.search).get('import') === '1'
   const [wizard, setWizard] = useState<WizardTarget | null>(null)
   // 连接弹窗按需新建或编辑；视觉连接也必须能修改 Key、URL 和模型定义。
   const [providerModal, setProviderModal] = useState<{
     providerType: ProviderType
     provider?: ProviderConfig
+    cloneProvider?: ProviderConfig
   } | null>(null)
-  const [manageOpen, setManageOpen] = useState<boolean | null>(storedManageOpen)
+  const [manageOpen, setManageOpen] = useState<boolean | null>(() =>
+    importRequested ? true : storedManageOpen(),
+  )
+  useEffect(() => {
+    if (importRequested) setManageOpen(true)
+  }, [importRequested])
   const settings = useProvidersConfig({ notify, requestConfirm, t })
   const { config } = settings
   const discovery = useProviderDiscovery({
@@ -89,8 +100,9 @@ export function ModelsSettings({
 
   const defaultProviderId = config.defaultProvider || config.provider
   const defaultProvider = config.providers.find((item) => item.id === defaultProviderId)
-  // 管理区默认折叠（新用户也一样）：首屏只留摘要 + 视觉生成。
+  // 扫描结果只提供轻提示，不覆盖用户的折叠偏好，也不自动展开管理区。
   const manageOpenEffective = manageOpen ?? false
+  const importableCount = providerDiscoveryImportableCount(discovery.discovery)
   const setManageOpenPersisted = (open: boolean) => {
     setManageOpen(open)
     window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
@@ -98,6 +110,8 @@ export function ModelsSettings({
   // 从列表进入连接编辑弹窗；摘要卡仍进入向导以便直接切换默认模型。
   const openProviderEditorFor = (provider: ProviderConfig) =>
     setProviderModal({ providerType: provider.type, provider })
+  const openProviderClonerFor = (provider: ProviderConfig) =>
+    setProviderModal({ providerType: provider.type, cloneProvider: provider })
   const openWizardFor = (provider: ProviderConfig) =>
     setWizard({ providerId: provider.id, providerType: provider.type })
 
@@ -110,6 +124,22 @@ export function ModelsSettings({
           defaultProvider ? openWizardFor(defaultProvider) : setWizard({ providerType: 'chat' })
         }
       />
+      {importableCount > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
+          <span>{t('config:configPage.localProviderImportHint', { count: importableCount })}</span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto min-h-11 shrink-0 px-1 py-0 font-normal text-[var(--text-secondary)] sm:min-h-8"
+            aria-expanded={manageOpenEffective}
+            aria-controls="model-connection-management"
+            onClick={() => setManageOpenPersisted(true)}
+          >
+            {t('config:configPage.reviewLocalProviders')}
+          </Button>
+        </div>
+      )}
       <Collapsible
         open={manageOpenEffective}
         onOpenChange={setManageOpenPersisted}
@@ -132,12 +162,13 @@ export function ModelsSettings({
             </span>
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent id="model-connection-management">
           <ProviderDiscovery
             discovery={discovery.discovery}
             discovering={discovery.discovering}
             error={discovery.error || discovery.operationError}
             importing={discovery.importing}
+            forceVisible={importRequested}
             onRefresh={discovery.refresh}
             onImport={discovery.importProvider}
           />
@@ -146,6 +177,11 @@ export function ModelsSettings({
             defaultProviderId={defaultProviderId}
             toggling={settings.toggling}
             onConfigure={openProviderEditorFor}
+            onClone={openProviderClonerFor}
+            onSetDefault={settings.setDefaultProvider}
+            settingDefault={settings.settingDefault}
+            settingModel={settings.settingModel}
+            onSetDefaultModel={settings.setProviderDefaultModel}
             onToggle={settings.toggleProvider}
             onDelete={settings.deleteProvider}
             onAddCustom={() => setProviderModal({ providerType: 'chat' })}
@@ -165,6 +201,7 @@ export function ModelsSettings({
         notify={notify}
         toggling={settings.toggling}
         onToggleProvider={settings.toggleProvider}
+        onCloneProvider={openProviderClonerFor}
         onDeleteProvider={settings.deleteProvider}
         onQuickSetup={() => setWizard({ providerType: 'visual' })}
         onEditVisualProvider={(providerId) => {
@@ -189,6 +226,7 @@ export function ModelsSettings({
         <ProviderConfigModal
           initialProviderType={providerModal.providerType}
           initialProvider={providerModal.provider}
+          cloneProvider={providerModal.cloneProvider}
           onClose={() => setProviderModal(null)}
           onCreated={(data) => {
             settings.applyConfig(data)

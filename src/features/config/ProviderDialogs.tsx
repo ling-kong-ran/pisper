@@ -7,7 +7,8 @@ import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { PROVIDER_APIS } from './provider-constants'
-import { ApiKeyList } from './ApiKeyList'
+import { createProviderConnectionId } from './provider-connection-id'
+import { ApiKeyInput } from './ApiKeyInput'
 import { ManualModelIds } from './ManualModelIds'
 import { SettingsSwitch } from './settings-primitives'
 import type { FormEvent } from 'react'
@@ -26,9 +27,12 @@ type ProviderConfigModalProps = {
   initialProviderType?: ProviderType
   // 传入已有连接时进入编辑模式，允许更新 Key、URL 和模型定义。
   initialProvider?: ProviderConfig
+  cloneProvider?: ProviderConfig
 }
 
 function editableModel(provider: ProviderConfig | undefined, providerType: ProviderType) {
+  const defaultModel = provider?.models.find((model) => model.id === provider.defaultModel)
+  if (defaultModel) return defaultModel
   if (providerType === 'visual') {
     return provider?.models.find((model) => model.kind === 'image' || model.kind === 'video')
   }
@@ -40,14 +44,19 @@ export function ProviderConfigModal({
   onCreated,
   initialProviderType = 'chat',
   initialProvider,
+  cloneProvider,
 }: ProviderConfigModalProps) {
   const { t } = useI18n()
-  const providerType = initialProvider?.type || initialProviderType
-  const existingModel = editableModel(initialProvider, providerType)
+  const sourceProvider = initialProvider || cloneProvider
+  const cloning = Boolean(cloneProvider)
+  const providerType = sourceProvider?.type || initialProviderType
+  const existingModel = editableModel(sourceProvider, providerType)
   const editing = Boolean(initialProvider)
-  const [draft, setDraft] = useState({
-    name: initialProvider?.name || '',
-    id: initialProvider?.id || '',
+  const [draft, setDraft] = useState(() => ({
+    name: cloneProvider
+      ? t('config:configPage.clonedProviderName', { name: cloneProvider.name })
+      : initialProvider?.name || '',
+    id: cloneProvider ? createProviderConnectionId() : initialProvider?.id || '',
     providerType,
     api: initialProvider?.api || 'openai-responses',
     baseUrl: initialProvider?.baseUrl || '',
@@ -64,7 +73,7 @@ export function ProviderConfigModal({
     // 未配置过的模型为空，保存时不写映射，保持默认行为。
     thinkingLevels: existingModel?.thinkingLevels || [],
     enabled: initialProvider?.enabled ?? true,
-  })
+  }))
   // 思考等级选项与 Composer 下拉一致（off 恒可选，其余等级取决于模型能力）。
   const thinkingLevelOptions = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
   // 只有用户实际操作过勾选才发送 thinkingLevels，避免把「未触碰」误写成 off-only 映射。
@@ -81,7 +90,8 @@ export function ProviderConfigModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // 手动追加的额外模型 ID：保存时随主模型批量写入该连接（对话/视觉均支持）。
-  const [apiKeys, setApiKeys] = useState<string[]>([])
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const apiKey = apiKeyDraft.trim() || undefined
   const [extraModelIds, setExtraModelIds] = useState<string[]>([])
   const updateName = (name: string) =>
     setDraft((current) => ({
@@ -108,15 +118,30 @@ export function ProviderConfigModal({
   // 新建使用专用接口，编辑复用统一配置保存接口以原子更新连接和模型定义。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!cloning && !apiKey && !initialProvider?.configured) {
+      setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
+      return
+    }
     setSaving(true)
     setError('')
     try {
+      if (cloneProvider) {
+        const data = await apiJson<ConfigData>(
+          `/api/providers/${encodeURIComponent(cloneProvider.id)}/clone`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ name: draft.name, id: draft.id, apiKey }),
+          },
+        )
+        onCreated(data)
+        return
+      }
       let data = editing
         ? await apiJson<ConfigData>('/api/config', {
             method: 'PUT',
             body: JSON.stringify({
               ...draft,
-              apiKeys,
+              apiKey,
               // 未触碰勾选时省略字段，保留服务端已有映射/默认行为。
               thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
               provider: draft.id,
@@ -128,7 +153,7 @@ export function ProviderConfigModal({
             method: 'POST',
             body: JSON.stringify({
               ...draft,
-              apiKeys,
+              apiKey,
               thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
             }),
           })
@@ -140,8 +165,7 @@ export function ProviderConfigModal({
       )
       if (extraIds.length) {
         // 新建连接时以服务端返回的真实 ID 为准（服务端会对空/非法 ID 做归一化）。
-        const targetProviderId =
-          (data as ConfigData & { createdProviderId?: string }).createdProviderId || draft.id
+        const targetProviderId = data.createdProviderId || draft.id
         try {
           data = await apiJson<ConfigData>(
             `/api/providers/${encodeURIComponent(targetProviderId)}/models/batch`,
@@ -181,17 +205,21 @@ export function ProviderConfigModal({
         <AppCardHeader>
           <div>
             <h2>
-              {editing
-                ? t('config:configPage.editProviderConnection')
-                : t('config:configPage.addProviderConnection')}
+              {cloning
+                ? t('config:configPage.cloneProvider')
+                : editing
+                  ? t('config:configPage.editProviderConnection')
+                  : t('config:configPage.addProviderConnection')}
             </h2>
-            <p>
-              {editing
-                ? t('config:configPage.updateProviderKeyURLAndModelSettings')
-                : t(
-                    'config:configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL',
-                  )}
-            </p>
+            {!cloning && (
+              <p>
+                {editing
+                  ? t('config:configPage.updateProviderKeyURLAndModelSettings')
+                  : t(
+                      'config:configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL',
+                    )}
+              </p>
+            )}
           </div>
           <Button
             type="button"
@@ -226,140 +254,149 @@ export function ProviderConfigModal({
             />
           </FieldLabel>
         </div>
-        <div className="flex items-center justify-between gap-[8px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
-          <span className="text-[12px] text-[var(--text-muted)]">
-            {t('config:configPage.providerPurpose')}
-          </span>
-          <strong className="text-[12px]">
-            {draft.providerType === 'visual'
-              ? t('config:configPage.visualProvider')
-              : t('config:configPage.chatProvider')}
-          </strong>
-        </div>
-        <FieldLabel variant="control">
-          {t('config:configPage.apiProtocol')}
-          <AppSelect
-            value={draft.api}
-            onChange={(event) => setDraft({ ...draft, api: event.target.value })}
-          >
-            {PROVIDER_APIS.map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </AppSelect>
-        </FieldLabel>
-        <FieldLabel variant="control">
-          Base URL
-          <input
-            value={draft.baseUrl}
-            onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })}
-            placeholder="https://api.openai.com/v1"
-          />
-        </FieldLabel>
-        <ApiKeyList
-          keys={apiKeys}
-          onChange={setApiKeys}
-          existing={initialProvider?.apiKeys || []}
+        <ApiKeyInput
+          value={apiKeyDraft}
+          onChange={setApiKeyDraft}
+          configured={initialProvider?.configured}
+          cloning={cloning}
         />
-        <div className="form-grid grid gap-[9px]">
-          <FieldLabel variant="control">
-            {t('config:configPage.initialModelID')}
-            <input
-              value={draft.model}
-              onChange={(event) => setDraft({ ...draft, model: event.target.value })}
-              placeholder={
-                draft.providerType === 'visual'
-                  ? 'gpt-image-2 or grok-imagine-video'
-                  : 'gpt-5.4 or gpt-image-1'
-              }
-            />
-          </FieldLabel>
-          <FieldLabel variant="control">
-            {t('config:configPage.modelName')}
-            <input
-              value={draft.modelName}
-              onChange={(event) => setDraft({ ...draft, modelName: event.target.value })}
-              placeholder={t('config:configPage.leaveBlankToUseTheModelID')}
-            />
-          </FieldLabel>
-        </div>
-        <FieldLabel variant="control">
-          {t('config:configPage.modelType')}
-          {draft.providerType === 'visual' ? (
-            <AppSelect
-              value={draft.modelKind}
-              onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
-            >
-              <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
-              <option value="video">{t('config:configPage.videoGeneration')}</option>
-            </AppSelect>
-          ) : (
-            <div className="rounded-[var(--r-xs)] bg-[var(--surface-subtle)] px-[10px] py-[8px] text-[13px] text-[var(--text-muted)]">
-              {t('config:configPage.chat')}
+        {!cloning && (
+          <>
+            <div className="flex items-center justify-between gap-[8px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
+              <span className="text-[12px] text-[var(--text-muted)]">
+                {t('config:configPage.providerPurpose')}
+              </span>
+              <strong className="text-[12px]">
+                {draft.providerType === 'visual'
+                  ? t('config:configPage.visualProvider')
+                  : t('config:configPage.chatProvider')}
+              </strong>
             </div>
-          )}
-        </FieldLabel>
-        <div className="grid gap-[9px]">
-          <ManualModelIds
-            ids={extraModelIds}
-            onChange={setExtraModelIds}
-            primaryId={draft.model}
-            placeholder={draft.providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
-          />
-        </div>
-        {draft.modelKind === 'chat' && (
-          <FieldLabel variant="control">
-            {t('config:configPage.modelThinkingLevels')}
-            <div className="flex flex-wrap gap-[6px]">
-              {thinkingLevelOptions.map((level) => {
-                // off 是应用级「不思考」开关，恒可用，不参与勾选；
-                // 其余等级未勾选即从 Composer 下拉隐藏。
-                const isOff = level === 'off'
-                const checked = isOff || draft.thinkingLevels.includes(level)
-                // 非思考模型只有 off 有意义；其余等级置灰避免误解。
-                const disabled = isOff || (!draft.reasoning && level !== 'off')
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    aria-pressed={checked}
-                    disabled={disabled}
-                    onClick={() => !isOff && toggleThinkingLevel(level)}
-                    className={cn(
-                      'inline-flex h-[27px] cursor-pointer items-center gap-[4px] rounded-full border px-[10px] text-[12px] font-medium transition-colors',
-                      checked
-                        ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]'
-                        : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text)] hover:bg-[var(--surface-highlight)]',
-                      // off 恒选中，仅表现为不可取消；其余禁用项明显弱化。
-                      isOff ? 'cursor-default' : disabled && 'cursor-not-allowed opacity-40',
-                    )}
-                  >
-                    {checked && <Check size={12} />}
-                    {level}
-                  </button>
-                )
-              })}
+            <FieldLabel variant="control">
+              {t('config:configPage.apiProtocol')}
+              <AppSelect
+                value={draft.api}
+                onChange={(event) => setDraft({ ...draft, api: event.target.value })}
+              >
+                {PROVIDER_APIS.map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
+              </AppSelect>
+            </FieldLabel>
+            <FieldLabel variant="control">
+              Base URL
+              <input
+                value={draft.baseUrl}
+                onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })}
+                placeholder="https://api.openai.com/v1"
+              />
+            </FieldLabel>
+            <div className="form-grid grid gap-[9px]">
+              <FieldLabel variant="control">
+                {editing
+                  ? t('config:configPage.providerDefaultModel')
+                  : t('config:configPage.initialModelID')}
+                <input
+                  value={draft.model}
+                  onChange={(event) => setDraft({ ...draft, model: event.target.value })}
+                  placeholder={
+                    draft.providerType === 'visual'
+                      ? 'gpt-image-2 or grok-imagine-video'
+                      : 'gpt-5.4 or gpt-image-1'
+                  }
+                />
+              </FieldLabel>
+              <FieldLabel variant="control">
+                {t('config:configPage.modelName')}
+                <input
+                  value={draft.modelName}
+                  onChange={(event) => setDraft({ ...draft, modelName: event.target.value })}
+                  placeholder={t('config:configPage.leaveBlankToUseTheModelID')}
+                />
+              </FieldLabel>
             </div>
-            <small className="text-[var(--text-muted)]">
-              {t('config:configPage.modelThinkingLevelsHint')}
-            </small>
-          </FieldLabel>
-        )}
-        <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
-          <span>
-            <strong>{t('config:configPage.enableAfterCreation')}</strong>
-            <small>
-              {t(
-                'config:configPage.visualModelsAreSelectedByTheVisualGenerationToolAndDoNotAppearInTheChatModelList',
+            <FieldLabel variant="control">
+              {t('config:configPage.modelType')}
+              {draft.providerType === 'visual' ? (
+                <AppSelect
+                  value={draft.modelKind}
+                  onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
+                >
+                  <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
+                  <option value="video">{t('config:configPage.videoGeneration')}</option>
+                </AppSelect>
+              ) : (
+                <div className="rounded-[var(--r-xs)] bg-[var(--surface-subtle)] px-[10px] py-[8px] text-[13px] text-[var(--text-muted)]">
+                  {t('config:configPage.chat')}
+                </div>
               )}
-            </small>
-          </span>
-          <SettingsSwitch
-            value={draft.enabled}
-            onChange={(enabled) => setDraft({ ...draft, enabled })}
-          />
-        </div>
+            </FieldLabel>
+            <div className="grid gap-[9px]">
+              <ManualModelIds
+                ids={extraModelIds}
+                onChange={setExtraModelIds}
+                primaryId={draft.model}
+                placeholder={draft.providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
+              />
+            </div>
+            {draft.modelKind === 'chat' && (
+              <FieldLabel variant="control">
+                {t('config:configPage.modelThinkingLevels')}
+                <div className="flex flex-wrap gap-[6px]">
+                  {thinkingLevelOptions.map((level) => {
+                    // off 是应用级「不思考」开关，恒可用，不参与勾选；
+                    // 其余等级未勾选即从 Composer 下拉隐藏。
+                    const isOff = level === 'off'
+                    const checked = isOff || draft.thinkingLevels.includes(level)
+                    // 非思考模型只有 off 有意义；其余等级置灰避免误解。
+                    const disabled = isOff || (!draft.reasoning && level !== 'off')
+                    return (
+                      <button
+                        key={level}
+                        type="button"
+                        aria-pressed={checked}
+                        disabled={disabled}
+                        onClick={() => !isOff && toggleThinkingLevel(level)}
+                        className={cn(
+                          'inline-flex h-[27px] cursor-pointer items-center gap-[4px] rounded-full border px-[10px] text-[12px] font-medium transition-colors',
+                          checked
+                            ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]'
+                            : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text)] hover:bg-[var(--surface-highlight)]',
+                          // off 恒选中，仅表现为不可取消；其余禁用项明显弱化。
+                          isOff ? 'cursor-default' : disabled && 'cursor-not-allowed opacity-40',
+                        )}
+                      >
+                        {checked && <Check size={12} />}
+                        {level}
+                      </button>
+                    )
+                  })}
+                </div>
+                <small className="text-[var(--text-muted)]">
+                  {t('config:configPage.modelThinkingLevelsHint')}
+                </small>
+              </FieldLabel>
+            )}
+            <div className="mt-2.5 flex min-h-11 items-center justify-between gap-3 rounded-sm border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-2.5 py-2">
+              <span className="flex min-w-0 flex-col gap-1">
+                <strong className="text-[13px]">
+                  {t('config:configPage.enableAfterCreation')}
+                </strong>
+                <small className="text-[13px] text-muted-foreground">
+                  {t(
+                    'config:configPage.visualModelsAreSelectedByTheVisualGenerationToolAndDoNotAppearInTheChatModelList',
+                  )}
+                </small>
+              </span>
+              <SettingsSwitch
+                value={draft.enabled}
+                onChange={(enabled) => setDraft({ ...draft, enabled })}
+              />
+            </div>
+          </>
+        )}
         {error && (
           <AppError>
             <AlertTriangle size={13} />
@@ -386,9 +423,11 @@ export function ProviderConfigModal({
             )}
             {saving
               ? t('config:configPage.saving')
-              : editing
-                ? t('config:configPage.saveChanges')
-                : t('config:configPage.createConnection')}
+              : cloning
+                ? t('config:configPage.cloneProvider')
+                : editing
+                  ? t('config:configPage.saveChanges')
+                  : t('config:configPage.createConnection')}
           </Button>
         </div>
       </form>

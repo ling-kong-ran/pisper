@@ -290,6 +290,8 @@ test('desktop release validator requires installers and signed frontend componen
     `Pisper_${version}_linux_x86_64.deb`,
     `Pisper_${version}_windows_x86_64-setup.exe`,
     `Pisper_${version}_windows_x86_64-setup.exe.sig`,
+    `Pisper_${version}_windows_x86_64-offline-setup.exe`,
+    `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
   ]
   const components = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
     .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)

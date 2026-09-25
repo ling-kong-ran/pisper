@@ -87,7 +87,7 @@ export function AppSectionTitle({ title }: { title: ReactNode }) {
     <CardTitle
       role="heading"
       aria-level={3}
-      className="app-section-title [.selection-list_&]:mb-[8px] [.model-config-heading_&]:m-0 [.skill-scope-head_&]:mb-[2px] text-[13px] leading-5 font-bold tracking-[0] text-content-soft"
+      className="app-section-title [.selection-list_&]:mb-[8px] [.model-config-heading_&]:m-0 [.skill-scope-head_&]:mb-[2px] text-[13px] leading-5 font-semibold tracking-[0] text-content-soft"
     >
       {title}
     </CardTitle>
@@ -104,7 +104,7 @@ export function StatusBadge({
     <Badge
       variant="secondary"
       className={cn(
-        'status-badge [.cli-settings-heading_&]:[align-self:center] h-auto min-h-6 rounded-full border-0 px-2 text-[11px] leading-4 font-bold tracking-[0]',
+        'status-badge [.cli-settings-heading_&]:[align-self:center] h-auto min-h-6 rounded-full border-0 px-2 text-[12px] leading-4 font-medium tracking-[0]',
         STATUS_BADGE_TONES[tone],
         className,
       )}
@@ -183,7 +183,7 @@ export function SegmentedTabs({
       >
         {options.map((option) => (
           <TabsTrigger
-            className="h-8 min-w-14 flex-none rounded-md border-0 px-3 text-[12px] font-semibold tracking-[0] text-content-muted data-active:bg-card data-active:text-content data-active:shadow-sm"
+            className="h-8 min-w-14 flex-none rounded-md border-0 px-3 text-[13px] font-medium tracking-[0] text-content-muted data-active:bg-card data-active:text-content data-active:shadow-sm"
             value={option}
             key={option}
           >

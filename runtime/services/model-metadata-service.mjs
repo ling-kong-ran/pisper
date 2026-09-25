@@ -4,6 +4,7 @@ import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const DEFAULT_ENDPOINT = 'https://models.dev/api.json'
 const MAX_RESPONSE_BYTES = 1024 * 1024
+const RETRY_DELAY_MS = 5 * 60_000
 
 const TEXT_IMAGE_INPUT = Object.freeze(['text', 'image'])
 
@@ -258,12 +259,21 @@ function normalizedModels(payload) {
 }
 
 export class ModelMetadataService {
-  constructor({ path, fetchImpl = globalThis.fetch, endpoint = DEFAULT_ENDPOINT } = {}) {
+  constructor({
+    path,
+    fetchImpl = globalThis.fetch,
+    endpoint = DEFAULT_ENDPOINT,
+    now = Date.now,
+  } = {}) {
     this.path = path
     this.fetchImpl = fetchImpl
     this.endpoint = endpoint
     this.state = { version: 1, fetchedAt: 0, etag: '', models: {}, missing: [] }
     this.lookupPromise = null
+    this.now = now
+    this.retryAt = 0
+    this.controller = null
+    this.disposed = false
   }
 
   async init() {
@@ -302,7 +312,7 @@ export class ModelMetadataService {
   async ensure(modelId) {
     const [key] = metadataKeys(modelId)
     if (!key || this.get(key)) return this.get(key)
-    if (this.state.missing.includes(key)) return null
+    if (this.disposed || this.state.missing.includes(key) || this.now() < this.retryAt) return null
     if (this.lookupPromise) {
       await this.lookupPromise
       return this.get(key)
@@ -317,10 +327,12 @@ export class ModelMetadataService {
 
   async fetchDirectory(requestedModelId) {
     if (typeof this.fetchImpl !== 'function') return null
+    const controller = new AbortController()
+    this.controller = controller
     try {
       const response = await this.fetchImpl(this.endpoint, {
         headers: { Accept: 'application/json' },
-        signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(5_000) : undefined,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5_000)]),
       })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const declaredSize = positiveInteger(response.headers?.get?.('content-length'))
@@ -329,6 +341,7 @@ export class ModelMetadataService {
       if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw new Error('response too large')
       const models = normalizedModels(JSON.parse(text))
       if (!Object.keys(models).length) throw new Error('empty model metadata')
+      if (this.disposed) return null
       const missing = new Set(this.state.missing)
       if (!models[requestedModelId]) missing.add(requestedModelId)
       this.state = {
@@ -341,7 +354,17 @@ export class ModelMetadataService {
       await writeJsonAtomic(this.path, this.state)
       return this.get(requestedModelId)
     } catch {
+      // 内网未知模型不应在每次打开会话时重复等待同一个公网超时。
+      this.retryAt = this.now() + RETRY_DELAY_MS
       return null
+    } finally {
+      if (this.controller === controller) this.controller = null
     }
+  }
+
+  async dispose() {
+    this.disposed = true
+    this.controller?.abort()
+    await this.lookupPromise
   }
 }

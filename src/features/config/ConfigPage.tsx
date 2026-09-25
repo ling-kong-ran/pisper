@@ -1,6 +1,7 @@
 // 配置页：按分区（模型/通知/界面/桌面宠物/更新/运行时等）组织设置卡片，
 // 每个分区一个设置组件，共享设置原语（SettingsCard 等）。
 // 内容根带 data-config-card="section" 锚点，供设置搜索结果跳转高亮定位。
+import type { ReactNode } from 'react'
 import { AboutSettings } from './AboutSettings'
 import { CONFIG_SECTION_ANCHOR, useConfigCardHighlight } from './config-search'
 import { DesktopPetSettings } from './DesktopPetSettings'
@@ -23,6 +24,7 @@ type ConfigPageProps = {
   onBrowserNotificationChange?: (settings: NotificationSettingsData) => void
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   update: AppUpdateController
+  renderInterfaceSettings?: (appearance: ReactNode) => ReactNode
 }
 
 export function ConfigPage({
@@ -32,6 +34,7 @@ export function ConfigPage({
   onBrowserNotificationChange,
   requestConfirm,
   update,
+  renderInterfaceSettings,
 }: ConfigPageProps) {
   // 分区切换后消费搜索跳转的高亮请求（同分区点击由事件即时触发）。
   useConfigCardHighlight(section)
@@ -44,7 +47,8 @@ export function ConfigPage({
       />
     )
   } else if (section === 'interface') {
-    content = <InterfaceSettings notify={notify} />
+    const appearance = <InterfaceSettings notify={notify} />
+    content = renderInterfaceSettings ? renderInterfaceSettings(appearance) : appearance
   } else if (section === 'shortcuts') {
     content = <ShortcutSettings requestConfirm={requestConfirm} />
   } else if (section === 'desktop-pet') {

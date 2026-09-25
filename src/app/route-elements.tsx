@@ -1,7 +1,8 @@
 // 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载聊天页。
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
-import { useOutletContext } from 'react-router-dom'
+import { Navigate, useOutletContext } from 'react-router-dom'
+import { ensureChannelsMessages, ensureMcpMessages } from './i18n'
 import type { AppRouteContext } from './route-context'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
@@ -24,8 +25,6 @@ export async function chatRoute() {
         onAssetConsumed={context.onAssetConsumed}
         requestText={context.requestText}
         requestConfirm={context.requestConfirm}
-        terminalOpen={context.terminalOpen}
-        onToggleTerminal={context.toggleTerminal}
       />
     )
   }
@@ -72,7 +71,10 @@ export async function assetsRoute() {
 }
 
 export async function channelsRoute() {
-  const { ChannelsPage } = await import('@/features/channels/ChannelsPage')
+  const [{ ChannelsPage }] = await Promise.all([
+    import('@/features/channels/ChannelsPage'),
+    ensureChannelsMessages(),
+  ])
 
   function ChannelsRoute() {
     const context = useAppRouteContext()
@@ -107,7 +109,10 @@ export async function schedulesRoute() {
 }
 
 export async function configRoute() {
-  const { ConfigPage } = await import('@/features/config/ConfigPage')
+  const [{ ConfigPage }, { ChatAppearancePage }] = await Promise.all([
+    import('@/features/config/ConfigPage'),
+    import('@/app/ChatAppearancePage'),
+  ])
 
   function ConfigRoute() {
     const context = useAppRouteContext()
@@ -119,6 +124,9 @@ export async function configRoute() {
         onBrowserNotificationChange={context.setNotificationSettings}
         requestConfirm={context.requestConfirm}
         update={context.appUpdate}
+        renderInterfaceSettings={(appearance) => (
+          <ChatAppearancePage appearance={appearance} notify={context.notify} />
+        )}
       />
     )
   }
@@ -165,7 +173,7 @@ export async function memoryRoute() {
 }
 
 export async function mcpRoute() {
-  const { McpPage } = await import('@/features/workflows/PreviewPages')
+  const [{ McpPage }] = await Promise.all([import('@/features/mcp/McpPage'), ensureMcpMessages()])
 
   function McpRoute() {
     const context = useAppRouteContext()
@@ -185,7 +193,6 @@ export async function mcpRoute() {
 
 export async function skillsRoute() {
   const { SkillsPage } = await import('@/features/skills/SkillsPage')
-
   function SkillsRoute() {
     const context = useAppRouteContext()
     return (
@@ -201,6 +208,24 @@ export async function skillsRoute() {
   }
 
   return { Component: SkillsRoute }
+}
+
+export async function componentsRoute() {
+  function LegacyComponentsRoute() {
+    return <Navigate to="/config/interface?view=layout" replace />
+  }
+  return { Component: LegacyComponentsRoute }
+}
+
+export async function decisionsRoute() {
+  const { DecisionsPage } = await import('@/features/decisions/DecisionsPage')
+
+  function DecisionsRoute() {
+    const context = useAppRouteContext()
+    return <DecisionsPage notify={context.notify} />
+  }
+
+  return { Component: DecisionsRoute }
 }
 
 export async function workflowsRoute() {

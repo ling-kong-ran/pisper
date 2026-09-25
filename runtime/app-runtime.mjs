@@ -23,8 +23,13 @@ import { createStartupObserver } from './startup-observer.mjs'
 import { json as sendJson } from './http/response.mjs'
 import { SpeechEngineService } from './services/speech-engine-service.mjs'
 import { SpeechModelDownloadService } from './services/speech-model-download-service.mjs'
+import { DecisionService } from './services/decision-service.mjs'
 import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
 import { SpeechTermsService } from './services/speech-terms-service.mjs'
+import { CustomUiService } from './services/custom-ui-service.mjs'
+import { McpHostService } from './services/mcp-host-service.mjs'
+import { createMcpHostAdapter } from './runtime/mcp-host-adapter.mjs'
+import { handleCustomUiResource } from './http/routes/custom-ui.mjs'
 
 // 运行时尚未初始化完成时的 503 响应：避免把半初始化状态当成正常服务暴露。
 function serviceUnavailable(res) {
@@ -93,13 +98,18 @@ export async function createPisperRuntime({
   process.env.PI_CODING_AGENT_DIR = agentDir
 
   const desktopPet = new WebDesktopPetService({ dataDir: agentDir })
+  const customUi = new CustomUiService({ dataDir: agentDir })
+  const mcpHost = new McpHostService({ dataDir: agentDir, getRuntime: () => mcpHostAdapter })
   const serveProduction = createStaticHandler(appRoot, { distRoot: frontendRoot })
   let runtime = null
+  let mcpHostAdapter = null
   let handleApi = null
   let vite = null
   let speech = null
   let speechModels = null
   let sponsorsInitialized = null
+  let decisions = null
+  let decisionsInitialized = null
   let runtimeInitialized = null
   let startInitialization
 
@@ -269,10 +279,16 @@ export async function createPisperRuntime({
 
     const packageJson = JSON.parse(packageText)
     const { AgentRuntimeService } = runtimeModule
+    // 决策服务先于 AgentRuntime 创建：Agent 工具与 HTTP 路由共享同一实例与配置。
+    const decisionsService = new DecisionService({ dataDir: agentDir })
+    decisions = decisionsService
+    decisionsInitialized = decisionsService.init()
+    await decisionsInitialized
     runtime = new AgentRuntimeService({
       cwd,
       dataDir: agentDir,
       appVersion: packageJson.version,
+      decisionService: decisionsService,
       browserAutomationDriver,
       capabilities,
       eventObserver: (payload) => {
@@ -289,6 +305,7 @@ export async function createPisperRuntime({
         }
       },
     })
+    mcpHostAdapter = createMcpHostAdapter(runtime)
     stage('runtime-created')
     let resolveRuntimeBase
     let rejectRuntimeBase
@@ -352,6 +369,9 @@ export async function createPisperRuntime({
       speechModels,
       speechCatalog,
       speechTerms,
+      decisions,
+      customUi,
+      mcpHost,
       engineVersion,
       remoteAccess,
       remoteControl,
@@ -363,6 +383,7 @@ export async function createPisperRuntime({
     const background = await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
     const failure = background.find((result) => result.status === 'rejected')
     if (failure) throw failure.reason
+    if (capabilities.features.mcp) await mcpHost.startIfEnabled()
     initialization.background = 'ready'
     stage('runtime-initialized')
     return runtime
@@ -389,6 +410,15 @@ export async function createPisperRuntime({
     const activePort = typeof address === 'object' && address ? address.port : port
     const origin = `http://${host}:${activePort}`
     const url = new URL(req.url || '/', req.headers.host ? `http://${req.headers.host}` : origin)
+    if (
+      await handleCustomUiResource(req, res, url, {
+        customUi,
+        remoteAccess,
+        remote: isRemoteListener,
+        json: (status, value) => sendJson(res, status, value),
+      })
+    )
+      return
     // 鉴权分层：回环监听走桌面 Cookie 引导；远程监听走设备 Bearer 令牌。
     if (isRemoteListener) {
       req.pisperRemote = true
@@ -480,6 +510,7 @@ export async function createPisperRuntime({
     dataDir: agentDir,
     capabilities,
     remoteControl,
+    mcpHost,
     get runtime() {
       return runtime
     },
@@ -494,8 +525,12 @@ export async function createPisperRuntime({
         await stopRemote()
         await initialized.catch(() => null)
         await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
+        await mcpHost.close()
         await speech?.dispose()
         await speechModels?.dispose()
+        await decisionsInitialized?.catch(() => null)
+        await decisions?.dispose()
+        customUi.dispose()
         await runtime?.dispose()
         await vite?.close()
         await new Promise((resolveClose) => server.close(() => resolveClose()))

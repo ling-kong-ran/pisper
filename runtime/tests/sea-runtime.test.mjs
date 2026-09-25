@@ -93,12 +93,14 @@ test('SEA runtime native selection is conservative and platform-specific', () =>
   assert.equal(selectClipboardPackage({ platform: 'freebsd', arch: 'x64' }), null)
 
   assert.deepEqual(selectPiTuiNativeFiles({ platform: 'win32', arch: 'x64' }), [
-    'native/win32/prebuilds/win32-x64/win32-console-mode.node',
+    'native/win32/prebuilds/win32-x64/win32-platform.node',
   ])
   assert.deepEqual(selectPiTuiNativeFiles({ platform: 'darwin', arch: 'arm64' }), [
-    'native/darwin/prebuilds/darwin-arm64/darwin-modifiers.node',
+    'native/darwin/prebuilds/darwin-arm64/darwin-platform.node',
   ])
-  assert.deepEqual(selectPiTuiNativeFiles({ platform: 'linux', arch: 'x64' }), [])
+  assert.deepEqual(selectPiTuiNativeFiles({ platform: 'linux', arch: 'x64' }), [
+    'native/linux/prebuilds/linux-x64/linux-platform-x11.node',
+  ])
   assert.deepEqual(selectPiTuiNativeFiles({ platform: 'mobile', arch: 'arm64' }), [])
   assert.equal(selectPiTuiNativeFiles({ platform: 'freebsd', arch: 'x64' }), null)
 
@@ -136,6 +138,58 @@ test('SEA runtime pruning retains every native artifact for an unknown target', 
     await rm(runtime, { recursive: true, force: true })
   }
 })
+
+for (const [platform, arch] of [
+  ['win32', 'x64'],
+  ['win32', 'arm64'],
+  ['darwin', 'x64'],
+  ['darwin', 'arm64'],
+  ['linux', 'x64'],
+  ['linux', 'arm64'],
+  ['mobile', 'arm64'],
+]) {
+  test(`Pi 0.86 native closure retains and audits ${platform}/${arch} without legacy clipboard packages`, async (t) => {
+    const runtime = await mkdtemp(join(tmpdir(), 'pisper-sea-platform-'))
+    t.after(() => rm(runtime, { recursive: true, force: true }))
+    const piTui = 'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui'
+    for (const targetPlatform of ['win32', 'darwin', 'linux']) {
+      for (const targetArch of ['x64', 'arm64']) {
+        const suffix = targetPlatform === 'linux' ? '-x11' : ''
+        await createFile(
+          runtime,
+          `${piTui}/native/${targetPlatform}/prebuilds/${targetPlatform}-${targetArch}/${targetPlatform}-platform${suffix}.node`,
+        )
+      }
+    }
+    for (const file of ['native-platform.js', 'native-module-path.js']) {
+      await createFile(runtime, `${piTui}/dist/${file}`)
+    }
+    const { nativeSelection } = await pruneRuntime(runtime, { platform, arch })
+    assert.equal(nativeSelection.clipboardPackage, false)
+    const native = await collectNativeState(runtime, nativeSelection)
+    assert.equal(native.pass, true)
+    assert.equal(native.retainedPiTuiNativeFiles.length, platform === 'mobile' ? 0 : 1)
+    const entries = criticalRuntimeEntries(nativeSelection).filter(({ kind }) => kind === 'native')
+    assert.equal(
+      entries.some(({ path }) => path.includes('@mariozechner/clipboard')),
+      false,
+    )
+    assert.equal(
+      (await inspectCriticalFiles(runtime, entries)).every(({ exists }) => exists),
+      true,
+    )
+    if (platform !== 'mobile') {
+      const bindingPath = `${piTui}/${nativeSelection.piTuiNativeFiles[0]}`
+      await rm(join(runtime, bindingPath))
+      assert.equal((await collectNativeState(runtime, nativeSelection)).pass, false)
+      assert.equal(
+        (await inspectCriticalFiles(runtime, entries)).find(({ path }) => path === bindingPath)
+          .exists,
+        false,
+      )
+    }
+  })
+}
 
 test('mobile Runtime pruning removes desktop native packages', async () => {
   const runtime = await mkdtemp(join(tmpdir(), 'pisper-mobile-native-'))
@@ -198,9 +252,9 @@ test('SEA runtime pruning preserves runtime src and only the selected native clo
     [`${piNested}/clipboard-win32-x64-msvc/clipboard.win32-x64-msvc.node`, 'native'],
     [`${piNested}/clipboard-darwin-universal/package.json`, '{}'],
     [`${piNested}/clipboard-darwin-universal/clipboard.darwin-universal.node`, 'native'],
-    [`${piTui}/native/win32/prebuilds/win32-x64/win32-console-mode.node`, 'native'],
-    [`${piTui}/native/win32/prebuilds/win32-arm64/win32-console-mode.node`, 'native'],
-    [`${piTui}/native/darwin/prebuilds/darwin-x64/darwin-modifiers.node`, 'native'],
+    [`${piTui}/native/win32/prebuilds/win32-x64/win32-platform.node`, 'native'],
+    [`${piTui}/native/win32/prebuilds/win32-arm64/win32-platform.node`, 'native'],
+    [`${piTui}/native/darwin/prebuilds/darwin-x64/darwin-platform.node`, 'native'],
   ]
 
   try {
@@ -234,7 +288,7 @@ test('SEA runtime pruning preserves runtime src and only the selected native clo
       await exists(
         join(
           runtime,
-          ...`${piTui}/native/win32/prebuilds/win32-x64/win32-console-mode.node`.split('/'),
+          ...`${piTui}/native/win32/prebuilds/win32-x64/win32-platform.node`.split('/'),
         ),
       ),
       true,
@@ -243,7 +297,7 @@ test('SEA runtime pruning preserves runtime src and only the selected native clo
       await exists(
         join(
           runtime,
-          ...`${piTui}/native/win32/prebuilds/win32-arm64/win32-console-mode.node`.split('/'),
+          ...`${piTui}/native/win32/prebuilds/win32-arm64/win32-platform.node`.split('/'),
         ),
       ),
       false,
@@ -256,7 +310,7 @@ test('SEA runtime pruning preserves runtime src and only the selected native clo
     assert.equal(native.pass, true)
     assert.deepEqual(native.retainedClipboardPackages, ['clipboard-win32-x64-msvc'])
     assert.deepEqual(native.retainedPiTuiNativeFiles, [
-      'win32/prebuilds/win32-x64/win32-console-mode.node',
+      'win32/prebuilds/win32-x64/win32-platform.node',
     ])
   } finally {
     await rm(runtime, { recursive: true, force: true })

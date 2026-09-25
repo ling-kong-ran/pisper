@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
-import { i18n, translateText } from '../../src/app/i18n.ts'
+import {
+  ensureChannelsMessages,
+  ensureMcpMessages,
+  i18n,
+  translateText,
+} from '../../src/app/i18n.ts'
 
 test('English interface translations resolve static and interpolated messages', () => {
   assert.equal(translateText('navigation:navigation.settings', 'en-US'), 'Settings')
@@ -15,8 +20,8 @@ test('English interface translations resolve static and interpolated messages', 
   )
   assert.equal(translateText('config:configPage.countModels', 'en-US', { count: 3 }), '3 models')
   assert.equal(
-    translateText('common:app.importableProvidersMessage', 'en-US', { count: 2 }),
-    'Found 2 importable provider(s) in local Codex/Claude configs. Open settings to review?',
+    translateText('config:configPage.localProviderImportHint', 'en-US', { count: 2 }),
+    '2 local configuration(s) available to import',
   )
   assert.equal(
     translateText('common:workspacePicker.selectWorkspaceForChat', 'en-US', { name: 'Review' }),
@@ -35,8 +40,8 @@ test('Chinese remains the default interface language', () => {
   assert.equal(translateText('config:languageSettings.displayLanguage'), '界面语言')
   assert.equal(translateText('config:configPage.countModels', 'zh-CN', { count: 3 }), '3 个模型')
   assert.equal(
-    translateText('common:app.importableProvidersMessage', 'zh-CN', { count: 2 }),
-    '从本地 Codex/Claude 配置中检测到 2 个可导入的提供商，是否前往设置页查看？',
+    translateText('config:configPage.localProviderImportHint', 'zh-CN', { count: 2 }),
+    '发现 2 项可导入的本地配置',
   )
   assert.equal(
     translateText('common:workspacePicker.selectWorkspaceForChat', 'zh-CN', { name: '评审' }),
@@ -65,4 +70,32 @@ test('i18next owns the active language and resolves namespaced interpolation', a
     'Search Memory',
   )
   await i18n.changeLanguage('zh-CN')
+})
+
+test('channels route messages load for both languages before navigation and remain ready after switching', async () => {
+  assert.equal(i18n.hasResourceBundle('zh-CN', 'channels'), false)
+  assert.equal(i18n.hasResourceBundle('en-US', 'channels'), false)
+  await ensureChannelsMessages()
+  assert.equal(translateText('channels:channelsPage.online', 'zh-CN'), '在线')
+  assert.equal(translateText('channels:channelsPage.online', 'en-US'), 'Online')
+  await i18n.changeLanguage('en-US')
+  assert.equal(
+    translateText('channels:channelsPage.channelConnected', i18n.resolvedLanguage),
+    'Channel connected',
+  )
+  await i18n.changeLanguage('zh-CN')
+  assert.equal(
+    translateText('channels:channelsPage.channelConnected', i18n.resolvedLanguage),
+    '渠道已经连接',
+  )
+  await ensureChannelsMessages()
+})
+
+test('MCP route messages load for both languages before navigation', async () => {
+  assert.equal(i18n.hasResourceBundle('zh-CN', 'mcp'), false)
+  assert.equal(i18n.hasResourceBundle('en-US', 'mcp'), false)
+  await ensureMcpMessages()
+  assert.equal(translateText('mcp:hostTitle', 'zh-CN'), 'Pisper 内置 MCP 服务')
+  assert.equal(translateText('mcp:hostTitle', 'en-US'), 'Pisper MCP server')
+  await ensureMcpMessages()
 })

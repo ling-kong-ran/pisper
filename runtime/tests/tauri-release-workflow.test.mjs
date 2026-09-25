@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -153,6 +153,77 @@ test('Windows GNU packages carry the WebView2 loader through an explicit Rust ta
   assert.match(staging, /process\.env\.PISPER_TAURI_BUNDLE_DIR/)
 })
 
+test('Windows standard and offline installers preserve distinct WebView2 strategies when signed', async () => {
+  const config = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'))
+  const updaterConfig = JSON.parse(await readFile('src-tauri/tauri.updater.conf.json', 'utf8'))
+  const offlineConfig = JSON.parse(
+    await readFile('src-tauri/tauri.windows-offline.conf.json', 'utf8'),
+  )
+  // 签名不能改变依赖策略；完整运行时仅进入单独的离线安装包。
+  for (const windows of [
+    config.bundle.windows,
+    { ...config.bundle.windows, ...updaterConfig.bundle?.windows },
+  ]) {
+    assert.equal(windows.webviewInstallMode.type, 'embedBootstrapper')
+    assert.equal(windows.webviewInstallMode.silent, true)
+    // Tauri 的最低版本升级分支调用在线 Edge Update，不应重新引入安装时联网。
+    assert.ok(!windows.minimumWebview2Version)
+  }
+  const offline = {
+    ...config.bundle.windows,
+    ...updaterConfig.bundle?.windows,
+    ...offlineConfig.bundle.windows,
+  }
+  assert.equal(offline.webviewInstallMode.type, 'offlineInstaller')
+  assert.equal(offline.webviewInstallMode.silent, true)
+  assert.ok(!offline.minimumWebview2Version)
+})
+
+test('Windows dependency notices precede downloads and provide localized recovery instructions', async () => {
+  const config = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'))
+  const nsis = config.bundle.windows.nsis
+  const hooks = await readFile(join('src-tauri', nsis.installerHooks), 'utf8')
+  assert.match(hooks, /Section "-Pisper prerequisites"/)
+  assert.match(hooks, /ReadRegStr.*HKLM/)
+  assert.match(hooks, /ReadRegStr.*HKCU/)
+  assert.match(hooks, /IfSilent/)
+  assert.match(hooks, /MessageBox MB_OKCANCEL/)
+  assert.match(hooks, /PISPER_OFFLINE_INSTALLER/)
+  assert.match(hooks, /offline-setup\.exe/)
+  const offlineConfig = JSON.parse(
+    await readFile('src-tauri/tauri.windows-offline.conf.json', 'utf8'),
+  )
+  const offlineHooks = await readFile(
+    join('src-tauri', offlineConfig.bundle.windows.nsis.installerHooks),
+    'utf8',
+  )
+  // Windows makensis 无法解析盘符路径中的混合分隔符。
+  assert.ok(offlineHooks.includes('${__FILEDIR__}\\prerequisites.nsh'))
+  assert.doesNotMatch(offlineHooks, /\$\{__FILEDIR__\}\//)
+  const requiredKeys = [
+    'installingWebview2',
+    'webview2Downloading',
+    'webview2AbortError',
+    'webview2InstallError',
+  ]
+  for (const language of ['English', 'SimpChinese']) {
+    assert.ok(nsis.languages.includes(language))
+    const strings = await readFile(join('src-tauri', nsis.customLanguageFiles[language]), 'utf8')
+    for (const key of requiredKeys) assert.match(strings, new RegExp(`LangString ${key} `))
+    assert.match(strings, /offline-setup\.exe/)
+    assert.match(strings, /exit code \$1|错误码 \$1|错误.*\$1/)
+    assert.doesNotMatch(strings, /\{\{product_name\}\}/)
+  }
+  const desktop = await readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8')
+  assert.ok(
+    desktop.indexOf('tauri::webview_version()') < desktop.indexOf('tauri::Builder::default()'),
+  )
+  assert.match(desktop, /missing_bundled_file/)
+  assert.match(desktop, /StartupStage::Runtime/)
+  assert.match(desktop, /StartupStage::Desktop/)
+  assert.doesNotMatch(desktop, /expect\("failed to build Pisper WebView application"\)/)
+})
+
 test('desktop startup refreshes only an existing managed TUI installation', async () => {
   const [manager, desktop] = await Promise.all([
     readFile('src-tauri/src/desktop_shell/cli_manager.rs', 'utf8'),
@@ -272,6 +343,8 @@ test('release assets reject legacy updater metadata and unexpected files', async
     `Pisper_${version}_linux_x86_64.deb`,
     `Pisper_${version}_windows_x86_64-setup.exe`,
     `Pisper_${version}_windows_x86_64-setup.exe.sig`,
+    `Pisper_${version}_windows_x86_64-offline-setup.exe`,
+    `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
     ...['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
       .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
       .flatMap((archive) => [archive, `${archive}.sig`]),
@@ -286,6 +359,18 @@ test('release assets reject legacy updater metadata and unexpected files', async
     )
     assert.equal(valid.status, 0, valid.stderr)
 
+    for (const name of expected.filter((entry) => entry.includes('-offline-setup.exe'))) {
+      await rm(join(directory, name))
+      const missingOffline = spawnSync(
+        process.execPath,
+        ['scripts/validate-tauri-release-assets.mjs', `v${version}`, directory],
+        { encoding: 'utf8' },
+      )
+      assert.notEqual(missingOffline.status, 0)
+      assert.match(missingOffline.stderr, /Missing release assets:.*offline-setup/)
+      await writeFile(join(directory, name), 'artifact')
+    }
+
     await writeFile(join(directory, 'latest.yml'), 'version: 0.3.3')
     const invalid = spawnSync(
       process.execPath,
@@ -294,6 +379,74 @@ test('release assets reject legacy updater metadata and unexpected files', async
     )
     assert.notEqual(invalid.status, 0)
     assert.match(invalid.stderr, /Unexpected release assets: latest\.yml/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('Windows variants stage independently and only the standard installer enters automatic updates', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-windows-variants-'))
+  const bundle = join(directory, 'bundle')
+  const staging = join(directory, 'staged')
+  const { version } = JSON.parse(await readFile('src-tauri/desktop-package.json', 'utf8'))
+  const installerName = `Pisper_${version}_windows_x86_64-setup.exe`
+  const offlineName = `Pisper_${version}_windows_x86_64-offline-setup.exe`
+  const output = join(directory, 'latest.json')
+  const stage = (offline = false) =>
+    spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        // 仅模拟脚本的平台分支；真实 NSIS 构建与签名由 Windows CI 验证。
+        `Object.defineProperty(process, 'platform', { value: 'win32' });
+     Object.defineProperty(process, 'arch', { value: 'x64' });
+     process.argv.push('--require-signature'${offline ? ", '--windows-offline'" : ''});
+     await import('./scripts/stage-tauri-artifacts.mjs');`,
+      ],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PISPER_TAURI_BUNDLE_DIR: bundle, PISPER_TAURI_STAGE_DIR: staging },
+      },
+    )
+  try {
+    await mkdir(bundle)
+    await writeFile(join(bundle, 'Pisper-test-setup.exe'), 'standard-installer')
+    await writeFile(join(bundle, 'Pisper-test-setup.exe.sig'), 'standard-signature')
+    const standard = stage()
+    assert.equal(standard.status, 0, standard.stderr)
+    await writeFile(join(bundle, 'Pisper-test-setup.exe'), 'offline-installer')
+    await writeFile(join(bundle, 'Pisper-test-setup.exe.sig'), 'offline-signature')
+    const offline = stage(true)
+    assert.equal(offline.status, 0, offline.stderr)
+    assert.equal(
+      await readFile(join(staging, 'windows-x86_64', installerName), 'utf8'),
+      'standard-installer',
+    )
+    assert.equal(
+      await readFile(join(staging, 'windows-x86_64-offline', offlineName), 'utf8'),
+      'offline-installer',
+    )
+    const manifest = spawnSync(
+      process.execPath,
+      ['scripts/create-tauri-update-manifest.mjs', `v${version}`, staging, '--output', output],
+      { encoding: 'utf8' },
+    )
+    assert.equal(manifest.status, 0, manifest.stderr)
+    const { platforms } = JSON.parse(await readFile(output, 'utf8'))
+    assert.equal(platforms['windows-x86_64'].signature, 'standard-signature')
+    assert.ok(platforms['windows-x86_64'].url.endsWith(`/${installerName}`))
+    assert.equal(Object.keys(platforms).length, 1)
+    await rm(join(staging, 'windows-x86_64'), { recursive: true })
+    const offlineOnly = spawnSync(
+      process.execPath,
+      ['scripts/create-tauri-update-manifest.mjs', `v${version}`, staging, '--output', output],
+      { encoding: 'utf8' },
+    )
+    assert.notEqual(offlineOnly.status, 0)
+    assert.match(offlineOnly.stderr, /No signed Tauri updater artifacts/)
+    await rm(join(bundle, 'Pisper-test-setup.exe.sig'))
+    assert.match(stage(true).stderr, /Missing updater signature/)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

@@ -42,12 +42,17 @@ export function effectiveCompactionSettings(
   const thresholdReserve = windowTokens
     ? Math.max(1, windowTokens - Math.floor((windowTokens * normalizedThreshold) / 100))
     : 0
+  const keepRecentTokens = tokenCount(settings.keepRecentTokens, 20_000)
+  // 保留尾部不能反过来超过压缩触发线；至少留下一半给摘要、系统上下文和后续工作。
+  const retainedLimit = windowTokens
+    ? Math.max(1, Math.floor((windowTokens - thresholdReserve) / 2))
+    : keepRecentTokens
   return {
     ...settings,
     enabled: settings.enabled !== false,
     reserveTokens:
       thresholdReserve || tokenCount(settings.reserveTokens, COMPACTION_SUMMARY_RESERVE_TOKENS),
-    keepRecentTokens: tokenCount(settings.keepRecentTokens, 20_000),
+    keepRecentTokens: Math.min(keepRecentTokens, retainedLimit),
   }
 }
 
@@ -118,14 +123,37 @@ export function pisperCompactionExtension(pi, { compactSession = compact } = {})
     if (!model) return undefined
     const auth = await context.modelRegistry.getApiKeyAndHeaders(model)
     if (!auth?.ok) return undefined
+    const reserveTokens = tokenCount(
+      event.preparation.settings?.reserveTokens,
+      COMPACTION_SUMMARY_RESERVE_TOKENS,
+    )
+    const contextWindow = tokenCount(model.contextWindow)
+    // Pi 的分段压缩最多合并 0.8 + 0.5 倍预留量的两份摘要。
+    // 按触发线的四分之一限制预留量，避免摘要与保留尾部再次填满触发线。
+    const summaryReserveLimit = contextWindow
+      ? Math.max(2, Math.floor(Math.max(1, contextWindow - reserveTokens) / 4))
+      : COMPACTION_SUMMARY_RESERVE_TOKENS
+    // 只有当前长回合的前缀时，Pi 会直接复制旧摘要再拼接新摘要。
+    // 改为用该前缀更新旧摘要，保证切换模型后旧摘要也遵守当前输出预算。
+    const summarizePreviousWithPrefix =
+      event.preparation.isSplitTurn &&
+      event.preparation.previousSummary &&
+      event.preparation.messagesToSummarize.length === 0
     const preparation = {
       ...event.preparation,
+      ...(summarizePreviousWithPrefix
+        ? {
+            isSplitTurn: false,
+            messagesToSummarize: event.preparation.turnPrefixMessages,
+            turnPrefixMessages: [],
+          }
+        : {}),
       settings: {
         ...event.preparation.settings,
-        // Earlier compaction should not also enlarge the possible summary response.
         reserveTokens: Math.min(
-          tokenCount(event.preparation.settings?.reserveTokens, COMPACTION_SUMMARY_RESERVE_TOKENS),
+          reserveTokens,
           COMPACTION_SUMMARY_RESERVE_TOKENS,
+          summaryReserveLimit,
         ),
       },
     }

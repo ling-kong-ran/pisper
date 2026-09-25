@@ -346,10 +346,10 @@
             <p>到点自跑，结果经渠道推到 IM。你不盯屏，也不错过。</p>
             <span class="bento-arrow" aria-hidden="true">→</span>
           </a>
-          <a class="bento-card reveal" style="--d:600ms" href="guide.html#tools">
+          <a class="bento-card reveal" style="--d:600ms" href="guide.html#mcp-host">
             <span class="bento-no" aria-hidden="true">11</span>
             <h3>插件 · MCP · 技能</h3>
-            <p>插件自己写、MCP 随手接、技能按需装 —— 想要就说，说完就有。</p>
+            <p>接入外部 MCP，也可开启内置服务，让本机其他 Agent 调用 Pisper。</p>
             <span class="bento-arrow" aria-hidden="true">→</span>
           </a>
           <a class="bento-card reveal" style="--d:660ms" href="guide.html#data">
@@ -426,6 +426,28 @@
               使用教程 <span aria-hidden="true">→</span>
             </a>
           </div>
+          <div class="download-platforms" aria-label="按系统选择安装包">
+            <article class="download-platform">
+              <h3>Windows x64</h3>
+              <p>普通包适合多数用户：复用已有 WebView2，缺失时先说明依赖用途，再联网安装。内网电脑缺少 WebView2 或无法确认时，选择完整离线包。</p>
+              <p><a class="text-link" data-desktop-download="windows" data-download-architecture="x86_64" href="https://github.com/ling-kong-ran/pisper/releases/latest">普通包（推荐）↓</a> · <a class="text-link" data-desktop-download="windows" data-download-architecture="x86_64" data-official-download href="https://github.com/ling-kong-ran/pisper/releases/latest">官方</a></p>
+              <p><a class="text-link" data-desktop-download="windows" data-download-architecture="x86_64" data-download-variant="offline" href="https://github.com/ling-kong-ran/pisper/releases/latest">完整离线包（含 WebView2）↓</a> · <a class="text-link" data-desktop-download="windows" data-download-architecture="x86_64" data-download-variant="offline" data-official-download href="https://github.com/ling-kong-ran/pisper/releases/latest">官方</a></p>
+            </article>
+            <article class="download-platform">
+              <h3>macOS</h3>
+              <p>按芯片选择 DMG，使用系统自带 WKWebView，无需额外下载浏览器内核。首次打开的安全提示见使用教程。</p>
+              <p><a class="text-link" data-desktop-download="macos" data-download-architecture="aarch64" href="https://github.com/ling-kong-ran/pisper/releases/latest">Apple Silicon ↓</a> · <a class="text-link" data-desktop-download="macos" data-download-architecture="aarch64" data-official-download href="https://github.com/ling-kong-ran/pisper/releases/latest">官方</a></p>
+              <p><a class="text-link" data-desktop-download="macos" data-download-architecture="x86_64" href="https://github.com/ling-kong-ran/pisper/releases/latest">Intel ↓</a> · <a class="text-link" data-desktop-download="macos" data-download-architecture="x86_64" data-official-download href="https://github.com/ling-kong-ran/pisper/releases/latest">官方</a></p>
+            </article>
+            <article class="download-platform">
+              <h3>Linux x64</h3>
+              <p>AppImage 添加执行权限后运行，可能需要 FUSE；Debian / Ubuntu 可选 DEB。离线部署需预先准备发行版所需系统库，DEB 可能需要 WebKitGTK 等依赖。</p>
+              <p><a class="text-link" data-desktop-download="linux" data-download-architecture="x86_64" href="https://github.com/ling-kong-ran/pisper/releases/latest">AppImage ↓</a> · <a class="text-link" data-desktop-download="linux" data-download-architecture="x86_64" data-official-download href="https://github.com/ling-kong-ran/pisper/releases/latest">官方</a></p>
+              <p><a class="text-link" data-desktop-download="linux" data-download-architecture="x86_64" data-download-variant="deb" href="https://github.com/ling-kong-ran/pisper/releases/latest">DEB ↓</a> · <a class="text-link" data-desktop-download="linux" data-download-architecture="x86_64" data-download-variant="deb" data-official-download href="https://github.com/ling-kong-ran/pisper/releases/latest">官方</a></p>
+            </article>
+          </div>
+          <p class="download-platform-note">Android：已签名 APK，首次侧载需允许安装来源，使用系统 WebView。iOS：未签名 IPA，需自行重签，使用系统 WKWebView。</p>
+          <p class="download-platform-note">所有桌面包均自带 TUI 与 Runtime。Windows 完整离线包额外包含 WebView2，不包含按需下载的本地语音模型；各平台的模型、扩展和外部服务仍需单独准备。自动更新使用普通包。旧版资产或下载清单不可用时，链接会打开发布页，请以其中的实际文件为准。</p>
           <p>
             加速下载不可用时，可使用 GitHub 官方下载：
             <a class="text-link" data-official-device-download href="https://github.com/ling-kong-ran/pisper/releases/latest">当前设备</a>

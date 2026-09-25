@@ -13,6 +13,10 @@ const stageRoot = path.resolve(
   process.env.PISPER_TAURI_STAGE_DIR || path.join('release', 'tauri-artifacts'),
 )
 const requireSignature = process.argv.includes('--require-signature')
+const windowsOffline = process.argv.includes('--windows-offline')
+if (windowsOffline && process.platform !== 'win32') {
+  throw new Error('--windows-offline is only supported for Windows installers.')
+}
 const desktopPackage = JSON.parse(
   await readFile(path.join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),
 )
@@ -26,7 +30,7 @@ const platform =
       : process.platform
 const arch = process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
 const target = `${platform}-${arch}`
-const stageDir = path.join(stageRoot, target)
+const stageDir = path.join(stageRoot, windowsOffline ? `${target}-offline` : target)
 
 async function filesUnder(directory) {
   const result = []
@@ -78,7 +82,10 @@ if (platform === 'windows') {
     (file) => file.endsWith('-setup.exe') && !file.endsWith('.sig'),
     'Windows NSIS installer',
   )
-  await stageUpdater(installer, normalizedName('-setup.exe'))
+  await stageUpdater(
+    installer,
+    normalizedName(windowsOffline ? '-offline-setup.exe' : '-setup.exe'),
+  )
 } else if (platform === 'darwin') {
   const dmg = exactlyOne(files, (file) => file.endsWith('.dmg'), 'macOS DMG')
   await stage(dmg, normalizedName('.dmg'))

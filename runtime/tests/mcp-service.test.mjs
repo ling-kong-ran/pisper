@@ -64,6 +64,123 @@ function createFakeClient(server, handlers, calls) {
   }
 }
 
+async function connectionFixture(t, overrides = {}) {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-lifecycle-'))
+  const calls = []
+  const service = new McpService({
+    path: join(directory, 'state.json'),
+    cwd: directory,
+    createClient: (server, handlers) => createFakeClient(server, handlers, calls),
+    createTransport: () => ({}),
+    ...overrides,
+  })
+  t.after(async () => {
+    await service.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await service.init()
+  const dashboard = await service.add({
+    name: 'Lifecycle',
+    transport: 'http',
+    url: 'https://mcp.example.test/mcp',
+    enabled: false,
+  })
+  const id = dashboard.services[0].id
+  service.getServer(id).enabled = true
+  return { service, id, calls }
+}
+
+test('concurrent forced MCP reconnects share one server process', async (t) => {
+  const { service, id, calls } = await connectionFixture(t)
+  await Promise.all([
+    service.ensureConnected(id, { force: true }),
+    service.ensureConnected(id, { force: true }),
+  ])
+  assert.equal(calls.filter((call) => call.type === 'connect').length, 1)
+  await service.dispose()
+  assert.equal(calls.filter((call) => call.type === 'close').length, 1)
+})
+
+test('MCP shutdown cancels a connection whose transport is still being created', async (t) => {
+  const entered = Promise.withResolvers()
+  const release = Promise.withResolvers()
+  const { service, id, calls } = await connectionFixture(t, {
+    createTransport: async () => {
+      entered.resolve()
+      await release.promise
+      return {}
+    },
+  })
+  const connecting = service.ensureConnected(id)
+  const outcome = Promise.allSettled([connecting])
+  await entered.promise
+  const stopping = service.dispose()
+  release.resolve()
+  await stopping
+  assert.equal((await outcome)[0].status, 'rejected')
+  assert.equal(calls.filter((call) => call.type === 'connect').length, 0)
+  assert.equal(calls.filter((call) => call.type === 'close').length, 1)
+  await assert.rejects(service.ensureConnected(id), /closed|stopped|关闭/)
+})
+
+test('MCP transport creation failure releases the client and allows retry', async (t) => {
+  let attempts = 0
+  const { service, id, calls } = await connectionFixture(t, {
+    createTransport: () => {
+      if (++attempts === 1) throw new Error('transport unavailable')
+      return {}
+    },
+  })
+  await assert.rejects(service.ensureConnected(id), /transport unavailable/)
+  assert.equal(calls.filter((call) => call.type === 'close').length, 1)
+  assert.equal(service.connectionFor(id).connecting, null)
+  assert.equal((await service.ensureConnected(id, { force: true })).status, 'online')
+})
+
+test('disabling MCP during startup prevents late process creation', async (t) => {
+  const entered = Promise.withResolvers()
+  const release = Promise.withResolvers()
+  const { service, id, calls } = await connectionFixture(t, {
+    createTransport: async () => {
+      entered.resolve()
+      await release.promise
+      return {}
+    },
+  })
+  const outcome = Promise.allSettled([service.ensureConnected(id)])
+  await entered.promise
+  const disabling = service.update(id, { enabled: false })
+  // update 的输入校验为异步；等待关闭明确开始，而不是依赖任意延时。
+  while (!service.connectionFor(id).closing) await Promise.resolve()
+  release.resolve()
+  await disabling
+  assert.equal((await outcome)[0].status, 'rejected')
+  assert.equal(calls.filter((call) => call.type === 'connect').length, 0)
+  assert.equal(service.dashboard().services[0].status, 'disabled')
+})
+
+test('cancelling one MCP waiter leaves the shared connection available to another session', async (t) => {
+  const entered = Promise.withResolvers()
+  const release = Promise.withResolvers()
+  const { service, id, calls } = await connectionFixture(t, {
+    createTransport: async () => {
+      entered.resolve()
+      await release.promise
+      return {}
+    },
+  })
+  const abort = new AbortController()
+  const cancelled = service.ensureConnected(id, { signal: abort.signal })
+  const cancelledResult = assert.rejects(cancelled, /cancelled/)
+  await entered.promise
+  const otherSession = service.ensureConnected(id)
+  abort.abort(new Error('cancelled'))
+  await cancelledResult
+  release.resolve()
+  assert.equal((await otherSession).status, 'online')
+  assert.equal(calls.filter((call) => call.type === 'connect').length, 1)
+})
+
 test('MCP service persists servers, discovers tools, and exposes Pi custom tools', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-mcp-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -366,7 +483,25 @@ const server = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities:
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [{ name: 'echo', description: 'Echo text', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, annotations: { readOnlyHint: true } }],
 }))
-server.setRequestHandler(CallToolRequestSchema, async (request) => ({ content: [{ type: 'text', text: 'echo:' + request.params.arguments.text }] }))
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  if (request.params.arguments.text !== 'continuous-progress') {
+    return { content: [{ type: 'text', text: 'echo:' + request.params.arguments.text }] }
+  }
+  let progress = 0
+  const interval = setInterval(() => {
+    void server.notification({ method: 'notifications/progress', params: {
+      progressToken: request.params._meta.progressToken, progress: ++progress,
+    } }).catch(() => {})
+  }, 50)
+  try {
+    await new Promise((resolve) => {
+      const finish = () => { clearTimeout(timer); resolve() }
+      const timer = setTimeout(finish, 2500)
+      extra.signal.addEventListener('abort', finish, { once: true })
+    })
+    return { content: [{ type: 'text', text: 'should have timed out' }] }
+  } finally { clearInterval(interval) }
+})
 await server.connect(new StdioServerTransport())
 `,
     'utf8',
@@ -388,6 +523,17 @@ await server.connect(new StdioServerTransport())
   const [echo] = await service.createToolDefinitions()
   const result = await echo.execute('stdio-call', { text: 'hello' }, new AbortController().signal)
   assert.equal(result.content[0].text, 'echo:hello')
+
+  service.getServer(dashboard.services[0].id).requestTimeoutMs = 1000
+  let progressUpdates = 0
+  await assert.rejects(
+    echo.execute('bounded-call', { text: 'continuous-progress' }, undefined, () => {
+      progressUpdates += 1
+    }),
+    /timeout|timed out/i,
+  )
+  assert.ok(progressUpdates > 0, 'the server sent progress without completing the tool')
+  assert.equal(service.dashboard().calls[0].status, 'error')
 })
 
 test('MCP connection specs support URLs, stdio commands, and JSON configuration', () => {

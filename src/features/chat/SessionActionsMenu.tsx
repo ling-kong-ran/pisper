@@ -1,6 +1,16 @@
-// 会话操作菜单：打开目录/追忆/重命名/关闭等会话级动作。
+// 会话操作菜单：打开目录/导出/归档/删除等会话级动作。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FolderOpen, MoreHorizontal, Pencil, TreePine, X } from 'lucide-react'
+import {
+  FolderOpen,
+  MoreHorizontal,
+  PanelBottom,
+  PanelLeft,
+  PanelRight,
+  PanelTop,
+  Pencil,
+  TreePine,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { workspaceName } from '@/lib/format'
 import type { SessionSummary } from '@/types/chat'
@@ -10,22 +20,31 @@ import { Button } from '@/components/ui/button'
 
 export function SessionActionsMenu({
   session,
+  canSplit,
   canClose = true,
   streaming,
   switchingCwd,
+  onSplitLeft,
+  onSplitRight,
+  onSplitTop,
+  onSplitBottom,
   onClosePanel,
   onWorkspace,
   onRename,
   onSessionTree,
 }: {
   session: SessionSummary
+  canSplit?: boolean
   // 是否提供「关闭面板」入口：移动端单会话视图没有可关闭的面板。
   canClose?: boolean
   streaming?: boolean
   switchingCwd?: boolean
+  onSplitLeft: () => void
+  onSplitRight: () => void
+  onSplitTop: () => void
+  onSplitBottom: () => void
   onClosePanel: () => void
-  // 不提供时隐藏「设置工作目录」项（辅助对话面板等场景）。
-  onWorkspace?: () => void
+  onWorkspace: () => void
   onRename: () => void
   onSessionTree: () => void
 }) {
@@ -60,6 +79,32 @@ export function SessionActionsMenu({
     setOpen(false)
     action?.()
   }
+  const splitActions = [
+    [
+      PanelLeft,
+      t('chat:focusSession.splitToLeft'),
+      t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheLeft'),
+      onSplitLeft,
+    ],
+    [
+      PanelRight,
+      t('chat:focusSession.splitToRight'),
+      t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheRight'),
+      onSplitRight,
+    ],
+    [
+      PanelTop,
+      t('chat:focusSession.splitToTop'),
+      t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheTop'),
+      onSplitTop,
+    ],
+    [
+      PanelBottom,
+      t('chat:focusSession.splitToBottom'),
+      t('chat:focusSession.moveTheCurrentTabIntoANewGroupOnTheBottom'),
+      onSplitBottom,
+    ],
+  ] as const
 
   return (
     <div ref={rootRef} className="relative flex-none">
@@ -93,24 +138,39 @@ export function SessionActionsMenu({
         className="anchored-popup-menu permission-mode-menu session-actions-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-[48px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:text-[var(--text)] [&_>_button]:p-[6px_7px] [&_>_button]:text-left [&_>_button:hover]:bg-[var(--accent-soft)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:leading-[1.4] [&_>_button_>_svg]:text-[var(--star-strong)] w-[250px] max-w-[calc(100vw_-_16px)] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)] [&_>_button:disabled]:[cursor:not-allowed] [&_>_button:disabled]:opacity-[.5]"
         role="menu"
       >
-        {onWorkspace && (
+        {splitActions.map(([Icon, label, description, action]) => (
           <button
             type="button"
             role="menuitem"
-            disabled={streaming || switchingCwd}
-            onClick={() => run(onWorkspace)}
+            disabled={!canSplit}
+            onClick={() => run(action)}
+            key={label}
           >
-            <FolderOpen size={15} />
+            <Icon size={15} />
             <span>
-              <strong>{t('chat:focusSession.setWorkingDirectory')}</strong>
+              <strong>{label}</strong>
               <small>
-                {streaming
-                  ? t('chat:focusSession.cannotSwitchWhileTheAgentIsRunning')
-                  : workspaceName(session?.cwd, language)}
+                {canSplit ? description : t('chat:focusSession.thisGroupHasOnlyOneChat')}
               </small>
             </span>
           </button>
-        )}
+        ))}
+        <button
+          type="button"
+          role="menuitem"
+          disabled={streaming || switchingCwd}
+          onClick={() => run(onWorkspace)}
+        >
+          <FolderOpen size={15} />
+          <span>
+            <strong>{t('chat:focusSession.setWorkingDirectory')}</strong>
+            <small>
+              {streaming
+                ? t('chat:focusSession.cannotSwitchWhileTheAgentIsRunning')
+                : workspaceName(session?.cwd, language)}
+            </small>
+          </span>
+        </button>
         <button
           type="button"
           role="menuitem"

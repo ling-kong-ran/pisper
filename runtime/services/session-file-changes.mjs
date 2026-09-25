@@ -5,7 +5,17 @@
 //   - 一键撤销：把文件恢复到修改前内容；新建文件则删除
 //   - 审批标记：用户确认过的变更不再计入待办徽标
 import { createHash } from 'node:crypto'
-import { mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  lstat,
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import {
@@ -23,8 +33,19 @@ export const MAX_DIFF_CHARS = 200_000
 const MAX_ENTRIES_PER_SESSION = 200
 // 最多保留多少个会话的快照目录，超出按修改时间淘汰最旧。
 const MAX_SNAPSHOT_SESSIONS = 50
+// 空索引仅证明新会话尚无写入，不应挤占可撤销的真实快照名额。
+const MAX_EMPTY_SESSION_MARKERS = 500
+// 会话摘要只用于导航徽标，限制一次读取与差异计算，避免大文件拖慢会话页。
+const MAX_SUMMARY_FILE_BYTES = 512 * 1024
+const MAX_SUMMARY_TOTAL_BYTES = 2 * 1024 * 1024
+const MAX_SUMMARY_INDEX_BYTES = 512 * 1024
+const MAX_SUMMARY_DIFF_LINES = 2_000
+const MAX_EMPTY_MARKER_INDEX_BYTES = 8 * 1024
 
 const FILE_WRITE_TOOLS = new Set(['write', 'edit'])
+// 仅对已知绝不写入工作区的 Pi 内置工具保留完整覆盖；扩展/MCP/命令工具默认未知。
+const READ_ONLY_TOOLS = new Set(['read', 'grep', 'find', 'ls'])
+const INDEX_VERSION = 2
 
 function hashKey(value) {
   return createHash('sha256').update(value).digest('hex')
@@ -39,6 +60,10 @@ function writeOperation(name, args) {
   if (!FILE_WRITE_TOOLS.has(name)) return null
   const path = typeof args?.path === 'string' ? args.path.trim() : ''
   return path ? { path } : null
+}
+
+function effectiveToolName(name, args) {
+  return name === 'call_tool' ? String(args?.name || '').trim() : name
 }
 
 function nested(root, path) {
@@ -78,6 +103,76 @@ function truncateDiff(diff) {
   return { diff: diff.slice(0, MAX_DIFF_CHARS), truncated: true }
 }
 
+function unavailableSummary() {
+  return {
+    status: 'unavailable',
+    changedFiles: null,
+    pendingFiles: null,
+    added: null,
+    removed: null,
+    unknownFiles: 0,
+    capped: false,
+  }
+}
+
+function partialSummary(unknownFiles, capped) {
+  return {
+    status: 'partial',
+    changedFiles: null,
+    pendingFiles: null,
+    added: null,
+    removed: null,
+    unknownFiles,
+    capped,
+  }
+}
+
+function hasTooManyLines(text) {
+  let lines = 1
+  for (const char of text) {
+    if (char === '\n' && ++lines > MAX_SUMMARY_DIFF_LINES) return true
+  }
+  return false
+}
+
+// 摘要读取只接受工作区/快照目录内的普通文本文件；无法确认时交给 partial，
+// 不把超限、二进制或越界符号链接误算成零改动。
+async function readSummaryText(root, target, budget) {
+  let actual
+  try {
+    actual = await realpath(target)
+  } catch (error) {
+    return error?.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unknown' }
+  }
+  if (!nested(root, actual)) return { kind: 'unknown' }
+  try {
+    const info = await stat(actual)
+    if (!info.isFile() || info.size > MAX_SUMMARY_FILE_BYTES || info.size > budget.remaining)
+      return { kind: 'unknown' }
+    // stat 后文件仍可能增长；固定缓冲区最多多读一字节，避免竞态下越过预算。
+    const handle = await open(actual, 'r')
+    let content
+    try {
+      const buffer = Buffer.alloc(info.size + 1)
+      let read = 0
+      while (read < buffer.length) {
+        const result = await handle.read(buffer, read, buffer.length - read, read)
+        if (!result.bytesRead) break
+        read += result.bytesRead
+      }
+      if (read !== info.size) return { kind: 'unknown' }
+      content = buffer.subarray(0, read)
+    } finally {
+      await handle.close()
+    }
+    budget.remaining -= content.length
+    if (content.includes(0)) return { kind: 'unknown' }
+    return { kind: 'file', text: normalizeToLF(stripBom(content.toString('utf8')).text) }
+  } catch (error) {
+    return error?.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unknown' }
+  }
+}
+
 // Pi 已生成文件头，只替换路径；相同内容不能用仅含文件头的补丁冒充改动。
 function snapshotFileDiff(path, before, after, isNew) {
   if (before === after) return ''
@@ -95,9 +190,10 @@ export class SessionFileChangesService {
     this.root = resolve(dataDir, 'file-change-snapshots')
     this.warn = warn
     this.installed = new WeakSet()
-    this.wrapped = new WeakSet()
+    this.wrapped = new WeakMap()
     // 每个会话的条目索引按 sessionId 缓存，写操作串行化后落盘。
     this.entries = new Map()
+    this.indexMeta = new Map()
     this.writing = new Map()
     // Pi 可并行执行同一会话的工具调用；快照与落盘必须串行，才能始终保留首次修改前的版本。
     this.running = new Map()
@@ -121,7 +217,60 @@ export class SessionFileChangesService {
     const data = await readJson(this.indexPath(sessionId), { entries: [] })
     const list = Array.isArray(data.entries) ? data.entries : []
     this.entries.set(sessionId, list)
+    if (
+      data.version === INDEX_VERSION &&
+      typeof data.cwd === 'string' &&
+      (data.coverage === 'complete' || data.coverage === 'partial')
+    )
+      this.indexMeta.set(sessionId, {
+        version: INDEX_VERSION,
+        cwd: data.cwd,
+        coverage: data.coverage,
+      })
     return list
+  }
+
+  // 新会话创建时由调用方显式建立空索引：有索引的零写入才可证明为零改动。
+  // 历史会话缺少索引可能是 50 会话快照淘汰，不能补建或推断为零。
+  async markSessionTracked(sessionId, cwd) {
+    if (typeof cwd !== 'string' || !cwd) throw new Error('会话工作区路径不能为空。')
+    await this.pruned
+    return this.serialize(sessionId, async () => {
+      try {
+        await stat(this.indexPath(sessionId))
+        return
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error
+      }
+      const meta = {
+        version: INDEX_VERSION,
+        cwd: await realpath(cwd),
+        coverage: 'complete',
+      }
+      await writeJsonAtomic(this.indexPath(sessionId), { ...meta, entries: [] })
+      this.entries.set(sessionId, [])
+      this.indexMeta.set(sessionId, meta)
+    })
+  }
+
+  // 未快照覆盖的工具可能写任意文件；执行前持久降级，重启后也不能误报精确零。
+  async markCoveragePartial(sessionId, cwd) {
+    await this.pruned
+    return this.serialize(sessionId, () => this.persistPartialCoverage(sessionId, cwd))
+  }
+
+  async persistPartialCoverage(sessionId, cwd) {
+    const list = await this.load(sessionId)
+    const prior = this.indexMeta.get(sessionId)
+    if (prior?.coverage === 'partial') return
+    await this.writing.get(sessionId)?.catch(() => {})
+    const meta = {
+      version: INDEX_VERSION,
+      cwd: prior?.cwd || (await realpath(cwd)),
+      coverage: 'partial',
+    }
+    await writeJsonAtomic(this.indexPath(sessionId), { ...meta, entries: list })
+    this.indexMeta.set(sessionId, meta)
   }
 
   save(sessionId, list) {
@@ -129,8 +278,16 @@ export class SessionFileChangesService {
     const previous = this.writing.get(sessionId) || Promise.resolve()
     const next = previous
       .catch(() => {})
-      .then(() => writeJsonAtomic(this.indexPath(sessionId), { entries: list }))
-      .catch((error) => this.warn(error))
+      .then(() =>
+        writeJsonAtomic(this.indexPath(sessionId), {
+          ...this.indexMeta.get(sessionId),
+          entries: list,
+        }),
+      )
+      .catch((error) => {
+        this.warn(error)
+        throw error
+      })
     this.writing.set(sessionId, next)
     return next
   }
@@ -167,19 +324,33 @@ export class SessionFileChangesService {
     const scored = []
     for (const dir of sessionDirs) {
       try {
-        scored.push({ name: dir.name, mtime: (await stat(join(this.root, dir.name))).mtimeMs })
+        const path = join(this.root, dir.name)
+        const mtime = (await stat(path)).mtimeMs
+        let emptyMarker = false
+        const indexPath = join(path, 'index.json')
+        const indexStat = await lstat(indexPath).catch(() => null)
+        if (indexStat?.isFile() && indexStat.size <= MAX_EMPTY_MARKER_INDEX_BYTES) {
+          const index = await readJson(indexPath, null).catch(() => null)
+          emptyMarker = Array.isArray(index?.entries) && index.entries.length === 0
+        }
+        scored.push({ name: dir.name, mtime, emptyMarker })
       } catch {
         // 目录可能刚好被清理，跳过即可。
       }
     }
-    scored.sort((a, b) => b.mtime - a.mtime)
-    for (const stale of scored.slice(MAX_SNAPSHOT_SESSIONS)) {
+    const newestFirst = (a, b) => b.mtime - a.mtime
+    const snapshots = scored.filter((dir) => !dir.emptyMarker).sort(newestFirst)
+    const markers = scored.filter((dir) => dir.emptyMarker).sort(newestFirst)
+    for (const stale of [
+      ...snapshots.slice(MAX_SNAPSHOT_SESSIONS),
+      ...markers.slice(MAX_EMPTY_SESSION_MARKERS),
+    ]) {
       await rm(join(this.root, stale.name), { recursive: true, force: true }).catch(() => {})
     }
   }
 
-  // 在 Agent 会话上安装 beforeToolCall 钩子：对被允许的 write/edit 调用，
-  // 在执行前完成原始内容快照，执行成功后登记变更条目。
+  // 在 Agent 会话上安装 beforeToolCall 钩子：write/edit 执行前保存快照，
+  // 其他可能写入的工具执行前持久标记摘要覆盖不完整。
   install(session, { sessionId, cwd }) {
     if (!session?.agent || !cwd || !sessionId || this.installed.has(session)) return
     this.installed.add(session)
@@ -189,10 +360,25 @@ export class SessionFileChangesService {
       const decision = await previous?.(context, signal)
       if (decision?.block || signal?.aborted) return decision
       const name = context.toolCall.name
-      if (!writeOperation(name, context.args)) return decision
+      if (!writeOperation(name, context.args)) {
+        if (name === 'call_tool' || !READ_ONLY_TOOLS.has(effectiveToolName(name, context.args)))
+          await this.markCoveragePartial(sessionId, cwd)
+        return decision
+      }
       const tool = context.context?.tools?.find((item) => item.name === name)
-      if (tool && !this.wrapped.has(tool)) {
-        this.wrapped.add(tool)
+      if (!tool) {
+        await this.markCoveragePartial(sessionId, cwd)
+        return decision
+      }
+      const wrappedFor = this.wrapped.get(tool)
+      if (wrappedFor && (wrappedFor.sessionId !== sessionId || wrappedFor.cwd !== cwd)) {
+        // 共享工具实例已绑定其他会话，不能把它的写入归到当前会话的完整快照。
+        await this.markCoveragePartial(sessionId, cwd)
+        await this.markCoveragePartial(wrappedFor.sessionId, wrappedFor.cwd)
+        return decision
+      }
+      if (!wrappedFor) {
+        this.wrapped.set(tool, { sessionId, cwd })
         const execute = tool.execute
         tool.execute = (...args) =>
           this.run({ sessionId, cwd, name, args: args[1] }, () => execute.apply(tool, args))
@@ -203,22 +389,30 @@ export class SessionFileChangesService {
 
   async run({ sessionId, cwd, name, args }, execute) {
     const op = writeOperation(name, args)
-    if (!op) return execute()
+    if (!op) {
+      await this.markCoveragePartial(sessionId, cwd)
+      return execute()
+    }
     const absolutePath = resolveToCwd(op.path, cwd)
-    if (!nested(cwd, absolutePath)) return execute()
+    if (!nested(cwd, absolutePath)) {
+      await this.markCoveragePartial(sessionId, cwd)
+      return execute()
+    }
     return this.serialize(sessionId, async () => {
       try {
         // 快照必须在写入前完成；同一文件多次编辑只保留最初版本，撤销才能回到起点。
         await this.captureBefore(sessionId, cwd, absolutePath)
       } catch (error) {
-        // 快照失败不阻断工具执行，只是该文件失去 diff/撤销能力。
+        // 快照失败时先持久降级；若连降级标记也无法写入，则不能继续执行并误报零改动。
         this.warn(error)
+        await this.persistPartialCoverage(sessionId, cwd)
       }
       const result = await execute()
       try {
         await this.recordChange(sessionId, cwd, absolutePath)
       } catch (error) {
         this.warn(error)
+        await this.persistPartialCoverage(sessionId, cwd)
       }
       return result
     })
@@ -226,6 +420,9 @@ export class SessionFileChangesService {
 
   async captureBefore(sessionId, cwd, absolutePath) {
     const list = await this.load(sessionId)
+    const meta = this.indexMeta.get(sessionId)
+    if (!meta || meta.cwd !== (await realpath(cwd)))
+      await this.persistPartialCoverage(sessionId, cwd)
     const relPath = relative(cwd, absolutePath).replace(/\\/g, '/')
     if (list.some((entry) => entry.path === relPath)) return
     const key = hashKey(relPath).slice(0, 24)
@@ -289,6 +486,131 @@ export class SessionFileChangesService {
         return { exists: false, content: '' }
       throw error
     }
+  }
+
+  // 导航只展示“当前仍与首次修改前不同”的会话内文件。pendingFiles 是其中尚未
+  // 审批的数量；added/removed 是与首次修改前比较的行数。unknownFiles 只数索引
+  // 中无法核对的条目，capped 表示 200 条上限还可能漏记更多文件。没有索引可能是
+  // 旧快照已淘汰，不能当作零；partial/unavailable 时数值一律为 null。
+  async summary(sessionId, cwd) {
+    await this.pruned
+    await this.writing.get(sessionId)?.catch(() => {})
+    const indexPath = this.indexPath(sessionId)
+    let data
+    try {
+      const info = await stat(indexPath)
+      if (!info.isFile() || info.size > MAX_SUMMARY_INDEX_BYTES) return unavailableSummary()
+      data = JSON.parse(await readFile(indexPath, 'utf8'))
+    } catch {
+      return unavailableSummary()
+    }
+    if (!Array.isArray(data?.entries)) return unavailableSummary()
+
+    const entries = data.entries
+    const capped = entries.length >= MAX_ENTRIES_PER_SESSION
+    const cached = this.entries.get(sessionId)
+    if (cached && JSON.stringify(cached) !== JSON.stringify(entries))
+      return partialSummary(Math.max(cached.length, entries.length), capped)
+    const cachedMeta = this.indexMeta.get(sessionId)
+    if (
+      cachedMeta &&
+      (cachedMeta.version !== data.version ||
+        cachedMeta.cwd !== data.cwd ||
+        cachedMeta.coverage !== data.coverage)
+    )
+      return partialSummary(entries.length, capped)
+    // 旧索引缺少起始工作区和覆盖状态，无法证明空目录或相对路径的含义。
+    if (
+      data.version !== INDEX_VERSION ||
+      typeof data.cwd !== 'string' ||
+      !data.cwd ||
+      (data.coverage !== 'complete' && data.coverage !== 'partial')
+    )
+      return partialSummary(entries.length, capped)
+    let cwdRoot
+    try {
+      cwdRoot = await realpath(cwd)
+    } catch {
+      return partialSummary(entries.length, capped)
+    }
+    if (cwdRoot !== data.cwd || data.coverage === 'partial')
+      return partialSummary(entries.length, capped)
+    if (!entries.length)
+      return {
+        status: 'known',
+        changedFiles: 0,
+        pendingFiles: 0,
+        added: 0,
+        removed: 0,
+        unknownFiles: 0,
+        capped: false,
+      }
+    const budget = { remaining: MAX_SUMMARY_TOTAL_BYTES }
+    let snapshotRoot
+    try {
+      snapshotRoot = await realpath(this.sessionDir(sessionId))
+    } catch {
+      return partialSummary(entries.length, capped)
+    }
+
+    let changedFiles = 0
+    let pendingFiles = 0
+    let added = 0
+    let removed = 0
+    let unknownFiles = Math.max(0, entries.length - MAX_ENTRIES_PER_SESSION)
+    const seen = new Set()
+    for (const entry of entries.slice(0, MAX_ENTRIES_PER_SESSION)) {
+      if (
+        !entry ||
+        typeof entry.path !== 'string' ||
+        !entry.path ||
+        typeof entry.key !== 'string' ||
+        !/^[a-f0-9]{24}$/.test(entry.key) ||
+        typeof entry.beforeExists !== 'boolean' ||
+        seen.has(entry.path)
+      ) {
+        unknownFiles += 1
+        continue
+      }
+      seen.add(entry.path)
+      const absolutePath = resolve(cwd, entry.path)
+      if (!nested(resolve(cwd), absolutePath)) {
+        unknownFiles += 1
+        continue
+      }
+      const current = await readSummaryText(cwdRoot, absolutePath, budget)
+      const before = entry.beforeExists
+        ? entry.snapshot
+          ? await readSummaryText(snapshotRoot, this.snapshotPath(sessionId, entry.key), budget)
+          : { kind: 'unknown' }
+        : { kind: 'missing' }
+      if (current.kind === 'unknown' || (entry.beforeExists && before.kind !== 'file')) {
+        unknownFiles += 1
+        continue
+      }
+      if (!entry.beforeExists && current.kind === 'missing') continue
+      const previousText = before.kind === 'file' ? before.text : ''
+      const currentText = current.kind === 'file' ? current.text : ''
+      if (entry.beforeExists && current.kind === 'file' && currentText === previousText) continue
+      if (hasTooManyLines(previousText) || hasTooManyLines(currentText)) {
+        unknownFiles += 1
+        continue
+      }
+      let stats
+      try {
+        stats = diffStats(generateUnifiedPatch(entry.path, previousText, currentText))
+      } catch {
+        unknownFiles += 1
+        continue
+      }
+      changedFiles += 1
+      if (!entry.approved) pendingFiles += 1
+      added += stats.added
+      removed += stats.removed
+    }
+
+    if (unknownFiles || capped) return partialSummary(unknownFiles, capped)
+    return { status: 'known', changedFiles, pendingFiles, added, removed, unknownFiles: 0, capped }
   }
 
   // 变更清单：实时对比快照与磁盘现状，计算行数统计与待审批数量。

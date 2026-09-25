@@ -440,13 +440,13 @@ fn render_welcome_logo(frame: &mut Frame, area: Rect, full: bool) {
     );
 }
 
-/// 欢迎视图中的工作区路径（居中、弱化显示）。
+/// 欢迎视图中的工作区路径（居中显示，保持可读对比度）。
 fn render_welcome_workspace(frame: &mut Frame, app: &App, area: Rect) {
     let path = single_line(&shorten_path(&app.cwd), area.width as usize);
     frame.render_widget(
         Paragraph::new(path)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(FAINT).bg(BG)),
+            .style(Style::default().fg(MUTED).bg(BG)),
         area,
     );
 }
@@ -833,6 +833,12 @@ fn render_run_state(frame: &mut Frame, app: &App, area: Rect) {
         (
             runtime_error_label(&app.status, area.width.saturating_sub(2) as usize),
             RED,
+            false,
+        )
+    } else if app.suggest_model_compaction {
+        (
+            "/compact to summarize context (optional)".to_owned(),
+            MUTED,
             false,
         )
     } else {
@@ -1327,11 +1333,7 @@ fn tool_spans(
         let detail_padding = detail_width.saturating_sub(detail.width());
         spans.push(Span::styled(
             format!("{detail}{}", " ".repeat(detail_padding)),
-            Style::default().fg(if tool.status == "running" {
-                MUTED
-            } else {
-                FAINT
-            }),
+            Style::default().fg(MUTED),
         ));
     }
     if meta_width > 0 {
@@ -4168,6 +4170,34 @@ mod tests {
         assert_eq!(before, after);
     }
 
+    /// 换模型后的建议在窄终端也可见，输入和发送不需要关闭提示。
+    #[test]
+    fn model_switch_shows_optional_compaction_without_blocking_composer() {
+        for (width, height) in [(80, 24), (40, 12)] {
+            let mut app = live_test_app("complete", LiveTurn::default());
+            app.insert_paste("continue here");
+            app.set_model(crate::model::SessionModelUpdate {
+                model: "provider/model-b".to_owned(),
+                ..Default::default()
+            });
+            let buffer = render_test_buffer(&app, width, height);
+            let text = buffer_text(&buffer);
+            assert!(text.contains("/compact"));
+            assert!(text.contains("optional"));
+            assert!(text.contains("continue here"));
+            assert!(app.accepts_composer_input());
+            assert!(matches!(
+                app.handle_key(crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Enter,
+                    crossterm::event::KeyModifiers::NONE,
+                )),
+                crate::app::Action::Submit { message, .. } if message == "continue here"
+            ));
+            let sent = render_test_buffer(&app, width, height);
+            assert!(!buffer_text(&sent).contains("/compact"));
+        }
+    }
+
     /// 验证手动压缩有可见的运行中与完成两种状态。
     #[test]
     fn manual_compaction_has_visible_running_and_completed_states() {
@@ -4366,7 +4396,7 @@ mod tests {
             .unwrap();
         assert_eq!(completed.style.fg, Some(MUTED));
         assert_eq!(active.style.fg, Some(ACCENT));
-        assert_eq!(completed_detail.style.fg, Some(super::FAINT));
+        assert_eq!(completed_detail.style.fg, Some(MUTED));
         assert!(lines.iter().all(|line| line.width() <= 120));
     }
 
@@ -5397,9 +5427,18 @@ mod tests {
 
         assert!(rows.iter().any(|row| row.contains("████  █ █████")));
         assert!(!rows.iter().any(|row| row.contains("___  ___  ___")));
-        assert!(rows[..input_row]
+        let workspace_row = rows[..input_row]
             .iter()
-            .any(|row| row.trim() == "/workspace"));
+            .position(|row| row.trim() == "/workspace")
+            .unwrap();
+        let workspace_column = rows[workspace_row].find("/workspace").unwrap();
+        assert_eq!(
+            buffer
+                .cell((workspace_column as u16, workspace_row as u16))
+                .unwrap()
+                .fg,
+            MUTED
+        );
         assert!(!rows.join("\n").contains("token: 0"));
         assert!(!rows.join("\n").contains("cache —"));
         assert!(rows.iter().any(|row| {

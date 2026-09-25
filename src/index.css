@@ -1,7 +1,6 @@
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 @import "streamdown/styles.css";
 
 @source "./**/*.{ts,tsx}";
@@ -15,21 +14,11 @@
 
 :root {
   color-scheme: light;
-  /* 拉丁字符走 Geist（未打包，仅本机装过才生效），中文回退系统字体。
-     Windows 清晰度关键：Segoe UI 必须排在中文黑体之前——否则英文/数字
-     回退到雅黑，小字号渲染发虚；Segoe UI 原生 hinting 锐利。
-     HarmonyOS Sans SC / MiSans 仅对主动安装过它们的用户生效（无预装），
-     Noto/思源覆盖 Linux。 */
-  font-family: "Geist Variable", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* 优先使用平台界面字体，让中英文、数字和标点采用系统匹配的字形。 */
+  --app-font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  font-family: var(--app-font-family);
   color: var(--text);
   background: var(--bg);
-  font-synthesis: none;
-  /* 文本发虚修复：optimizeLegibility 在 Windows Chromium 上会把文本退回
-     GDI 渲染路径导致发虚，且中文排版性能差，改用引擎默认 auto（现代引擎
-     默认已启用 kerning/连字）；antialiased 关掉 macOS 的系统性文本增粗，
-     并让合成层（backdrop-filter/动画层）与普通层的灰度抗锯齿一致。 */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   --scrollbar-thumb: rgba(17, 24, 39, .24);
@@ -74,11 +63,12 @@
   --stroke: #e5e7eb;
   --stroke-soft: #f0f1f3;
   --stroke-hover: #cbd5e1;
-  --text: #111827;
-  --text-soft: #374151;
-  --text-secondary: #4b5563;
-  --text-tertiary: #6b7280;
-  --text-muted: #6b7280;
+  /* 浅色主题的普通文字统一纯黑，层级通过字号、字重和布局表达。 */
+  --text: #000;
+  --text-soft: #000;
+  --text-secondary: #000;
+  --text-tertiary: #000;
+  --text-muted: #000;
   --ink-strong: #111827;
   --on-ink: #fff;
   --surface-subtle: #f8fafc;
@@ -115,10 +105,10 @@
   --user-bubble-code: rgba(255, 255, 255, .16);
 
   /* ── 圆角 / 阴影 / 动效 ── */
-  --r-xs: 7px;
-  --r-sm: 10px;
-  --r-md: 14px;
-  --r-lg: 20px;
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 13px;
+  --r-lg: 18px;
   --r-pill: 999px;
   --sh-1: 0 1px 2px rgba(15, 23, 42, .05);
   --sh-edge: rgba(15, 23, 42, .04);
@@ -134,7 +124,7 @@
   --d3: 360ms;
   --app-font-size: 13px;
   --app-small-size: 12px;
-  --app-message-font-size: 14px;
+  --app-message-font-size: 15px;
 
   /* ── 表面与场景：侧栏/内容区/卡片三层递进 ── */
   --sidebar-bg: #f8f9fa;
@@ -281,18 +271,18 @@
 :root[data-theme='dark'] {
     color-scheme: dark;
 
-    /* ── 暗色主题主操作反白；唯一彩色是青绿（仅焦点/链接/状态点） ── */
-    --star: #e6e6e9;
+    /* ── 暗色主题主操作反白，蓝色仍只承担状态语义 ── */
+    --star: #e2e2e5;
     --star-hover: #f2f2f4;
-    --star-strong: #ececEE;
-    --star-soft: rgba(255, 255, 255, .08);
-    --star-border: rgba(255, 255, 255, .22);
-    --on-accent: #101013;
-    --brand-blue: #56c2b8;
-    --brand-blue-hover: #6fd0c6;
-    --brand-blue-strong: #8adcd3;
-    --brand-blue-soft: rgba(86, 194, 184, .12);
-    --brand-blue-border: rgba(86, 194, 184, .24);
+    --star-strong: #ededf0;
+    --star-soft: rgba(255, 255, 255, .09);
+    --star-border: rgba(255, 255, 255, .24);
+    --on-accent: #1a1a1f;
+    --brand-blue: #5fa8e8;
+    --brand-blue-hover: #7ab8ef;
+    --brand-blue-strong: #93cbf5;
+    --brand-blue-soft: rgba(95, 168, 232, .13);
+    --brand-blue-border: rgba(95, 168, 232, .26);
 
     --blue: var(--star);
     --blue-2: var(--star-hover);
@@ -300,36 +290,36 @@
     --accent-soft: var(--star-soft);
     --accent-strong: var(--star-strong);
     --accent-border: var(--star-border);
-    --accent-ring: rgba(255, 255, 255, .12);
+    --accent-ring: rgba(255, 255, 255, .13);
     --focus: var(--brand-blue);
-    --focus-ring: rgba(86, 194, 184, .16);
+    --focus-ring: rgba(95, 168, 232, .18);
     --status-blue: var(--brand-blue);
-    --selection-ring: rgba(255, 255, 255, .1);
-    --node-active-ring: rgba(255, 255, 255, .15);
-    --node-pulse-color: rgba(255, 255, 255, .25);
+    --selection-ring: rgba(255, 255, 255, .11);
+    --node-active-ring: rgba(255, 255, 255, .16);
+    --node-pulse-color: rgba(255, 255, 255, .26);
 
-    /* ── 中性色：纯中性锌灰，靠明度阶梯分层，无彩偏 ── */
-    --bg: #101013;
-    --panel: #151519;
-    --solid: #191920;
-    --stroke: #1e1e24;
-    --stroke-soft: #191920;
-    --stroke-hover: #2e2e36;
-    --text: #f1f1f3;
-    --text-soft: #d6d6da;
-    --text-secondary: #b4b4bb;
-    --text-tertiary: #9a9aa2;
-    --text-muted: #85858d;
-    --scrollbar-thumb: rgba(241, 241, 243, .2);
-    --scrollbar-thumb-hover: rgba(241, 241, 243, .32);
-    --selection-bg: rgba(86, 194, 184, .2);
-    --ink-strong: #0a0a0c;
-    --on-ink: #f1f1f3;
-    --surface-subtle: #16161b;
-    --surface-muted: #1c1c22;
-    --surface-hover: #24242b;
-    --surface-highlight: rgba(255, 255, 255, .08);
-    --control-muted: #3d3d44;
+    /* ── 中性色：中性偏暖深灰 ── */
+    --bg: #141418;
+    --panel: #1b1b22;
+    --solid: #1f1f27;
+    --stroke: #2c2c35;
+    --stroke-soft: #26262f;
+    --stroke-hover: #46464f;
+    --text: #f1f0ed;
+    --text-soft: #deddd8;
+    --text-secondary: #cbc9d0;
+    --text-tertiary: #b8b5bd;
+    --text-muted: #b4b1aa;
+    --scrollbar-thumb: rgba(232, 229, 222, .22);
+    --scrollbar-thumb-hover: rgba(232, 229, 222, .34);
+    --selection-bg: rgba(98, 169, 242, .28);
+    --ink-strong: #0d0d13;
+    --on-ink: #e8e5de;
+    --surface-subtle: #1c1c23;
+    --surface-muted: #26262f;
+    --surface-hover: #2d2d37;
+    --surface-highlight: rgba(255, 255, 255, .09);
+    --control-muted: #46464f;
     --control-thumb: #fff;
     --control-selected-bg: var(--star);
     --control-selected-text: var(--on-accent);
@@ -354,27 +344,27 @@
     --status-muted: #8f8b85;
 
     /* ── 用户气泡：纸白底墨字 ── */
-    --user-bubble-bg: #ececee;
-    --user-bubble-text: #161619;
-    --user-bubble-code: rgba(22, 22, 25, .08);
+    --user-bubble-bg: #e8e5de;
+    --user-bubble-text: #1d1d24;
+    --user-bubble-code: rgba(29, 29, 36, .08);
 
     --sh-star: 0 6px 20px -8px rgba(0, 0, 0, .55);
     --sh-edge: rgba(0, 0, 0, .3);
 
     /* ── 表面与场景 ── */
-    --sidebar-bg: #101013;
-    --sidebar-status-bg: #0d0d10;
+    --sidebar-bg: #17171e;
+    --sidebar-status-bg: #141419;
     --sidebar-shadow: rgba(0, 0, 0, .55);
-    --sidebar: #0b0b0d;
-    --main-surface-bg: #141417;
-    --main-surface-inset: rgba(255, 255, 255, .02);
+    --sidebar: #0d0d13;
+    --main-surface-bg: #18181f;
+    --main-surface-inset: rgba(255, 255, 255, .08);
     --main-surface-shadow: rgba(0, 0, 0, .4);
     --main-glow-start: rgba(255, 255, 255, .02);
     --main-glow-end: rgba(20, 20, 24, 0);
-    --search-bg: #131316;
+    --search-bg: #17171e;
     --menu-shadow: rgba(0, 0, 0, .6);
-    --media-bg: #0a0a0c;
-    --terminal-bg: #101114;
+    --media-bg: #0a0a0f;
+    --terminal-bg: #111318;
     --terminal-fg: #e5e7eb;
     --terminal-muted: rgba(229, 231, 235, .72);
     --terminal-hover: rgba(229, 231, 235, .08);
@@ -385,15 +375,15 @@
     --terminal-error-bg: #3a1f24;
     --terminal-error-border: rgba(248, 113, 113, .5);
     --terminal-error-fg: #e5e7eb;
-    --code-border: #2c2c31;
+    --code-border: #35353f;
     --asset-preview-blue-bg: var(--brand-blue-soft);
     --asset-preview-blue-text: var(--brand-blue-strong);
     --asset-preview-violet-bg: #22222c;
-    --subnav-bg: #131316;
-    --progress-track: #26262b;
+    --subnav-bg: #17171e;
+    --progress-track: #2a2a34;
     --floating-shadow: rgba(0, 0, 0, .6);
-    --canvas-bg: #131316;
-    --canvas-grid: #212126;
+    --canvas-bg: #17171e;
+    --canvas-grid: #26262f;
     --canvas-edge: #46464f;
     --node-shadow: #000;
     --violet-border: #4a4a5e;
@@ -537,12 +527,12 @@
 :root[data-font-scale='small'] {
   --app-font-size: 12px;
   --app-small-size: 11px;
-  --app-message-font-size: 13px;
+  --app-message-font-size: 14px;
 }
 :root[data-font-scale='large'] {
   --app-font-size: 14px;
   --app-small-size: 13px;
-  --app-message-font-size: 15px;
+  --app-message-font-size: 16px;
 }
 
 :root[data-radius='sharp'] {
@@ -571,7 +561,7 @@ html, body, #root { width: 100%; height: 100%; min-width: 320px; min-height: 100
 body { overflow: hidden; font-size: var(--app-font-size); line-height: 1.5; }
 :root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
 small { font-size: var(--app-small-size) !important; line-height: 1.45; }
-button, input, textarea, select { font: inherit; }
+/* 控件字体继承由 Tailwind preflight 提供，避免未分层 reset 覆盖组件字号与字重。 */
 button, a, select { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 h1, h2, h3, p { margin: 0; }
@@ -584,19 +574,9 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .voice-capsule-pop { animation: voice-capsule-pop 260ms cubic-bezier(.2, .9, .3, 1.2) both; }
 @keyframes composer-energy-spin { to { transform: rotate(360deg); } }
 .chat-dock-workspace > .dockview-theme-pisper { width: 100%; height: 100%; }
-/* 扁平化：会话面板不再「盒中套盒」——去掉 dock 卡片的环线/边框/双层底色，
-   会话内容直接融入画布；仅保留 dockview 自身的标签条做分区。 */
-.session-dock-panel > .app-card {
-  border: 0;
-  box-shadow: none;
-  background: var(--main-surface-bg);
-}
-:root .dockview-theme-pisper { --dv-tabs-and-actions-container-height: 36px; --dv-tabs-and-actions-container-font-size: 12px; --dv-group-view-background-color: var(--panel); --dv-tabs-and-actions-container-background-color: var(--surface-subtle); --dv-activegroup-visiblepanel-tab-background-color: var(--panel); --dv-activegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel); --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--text-soft); --dv-inactivegroup-visiblepanel-tab-color: var(--text-soft); --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted); --dv-tab-divider-color: var(--stroke-soft); --dv-separator-border: var(--stroke); --dv-paneview-active-outline-color: var(--focus); --dv-drag-over-background-color: var(--focus-ring); --dv-drag-over-border-color: var(--focus); --dv-icon-hover-background-color: var(--surface-hover); --dv-tabs-container-scrollbar-color: var(--control-muted); --dv-scrollbar-background-color: var(--control-muted); --dv-sash-color: var(--stroke-soft); --dv-active-sash-color: var(--focus); --dv-border-radius: 0; --dv-tab-border-radius: 0; --dv-spacing-padding: 0; }
-/* ZCode 式布局：会话切换统一走左侧会话列表，dock 顶部的多会话标签头
-   （会话名 + 关闭 + 新建）整体隐藏——CSS 层隐藏不依赖 dock API 时序，
-   恢复布局/新建分组/拆分都会生效。 */
-.dockview-theme-pisper .dv-tabs-and-actions-container { display: none; }
-.dockview-theme-pisper .dv-tab { font-weight: 600; }
+:root .dockview-theme-pisper { --dv-tabs-and-actions-container-height: 36px; --dv-tabs-and-actions-container-font-size: var(--app-font-size); --dv-group-view-background-color: var(--panel); --dv-tabs-and-actions-container-background-color: var(--surface-subtle); --dv-activegroup-visiblepanel-tab-background-color: var(--panel); --dv-activegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel); --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface-muted); --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--text-soft); --dv-inactivegroup-visiblepanel-tab-color: var(--text-soft); --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted); --dv-tab-divider-color: var(--stroke-soft); --dv-separator-border: var(--stroke); --dv-paneview-active-outline-color: var(--focus); --dv-drag-over-background-color: var(--focus-ring); --dv-drag-over-border-color: var(--focus); --dv-icon-hover-background-color: var(--surface-hover); --dv-tabs-container-scrollbar-color: var(--control-muted); --dv-scrollbar-background-color: var(--control-muted); --dv-sash-color: var(--stroke-soft); --dv-active-sash-color: var(--focus); --dv-border-radius: 0; --dv-tab-border-radius: 0; --dv-spacing-padding: 0; }
+.dockview-theme-pisper .dv-tabs-and-actions-container { border-bottom: 1px solid var(--stroke-soft); }
+.dockview-theme-pisper .dv-tab { font-weight: 500; }
 .dockview-theme-pisper .dv-active-group .dv-tab.dv-active-tab { box-shadow: inset 0 -2px var(--brand-blue); }
 /* 图标化模型切换：Radix Select 透明覆盖整个按钮，文字收进 tooltip，仅保留图标 */
 /* 图标化执行模式触发器：灰=需审批 / 红=完全访问 */
@@ -605,14 +585,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes session-history-line-pulse { 0%,100% { opacity: .28; transform: scaleX(.94); } 50% { opacity: .72; transform: scaleX(1); } }
 /* 衍生会话写入追忆后，用一次扩散环把注意力带回关联入口。 */
 @keyframes session-tree-new-node-pulse { 0% { box-shadow: 0 0 0 0 var(--brand-blue-border), var(--sh-1); } 62% { box-shadow: 0 0 0 8px transparent, var(--sh-1); } 100% { box-shadow: var(--sh-1); } }
-.message-content > .markdown-body { min-height: 34px; overflow-wrap: anywhere; border-radius: var(--r-md); background: transparent; padding: 3px 0; font-size: var(--app-message-font-size); line-height: 1.72; }
-.message.user .message-content > .markdown-body { border: 1px solid var(--stroke-soft); border-radius: 22px; background: var(--user-bubble-bg); color: var(--user-bubble-text); padding: 10px 16px; box-shadow: none; }
-.message.user .markdown-body h1,.message.user .markdown-body h2,.message.user .markdown-body h3,.message.user .markdown-body h4,.message.user .markdown-body a { color: var(--user-bubble-text); }
-.message.user .markdown-body code { background: var(--user-bubble-code); }
-.message.agent .message-content > .markdown-body { width: 100%; max-width: 100%; border: 0; border-radius: 0; background: transparent; padding: 4px 0 0; }
-.message.agent .markdown-body p { margin: 1em 0; }
 /* 消息级错误只保留左侧细警示条，避免中断回复变成整片红色区域。 */
-.message.has-error .message-content > .markdown-body { border-left: 2px solid var(--danger); border-radius: 0; background: transparent; color: var(--danger); padding: 2px 0 2px 12px; }
 .agent-activity-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 @keyframes agent-aura-think { 0%,100% { opacity: .1; transform: scale(.96); } 50% { opacity: .28; transform: scale(1.04); } }
 @keyframes agent-thinking-dot { 0%,65%,100% { opacity: .3; transform: translateY(0); } 32% { opacity: 1; transform: translateY(-2px); } }
@@ -646,7 +619,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .markdown-body blockquote { margin: .6em 0; border-left: 3px solid var(--accent-border); padding: .25em 0 .25em .8em; color: var(--text-tertiary); }
 .markdown-body .markdown-link { color: var(--text); -webkit-text-fill-color: currentColor; text-decoration: underline; text-decoration-color: var(--control-muted); text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .markdown-body .markdown-link:hover { text-decoration-color: currentColor; }
-.markdown-body code { border-radius: var(--r-xs); background: var(--code-inline-bg); padding: .12em .35em; font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-size: .92em; }
+/* 行内代码仅保留等宽字形，避免文件路径与正文混排时出现灰色底块。 */
+.markdown-body code { border-radius: 0; background: transparent; padding: 0; font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-size: .92em; }
 .markdown-body pre { max-width: 100%; overflow: auto; margin: .65em 0; border: 1px solid var(--code-border); border-radius: var(--r-sm); background: var(--ink-strong); padding: 10px; color: var(--code-text); }
 .markdown-body pre code { background: transparent; padding: 0; color: inherit; line-height: 1.55; }
 .markdown-body table { display: block; width: max-content; max-width: 100%; overflow: auto; margin: .65em 0; border-collapse: collapse; }
@@ -704,16 +678,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes pulse-dot { 50% { opacity: .35; transform: translateY(-1px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@container (max-width: 700px) {
-  .message-content > .markdown-body { font-size: var(--app-message-font-size); }
-
-}
-
 @media (max-width: 900px) {
   body { overflow: auto; }
-}
-
-@media (max-width: 650px) {.message-content > .markdown-body { font-size: var(--app-message-font-size); }
 }
 
 :root[data-motion='reduced'] *, :root[data-motion='reduced'] *::before, :root[data-motion='reduced'] *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; }
@@ -721,8 +687,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @theme inline {
   --font-heading: var(--font-sans);
-  /* Segoe UI 在中文黑体之前：Windows 上拉丁/数字避免回退雅黑导致发虚。 */
-  --font-sans: 'Geist Variable', 'Segoe UI', 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--app-font-family);
   --color-brand-soft: var(--brand-blue-soft);
   --color-brand-strong: var(--brand-blue-strong);
   --color-success-soft: var(--success-soft);
@@ -793,5 +758,10 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   }
   html {
     @apply font-sans;
+  }
+  /* 原生输入框与共享控件使用同一提示色，避免默认半透明文字过淡。 */
+  input::placeholder, textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
   }
 }
