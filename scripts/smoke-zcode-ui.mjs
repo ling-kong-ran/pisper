@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
+import { DEFAULT_BRANCH } from '../shared/app-update.mjs'
 // 始终使用全新的临时后端，不连接已安装应用，也不读取真实密钥。
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-zcode-ui-'))
@@ -196,7 +197,7 @@ try {
         currentCommit: '0'.repeat(40),
         availableCommit: '0'.repeat(40),
         behindBy: 0,
-        branch: 'main',
+        branch: DEFAULT_BRANCH,
         notes: '',
         releaseDate: null,
         releaseUrl: '',
@@ -514,16 +515,42 @@ try {
     () => document.querySelector('textarea[aria-label="任务描述"]')?.value === '第二会话未发送草稿',
   )
   report.checks.push('per-session unsent drafts survive session switching')
-  await api(`/api/sessions/${secondaryId}`, 'DELETE')
-  await page.getByRole('button', { name: 'PI background-run QA', exact: true }).click()
-  await api(`/api/sessions/${sessionId}`, 'PATCH', { name: 'PI UI CRUD 验收' })
+  // 使用真实历史页操作，避免从测试进程直接删除仍被活动视图读取的会话。
+  await page.goto(base + '/#/chat/history')
+  await page.getByRole('heading', { level: 1, name: '历史会话', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'PI background-run QA 的更多操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
+  const renameDialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
+  await renameDialog.getByRole('textbox', { name: '会话标题', exact: true }).fill('PI UI CRUD 验收')
+  await renameDialog.getByRole('button', { name: '保存', exact: true }).click()
+  await renameDialog.waitFor({ state: 'hidden' })
+  await page.getByRole('button', { name: 'PI UI CRUD 验收 的更多操作', exact: true }).waitFor()
   await page.reload()
-  await page.getByText('PI UI CRUD 验收', { exact: true }).first().waitFor({ timeout: 30000 })
-  report.checks.push('session rename persisted and displayed by independent UI')
-  await api(`/api/sessions/${sessionId}`, 'DELETE')
+  await page.getByRole('button', { name: 'PI UI CRUD 验收 的更多操作', exact: true }).waitFor()
+  report.checks.push('session rename through history UI persists across reload')
+  for (const [id, name] of [
+    [secondaryId, 'PI draft side-session'],
+    [sessionId, 'PI UI CRUD 验收'],
+  ]) {
+    const actions = page.getByRole('button', { name: `${name} 的更多操作`, exact: true })
+    await actions.click()
+    await page.getByRole('menuitem', { name: '删除会话', exact: true }).click()
+    const confirmation = page.getByRole('dialog', { name: '删除会话', exact: true })
+    const [deleted] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === `/api/sessions/${id}` && r.request().method() === 'DELETE',
+      ),
+      confirmation.getByRole('button', { name: '删除', exact: true }).click(),
+    ])
+    assert.ok(deleted.ok())
+    await confirmation.waitFor({ state: 'hidden' })
+    await actions.waitFor({ state: 'hidden' })
+  }
   const sessions = await api('/api/sessions')
   assert.ok(!JSON.stringify(sessions).includes(sessionId))
-  report.checks.push('session deletion through release API')
+  assert.ok(!JSON.stringify(sessions).includes(secondaryId))
+  report.checks.push('session deletion through confirmed history UI and release API')
   const routes = [
     ['/chat/history', 'chatHistory', '历史会话'],
     ['/assets', 'assets', '资产'],

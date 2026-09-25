@@ -1,7 +1,8 @@
 export const RELEASES_URL = 'https://github.com/ling-kong-ran/pisper/releases'
 export const REPOSITORY_URL = 'https://github.com/ling-kong-ran/pisper'
 export const REPOSITORY_API = 'https://api.github.com/repos/ling-kong-ran/pisper'
-export const DEFAULT_BRANCH = 'main'
+// 源码更新与远端内容跟随仓库发布基线，不能请求已不存在的 main。
+export const DEFAULT_BRANCH = 'release'
 
 /**
  * @param {unknown} value

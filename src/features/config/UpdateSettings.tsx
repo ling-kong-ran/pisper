@@ -16,6 +16,7 @@ import {
   TriangleAlert,
   X,
 } from 'lucide-react'
+import { DEFAULT_BRANCH } from '@shared/app-update.mjs'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { CliSettings } from './CliSettings'
 import {
@@ -192,7 +193,7 @@ export function UpdateSettings({
       ? bundledCurrent?.notes || t('config:updateSettings.noReleaseNotesAreAvailableForThisVersion')
       : status.state === 'current'
         ? t('config:updateSettings.theCurrentWebSourceIsSyncedWithBranch', {
-            branch: status.branch || 'main',
+            branch: status.branch || DEFAULT_BRANCH,
           })
         : t('config:updateSettings.commitsThatHaveNotBeenSyncedWillAppearHereAfterTheCheck'))
   const available = status.state === 'available'
@@ -295,7 +296,7 @@ export function UpdateSettings({
               {t('config:updateSettings.updateChannel')}
             </small>
             <strong className="mt-1 block text-[14px]">
-              {nativeApp ? 'Stable' : status.branch || 'main'}
+              {nativeApp ? 'Stable' : status.branch || DEFAULT_BRANCH}
             </strong>
           </div>
         </div>

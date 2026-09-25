@@ -83,7 +83,7 @@ test('sponsor content refreshes with ETag and survives offline restarts', async 
   assert.equal(first.campaigns[0].href, 'https://matrix.000328.xyz/sign-up?aff=ZPeH')
   assert.deepEqual(cached, first)
   assert.equal(requests.length, 1)
-  assert.match(requests[0].url, /contents\/docs\/sponsors\.json\?ref=main$/)
+  assert.match(requests[0].url, /contents\/docs\/sponsors\.json\?ref=release$/)
   assert.equal(requests[0].headers['User-Agent'], 'Pisper/0.4.3')
 
   now += 16 * 60_000

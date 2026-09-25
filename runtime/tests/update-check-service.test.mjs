@@ -34,7 +34,7 @@ test('an unreachable update server times out and releases the in-flight check', 
   }
 })
 
-test('runtime update checks always compare the current commit with main', async () => {
+test('runtime update checks always compare the current commit with the release baseline', async () => {
   let requests = 0
   let now = Date.parse('2026-07-23T00:00:00.000Z')
   const service = new UpdateCheckService({
@@ -43,7 +43,7 @@ test('runtime update checks always compare the current commit with main', async 
     now: () => now,
     fetcher: async (_url, options) => {
       requests += 1
-      assert.match(_url, /compare\/1111111111111111111111111111111111111111\.\.\.main$/)
+      assert.match(_url, /compare\/1111111111111111111111111111111111111111\.\.\.release$/)
       assert.equal(options.headers['User-Agent'], 'Pisper/0.1.2 (1111111)')
       assert.equal(options.headers['X-GitHub-Api-Version'], '2022-11-28')
       return {
@@ -51,7 +51,7 @@ test('runtime update checks always compare the current commit with main', async 
         json: async () => ({
           status: 'ahead',
           ahead_by: 1,
-          html_url: 'https://github.com/ling-kong-ran/pisper/compare/1111111...main',
+          html_url: 'https://github.com/ling-kong-ran/pisper/compare/1111111...release',
           commits: [
             {
               sha: '2222222222222222222222222222222222222222',
@@ -76,7 +76,7 @@ test('runtime update checks always compare the current commit with main', async 
   assert.equal(first.currentCommit, '1111111111111111111111111111111111111111')
   assert.equal(first.availableCommit, '2222222222222222222222222222222222222222')
   assert.equal(first.behindBy, 1)
-  assert.equal(first.branch, 'main')
+  assert.equal(first.branch, 'release')
   assert.equal(first.canDownload, false)
   assert.match(first.notes, /feat: improve startup updates \(2222222\)/)
   assert.notStrictEqual(second, first)
