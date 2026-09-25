@@ -10,7 +10,6 @@ import {
   MessageCirclePlus,
   Plug,
   Search,
-  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -24,6 +23,7 @@ import {
 } from '@/app/settings-navigation'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -122,17 +122,8 @@ export function AppSidebar({
         className="sidebar flex h-full w-full min-w-0 flex-col bg-sidebar text-foreground"
         data-testid="workbench-sidebar"
       >
-        <div className="flex h-12 shrink-0 items-center justify-end px-3" data-tauri-drag-region>
-          {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('navigation:appSidebar.closeNavigation')}
-              onClick={() => setOpenMobile(false)}
-            >
-              <X size={16} />
-            </Button>
-          )}
+        <div className="flex h-12 shrink-0 items-center px-3" data-window-drag-region>
+          <WorkbenchSidebarToggle inSidebar />
         </div>
         {settingsActive ? (
           <nav

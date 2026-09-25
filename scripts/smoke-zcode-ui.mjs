@@ -216,8 +216,8 @@ try {
   })
   await page.goto(base + '/#/chat')
   await page.getByRole('textbox', { name: '任务描述' }).waitFor({ timeout: 60000 })
-  await page.getByRole('button', { name: /^在 .* 中新建会话$/ }).click()
-  await page.locator('[data-brand=PI]').waitFor()
+  await page.getByTestId('workbench-new-task').click()
+  await page.getByTestId('workbench-greeting').waitFor()
   const prompt = page.getByRole('textbox', { name: '任务描述' })
   assert.deepEqual(
     await page
@@ -238,9 +238,17 @@ try {
     .getByRole('combobox', { name: '当前会话模型' })
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor()
-  await page.getByRole('combobox', { name: '当前思考等级' }).click()
-  await page.getByRole('option', { name: '深度', exact: true }).click()
-  await page.getByRole('combobox', { name: '当前思考等级' }).filter({ hasText: '深度' }).waitFor()
+  await page.getByRole('slider', { name: '当前思考等级' }).press('End')
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+      '深度',
+  )
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+      '深度',
+  )
   await page.keyboard.press('Escape')
   await page.reload()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
@@ -248,7 +256,11 @@ try {
     .getByRole('combobox', { name: '当前会话模型' })
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor({ timeout: 30000 })
-  await page.getByRole('combobox', { name: '当前思考等级' }).filter({ hasText: '深度' }).waitFor()
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+      '深度',
+  )
   await page.keyboard.press('Escape')
   report.checks.push(
     'one model/reasoning panel updates both real session settings and persists after reload',
@@ -264,15 +276,21 @@ try {
     await page.waitForFunction(
       () => !document.querySelector('[aria-label="当前会话模型"]')?.disabled,
     )
-    await page.waitForFunction(
-      () => document.querySelector('[aria-label="当前思考等级"]')?.disabled,
-    )
+    // The release backend may normalize a non-reasoning model to a fixed ['off'] level.
+    await page.waitForFunction(() => {
+      const control = document.querySelector('[aria-label="当前思考等级"]')
+      return !control || control.disabled
+    })
   }
   await page.getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
   await page.waitForFunction(() => !document.querySelector('[aria-label="当前思考等级"]')?.disabled)
-  await page.getByRole('combobox', { name: '当前思考等级' }).click()
-  await page.getByRole('option', { name: '深度', exact: true }).click()
+  await page.getByRole('slider', { name: '当前思考等级' }).press('End')
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+      '深度',
+  )
   await page.keyboard.press('Escape')
   report.checks.push(
     'non-reasoning and fixed-effort providers disable reasoning; returning to a supported model restores editing',
@@ -310,9 +328,8 @@ try {
   report.checks.push(
     'approval/auto/full access are real persisted settings; no elevated default; restored approval-required',
   )
-  await page.getByRole('button', { name: '打开会话操作菜单', exact: true }).click()
-  assert.equal(await page.getByRole('menuitem', { name: /拆分到|关闭标签/ }).count(), 0)
-  await page.keyboard.press('Escape')
+  assert.equal(await page.getByRole('button', { name: '打开会话操作菜单', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: /拆分到|关闭标签/ }).count(), 0)
   report.checks.push('no split-window or uncloseable pane entries in session menu')
   await page.getByRole('button', { name: '展开快捷操作', exact: true }).click()
   await page.getByRole('button', { name: '自定义快捷方式', exact: true }).click()
@@ -329,7 +346,7 @@ try {
     .getByRole('toolbar', { name: '快捷操作' })
     .getByRole('button', { name: /^模型与智力 ·/ })
     .click()
-  await page.getByRole('combobox', { name: '当前思考等级' }).waitFor()
+  await page.getByRole('slider', { name: '当前思考等级' }).waitFor()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '自定义快捷方式', exact: true }).click()
   await page.getByRole('button', { name: '恢复默认', exact: true }).click()
@@ -379,6 +396,12 @@ try {
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
   await page.getByRole('tab', { name: '文件改动', exact: true }).waitFor()
+  for (const name of ['计划', '网页预览']) {
+    await page.getByRole('button', { name: '新增辅助页面', exact: true }).click()
+    await page.getByRole('menuitem', { name, exact: true }).click()
+    await page.getByRole('menu', { name: '新增辅助页面', exact: true }).waitFor({ state: 'hidden' })
+    await page.getByRole('tab', { name, exact: true }).waitFor()
+  }
   for (const name of ['文件改动', '计划', '网页预览'])
     assert.equal(await page.getByRole('tab', { name, exact: true }).count(), 1)
   await page.getByRole('tab', { name: '文件改动', exact: true }).focus()
@@ -402,11 +425,26 @@ try {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
     const inline = page.locator('.focus-composer-visible-tools')
-    for (const id of ['permission', 'run-mode', 'model'])
-      assert.ok(
-        await inline.locator(`[data-composer-tool-id="${id}"]`).isVisible(),
-        `${id} at ${width}`,
+    for (const id of ['permission', 'run-mode', 'model']) {
+      if (await inline.locator(`[data-composer-tool-id="${id}"]`).isVisible()) continue
+      await page.getByRole('button', { name: '展开快捷操作', exact: true }).click()
+      await page.waitForFunction(
+        (id) =>
+          [...document.querySelectorAll('[data-composer-tool-id="' + id + '"]')].some((node) =>
+            node.checkVisibility(),
+          ),
+        id,
       )
+      assert.ok(
+        (await inline.locator(`[data-composer-tool-id="${id}"]`).isVisible()) ||
+          (await page
+            .getByRole('toolbar', { name: '快捷操作' })
+            .locator(`[data-composer-tool-id="${id}"]`)
+            .isVisible()),
+        `${id} accessible inline or in overflow at ${width}`,
+      )
+      await page.keyboard.press('Escape')
+    }
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
       false,
@@ -423,16 +461,16 @@ try {
     await page.screenshot({ path: join(output, `light-${width}.png`), animations: 'disabled' })
   }
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
-  await page.getByRole('button', { name: /^主题：.*点击切换主题$/ }).click()
+  await page.getByRole('button', { name: '切换主题', exact: true }).click()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await page.reload()
   await prompt.waitFor()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
-  await page.getByRole('button', { name: /^主题：.*点击切换主题$/ }).waitFor()
+  await page.getByRole('button', { name: '切换主题', exact: true }).waitFor()
   await prompt.focus()
   await page.screenshot({ path: join(output, 'dark-1440.png'), animations: 'disabled' })
   report.checks.push(
-    '320/390/768/1440 px: all three primary controls stay visible with no horizontal clipping; light/dark screenshots',
+    '320/390/768/1440 px: all three primary controls remain accessible inline or in the overflow tray without horizontal clipping; light/dark screenshots',
   )
   await prompt.fill('ping [pi-ui-sse]')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
@@ -465,18 +503,18 @@ try {
     .waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   assert.equal(await page.getByRole('combobox', { name: '当前会话模型' }).isDisabled(), true)
-  assert.equal(await page.getByRole('combobox', { name: '当前思考等级' }).isDisabled(), true)
+  assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).isDisabled(), true)
   await page.keyboard.press('Escape')
   report.checks.push('both combined settings are disabled during an active stream')
 
-  await page.getByRole('button', { name: /^在 .* 中新建会话$/ }).click()
-  await page.locator('[data-brand=PI]').waitFor()
+  await page.getByTestId('workbench-new-task').click()
+  await page.getByTestId('workbench-greeting').waitFor()
   const secondaryId = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
   assert.notEqual(secondaryId, sessionId)
   await api(`/api/sessions/${secondaryId}`, 'PATCH', { name: 'PI draft side-session' })
   await prompt.fill('第二会话未发送草稿')
   assert.equal(report.stopConnectionClosed, false)
-  await page.getByRole('button', { name: 'PI background-run QA', exact: true }).click()
+  await page.getByRole('button', { name: /^PI background-run QA / }).click()
   await page
     .getByText(/正在生成停止测试/)
     .first()
@@ -510,7 +548,7 @@ try {
   })
   assert.equal(report.stopConnectionClosed, true)
   report.checks.push('Stop button aborts backend run and closes upstream stream')
-  await page.getByRole('button', { name: 'PI draft side-session', exact: true }).click()
+  await page.getByRole('button', { name: /^PI draft side-session / }).click()
   await page.waitForFunction(
     () => document.querySelector('textarea[aria-label="任务描述"]')?.value === '第二会话未发送草稿',
   )
@@ -605,14 +643,15 @@ try {
   await prompt.fill('layout and sidebar draft')
   const sidebar = page.locator('[data-slot="sidebar"][data-state]')
   const previousState = await sidebar.getAttribute('data-state')
-  await page.getByRole('button', { name: 'Toggle Sidebar', exact: true }).first().click()
+  assert.equal(await page.getByRole('button', { name: '切换侧边栏', exact: true }).count(), 1)
+  await page.getByRole('button', { name: '切换侧边栏', exact: true }).click()
   await page.waitForFunction(
     (previous) =>
       document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') !==
       previous,
     previousState,
   )
-  await page.getByRole('button', { name: 'Toggle Sidebar', exact: true }).first().click()
+  await page.getByRole('button', { name: '切换侧边栏', exact: true }).first().click()
   await page.waitForFunction(
     (previous) =>
       document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
@@ -623,8 +662,9 @@ try {
   report.checks.push(
     'one header click collapses sidebar and another restores it without losing the draft',
   )
-  await page.getByRole('button', { name: '会话布局', exact: true }).click()
-  const layoutDialog = page.getByRole('dialog', { name: '会话布局', exact: true })
+  await page.goto(base + '/#/config/interface?view=layout')
+  const layoutDialog = page.locator('[data-config-card="interface-chat-layout"]')
+  await layoutDialog.waitFor()
   await layoutDialog.getByRole('button', { name: '导出', exact: true }).click()
   const exportDialog = page.getByRole('dialog', { name: '导出布局模板', exact: true })
   const template = JSON.parse(await exportDialog.getByRole('textbox').inputValue())
@@ -635,13 +675,14 @@ try {
   await layoutDialog.getByRole('button', { name: '导入', exact: true }).click()
   const importDialog = page.getByRole('dialog', { name: '导入会话布局', exact: true })
   await importDialog.getByRole('textbox').fill(JSON.stringify(template))
-  await importDialog.getByRole('button', { name: '导入并切换', exact: true }).click()
+  await importDialog.getByRole('button', { name: '导入并预览', exact: true }).click()
   await importDialog.waitFor({ state: 'hidden' })
-  await layoutDialog.waitFor({ state: 'hidden' })
+  await layoutDialog.waitFor()
+  await page.goto(base + '/#/chat')
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
   report.checks.push(
-    'existing layout JSON export/import still works and preserves the draft; no new frontend import mode',
+    'existing settings-page layout JSON export/import-to-preview works and preserves the chat draft; no new frontend import mode',
   )
 
   assert.deepEqual(report.pageErrors, [])

@@ -22,6 +22,7 @@ import { AppCardHeader, AppError } from '@/components/ui/app-primitives'
 
 type ProviderConfigModalProps = {
   onClose: () => void
+  embedded?: boolean
   onCreated: (data: ConfigData) => void
   // 初始用途：从「新建视觉连接」等入口打开时预选 visual，减少手动切换。
   initialProviderType?: ProviderType
@@ -45,6 +46,7 @@ export function ProviderConfigModal({
   initialProviderType = 'chat',
   initialProvider,
   cloneProvider,
+  embedded = false,
 }: ProviderConfigModalProps) {
   const { t } = useI18n()
   const sourceProvider = initialProvider || cloneProvider
@@ -105,6 +107,7 @@ export function ProviderConfigModal({
           .replace(/^-+|-+$/g, ''),
     }))
   useEffect(() => {
+    if (embedded) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -114,7 +117,7 @@ export function ProviderConfigModal({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [embedded, onClose])
   // 新建使用专用接口，编辑复用统一配置保存接口以原子更新连接和模型定义。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -193,49 +196,59 @@ export function ProviderConfigModal({
   }
   return (
     <div
-      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      className={
+        embedded
+          ? 'provider-config-inline'
+          : 'modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]'
+      }
+      onMouseDown={(event) => !embedded && event.target === event.currentTarget && onClose()}
     >
       <form
-        role="dialog"
-        aria-modal="true"
-        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] provider-config-modal !w-[min(620px,100%)]"
+        role={embedded ? undefined : 'dialog'}
+        aria-modal={embedded ? undefined : true}
+        className={
+          embedded
+            ? 'provider-config-form grid gap-4 [&_input]:rounded-lg [&_select]:rounded-lg'
+            : 'modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] provider-config-modal !w-[min(620px,100%)]'
+        }
         onSubmit={submit}
       >
-        <AppCardHeader>
-          <div>
-            <h2>
-              {cloning
-                ? t('config:configPage.cloneProvider')
-                : editing
-                  ? t('config:configPage.editProviderConnection')
-                  : t('config:configPage.addProviderConnection')}
-            </h2>
-            {!cloning && (
-              <p>
-                {editing
-                  ? t('config:configPage.updateProviderKeyURLAndModelSettings')
-                  : t(
-                      'config:configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL',
-                    )}
-              </p>
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t('config:configPage.closeDialog')}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onClose()
-            }}
-          >
-            <X size={17} />
-          </Button>
-        </AppCardHeader>
-        <div className="form-grid grid gap-[9px]">
+        {!embedded && (
+          <AppCardHeader>
+            <div>
+              <h2>
+                {cloning
+                  ? t('config:configPage.cloneProvider')
+                  : editing
+                    ? t('config:configPage.editProviderConnection')
+                    : t('config:configPage.addProviderConnection')}
+              </h2>
+              {!cloning && (
+                <p>
+                  {editing
+                    ? t('config:configPage.updateProviderKeyURLAndModelSettings')
+                    : t(
+                        'config:configPage.youCanCreateMultipleConnectionsUsingTheSameProtocolEachWithItsOwnKeyAndBaseURL',
+                      )}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('config:configPage.closeDialog')}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onClose()
+              }}
+            >
+              <X size={17} />
+            </Button>
+          </AppCardHeader>
+        )}
+        <div className="form-grid grid gap-3 sm:grid-cols-2">
           <FieldLabel variant="control">
             {t('config:configPage.displayName')}
             <input
@@ -262,16 +275,18 @@ export function ProviderConfigModal({
         />
         {!cloning && (
           <>
-            <div className="flex items-center justify-between gap-[8px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
-              <span className="text-[12px] text-[var(--text-muted)]">
-                {t('config:configPage.providerPurpose')}
-              </span>
-              <strong className="text-[12px]">
-                {draft.providerType === 'visual'
-                  ? t('config:configPage.visualProvider')
-                  : t('config:configPage.chatProvider')}
-              </strong>
-            </div>
+            {!embedded && (
+              <div className="flex items-center justify-between gap-[8px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
+                <span className="text-[12px] text-[var(--text-muted)]">
+                  {t('config:configPage.providerPurpose')}
+                </span>
+                <strong className="text-[12px]">
+                  {draft.providerType === 'visual'
+                    ? t('config:configPage.visualProvider')
+                    : t('config:configPage.chatProvider')}
+                </strong>
+              </div>
+            )}
             <FieldLabel variant="control">
               {t('config:configPage.apiProtocol')}
               <AppSelect
@@ -293,7 +308,7 @@ export function ProviderConfigModal({
                 placeholder="https://api.openai.com/v1"
               />
             </FieldLabel>
-            <div className="form-grid grid gap-[9px]">
+            <div className="form-grid grid gap-3 sm:grid-cols-2">
               <FieldLabel variant="control">
                 {editing
                   ? t('config:configPage.providerDefaultModel')
@@ -317,84 +332,100 @@ export function ProviderConfigModal({
                 />
               </FieldLabel>
             </div>
-            <FieldLabel variant="control">
-              {t('config:configPage.modelType')}
-              {draft.providerType === 'visual' ? (
-                <AppSelect
-                  value={draft.modelKind}
-                  onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
-                >
-                  <option value="image">{t('config:configPage.imageGenerationAndEditing')}</option>
-                  <option value="video">{t('config:configPage.videoGeneration')}</option>
-                </AppSelect>
-              ) : (
-                <div className="rounded-[var(--r-xs)] bg-[var(--surface-subtle)] px-[10px] py-[8px] text-[13px] text-[var(--text-muted)]">
-                  {t('config:configPage.chat')}
-                </div>
-              )}
-            </FieldLabel>
-            <div className="grid gap-[9px]">
-              <ManualModelIds
-                ids={extraModelIds}
-                onChange={setExtraModelIds}
-                primaryId={draft.model}
-                placeholder={draft.providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
-              />
-            </div>
-            {draft.modelKind === 'chat' && (
+            <details
+              open={embedded ? undefined : true}
+              className="group rounded-lg border border-border px-3 py-2 [&[open]]:space-y-3"
+            >
+              <summary className="cursor-pointer text-[13px] text-muted-foreground">
+                {t('config:providerWorkbench.modelOptions')}
+              </summary>
               <FieldLabel variant="control">
-                {t('config:configPage.modelThinkingLevels')}
-                <div className="flex flex-wrap gap-[6px]">
-                  {thinkingLevelOptions.map((level) => {
-                    // off 是应用级「不思考」开关，恒可用，不参与勾选；
-                    // 其余等级未勾选即从 Composer 下拉隐藏。
-                    const isOff = level === 'off'
-                    const checked = isOff || draft.thinkingLevels.includes(level)
-                    // 非思考模型只有 off 有意义；其余等级置灰避免误解。
-                    const disabled = isOff || (!draft.reasoning && level !== 'off')
-                    return (
-                      <button
-                        key={level}
-                        type="button"
-                        aria-pressed={checked}
-                        disabled={disabled}
-                        onClick={() => !isOff && toggleThinkingLevel(level)}
-                        className={cn(
-                          'inline-flex h-[27px] cursor-pointer items-center gap-[4px] rounded-full border px-[10px] text-[12px] font-medium transition-colors',
-                          checked
-                            ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]'
-                            : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text)] hover:bg-[var(--surface-highlight)]',
-                          // off 恒选中，仅表现为不可取消；其余禁用项明显弱化。
-                          isOff ? 'cursor-default' : disabled && 'cursor-not-allowed opacity-40',
-                        )}
-                      >
-                        {checked && <Check size={12} />}
-                        {level}
-                      </button>
-                    )
-                  })}
-                </div>
-                <small className="text-[var(--text-muted)]">
-                  {t('config:configPage.modelThinkingLevelsHint')}
-                </small>
+                {t('config:configPage.modelType')}
+                {draft.providerType === 'visual' ? (
+                  <AppSelect
+                    value={draft.modelKind}
+                    onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
+                  >
+                    <option value="image">
+                      {t('config:configPage.imageGenerationAndEditing')}
+                    </option>
+                    <option value="video">{t('config:configPage.videoGeneration')}</option>
+                  </AppSelect>
+                ) : (
+                  <div className="rounded-[var(--r-xs)] bg-[var(--surface-subtle)] px-[10px] py-[8px] text-[13px] text-[var(--text-muted)]">
+                    {t('config:configPage.chat')}
+                  </div>
+                )}
               </FieldLabel>
-            )}
-            <div className="mt-2.5 flex min-h-11 items-center justify-between gap-3 rounded-sm border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-2.5 py-2">
-              <span className="flex min-w-0 flex-col gap-1">
-                <strong className="text-[13px]">
-                  {t('config:configPage.enableAfterCreation')}
-                </strong>
-                <small className="text-[13px] text-muted-foreground">
-                  {t(
-                    'config:configPage.visualModelsAreSelectedByTheVisualGenerationToolAndDoNotAppearInTheChatModelList',
+              <div className="grid gap-[9px]">
+                <ManualModelIds
+                  ids={extraModelIds}
+                  onChange={setExtraModelIds}
+                  primaryId={draft.model}
+                  placeholder={draft.providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.5'}
+                />
+              </div>
+              {draft.modelKind === 'chat' && (
+                <FieldLabel variant="control">
+                  {t('config:configPage.modelThinkingLevels')}
+                  <div className="flex flex-wrap gap-[6px]">
+                    {thinkingLevelOptions.map((level) => {
+                      // off 是应用级「不思考」开关，恒可用，不参与勾选；
+                      // 其余等级未勾选即从 Composer 下拉隐藏。
+                      const isOff = level === 'off'
+                      const checked = isOff || draft.thinkingLevels.includes(level)
+                      // 非思考模型只有 off 有意义；其余等级置灰避免误解。
+                      const disabled = isOff || (!draft.reasoning && level !== 'off')
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          aria-pressed={checked}
+                          disabled={disabled}
+                          onClick={() => !isOff && toggleThinkingLevel(level)}
+                          className={cn(
+                            'inline-flex h-[27px] cursor-pointer items-center gap-[4px] rounded-full border px-[10px] text-[12px] font-medium transition-colors',
+                            checked
+                              ? 'border-[var(--control-selected-border)] bg-[var(--control-selected-bg)] text-[var(--control-selected-text)]'
+                              : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text)] hover:bg-[var(--surface-highlight)]',
+                            // off 恒选中，仅表现为不可取消；其余禁用项明显弱化。
+                            isOff ? 'cursor-default' : disabled && 'cursor-not-allowed opacity-40',
+                          )}
+                        >
+                          {checked && <Check size={12} />}
+                          {level}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <small className="text-[var(--text-muted)]">
+                    {t('config:configPage.modelThinkingLevelsHint')}
+                  </small>
+                </FieldLabel>
+              )}
+            </details>
+            {!embedded && (
+              <div className="mt-2.5 flex min-h-11 items-center justify-between gap-3 rounded-sm border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-2.5 py-2">
+                <span className="flex min-w-0 flex-col gap-1">
+                  <strong className="text-[13px]">
+                    {editing
+                      ? t('config:configPage.providerEnabled', { name: draft.name })
+                      : t('config:configPage.enableAfterCreation')}
+                  </strong>
+                  {draft.providerType === 'visual' && (
+                    <small className="text-[13px] text-muted-foreground">
+                      {t(
+                        'config:configPage.visualModelsAreSelectedByTheVisualGenerationToolAndDoNotAppearInTheChatModelList',
+                      )}
+                    </small>
                   )}
-                </small>
-              </span>
-              <SettingsSwitch
-                value={draft.enabled}
-                onChange={(enabled) => setDraft({ ...draft, enabled })}
-              />
-            </div>
+                </span>
+                <SettingsSwitch
+                  value={draft.enabled}
+                  onChange={(enabled) => setDraft({ ...draft, enabled })}
+                />
+              </div>
+            )}
           </>
         )}
         {error && (

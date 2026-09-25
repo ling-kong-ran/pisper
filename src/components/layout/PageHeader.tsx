@@ -3,7 +3,6 @@
 import type { ReactNode, RefObject } from 'react'
 import {
   Link2,
-  Menu,
   Clock,
   MonitorCog,
   Moon,
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
 
@@ -117,21 +116,16 @@ export function PageHeader({
   return (
     <header
       ref={elementRef}
+      data-window-drag-region
       className={cn(
         'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
         page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
         desktop && '[-webkit-app-region:drag]',
+        window.pisperDesktop?.customTitlebar && 'pr-[148px]',
         desktopPlatform === 'darwin' && 'pl-[74px]',
       )}
     >
-      <SidebarTrigger
-        className={cn(
-          'grid size-8 place-items-center rounded-lg border-0 bg-transparent text-muted-foreground hover:bg-muted',
-          desktop && '[-webkit-app-region:no-drag]',
-        )}
-      >
-        <Menu size={19} />
-      </SidebarTrigger>
+      <WorkbenchSidebarToggle />
       <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
         <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]">
           {meta[0]}

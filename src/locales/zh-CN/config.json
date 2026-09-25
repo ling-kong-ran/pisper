@@ -631,5 +631,13 @@
   "interfaceSettings.tabsLabel": "界面设置分类",
   "interfaceSettings.appearanceTab": "外观",
   "interfaceSettings.chatLayoutTab": "会话布局",
-  "interfaceSettings.customUiTab": "独立组件"
+  "interfaceSettings.customUiTab": "独立组件",
+  "providerWorkbench.actions": "连接操作",
+  "providerWorkbench.connection": "连接配置",
+  "providerWorkbench.models": "模型",
+  "providerWorkbench.modelsHint": "点击星标设置连接的默认模型。新增和发现模型使用快速配置，密钥留空会沿用已有配置。",
+  "providerWorkbench.manageModels": "发现与管理模型",
+  "providerWorkbench.advanced": "更多设置",
+  "providerWorkbench.advancedHint": "本地配置导入与运行策略",
+  "providerWorkbench.modelOptions": "模型能力与追加模型"
 }

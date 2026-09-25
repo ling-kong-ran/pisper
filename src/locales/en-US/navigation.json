@@ -165,5 +165,9 @@
   "workbench.moreTools": "More tools",
   "workbench.terminal": "Terminal",
   "workbench.filterSessions": "Filter sessions",
-  "workbench.changeTheme": "Change theme"
+  "workbench.changeTheme": "Change theme",
+  "window.controls": "Window controls",
+  "window.minimize": "Minimize",
+  "window.maximize": "Maximize / restore",
+  "window.close": "Close window"
 }

@@ -3,6 +3,7 @@ identifier = "allow-pisper-desktop-bridge"
 description = "Allows authenticated Pisper localhost WebViews to call the narrow native desktop bridge."
 commands.allow = [
   "desktop_get_app_info",
+  "desktop_window_action",
   "desktop_pick_directory",
   "desktop_pick_files",
   "desktop_set_language",

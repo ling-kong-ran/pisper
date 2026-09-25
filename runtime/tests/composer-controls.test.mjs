@@ -7,7 +7,12 @@ test('labeled and icon controls hide the Radix overlay even while disabled', asy
 
   assert.match(component, /const ICON_SELECT_CLASSES =/)
   assert.match(component, /showLabel \? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES/)
-  assert.match(component, /currentLabel \|\| t\('chat:focusSession.toolbarModel'\)/)
+  assert.ok(
+    component.includes(
+      "modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel",
+    ),
+  )
+  assert.match(component, /t\('chat:focusSession.toolbarModel'\)/)
   assert.match(component, /levelLabel\(current\)/)
   assert.equal(
     (
@@ -73,7 +78,7 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
   assert.match(settings, /resetLayout/)
   assert.ok(session.indexOf('<ComposerCommandMenu') < session.indexOf('<textarea'))
   assert.doesNotMatch(session, /focus-composer-secondary[^"\n]*tools-open_&\]:hidden/)
-  assert.match(session, /composer-workspace-status[\s\S]*<SessionUsageMetrics/)
+  assert.match(session, /header-workspace[\s\S]*<SessionUsageMetrics/)
 })
 
 test('composer plain Enter submits, Shift+Enter inserts a newline, and IME composition never submits', async () => {
@@ -132,7 +137,11 @@ test('composer exposes a session thinking-level control wired to the shared API'
   assert.match(session, /onThinkingChange=\{onThinkingLevelChange\}/)
   assert.match(session, /onModelChange=\{onModelChange\}/)
   assert.match(controls, /<SessionModelSelect[\s\S]*onChange=\{onModelChange\}/)
-  assert.match(controls, /<SessionThinkingSelect[\s\S]*onChange=\{onThinkingChange\}/)
+  assert.match(controls, /type="range"/)
+  assert.match(controls, /await onThinkingChange\(level\)/)
+  assert.match(controls, /onPointerUp=/)
+  assert.match(controls, /onKeyUp=/)
+  assert.match(controls, /levels\.length < 2/)
   assert.match(controls, /disabled=\{disabled \|\| loading \|\| !supported \|\| fixed\}/)
   assert.match(controls, /role="status"/)
   assert.doesNotMatch(session, /thinking:\s*\(/)

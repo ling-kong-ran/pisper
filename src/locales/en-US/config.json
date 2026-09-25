@@ -631,5 +631,13 @@
   "interfaceSettings.tabsLabel": "Interface settings categories",
   "interfaceSettings.appearanceTab": "Appearance",
   "interfaceSettings.chatLayoutTab": "Chat layout",
-  "interfaceSettings.customUiTab": "Standalone widgets"
+  "interfaceSettings.customUiTab": "Standalone widgets",
+  "providerWorkbench.actions": "Connection actions",
+  "providerWorkbench.connection": "Connection",
+  "providerWorkbench.models": "Models",
+  "providerWorkbench.modelsHint": "Select a star to set the connection’s default model. Use quick setup to discover and add models; a blank key keeps the saved credential.",
+  "providerWorkbench.manageModels": "Discover and manage models",
+  "providerWorkbench.advanced": "More settings",
+  "providerWorkbench.advancedHint": "Local imports and runtime policies",
+  "providerWorkbench.modelOptions": "Model capabilities and additional models"
 }

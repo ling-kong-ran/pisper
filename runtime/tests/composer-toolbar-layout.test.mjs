@@ -44,7 +44,7 @@ test('composer tools move between locations and reorder without affecting other 
   assert.equal(restored.inline.at(-1), 'resource')
 
   const moved = moveComposerTool(restored, 'resource', -1)
-  assert.deepEqual(moved.inline.slice(-2), ['resource', 'session-actions'])
+  assert.deepEqual(moved.inline.slice(-2), ['resource', 'compact-context'])
   assert.deepEqual(moved.inline.slice(0, -2), restored.inline.slice(0, -2))
 })
 
@@ -63,14 +63,14 @@ test('bulk placement preserves every tool and its order through storage and rest
 test('composer allocation preserves user overflow and temporarily overflows the inline tail', () => {
   const layout = normalizeComposerToolbarLayout({
     inline: ['attachment', 'resource', 'commands'],
-    overflow: ['session-actions'],
+    overflow: ['compact-context'],
   })
-  const available = ['attachment', 'resource', 'commands', 'session-actions']
+  const available = ['attachment', 'resource', 'commands', 'compact-context']
   const allocation = allocateComposerToolbar(layout, available, 2)
 
   assert.deepEqual(allocation.inline, ['attachment', 'resource'])
   assert.deepEqual(allocation.automaticallyOverflowed, ['commands'])
-  assert.equal(allocation.overflow.includes('session-actions'), true)
+  assert.equal(allocation.overflow.includes('compact-context'), true)
 })
 
 test('legacy twelve-tool defaults remove retired controls and keep remaining tools inline', () => {
@@ -118,15 +118,7 @@ test('retired change controls are filtered from both locations without resetting
   const migrated = normalizeComposerToolbarLayout(previous)
   assert.deepEqual(migrated, {
     inline: ['commands', 'attachment'],
-    overflow: [
-      'visual',
-      'permission',
-      'model',
-      'resource',
-      'run-mode',
-      'session-actions',
-      'compact-context',
-    ],
+    overflow: ['visual', 'permission', 'model', 'resource', 'run-mode', 'compact-context'],
   })
   assert.deepEqual(normalizeComposerToolbarLayout(migrated), migrated)
   assert.deepEqual(previous, before)

@@ -6,7 +6,7 @@ import {
   Bot,
   Brain,
   Check,
-  ChevronDown,
+  ChevronRight,
   Database,
   FileCheck2,
   Gauge,
@@ -394,6 +394,7 @@ export function SessionModelSelect({
   disabled,
   compact = false,
   showLabel = false,
+  modelLabelOnly = false,
 }: {
   value: string
   models: ModelOption[]
@@ -401,6 +402,7 @@ export function SessionModelSelect({
   disabled?: boolean
   compact?: boolean
   showLabel?: boolean
+  modelLabelOnly?: boolean
 }) {
   const { t } = useI18n()
   const currentModel = models.find((model) => model.key === value)
@@ -420,7 +422,8 @@ export function SessionModelSelect({
     >
       {showLabel ? (
         <span className="min-w-0 truncate">
-          {currentLabel || t('chat:focusSession.toolbarModel')}
+          {(modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel) ||
+            t('chat:focusSession.toolbarModel')}
         </span>
       ) : (
         <Bot size={compact ? 11 : 14} />
@@ -519,7 +522,7 @@ export function SessionThinkingSelect({
   )
 }
 
-// One entry point for both real session settings; provider capabilities still govern effort.
+// The slider uses only the levels advertised by the current backend/model.
 export function ModelThinkingControl({
   model,
   models,
@@ -539,74 +542,147 @@ export function ModelThinkingControl({
   levels: string[]
   status?: string
   message?: string
-  onThinkingChange: (level: string) => void
+  onThinkingChange: (level: string) => Promise<void> | void
   modelDisabled?: boolean
   thinkingDisabled?: boolean
 }) {
   const { t } = useI18n()
+  const [draft, setDraft] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const currentModel = models.find((item) => item.key === model)
   const modelLabel =
     currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
   const supported = status !== 'unsupported' && levels.length > 0
-  const effortLabel = supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'
+  const index = Math.max(0, levels.indexOf(thinkingLevel))
+  const selected = draft ?? index
+  const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
   const effortHint = supported
     ? effortLabel
     : message ||
       (status === 'unsupported'
         ? t('chat:focusSession.thinkingLevelUnsupported')
         : t('chat:focusSession.loadingThinkingLevels'))
+  const disabled = thinkingDisabled || saving || !supported || levels.length < 2
   const label = `${t('chat:focusSession.modelAndThinking')} · ${resolveModelLabel(model, models)} · ${effortHint}`
+  const levelsKey = levels.join('|')
+  useEffect(() => {
+    setDraft(null)
+  }, [model, thinkingLevel, levelsKey])
+  const commit = async (nextIndex: number) => {
+    const level = levels[nextIndex]
+    if (disabled || savingRef.current || !level || level === thinkingLevel) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await onThinkingChange(level)
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+      setDraft(null)
+    }
+  }
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-10 min-w-0 max-w-[172px] items-center gap-1.5 rounded-lg px-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[651px]:max-w-[240px]"
+          className="model-effort-pill inline-flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={label}
           title={label}
         >
           <span className="min-w-0 truncate">{modelLabel}</span>
-          <span aria-hidden="true" className="shrink-0 text-border">
-            /
+          <span className="shrink-0">
+            {supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'}
           </span>
-          <span className="shrink-0 text-xs">{effortLabel}</span>
-          <ChevronDown aria-hidden="true" size={13} className="shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
         side="top"
         sideOffset={8}
-        className="w-[min(360px,calc(100vw_-_24px))] space-y-4 rounded-xl p-4"
+        className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] rounded-[22px] border-border/70 bg-popover p-4 shadow-xl"
       >
-        <h3 className="text-sm font-medium">{t('chat:focusSession.modelAndThinking')}</h3>
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">{t('chat:focusSession.toolbarModel')}</p>
-          <SessionModelSelect
-            showLabel
-            value={model}
-            models={models}
-            onChange={onModelChange}
-            disabled={modelDisabled}
-          />
+        <div className="flex flex-col items-center gap-1 pb-4">
+          <output
+            className="inline-flex items-center gap-1 text-lg font-semibold text-[#329bff]"
+            aria-live="polite"
+          >
+            {effortLabel}
+            <ChevronRight size={17} aria-hidden="true" />
+          </output>
+          <div className="model-effort-model max-w-full [&>div]:h-7 [&>div]:text-sm">
+            <SessionModelSelect
+              showLabel
+              modelLabelOnly
+              value={model}
+              models={models}
+              onChange={onModelChange}
+              disabled={modelDisabled || saving}
+            />
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">{t('chat:focusSession.thinkingSettings')}</p>
-          <SessionThinkingSelect
-            showLabel
-            value={thinkingLevel}
-            levels={levels}
-            status={status}
-            message={message}
-            onChange={onThinkingChange}
-            disabled={thinkingDisabled}
-          />
-          {!supported && (
-            <p className="text-xs leading-relaxed text-muted-foreground" role="status">
-              {effortHint}
-            </p>
-          )}
-        </div>
+        {supported && (
+          <div
+            className="relative h-9"
+            style={
+              {
+                '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
+              } as React.CSSProperties
+            }
+          >
+            <div
+              aria-hidden="true"
+              className="effort-track absolute inset-y-1 inset-x-0 overflow-hidden rounded-full bg-foreground/10"
+            >
+              <div className="h-full bg-[#329bff]" style={{ width: 'var(--effort-fill)' }} />
+              <div className="absolute inset-0 flex items-center justify-between px-3.5">
+                {levels.map((level) => (
+                  <i key={level} className="size-1.5 rounded-full bg-foreground/20" />
+                ))}
+              </div>
+            </div>
+            <input
+              className="effort-slider relative m-0 h-9 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
+              type="range"
+              min={0}
+              max={Math.max(1, levels.length - 1)}
+              step={1}
+              value={selected}
+              disabled={disabled}
+              aria-label={t('chat:focusSession.currentThinkingLevel')}
+              aria-valuetext={effortLabel}
+              onChange={(event) => setDraft(Number(event.currentTarget.value))}
+              onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
+              onBlur={(event) => void commit(Number(event.currentTarget.value))}
+              onKeyUp={(event) => {
+                if (
+                  [
+                    'ArrowLeft',
+                    'ArrowRight',
+                    'ArrowUp',
+                    'ArrowDown',
+                    'Home',
+                    'End',
+                    'PageUp',
+                    'PageDown',
+                  ].includes(event.key)
+                )
+                  void commit(Number(event.currentTarget.value))
+              }}
+            />
+          </div>
+        )}
+        {(!supported || levels.length === 1) && (
+          <p
+            className="pt-2 text-center text-xs leading-relaxed text-muted-foreground"
+            role="status"
+          >
+            {supported
+              ? t('chat:focusSession.thinkingLevelFixed', { level: effortLabel })
+              : effortHint}
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   )

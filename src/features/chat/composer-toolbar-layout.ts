@@ -8,7 +8,6 @@ export const COMPOSER_TOOL_IDS = [
   'run-mode',
   'commands',
   'compact-context',
-  'session-actions',
 ] as const
 
 export type ComposerToolId = (typeof COMPOSER_TOOL_IDS)[number]

@@ -31,7 +31,7 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(sync, /sessionUsage: data\.sessionUsage \?\? latest\.sessionUsage \?\? null/)
 })
 
-test('composer renders unframed metrics as a separate row below the input controls', async () => {
+test('composer renders unframed metrics in a collapsible row without unmounting voice controls', async () => {
   const [focus, controls, css] = await Promise.all([
     source('../../src/features/chat/FocusSession.tsx'),
     source('../../src/features/chat/FocusRuntimeControls.tsx'),
@@ -40,7 +40,7 @@ test('composer renders unframed metrics as a separate row below the input contro
 
   assert.match(
     focus,
-    /composer-workspace-status[\s\S]*<SessionUsageMetrics[\s\S]*?usage=\{sessionUsage\}[\s\S]*?plan=\{plansAvailable \? plan : null\}[\s\S]*?compact=\{mobileLayout\}[\s\S]*?\/>[\s\S]*<\/form>/,
+    /header-workspace[\s\S]*<SessionUsageMetrics[\s\S]*?usage=\{sessionUsage\}[\s\S]*?plan=\{plansAvailable \? plan : null\}[\s\S]*?compact=\{mobileLayout\}[\s\S]*?\/>[\s\S]*<\/form>/,
   )
   assert.match(controls, /cacheHitRate/)
   assert.match(controls, /usage\?\.processedTokens/)
@@ -53,7 +53,7 @@ test('composer renders unframed metrics as a separate row below the input contro
   assert.match(controls, /<PopoverTrigger asChild>/)
   assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
   assert.match(controls, /session-usage-metrics[^"\n]*justify-start/)
-  const metricsRow = focus.match(/<div className="flex min-h-9 min-w-0[^"\n]*"/)?.[0] || ''
+  const metricsRow = focus.match(/composer-details flex min-h-9[^'\n]*/)?.[0] || ''
   assert.ok(metricsRow)
   assert.match(
     focus,
@@ -61,10 +61,9 @@ test('composer renders unframed metrics as a separate row below the input contro
   )
   assert.match(focus, /usage: usageBlock/)
   assert.doesNotMatch(metricsRow, /border|bg-|shadow/)
-  assert.match(focus, /composer-workspace-status[^"\n]*border-0[^"\n]*bg-transparent/)
+  assert.match(focus, /detailsOpen, setDetailsOpen\] = useState\(false\)/)
+  assert.match(focus, /!detailsOpen && '!hidden'/)
+  assert.match(focus, /<VoiceInputControl/)
   assert.match(controls, /session-plan-popover[^"\n]*max-h-/)
-  assert.doesNotMatch(
-    css,
-    /\.session-usage-metrics|\.focus-composer-meta|\.composer-workspace-status/,
-  )
+  assert.doesNotMatch(css, /\.session-usage-metrics|\.focus-composer-meta|\.header-workspace/)
 })

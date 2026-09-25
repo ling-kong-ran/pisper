@@ -1,14 +1,11 @@
-// 模型设置页：快速配置向导是唯一配置主路径。
-// 结构：当前模型摘要 → 连接管理（本地导入/连接列表/运行策略，默认折叠）
-// → 视觉生成专区。折叠状态持久化到 localStorage。
+// 模型设置：ZCode 式连接列表/详情分栏；保留本地导入、快速向导及运行策略。
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Button } from '@/components/ui/button'
-import { ConnectionList } from './ConnectionList'
-import { CurrentModelSummary } from './CurrentModelSummary'
+import { ProviderWorkbench } from './ProviderWorkbench'
 import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
 import { providerDiscoveryImportableCount } from './provider-discovery-state'
@@ -108,8 +105,6 @@ export function ModelsSettings({
     window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
   }
   // 从列表进入连接编辑弹窗；摘要卡仍进入向导以便直接切换默认模型。
-  const openProviderEditorFor = (provider: ProviderConfig) =>
-    setProviderModal({ providerType: provider.type, provider })
   const openProviderClonerFor = (provider: ProviderConfig) =>
     setProviderModal({ providerType: provider.type, cloneProvider: provider })
   const openWizardFor = (provider: ProviderConfig) =>
@@ -117,13 +112,37 @@ export function ModelsSettings({
 
   return (
     <>
-      <CurrentModelSummary
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <p className="min-w-0 truncate text-muted-foreground">
+          {t('config:configPage.currentChatModel')} ·{' '}
+          <span className="text-foreground">
+            {defaultProvider?.name || '—'} / {config.defaultModel || config.model || '—'}
+          </span>
+        </p>
+        <Button variant="outline" size="sm" onClick={() => setWizard({ providerType: 'chat' })}>
+          {t('config:configPage.quickSetup')}
+        </Button>
+      </div>
+      <ProviderWorkbench
         config={config}
-        onQuickSetup={() => setWizard({ providerType: 'chat' })}
-        onChangeModel={() =>
-          defaultProvider ? openWizardFor(defaultProvider) : setWizard({ providerType: 'chat' })
+        toggling={settings.toggling}
+        settingDefault={settings.settingDefault}
+        settingModel={settings.settingModel}
+        onSave={(data) => {
+          settings.applyConfig(data)
+          notify(t('config:configPage.providerConnectionUpdated'))
+        }}
+        onAdd={() => setProviderModal({ providerType: 'chat' })}
+        onQuickSetup={(provider) =>
+          provider ? openWizardFor(provider) : setWizard({ providerType: 'chat' })
         }
+        onClone={openProviderClonerFor}
+        onDelete={settings.deleteProvider}
+        onToggle={settings.toggleProvider}
+        onSetDefault={settings.setDefaultProvider}
+        onSetDefaultModel={settings.setProviderDefaultModel}
       />
+      {settings.error && <AppError>{settings.error}</AppError>}
       {importableCount > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
           <span>{t('config:configPage.localProviderImportHint', { count: importableCount })}</span>
@@ -143,7 +162,7 @@ export function ModelsSettings({
       <Collapsible
         open={manageOpenEffective}
         onOpenChange={setManageOpenPersisted}
-        data-config-card="models-connections"
+        data-config-card="models-advanced"
       >
         <CollapsibleTrigger asChild>
           <button
@@ -155,10 +174,10 @@ export function ModelsSettings({
               className="shrink-0 text-[var(--text-muted)] transition-transform group-data-[state=closed]:-rotate-90"
             />
             <span className="shrink-0 text-[13px] font-[700] text-[var(--text-secondary)]">
-              {t('config:configPage.manageConnections')}
+              {t('config:providerWorkbench.advanced')}
             </span>
             <span className="min-w-0 text-[12px] text-[var(--text-tertiary)]">
-              {t('config:configPage.manageConnectionsHint')}
+              {t('config:providerWorkbench.advancedHint')}
             </span>
           </button>
         </CollapsibleTrigger>
@@ -172,21 +191,6 @@ export function ModelsSettings({
             onRefresh={discovery.refresh}
             onImport={discovery.importProvider}
           />
-          <ConnectionList
-            providers={config.providers}
-            defaultProviderId={defaultProviderId}
-            toggling={settings.toggling}
-            onConfigure={openProviderEditorFor}
-            onClone={openProviderClonerFor}
-            onSetDefault={settings.setDefaultProvider}
-            settingDefault={settings.settingDefault}
-            settingModel={settings.settingModel}
-            onSetDefaultModel={settings.setProviderDefaultModel}
-            onToggle={settings.toggleProvider}
-            onDelete={settings.deleteProvider}
-            onAddCustom={() => setProviderModal({ providerType: 'chat' })}
-          />
-          {settings.error && <AppError>{settings.error}</AppError>}
           <div className="[margin-top:12px]">
             <RuntimePolicySettings
               config={config}

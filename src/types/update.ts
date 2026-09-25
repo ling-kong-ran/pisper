@@ -156,6 +156,8 @@ export type DesktopComputerUseStreamOptions = {
 }
 
 export type DesktopBridge = {
+  customTitlebar?: boolean
+  windowAction?: (action: 'minimize' | 'maximize' | 'close' | 'drag') => Promise<void>
   platform?: string
   getAppInfo: () => Promise<AppUpdateInfo>
   pickDirectory?: (initialDirectory?: string) => Promise<string | null>

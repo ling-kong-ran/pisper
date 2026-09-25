@@ -552,6 +552,7 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         // Tauri's native Windows file-drop handler intercepts HTML5 drag events used by React Flow.
         .disable_drag_drop_handler()
         .title("Pisper")
+        .decorations(!cfg!(target_os = "windows"))
         .inner_size(1440.0, 920.0)
         // 最小宽度需要容纳侧栏 + 页头（标题/搜索/操作区）：过窄会导致
         // 页头标题被压缩成逐字换行（见 PageHeader），因此保持 1080 起步。
@@ -794,6 +795,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             desktop_bridge::desktop_get_app_info,
+            desktop_bridge::desktop_window_action,
             desktop_bridge::desktop_pick_directory,
             desktop_bridge::desktop_pick_files,
             desktop_bridge::desktop_set_language,

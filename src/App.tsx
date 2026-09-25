@@ -73,6 +73,11 @@ import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
 
+const DesktopWindowControls = lazy(() =>
+  import('@/components/layout/DesktopWindowControls').then((m) => ({
+    default: m.DesktopWindowControls,
+  })),
+)
 const AppShortcuts = lazy(() =>
   import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
 )
@@ -244,6 +249,17 @@ function App() {
   const [terminalHeight, setTerminalHeight] = useState(() =>
     Math.max(180, Math.min(640, Number(readStoredTerminalPanel().height) || 300)),
   )
+  useEffect(() => {
+    const toggle = () => {
+      if (
+        window.pisperDesktop?.terminalProfiles &&
+        runtimeFeatureAvailable(capabilities, 'terminal')
+      )
+        setTerminalOpen((open) => !open)
+    }
+    window.addEventListener('pisper:toggle-terminal', toggle)
+    return () => window.removeEventListener('pisper:toggle-terminal', toggle)
+  }, [capabilities])
   const browserEventCursor = useRef('')
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -691,7 +707,13 @@ function App() {
         ref={appShellRef}
         className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
         data-mobile-app={mobileLayout || undefined}
+        data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
       >
+        {window.pisperDesktop?.customTitlebar && (
+          <Suspense fallback={null}>
+            <DesktopWindowControls />
+          </Suspense>
+        )}
         <WebPreviewProvider />
         {mobileLayout && (
           <Suspense fallback={null}>

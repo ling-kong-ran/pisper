@@ -118,7 +118,7 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.match(focus, /\[&\.idle\]:hidden/)
 })
 
-test('all chats expose their working directory inside the composer without a duplicate welcome control', async () => {
+test('all chats expose their working directory in the title header, not in the composer or welcome screen', async () => {
   const [focus, transcript, chinese, english] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
@@ -127,11 +127,15 @@ test('all chats expose their working directory inside the composer without a dup
   ])
   assert.match(focus, /cwd=\{cwd\}/)
   assert.match(focus, /onWorkspace=\{onWorkspace\}/)
-  assert.match(focus, /composer-workspace-status/)
+  assert.match(focus, /header-workspace/)
   assert.match(focus, /workspaceName\(cwd, language\)/)
   assert.match(focus, /aria-label=\{t\('chat:focusSession\.changeWorkingDirectoryWorkspace'/)
   assert.match(focus, /onClick=\{onWorkspace\}/)
-  assert.match(focus, /!canvasWorkspace && \([\s\S]*<ChatCanvasSlot kind="workspace"/)
+  assert.match(focus, /const headerBlock[\s\S]*\{workspaceBlock\}[\s\S]*onClick=\{onRename\}/)
+  assert.doesNotMatch(
+    focus.slice(focus.indexOf('const composerBlock')),
+    /kind="workspace"|workspaceBlock/,
+  )
   assert.doesNotMatch(transcript, /welcome-workspace/)
   assert.match(chinese, /"focusSession\.workingDirectory": "工作目录"/)
   assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
@@ -148,7 +152,7 @@ test('conversation layout keeps a compact title header without a persistent avat
     focus,
     /<AppCardHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
-  assert.match(focus, /!hasConversation && <div[^>]*>\{sessionActionsMenu\}<\/div>/)
+  assert.doesNotMatch(focus, /sessionActionsMenu|<SessionActionsMenu/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
   // 模板可调宽度/间距；保留默认 1040px / 32px，非法配置由布局契约测试拒绝。

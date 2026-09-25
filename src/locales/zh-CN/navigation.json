@@ -165,5 +165,9 @@
   "workbench.moreTools": "更多工具",
   "workbench.terminal": "终端",
   "workbench.filterSessions": "筛选会话",
-  "workbench.changeTheme": "切换主题"
+  "workbench.changeTheme": "切换主题",
+  "window.controls": "窗口控制",
+  "window.minimize": "最小化",
+  "window.maximize": "最大化 / 还原",
+  "window.close": "关闭窗口"
 }

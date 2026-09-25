@@ -437,7 +437,7 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
 })
 
-test('mobile shell keeps navigation in the viewport and model settings use one narrow column', async () => {
+test('mobile shell keeps navigation in the viewport and model settings retain responsive navigation/detail panels', async () => {
   const [app, models, connectionList, wizard, apiKeyList] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
@@ -454,8 +454,11 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
   assert.equal(app.match(/data-mobile-app=\{mobileLayout \|\| undefined\}/g)?.length, 2)
   // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
   assert.doesNotMatch(models, /!grid-cols-/)
-  assert.match(models, /<CurrentModelSummary/)
-  assert.match(models, /<ConnectionList/)
+  assert.match(models, /<ProviderWorkbench/)
+  const workbench = await readFile('src/features/config/ProviderWorkbench.tsx', 'utf8')
+  assert.match(workbench, /grid-cols-\[52px_minmax\(0,1fr\)\]/)
+  assert.match(workbench, /md:grid-cols-\[208px_minmax\(0,1fr\)\]/)
+  assert.match(workbench, /<ProviderConfigModal[\s\S]*embedded/)
   assert.match(models, /<RuntimePolicySettings/)
   assert.match(models, /<VisualGenerationSettings/)
   assert.match(connectionList, /value=\{provider\.configured && provider\.enabled\}/)

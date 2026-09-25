@@ -444,3 +444,25 @@ pub fn desktop_show_notification(app: AppHandle, input: NotificationInput) -> No
         reason: if shown { "" } else { "show-failed" },
     }
 }
+
+// Restricted to the invoking main WebView: no arbitrary window labels or commands.
+#[tauri::command]
+pub fn desktop_window_action(window: tauri::WebviewWindow, action: String) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Window controls require the main window".into());
+    }
+    let result = match action.as_str() {
+        "minimize" => window.minimize(),
+        "maximize" => {
+            if window.is_maximized().map_err(|error| error.to_string())? {
+                window.unmaximize()
+            } else {
+                window.maximize()
+            }
+        }
+        "close" => window.close(),
+        "drag" => window.start_dragging(),
+        _ => return Err("Unsupported window action".into()),
+    };
+    result.map_err(|error| error.to_string())
+}

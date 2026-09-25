@@ -50,7 +50,7 @@ export function WorkbenchGreeting() {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-1/2 -mt-10 aspect-[5/4] w-[min(72vw,25rem)] -translate-x-1/2 -translate-y-1/2 text-foreground/40"
+        className="pointer-events-none absolute top-1/2 left-1/2 -mt-10 max-[650px]:mt-0 aspect-[5/4] w-[min(72vw,25rem)] -translate-x-1/2 -translate-y-1/2 text-foreground/40"
       >
         <svg
           className="h-full w-full opacity-70 dark:hidden [mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)]"

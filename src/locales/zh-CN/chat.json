@@ -725,5 +725,11 @@
   "workbench.lateNight": "夜深啦，别忘了照顾好自己哦",
   "workbench.composerPlaceholder": "描述一个任务，/ 使用命令",
   "workbench.promptLabel": "任务描述",
-  "workbench.selectModel": "选择模型"
+  "workbench.selectModel": "选择模型",
+  "focusSession.details": "用量与语音",
+  "focusSession.hideDetails": "收起用量与语音",
+  "sessionContext.addPage": "新增辅助页面",
+  "sessionContext.closePage": "关闭辅助页面",
+  "sessionContext.pageContent": "选择页面内容",
+  "sessionContext.pageLimit": "最多打开 12 个辅助页面"
 }

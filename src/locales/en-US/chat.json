@@ -725,5 +725,11 @@
   "workbench.lateNight": "It’s getting late. Remember to take care of yourself.",
   "workbench.composerPlaceholder": "Describe a task, / for commands",
   "workbench.promptLabel": "Task description",
-  "workbench.selectModel": "Select model"
+  "workbench.selectModel": "Select model",
+  "focusSession.details": "Usage and voice",
+  "focusSession.hideDetails": "Hide usage and voice",
+  "sessionContext.addPage": "Add auxiliary page",
+  "sessionContext.closePage": "Close auxiliary page",
+  "sessionContext.pageContent": "Choose page content",
+  "sessionContext.pageLimit": "Up to 12 auxiliary pages"
 }

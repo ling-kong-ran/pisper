@@ -97,6 +97,8 @@
     writable: false,
     value: Object.freeze({
       getAppInfo: () => invoke('desktop_get_app_info'),
+      customTitlebar: /Windows/.test(navigator.userAgent),
+      windowAction: (action) => invoke('desktop_window_action', { action }),
       pickDirectory: (initialDirectory) => invoke('desktop_pick_directory', { initialDirectory }),
       pickFiles: (initialDirectory) => invoke('desktop_pick_files', { initialDirectory }),
       setLanguage: (language) => invoke('desktop_set_language', { language }),
