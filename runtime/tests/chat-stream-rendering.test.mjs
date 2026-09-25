@@ -115,10 +115,10 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
   assert.match(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
   assert.match(focus, /compacting[^']*text-\[var\(--warning-strong\)\]/)
-  assert.match(focus, /\.focus-session\.has-conversation_&\.idle/)
+  assert.match(focus, /\[&\.idle\]:hidden/)
 })
 
-test('new chats expose their working directory in the welcome surface', async () => {
+test('all chats expose their working directory below the composer without a duplicate welcome control', async () => {
   const [focus, transcript, chinese, english] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
@@ -127,10 +127,12 @@ test('new chats expose their working directory in the welcome surface', async ()
   ])
   assert.match(focus, /cwd=\{cwd\}/)
   assert.match(focus, /onWorkspace=\{onWorkspace\}/)
-  assert.match(transcript, /className="welcome-workspace[^"\n]*text-\[var\(--accent-strong\)\]/)
-  assert.match(transcript, /workspaceName\(cwd, language\)/)
-  assert.match(transcript, /welcome-workspace[^"\n]*@max-\[470px\]:max-w-\[100%\]/)
-  assert.doesNotMatch(focus, /className="workspace-chip"/)
+  assert.match(focus, /composer-workspace-status/)
+  assert.match(focus, /workspaceName\(cwd, language\)/)
+  assert.match(focus, /aria-label=\{t\('chat:focusSession\.changeWorkingDirectoryWorkspace'/)
+  assert.match(focus, /onClick=\{onWorkspace\}/)
+  assert.match(focus, /!canvasWorkspace && <ChatCanvasSlot kind="workspace"/)
+  assert.doesNotMatch(transcript, /welcome-workspace/)
   assert.match(chinese, /"focusSession\.workingDirectory": "工作目录"/)
   assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
 })
@@ -164,12 +166,14 @@ test('composer send action has distinct enabled, disabled, and streaming states'
   assert.match(focus, /send-button[^`\n]*\$\{streaming \? 'stop[^']*' : ''\}/)
   assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
   assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
-  assert.match(focus, /send-button[^`\n]*bg-\[var\(--star\)\]/)
+  assert.match(focus, /send-button[^`\n]*bg-foreground[^`\n]*text-background/)
   assert.doesNotMatch(focus, /send-button[^`\n]*bg-\[var\(--surface-subtle\)\]/)
   assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
-  assert.match(focus, /send-button[^`\n]*disabled:bg-\[var\(--surface-muted\)\]/)
-  assert.match(focus, /send-button[^`\n]*disabled:text-\[var\(--text-muted\)\]/)
+  assert.match(focus, /send-button[^`\n]*disabled:bg-foreground\/20/)
+  assert.match(focus, /send-button[^`\n]*disabled:text-background\/70/)
   assert.doesNotMatch(focus, /send-button[^`\n]*disabled:opacity-/)
+  assert.match(focus, /<ArrowUp size=\{20\}/)
+  assert.match(focus, /rounded-full/)
 })
 
 test('image previews portal above session-level controls', async () => {

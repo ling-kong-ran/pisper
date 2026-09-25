@@ -43,7 +43,7 @@ export const CHAT_LAYOUT_SAVED_LIMIT = 20
 
 const appearance: ChatLayoutAppearance = {
   composerPosition: 'bottom',
-  contentWidth: 1040,
+  contentWidth: 768,
   fontSize: null,
   fontFamily: 'inherit',
   density: 'comfortable',
@@ -63,18 +63,18 @@ export const DEFAULT_CHAT_LAYOUT: ChatLayoutTemplate = Object.freeze({
   accent: 'inherit',
   desktop: Object.freeze({
     ...appearance,
-    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: true })),
+    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: false })),
     navigationSide: 'left',
-    navigationWidth: 236,
+    navigationWidth: 264,
     navigationCollapsed: null,
     contextSide: 'right',
-    contextVisibility: 'auto',
+    contextVisibility: 'closed',
     contextWidth: 360,
     openContextOnCompletion: true,
   }),
   mobile: Object.freeze({
     ...appearance,
-    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: true })),
+    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: false })),
     openContextOnCompletion: true,
   }),
 })

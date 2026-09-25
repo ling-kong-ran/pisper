@@ -46,9 +46,9 @@ test('built-in layouts round trip through the same contract as imported layouts'
 
 test('default layout keeps current widths, inherited typography and automatic completion panels', () => {
   const { desktop, mobile } = DEFAULT_CHAT_LAYOUT
-  assert.equal(desktop.contentWidth, 1040)
+  assert.equal(desktop.contentWidth, 768)
   assert.equal(desktop.contextWidth, 360)
-  assert.equal(desktop.navigationWidth, 236)
+  assert.equal(desktop.navigationWidth, 264)
   assert.equal(desktop.navigationCollapsed, null)
   for (const viewport of [desktop, mobile]) {
     assert.equal(viewport.composerPosition, 'bottom')
@@ -75,18 +75,20 @@ test('desktop and mobile appearance settings are independent', () => {
   assert.equal(template.mobile.fontSize, 13)
 })
 
-test('classic includes the removable built-in island without rewriting existing canvases', () => {
+test('minimal default leaves widgets opt-in and preserves existing custom canvases', () => {
   for (const device of ['desktop', 'mobile']) {
     const nodes = DEFAULT_CHAT_LAYOUT[device].canvas.children
     assert.deepEqual(
       nodes.map((node) => node.kind),
-      ['header', 'custom-ui', 'messages', 'composer'],
+      ['header', 'messages', 'composer'],
     )
-    assert.equal(nodes[1].componentId, 'pisper-island')
     const existing = fresh()
-    existing[device].canvas.children = existing[device].canvas.children.filter(
-      (node) => node.kind !== 'custom-ui',
-    )
+    existing[device].canvas.children.splice(1, 0, {
+      id: 'canvas-island',
+      kind: 'custom-ui',
+      css: 'height: 64px; flex-shrink: 0;',
+      componentId: 'pisper-island',
+    })
     assert.deepEqual(parseChatLayout(existing)[device].canvas, existing[device].canvas)
   }
 })

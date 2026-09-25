@@ -1,7 +1,7 @@
 // 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、状态指示灯、
 // 手动压缩按钮与发送/停止按钮。从 FocusSession.tsx 拆出，样式逐字保留。
 import { lazy, Suspense } from 'react'
-import { Braces, Minimize2, RefreshCw, Send, Square, Undo2, Wrench, X } from 'lucide-react'
+import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
@@ -121,7 +121,7 @@ export function ComposerStatusPill({
   const { t } = useI18n()
   return (
     <div
-      className={`focus-composer-status [.focus-session.has-conversation_&.idle]:hidden [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:flex-none [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--text-muted)] [&.running]:text-[var(--success-strong)] [&.running_>_i]:bg-[var(--success)] [&.running_>_i]:shadow-[0_0_0_3px_var(--success-soft)] [&.running_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite] inline-flex min-h-[22px] self-start items-center gap-[7px] [margin:0_0_-2px_5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:3px_9px_3px_7px] text-[var(--text-muted)] text-[11px] font-[600] shadow-[0_8px_18px_-16px_var(--shadow-strong)] ${compaction?.active ? 'compacting [.focus-composer-status&]:text-[var(--warning-strong)] [.focus-composer-status&_>_i]:bg-[var(--warning-strong)] [.focus-composer-status&_>_i]:shadow-[0_0_0_3px_var(--warning-soft)] [.focus-composer-status&_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite]' : streaming ? 'running' : 'idle'}`}
+      className={`focus-composer-status [&.idle]:hidden [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:flex-none [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--text-muted)] [&.running]:text-[var(--success-strong)] [&.running_>_i]:bg-[var(--success)] [&.running_>_i]:shadow-[0_0_0_3px_var(--success-soft)] [&.running_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite] inline-flex min-h-[22px] self-start items-center gap-[7px] [margin:0_0_-2px_5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:3px_9px_3px_7px] text-[var(--text-muted)] text-[11px] font-[600] shadow-[0_8px_18px_-16px_var(--shadow-strong)] ${compaction?.active ? 'compacting [.focus-composer-status&]:text-[var(--warning-strong)] [.focus-composer-status&_>_i]:bg-[var(--warning-strong)] [.focus-composer-status&_>_i]:shadow-[0_0_0_3px_var(--warning-soft)] [.focus-composer-status&_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite]' : streaming ? 'running' : 'idle'}`}
       role="status"
       aria-live="polite"
     >
@@ -198,7 +198,7 @@ export function ComposerSendButton({
   return (
     <button
       type={streaming ? 'button' : 'submit'}
-      className={`send-button grid !size-11 flex-none place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--star)] text-[var(--on-accent)] transition-[var(--d1)] cursor-pointer hover:not(:disabled):bg-[var(--star-hover)] hover:not(:disabled):shadow-[var(--sh-star)] active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:border disabled:border-[var(--stroke)] disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-muted)] ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
+      className={`send-button grid !size-10 !min-w-10 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-[var(--d1)] cursor-pointer hover:not(:disabled):opacity-85 active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
       title={
         streaming
           ? t('chat:focusSession.stop')
@@ -215,7 +215,7 @@ export function ComposerSendButton({
       ) : queueing ? (
         <RefreshCw className="animate-spin" size={17} />
       ) : (
-        <Send size={18} />
+        <ArrowUp size={20} />
       )}
     </button>
   )

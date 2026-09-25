@@ -505,6 +505,14 @@
   "focusSession.currentThinkingLevel": "当前思考等级",
   "focusSession.currentThinkingLevelLevelCannotSwitchWhileRunning": "当前思考等级：{level}（运行期间不可切换）",
   "focusSession.currentThinkingLevelLevelClickToSwitch": "当前思考等级：{level}，点击切换",
+  "focusSession.promptIdeas": "试试这些任务",
+  "focusSession.taskDescription": "任务描述",
+  "focusSession.thinkingLabel.off": "关闭",
+  "focusSession.thinkingLabel.minimal": "极轻",
+  "focusSession.thinkingLabel.low": "轻度",
+  "focusSession.thinkingLabel.medium": "标准",
+  "focusSession.thinkingLabel.high": "深度",
+  "focusSession.thinkingLabel.xhigh": "极深",
   "focusSession.thinkingLevelUnsupported": "当前模型不支持配置思考等级",
   "focusSession.thinkingLevelFixed": "当前模型仅支持 {level} 思考等级",
   "focusSession.thinkingLevelsLoadFailed": "思考等级加载失败，请刷新重试",
@@ -706,5 +714,7 @@
   "requestNotice.showDetails": "查看详情",
   "requestNotice.hideDetails": "收起详情",
   "requestNotice.details": "请求详情",
-  "requestNotice.retryingAttempt": "正在自动重试（{attempt}/{maxAttempts}）"
+  "requestNotice.retryingAttempt": "正在自动重试（{attempt}/{maxAttempts}）",
+  "focusSession.modelAndThinking": "模型与智力",
+  "focusSession.thinkingSettings": "智力 / 思考等级"
 }

@@ -505,6 +505,14 @@
   "focusSession.currentThinkingLevel": "Current thinking level",
   "focusSession.currentThinkingLevelLevelCannotSwitchWhileRunning": "Current thinking level: {level} (cannot switch while running)",
   "focusSession.currentThinkingLevelLevelClickToSwitch": "Current thinking level: {level}. Click to switch.",
+  "focusSession.promptIdeas": "Try a starter prompt",
+  "focusSession.taskDescription": "Task description",
+  "focusSession.thinkingLabel.off": "Off",
+  "focusSession.thinkingLabel.minimal": "Minimal",
+  "focusSession.thinkingLabel.low": "Low",
+  "focusSession.thinkingLabel.medium": "Medium",
+  "focusSession.thinkingLabel.high": "High",
+  "focusSession.thinkingLabel.xhigh": "Extra high",
   "focusSession.thinkingLevelUnsupported": "The current model has no configurable thinking levels",
   "focusSession.thinkingLevelFixed": "The current model only supports the {level} thinking level",
   "focusSession.thinkingLevelsLoadFailed": "Thinking levels failed to load. Refresh to retry.",
@@ -706,5 +714,7 @@
   "requestNotice.showDetails": "View details",
   "requestNotice.hideDetails": "Hide details",
   "requestNotice.details": "Request details",
-  "requestNotice.retryingAttempt": "Retrying automatically ({attempt}/{maxAttempts})"
+  "requestNotice.retryingAttempt": "Retrying automatically ({attempt}/{maxAttempts})",
+  "focusSession.modelAndThinking": "Model & reasoning",
+  "focusSession.thinkingSettings": "Reasoning effort"
 }

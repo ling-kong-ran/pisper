@@ -2,15 +2,17 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-test('icon-only composer model control hides the Radix Select trigger content', async () => {
+test('labeled and icon controls hide the Radix overlay even while disabled', async () => {
   const component = await readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8')
 
   assert.match(component, /const ICON_SELECT_CLASSES =/)
-  assert.match(component, /<div\s+className=\{`\$\{ICON_SELECT_CLASSES\}/)
+  assert.match(component, /showLabel \? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES/)
+  assert.match(component, /currentLabel \|\| t\('chat:focusSession.toolbarModel'\)/)
+  assert.match(component, /levelLabel\(current\)/)
   assert.equal(
     (
       component.match(
-        /<AppSelect\s+className="absolute inset-0 !size-full cursor-pointer opacity-0"/g,
+        /<AppSelect\s+className="absolute inset-0 !size-full cursor-pointer !opacity-0"/g,
       ) || []
     ).length,
     2,
@@ -35,7 +37,7 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
   assert.match(session, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)
   // 常驻与收纳复用同一控件，模型、权限和运行模式也必须参与用户偏好分配。
   assert.match(session, /toolbarAllocation\.overflow\.map\(renderComposerTool\)/)
-  assert.match(session, /model:\s*\(\s*<SessionModelSelect/)
+  assert.match(session, /model:\s*\(\s*<ModelThinkingControl/)
   assert.match(session, /permission:\s*\(\s*<ExecutionModeSelect/)
   assert.match(session, /'run-mode': goalsAvailable \?\s*\(\s*<ExecutionModeControl/)
   assert.match(session, /<ComposerToolbarSettings labels={composerToolLabels} labeled/)
@@ -54,10 +56,10 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
   assert.match(layout, /export const COMPOSER_TOOL_IDS = \[/)
   assert.match(layout, /normalizeComposerToolbarLayout/)
   assert.match(layout, /automaticallyOverflowed/)
-  assert.match(layout, /preferredInline\.slice\(0, capacity\)/)
+  assert.match(layout, /preferredInline\.slice\(0, count\)/)
   assert.match(capacity, /new ResizeObserver\(update\)/)
   assert.match(capacity, /getBoundingClientRect\(\)\.width/)
-  assert.match(store, /name: 'pisper-composer-toolbar'/)
+  assert.match(store, /name: 'pisper-zcode-composer-toolbar'/)
   assert.match(store, /normalizeComposerToolbarLayout/)
 
   assert.match(tray, /<AnchoredPopupMenu/)
@@ -122,12 +124,18 @@ test('composer exposes a session thinking-level control wired to the shared API'
 
   assert.match(controls, /export function SessionThinkingSelect/)
   assert.match(controls, /session-thinking-select/)
-  assert.match(session, /SessionThinkingSelect/)
+  assert.match(session, /ModelThinkingControl/)
   assert.match(session, /onThinkingLevelChange/)
   assert.match(api, /getThinkingLevel/)
   assert.match(api, /setThinkingLevel/)
   assert.match(api, /thinking-level/)
-  assert.match(session, /thinking:\s*\(\s*<SessionThinkingSelect/)
+  assert.match(session, /onThinkingChange=\{onThinkingLevelChange\}/)
+  assert.match(session, /onModelChange=\{onModelChange\}/)
+  assert.match(controls, /<SessionModelSelect[\s\S]*onChange=\{onModelChange\}/)
+  assert.match(controls, /<SessionThinkingSelect[\s\S]*onChange=\{onThinkingChange\}/)
+  assert.match(controls, /disabled=\{disabled \|\| loading \|\| !supported \|\| fixed\}/)
+  assert.match(controls, /role="status"/)
+  assert.doesNotMatch(session, /thinking:\s*\(/)
 })
 
 test('stored execution mode uses a portal and keeps its menu inside the interaction boundary', async () => {
@@ -147,4 +155,19 @@ test('stored execution mode uses a portal and keeps its menu inside the interact
   )
   assert.match(control, /onClose={closeMenu}/)
   assert.match(control, /triggerRef\.current\?\.focus\(\)/)
+})
+
+test('Plan remains a labeled real execution control, distinct from approval mode', async () => {
+  const [control, session] = await Promise.all([
+    readFile('src/features/chat/GoalModeControl.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+  ])
+  assert.match(control, /<span[^>]*>\{current.label\}<\/span>/)
+  assert.match(control, /value: 'plan'/)
+  assert.match(control, /value: 'goal'/)
+  assert.match(control, /teamAvailable/)
+  assert.match(session, /onRunModeChange\(nextMode\)/)
+  assert.match(session, /value=\{executionMode\}/)
+  assert.match(session, /onChange=\{onExecutionModeChange\}/)
+  assert.match(session, /focus-composer-visible-tools[^"\n]*flex-wrap/)
 })

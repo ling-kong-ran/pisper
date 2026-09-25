@@ -246,8 +246,8 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
   assert.match(toolTray, /placement=\{placement\}/)
   assert.match(toolTray, /flex-wrap/)
   assert.doesNotMatch(toolTray, /AnimatedContent|AnimatedList|overflow-x-auto/)
-  assert.match(pageHeader, /page === 'chat'[\s\S]*?max-\[650px\]:!min-h-0/)
-  assert.match(pageHeader, /page === 'chat' && 'max-\[650px\]:hidden'/)
+  assert.match(pageHeader, /page === 'chat'[\s\S]*?!min-h-12[\s\S]*?max-\[650px\]:!flex-nowrap/)
+  assert.match(pageHeader, /page === 'chat' && 'hidden'/)
   assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
   assert.doesNotMatch(en['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
 })
@@ -515,10 +515,11 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.match(appearance, /import\('@\/features\/custom-ui\/public'\)/)
   assert.doesNotMatch(appearance, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
-  // dockview 及其样式只在桌面端懒加载分包中：移动端使用轻量标签栏，
-  // 内容区一次只挂载一个会话，不下载 dockview。
+  // PI 界面在各尺寸都只挂载活动会话；保留底层协议但不下载分屏视图。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
-  assert.match(chat, /await import\('\.\/ChatDockView'\)|import\('\.\/ChatDockView'\)/)
+  assert.doesNotMatch(chat, /import\('\.\/ChatDockView'\)/)
+  assert.match(chat, /<SingleSessionPanel/)
+  assert.match(chat, /singleSessionLayout: true/)
   assert.match(chatDock, /className="mobile-session-tabs/)
   assert.match(chatDock, /role="tablist"/)
   assert.match(chatDock, /MOBILE_SESSION_TAB_LIMIT = 6/)

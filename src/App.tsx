@@ -780,7 +780,7 @@ function App() {
             requestConfirm={appDialog.confirm}
             notify={notify}
           />
-          <SidebarInset className="main-surface before:[content:''] before:absolute before:z-[-1] before:inset-[0_0_auto] before:h-[220px] before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] before:pointer-events-none dark:bg-[var(--main-surface-bg)] dark:before:bg-[linear-gradient(180deg,var(--main-glow-start)_0%,var(--main-glow-end)_100%)] dark:[background-image:radial-gradient(rgba(255,_255,_255,_.05)_1px,_transparent_1.3px),_radial-gradient(rgba(255,_255,_255,_.025)_1px,_transparent_1.3px)] dark:[background-size:26px_26px,_41px_41px] dark:[background-position:0_0,_13px_20px] relative flex min-w-0 flex-1 h-full flex-col overflow-hidden [border-left:0] bg-[var(--main-surface-bg)] shadow-[inset_0_1px_0_var(--main-surface-inset),_0_20px_60px_-28px_var(--main-surface-shadow)]">
+          <SidebarInset className="main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background">
             <Suspense fallback={null}>
               <PageHeader
                 elementRef={pageHeaderRef}

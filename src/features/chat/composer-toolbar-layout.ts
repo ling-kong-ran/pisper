@@ -6,7 +6,6 @@ export const COMPOSER_TOOL_IDS = [
   'model',
   'permission',
   'run-mode',
-  'thinking',
   'commands',
   'compact-context',
   'session-actions',
@@ -30,8 +29,8 @@ const COMPOSER_TOOL_ID_SET = new Set<string>(COMPOSER_TOOL_IDS)
 const RESTORED_INLINE_TOOL_IDS = new Set<ComposerToolId>(['model', 'permission', 'run-mode'])
 
 export const DEFAULT_COMPOSER_TOOLBAR_LAYOUT: ComposerToolbarLayout = {
-  inline: [...COMPOSER_TOOL_IDS],
-  overflow: [],
+  inline: ['permission', 'run-mode', 'model'],
+  overflow: COMPOSER_TOOL_IDS.filter((id) => !['permission', 'run-mode', 'model'].includes(id)),
 }
 
 function validToolIds(value: unknown): ComposerToolId[] {
@@ -108,16 +107,25 @@ export function allocateComposerToolbar(
   layout: ComposerToolbarLayout,
   availableToolIds: readonly ComposerToolId[],
   inlineCapacity: number,
+  toolWidths: Partial<Record<ComposerToolId, number>> = {},
 ): ComposerToolbarAllocation {
   const normalized = normalizeComposerToolbarLayout(layout)
   const available = new Set(availableToolIds)
   const preferredInline = normalized.inline.filter((id) => available.has(id))
   const preferredOverflow = normalized.overflow.filter((id) => available.has(id))
   const capacity = Number.isFinite(inlineCapacity)
-    ? Math.max(0, Math.floor(inlineCapacity))
-    : preferredInline.length
-  const inline = preferredInline.slice(0, capacity)
-  const automaticallyOverflowed = preferredInline.slice(capacity)
+    ? Math.max(0, inlineCapacity)
+    : Number.POSITIVE_INFINITY
+  let used = 0
+  let count = 0
+  for (const id of preferredInline) {
+    const width = toolWidths[id] ?? 1
+    if (used + width > capacity) break
+    used += width
+    count += 1
+  }
+  const inline = preferredInline.slice(0, count)
+  const automaticallyOverflowed = preferredInline.slice(count)
 
   return {
     inline,

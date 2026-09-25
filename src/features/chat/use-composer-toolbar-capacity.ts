@@ -15,7 +15,7 @@ export function useComposerToolbarCapacity(ref: RefObject<HTMLElement | null>) {
       const narrowViewport = window.innerWidth <= 650
       const availableWidth =
         element.getBoundingClientRect().width - (narrowViewport ? 44 : TOOL_TRIGGER_WIDTH)
-      setCapacity(Math.max(0, Math.floor(availableWidth / (narrowViewport ? 48 : TOOL_SLOT_WIDTH))))
+      setCapacity(Math.max(0, availableWidth / TOOL_SLOT_WIDTH))
     }
 
     update()

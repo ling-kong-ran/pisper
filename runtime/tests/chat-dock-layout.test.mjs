@@ -98,8 +98,8 @@ test('session open requests accept horizontal and vertical dispositions', () => 
   assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"bottom"}'), null)
 })
 
-test('chat split controls expose four directions only where layout supports them', async () => {
-  const [dock, focus, dockHook, history, page, catalog, app, header] = await Promise.all([
+test('single-session UI hides split entry points while preserving session management', async () => {
+  const [dock, focus, dockHook, history, page, catalog, app, header, actions] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
@@ -108,6 +108,7 @@ test('chat split controls expose four directions only where layout supports them
     readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
+    readFile('src/features/chat/SessionActionsMenu.tsx', 'utf8'),
   ])
   assert.match(dock, /splitDockPanel\(panelId, 'above'\)/)
   assert.match(dock, /splitDockPanel\(panelId, 'below'\)/)
@@ -115,19 +116,30 @@ test('chat split controls expose four directions only where layout supports them
   assert.match(focus, /onSplitBottom/)
   assert.match(dockHook, /splitDockPanel\(panel\.id, 'above'\)/)
   assert.match(dockHook, /splitDockPanel\(panel\.id, 'below'\)/)
-  assert.match(history, /canSplitHistorySessions\(compactDock, mobileApp\)/)
-  assert.match(history, /\{canSplit && \(/)
   assert.match(history, /<DropdownMenu>/)
-  for (const disposition of ['left', 'right', 'above', 'below']) {
-    assert.match(history, new RegExp(`openSession\\(session\\.id, '${disposition}'\\)`))
-  }
+  assert.match(history, /requestSessionSelection\(id\)/)
+  assert.doesNotMatch(history, /splitTo(?:Left|Right|Top|Bottom)/)
+  assert.match(actions, /canSplit &&[\s\n]*splitActions\.map/)
+  assert.match(page, /singleSessionLayout: true/)
+  assert.match(page, /<SingleSessionPanel onCreateSession=\{createSession\}/)
+  assert.doesNotMatch(page, /<(?:LazyChatDockView|MobileSessionPanel)\b/)
+  const singlePanel = dock.slice(
+    dock.indexOf('export function SingleSessionPanel'),
+    dock.indexOf('type MobileSessionPanelProps'),
+  )
+  assert.match(singlePanel, /key=\{activeId\}/)
+  assert.match(singlePanel, /canSplitPanel=\{false\}/)
+  assert.match(singlePanel, /canClosePanel=\{false\}/)
+  assert.match(
+    dockHook,
+    /if \(singleSessionLayoutRef\.current\) \{[\s\S]*?setActiveId\(sessionId\)[\s\S]*?return true/,
+  )
   assert.match(dock, /role="tablist"/)
   assert.match(dock, /role="tab"/)
   assert.match(dock, /onOpenHistory/)
   assert.match(dock, /onCreateSession/)
   assert.match(dock, /closeMobileSessionTab/)
   assert.match(dock, /chat:chatPage\.closeChat/)
-  assert.match(page, /sessionIds=\{dock\.mobileSessionIds\}/)
   assert.match(page, /waitForMobileRuntimeReady/)
   assert.match(page, /mobile_state/)
   assert.match(page, /shouldInheritRecentSessionCwd\(mobileApp, mobileState\)/)

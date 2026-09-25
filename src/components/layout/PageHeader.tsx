@@ -67,7 +67,6 @@ export function PageHeader({
   query,
   setQuery,
   configSection,
-  onMenu,
   onPrimary,
   searchSlot,
   actionsSlot,
@@ -120,18 +119,16 @@ export function PageHeader({
       ref={elementRef}
       className={cn(
         'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
-        page === 'chat' &&
-          'min-h-[52px] px-5 pt-2 pb-1.5 in-data-[density=compact]:min-h-[46px] max-[650px]:!min-h-0 max-[650px]:px-4 max-[650px]:pt-3.5 max-[650px]:pb-2.5',
+        page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
         desktop && '[-webkit-app-region:drag]',
         desktopPlatform === 'darwin' && 'pl-[74px]',
       )}
     >
       <SidebarTrigger
         className={cn(
-          'hidden size-[34px] place-items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--solid)] max-[900px]:grid',
+          'grid size-8 place-items-center rounded-lg border-0 bg-transparent text-muted-foreground hover:bg-muted',
           desktop && '[-webkit-app-region:no-drag]',
         )}
-        onClick={onMenu}
       >
         <Menu size={19} />
       </SidebarTrigger>
@@ -142,7 +139,7 @@ export function PageHeader({
         <p
           className={cn(
             'mt-0 min-w-0 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-[var(--text-muted)] max-[650px]:mt-[3px] max-[650px]:whitespace-normal',
-            page === 'chat' && 'max-[650px]:hidden',
+            page === 'chat' && 'hidden',
           )}
         >
           {meta[1]}

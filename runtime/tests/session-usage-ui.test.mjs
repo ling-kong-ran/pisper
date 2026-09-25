@@ -53,8 +53,13 @@ test('composer renders unframed metrics as a separate row below the input contro
   assert.match(controls, /<PopoverTrigger asChild>/)
   assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
   assert.match(controls, /session-usage-metrics[^"\n]*justify-start/)
-  const metricsRow = focus.match(/<div className="flex min-w-0 min-h-\[26px\][^"\n]*"/)?.[0] || ''
+  const metricsRow = focus.match(/<div className="flex min-h-9 min-w-0[^"\n]*"/)?.[0] || ''
   assert.ok(metricsRow)
+  assert.match(
+    focus,
+    /hasConversation && appearance\.showUsage && !canvasUsage && <ChatCanvasSlot kind="usage"/,
+  )
+  assert.match(focus, /usage: usageBlock/)
   assert.doesNotMatch(metricsRow, /border|bg-|shadow/)
   assert.match(focus, /composer-workspace-status[^"\n]*border-0[^"\n]*bg-transparent/)
   assert.match(controls, /session-plan-popover[^"\n]*max-h-/)

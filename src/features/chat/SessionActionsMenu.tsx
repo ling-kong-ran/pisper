@@ -138,23 +138,24 @@ export function SessionActionsMenu({
         className="anchored-popup-menu permission-mode-menu session-actions-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-[48px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:text-[var(--text)] [&_>_button]:p-[6px_7px] [&_>_button]:text-left [&_>_button:hover]:bg-[var(--accent-soft)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:leading-[1.4] [&_>_button_>_svg]:text-[var(--star-strong)] w-[250px] max-w-[calc(100vw_-_16px)] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)] [&_>_button:disabled]:[cursor:not-allowed] [&_>_button:disabled]:opacity-[.5]"
         role="menu"
       >
-        {splitActions.map(([Icon, label, description, action]) => (
-          <button
-            type="button"
-            role="menuitem"
-            disabled={!canSplit}
-            onClick={() => run(action)}
-            key={label}
-          >
-            <Icon size={15} />
-            <span>
-              <strong>{label}</strong>
-              <small>
-                {canSplit ? description : t('chat:focusSession.thisGroupHasOnlyOneChat')}
-              </small>
-            </span>
-          </button>
-        ))}
+        {canSplit &&
+          splitActions.map(([Icon, label, description, action]) => (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!canSplit}
+              onClick={() => run(action)}
+              key={label}
+            >
+              <Icon size={15} />
+              <span>
+                <strong>{label}</strong>
+                <small>
+                  {canSplit ? description : t('chat:focusSession.thisGroupHasOnlyOneChat')}
+                </small>
+              </span>
+            </button>
+          ))}
         <button
           type="button"
           role="menuitem"
