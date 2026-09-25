@@ -27,8 +27,7 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
-import { ensureChatLayoutMessages, ensureCustomUiMessages } from '@/app/i18n'
-import type { DesktopChatLayout } from '@/features/chat/layout/public'
+import { ensureCustomUiMessages } from '@/app/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
@@ -38,13 +37,13 @@ import {
   MobileSettingsNavigation,
 } from '@/components/layout/MobileNavigation'
 import { AppDialog } from '@/components/layout/AppDialog'
-import { StatusBar } from '@/components/layout/StatusBar'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
 import { chatApi } from '@/features/chat/chat-api'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
   requestSessionSelection,
+  requestSessionCreation,
 } from '@/features/chat/events'
 import { apiJson } from '@/lib/api'
 import {
@@ -77,23 +76,12 @@ import type { WorkflowActions } from '@/types/workflow'
 const AppShortcuts = lazy(() =>
   import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
 )
-const ChatLayoutNavigation = lazy(() =>
-  import('@/app/ChatLayoutNavigation').then((module) => ({ default: module.ChatLayoutNavigation })),
-)
 const FloatingWidgets = lazy(async () => {
   const [{ FloatingWidgets }] = await Promise.all([
     import('@/app/FloatingWidgets'),
     ensureCustomUiMessages(),
   ])
   return { default: FloatingWidgets }
-})
-const ChatLayoutSwitcher = lazy(async () => {
-  const [{ ChatLayoutMenu }] = await Promise.all([
-    import('@/app/ChatLayoutMenu'),
-    ensureChatLayoutMessages(),
-    ensureCustomUiMessages(),
-  ])
-  return { default: ChatLayoutMenu }
 })
 const CommandPalette = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({
@@ -197,7 +185,6 @@ function App() {
   const mobileLayout = mobileApp || phoneViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
-  const [chatNavigation, setChatNavigation] = useState<DesktopChatLayout | null>(null)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
@@ -296,11 +283,7 @@ function App() {
     return undefined
   }, [theme])
 
-  const toggleSidebarCollapsed = () => {
-    setSidebarCollapsed(!sidebarCollapsed)
-  }
-
-  // 刷新插件启用统计：拉取插件工具列表，统计启用数/总数供状态栏展示；
+  // 刷新插件启用统计：拉取插件工具列表，统计启用数/总数供侧栏插件入口展示；
   // 目录不可用时静默失败，不影响其余功能。
   const refreshPluginStats = useCallback(async () => {
     try {
@@ -429,6 +412,12 @@ function App() {
     },
     [capabilities, routerNavigate],
   )
+
+  // Persist the chat-specific request before routing; never invoke the previous page's primary action.
+  const startNewChat = useCallback(() => {
+    requestSessionCreation('')
+    navigate('chat')
+  }, [navigate])
 
   useEffect(() => {
     if (capabilitiesLoaded && !runtimePageAvailable(capabilities, page)) {
@@ -700,13 +689,10 @@ function App() {
     <ToastProvider duration={2800} swipeDirection="right">
       <div
         ref={appShellRef}
-        className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] max-[900px]:min-h-[100dvh] max-[900px]:h-auto max-[900px]:overflow-visible flex w-full h-full min-h-[600px] flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
+        className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
         data-mobile-app={mobileLayout || undefined}
       >
         <WebPreviewProvider />
-        <Suspense fallback={null}>
-          <ChatLayoutNavigation onChange={setChatNavigation} />
-        </Suspense>
         {mobileLayout && (
           <Suspense fallback={null}>
             <MobileViewportStabilizer
@@ -721,15 +707,8 @@ function App() {
           </Suspense>
         )}
         <SidebarProvider
-          data-chat-navigation={
-            page === 'chat' && !drawerSidebar ? chatNavigation?.navigationSide : undefined
-          }
-          style={
-            page === 'chat' && !drawerSidebar && chatNavigation
-              ? ({ '--sidebar-width': `${chatNavigation.navigationWidth}px` } as CSSProperties)
-              : undefined
-          }
-          className="app-body data-[chat-navigation=right]:[&>[data-slot=sidebar]]:order-2 max-[900px]:h-[100dvh] max-[900px]:min-h-[620px] max-[900px]:flex-none max-[650px]:h-[100dvh] max-[650px]:min-h-0 max-[650px]:flex-none flex min-h-0 flex-1 [&[data-mobile-app]]:h-auto [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:flex-1 [&[data-mobile-app]]:overflow-hidden"
+          style={{ '--sidebar-width': '264px' } as CSSProperties}
+          className="app-body flex min-h-0 flex-1 overflow-hidden"
           data-mobile-app={mobileLayout || undefined}
           open={!sidebarCollapsed}
           onOpenChange={(open) => setSidebarCollapsed(!open)}
@@ -771,9 +750,15 @@ function App() {
             navigateSettings={navigateSettings}
             onExitSettings={exitSettings}
             collapsed={sidebarCollapsed}
-            side={page === 'chat' && !drawerSidebar ? chatNavigation?.navigationSide : 'left'}
-            width={page === 'chat' && !drawerSidebar ? chatNavigation?.navigationWidth : undefined}
-            onToggleCollapse={toggleSidebarCollapsed}
+            onNewChat={startNewChat}
+            onSearch={() => setPaletteOpen(true)}
+            pluginStats={pluginStats}
+            onToggleTerminal={
+              window.pisperDesktop?.terminalProfiles &&
+              runtimeFeatureAvailable(capabilities, 'terminal')
+                ? () => setTerminalOpen((value) => !value)
+                : undefined
+            }
             update={appUpdate}
             onOpenUpdates={openUpdateSettings}
             requestText={appDialog.prompt}
@@ -781,48 +766,40 @@ function App() {
             notify={notify}
           />
           <SidebarInset className="main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background">
-            <Suspense fallback={null}>
-              <PageHeader
-                elementRef={pageHeaderRef}
-                meta={activeMeta}
-                page={page}
-                query={query}
-                setQuery={setQuery}
-                configSection={configSection}
-                onMenu={() => setMobileNav(true)}
-                onPrimary={handlePrimary}
-                searchSlot={
-                  page === 'config' ? (
-                    <Suspense fallback={null}>
-                      <ConfigSearchBox
-                        query={query}
-                        onQueryChange={setQuery}
-                        onSelect={setConfigSection}
-                        inputRef={searchInputRef}
-                      />
-                    </Suspense>
-                  ) : undefined
-                }
-                searchInputRef={searchInputRef}
-                actionsSlot={
-                  page === 'chat' ? (
-                    <Suspense fallback={null}>
-                      <ChatLayoutSwitcher
-                        notify={notify}
-                        onManage={() => setConfigSection('interface', 'layout')}
-                      />
-                    </Suspense>
-                  ) : undefined
-                }
-                theme={theme}
-                onCycleTheme={cycleTheme}
-                workflowActions={workflowActions}
-                desktopPlatform={window.pisperDesktop?.platform || ''}
-                mobileApp={mobileApp}
-                terminalOpen={terminalOpen}
-                onToggleTerminal={() => setTerminalOpen((value) => !value)}
-              />
-            </Suspense>
+            {page !== 'chat' && (
+              <Suspense fallback={null}>
+                <PageHeader
+                  elementRef={pageHeaderRef}
+                  meta={activeMeta}
+                  page={page}
+                  query={query}
+                  setQuery={setQuery}
+                  configSection={configSection}
+                  onMenu={() => setMobileNav(true)}
+                  onPrimary={handlePrimary}
+                  searchSlot={
+                    page === 'config' ? (
+                      <Suspense fallback={null}>
+                        <ConfigSearchBox
+                          query={query}
+                          onQueryChange={setQuery}
+                          onSelect={setConfigSection}
+                          inputRef={searchInputRef}
+                        />
+                      </Suspense>
+                    ) : undefined
+                  }
+                  searchInputRef={searchInputRef}
+                  theme={theme}
+                  onCycleTheme={cycleTheme}
+                  workflowActions={workflowActions}
+                  desktopPlatform={window.pisperDesktop?.platform || ''}
+                  mobileApp={mobileApp}
+                  terminalOpen={terminalOpen}
+                  onToggleTerminal={() => setTerminalOpen((value) => !value)}
+                />
+              </Suspense>
+            )}
             {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
               <MobileSettingsNavigation
                 page={page}
@@ -832,7 +809,7 @@ function App() {
               />
             )}
             <div
-              className={`page-content [&.page-chat]:flex [&.page-chat]:overflow-hidden p-[0_18px_14px] [&.page-workflowCreate]:[padding-inline:24px] min-[651px]:[[data-density='compact']_&]:pb-[14px] max-[900px]:p-[0_16px_18px] max-[650px]:overflow-x-hidden max-[650px]:[&.page-chat]:p-[0_8px_8px] max-[650px]:[&.page-workflowCreate]:overflow-auto flex-1 min-h-0 overflow-auto  [scrollbar-color:var(--control-muted)_transparent] [animation:page-in_var(--d2)_var(--ease-out)] page-${page}`}
+              className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : `page-${page} px-6 pb-5 max-[650px]:px-3`}`}
               key={page}
             >
               <Outlet context={routeContext} />
@@ -859,7 +836,6 @@ function App() {
         <Suspense fallback={null}>
           <FloatingWidgets anchorRef={pageHeaderRef} notify={notify} />
         </Suspense>
-        {clientLoaded && !mobileApp && <StatusBar page={page} pluginStats={pluginStats} />}
         {toast && (
           <AppToast
             key={toast.id}
@@ -904,10 +880,7 @@ function App() {
                   throw error
                 }
               }}
-              onNewChat={() => {
-                navigate('chat')
-                requestAnimationFrame(() => requestAnimationFrame(invokePrimaryAction))
-              }}
+              onNewChat={startNewChat}
             />
           )}
           {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}

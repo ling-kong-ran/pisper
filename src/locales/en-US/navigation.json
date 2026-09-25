@@ -151,5 +151,19 @@
   "statusBar.inputInputOutputOutputReasoningReasoningCacheReadCacheRead": "Input {input} · Output {output} · Reasoning {reasoning} · Cache read {cacheRead}",
   "statusBar.nativeRuntime": "Native runtime",
   "statusBar.noModelConfigured": "No model configured",
-  "statusBar.todaySTokens": "Today’s tokens"
+  "statusBar.todaySTokens": "Today’s tokens",
+  "workbench.newTask": "New task",
+  "workbench.search": "Search",
+  "workbench.automations": "Automations",
+  "workbench.plugins": "Plugins",
+  "workbench.projects": "Projects",
+  "workbench.tasks": "Tasks",
+  "workbench.newProject": "Open project",
+  "workbench.emptyTasks": "No tasks yet",
+  "workbench.emptyTasksHint": "Start a new task or open a project.",
+  "workbench.toggleSidebar": "Toggle sidebar",
+  "workbench.moreTools": "More tools",
+  "workbench.terminal": "Terminal",
+  "workbench.filterSessions": "Filter sessions",
+  "workbench.changeTheme": "Change theme"
 }

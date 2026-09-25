@@ -1,36 +1,18 @@
 // 聚焦转录：虚拟化的长消息流，懒加载重型子组件（如 AI 元素）。
 import {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
   type UIEvent,
 } from 'react'
-import {
-  ArrowDown,
-  Bug,
-  Code2,
-  FileText,
-  FlaskConical,
-  GitFork,
-  Layers,
-  ListChecks,
-  RefreshCw,
-  SearchCheck,
-  Wand2,
-} from 'lucide-react'
-import type { I18nValues } from '@/app/i18n'
+import { ArrowDown, GitFork, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
-import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
-import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { type SessionOpenRequest } from './dock-layout'
 import {
   SESSION_SELECTED_EVENT,
@@ -43,13 +25,9 @@ import {
   type TranscriptPrependSnapshot,
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
-import { WelcomeBrandStage } from './welcome-brand'
+import { WorkbenchGreeting } from './WorkbenchGreeting'
 
 import { Button } from '@/components/ui/button'
-
-const WelcomeEffects = lazy(() => import('./WelcomeEffects'))
-
-type Translate = (message: string, values?: I18nValues) => string
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
@@ -87,18 +65,6 @@ type FocusTranscriptProps = {
   onWorkspace: () => void
 }
 
-function WelcomeFallback({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <div className="agent-welcome-content grid w-full max-w-[680px] justify-items-center gap-5 px-4 py-6">
-      <WelcomeBrandStage />
-      <h2 className="text-[clamp(22px,2.4vw,30px)] font-medium tracking-tight text-foreground">
-        {title}
-      </h2>
-      {children}
-    </div>
-  )
-}
-
 function TranscriptLoading({ label }: { label: string }) {
   return (
     <div
@@ -126,55 +92,6 @@ function TranscriptLoading({ label }: { label: string }) {
       </div>
     </div>
   )
-}
-
-function welcomeChips(t: Translate, plansAvailable: boolean) {
-  return [
-    {
-      icon: Code2,
-      label: t('chat:focusSession.explainCode'),
-      prompt: t('chat:focusSession.explainHowThisCodeWorks'),
-    },
-    {
-      icon: FlaskConical,
-      label: t('chat:focusSession.writeTests'),
-      prompt: t('chat:focusSession.writeUnitTestsForTheFollowingCode'),
-    },
-    {
-      icon: Wand2,
-      label: t('chat:focusSession.refactor'),
-      prompt: t('chat:focusSession.refactorThisCodeAndExplainTheImprovements'),
-    },
-    {
-      icon: Bug,
-      label: t('chat:focusSession.findABug'),
-      prompt: t('chat:focusSession.helpMeLocateAndFixThisBug'),
-    },
-    {
-      icon: FileText,
-      label: t('chat:focusSession.summarize'),
-      prompt: t('chat:focusSession.summarizeContentAndExtractKeyPoints'),
-    },
-    ...(plansAvailable
-      ? [
-          {
-            icon: ListChecks,
-            label: t('chat:focusSession.makeAPlan'),
-            prompt: t('chat:focusSession.makeAClearActionablePlanForThisGoal'),
-          },
-        ]
-      : []),
-    {
-      icon: Layers,
-      label: t('chat:focusSession.organizeInformation'),
-      prompt: t('chat:focusSession.organizeThisInformationIntoAClearStructure'),
-    },
-    {
-      icon: SearchCheck,
-      label: t('chat:focusSession.findIssues'),
-      prompt: t('chat:focusSession.reviewThisContentAndSuggestImprovements'),
-    },
-  ]
 }
 
 export function FocusTranscript({
@@ -206,11 +123,8 @@ export function FocusTranscript({
   onBranchFromHere,
   onCreateChildSession,
   onRetryLastTurn,
-  onPromptSelect,
 }: FocusTranscriptProps) {
   const { t } = useI18n()
-  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
-  const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
   const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
   const transcriptPrefixRef = useRef<HTMLDivElement>(null)
   const [targetEntryId, setTargetEntryId] = useState(() => getSessionMessageTarget(sessionId))
@@ -313,70 +227,6 @@ export function FocusTranscript({
     if (scrollRequest) scrollToBottom('smooth')
   }, [scrollRequest, scrollToBottom])
 
-  // 轮换标题只从当前 Runtime 确认可用的能力中抽取，避免降级宿主展示无效入口。
-  const welcomeTitles = useMemo(() => {
-    const hour = new Date().getHours()
-    const greeting =
-      hour >= 23 || hour < 5
-        ? t('chat:focusSession.timeLateNight')
-        : hour < 11
-          ? t('chat:focusSession.timeMorning')
-          : hour < 14
-            ? t('chat:focusSession.timeLunch')
-            : hour < 18
-              ? t('chat:focusSession.timeAfternoon')
-              : t('chat:focusSession.timeEvening')
-    const pool = [
-      ...(runtimeFeatureAvailable(capabilities, 'plugins')
-        ? [
-            t('chat:focusSession.feelLikeBuildingAPlugin'),
-            t('chat:focusSession.letAgentWriteItsOwnTool'),
-          ]
-        : []),
-      ...(runtimeFeatureAvailable(capabilities, 'mcp')
-        ? [t('chat:focusSession.wireUpAnMcpServer')]
-        : []),
-      ...(runtimeFeatureAvailable(capabilities, 'schedules')
-        ? [t('chat:focusSession.scheduleTheRepetitiveWork')]
-        : []),
-      ...(runtimeFeatureAvailable(capabilities, 'workflows')
-        ? [t('chat:focusSession.turnRepeatedWorkIntoAWorkflow')]
-        : []),
-      ...(runtimeFeatureAvailable(capabilities, 'multiAgent')
-        ? [t('chat:focusSession.branchOutAndRunInParallel')]
-        : []),
-      ...(runtimeFeatureAvailable(capabilities, 'memory')
-        ? [t('chat:focusSession.letMemoryRememberYou')]
-        : []),
-    ]
-    // 每次挂载随机抽三条,同一会话不同时刻看到的组合也不同
-    const picked = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
-    return [greeting, ...picked]
-  }, [capabilities, t])
-  const welcomeContent = (
-    <>
-      <details className="group relative text-xs text-muted-foreground">
-        <summary className="cursor-pointer list-none rounded-lg px-3 py-2 transition-colors hover:bg-muted hover:text-foreground">
-          {t('chat:focusSession.promptIdeas')}
-        </summary>
-        <div className="welcome-chips flex max-w-[560px] flex-wrap justify-center gap-2 pt-2">
-          {welcomeChips(t, plansAvailable).map((chip) => (
-            <button
-              type="button"
-              key={chip.label}
-              data-target-cursor
-              onClick={() => onPromptSelect(chip.prompt)}
-              className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-background px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <chip.icon size={14} className="text-muted-foreground" />
-              {chip.label}
-            </button>
-          ))}
-        </div>
-      </details>
-    </>
-  )
-
   return (
     <div className="relative min-h-0 flex-1">
       <div
@@ -442,13 +292,7 @@ export function FocusTranscript({
         )}
         {transcriptLoadState === 'ready' && !messages.length && (
           <div className="agent-welcome relative grid min-h-full place-content-center justify-items-center text-center text-muted-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none">
-            <Suspense
-              fallback={
-                <WelcomeFallback title={welcomeTitles[0]}>{welcomeContent}</WelcomeFallback>
-              }
-            >
-              <WelcomeEffects titles={welcomeTitles}>{welcomeContent}</WelcomeEffects>
-            </Suspense>
+            <WorkbenchGreeting />
           </div>
         )}
         {transcriptLoadState === 'ready' && messages.length > 0 && (

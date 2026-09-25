@@ -112,7 +112,7 @@ function WorkspaceActionButton({
     <Button
       type="button"
       variant="ghost"
-      className="!size-7 !min-h-7 !shrink-0 !p-0 !text-[var(--text-muted)] hover:!bg-[var(--surface-hover)] hover:!text-[var(--text)] max-[900px]:!size-11 max-[900px]:!min-h-11"
+      className="opacity-0 group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 !size-7 !min-h-7 !shrink-0 !p-0 !text-[var(--text-muted)] hover:!bg-[var(--surface-hover)] hover:!text-[var(--text)] max-[900px]:!size-11 max-[900px]:!min-h-11"
       title={label}
       aria-label={label}
       onClick={onClick}
@@ -133,6 +133,7 @@ export function SidebarRecentSessions({
   const { isMobile, setOpenMobile } = useSidebar()
   const [historyExpanded, setHistoryExpanded] = useState(true)
   const [sessionQuery, setSessionQuery] = useState('')
+  const [filterOpen, setFilterOpen] = useState(false)
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
   const workspaceOrder = useWorkspaceOrderStore((state) => state.order)
   const rememberWorkspaces = useWorkspaceOrderStore((state) => state.rememberWorkspaces)
@@ -467,50 +468,62 @@ export function SidebarRecentSessions({
 
   return (
     <section
-      className={`nav-history-section min-[901px]:[.sidebar.collapsed_&]:hidden flex-1 min-h-0 flex flex-col [margin-top:10px] ${historyExpanded ? 'is-expanded' : ''}`}
+      className="flex min-h-0 flex-1 flex-col px-2 pt-3"
       aria-label={t('navigation:appSidebar.recentChats')}
     >
-      <Button
-        type="button"
-        variant="outline"
-        className="mb-1 w-full !h-9 !justify-start !gap-2 !border !border-[var(--stroke)] !bg-[var(--surface-subtle)] hover:!bg-[var(--surface-hover)] max-[900px]:!h-11"
-        aria-haspopup="dialog"
-        aria-expanded={projectPickerOpen}
-        onClick={() => setProjectPickerOpen(true)}
-      >
-        <FolderPlus aria-hidden="true" />
-        {t('navigation:appSidebar.newProject')}
-      </Button>
-      <div className="flex h-[34px] items-center justify-between gap-[6px] [padding:0_4px]">
+      <div className="mb-1 flex h-8 shrink-0 items-center gap-1 px-1.5">
         <button
-          className="nav-history-heading [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[28px] [.nav-list_&]:[flex:0_1_auto] [.nav-list_&]:gap-[4px] [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text-secondary)] [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [&_svg]:flex-none [&_svg]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg.is-open]:[transform:rotate(90deg)]"
+          className="mr-auto flex min-w-0 items-center gap-1 rounded-md px-1 py-1 text-xs text-muted-foreground hover:text-foreground"
           aria-controls="sidebar-recent-sessions"
           aria-expanded={historyExpanded}
           onClick={() => setHistoryExpanded((value) => !value)}
         >
-          <span>{t('navigation:appSidebar.recentChats')}</span>
-          <ChevronRight className={historyExpanded ? 'is-open' : ''} size={14} />
+          <span>{t('navigation:workbench.projects')}</span>
+          <ChevronRight className={historyExpanded ? 'rotate-90' : ''} size={12} />
         </button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 text-muted-foreground"
+          title={t('navigation:workbench.filterSessions')}
+          aria-label={t('navigation:workbench.filterSessions')}
+          aria-expanded={filterOpen}
+          onClick={() => setFilterOpen((value) => !value)}
+        >
+          <Search size={13} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 text-muted-foreground"
+          title={t('navigation:appSidebar.newProject')}
+          aria-label={t('navigation:appSidebar.newProject')}
+          aria-haspopup="dialog"
+          aria-expanded={projectPickerOpen}
+          onClick={() => setProjectPickerOpen(true)}
+        >
+          <FolderPlus size={14} />
+        </Button>
         <button
-          className="nav-history-view-all [.nav-list_&]:w-auto [.nav-list_&]:h-[28px] [.nav-list_&]:flex-none [.nav-list_&]:rounded-[var(--r-xs)] [.nav-list_&]:p-[0_6px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[12px] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--star-strong)]"
-          aria-label={t('navigation:appSidebar.viewAllCountChats', {
-            count: sessions.length,
-          })}
+          className="rounded-md px-1 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+          aria-label={t('navigation:appSidebar.viewAllCountChats', { count: sessions.length })}
           onClick={() => navigateFromSection('chatHistory')}
         >
           {t('navigation:appSidebar.viewAll')}
         </button>
       </div>
-      <label className="min-[901px]:[.sidebar.collapsed_&]:hidden flex h-8 flex-none items-center gap-2 rounded-[var(--r-xs)] border border-[var(--stroke-soft)] bg-[var(--solid)] px-2 text-[var(--text-muted)] focus-within:border-[var(--focus)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
-        <Search size={13} aria-hidden="true" />
-        <input
-          className="min-w-0 flex-1 border-0 bg-transparent text-[length:var(--app-font-size)] font-normal text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
-          value={sessionQuery}
-          onChange={(event) => setSessionQuery(event.target.value)}
-          placeholder={t('navigation:appSidebar.searchChats')}
-          aria-label={t('navigation:appSidebar.searchChats')}
-        />
-      </label>
+      {(filterOpen || sessionQuery) && (
+        <label className="mx-2 mb-2 flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border px-2 text-muted-foreground focus-within:ring-1 focus-within:ring-ring">
+          <Search size={13} aria-hidden="true" />
+          <input
+            className="min-w-0 flex-1 border-0 bg-transparent text-xs outline-none"
+            value={sessionQuery}
+            onChange={(event) => setSessionQuery(event.target.value)}
+            placeholder={t('navigation:appSidebar.searchChats')}
+            aria-label={t('navigation:appSidebar.searchChats')}
+          />
+        </label>
+      )}
       {historyExpanded && (
         <ContextMenu
           onOpenChange={(open) => {
@@ -541,7 +554,7 @@ export function SidebarRecentSessions({
                       onPointerDown={(event) => prepareTouchMenu(event, group.key)}
                     >
                       <button
-                        className="nav-workspace-heading [.nav-list_&]:grid [.nav-list_&]:w-auto [.nav-list_&]:min-w-0 [.nav-list_&]:h-[29px] [.nav-list_&]:min-h-[29px] [.nav-list_&]:flex-1 [.nav-list_&]:grid-cols-[13px_13px_minmax(0,1fr)_auto] [.nav-list_&]:items-center [.nav-list_&]:gap-[6px] [.nav-list_&]:p-[0_8px] [.nav-list_&]:text-[var(--text-muted)] [.nav-list_&]:text-[length:var(--app-font-size)] [.nav-list_&]:font-medium [.nav-list_&:hover]:bg-transparent [.nav-list_&:hover]:text-[var(--text)] [&_svg:first-child]:[transition:transform_var(--d1)_var(--ease-out)] [&_svg:first-child.is-open]:[transform:rotate(90deg)] [&_span]:overflow-hidden [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:!text-[10px] [&_small]:[font-variant-numeric:tabular-nums]"
+                        className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-left text-[13px] text-foreground hover:bg-sidebar-accent [&_span]:min-w-0 [&_span]:flex-1 [&_span]:truncate [&_small]:hidden [&_.is-open]:rotate-90"
                         aria-expanded={!groupCollapsed}
                         onClick={() => toggleWorkspace(group.key)}
                         title={group.cwd || label}
@@ -575,7 +588,7 @@ export function SidebarRecentSessions({
                     {!groupCollapsed &&
                       group.sessions.map((session) => (
                         <button
-                          className={`nav-history-item [.nav-list_&]:flex [.nav-list_&]:w-full [.nav-list_&]:h-[34px] [.nav-list_&]:min-h-[34px] [.nav-list_&]:rounded-[var(--r-sm)] [.nav-list_&]:p-[0_8px_0_24px] [.nav-list_&]:text-[var(--text-secondary)] [.nav-list_&]:text-[length:var(--app-font-size)] [.nav-list_&]:font-normal [&_>_span]:overflow-hidden [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap [.nav-list_&:hover]:bg-[var(--surface-muted)] [.nav-list_&:hover]:text-[var(--text)] min-[901px]:[[data-density='compact']_.nav-list_&]:h-[32px] min-[901px]:[[data-density='compact']_.nav-list_&]:min-h-[32px] ${session.id === activeSessionId ? 'active-session [.nav-list_.nav-history-item&]:bg-[var(--surface-muted)] [.nav-list_.nav-history-item&]:text-[var(--text)] [.nav-list_.nav-history-item&]:shadow-[inset_2px_0_var(--brand-blue)]' : ''}`}
+                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-[13px] font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}
                           aria-current={session.id === activeSessionId ? 'page' : undefined}
                           title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
                           onClick={() => openRecentSession(session.id)}
@@ -601,9 +614,15 @@ export function SidebarRecentSessions({
                               aria-label={t('navigation:appSidebar.unread')}
                             />
                           )}
-                          <span className="select-none">
+                          <span className="min-w-0 flex-1 select-none truncate">
                             {session.name || t('navigation:appSidebar.untitledChat')}
                           </span>
+                          <time
+                            className="shrink-0 text-[10px] text-muted-foreground/70"
+                            dateTime={session.modified}
+                          >
+                            {relativeTime(session.modified, language)}
+                          </time>
                           {session.archived && (
                             <span className="ml-auto text-[11px] font-normal text-muted-foreground">
                               {t('navigation:appSidebar.archived')}

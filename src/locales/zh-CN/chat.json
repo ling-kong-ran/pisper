@@ -716,5 +716,14 @@
   "requestNotice.details": "请求详情",
   "requestNotice.retryingAttempt": "正在自动重试（{attempt}/{maxAttempts}）",
   "focusSession.modelAndThinking": "模型与智力",
-  "focusSession.thinkingSettings": "智力 / 思考等级"
+  "focusSession.thinkingSettings": "智力 / 思考等级",
+  "workbench.morningEarly": "早上好呀，新的一天开始啦",
+  "workbench.morning": "上午好呀，有什么想让我帮忙的吗",
+  "workbench.noon": "中午好呀，要不要先休息一下",
+  "workbench.afternoon": "下午好呀，接下来交给我吧",
+  "workbench.evening": "晚上好呀，今天辛苦啦",
+  "workbench.lateNight": "夜深啦，别忘了照顾好自己哦",
+  "workbench.composerPlaceholder": "描述一个任务，/ 使用命令",
+  "workbench.promptLabel": "任务描述",
+  "workbench.selectModel": "选择模型"
 }

@@ -12,9 +12,12 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
+  SunMoon,
   X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { useUiStore } from '@/stores/ui-store'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { workspaceName } from '@/lib/format'
@@ -75,6 +78,8 @@ import { useShortcutStore } from '@/stores/shortcut-store'
 import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/shortcuts'
 
 export type { FocusSessionProps }
+
+const QuickPromptIdeas = lazy(() => import('./QuickPromptIdeas'))
 
 const CanvasSessionContext = lazy(() =>
   import('./layout/CanvasSessionContext').then((module) => ({
@@ -190,6 +195,7 @@ export const FocusSession = memo(function FocusSession({
   onAbort,
 }: FocusSessionProps) {
   const { t, language } = useI18n()
+  const cycleTheme = useUiStore((state) => state.cycleTheme)
   const shortcuts = useShortcutStore((state) => state.bindings)
   const COMMAND_PALETTE_SHORTCUT = useShortcutLabel('commandPalette')
   const mobileApp = useIsMobileApp()
@@ -276,7 +282,7 @@ export const FocusSession = memo(function FocusSession({
   const composerPlaceholder = mobileLayout
     ? streaming
       ? t('chat:focusSession.addGuidanceForTheRunningAgent')
-      : t('chat:focusSession.writeWhatYouWantToAccomplish')
+      : t('chat:workbench.composerPlaceholder')
     : streaming
       ? t('chat:focusSession.runningAgentComposerHint')
       : t('chat:focusSession.composerHint')
@@ -549,9 +555,25 @@ export const FocusSession = memo(function FocusSession({
     </div>
   )
   const headerBlock = (
-    <AppCardHeader className="relative z-4 min-h-10 flex-none items-center border-0 bg-transparent px-4 py-1">
-      <strong className="min-w-0 flex-1 truncate text-sm font-semibold" title={session.name || ''}>
-        {session.name || t('chat:chatPage.untitledChat')}
+    <AppCardHeader
+      data-tauri-drag-region
+      className={cn(
+        'relative z-4 h-12 shrink-0 items-center gap-2 border-0 bg-transparent px-4 py-1',
+        window.pisperDesktop?.platform === 'darwin' && 'pl-[74px]',
+        window.pisperDesktop?.platform &&
+          window.pisperDesktop.platform !== 'darwin' &&
+          'pr-[146px]',
+      )}
+    >
+      <SidebarTrigger
+        aria-label={t('navigation:workbench.toggleSidebar')}
+        className="size-8 shrink-0 rounded-lg text-muted-foreground"
+      />
+      <strong
+        className="min-w-0 flex-1 truncate text-[13px] font-medium"
+        title={session.name || ''}
+      >
+        {session.name || t('navigation:pageHeader.newChat')}
       </strong>
       <div className="flex flex-none items-center gap-1">
         <SessionTreeControl
@@ -601,6 +623,15 @@ export const FocusSession = memo(function FocusSession({
         >
           {visibleContextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
           <span className="@max-[470px]:sr-only">{t('chat:sessionContext.title')}</span>
+        </button>
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted"
+          aria-label={t('navigation:workbench.changeTheme')}
+          title={t('navigation:workbench.changeTheme')}
+          onClick={cycleTheme}
+        >
+          <SunMoon size={16} />
         </button>
         {!hasConversation && <div className="flex items-center gap-1">{sessionActionsMenu}</div>}
       </div>
@@ -671,6 +702,17 @@ export const FocusSession = memo(function FocusSession({
         menuRef={toolTrayMenuRef}
       >
         {toolbarAllocation.overflow.map(renderComposerTool)}
+        {toolsOpen && (
+          <Suspense fallback={null}>
+            <QuickPromptIdeas
+              plansAvailable={plansAvailable}
+              onPromptSelect={(prompt) => {
+                applyWelcomeChip(prompt)
+                setToolsOpen(false)
+              }}
+            />
+          </Suspense>
+        )}
         <div className="w-full border-t border-[var(--stroke-soft)] pt-1">
           <ComposerToolbarSettings labels={composerToolLabels} labeled />
         </div>
@@ -702,7 +744,7 @@ export const FocusSession = memo(function FocusSession({
   const composerBlock = (
     <form
       key="composer"
-      className="focus-composer-shell [.focus-session.has-conversation_&]:w-[min(var(--chat-content-width,1040px),calc(100%_-_48px))] [.focus-session.has-conversation_&]:pt-[8px] @max-[700px]:w-[calc(100%_-_20px)] @max-[700px]:pb-[10px] @max-[700px]:[.focus-session.has-conversation_&]:w-[calc(100%_-_20px)] max-[650px]:w-[calc(100%_-_20px)] max-[650px]:pb-[10px] relative z-20 flex w-[min(var(--chat-content-width,1040px),calc(100%_-_48px))] flex-none flex-col gap-[7px] [margin:0_auto] [padding:10px_0_0]"
+      className="focus-composer-shell relative z-20 mx-auto flex w-[min(680px,calc(100%_-_48px))] shrink-0 flex-col gap-2 pt-2 pb-4 @max-[700px]:w-[calc(100%_-_24px)]"
       onSubmit={submit}
     >
       <ToolApproval approvals={approvals} onResolve={onApproval} />
@@ -733,7 +775,12 @@ export const FocusSession = memo(function FocusSession({
         streaming={streaming}
         statusLabel={composerStatusLabel}
       />
-      <div className="focus-composer relative flex min-w-0 flex-col gap-2 rounded-[28px] border border-border bg-muted/70 p-3 shadow-sm transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#303030] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[56px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground">
+      <div className="focus-composer relative flex min-w-0 flex-col gap-2 rounded-[20px] border border-border/70 bg-muted/60 p-3 shadow-xs transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#242424] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[56px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground">
+        {!canvasWorkspace && (
+          <div className="px-1 pb-1 text-xs text-muted-foreground">
+            <ChatCanvasSlot kind="workspace" />
+          </div>
+        )}
         <ComposerCommandMenu
           placement={appearance.composerPosition === 'top' ? 'bottom' : 'top'}
           sessionId={session.id}
@@ -780,7 +827,6 @@ export const FocusSession = memo(function FocusSession({
         </div>
       </div>
       <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-2 px-2 pb-1 text-xs text-muted-foreground">
-        {!canvasWorkspace && <ChatCanvasSlot kind="workspace" />}
         {hasConversation && appearance.showUsage && !canvasUsage && <ChatCanvasSlot kind="usage" />}
         <div className="ml-auto flex items-center gap-1 [&_.voice-input-control_button]:!size-8">
           <div className="focus-composer-secondary flex h-8 min-w-0 flex-none items-center justify-end">
@@ -838,9 +884,9 @@ export const FocusSession = memo(function FocusSession({
   return (
     <Panel
       className={cn(
-        `focus-session [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-[500px] flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
+        `focus-session [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
         centeredWelcome &&
-          '[&_.agent-welcome_h2]:!text-[clamp(22px,2.4vw,30px)] [&_[data-canvas-node=canvas-messages]]:!flex-none [&_[data-canvas-node=canvas-messages]]:min-h-[220px] [&_[data-canvas-node=canvas-messages]]:h-[clamp(220px,34vh,310px)] [&_.transcript]:!p-0 [&_[data-brand=PI]]:w-[min(300px,58vw)] max-[650px]:[&_[data-canvas-node=canvas-messages]]:min-h-[170px] max-[650px]:[&_[data-canvas-node=canvas-messages]]:h-[clamp(170px,30vh,240px)] max-[650px]:[&_[data-brand=PI]]:w-44',
+          '[&_[data-canvas-node=canvas-messages]]:!flex-none [&_[data-canvas-node=canvas-messages]]:mt-[max(48px,calc((100dvh-560px)/2))] [&_[data-canvas-node=canvas-messages]]:h-[160px] [&_[data-canvas-node=canvas-messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-canvas-node=canvas-messages]]:mt-8 max-[650px]:[&_[data-canvas-node=canvas-messages]]:h-[150px]',
         chatLayout.accent !== 'inherit' && CHAT_LAYOUT_ACCENT_CLASS,
       )}
       style={chatLayoutAppearanceStyle(appearance, chatLayout.accent)}

@@ -151,5 +151,19 @@
   "statusBar.inputInputOutputOutputReasoningReasoningCacheReadCacheRead": "输入 {input} · 输出 {output} · 推理 {reasoning} · 缓存读取 {cacheRead}",
   "statusBar.nativeRuntime": "原生运行时",
   "statusBar.noModelConfigured": "未配置模型",
-  "statusBar.todaySTokens": "今日 tokens"
+  "statusBar.todaySTokens": "今日 tokens",
+  "workbench.newTask": "新任务",
+  "workbench.search": "搜索",
+  "workbench.automations": "自动化",
+  "workbench.plugins": "插件",
+  "workbench.projects": "项目",
+  "workbench.tasks": "任务",
+  "workbench.newProject": "打开项目",
+  "workbench.emptyTasks": "还没有任务",
+  "workbench.emptyTasksHint": "开始一个新任务，或打开一个项目。",
+  "workbench.toggleSidebar": "切换侧边栏",
+  "workbench.moreTools": "更多工具",
+  "workbench.terminal": "终端",
+  "workbench.filterSessions": "筛选会话",
+  "workbench.changeTheme": "切换主题"
 }

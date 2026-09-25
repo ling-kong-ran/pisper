@@ -716,5 +716,14 @@
   "requestNotice.details": "Request details",
   "requestNotice.retryingAttempt": "Retrying automatically ({attempt}/{maxAttempts})",
   "focusSession.modelAndThinking": "Model & reasoning",
-  "focusSession.thinkingSettings": "Reasoning effort"
+  "focusSession.thinkingSettings": "Reasoning effort",
+  "workbench.morningEarly": "Good morning. A new day begins.",
+  "workbench.morning": "Good morning. What can I help with?",
+  "workbench.noon": "Good afternoon. Time for a little break?",
+  "workbench.afternoon": "Good afternoon. Leave the next steps to me.",
+  "workbench.evening": "Good evening. Thanks for your hard work today.",
+  "workbench.lateNight": "It’s getting late. Remember to take care of yourself.",
+  "workbench.composerPlaceholder": "Describe a task, / for commands",
+  "workbench.promptLabel": "Task description",
+  "workbench.selectModel": "Select model"
 }

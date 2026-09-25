@@ -44,17 +44,15 @@ test('status bar usage normalization accepts numeric strings and rejects invalid
   )
 })
 
-test('mobile app waits for client detection and does not mount the desktop-only status bar', async () => {
+test('ZCode shell waits for client detection and retires the global status bar', async () => {
   const [app, statusBar] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/StatusBar.tsx', 'utf8'),
   ])
 
   assert.match(app, /const clientLoaded = useClientStore\(\(state\) => state\.loaded\)/)
-  assert.match(
-    app,
-    /\{clientLoaded && !mobileApp && <StatusBar page=\{page\} pluginStats=\{pluginStats\} \/>\}/,
-  )
+  assert.doesNotMatch(app, /<StatusBar|import .*StatusBar/)
+  assert.match(app, /pluginStats=\{pluginStats\}/)
   assert.match(
     statusBar,
     /setUsage\(normalizeTokenUsage\(await apiJson<unknown>\('\/api\/usage\/today'\)\)\)/,

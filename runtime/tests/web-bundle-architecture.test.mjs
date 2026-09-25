@@ -107,12 +107,12 @@ test('opening the desktop terminal preserves a shrinkable chat layout above it',
   assert.match(terminal, /maximumTerminalHeight\(window\.innerHeight\)/)
   const app = await readFile('src/App.tsx', 'utf8')
   const chat = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
-  assert.match(app, /page-content[^"\n]*\[&\.page-chat\]:flex/)
+  assert.match(app, /page === 'chat' \? 'page-chat flex overflow-hidden p-0'/)
   assert.match(chat, /chat-layout[^"\n]*min-h-0[^"\n]*flex-1/)
   assert.doesNotMatch(chat, /chat-layout[^"\n]*min-h-\[510px\]/)
 })
 
-test('desktop terminal keeps its collapsed row and follows the active color theme', async () => {
+test('desktop terminal stays mounted but hides when closed and follows the active color theme', async () => {
   const [terminal, styles] = await Promise.all([
     readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
@@ -120,7 +120,10 @@ test('desktop terminal keeps its collapsed row and follows the active color them
 
   assert.match(styles, /--terminal-bg: #f8fafc;/)
   assert.match(styles, /:root\[data-theme='dark'\][\s\S]*?--terminal-bg: #111318;/)
-  assert.match(terminal, /terminal-panel[^`\n]*\[flex:0_0_35px\]/)
+  assert.match(terminal, /!hidden/)
+  const moreTools = await readFile('src/components/layout/SidebarMoreTools.tsx', 'utf8')
+  assert.match(moreTools, /onSelect=\{onTerminal\}/)
+  assert.doesNotMatch(terminal, /if \(!open\) return null/)
   assert.match(terminal, /\[border-bottom:1px_solid_var\(--terminal-border\)\]/)
   assert.match(terminal, /terminal-title[^"\n]*text-\[var\(--terminal-muted\)\]/)
   assert.match(
@@ -416,13 +419,13 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   assert.doesNotMatch(app, /SettingsShell/)
   assert.match(
     app,
-    /<div[\s\S]*?className=\{`page-content[^`]*page-\$\{page\}`\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
+    /<div[\s\S]*?className=\{`page-content[\s\S]*?page-\$\{page\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
   )
   assert.match(app, /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\)/)
   assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
   assert.match(app, /<MobilePrimaryNavigation[\s\S]*?page=\{page\}/)
   assert.match(sidebar, /settingsActive \? \(/)
-  assert.match(sidebar, /nav-settings-back/)
+  assert.match(sidebar, /onClick=\{\(\) => runAndClose\(onExitSettings\)\}/)
   assert.match(mobileNavigation, /getNavigation\(t, capabilities\)/)
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
@@ -447,10 +450,7 @@ test('mobile shell keeps navigation in the viewport and model settings use one n
     app,
     /app-shell[^"\n]*\[&\[data-mobile-app\]\]:h-\[100dvh\][^"\n]*\[&\[data-mobile-app\]\]:overflow-hidden/,
   )
-  assert.match(
-    app,
-    /app-body[^"\n]*\[&\[data-mobile-app\]\]:h-auto[^"\n]*\[&\[data-mobile-app\]\]:flex-1[^"\n]*\[&\[data-mobile-app\]\]:overflow-hidden/,
-  )
+  assert.match(app, /app-body[^"\n]*min-h-0[^"\n]*flex-1[^"\n]*overflow-hidden/)
   assert.equal(app.match(/data-mobile-app=\{mobileLayout \|\| undefined\}/g)?.length, 2)
   // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
   assert.doesNotMatch(models, /!grid-cols-/)
