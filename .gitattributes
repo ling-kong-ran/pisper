@@ -1,1 +1,4 @@
 shared/speech-resources/xasr-bpe.vocab -text
+
+# 许可证清单锁定生成器的原始字节摘要，Windows 检出时也必须保留 LF。
+scripts/speech-bpe.mjs text eol=lf
