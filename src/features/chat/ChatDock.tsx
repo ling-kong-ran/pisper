@@ -303,7 +303,7 @@ function SessionPanel({
   // Self-heal thinking state for sessions loaded while streaming or after page remounts.
   useEffect(() => {
     if (!sessionId || !session || !loadThinkingLevel) return
-    if (streaming || state.thinkingStatus) return
+    if (state.thinkingStatus) return
     if ((state.availableThinkingLevels || []).length) return
     if (thinkingRequestedRef.current === sessionId) return
     thinkingRequestedRef.current = sessionId
@@ -435,6 +435,7 @@ function SessionPanel({
         sessionTreePulse={sessionTreePulse}
         cwd={state.cwd || session.cwd}
         availableModels={context.availableModels}
+        pendingRuntimeSelection={state.pendingRuntimeSelection}
         switchingModel={state.switchingModel}
         switchingThinking={state.switchingThinking}
         switchingCwd={state.switchingCwd}

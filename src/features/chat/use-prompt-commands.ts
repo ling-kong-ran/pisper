@@ -92,6 +92,13 @@ export function usePromptCommands({
       let sessionId = requestedSessionId
       if (!sessionId) sessionId = await createSession()
       if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
+      const selectionState = sessionStatesRef.current[sessionId]
+      if (
+        selectionState?.pendingRuntimeSelection ||
+        selectionState?.switchingModel ||
+        selectionState?.switchingThinking
+      )
+        return
       const streamGeneration = (streamGenerationRef.current.get(sessionId) || 0) + 1
       streamGenerationRef.current.set(sessionId, streamGeneration)
       // generation 会在结算时删除，后续发送即使复用编号也不能复活旧回调。

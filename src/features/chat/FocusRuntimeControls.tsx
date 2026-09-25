@@ -534,6 +534,8 @@ export function ModelThinkingControl({
   onThinkingChange,
   modelDisabled,
   thinkingDisabled,
+  deferred = false,
+  pendingModel = false,
 }: {
   model: string
   models: ModelOption[]
@@ -545,6 +547,8 @@ export function ModelThinkingControl({
   onThinkingChange: (level: string) => Promise<void> | void
   modelDisabled?: boolean
   thinkingDisabled?: boolean
+  deferred?: boolean
+  pendingModel?: boolean
 }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState<number | null>(null)
@@ -557,12 +561,14 @@ export function ModelThinkingControl({
   const index = Math.max(0, levels.indexOf(thinkingLevel))
   const selected = draft ?? index
   const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
-  const effortHint = supported
-    ? effortLabel
-    : message ||
-      (status === 'unsupported'
-        ? t('chat:focusSession.thinkingLevelUnsupported')
-        : t('chat:focusSession.loadingThinkingLevels'))
+  const effortHint = pendingModel
+    ? t('chat:focusSession.thinkingAfterModelSwitch')
+    : supported
+      ? effortLabel
+      : message ||
+        (status === 'unsupported'
+          ? t('chat:focusSession.thinkingLevelUnsupported')
+          : t('chat:focusSession.loadingThinkingLevels'))
   const disabled = thinkingDisabled || saving || !supported || levels.length < 2
   const label = `${t('chat:focusSession.modelAndThinking')} · ${resolveModelLabel(model, models)} · ${effortHint}`
   const levelsKey = levels.join('|')
@@ -601,11 +607,11 @@ export function ModelThinkingControl({
         align="end"
         side="top"
         sideOffset={8}
-        className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] rounded-[22px] border-border/70 bg-popover p-4 shadow-xl"
+        className="model-effort-popover w-[224px] max-w-[calc(100vw_-_24px)] rounded-2xl border-border/70 bg-popover p-3 shadow-xl"
       >
-        <div className="flex flex-col items-center gap-1 pb-4">
+        <div className="flex flex-col items-center gap-0.5 pb-2.5">
           <output
-            className="inline-flex items-center gap-1 text-lg font-semibold text-[#329bff]"
+            className="inline-flex items-center gap-1 text-base font-semibold text-[#329bff]"
             aria-live="polite"
           >
             {effortLabel}
@@ -624,7 +630,7 @@ export function ModelThinkingControl({
         </div>
         {supported && (
           <div
-            className="relative h-9"
+            className="relative h-7"
             style={
               {
                 '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
@@ -636,14 +642,14 @@ export function ModelThinkingControl({
               className="effort-track absolute inset-y-1 inset-x-0 overflow-hidden rounded-full bg-foreground/10"
             >
               <div className="h-full bg-[#329bff]" style={{ width: 'var(--effort-fill)' }} />
-              <div className="absolute inset-0 flex items-center justify-between px-3.5">
+              <div className="absolute inset-0 flex items-center justify-between px-2.5">
                 {levels.map((level) => (
                   <i key={level} className="size-1.5 rounded-full bg-foreground/20" />
                 ))}
               </div>
             </div>
             <input
-              className="effort-slider relative m-0 h-9 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
+              className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
               type="range"
               min={0}
               max={Math.max(1, levels.length - 1)}
@@ -672,6 +678,11 @@ export function ModelThinkingControl({
               }}
             />
           </div>
+        )}
+        {deferred && (
+          <p className="pt-2 text-center text-xs leading-4 text-muted-foreground" role="status">
+            {t('chat:focusSession.runtimeSelectionDeferred')}
+          </p>
         )}
         {(!supported || levels.length === 1) && (
           <p

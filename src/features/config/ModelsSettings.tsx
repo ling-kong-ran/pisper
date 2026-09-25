@@ -231,6 +231,7 @@ export function ModelsSettings({
           initialProviderType={providerModal.providerType}
           initialProvider={providerModal.provider}
           cloneProvider={providerModal.cloneProvider}
+          onConfigChanged={settings.applyConfig}
           onClose={() => setProviderModal(null)}
           onCreated={(data) => {
             settings.applyConfig(data)

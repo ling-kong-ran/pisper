@@ -767,8 +767,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 }
 
 /* Compact model effort slider; native range retains keyboard and screen-reader semantics. */
-.effort-slider::-webkit-slider-thumb { appearance: none; width: 32px; height: 32px; border-radius: 50%; background: #fff; border: 1px solid #ddd; box-shadow: 0 1px 3px #0002; }
-.effort-slider::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: #fff; border: 1px solid #ddd; box-shadow: 0 1px 3px #0002; }
+.effort-slider::-webkit-slider-thumb { appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 1px solid #ddd; box-shadow: 0 1px 3px #0002; }
+.effort-slider::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 1px solid #ddd; box-shadow: 0 1px 3px #0002; }
 .effort-slider:focus-visible { outline: 2px solid #329bff; outline-offset: 4px; border-radius: 999px; }
 .app-shell[data-custom-titlebar] { position: relative; }
 .app-shell[data-custom-titlebar] .auxiliary-page-header { padding-right: 136px; }

@@ -2,7 +2,7 @@
 // 提供启停/删除/配置更新等操作。页面不再维护 Provider 编辑草稿——
 // 配置改动全部走快速配置向导或视觉生成卡，完成后整份配置回写。
 // 同文件导出 useProviderDiscovery（本地 Provider 扫描/导入）。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -33,10 +33,12 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
   const [toggling, setToggling] = useState('')
   const [settingDefault, setSettingDefault] = useState('')
   const [settingModel, setSettingModel] = useState('')
+  const configRevision = useRef(0)
 
   // 首次加载配置，随后后台刷新各 Provider 的模型目录（结果回来后更新视图）。
   useEffect(() => {
     let active = true
+    const revision = configRevision.current
     apiJson<ConfigData>('/api/config')
       .then((data) => {
         if (!active) return undefined
@@ -48,11 +50,11 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
         })
       })
       .then((result) => {
-        if (!active || !result?.config) return
+        if (!active || configRevision.current !== revision || !result?.config) return
         setConfig(result.config)
       })
       .catch((caught: unknown) => {
-        if (!active) return
+        if (!active || configRevision.current !== revision) return
         setError(errorMessage(caught))
         setLoading(false)
       })
@@ -63,6 +65,8 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
 
   // 配置更新统一入口：向导完成、视觉模型增删、策略保存后整份回写。
   const applyConfig = useCallback((data: ConfigData) => {
+    // A delayed catalog response predates this explicit save and must not undo it.
+    configRevision.current += 1
     setConfig(data)
     setError('')
   }, [])
@@ -76,7 +80,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
           `/api/providers/${encodeURIComponent(provider.id)}/enabled`,
           { method: 'PUT', body: JSON.stringify({ enabled }) },
         )
-        setConfig(updated)
+        applyConfig(updated)
         notify(
           t('config:configPage.nameState', {
             name: provider.name,
@@ -89,7 +93,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
         setToggling('')
       }
     },
-    [notify, t],
+    [applyConfig, notify, t],
   )
 
   const setDefaultProvider = useCallback(
@@ -101,7 +105,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
           method: 'PUT',
           body: JSON.stringify({ provider: provider.id, setAsDefault: true }),
         })
-        setConfig(updated)
+        applyConfig(updated)
         notify(t('config:configPage.defaultProviderUpdated', { name: provider.name }))
       } catch (caught) {
         setError(errorMessage(caught))
@@ -109,7 +113,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
         setSettingDefault('')
       }
     },
-    [notify, t],
+    [applyConfig, notify, t],
   )
 
   const setProviderDefaultModel = useCallback(
@@ -121,7 +125,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
           method: 'PUT',
           body: JSON.stringify({ provider: provider.id, model, setAsDefault: false }),
         })
-        setConfig(updated)
+        applyConfig(updated)
         notify(t('config:configPage.providerConnectionUpdated'))
       } catch (caught) {
         setError(errorMessage(caught))
@@ -129,7 +133,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
         setSettingModel('')
       }
     },
-    [notify, t],
+    [applyConfig, notify, t],
   )
 
   const deleteProvider = useCallback(
@@ -149,13 +153,13 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
           `/api/providers/${encodeURIComponent(provider.id)}`,
           { method: 'DELETE' },
         )
-        setConfig(updated)
+        applyConfig(updated)
         notify(t('config:configPage.providerConnectionDeleted'))
       } catch (caught) {
         setError(errorMessage(caught))
       }
     },
-    [notify, requestConfirm, t],
+    [applyConfig, notify, requestConfirm, t],
   )
 
   return {

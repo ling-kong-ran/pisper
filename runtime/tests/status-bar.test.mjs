@@ -52,7 +52,7 @@ test('ZCode shell waits for client detection and retires the global status bar',
 
   assert.match(app, /const clientLoaded = useClientStore\(\(state\) => state\.loaded\)/)
   assert.doesNotMatch(app, /<StatusBar|import .*StatusBar/)
-  assert.match(app, /pluginStats=\{pluginStats\}/)
+  assert.doesNotMatch(app, /pluginStats=\{pluginStats\}/)
   assert.match(
     statusBar,
     /setUsage\(normalizeTokenUsage\(await apiJson<unknown>\('\/api\/usage\/today'\)\)\)/,

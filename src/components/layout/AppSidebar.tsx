@@ -8,7 +8,6 @@ import {
   Rocket,
   Settings,
   MessageCirclePlus,
-  Plug,
   Search,
   type LucideIcon,
 } from 'lucide-react'
@@ -28,7 +27,6 @@ import { useShortcutLabel } from '@/lib/shortcuts'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { cn } from '@/lib/utils'
-import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 
 const SidebarMoreTools = lazy(() => import('@/components/layout/SidebarMoreTools'))
 
@@ -59,8 +57,6 @@ type AppSidebarProps = {
   onExitSettings: () => void
   onNewChat: () => void
   onSearch: () => void
-  onToggleTerminal?: () => void
-  pluginStats?: { enabled: number; total: number } | null
   collapsed: boolean
   update: SidebarUpdate
   onOpenUpdates: () => void
@@ -78,8 +74,6 @@ export function AppSidebar({
   onExitSettings,
   onNewChat,
   onSearch,
-  onToggleTerminal,
-  pluginStats,
   collapsed,
   update,
   onOpenUpdates,
@@ -100,15 +94,11 @@ export function AppSidebar({
   const newChatShortcut = useShortcutLabel('primaryAction')
   const searchShortcut = useShortcutLabel('commandPalette')
   // 沿用壳层已过滤的能力清单；没有后端支持的入口不会出现在工作台。
-  const workspaceItems = navigation
-    .flatMap(([, items]) => items)
-    .filter(([id]) => id === 'schedules')
-  if (runtimeFeatureAvailable(capabilities, 'plugins')) {
-    workspaceItems.push(['plugins', t('navigation:workbench.plugins'), Plug])
-  }
-  const extraItems = navigation
-    .flatMap(([, items]) => items)
-    .filter(([id]) => !['chat', 'schedules', 'plugins'].includes(id))
+  const items = navigation.flatMap(([, entries]) => entries)
+  const workspaceItems = ['workflows', 'assets'].flatMap((id) =>
+    items.filter(([key]) => key === id),
+  )
+  const extraItems = items.filter(([id]) => !['chat', 'workflows', 'assets'].includes(id))
   const runAndClose = (action: () => void) => {
     action()
     if (isMobile) setOpenMobile(false)
@@ -183,34 +173,24 @@ export function AppSidebar({
                   {searchShortcut}
                 </kbd>
               </Button>
-              {workspaceItems.map(([id, , Icon]) => (
+              {workspaceItems.map(([id, label, Icon]) => (
                 <Button
                   key={id}
                   variant="ghost"
                   className={cn(navButton, page === id && 'bg-sidebar-accent')}
-                  title={
-                    id === 'plugins' && pluginStats
-                      ? `${pluginStats.enabled} / ${pluginStats.total}`
-                      : undefined
-                  }
                   aria-current={page === id ? 'page' : undefined}
                   onClick={() => runAndClose(() => navigate(id))}
                 >
                   <Icon size={16} />
-                  <span>
-                    {id === 'schedules'
-                      ? t('navigation:workbench.automations')
-                      : t('navigation:workbench.plugins')}
-                  </span>
+                  <span>{label}</span>
                 </Button>
               ))}
-              {(extraItems.length > 0 || onToggleTerminal) && (
+              {extraItems.length > 0 && (
                 <Suspense fallback={null}>
                   <SidebarMoreTools
                     items={extraItems}
                     buttonClassName={navButton}
                     onNavigate={(id) => runAndClose(() => navigate(id))}
-                    onTerminal={onToggleTerminal ? () => runAndClose(onToggleTerminal) : undefined}
                   />
                 </Suspense>
               )}
@@ -232,19 +212,25 @@ export function AppSidebar({
         <footer className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-2">
           <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
           <div className="flex h-10 items-center gap-2.5">
-            <span
-              aria-hidden="true"
-              className="grid size-7 shrink-0 place-items-center rounded-full bg-foreground text-[12px] font-medium text-background"
+            <button
+              type="button"
+              aria-label={t('config:configPage.models')}
+              title={t('config:configPage.models')}
+              aria-current={page === 'config' && configSection === 'models' ? 'page' : undefined}
+              onClick={() => runAndClose(() => navigateSettings({ type: 'config', id: 'models' }))}
+              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               P
-            </span>
+            </button>
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">Pisper</span>
             <Button
               variant="ghost"
               size="icon-sm"
               title={t('navigation:navigation.settings')}
               aria-label={t('navigation:navigation.settings')}
-              onClick={() => runAndClose(() => navigate('config'))}
+              onClick={() =>
+                runAndClose(() => navigateSettings({ type: 'config', id: 'interface' }))
+              }
             >
               <Settings size={16} />
             </Button>

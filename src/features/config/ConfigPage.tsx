@@ -71,5 +71,12 @@ export function ConfigPage({
     )
   }
 
-  return <div data-config-card={CONFIG_SECTION_ANCHOR}>{content}</div>
+  return (
+    <div
+      data-config-card={CONFIG_SECTION_ANCHOR}
+      className={section === 'models' ? 'mx-auto w-full max-w-[1040px]' : undefined}
+    >
+      {content}
+    </div>
+  )
 }

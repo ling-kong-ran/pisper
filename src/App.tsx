@@ -130,11 +130,6 @@ type ToastState = {
   tone: ToastTone
 }
 
-type PluginStats = {
-  enabled: number
-  total: number
-}
-
 // 渲染通知模板：把 {{a.b}} 占位符替换为事件数据中的嵌套字段值，
 // 缺字段时保留原占位符不静默消失，便于用户发现模板配置问题。
 function renderNotificationContent(content: string, data: Record<string, unknown>) {
@@ -210,7 +205,6 @@ function App() {
       ? requestedConfigSection
       : 'models'
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
-  const [pluginStats, setPluginStats] = useState<PluginStats | null>(null)
   const {
     data: configData,
     isPending: configPending,
@@ -298,22 +292,6 @@ function App() {
     }
     return undefined
   }, [theme])
-
-  // 刷新插件启用统计：拉取插件工具列表，统计启用数/总数供侧栏插件入口展示；
-  // 目录不可用时静默失败，不影响其余功能。
-  const refreshPluginStats = useCallback(async () => {
-    try {
-      const data = await fetchStartupQuery<{
-        tools: Array<{ enabled: boolean }>
-      }>('plugins')
-      setPluginStats({
-        enabled: data.tools.filter((tool) => tool.enabled).length,
-        total: data.tools.length,
-      })
-    } catch {
-      // 插件目录不可用时不阻断应用其余功能。
-    }
-  }, [])
 
   // 应用内 Toast：每次递增 id 保证连续提示正确触发切换动画。
   const notify = useCallback((message: string, tone: ToastTone = 'success') => {
@@ -621,10 +599,6 @@ function App() {
   }, [page])
 
   useEffect(() => {
-    refreshPluginStats()
-  }, [refreshPluginStats])
-
-  useEffect(() => {
     if (notificationData) setNotificationSettings(notificationData)
   }, [notificationData])
 
@@ -689,7 +663,6 @@ function App() {
     setConfigSection,
     setNotificationSettings: updateNotificationSettings,
     appUpdate,
-    setPluginStats,
     registerWorkflowActions,
   }
 
@@ -774,13 +747,6 @@ function App() {
             collapsed={sidebarCollapsed}
             onNewChat={startNewChat}
             onSearch={() => setPaletteOpen(true)}
-            pluginStats={pluginStats}
-            onToggleTerminal={
-              window.pisperDesktop?.terminalProfiles &&
-              runtimeFeatureAvailable(capabilities, 'terminal')
-                ? () => setTerminalOpen((value) => !value)
-                : undefined
-            }
             update={appUpdate}
             onOpenUpdates={openUpdateSettings}
             requestText={appDialog.prompt}

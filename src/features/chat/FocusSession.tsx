@@ -146,6 +146,7 @@ export const FocusSession = memo(function FocusSession({
   sessionTreePulse,
   cwd,
   availableModels,
+  pendingRuntimeSelection,
   switchingModel,
   switchingThinking,
   switchingCwd,
@@ -420,16 +421,18 @@ export const FocusSession = memo(function FocusSession({
     ) : null,
     model: (
       <ModelThinkingControl
-        model={model}
+        model={pendingRuntimeSelection?.model || model}
         models={availableModels}
         onModelChange={onModelChange}
-        thinkingLevel={thinkingLevel || 'medium'}
-        levels={availableThinkingLevels || []}
+        thinkingLevel={pendingRuntimeSelection?.thinkingLevel || thinkingLevel || 'medium'}
+        levels={pendingRuntimeSelection?.model ? [] : availableThinkingLevels || []}
         status={thinkingStatus}
         message={thinkingMessage}
         onThinkingChange={onThinkingLevelChange}
-        modelDisabled={streaming || switchingModel || switchingThinking}
-        thinkingDisabled={streaming || switchingThinking || switchingModel}
+        modelDisabled={switchingModel || switchingThinking}
+        thinkingDisabled={switchingThinking || switchingModel}
+        deferred={streaming}
+        pendingModel={Boolean(pendingRuntimeSelection?.model)}
       />
     ),
     permission: (
@@ -752,7 +755,13 @@ export const FocusSession = memo(function FocusSession({
     <form
       key="composer"
       className="focus-composer-shell relative z-20 mx-auto flex w-[min(600px,calc(100%_-_40px))] shrink-0 flex-col gap-2 pt-2 pb-4 @max-[700px]:w-[calc(100%_-_24px)]"
-      onSubmit={submit}
+      onSubmit={(event) => {
+        if (!streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)) {
+          event.preventDefault()
+          return
+        }
+        void submit(event)
+      }}
     >
       <ToolApproval approvals={approvals} onResolve={onApproval} />
       {queuedInputs.length > 0 && (
@@ -822,7 +831,11 @@ export const FocusSession = memo(function FocusSession({
             queueing={queueing}
             disabled={
               !streaming &&
-              (queueing || (!value.trim() && !selection.attachments.length && !invocation))
+              (Boolean(pendingRuntimeSelection) ||
+                switchingModel ||
+                switchingThinking ||
+                queueing ||
+                (!value.trim() && !selection.attachments.length && !invocation))
             }
             onAbort={onAbort}
           />

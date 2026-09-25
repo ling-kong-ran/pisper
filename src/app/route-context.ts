@@ -31,6 +31,5 @@ export type AppRouteContext = {
   setConfigSection: (section: string) => void
   setNotificationSettings: (settings: NotificationSettingsData) => void
   appUpdate: AppUpdateController
-  setPluginStats: (stats: { enabled: number; total: number } | null) => void
   registerWorkflowActions: (actions: WorkflowActions) => () => void
 }

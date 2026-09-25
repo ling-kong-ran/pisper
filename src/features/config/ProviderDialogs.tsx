@@ -24,6 +24,7 @@ type ProviderConfigModalProps = {
   onClose: () => void
   embedded?: boolean
   onCreated: (data: ConfigData) => void
+  onConfigChanged?: (data: ConfigData) => void
   // 初始用途：从「新建视觉连接」等入口打开时预选 visual，减少手动切换。
   initialProviderType?: ProviderType
   // 传入已有连接时进入编辑模式，允许更新 Key、URL 和模型定义。
@@ -43,6 +44,7 @@ function editableModel(provider: ProviderConfig | undefined, providerType: Provi
 export function ProviderConfigModal({
   onClose,
   onCreated,
+  onConfigChanged,
   initialProviderType = 'chat',
   initialProvider,
   cloneProvider,
@@ -53,7 +55,10 @@ export function ProviderConfigModal({
   const cloning = Boolean(cloneProvider)
   const providerType = sourceProvider?.type || initialProviderType
   const existingModel = editableModel(sourceProvider, providerType)
-  const editing = Boolean(initialProvider)
+  // Creation and optional model batching are separate backend writes. Remember
+  // the committed ID so retrying a failed batch updates, rather than recreates it.
+  const [createdProviderId, setCreatedProviderId] = useState('')
+  const editing = Boolean(initialProvider || createdProviderId)
   const [draft, setDraft] = useState(() => ({
     name: cloneProvider
       ? t('config:configPage.clonedProviderName', { name: cloneProvider.name })
@@ -107,7 +112,7 @@ export function ProviderConfigModal({
           .replace(/^-+|-+$/g, ''),
     }))
   useEffect(() => {
-    if (embedded) return
+    if (embedded || saving) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -117,11 +122,12 @@ export function ProviderConfigModal({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [embedded, onClose])
+  }, [embedded, onClose, saving])
   // 新建使用专用接口，编辑复用统一配置保存接口以原子更新连接和模型定义。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!cloning && !apiKey && !initialProvider?.configured) {
+    if (saving) return
+    if (!cloning && !apiKey && !initialProvider?.configured && !createdProviderId) {
       setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
       return
     }
@@ -147,7 +153,7 @@ export function ProviderConfigModal({
               apiKey,
               // 未触碰勾选时省略字段，保留服务端已有映射/默认行为。
               thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
-              provider: draft.id,
+              provider: createdProviderId || draft.id,
               providerName: draft.name,
               setAsDefault: false,
             }),
@@ -160,6 +166,14 @@ export function ProviderConfigModal({
               thinkingLevels: thinkingLevelsTouched ? draft.thinkingLevels : undefined,
             }),
           })
+      const targetProviderId = data.createdProviderId || createdProviderId || draft.id
+      if (!initialProvider) {
+        setCreatedProviderId(targetProviderId)
+        setDraft((current) => ({ ...current, id: targetProviderId }))
+        // Publish committed progress without dismissing the editor: Cancel must
+        // not hide a connection that was already written to the backend.
+        onConfigChanged?.(data)
+      }
       // 主模型保存成功后批量写入追加的模型；失败时保留对话框，修正后可安全重试
       //（服务端会跳过已存在的模型）。
       const existingIds = new Set((initialProvider?.models || []).map((model) => model.id))
@@ -168,7 +182,6 @@ export function ProviderConfigModal({
       )
       if (extraIds.length) {
         // 新建连接时以服务端返回的真实 ID 为准（服务端会对空/非法 ID 做归一化）。
-        const targetProviderId = data.createdProviderId || draft.id
         try {
           data = await apiJson<ConfigData>(
             `/api/providers/${encodeURIComponent(targetProviderId)}/models/batch`,
@@ -201,14 +214,16 @@ export function ProviderConfigModal({
           ? 'provider-config-inline'
           : 'modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]'
       }
-      onMouseDown={(event) => !embedded && event.target === event.currentTarget && onClose()}
+      onMouseDown={(event) =>
+        !embedded && !saving && event.target === event.currentTarget && onClose()
+      }
     >
       <form
         role={embedded ? undefined : 'dialog'}
         aria-modal={embedded ? undefined : true}
         className={
           embedded
-            ? 'provider-config-form grid gap-4 [&_input]:rounded-lg [&_select]:rounded-lg'
+            ? 'provider-config-form grid gap-3 text-sm [&_label]:!mt-0 [&_label]:!text-sm [&_label]:font-medium [&_input]:!h-9 [&_input]:!min-h-9 [&_input]:rounded-lg [&_input]:!text-sm [&_select]:!h-9 [&_select]:!min-h-9 [&_select]:rounded-lg [&_select]:!text-sm [&_summary]:text-sm'
             : 'modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] provider-config-modal !w-[min(620px,100%)]'
         }
         onSubmit={submit}
@@ -238,6 +253,7 @@ export function ProviderConfigModal({
               variant="ghost"
               size="icon"
               aria-label={t('config:configPage.closeDialog')}
+              disabled={saving}
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
@@ -440,6 +456,7 @@ export function ProviderConfigModal({
             variant="outline"
             size="lg"
             className="bg-surface-subtle"
+            disabled={saving}
             onClick={onClose}
           >
             {t('config:configPage.cancel')}

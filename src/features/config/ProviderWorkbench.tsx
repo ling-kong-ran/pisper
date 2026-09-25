@@ -54,13 +54,13 @@ export function ProviderWorkbench(props: Props) {
     >
       <div
         data-model-provider-split-panel
-        className="grid min-h-[36rem] grid-cols-[52px_minmax(0,1fr)] md:grid-cols-[208px_minmax(0,1fr)]"
+        className="grid min-h-[28rem] grid-cols-[52px_minmax(0,1fr)] md:grid-cols-[192px_minmax(0,1fr)]"
       >
         <nav
           aria-label={t('config:configPage.connections')}
           className="min-w-0 border-r border-border p-2"
         >
-          <div className="mb-3 flex h-8 items-center justify-between px-1 text-xs text-muted-foreground">
+          <div className="mb-2 flex h-8 items-center justify-between px-1 text-[13px] text-muted-foreground">
             <span className="max-md:sr-only">{t('config:configPage.connections')}</span>
             <Button
               variant="ghost"
@@ -84,7 +84,7 @@ export function ProviderWorkbench(props: Props) {
                   aria-current={selected?.id === provider.id ? 'true' : undefined}
                   onClick={() => setSelectedId(provider.id)}
                   className={cn(
-                    'flex h-9 w-full items-center gap-2 rounded-lg border px-2 text-left text-[13px] max-md:justify-center max-md:px-0',
+                    'flex h-10 w-full items-center gap-2 rounded-lg border px-2 text-left text-sm max-md:justify-center max-md:px-0',
                     selected?.id === provider.id
                       ? 'border-border bg-muted'
                       : 'border-transparent hover:bg-muted/60',
@@ -105,14 +105,14 @@ export function ProviderWorkbench(props: Props) {
             })}
           </div>
         </nav>
-        <div className="min-w-0 p-4 sm:p-6">
+        <div className="min-w-0 p-4 sm:p-5">
           {selected ? (
             <>
-              <div className="mb-5 flex min-w-0 items-center gap-2.5">
+              <div className="mb-4 flex min-w-0 items-center gap-2.5">
                 <Icon size={22} className="shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-base font-semibold">{selected.name}</h2>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <h2 className="truncate text-lg font-semibold">{selected.name}</h2>
+                  <p className="truncate text-[13px] text-muted-foreground">
                     {isDefault ? t('config:configPage.defaultBadge') : selected.api}
                   </p>
                 </div>
@@ -162,7 +162,7 @@ export function ProviderWorkbench(props: Props) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="mb-5 flex items-center gap-4 border-b border-border">
+              <div className="mb-4 flex items-center gap-4 border-b border-border">
                 {(
                   [
                     { id: 'connection', label: t('config:providerWorkbench.connection') },
@@ -174,7 +174,7 @@ export function ProviderWorkbench(props: Props) {
                     key={item.id}
                     aria-pressed={section === item.id}
                     className={cn(
-                      'border-b-2 px-0.5 pb-2 text-[13px]',
+                      'border-b-2 px-0.5 pb-2 text-sm',
                       section === item.id
                         ? 'border-foreground text-foreground'
                         : 'border-transparent text-muted-foreground',
@@ -183,7 +183,7 @@ export function ProviderWorkbench(props: Props) {
                   >
                     {item.label}
                     {item.id === 'models' && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">
+                      <span className="ml-1.5 text-[13px] text-muted-foreground">
                         {selected.models.length}
                       </span>
                     )}
@@ -192,7 +192,7 @@ export function ProviderWorkbench(props: Props) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="mb-1 ml-auto h-7 px-1.5 text-xs"
+                  className="mb-1 ml-auto h-7 px-1.5 text-[13px]"
                   onClick={() => props.onQuickSetup(selected)}
                 >
                   <Wand2 size={13} />
@@ -213,7 +213,7 @@ export function ProviderWorkbench(props: Props) {
               </div>
               {section === 'models' && (
                 <div className="space-y-3">
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p className="text-[13px] leading-5 text-muted-foreground">
                     {t('config:providerWorkbench.modelsHint')}
                   </p>
                   {selected.models
@@ -224,10 +224,8 @@ export function ProviderWorkbench(props: Props) {
                         className="flex min-w-0 items-center gap-3 rounded-lg border border-border px-3 py-2.5"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium">
-                            {model.name || model.id}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">{model.id}</p>
+                          <p className="truncate text-sm font-medium">{model.name || model.id}</p>
+                          <p className="truncate text-[13px] text-muted-foreground">{model.id}</p>
                         </div>
                         <Button
                           variant="ghost"

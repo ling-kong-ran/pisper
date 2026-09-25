@@ -6,6 +6,20 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { DEFAULT_BRANCH } from '../shared/app-update.mjs'
+// Every held test response has a bounded wait, including failure-injection paths.
+async function within(promise, label, ms = 30000) {
+  let timer
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timed out: ${label}`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 // 始终使用全新的临时后端，不连接已安装应用，也不读取真实密钥。
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-zcode-ui-'))
@@ -31,6 +45,9 @@ const base = runtime.url
 const provider = 'pi-control-ui-smoke'
 const alternate = provider + '-alt'
 const model = 'pi-ui-fixture'
+let finishDeferredResponse = () => {
+  throw new Error('deferred fixture not started')
+}
 const report = {
   backend: base,
   fixture: 'loopback-only OpenAI-compatible SSE, no external model',
@@ -41,16 +58,22 @@ const report = {
   stopConnectionClosed: false,
   pageErrors: [],
   failedApi: [],
+  expectedFailedApi: [],
 }
 let page, browser, sessionId
 const fixture = createServer(async (req, res) => {
   try {
     if (req.method === 'GET') {
+      // Each connection exposes its own catalog, just like its configured endpoint.
+      const suffix = new URL(req.url, 'http://fixture').pathname
+        .split('/')[1]
+        .slice(provider.length)
+      const discoveredModel = model + suffix
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(
         JSON.stringify({
           object: 'list',
-          data: [{ id: model, object: 'model', owned_by: 'local-test' }],
+          data: [{ id: discoveredModel, object: 'model', owned_by: 'local-test' }],
         }),
       )
       return
@@ -58,9 +81,11 @@ const fixture = createServer(async (req, res) => {
     let raw = ''
     for await (const chunk of req) raw += chunk
     const body = JSON.parse(raw)
+    const responseModel = body.model
     report.requests++
     const last = body.messages?.findLast((x) => x.role === 'user')?.content
     const slow = JSON.stringify(last).includes('stop-test')
+    const deferred = JSON.stringify(last).includes('defer-model-test')
     const content = slow ? '正在生成停止测试' : '流式回复：验收通过'
     if (!body.stream) {
       res.writeHead(200, { 'content-type': 'application/json' })
@@ -68,7 +93,7 @@ const fixture = createServer(async (req, res) => {
         JSON.stringify({
           id: 'local-test',
           object: 'chat.completion',
-          model,
+          model: responseModel,
           choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
           usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 },
         }),
@@ -81,10 +106,16 @@ const fixture = createServer(async (req, res) => {
     })
     const chunk = (delta, finish_reason = null, usage) =>
       res.write(
-        `data: ${JSON.stringify({ id: 'local-test', object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model, choices: [{ index: 0, delta, finish_reason }], ...(usage ? { usage } : {}) })}\n\n`,
+        `data: ${JSON.stringify({ id: 'local-test', object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: responseModel, choices: [{ index: 0, delta, finish_reason }], ...(usage ? { usage } : {}) })}\n\n`,
       )
     chunk({ role: 'assistant', content: slow ? content : '流式回复：' })
-    if (slow) {
+    if (deferred) {
+      chunk({ content: '正在生成模型切换测试' })
+      finishDeferredResponse = () => {
+        chunk({}, 'stop')
+        res.end('data: [DONE]\n\n')
+      }
+    } else if (slow) {
       const timer = setInterval(() => {
         if (!res.destroyed) chunk({ content: ' …' })
       }, 500)
@@ -123,7 +154,7 @@ try {
     name: 'PI Local UI Test',
     providerType: 'chat',
     api: 'openai-completions',
-    baseUrl: `http://127.0.0.1:${fixture.address().port}/v1`,
+    baseUrl: `http://127.0.0.1:${fixture.address().port}/${provider}/v1`,
     apiKey: 'local-test-only-not-a-secret',
     model,
     modelKind: 'chat',
@@ -136,7 +167,7 @@ try {
     name: 'PI Alternate UI Test',
     providerType: 'chat',
     api: 'openai-completions',
-    baseUrl: `http://127.0.0.1:${fixture.address().port}/v1`,
+    baseUrl: `http://127.0.0.1:${fixture.address().port}/${alternate}/v1`,
     apiKey: 'local-test-only-not-a-secret',
     model: model + '-alt',
     modelKind: 'chat',
@@ -153,7 +184,7 @@ try {
       name: `PI ${suffix} UI Test`,
       providerType: 'chat',
       api: 'openai-completions',
-      baseUrl: `http://127.0.0.1:${fixture.address().port}/v1`,
+      baseUrl: `http://127.0.0.1:${fixture.address().port}/${provider + suffix}/v1`,
       apiKey: 'local-test-only-not-a-secret',
       model: model + suffix,
       modelKind: 'chat',
@@ -219,6 +250,133 @@ try {
   await page.getByTestId('workbench-new-task').click()
   await page.getByTestId('workbench-greeting').waitFor()
   const prompt = page.getByRole('textbox', { name: '任务描述' })
+  const nav = page.getByTestId('workbench-sidebar')
+  for (const label of ['工作流', '资产'])
+    assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 1)
+  for (const label of ['自动化', '插件', '终端'])
+    assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 0)
+  const sendBox = await page.getByRole('button', { name: '发送消息', exact: true }).boundingBox()
+  assert.equal(sendBox.width, 32)
+  assert.equal(sendBox.height, 32)
+  const catalogReady = Promise.withResolvers()
+  const catalogRelease = Promise.withResolvers()
+  await page.route('**/api/providers/models/refresh', async (route) => {
+    const response = await route.fetch()
+    catalogReady.resolve()
+    await within(catalogRelease.promise, 'release stale catalog response')
+    await route.fulfill({ response })
+  })
+  await nav.getByRole('button', { name: '模型配置', exact: true }).click()
+  await page.locator('[data-model-provider-split-panel]').waitFor()
+  await page.getByRole('heading', { name: '设置', level: 1, exact: true }).waitFor()
+  assert.match(page.url(), /config\/models/)
+  const formFont = await page
+    .locator('.provider-config-form input')
+    .first()
+    .evaluate((el) => getComputedStyle(el).fontSize)
+  assert.equal(formFont, '14px')
+  await page.screenshot({ path: join(output, 'model-settings-refined.png') })
+  await within(catalogReady.promise, 'catalog refresh captures old configuration')
+  const configForm = page.locator('.provider-config-form')
+  const nameInput = configForm.getByLabel('显示名称', { exact: true })
+  const originalProviderName = await nameInput.inputValue()
+  const savedProviderName = 'PI UI Saved During Catalog Refresh'
+  await nameInput.fill(savedProviderName)
+  await configForm.getByRole('button', { name: '保存修改', exact: true }).click()
+  await page.getByRole('heading', { name: savedProviderName, exact: true }).waitFor()
+  const staleCatalogFinished = page.waitForEvent('requestfinished', {
+    predicate: (request) => request.url().endsWith('/api/providers/models/refresh'),
+  })
+  catalogRelease.resolve()
+  await staleCatalogFinished
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
+  assert.equal(
+    await nameInput.inputValue(),
+    savedProviderName,
+    'late catalog response must not overwrite a saved connection',
+  )
+  assert.equal(
+    await page.locator('[data-model-provider-split-panel] h2').textContent(),
+    savedProviderName,
+    'late catalog must preserve the saved provider heading',
+  )
+  await page.unroute('**/api/providers/models/refresh')
+  await nameInput.fill(originalProviderName)
+  await configForm.getByRole('button', { name: '保存修改', exact: true }).click()
+  await page.getByRole('heading', { name: originalProviderName, exact: true }).waitFor()
+  report.checks.push(
+    'late background catalog refresh cannot overwrite a newly saved provider configuration',
+  )
+
+  for (const outcome of ['retry', 'cancel']) {
+    const connectionId = `pi-batch-${outcome}`
+    const connectionName = `PI Batch ${outcome}`
+    const batchPath = `/api/providers/${connectionId}/models/batch`
+    let createCount = 0
+    const trackCreates = (request) => {
+      if (new URL(request.url()).pathname === '/api/providers' && request.method() === 'POST')
+        createCount += 1
+    }
+    page.on('request', trackCreates)
+    await page.route(`**${batchPath}`, (route) =>
+      route.fulfill({ status: 503, json: { error: `PI fixture rejected batch ${outcome}` } }),
+    )
+    report.expectedFailedApi.push({ path: batchPath, status: 503 })
+    await page.getByRole('button', { name: '添加自定义连接', exact: true }).click()
+    const editor = page.getByRole('dialog')
+    await editor.getByLabel('显示名称', { exact: true }).fill(connectionName)
+    // Exercise the server-normalized ID on retry, rather than relying on the draft ID.
+    await editor.getByLabel('Provider ID', { exact: true }).fill(`PI Batch ${outcome}`)
+    await editor.getByLabel('API Key', { exact: true }).fill('local-ui-fixture-key')
+    await editor
+      .getByLabel('Base URL', { exact: true })
+      .fill(`http://127.0.0.1:${fixture.address().port}/${provider}/v1`)
+    await editor.getByLabel('初始模型 ID', { exact: true }).fill(model)
+    await editor
+      .getByRole('textbox', { name: '追加模型 ID（可选）', exact: true })
+      .fill(`${model}-extra`)
+    await editor.getByRole('button', { name: '追加模型 ID（可选）', exact: true }).click()
+    await editor.getByRole('button', { name: '创建连接', exact: true }).click()
+    await editor.getByText(`PI fixture rejected batch ${outcome}`, { exact: true }).waitFor()
+    assert.equal(await editor.getByLabel('Provider ID', { exact: true }).inputValue(), connectionId)
+    assert.equal(await editor.getByLabel('Provider ID', { exact: true }).isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: connectionName, exact: true }).count(), 1)
+    await page.unroute(`**${batchPath}`)
+    if (outcome === 'retry') {
+      await editor.getByRole('button', { name: '保存修改', exact: true }).click()
+    } else {
+      await editor.getByRole('button', { name: '取消', exact: true }).click()
+    }
+    await editor.waitFor({ state: 'hidden' })
+    const savedProvider = (await api('/api/config')).providers.find(
+      (item) => item.id === connectionId,
+    )
+    assert.ok(savedProvider, 'committed connection survives partial failure')
+    assert.equal(
+      savedProvider.models.some((item) => item.id === `${model}-extra`),
+      outcome === 'retry',
+    )
+    assert.equal(createCount, 1, 'retry must never issue a second create')
+    page.off('request', trackCreates)
+    await page.getByRole('button', { name: connectionName, exact: true }).click()
+    await page.getByRole('heading', { name: connectionName, exact: true }).waitFor()
+    await page.getByRole('button', { name: originalProviderName, exact: true }).click()
+    await api(`/api/providers/${connectionId}`, 'DELETE')
+  }
+  report.checks.push(
+    'partial provider creation exposes committed progress; normalized-ID retry does not duplicate; cancel retains the saved connection',
+  )
+
+  await nav.getByRole('button', { name: '设置', exact: true }).click()
+  await page.waitForURL('**/#/config/interface')
+  await page.goto(base + '/#/chat')
+  await prompt.waitFor()
+  report.checks.push(
+    '32px send button; workflows/assets primary navigation; avatar opens model configuration; gear opens appearance',
+  )
+
   assert.deepEqual(
     await page
       .locator('.focus-composer-visible-tools [data-composer-tool-id]')
@@ -231,6 +389,19 @@ try {
   )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page.getByRole('combobox', { name: '当前会话模型' }).waitFor()
+  await page.waitForFunction(
+    () =>
+      Math.abs(
+        document.querySelector('.model-effort-popover').getBoundingClientRect().width - 224,
+      ) < 0.1,
+  )
+  assert.equal(
+    await page
+      .getByRole('slider', { name: '当前思考等级' })
+      .evaluate((el) => getComputedStyle(el).height),
+    '28px',
+  )
+
   assert.equal(await page.getByRole('combobox', { name: '当前会话模型' }).isEnabled(), true)
   await page.getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
@@ -492,6 +663,7 @@ try {
     'completed assistant message persisted by release backend',
     'history survives browser reload',
   )
+  await api(`/api/sessions/${sessionId}/thinking-level`, 'PUT', { level: 'high' })
   await api(`/api/sessions/${sessionId}`, 'PATCH', { name: 'PI background-run QA' })
   await page.reload()
   await page.getByText('PI background-run QA', { exact: true }).first().waitFor()
@@ -502,10 +674,23 @@ try {
     .first()
     .waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  assert.equal(await page.getByRole('combobox', { name: '当前会话模型' }).isDisabled(), true)
-  assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).isDisabled(), true)
+  assert.equal(await page.getByRole('combobox', { name: '当前会话模型' }).isEnabled(), true)
+  assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).isEnabled(), true)
+  await page.getByRole('slider', { name: '当前思考等级' }).press('Home')
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+      '关闭',
+  )
+  assert.equal((await api(`/api/sessions/${sessionId}/thinking-level`)).thinkingLevel, 'high')
+  await page.getByText('生成时可预选，本轮结束后应用。', { exact: true }).waitFor()
+  // 改回当前等级可以取消预选，不向正在运行的后端发送 PUT。
+  await page.getByRole('slider', { name: '当前思考等级' }).press('End')
+  await page.getByRole('slider', { name: '当前思考等级' }).press('Home')
   await page.keyboard.press('Escape')
-  report.checks.push('both combined settings are disabled during an active stream')
+  report.checks.push(
+    'reasoning remains editable during streaming; selection is staged without mutating the active run',
+  )
 
   await page.getByTestId('workbench-new-task').click()
   await page.getByTestId('workbench-greeting').waitFor()
@@ -548,11 +733,123 @@ try {
   })
   assert.equal(report.stopConnectionClosed, true)
   report.checks.push('Stop button aborts backend run and closes upstream stream')
+  await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+        '关闭' && !document.querySelector('[aria-label="当前思考等级"]')?.disabled,
+  )
+  assert.equal((await api(`/api/sessions/${sessionId}/thinking-level`)).thinkingLevel, 'off')
+  await page.keyboard.press('Escape')
+  report.checks.push('staged reasoning survives session switching and is saved after cancellation')
+  // 自然完成也应用模型预选；在 PUT 结束前不得启动下一轮。
   await page.getByRole('button', { name: /^PI draft side-session / }).click()
   await page.waitForFunction(
     () => document.querySelector('textarea[aria-label="任务描述"]')?.value === '第二会话未发送草稿',
   )
   report.checks.push('per-session unsent drafts survive session switching')
+  await page.getByRole('button', { name: /^PI background-run QA / }).click()
+  await prompt.fill('defer-model-test [pi-ui-sse]')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await page
+    .getByText(/正在生成模型切换测试/)
+    .first()
+    .waitFor()
+  await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
+  await page.getByRole('combobox', { name: '当前会话模型' }).click()
+  await page.getByRole('option', { name: /pi-ui-fixture-fixed/ }).click()
+  await page.getByText('新模型生效后显示它支持的思考档位。', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).count(), 0)
+  // 后端当前轮仍然使用旧模型；客户端只显示预选。
+  assert.match(JSON.stringify(await api('/api/sessions')), /pi-ui-fixture-alt/)
+  await page.keyboard.press('Escape')
+  await page.goto(base + '/#/workflows')
+  await page.waitForURL('**/#/workflows')
+  await page.getByRole('heading', { name: '工作流', level: 1, exact: true }).waitFor()
+  finishDeferredResponse()
+  await page.waitForFunction(
+    async ({ id, expected }) => {
+      const response = await fetch(`/api/sessions/${id}/thinking-level`)
+      const data = await response.json()
+      return data.model === expected && data.thinkingLevel === 'off'
+    },
+    { id: sessionId, expected: `${provider}-fixed/${model}-fixed` },
+  )
+  await page.goto(base + '/#/chat')
+  await page
+    .getByRole('heading', { name: '工作流', level: 1, exact: true })
+    .waitFor({ state: 'hidden' })
+  await page.getByRole('button', { name: /^模型与智力 ·.*pi-ui-fixture-fixed/ }).click()
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="当前思考等级"]')?.disabled &&
+      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
+        '关闭',
+  )
+  assert.equal((await api(`/api/sessions/${sessionId}/thinking-level`)).thinkingLevel, 'off')
+  assert.match(
+    JSON.stringify(await api(`/api/sessions/${sessionId}/messages?limit=50`)),
+    /pi-ui-fixture-fixed/,
+  )
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await page.getByRole('button', { name: /^模型与智力 ·.*pi-ui-fixture-fixed/ }).waitFor()
+  report.checks.push(
+    'model preselection applies after natural completion while on the workflows page, reconciles supported effort, and persists on reload',
+  )
+
+  let releaseModelSave
+  const modelSaveStarted = new Promise((resolve) => {
+    releaseModelSave = { started: resolve }
+  })
+  const modelFailure = new Promise((resolve) => {
+    releaseModelSave.finish = resolve
+  })
+  const failedModelPath = `/api/sessions/${sessionId}/model`
+  await page.route(`**${failedModelPath}`, async (route) => {
+    releaseModelSave.started()
+    await within(modelFailure, 'release injected model failure')
+    await route.fulfill({ status: 503, json: { error: 'UI fixture rejected model save' } })
+  })
+  report.expectedFailedApi.push({ path: failedModelPath, status: 503 })
+  await prompt.fill('defer-model-test failure [pi-ui-sse]')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await page.getByRole('button', { name: '停止', exact: true }).waitFor()
+  // Wait for this fixture request, not text left by the previous turn.
+  await page
+    .getByText(/正在生成模型切换测试/)
+    .nth(1)
+    .waitFor()
+  await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
+  await page.getByRole('combobox', { name: '当前会话模型' }).click()
+  await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
+  await page.keyboard.press('Escape')
+  finishDeferredResponse()
+  await within(modelSaveStarted, 'deferred model save starts')
+  await page.getByRole('button', { name: '发送消息', exact: true }).waitFor()
+  await prompt.fill('保存失败仍然保留草稿')
+  assert.equal(await page.getByRole('button', { name: '发送消息', exact: true }).isDisabled(), true)
+  const requestCount = report.requests
+  await prompt.press('Enter')
+  assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
+  assert.equal(report.requests, requestCount)
+  releaseModelSave.finish()
+  await page.waitForFunction(() => !document.querySelector('[aria-label="发送消息"]')?.disabled)
+  await page.getByRole('button', { name: '查看详情', exact: true }).last().click()
+  await page.getByText('UI fixture rejected model save', { exact: true }).waitFor()
+  await page.getByRole('button', { name: /^模型与智力 ·.*pi-ui-fixture-fixed/ }).waitFor()
+  await page.waitForFunction(() => !document.querySelector('[aria-label="发送消息"]')?.disabled)
+  assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
+  assert.equal(
+    (await api(`/api/sessions/${sessionId}/thinking-level`)).model,
+    `${provider}-fixed/${model}-fixed`,
+  )
+  await page.unroute(`**${failedModelPath}`)
+  await prompt.fill('')
+  report.checks.push(
+    'deferred save blocks both send paths; failure restores actual model without losing draft or retrying the write',
+  )
+
   // 使用真实历史页操作，避免从测试进程直接删除仍被活动视图读取的会话。
   await page.goto(base + '/#/chat/history')
   await page.getByRole('heading', { level: 1, name: '历史会话', exact: true }).waitFor()
@@ -686,7 +983,7 @@ try {
   )
 
   assert.deepEqual(report.pageErrors, [])
-  assert.deepEqual(report.failedApi, [])
+  assert.deepEqual(report.failedApi, report.expectedFailedApi)
   report.status = 'passed'
   console.log(JSON.stringify(report, null, 2))
 } catch (error) {

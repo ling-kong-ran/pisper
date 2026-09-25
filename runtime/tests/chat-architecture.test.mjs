@@ -29,6 +29,34 @@ function sessionState(update = {}) {
   }
 }
 
+test('late live snapshots cannot overwrite a saved or in-flight runtime selection', () => {
+  const current = sessionState({
+    model: 'new/model',
+    runtimeSelectionRevision: 2,
+    contextUsage: { tokens: 10 },
+    error: 'Preference could not be saved',
+  })
+  const snapshot = {
+    messages: [{ id: 'm1', role: 'agent', text: 'final reply' }],
+    pageInfo: { start: 0 },
+    streaming: false,
+    model: 'old/model',
+    contextUsage: { tokens: 999 },
+    error: '',
+  }
+  const late = reconcileLiveSnapshot(current, snapshot, undefined, 1)
+  assert.equal(late.model, 'new/model')
+  assert.equal(late.contextUsage.tokens, 10)
+  assert.equal(late.error, current.error)
+  assert.equal(late.messages[0].text, 'final reply')
+  const busy = reconcileLiveSnapshot({ ...current, switchingModel: true }, snapshot)
+  assert.equal(busy.model, 'new/model')
+  // A later read with no intervening local selection remains authoritative.
+  const fresh = reconcileLiveSnapshot(current, snapshot, undefined, 2)
+  assert.equal(fresh.model, 'old/model')
+  assert.equal(fresh.contextUsage.tokens, 999)
+})
+
 test('message page reconciliation preserves an already loaded prefix', () => {
   const current = sessionState({
     messages: [

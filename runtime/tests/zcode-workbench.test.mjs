@@ -61,7 +61,14 @@ test('ZCode shell has one chat header, no split selector, and retains optional b
   assert.match(focus, /<ExecutionModeSelect/)
   assert.match(sidebar, /<SidebarRecentSessions/)
   assert.match(sidebar, /<SidebarMoreTools/)
-  assert.match(sidebar, /runtimeFeatureAvailable/)
+  // 工作流/资产取自壳层已按能力过滤的清单；可选后台工具仍通过更多菜单或设置访问。
+  const navigation = await readFile('src/app/navigation.ts', 'utf8')
+  assert.match(
+    navigation,
+    /items\.filter\(\(\[page\]\) => runtimePageAvailable\(capabilities, page\)\)/,
+  )
+  assert.match(sidebar, /\['workflows', 'assets'\]\.flatMap/)
+  assert.match(sidebar, /navigateSettings\(\{ type: 'config', id: 'models' \}\)/)
 })
 
 test('brand toggle follows the left edge and Windows controls remain a narrow capability', async () => {

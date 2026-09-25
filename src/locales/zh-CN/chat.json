@@ -731,5 +731,7 @@
   "sessionContext.addPage": "新增辅助页面",
   "sessionContext.closePage": "关闭辅助页面",
   "sessionContext.pageContent": "选择页面内容",
-  "sessionContext.pageLimit": "最多打开 12 个辅助页面"
+  "sessionContext.pageLimit": "最多打开 12 个辅助页面",
+  "focusSession.runtimeSelectionDeferred": "生成时可预选，本轮结束后应用。",
+  "focusSession.thinkingAfterModelSwitch": "新模型生效后显示它支持的思考档位。"
 }

@@ -731,5 +731,7 @@
   "sessionContext.addPage": "Add auxiliary page",
   "sessionContext.closePage": "Close auxiliary page",
   "sessionContext.pageContent": "Choose page content",
-  "sessionContext.pageLimit": "Up to 12 auxiliary pages"
+  "sessionContext.pageLimit": "Up to 12 auxiliary pages",
+  "focusSession.runtimeSelectionDeferred": "Changes apply after this response finishes.",
+  "focusSession.thinkingAfterModelSwitch": "Thinking levels appear once the new model is applied."
 }

@@ -1,5 +1,5 @@
 // Lazy utility navigation keeps menu primitives out of the startup dependency graph.
-import { Ellipsis, TerminalSquare, type LucideIcon } from 'lucide-react'
+import { Ellipsis, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,12 +13,10 @@ export default function SidebarMoreTools({
   items,
   buttonClassName,
   onNavigate,
-  onTerminal,
 }: {
   items: Array<[string, string, LucideIcon]>
   buttonClassName: string
   onNavigate: (id: string) => void
-  onTerminal?: () => void
 }) {
   const { t } = useI18n()
   return (
@@ -36,12 +34,6 @@ export default function SidebarMoreTools({
             {label}
           </DropdownMenuItem>
         ))}
-        {onTerminal && (
-          <DropdownMenuItem onSelect={onTerminal}>
-            <TerminalSquare size={16} />
-            {t('navigation:workbench.terminal')}
-          </DropdownMenuItem>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

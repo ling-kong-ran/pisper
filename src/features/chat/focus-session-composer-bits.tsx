@@ -198,7 +198,7 @@ export function ComposerSendButton({
   return (
     <button
       type={streaming ? 'button' : 'submit'}
-      className={`send-button grid !size-10 !min-w-10 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-[var(--d1)] cursor-pointer hover:not(:disabled):opacity-85 active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
+      className={`send-button grid !size-8 !min-w-8 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-[var(--d1)] cursor-pointer hover:not(:disabled):opacity-85 active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
       title={
         streaming
           ? t('chat:focusSession.stop')
@@ -211,11 +211,11 @@ export function ComposerSendButton({
       disabled={disabled}
     >
       {streaming ? (
-        <Square size={16} fill="currentColor" />
+        <Square size={12} fill="currentColor" />
       ) : queueing ? (
         <RefreshCw className="animate-spin" size={17} />
       ) : (
-        <ArrowUp size={20} />
+        <ArrowUp size={17} />
       )}
     </button>
   )
