@@ -63,7 +63,7 @@ export const DEFAULT_CHAT_LAYOUT: ChatLayoutTemplate = Object.freeze({
   accent: 'inherit',
   desktop: Object.freeze({
     ...appearance,
-    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: true })),
+    canvas: freezeCanvas(createDefaultCanvas(appearance)),
     navigationSide: 'left',
     navigationWidth: 236,
     navigationCollapsed: null,
@@ -74,7 +74,7 @@ export const DEFAULT_CHAT_LAYOUT: ChatLayoutTemplate = Object.freeze({
   }),
   mobile: Object.freeze({
     ...appearance,
-    canvas: freezeCanvas(createDefaultCanvas({ ...appearance, includeIsland: true })),
+    canvas: freezeCanvas(createDefaultCanvas(appearance)),
     openContextOnCompletion: true,
   }),
 })

@@ -9,6 +9,7 @@ import {
   parseChatLayoutJson,
   serializeChatLayout,
 } from '../../src/features/chat/layout/chat-layout.ts'
+import { createDefaultCanvas } from '../../src/features/chat/layout/chat-canvas.ts'
 
 const fresh = () => structuredClone(DEFAULT_CHAT_LAYOUT)
 
@@ -75,18 +76,19 @@ test('desktop and mobile appearance settings are independent', () => {
   assert.equal(template.mobile.fontSize, 13)
 })
 
-test('classic includes the removable built-in island without rewriting existing canvases', () => {
+test('new classic starts without an island while existing canvases still retain one', () => {
   for (const device of ['desktop', 'mobile']) {
     const nodes = DEFAULT_CHAT_LAYOUT[device].canvas.children
     assert.deepEqual(
       nodes.map((node) => node.kind),
-      ['header', 'custom-ui', 'messages', 'composer'],
+      ['header', 'messages', 'composer'],
     )
-    assert.equal(nodes[1].componentId, 'pisper-island')
     const existing = fresh()
-    existing[device].canvas.children = existing[device].canvas.children.filter(
-      (node) => node.kind !== 'custom-ui',
-    )
+    existing[device].canvas = createDefaultCanvas({
+      composerPosition: 'bottom',
+      includeIsland: true,
+    })
+    assert.equal(existing[device].canvas.children[1].componentId, 'pisper-island')
     assert.deepEqual(parseChatLayout(existing)[device].canvas, existing[device].canvas)
   }
 })

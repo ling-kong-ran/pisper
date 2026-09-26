@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { useFloatingWidgetsStore } from '@/features/custom-ui/floating-preferences'
 import { ChatCanvasEditor } from './ChatCanvasEditor'
 import { ChatLayoutLibrary } from './ChatLayoutLibrary'
 import { ChatLayoutExportDialog, ChatLayoutImportDialog } from './ChatLayoutTransfer'
@@ -35,6 +36,7 @@ import {
 import { chatLayoutPresetLabels } from './chat-layout-preset-labels'
 import { useChatLayoutStore } from './chat-layout-store'
 import { layoutTransferErrorLabel } from './chat-layout-transfer'
+import { shouldEnableAddedIsland } from './chat-canvas-render'
 
 type PendingLayout = { template: ChatLayoutTemplate; id: string | null; notice?: string }
 const presetIcons = {
@@ -63,6 +65,9 @@ export function ChatLayoutEditor() {
   const [error, setError] = useState('')
   const [canvasValid, setCanvasValid] = useState(true)
   const [canvasEpoch, setCanvasEpoch] = useState(0)
+  const [addedIslands, setAddedIslands] = useState<
+    Array<{ device: 'desktop' | 'mobile'; id: string }>
+  >([])
   const [pendingLoad, setPendingLoad] = useState<PendingLayout | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -81,6 +86,7 @@ export function ChatLayoutEditor() {
     setBaseline(template)
     setSelectedSaved(id)
     setCanvasEpoch((value) => value + 1)
+    setAddedIslands([])
     if (notice) setStatus(notice)
   }
   const requestLoad = (next: PendingLayout) => {
@@ -100,7 +106,17 @@ export function ChatLayoutEditor() {
       useChatLayoutStore.getState().apply(draft)
       setDraft(useChatLayoutStore.getState().active)
       setStatus(t('chat-layout:layout.applied'))
-      setError('')
+      let floatingError = false
+      if (shouldEnableAddedIsland(addedIslands, draft.desktop.canvas, draft.mobile.canvas)) {
+        try {
+          useFloatingWidgetsStore.getState().setVisible('pisper-island', true)
+          floatingError = useFloatingWidgetsStore.getState().storageError
+        } catch {
+          floatingError = true
+        }
+      }
+      setAddedIslands([])
+      setError(floatingError ? t('custom-ui:floating.storageFailed') : '')
     } catch (reason) {
       setError(layoutTransferErrorLabel(reason, t))
     }
@@ -253,6 +269,10 @@ export function ChatLayoutEditor() {
         mobile={device === 'mobile'}
         onChange={(canvas) => edit({ ...draft, [device]: { ...draft[device], canvas } })}
         onValidityChange={setCanvasValid}
+        onAddComponent={(componentId, id) => {
+          if (componentId === 'pisper-island')
+            setAddedIslands((previous) => [...previous, { device, id }])
+        }}
       />
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-1">
