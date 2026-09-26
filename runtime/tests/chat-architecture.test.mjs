@@ -54,6 +54,101 @@ test('message page reconciliation preserves an already loaded prefix', () => {
   assert.equal(page.hasOlder, false)
 })
 
+test('a failed first mobile send remains visible when the Runtime has no durable turn yet', () => {
+  const current = sessionState({
+    messages: [
+      { id: 'user-1789900000000', role: 'user', text: '你好' },
+      { id: 'agent-1789900000001', role: 'agent', text: '', error: '连接模型失败' },
+    ],
+    error: '连接模型失败',
+    streaming: false,
+    runStartedAt: '2026-09-25T00:00:00.000Z',
+    messageStart: 0,
+  })
+  const emptyHistory = reconcileLiveSnapshot(current, {
+    messages: [],
+    pageInfo: { start: 0 },
+    streaming: false,
+    tools: [],
+    error: '',
+  })
+  assert.deepEqual(
+    emptyHistory.messages.map(({ role, text }) => [role, text]),
+    [
+      ['user', '你好'],
+      ['agent', ''],
+    ],
+  )
+  assert.equal(emptyHistory.error, '连接模型失败')
+
+  const repeatedText = reconcileLiveSnapshot(current, {
+    messages: [
+      {
+        id: 'saved-previous-user',
+        role: 'user',
+        text: '你好',
+        timestamp: '2026-09-24T00:00:00.000Z',
+      },
+      { id: 'saved-previous-agent', role: 'agent', text: '上次回复' },
+    ],
+    pageInfo: { start: 0 },
+    streaming: false,
+    tools: [],
+    error: '',
+  })
+  assert.deepEqual(
+    repeatedText.messages.map(({ id }) => id),
+    ['saved-previous-user', 'saved-previous-agent', 'user-1789900000000', 'agent-1789900000001'],
+  )
+  assert.equal(repeatedText.error, '连接模型失败')
+
+  const savedUserOnly = reconcileLiveSnapshot(current, {
+    messages: [
+      {
+        id: 'saved-current-user',
+        role: 'user',
+        text: '你好',
+        timestamp: '2026-09-25T00:00:01.000Z',
+      },
+    ],
+    pageInfo: { start: 0 },
+    streaming: false,
+    tools: [],
+    error: '',
+  })
+  assert.deepEqual(
+    savedUserOnly.messages.map(({ id }) => id),
+    ['saved-current-user', 'agent-1789900000001'],
+  )
+  assert.equal(savedUserOnly.error, '连接模型失败')
+
+  const savedHistory = reconcileLiveSnapshot(current, {
+    messages: [
+      { id: 'saved-user', role: 'user', text: '你好', timestamp: '2026-09-25T00:00:01.000Z' },
+      { id: 'saved-agent', role: 'agent', text: '已收到' },
+    ],
+    pageInfo: { start: 0 },
+    streaming: false,
+    tools: [],
+    error: '',
+  })
+  assert.deepEqual(
+    savedHistory.messages.map(({ id }) => id),
+    ['saved-user', 'saved-agent'],
+  )
+
+  const running = reconcileLiveSnapshot(current, {
+    messages: [],
+    pageInfo: { start: 0 },
+    streaming: true,
+    tools: [],
+  })
+  assert.equal(
+    running.messages.some(({ id }) => id === 'user-1789900000000'),
+    false,
+  )
+})
+
 test('live and terminal reconciliation preserve explicit Plan and Team clears', () => {
   const current = sessionState({
     streaming: true,

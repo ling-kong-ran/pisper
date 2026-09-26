@@ -60,7 +60,7 @@ export function ConfigPage({
   } else if (section === 'updates') {
     content = <UpdateSettings notify={notify} update={update} />
   } else if (section === 'about') {
-    content = <AboutSettings update={update} />
+    content = <AboutSettings update={update} notify={notify} />
   } else {
     content = (
       <ModelsSettings

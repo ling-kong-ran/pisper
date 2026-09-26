@@ -6,6 +6,9 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 const APP_MANIFEST_URL: &str = "https://ling-kong-ran.github.io/pisper/latest-app.json";
+// Pages 会跳转到自定义域名；该域名不可达时仍可从同一仓库读取原始清单。
+const APP_MANIFEST_FALLBACK_URL: &str =
+    "https://raw.githubusercontent.com/ling-kong-ran/pisper/release/docs/latest-app.json";
 const APP_RELEASES_URL: &str = "https://github.com/ling-kong-ran/pisper/releases?q=app-v";
 const APP_RELEASE_PATH: &str = "/ling-kong-ran/pisper/releases";
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
@@ -171,20 +174,25 @@ fn validate_manifest(
     })
 }
 
-async fn fetch_update(current_version: &str) -> Result<MobileAppUpdateStatus, String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("无法初始化 App 更新检查：{error}"))?;
-    let response = client
-        .get(APP_MANIFEST_URL)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .send()
-        .await
-        .map_err(|error| format!("无法获取 App 更新清单：{error}"))?;
-    if !response.status().is_success() {
-        return Err(format!("App 更新检查失败：HTTP {}", response.status()));
+async fn fetch_manifest(client: &reqwest::Client, urls: &[&str]) -> Result<AppManifest, String> {
+    let mut last_error = String::new();
+    let mut response = None;
+    for url in urls {
+        match client
+            .get(*url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .send()
+            .await
+        {
+            Ok(next) if next.status().is_success() => {
+                response = Some(next);
+                break;
+            }
+            Ok(next) => last_error = format!("HTTP {} ({url})", next.status()),
+            Err(error) => last_error = error.to_string(),
+        }
     }
+    let response = response.ok_or_else(|| format!("无法获取 App 更新清单：{last_error}"))?;
     if response.content_length().unwrap_or(0) > MAX_MANIFEST_BYTES as u64 {
         return Err("App 更新清单过大。".into());
     }
@@ -195,8 +203,16 @@ async fn fetch_update(current_version: &str) -> Result<MobileAppUpdateStatus, St
     if bytes.len() > MAX_MANIFEST_BYTES {
         return Err("App 更新清单过大。".into());
     }
-    let manifest = serde_json::from_slice::<AppManifest>(&bytes)
-        .map_err(|error| format!("App 更新清单格式无效：{error}"))?;
+    serde_json::from_slice::<AppManifest>(&bytes)
+        .map_err(|error| format!("App 更新清单格式无效：{error}"))
+}
+
+async fn fetch_update(current_version: &str) -> Result<MobileAppUpdateStatus, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("无法初始化 App 更新检查：{error}"))?;
+    let manifest = fetch_manifest(&client, &[APP_MANIFEST_URL, APP_MANIFEST_FALLBACK_URL]).await?;
     validate_manifest(manifest, current_version)
 }
 
@@ -371,7 +387,7 @@ pub fn check_after_resume(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_allowed_update_url, validate_manifest, AppManifest};
+    use super::{fetch_manifest, is_allowed_update_url, validate_manifest, AppManifest};
 
     fn manifest(version: &str) -> AppManifest {
         AppManifest {
@@ -430,5 +446,55 @@ mod tests {
         assert!(is_allowed_update_url(
             "https://github.com/ling-kong-ran/pisper/releases/download/app-v0.2.0/app.apk"
         ));
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_repository_manifest_when_pages_is_unavailable() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("test listener");
+        let base = format!(
+            "http://{}",
+            listener.local_addr().expect("listener address")
+        );
+        let fallback_body = serde_json::json!({
+            "version": "0.2.0",
+            "tag": "app-v0.2.0",
+            "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.2.0",
+            "apk": "app-universal-release-signed.apk"
+        })
+        .to_string();
+        let server = tokio::spawn(async move {
+            for (status, body) in [
+                ("503 Service Unavailable", ""),
+                ("200 OK", fallback_body.as_str()),
+            ] {
+                let (mut socket, _) = listener.accept().await.expect("test connection");
+                let mut request = [0_u8; 1024];
+                socket.read(&mut request).await.expect("read request");
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket
+                    .write_all(response.as_bytes())
+                    .await
+                    .expect("write response");
+            }
+        });
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .expect("test client");
+        let primary = format!("{base}/primary");
+        let fallback = format!("{base}/fallback");
+        let manifest = fetch_manifest(&client, &[&primary, &fallback])
+            .await
+            .expect("fallback manifest");
+        server.await.expect("test server");
+        assert_eq!(manifest.version, "0.2.0");
     }
 }

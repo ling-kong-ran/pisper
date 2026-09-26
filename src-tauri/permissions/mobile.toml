@@ -31,4 +31,5 @@ commands.allow = [
   "mobile_app_info",
   "mobile_check_app_update",
   "mobile_open_app_update",
+  "mobile_open_external_url",
 ]

@@ -309,7 +309,7 @@ export class AgentRuntimeFacade {
           enabled: state.piExtensions?.[plugin.packageSource] !== false,
         })),
       })),
-      ...(this.capabilities?.features?.browserAutomation
+      ...(this.capabilities?.features?.computerUse
         ? [bridgeOfficialComputerUsePlugin({ enabled: state.computerUseEnabled !== false })]
         : []),
     ]
@@ -334,6 +334,8 @@ export class AgentRuntimeFacade {
     )
     const visibleState = {
       ...state,
+      computerUseEnabled:
+        this.capabilities?.features?.computerUse !== false && state.computerUseEnabled !== false,
       plugins,
       tools: stateTools.filter((tool) => visibleToolNames.has(tool.id)),
       presets: Object.fromEntries(
@@ -816,12 +818,11 @@ export class AgentRuntimeFacade {
     const [current, visible] = await Promise.all([this.toolPlugins.getState(), this.getPlugins()])
     const visibleToolNames = new Set(visible.tools.map((tool) => tool.id))
     const preservedToolNames = current.enabledTools.filter((tool) => !visibleToolNames.has(tool))
+    const requested = { ...input }
+    if (this.capabilities?.features?.computerUse === false) delete requested.computerUseEnabled
     await this.toolPlugins.saveState({
-      ...input,
+      ...requested,
       enabledTools: [...new Set([...(input?.enabledTools || []), ...preservedToolNames])],
-      ...(typeof input?.computerUseEnabled === 'boolean'
-        ? { computerUseEnabled: input.computerUseEnabled }
-        : {}),
     })
     this.invalidateSessionRuntimes()
     return await this.getPlugins()

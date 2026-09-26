@@ -77,3 +77,14 @@ test('移动桥只开放受控的 App 更新命令', async () => {
   assert.match(implementation, /github\.com\/ling-kong-ran\/pisper\/releases/)
   assert.match(implementation, /AUTOMATIC_CHECK_INTERVAL/)
 })
+
+test('移动端公开 HTTPS 更新请求加载可信根证书，配对连接仍独立锁定指纹', async () => {
+  const [manifest, pinning] = await Promise.all([
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('src-tauri/src/mobile/pinning.rs', 'utf8'),
+  ])
+
+  assert.match(manifest, /reqwest = \{[\s\S]*?"rustls-tls-webpki-roots"[\s\S]*?\]/)
+  assert.match(pinning, /use_preconfigured_tls\(tls\)/)
+  assert.match(pinning, /with_custom_certificate_verifier/)
+})
