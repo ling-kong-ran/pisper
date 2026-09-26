@@ -1,6 +1,6 @@
 // 更新设置：检查/下载/安装桌面端与组件（TUI/Runtime）更新，
 // 展示版本、变更日志与安装进度。
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import {
   ArrowRight,
   CheckCircle2,
@@ -28,6 +28,7 @@ import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues, SupportedLanguage } from '@/app/i18n'
 import { apiJson } from '@/lib/api'
+import { openMobileExternalLink } from '@/lib/mobile-external-link'
 import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
@@ -169,6 +170,10 @@ export function UpdateSettings({
 
   const openReleases = () => update?.openReleases()
   const openUpdateLog = () => update?.openUpdateLog?.()
+  const openSponsorLink = (event: MouseEvent<HTMLAnchorElement>) => {
+    const pending = openMobileExternalLink(event, event.currentTarget.href)
+    void pending?.catch(() => notify(t('config:aboutSettings.openLinkFailed'), 'error'))
+  }
 
   // 下载/安装更新：桌面端安装全部组件，Web 端仅下载；失败提示。
   const download = async () => {
@@ -535,7 +540,13 @@ export function UpdateSettings({
                   </small>
                 </span>
                 <Button asChild variant="outline" className="bg-surface-subtle">
-                  <a href={sponsor.href} target="_blank" rel="noopener noreferrer sponsored">
+                  <a
+                    href={sponsor.href}
+                    target="_blank"
+                    rel="noopener noreferrer sponsored"
+                    data-web-preview="external"
+                    onClick={openSponsorLink}
+                  >
                     <ExternalLink size={13} />
                     {t('config:updateSettings.visitSponsor')}
                   </a>

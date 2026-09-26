@@ -36,6 +36,7 @@ function AboutLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      data-web-preview="external"
       onClick={onClick}
     >
       <span className="grid size-8 place-items-center rounded-[var(--r-xs)] bg-[var(--surface-muted)] text-[var(--text-muted)] transition-colors group-hover:text-[var(--star-strong)]">
@@ -118,7 +119,13 @@ export function AboutSettings({ update, notify }: { update: AppUpdateController;
             </p>
           </div>
           <Button asChild size="lg" className="max-[540px]:w-full">
-            <a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer" onClick={openLink}>
+            <a
+              href={REPOSITORY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-web-preview="external"
+              onClick={openLink}
+            >
               <Star size={15} />
               {t('config:aboutSettings.starOnGitHub')}
             </a>

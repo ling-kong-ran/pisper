@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 
 import { openMobileExternalLink } from '../../src/lib/mobile-external-link.ts'
+import { shouldOpenWebPreview } from '../../src/lib/web-preview.ts'
 
 test('mobile external browser command is registered and permitted', async () => {
   const [registration, permissions] = await Promise.all([
@@ -74,4 +75,29 @@ test('mobile links report a missing native bridge without navigating the WebView
   )
   assert.equal(prevented, true)
   await assert.rejects(opened, /原生桥不可用/)
+})
+
+test('settings external links bypass the capture preview before native click handlers run', async () => {
+  const [about, updates] = await Promise.all([
+    readFile(new URL('../../src/features/config/AboutSettings.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/config/UpdateSettings.tsx', import.meta.url), 'utf8'),
+  ])
+  const aboutAnchors = [...about.matchAll(/<a\b[^>]*>/g)]
+  assert.equal(aboutAnchors.length, 2)
+  for (const [anchor] of aboutAnchors) {
+    assert.match(anchor, /data-web-preview="external"/)
+    assert.match(anchor, /onClick=/)
+  }
+  assert.match(
+    updates,
+    /<a\s+href=\{sponsor\.href\}[\s\S]*?data-web-preview="external"[\s\S]*?onClick=\{openSponsorLink\}/,
+  )
+  assert.equal(
+    shouldOpenWebPreview({
+      href: 'https://github.com/ling-kong-ran/pisper',
+      baseUrl: 'http://127.0.0.1:5173/#/config/about',
+      behavior: 'external',
+    }),
+    null,
+  )
 })
