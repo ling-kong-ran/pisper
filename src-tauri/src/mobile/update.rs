@@ -473,7 +473,8 @@ mod tests {
             ] {
                 let (mut socket, _) = listener.accept().await.expect("test connection");
                 let mut request = [0_u8; 1024];
-                socket.read(&mut request).await.expect("read request");
+                let read = socket.read(&mut request).await.expect("read request");
+                assert!(read > 0, "request must contain data");
                 let response = format!(
                     "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
