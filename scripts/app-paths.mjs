@@ -24,6 +24,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/build-mobile-android.mjs',
   'scripts/build-mobile-node-ios.sh',
   'scripts/build-mobile-runtime.mjs',
+  'scripts/smoke-mobile-runtime.mjs',
   'scripts/mobile-node-artifacts.json',
   'scripts/mobile-node-ios-smoke-view-controller.m',
   'scripts/patch-wry-android.mjs',

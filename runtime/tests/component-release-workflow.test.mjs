@@ -184,6 +184,7 @@ test('release paths select one or every affected component without coupling docu
   assert.deepEqual(releaseComponentsForPath('src-tauri/mobile-package.json'), [])
   assert.deepEqual(releaseComponentsForPath('.github/workflows/release-app.yml'), [])
   assert.deepEqual(releaseComponentsForPath('scripts/build-mobile-android.mjs'), [])
+  assert.deepEqual(releaseComponentsForPath('scripts/smoke-mobile-runtime.mjs'), [])
   assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])
   assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['runtime'])
   assert.deepEqual(releaseComponentsForPath('src/features/chat/ChatPage.tsx'), ['desktop'])
