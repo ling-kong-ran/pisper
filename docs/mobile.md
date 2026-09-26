@@ -35,7 +35,9 @@ Release 同时提供资产的 Minisign 签名文件。iOS IPA 的“未签名”
 - Google Play 与 App Store 构建只通过对应商店更新，不检查、下载或打开 GitHub 安装包。
 - GitHub Android 侧载版会检查独立的 `app-v*` 发布清单，并在 **设置 -> 应用更新** 打开已签名 APK；安装仍由 Android 系统确认，不会绕过未知来源授权。
 - GitHub iOS 版会打开未签名 IPA；受 Apple 签名机制限制，仍需重签后安装，不能在 App 内静默替换。
-- GitHub 更新清单仅接受 Pisper Release 的 HTTPS 地址、匹配的 `app-v<version>` 标签和安全资产名；Android 还会校验 APK 应用签名。
+- 侧载包优先从项目主页读取更新清单；主页不可用时会尝试仓库 `release` 分支的原始清单。清单仅接受 Pisper Release 的 HTTPS 地址、匹配的 `app-v<version>` 标签和安全资产名；Android 还会校验 APK 应用签名。
+
+移动端“关于”页面的外部链接由系统浏览器打开。
 
 ## 本机运行
 
@@ -49,6 +51,9 @@ bootstrap token 的 READY 文件，然后打开正常 Pisper React 界面。Prov
 Android/iOS embedded Node 没有 `child_process` 等宿主能力时，终端、VCS、MCP stdio、工作流、
 计划任务、多 Agent 和第三方插件执行会按 `/api/runtime/capabilities` 从导航与 API 中同时关闭；
 内置工具目录与 Web Search 设置不会因 plugin worker 缺失而消失。
+
+本机 Android/iOS Runtime 不打包、加载或开放 Pi Computer Use；手机会话仍可使用受支持的
+本机工具。连接 Desktop Runtime 时，Computer Use 是否可用由桌面端的能力和设置决定。
 
 当前 Provider 凭据保存在 App 私有数据目录，依赖系统沙箱和文件权限保护，尚未接入 Android
 Keystore / iOS Keychain。不要导出或分享 App 私有数据。

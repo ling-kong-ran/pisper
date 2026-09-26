@@ -1,7 +1,10 @@
 // 关于页集中展示版本、项目链接与许可证，并把社区支持入口放在用户主动查看的位置。
+import type { MouseEvent } from 'react'
 import { Code2, ExternalLink, Globe2, Scale, Star, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import type { Notify } from '@/app/route-context'
 import { Button } from '@/components/ui/button'
+import { openMobileExternalLink } from '@/lib/mobile-external-link'
 import type { AppUpdateController } from '@/types/update'
 import {
   SettingsBadge as Badge,
@@ -19,11 +22,13 @@ function AboutLink({
   icon: Icon,
   label,
   value,
+  onClick,
 }: {
   href: string
   icon: LucideIcon
   label: string
   value: string
+  onClick: (event: MouseEvent<HTMLAnchorElement>) => void
 }) {
   return (
     <a
@@ -31,6 +36,8 @@ function AboutLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      data-web-preview="external"
+      onClick={onClick}
     >
       <span className="grid size-8 place-items-center rounded-[var(--r-xs)] bg-[var(--surface-muted)] text-[var(--text-muted)] transition-colors group-hover:text-[var(--star-strong)]">
         <Icon size={16} />
@@ -49,9 +56,13 @@ function AboutLink({
   )
 }
 
-export function AboutSettings({ update }: { update: AppUpdateController }) {
+export function AboutSettings({ update, notify }: { update: AppUpdateController; notify: Notify }) {
   const { t } = useI18n()
   const version = update.info?.version || BUILD_VERSION
+  const openLink = (event: MouseEvent<HTMLAnchorElement>) => {
+    const pending = openMobileExternalLink(event, event.currentTarget.href)
+    void pending?.catch(() => notify(t('config:aboutSettings.openLinkFailed'), 'error'))
+  }
 
   return (
     <div className="mx-auto flex w-full  flex-col gap-3">
@@ -80,18 +91,21 @@ export function AboutSettings({ update }: { update: AppUpdateController }) {
             icon={Globe2}
             label={t('config:aboutSettings.website')}
             value="ling-kong-ran.github.io/pisper"
+            onClick={openLink}
           />
           <AboutLink
             href={REPOSITORY_URL}
             icon={Code2}
             label={t('config:aboutSettings.sourceCode')}
             value="github.com/ling-kong-ran/pisper"
+            onClick={openLink}
           />
           <AboutLink
             href={LICENSE_URL}
             icon={Scale}
             label={t('config:aboutSettings.license')}
             value="MIT License"
+            onClick={openLink}
           />
         </div>
       </Panel>
@@ -105,7 +119,13 @@ export function AboutSettings({ update }: { update: AppUpdateController }) {
             </p>
           </div>
           <Button asChild size="lg" className="max-[540px]:w-full">
-            <a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer">
+            <a
+              href={REPOSITORY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-web-preview="external"
+              onClick={openLink}
+            >
               <Star size={15} />
               {t('config:aboutSettings.starOnGitHub')}
             </a>

@@ -41,12 +41,30 @@ test('floating widget preferences preserve explicit choices and validate persist
       assert.deepEqual(store.getState().prefs, {})
       assert.equal(store.getState().storageError, false)
       assert.equal(writes, 0)
-      assert.deepEqual(resolveFloatingWidgetIds(['pisper-island'], store.getState().prefs), [
-        'pisper-island',
-      ])
+      assert.deepEqual(resolveFloatingWidgetIds(['pisper-island'], store.getState().prefs), [])
       assert.equal(writes, 0)
       assert.deepEqual(store.getState().prefs, {})
     })
+
+    await t.test(
+      'built-in island requires explicit opt-in even with an older template node',
+      async () => {
+        const defaults = ['pisper-island', 'weather']
+        await seed({ prefs: {} })
+        assert.deepEqual(resolveFloatingWidgetIds(defaults, store.getState().prefs), ['weather'])
+        await seed({ prefs: { 'pisper-island': true } })
+        assert.deepEqual(resolveFloatingWidgetIds(defaults, store.getState().prefs), [
+          'pisper-island',
+          'weather',
+        ])
+        await seed({ prefs: { 'pisper-island': false } })
+        assert.deepEqual(resolveFloatingWidgetIds(defaults, store.getState().prefs), ['weather'])
+        store.getState().setVisible('pisper-island', true)
+        assert.deepEqual(resolveFloatingWidgetIds([], store.getState().prefs), ['pisper-island'])
+        await store.persist.rehydrate()
+        assert.equal(store.getState().prefs['pisper-island'], true)
+      },
+    )
 
     await t.test(
       'explicit false overrides defaults and true adds unique components in stable order',

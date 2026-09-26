@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stageRuntimeClosure } from './stage-runtime-closure.mjs'
 import { createMobileRuntimeArchive } from './mobile-runtime-archive.mjs'
+import { smokeMobileRuntime } from './smoke-mobile-runtime.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const releaseDir = join(root, 'release')
@@ -29,6 +30,7 @@ const manifest = await stageRuntimeClosure({
   includeSpeechModel: false,
 })
 await cp(join(root, 'dist'), join(runtimeDir, 'dist'), { recursive: true, force: true })
+await smokeMobileRuntime({ runtimeDir, runtimeProfile })
 await createMobileRuntimeArchive({ runtimeDir, output, appVersion, runtimeProfile })
 console.log(
   `Mobile Runtime staged: ${output} (${(manifest.runtime.afterPrune.bytes / 1024 / 1024).toFixed(1)} MiB before frontend)`,

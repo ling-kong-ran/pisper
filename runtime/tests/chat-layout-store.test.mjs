@@ -4,6 +4,7 @@ import {
   CHAT_LAYOUT_SAVED_LIMIT,
   DEFAULT_CHAT_LAYOUT,
 } from '../../src/features/chat/layout/chat-layout.ts'
+import { createDefaultCanvas } from '../../src/features/chat/layout/chat-canvas.ts'
 
 const STORAGE_KEY = 'pisper-chat-layout'
 const CONTEXT_KEY = 'pisper-session-context-layout'
@@ -57,6 +58,29 @@ test('chat layout preferences preserve user layouts, validate reloads and surviv
       assert.equal(context.getState().width, 512)
       assert.equal(writes, 0)
     })
+
+    await t.test(
+      'an existing layout keeps its island node without rewriting stored data',
+      async () => {
+        const oldClassic = layout('Old classic')
+        for (const device of ['desktop', 'mobile']) {
+          oldClassic[device].canvas = createDefaultCanvas({
+            composerPosition: 'bottom',
+            includeIsland: true,
+          })
+        }
+        const before = writes
+        await seed({ active: oldClassic, saved: [] })
+        for (const device of ['desktop', 'mobile']) {
+          assert.equal(
+            store.getState().active[device].canvas.children[1].componentId,
+            'pisper-island',
+          )
+        }
+        assert.equal(writes, before)
+        assert.deepEqual(JSON.parse(values.get(STORAGE_KEY)).state.active, oldClassic)
+      },
+    )
 
     await t.test('apply validates and copies the template, applying context width once', () => {
       const template = layout('My layout')

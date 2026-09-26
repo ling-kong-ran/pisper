@@ -83,6 +83,7 @@ function buildCapabilities({
     channels: !embedded,
     workflows: !embedded,
     schedules: !embedded,
+    computerUse: profile === 'desktop',
     browserAutomation: profile === 'desktop',
     remoteAccess: profile === 'desktop',
     desktopPet: profile === 'desktop',

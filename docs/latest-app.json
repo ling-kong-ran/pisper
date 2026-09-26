@@ -1,9 +1,9 @@
 {
-  "version": "0.1.50",
-  "tag": "app-v0.1.50",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.50",
+  "version": "0.1.51",
+  "tag": "app-v0.1.51",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.51",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- test(ios): await speech download completion before asserting\n- chore(release-runtime): runtime-v0.5.57\n- fix(mcp): keep host panel within CSS bundle budget\n- feat(mcp): expose opt-in local Pisper MCP server\n- feat(custom-ui): add floating widgets and adjustable island timer\n- feat(chat): add customizable layouts and named template library\n- fix(config): replace provider discovery popup with an inline hint\n- feat(chat): add resizable context panel and consolidate file review",
-  "releaseDate": "2026-09-24"
+  "notes": "- test(ios): isolate symlink proof from async model install\n- chore(release-runtime): runtime-v0.5.58\n- test(mobile): assert update probe request data\n- fix(mobile): open settings links in system browser\n- fix(release): scope mobile runtime smoke to app\n- fix(custom-ui): keep Dynamic Island off by default\n- fix(mobile): restore chat, updates and external links",
+  "releaseDate": "2026-09-26"
 }

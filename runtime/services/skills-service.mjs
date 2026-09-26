@@ -49,8 +49,8 @@ export function isOfficialComputerUseSource(source) {
   return /(?:^|[/:@])(?:injaneity[/:])?pi-computer-use(?:$|[@#?/:])/i.test(String(source || ''))
 }
 
-export function extensionSafeSettingsManager(settingsManager) {
-  if (!isMobileRuntime() || !settingsManager) return settingsManager
+export function extensionSafeSettingsManager(settingsManager, computerUseAvailable = true) {
+  if ((computerUseAvailable && !isMobileRuntime()) || !settingsManager) return settingsManager
   return new Proxy(settingsManager, {
     get(target, property, receiver) {
       if (property === 'getGlobalSettings' || property === 'getProjectSettings') {
@@ -439,6 +439,7 @@ export class SkillsService {
     configPath,
     extensionFactories = [],
     decisionService = null,
+    computerUseAvailable = true,
   } = {}) {
     this.path = path
     this.agentDir = agentDir
@@ -449,6 +450,7 @@ export class SkillsService {
     this.createPackageManager = createPackageManager || null
     this.extensionFactories = extensionFactories
     this.decisionService = decisionService
+    this.computerUseAvailable = computerUseAvailable
     this.state = { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }
     this.write = Promise.resolve()
     this.createWrite = Promise.resolve()
@@ -515,7 +517,10 @@ export class SkillsService {
     { includeDisabled = false, appendSystemPrompt = '' } = {},
   ) {
     process.env.PI_CODING_AGENT_DIR = this.agentDir
-    const settingsManager = extensionSafeSettingsManager(this.getSettingsManager(cwd))
+    const settingsManager = extensionSafeSettingsManager(
+      this.getSettingsManager(cwd),
+      this.computerUseAvailable,
+    )
     const resources = await this.resolveSkillResources(cwd)
     const promptDir = projectPromptsDir(cwd)
     const appConfig = this.configPath ? await readJson(this.configPath, {}) : {}
@@ -545,23 +550,25 @@ export class SkillsService {
       noExtensions: false,
       noSkills: true,
       additionalExtensionPaths:
-        !isMobileRuntime() && computerUseEnabled
+        this.computerUseAvailable && !isMobileRuntime() && computerUseEnabled
           ? [getOfficialComputerUseExtensionPath(), getComputerUseOcrExtensionPath()]
           : [],
       additionalSkillPaths: resources.map((item) => item.path),
-      extensionsOverride: (current) =>
-        withComputerUseVerification(
-          {
-            ...current,
-            extensions: current.extensions.filter(
-              (extension) =>
-                !disabledExtensionRoots.some((root) =>
-                  pathInside(root, extension.resolvedPath || extension.path),
-                ),
-            ),
-          },
-          this.decisionService,
-        ),
+      extensionsOverride: (current) => {
+        const enabled = {
+          ...current,
+          extensions: current.extensions.filter(
+            (extension) =>
+              !disabledExtensionRoots.some((root) =>
+                pathInside(root, extension.resolvedPath || extension.path),
+              ),
+          ),
+        }
+        // 手机包刻意裁掉桌面 Computer Use；会话加载时不能为了装饰它而解析已裁掉的包。
+        return !this.computerUseAvailable || isMobileRuntime()
+          ? enabled
+          : withComputerUseVerification(enabled, this.decisionService)
+      },
       ...(existsSync(promptDir)
         ? {
             additionalPromptTemplatePaths: [promptDir],
@@ -952,7 +959,11 @@ export class SkillsService {
       source: PI_PACKAGE_CATALOG_URL,
       query: normalizedQuery,
       page: normalizedPage,
-      packages: parsePackageCatalog(await response.text(), normalizedQuery),
+      packages: parsePackageCatalog(await response.text(), normalizedQuery).filter(
+        (item) =>
+          (this.computerUseAvailable && !isMobileRuntime()) ||
+          !isOfficialComputerUseSource(item.name),
+      ),
     }
   }
 
@@ -960,7 +971,13 @@ export class SkillsService {
     const manager = await this.packageManager(cwd)
     const packages = manager
       .listConfiguredPackages()
-      .filter((item) => !(isMobileRuntime() && isOfficialComputerUseSource(item.source)))
+      .filter(
+        (item) =>
+          !(
+            (!this.computerUseAvailable || isMobileRuntime()) &&
+            isOfficialComputerUseSource(item.source)
+          ),
+      )
       .map((item) => {
         const manifest = extensionManifest(item.installedPath)
         return {
@@ -988,7 +1005,7 @@ export class SkillsService {
   // 安装扩展包前先解析其 Pi manifest，避免把只包含 Skill 的包误加入扩展市场。
   async installExtension(input = {}, { cwd = this.cwd } = {}) {
     const source = extensionSource(input.source)
-    if (isMobileRuntime() && isOfficialComputerUseSource(source))
+    if ((!this.computerUseAvailable || isMobileRuntime()) && isOfficialComputerUseSource(source))
       throw new Error('computer-use 仅支持桌面 Runtime，移动端无法安装。')
     const local = input.scope === 'project'
     const manager = await this.packageManager(cwd)

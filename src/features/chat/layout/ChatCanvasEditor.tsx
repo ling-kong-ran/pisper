@@ -16,6 +16,7 @@ import {
   type ChatCanvasNode,
 } from './chat-canvas'
 import { parseCanvasCss } from './chat-canvas-style'
+import { collectFloatingCanvasIslands } from './chat-canvas-render'
 import {
   CANVAS_KIND_DRAG,
   CANVAS_CUSTOM_UI_DRAG,
@@ -90,11 +91,13 @@ export function ChatCanvasEditor({
   mobile,
   onChange,
   onValidityChange,
+  onAddComponent,
 }: {
   root: ChatCanvasNode
   mobile: boolean
   onChange: (root: ChatCanvasNode) => void
   onValidityChange: (valid: boolean) => void
+  onAddComponent?: (componentId: string, nodeId: string) => void
 }) {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState(root.id)
@@ -156,6 +159,7 @@ export function ChatCanvasEditor({
       const next = addCanvasNode(root, targetContainer.id, kind, componentId)
       const added = findCanvasNode(next, targetContainer.id)?.children?.at(-1)
       commit(next)
+      if (kind === 'custom-ui' && componentId && added) onAddComponent?.(componentId, added.id)
       if (added) setSelectedId(added.id)
     } catch {
       setError(t('chat-layout:canvas.operationError'))
@@ -199,6 +203,18 @@ export function ChatCanvasEditor({
     const index = parent?.children?.findIndex((node) => node.id === selected.id) ?? -1
     if (parent && index >= 0) run(() => moveCanvasNode(root, selected.id, parent.id, index + delta))
   }
+  const copy = () => {
+    try {
+      const next = copyCanvasNode(root, selected.id)
+      const existingIds = new Set(collectFloatingCanvasIslands(root).map((node) => node.id))
+      commit(next)
+      for (const node of collectFloatingCanvasIslands(next)) {
+        if (!existingIds.has(node.id)) onAddComponent?.('pisper-island', node.id)
+      }
+    } catch {
+      setError(t('chat-layout:canvas.operationError'))
+    }
+  }
   const dropPosition = (event: DragEvent<HTMLElement>, node: ChatCanvasNode) => {
     const rect = event.currentTarget.getBoundingClientRect()
     const ratio = rect.height ? (event.clientY - rect.top) / rect.height : 0.5
@@ -232,6 +248,7 @@ export function ChatCanvasEditor({
     const kind = componentId
       ? 'custom-ui'
       : CANVAS_KINDS.find((entry) => entry === event.dataTransfer.getData(CANVAS_KIND_DRAG))
+    const addedComponentId = !nodeId && kind === 'custom-ui' ? componentId : ''
     try {
       let next = root
       let movingId = nodeId
@@ -248,6 +265,7 @@ export function ChatCanvasEditor({
       const index = zone === 'inside' ? siblings.length : anchorIndex + (zone === 'after' ? 1 : 0)
       next = moveCanvasNode(next, movingId, parent.id, index)
       commit(next)
+      if (addedComponentId) onAddComponent?.(addedComponentId, movingId)
       setSelectedId(movingId)
     } catch {
       setError(t('chat-layout:canvas.operationError'))
@@ -358,7 +376,7 @@ export function ChatCanvasEditor({
               onCss={changeCss}
               onText={(text) => run(() => updateCanvasNode(root, selected.id, { text }))}
               onMove={move}
-              onCopy={() => run(() => copyCanvasNode(root, selected.id))}
+              onCopy={copy}
               onDelete={() => run(() => removeCanvasNode(root, selected.id))}
               onMoveTo={(parentId) =>
                 run(() =>

@@ -7,6 +7,7 @@
 
 pub mod android_bridge;
 pub mod embedded_runtime;
+mod external_links;
 pub mod on_device_runtime;
 pub mod pairing;
 pub mod pinning;
@@ -1507,6 +1508,7 @@ pub fn run_mobile() {
             mobile_forget_server,
             mobile_import_workspace_directory,
             mobile_open_asset,
+            external_links::mobile_open_external_url,
             mobile_execute_device_operation,
             update::mobile_app_info,
             update::mobile_check_app_update,

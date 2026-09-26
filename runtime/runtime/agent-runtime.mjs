@@ -428,6 +428,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       cwd,
       configPath: this.appConfigPath,
       decisionService: this.decisions,
+      computerUseAvailable: this.capabilities?.features?.computerUse !== false,
       getSettingsManager: (skillsCwd = this.cwd) => {
         if (!this.settingsManager || workspacePathKey(skillsCwd) === workspacePathKey(this.cwd))
           return this.settingsManager

@@ -32,6 +32,7 @@ test('mobile embedded profile derives degradation from actual host modules', asy
   assert.equal(capabilities.features.vcs, false)
   assert.equal(capabilities.features.memory, false)
   assert.equal(capabilities.features.plugins, false)
+  assert.equal(capabilities.features.computerUse, false)
   assert.equal(capabilities.features.workflows, false)
   assert.deepEqual(capabilities.tools, [
     'edit',
@@ -85,6 +86,7 @@ test('store profile disables dynamic execution even when Node exposes the module
   assert.equal(capabilities.features.workers, false)
   assert.equal(capabilities.features.plugins, false)
   assert.equal(capabilities.features.mcp, false)
+  assert.equal(capabilities.features.computerUse, false)
   for (const unavailable of ['bash', 'grep', 'find', 'plugin_create', 'mcp_list', 'mcp_manage']) {
     assert.equal(capabilities.tools.includes(unavailable), false, unavailable)
   }
@@ -100,6 +102,7 @@ test('unknown profile cannot claim unavailable capabilities', async () => {
   assert.equal(capabilities.features.processes, false)
   assert.equal(capabilities.features.memory, false)
   assert.equal(capabilities.features.workers, false)
+  assert.equal(capabilities.features.computerUse, true)
 })
 
 test('embedded mobile profile keeps supported Node services without automation or desktop bridges', async () => {
@@ -119,6 +122,7 @@ test('embedded mobile profile keeps supported Node services without automation o
   assert.equal(capabilities.features.workflows, false)
   assert.equal(capabilities.features.terminal, false)
   assert.equal(capabilities.features.browserAutomation, false)
+  assert.equal(capabilities.features.computerUse, false)
   assert.equal(capabilities.features.remoteAccess, false)
   assert.equal(capabilities.features.desktopPet, false)
 })
@@ -168,6 +172,11 @@ test('embedded profile initializes the shared Agent runtime with only supported 
   assert.equal(catalogTools.includes('bash'), false)
   assert.equal(catalogTools.includes('memory_search'), false)
   assert.equal(catalogTools.includes('mcp_list'), false)
+  assert.equal(catalog.computerUseEnabled, false)
+  assert.equal(
+    catalog.plugins.some((plugin) => plugin.name === 'Computer Use'),
+    false,
+  )
   assert.equal(
     catalog.plugins.some((plugin) => !plugin.builtIn),
     false,

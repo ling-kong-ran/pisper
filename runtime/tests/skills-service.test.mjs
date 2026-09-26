@@ -162,6 +162,37 @@ test('extension marketplace parses the pi.dev package catalog and forwards searc
   ])
 })
 
+test('mobile extension catalog and installer exclude the desktop Computer Use package', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-mobile-extension-market-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(
+        '<a data-package-link href="/packages/%40injaneity%2Fpi-computer-use"><strong>@injaneity/pi-computer-use</strong></a><a data-package-link href="/packages/%40scope%2Fmobile-tools"><strong>@scope/mobile-tools</strong></a>',
+        { status: 200 },
+      ),
+  )
+  const service = new SkillsService({
+    path: join(directory, 'pisper-skills.json'),
+    agentDir: join(directory, 'agent'),
+    cwd: directory,
+    getSettingsManager: () => SettingsManager.inMemory(),
+    computerUseAvailable: false,
+  })
+  await service.init()
+  const catalog = await service.extensionMarketplace()
+  assert.deepEqual(
+    catalog.packages.map((item) => item.name),
+    ['@scope/mobile-tools'],
+  )
+  await assert.rejects(
+    service.installExtension({ source: 'npm:@injaneity/pi-computer-use@0.5.1' }),
+    /仅支持桌面 Runtime/,
+  )
+})
+
 test('extension installation uses Pi package settings and classifies prompt resources', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-extension-install-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

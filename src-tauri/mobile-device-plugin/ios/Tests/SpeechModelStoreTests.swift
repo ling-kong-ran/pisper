@@ -778,11 +778,21 @@ final class SpeechModelStoreTests: XCTestCase {
 
     func testVitsDictionarySymlinkCannotReuseSuccessfulProof() throws {
         let fixture = try fixture()
-        let store = try store(fixture)
+        let root = temporary.appendingPathComponent("store")
+        let store = try store(fixture, root: root)
         let id = "vits-melo-tts-zh_en"
-        _ = try store.startDownload(modelId: id)
-        try waitFor(store, id: id)
-        let directory = try store.modelDirectory(modelId: id)
+        let model = try store.model(id: id)
+        let directory = root.appendingPathComponent(id, isDirectory: true)
+        // 本例只验证已成功校验的目录证明；直接构造安装树，避免异步下载的耗时影响安全断言。
+        for file in model.files {
+            try write(directory.appendingPathComponent(file.path), fixture.content[file.path]!)
+        }
+        let marker: [String: Any] = [
+            "version": 1, "id": id, "fingerprint": model.fingerprint,
+            "files": model.files.map { ["path": $0.path, "bytes": $0.bytes, "sha256": $0.sha256] as [String: Any] },
+        ]
+        try write(directory.appendingPathComponent(SpeechFiles.marker), JSONSerialization.data(withJSONObject: marker))
+        XCTAssertEqual(try store.modelDirectory(modelId: id), directory)
         let dictionary = directory.appendingPathComponent("dict")
         let outside = temporary.appendingPathComponent("dictionary")
         try FileManager.default.moveItem(at: dictionary, to: outside)

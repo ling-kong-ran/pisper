@@ -47,7 +47,8 @@ http-body-util = "0.1"
 bytes = "1"
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls-manual-roots",
+  # 更新清单等公开 HTTPS 请求需要可信 CA；桌面配对仍由 pinning.rs 的自定义 TLS 指纹验证。
+  "rustls-tls-webpki-roots",
   "stream",
   # 本机 Runtime 的 Provider 调用需要 JSON 收发；桌面宿主靠其他依赖间接开启，
   # 移动端目标必须显式声明，不能依赖特性统一的偶然性。

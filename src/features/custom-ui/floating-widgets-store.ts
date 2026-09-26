@@ -43,7 +43,7 @@ function restorePreferences(value: unknown): FloatingWidgetsPreferences {
   return { prefs: restorePrefs(descriptor && 'value' in descriptor ? descriptor.value : null) }
 }
 
-// 模板仅提供默认项；用户明确关闭的组件不会被路由切换或模板重新应用自动打开。
+// 模板仅提供普通组件的默认项；内置灵动岛需要用户明确开启。
 export function resolveFloatingWidgetIds(
   defaults: readonly string[],
   preferences: Readonly<Record<string, boolean>>,
@@ -51,7 +51,8 @@ export function resolveFloatingWidgetIds(
   const prefs = restorePrefs(preferences)
   const ids = new Set<string>()
   for (const id of defaults) {
-    if (validComponentId(id) && prefs[id] !== false) ids.add(id)
+    if (validComponentId(id) && (id === 'pisper-island' ? prefs[id] === true : prefs[id] !== false))
+      ids.add(id)
   }
   for (const [id, visible] of Object.entries(prefs)) {
     if (visible) ids.add(id)

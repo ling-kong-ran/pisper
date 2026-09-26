@@ -19,6 +19,19 @@ export function collectFloatingCanvasIslands(root: ChatCanvasNode): ChatCanvasNo
   return (root.children ?? []).flatMap(collectFloatingCanvasIslands)
 }
 
+// 只有编辑器明确加入并最终保留灵动岛时，应用画布才将它作为用户开启意图。
+export function shouldEnableAddedIsland(
+  added: readonly { device: 'desktop' | 'mobile'; id: string }[],
+  desktop: ChatCanvasNode,
+  mobile: ChatCanvasNode,
+): boolean {
+  return added.some(({ device, id }) =>
+    collectFloatingCanvasIslands(device === 'desktop' ? desktop : mobile).some(
+      (node) => node.id === id,
+    ),
+  )
+}
+
 export function isChatCanvasSlotKind(kind: ChatCanvasKind): kind is ChatCanvasSlotKind {
   return CHAT_CANVAS_SLOT_KINDS.some((slot) => slot === kind)
 }

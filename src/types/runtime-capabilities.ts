@@ -22,6 +22,7 @@ export type RuntimeFeature =
   | 'channels'
   | 'workflows'
   | 'schedules'
+  | 'computerUse'
   | 'browserAutomation'
   | 'remoteAccess'
   | 'desktopPet'
@@ -65,6 +66,7 @@ const fullFeatures = {
   channels: true,
   workflows: true,
   schedules: true,
+  computerUse: true,
   browserAutomation: true,
   remoteAccess: true,
   desktopPet: true,

@@ -72,6 +72,57 @@ export function reconcileMessagePage(current: SessionState, data: ApiRecord) {
   }
 }
 
+// 模型在记录用户消息前就失败时，服务端历史仍停留在上一轮。错误后的快照
+// 不能因此抹掉刚发出的消息与失败原因，否则界面会短暂闪现输入后退回空会话。
+function preserveUnsavedFailedTurn(
+  current: SessionState,
+  data: ApiRecord,
+  page: ReturnType<typeof reconcileMessagePage>,
+) {
+  if (data.streaming || (!current.error && !data.error)) return { page, error: data.error || '' }
+  const submitted = current.messages.at(-2)
+  const response = current.messages.at(-1)
+  if (
+    submitted?.role !== 'user' ||
+    !/^user-\d+$/.test(submitted.id) ||
+    response?.role !== 'agent' ||
+    !/^agent-\d+$/.test(response.id)
+  )
+    return { page, error: data.error || '' }
+
+  // 同一句话可以连续发送多次；不能仅凭文本相同就把上一轮误认成本轮。
+  // Runtime 历史消息携带提交时间，而乐观消息只存在于当前客户端状态。
+  const submittedAt = Date.parse(current.runStartedAt || '')
+  const persistedUserIndex = page.messages.findIndex((message) => {
+    if (message.id === submitted.id) return true
+    if (message.role !== 'user' || !Number.isFinite(submittedAt)) return false
+    const persistedAt = new Date(message.timestamp).getTime()
+    return Number.isFinite(persistedAt) && persistedAt >= submittedAt
+  })
+  const hasPersistedResponse =
+    persistedUserIndex >= 0 &&
+    page.messages.slice(persistedUserIndex + 1).some((message) => message.role === 'agent')
+  if (hasPersistedResponse) return { page, error: data.error || '' }
+
+  const messages = [
+    ...page.messages,
+    ...(persistedUserIndex < 0 ? [submitted] : []),
+    { ...response, streaming: false, error: data.error || current.error || response.error },
+  ]
+  const overflow = Math.max(0, messages.length - MAX_FOCUS_MESSAGES)
+  const messageStart = page.messageStart + overflow
+  return {
+    page: {
+      ...page,
+      messages: overflow ? messages.slice(overflow) : messages,
+      messageStart,
+      hasOlder: messageStart > 0,
+      olderCursor: messageStart > 0 ? String(messageStart) : null,
+    },
+    error: data.error || current.error || '',
+  }
+}
+
 // 用一次实时快照（轮询/恢复）整体校准会话状态：
 // 非流式时工具调用统一结算并保留 agent 活动，流式中保留现场并清空思考。
 export function reconcileLiveSnapshot(
@@ -85,8 +136,9 @@ export function reconcileLiveSnapshot(
     current.switchingModel || current.switchingThinking || selectionChanged,
   )
   const finishedAt = data.finishedAt || current.runFinishedAt || fallbackFinishedAt
+  const reconciled = preserveUnsavedFailedTurn(current, data, reconcileMessagePage(current, data))
   return {
-    ...reconcileQueuedInputSnapshot({ ...current, ...reconcileMessagePage(current, data) }, data),
+    ...reconcileQueuedInputSnapshot({ ...current, ...reconciled.page }, data),
     tools: data.streaming
       ? data.tools || []
       : settleToolCalls(data.tools || [], { finishedAt, error: data.error || '' }),
@@ -98,7 +150,7 @@ export function reconcileLiveSnapshot(
     runNotice: data.streaming ? current.runNotice || '' : '',
     loaded: true,
     loading: false,
-    error: preserveSelection ? current.error : data.error || '',
+    error: preserveSelection ? current.error : reconciled.error,
     model: preserveSelection ? current.model : data.model || current.model,
     cwd: data.cwd || current.cwd,
     permissionMode: data.permissionMode || current.permissionMode,

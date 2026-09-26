@@ -11,6 +11,7 @@ import {
   collectChatCanvasSlots,
   createChatCanvasHosts,
   collectFloatingCanvasIslands,
+  shouldEnableAddedIsland,
 } from '../../src/features/chat/layout/chat-canvas-render.ts'
 import { parseChatCanvas } from '../../src/features/chat/layout/chat-canvas.ts'
 
@@ -159,7 +160,14 @@ test('built-in floating islands are collected separately and occupy no conversat
     leaf('composer'),
   ])
   assert.deepEqual(collectFloatingCanvasIslands(root), [island])
-  assert.deepEqual(collectFloatingCanvasIslands(canvas([leaf('messages'), leaf('composer')])), [])
+  const plain = canvas([leaf('messages'), leaf('composer')])
+  assert.deepEqual(collectFloatingCanvasIslands(plain), [])
+  const added = [{ device: 'desktop', id: 'my-island' }]
+  assert.equal(shouldEnableAddedIsland([], root, plain), false)
+  assert.equal(shouldEnableAddedIsland(added, root, plain), true)
+  assert.equal(shouldEnableAddedIsland(added, plain, plain), false)
+  assert.equal(shouldEnableAddedIsland(added, plain, root), false)
+  assert.equal(shouldEnableAddedIsland([{ device: 'desktop', id: 'removed' }], root, plain), false)
   const html = renderToStaticMarkup(
     React.createElement(ChatCanvasLayout, {
       root,
