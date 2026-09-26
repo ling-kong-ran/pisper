@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
+import { verifyMemoryLifecycle } from './smoke-zcode-memory-checks.mjs'
+import { verifyZcodeIteration } from './smoke-zcode-iteration-checks.mjs'
 import { DEFAULT_BRANCH } from '../shared/app-update.mjs'
 // Every held test response has a bounded wait, including failure-injection paths.
 async function within(promise, label, ms = 30000) {
@@ -26,6 +28,13 @@ const output = await mkdtemp(join(tmpdir(), 'pisper-zcode-ui-'))
 const dataDir = join(output, 'agent')
 const workspace = join(output, 'workspace')
 await mkdir(workspace)
+// 所有 CLI 扫描限于空的隔离 home，页面路由 mock 之外再提供后端安全边界。
+const fixtureHome = join(output, 'home')
+await mkdir(fixtureHome)
+process.env.HOME = fixtureHome
+process.env.USERPROFILE = fixtureHome
+process.env.CODEX_HOME = join(fixtureHome, '.codex')
+process.env.CLAUDE_CONFIG_DIR = join(fixtureHome, '.claude')
 process.env.PI_SKIP_VERSION_CHECK = '1'
 process.env.PI_TELEMETRY = '0'
 process.env.PISPER_AGENT_DIR = dataDir
@@ -52,7 +61,7 @@ const report = {
   backend: base,
   fixture: 'loopback-only OpenAI-compatible SSE, no external model',
   status: 'running',
-  mockedServices: ['provider discovery', 'GitHub update check'],
+  mockedServices: ['provider discovery', 'local CLI auto-import', 'GitHub update check'],
   checks: [],
   requests: 0,
   stopConnectionClosed: false,
@@ -219,7 +228,19 @@ try {
       sessionId = r.postDataJSON().sessionId
   })
   // 网络发现与 GitHub 更新不是本地界面验收目标，固定结果避免依赖网络及未推送的 HEAD。
-  await page.route('**/api/providers/discovery', (r) => r.fulfill({ json: { providers: [] } }))
+  await page.route('**/api/providers/discovery', (r) =>
+    r.fulfill({ json: { providers: [], errors: [] } }),
+  )
+  await page.route('**/api/providers/import-local', async (r) =>
+    r.fulfill({
+      json: {
+        config: await api('/api/config'),
+        discovery: { providers: [], errors: [] },
+        imported: [],
+        skipped: [],
+      },
+    }),
+  )
   await page.route('**/api/app-update*', (r) =>
     r.fulfill({
       json: {
@@ -250,6 +271,16 @@ try {
   await page.getByTestId('workbench-new-task').click()
   await page.getByTestId('workbench-greeting').waitFor()
   const prompt = page.getByRole('textbox', { name: '任务描述' })
+  await page.locator('[data-brand="Pisper"]').waitFor()
+  const suggestions = page.getByRole('region', { name: '试试这些任务', exact: true })
+  await suggestions.getByRole('button', { name: '解释代码', exact: true }).click()
+  assert.ok((await prompt.inputValue()).length > 0)
+  assert.equal(report.requests, 0)
+  assert.ok((await suggestions.boundingBox()).y > (await prompt.boundingBox()).y)
+  await prompt.fill('')
+  report.checks.push(
+    'New conversation has P watermark and task suggestions below the composer; clicking a suggestion fills but never sends',
+  )
   const nav = page.getByTestId('workbench-sidebar')
   for (const label of ['工作流', '资产'])
     assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 1)
@@ -266,18 +297,19 @@ try {
     await within(catalogRelease.promise, 'release stale catalog response')
     await route.fulfill({ response })
   })
-  await nav.getByRole('button', { name: '模型配置', exact: true }).click()
+  await nav.getByRole('button', { name: 'Pisper 菜单', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Provider 配置', exact: true }).click()
   await page.locator('[data-model-provider-split-panel]').waitFor()
   await page.getByRole('heading', { name: '设置', level: 1, exact: true }).waitFor()
   assert.match(page.url(), /config\/models/)
   const formFont = await page
-    .locator('.provider-config-form input')
+    .locator('[data-provider-connection-editor] input')
     .first()
     .evaluate((el) => getComputedStyle(el).fontSize)
   assert.equal(formFont, '14px')
   await page.screenshot({ path: join(output, 'model-settings-refined.png') })
   await within(catalogReady.promise, 'catalog refresh captures old configuration')
-  const configForm = page.locator('.provider-config-form')
+  const configForm = page.locator('[data-provider-connection-editor]')
   const nameInput = configForm.getByLabel('显示名称', { exact: true })
   const originalProviderName = await nameInput.inputValue()
   const savedProviderName = 'PI UI Saved During Catalog Refresh'
@@ -369,12 +401,13 @@ try {
     'partial provider creation exposes committed progress; normalized-ID retry does not duplicate; cancel retains the saved connection',
   )
 
-  await nav.getByRole('button', { name: '设置', exact: true }).click()
+  await nav.getByRole('button', { name: 'Pisper 菜单', exact: true }).click()
+  await page.getByRole('menuitem', { name: '外观配置', exact: true }).click()
   await page.waitForURL('**/#/config/interface')
   await page.goto(base + '/#/chat')
   await prompt.waitFor()
   report.checks.push(
-    '32px send button; workflows/assets primary navigation; avatar opens model configuration; gear opens appearance',
+    '32px send button; workflows/assets primary navigation; unified Pisper account menu opens Provider and appearance',
   )
 
   assert.deepEqual(
@@ -388,7 +421,10 @@ try {
     0,
   )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page.getByRole('combobox', { name: '当前会话模型' }).waitFor()
+  await page
+    .locator('.model-effort-model')
+    .getByRole('combobox', { name: '当前会话模型' })
+    .waitFor()
   await page.waitForFunction(
     () =>
       Math.abs(
@@ -402,10 +438,17 @@ try {
     '28px',
   )
 
-  assert.equal(await page.getByRole('combobox', { name: '当前会话模型' }).isEnabled(), true)
-  await page.getByRole('combobox', { name: '当前会话模型' }).click()
+  assert.equal(
+    await page
+      .locator('.model-effort-model')
+      .getByRole('combobox', { name: '当前会话模型' })
+      .isEnabled(),
+    true,
+  )
+  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
   await page
+    .locator('.model-effort-model')
     .getByRole('combobox', { name: '当前会话模型' })
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor()
@@ -424,6 +467,7 @@ try {
   await page.reload()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page
+    .locator('.model-effort-model')
     .getByRole('combobox', { name: '当前会话模型' })
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor({ timeout: 30000 })
@@ -438,9 +482,13 @@ try {
   )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   for (const suffix of ['-plain', '-fixed']) {
-    await page.getByRole('combobox', { name: '当前会话模型' }).click()
+    await page
+      .locator('.model-effort-model')
+      .getByRole('combobox', { name: '当前会话模型' })
+      .click()
     await page.getByRole('option', { name: new RegExp(`pi-ui-fixture${suffix}`) }).click()
     await page
+      .locator('.model-effort-model')
       .getByRole('combobox', { name: '当前会话模型' })
       .filter({ hasText: `pi-ui-fixture${suffix}` })
       .waitFor()
@@ -453,7 +501,7 @@ try {
       return !control || control.disabled
     })
   }
-  await page.getByRole('combobox', { name: '当前会话模型' }).click()
+  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
   await page.waitForFunction(() => !document.querySelector('[aria-label="当前思考等级"]')?.disabled)
   await page.getByRole('slider', { name: '当前思考等级' }).press('End')
@@ -563,6 +611,17 @@ try {
       tools.includes('compact-context'),
   )
   report.checks.push('plus tray exposes attachments/resources/visual/run-mode/commands/compaction')
+  assert.equal(
+    await page.locator('.composer-tool-tray').evaluate((el) => getComputedStyle(el).flexDirection),
+    'column',
+  )
+  assert.equal(
+    await page
+      .getByRole('toolbar', { name: '快捷操作' })
+      .getByRole('region', { name: '试试这些任务' })
+      .count(),
+    0,
+  )
   console.log('TOOLS', tools)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
@@ -674,7 +733,13 @@ try {
     .first()
     .waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  assert.equal(await page.getByRole('combobox', { name: '当前会话模型' }).isEnabled(), true)
+  assert.equal(
+    await page
+      .locator('.model-effort-model')
+      .getByRole('combobox', { name: '当前会话模型' })
+      .isEnabled(),
+    true,
+  )
   assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).isEnabled(), true)
   await page.getByRole('slider', { name: '当前思考等级' }).press('Home')
   await page.waitForFunction(
@@ -699,7 +764,7 @@ try {
   await api(`/api/sessions/${secondaryId}`, 'PATCH', { name: 'PI draft side-session' })
   await prompt.fill('第二会话未发送草稿')
   assert.equal(report.stopConnectionClosed, false)
-  await page.getByRole('button', { name: /^PI background-run QA / }).click()
+  await page.getByRole('button', { name: /^(正在执行 )?PI background-run QA / }).click()
   await page
     .getByText(/正在生成停止测试/)
     .first()
@@ -748,7 +813,7 @@ try {
     () => document.querySelector('textarea[aria-label="任务描述"]')?.value === '第二会话未发送草稿',
   )
   report.checks.push('per-session unsent drafts survive session switching')
-  await page.getByRole('button', { name: /^PI background-run QA / }).click()
+  await page.getByRole('button', { name: /^(正在执行 )?PI background-run QA / }).click()
   await prompt.fill('defer-model-test [pi-ui-sse]')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await page
@@ -756,7 +821,7 @@ try {
     .first()
     .waitFor()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page.getByRole('combobox', { name: '当前会话模型' }).click()
+  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-fixed/ }).click()
   await page.getByText('新模型生效后显示它支持的思考档位。', { exact: true }).waitFor()
   assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).count(), 0)
@@ -821,7 +886,7 @@ try {
     .nth(1)
     .waitFor()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page.getByRole('combobox', { name: '当前会话模型' }).click()
+  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
   await page.keyboard.press('Escape')
   finishDeferredResponse()
@@ -886,6 +951,10 @@ try {
   assert.ok(!JSON.stringify(sessions).includes(sessionId))
   assert.ok(!JSON.stringify(sessions).includes(secondaryId))
   report.checks.push('session deletion through confirmed history UI and release API')
+  await verifyZcodeIteration({ page, base, api, report, output, provider, alternate })
+
+  await verifyMemoryLifecycle({ page, base, api, runtime: runtime.runtime, report, output })
+
   const routes = [
     ['/chat/history', 'chatHistory', '历史会话'],
     ['/assets', 'assets', '资产'],
@@ -1002,7 +1071,7 @@ try {
   await runtime.close()
   for (const directory of [dataDir, workspace]) {
     assert.equal(dirname(directory), output, 'Unsafe temporary cleanup path')
-    await rm(directory, { recursive: true, force: true })
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   }
   console.log(`UI smoke report and screenshots: ${output}`)
 }

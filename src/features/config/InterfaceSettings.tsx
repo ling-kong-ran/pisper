@@ -393,6 +393,9 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
                   value={fontScale}
                   onChange={update(setFontScale)}
                 />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('config:interfaceSettings.fontScaleHint')}
+                </p>
               </div>
               <div className="grid gap-1.5">
                 <span className="text-[12px] text-[var(--text-muted)]">

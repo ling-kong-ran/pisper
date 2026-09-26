@@ -1,7 +1,6 @@
 // 视觉改编自 ZCode ConversationDraftEmptyState；来源和改动见 THIRD_PARTY_NOTICES.md。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
-import darkLogo from '@/assets/zcode-empty-dark.svg'
 import {
   greetingFontSize,
   greetingPeriod,
@@ -53,18 +52,18 @@ export function WorkbenchGreeting() {
         className="pointer-events-none absolute top-1/2 left-1/2 -mt-10 max-[650px]:mt-0 aspect-[5/4] w-[min(72vw,25rem)] -translate-x-1/2 -translate-y-1/2 text-foreground/40"
       >
         <svg
-          className="h-full w-full opacity-70 dark:hidden [mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)]"
+          data-brand="Pisper"
+          className="h-full w-full opacity-70 [mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)]"
           width="400"
           height="320"
           viewBox="0 0 400 320"
           fill="none"
         >
           <path
-            d="M398.97 0.5L147.576 319.5H1.03027L37.5996 273.081L120.167 169.603L120.171 169.598L215.342 47.5605L215.343 47.5615L252.424 0.5H398.97ZM264.544 273.271H372.527L336.082 319.498H189.886L202.642 303.307C217.584 284.34 240.398 273.271 264.544 273.271ZM209.164 0.5L202.786 8.58887C183.782 32.6885 154.782 46.752 124.091 46.752H25.9805L62.4268 0.5H209.164Z"
+            d="M88 319V1h135c76 0 121 43 121 110s-45 111-121 111h-76v97H88Zm59-153h72c43 0 65-19 65-55s-22-54-65-54h-72v109Z"
             stroke="currentColor"
           />
         </svg>
-        <img className="hidden h-full w-full dark:block" src={darkLogo} alt="" />
       </div>
       <h1
         ref={container}

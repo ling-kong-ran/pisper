@@ -1,5 +1,6 @@
 // Provider 模型目录服务：把发现的模型目录（discovery 结果）同步进模型配置，
 // 并维护能力元数据（上下文窗口/思考等级/输入类型）。
+import { modelCapabilities } from './provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PiDevModelMetadataService } from './pi-dev-model-metadata.mjs'
 
@@ -266,6 +267,7 @@ export class ProviderModelCatalogService {
     configuredApis = {},
     _configuredApiKeys = {},
     configuredProviderTypes = {},
+    configuredModelOptions = {},
   ) {
     this.configuredBaseUrls = new Map(
       Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]),
@@ -355,15 +357,35 @@ export class ProviderModelCatalogService {
       // 已发现目录为当前 Provider 权威来源，未发现时使用本地模型定义。
       if (own) {
         for (const candidate of own.entry.models || []) append(own.id, own.entry, candidate)
+        // 手动添加/编辑的模型可以不由 /models 返回（尤其是生图模型）。
+        // 仅显式用户配置跨目录同步保留，过期的自动发现项仍由目录移除。
+        for (const model of raw) {
+          const options = configuredModelOptions[providerId + ':' + model.id]
+          if (options?.userConfigured)
+            append(providerId, own.entry, { ...model, kind: options.kind })
+        }
       } else {
         for (const model of raw) {
           seen.add(model.id)
           models.push({ ...model, pisperAuthProvider: providerId })
         }
       }
+      // 目录刷新只发现模型，不能覆盖用户已经保存的名称、能力及思考等级。
+      const configuredModels = models.map((model) => {
+        const options = configuredModelOptions[providerId + ':' + model.id]
+        if (!options) return model
+        return {
+          ...model,
+          name: options.name || model.name,
+          pisperKind: modelCapabilities({ kind: model.pisperKind, ...options })[0],
+          capabilities: modelCapabilities({ kind: model.pisperKind, ...options }),
+          ...(options.thinkingLevelMap ? { thinkingLevelMap: options.thinkingLevelMap } : {}),
+          ...(Number(options.maxTokens) > 0 ? { maxTokens: options.maxTokens } : {}),
+        }
+      })
       const providerHeaders = this.configuredHeaders.get(providerId)
-      if (!providerHeaders || Object.keys(providerHeaders).length === 0) return models
-      return models.map((model) => ({
+      if (!providerHeaders || Object.keys(providerHeaders).length === 0) return configuredModels
+      return configuredModels.map((model) => ({
         ...model,
         headers: { ...providerHeaders, ...(model.headers || {}) },
       }))

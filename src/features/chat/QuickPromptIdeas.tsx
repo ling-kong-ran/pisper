@@ -1,4 +1,4 @@
-// Suggestions belong to the optional tools tray, not the uncluttered welcome canvas.
+// 新建页推荐任务直接展示在输入框下方；选择仅填入草稿，不自动提交。
 import {
   Bug,
   Code2,
@@ -70,26 +70,25 @@ export default function QuickPromptIdeas({
 }) {
   const { t } = useI18n()
   return (
-    <>
-      <details className="group relative text-xs text-muted-foreground">
-        <summary className="cursor-pointer list-none rounded-lg px-3 py-2 transition-colors hover:bg-muted hover:text-foreground">
-          {t('chat:focusSession.promptIdeas')}
-        </summary>
-        <div className="welcome-chips flex max-w-[560px] flex-wrap justify-center gap-2 pt-2">
-          {welcomeChips(t, plansAvailable).map((chip) => (
-            <button
-              type="button"
-              key={chip.label}
-              data-target-cursor
-              onClick={() => onPromptSelect(chip.prompt)}
-              className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-background px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <chip.icon size={14} className="text-muted-foreground" />
-              {chip.label}
-            </button>
-          ))}
-        </div>
-      </details>
-    </>
+    <section
+      aria-label={t('chat:focusSession.promptIdeas')}
+      className="pt-3 text-center text-xs text-muted-foreground"
+    >
+      <p className="mb-2">{t('chat:focusSession.promptIdeas')}</p>
+      <div className="welcome-chips mx-auto flex max-w-[560px] flex-wrap justify-center gap-2 pt-2">
+        {welcomeChips(t, plansAvailable).map((chip) => (
+          <button
+            type="button"
+            key={chip.label}
+            data-target-cursor
+            onClick={() => onPromptSelect(chip.prompt)}
+            className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-background px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <chip.icon size={14} className="text-muted-foreground" />
+            {chip.label}
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }

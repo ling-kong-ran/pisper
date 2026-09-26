@@ -122,9 +122,10 @@
   --d1: 140ms;
   --d2: 220ms;
   --d3: 360ms;
-  --app-font-size: 13px;
-  --app-small-size: 12px;
-  --app-message-font-size: 15px;
+  --ui-font-size: 14px;
+  --app-font-size: var(--ui-font-size);
+  --app-small-size: calc(var(--ui-font-size) * 6 / 7);
+  --app-message-font-size: calc(var(--ui-font-size) * 15 / 14);
 
   /* ── 表面与场景：侧栏/内容区/卡片三层递进 ── */
   --sidebar-bg: #f5f5f5;
@@ -525,14 +526,10 @@
 }
 
 :root[data-font-scale='small'] {
-  --app-font-size: 12px;
-  --app-small-size: 11px;
-  --app-message-font-size: 14px;
+  --ui-font-size: 13.5px;
 }
 :root[data-font-scale='large'] {
-  --app-font-size: 14px;
-  --app-small-size: 13px;
-  --app-message-font-size: 16px;
+  --ui-font-size: 14.5px;
 }
 
 :root[data-radius='sharp'] {
@@ -686,6 +683,13 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) *, :root:not([data-motion='full']) *::before, :root:not([data-motion='full']) *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; } }
 
 @theme inline {
+  --text-xs: calc(var(--ui-font-size) * 6 / 7);
+  --text-sm: var(--ui-font-size);
+  --text-base: calc(var(--ui-font-size) * 8 / 7);
+  --text-lg: calc(var(--ui-font-size) * 9 / 7);
+  --text-xl: calc(var(--ui-font-size) * 10 / 7);
+  --text-2xl: calc(var(--ui-font-size) * 12 / 7);
+  --text-3xl: calc(var(--ui-font-size) * 15 / 7);
   --font-heading: var(--font-sans);
   --font-sans: var(--app-font-family);
   --color-brand-soft: var(--brand-blue-soft);

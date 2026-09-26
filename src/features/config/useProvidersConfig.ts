@@ -1,9 +1,10 @@
 // Provider 配置页数据 hook：加载配置 + 后台刷新模型目录，
 // 提供启停/删除/配置更新等操作。页面不再维护 Provider 编辑草稿——
-// 配置改动全部走快速配置向导或视觉生成卡，完成后整份配置回写。
+// 连接/模型走独立配置 API；工作台持有短期草稿，hook 管理已提交快照。
 // 同文件导出 useProviderDiscovery（本地 Provider 扫描/导入）。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiJson } from '@/lib/api'
+import { providerApi } from './provider-api'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type {
@@ -34,15 +35,17 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
   const [settingDefault, setSettingDefault] = useState('')
   const [settingModel, setSettingModel] = useState('')
   const configRevision = useRef(0)
+  const mounted = useRef(false)
 
   // 首次加载配置，随后后台刷新各 Provider 的模型目录（结果回来后更新视图）。
   useEffect(() => {
     let active = true
+    mounted.current = true
     const revision = configRevision.current
     apiJson<ConfigData>('/api/config')
       .then((data) => {
         if (!active) return undefined
-        setConfig(data)
+        if (configRevision.current === revision) setConfig(data)
         setLoading(false)
         return apiJson<{ config?: ConfigData }>('/api/providers/models/refresh', {
           method: 'POST',
@@ -60,6 +63,8 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
       })
     return () => {
       active = false
+      mounted.current = false
+      configRevision.current += 1
     }
   }, [])
 
@@ -68,8 +73,16 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     // A delayed catalog response predates this explicit save and must not undo it.
     configRevision.current += 1
     setConfig(data)
+    setLoading(false)
     setError('')
   }, [])
+
+  // 自动接入响应可能早于刚保存的连接；重新读取而不是应用过期快照。
+  const refreshConfig = useCallback(async () => {
+    const revision = configRevision.current
+    const data = await apiJson<ConfigData>('/api/config')
+    if (mounted.current && configRevision.current === revision) applyConfig(data)
+  }, [applyConfig])
 
   const toggleProvider = useCallback(
     async (provider: ProviderConfig, enabled: boolean) => {
@@ -170,6 +183,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     settingDefault,
     settingModel,
     applyConfig,
+    refreshConfig,
     setDefaultProvider,
     setProviderDefaultModel,
     toggleProvider,
@@ -180,6 +194,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
 type UseProviderDiscoveryOptions = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onImported: (result: ProviderImportResult) => void
+  onAutoImported: () => void | Promise<void>
   t: Translate
 }
 
@@ -188,6 +203,7 @@ type UseProviderDiscoveryOptions = {
 export function useProviderDiscovery({
   requestConfirm,
   onImported,
+  onAutoImported,
   t,
 }: UseProviderDiscoveryOptions) {
   const [discovery, setDiscovery] = useState<DiscoveryData>({ providers: [], errors: [] })
@@ -195,21 +211,33 @@ export function useProviderDiscovery({
   const [error, setError] = useState('')
   const [operationError, setOperationError] = useState('')
   const [importing, setImporting] = useState('')
+  const [autoImport, setAutoImport] = useState({ imported: 0, skipped: 0 })
+  const refreshRevision = useRef(0)
+  const onAutoImportedRef = useRef(onAutoImported)
+  onAutoImportedRef.current = onAutoImported
 
   const refresh = useCallback(async () => {
+    const revision = ++refreshRevision.current
     setDiscovering(true)
     setError('')
     try {
-      setDiscovery(await apiJson<DiscoveryData>('/api/providers/discovery'))
+      const result = await providerApi.importLocal()
+      if (revision !== refreshRevision.current) return
+      setDiscovery(result.discovery)
+      setAutoImport({ imported: result.imported.length, skipped: result.skipped.length })
+      if (result.imported.length) await onAutoImportedRef.current()
     } catch (caught) {
-      setError(errorMessage(caught))
+      if (revision === refreshRevision.current) setError(errorMessage(caught))
     } finally {
-      setDiscovering(false)
+      if (revision === refreshRevision.current) setDiscovering(false)
     }
   }, [])
 
   useEffect(() => {
     void refresh()
+    return () => {
+      refreshRevision.current += 1
+    }
   }, [refresh])
 
   const importProvider = useCallback(
@@ -255,6 +283,7 @@ export function useProviderDiscovery({
 
   return {
     discovery,
+    autoImport,
     discovering,
     error,
     operationError,

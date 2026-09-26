@@ -277,6 +277,13 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/providers/:providerId/models/options',
+    async handler({ runtime, params, body, json }) {
+      json(200, await runtime.setProviderModelOptions(params.providerId, await body()))
+    },
+  },
+  {
     method: 'POST',
     path: '/api/providers/:providerId/models',
     async handler({ runtime, params, body, json }) {
@@ -295,6 +302,13 @@ export const configSettingsRoutes = [
     path: '/api/providers/models/discover-connection',
     async handler({ runtime, body, json }) {
       json(200, await runtime.discoverConnectionModels(await body()))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/providers/import-local',
+    async handler({ runtime, json }) {
+      json(200, await runtime.importLocalProviders())
     },
   },
   {

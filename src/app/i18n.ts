@@ -52,6 +52,7 @@ export const I18N_NAMESPACES = Object.freeze([
   'navigation',
   'chat',
   'config',
+  'providers',
   'custom-ui',
   'chat-layout',
   'mcp',

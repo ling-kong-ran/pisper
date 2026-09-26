@@ -1,32 +1,24 @@
 // 工作台导航只负责展示；会话创建、搜索与设置跳转由应用壳传入。
 import { lazy, Suspense, useMemo } from 'react'
-import {
-  ArrowLeft,
-  Download,
-  ExternalLink,
-  RefreshCw,
-  Rocket,
-  Settings,
-  MessageCirclePlus,
-  Search,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowLeft, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   getSettingsNavigation,
-  SETTINGS_PAGES,
   settingsNavigationKey,
+  SETTINGS_PAGES,
   type SettingsDestination,
 } from '@/app/settings-navigation'
+import { useIsMobileApp } from '@/stores/client-store'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { useShortcutLabel } from '@/lib/shortcuts'
-import { useIsMobileApp } from '@/stores/client-store'
-import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { cn } from '@/lib/utils'
+
+const SidebarAccountMenu = lazy(() => import('@/components/layout/SidebarAccountMenu'))
 
 const SidebarMoreTools = lazy(() => import('@/components/layout/SidebarMoreTools'))
 
@@ -36,17 +28,8 @@ const SidebarRecentSessions = lazy(() =>
   })),
 )
 
-type SidebarUpdate = {
-  info?: { desktop?: boolean; mobile?: boolean }
-  status?: {
-    state: string
-    percent?: number
-    availableVersion?: string
-    behindBy?: number
-    branch?: string
-    availableCommit?: string
-  }
-}
+import type { SidebarUpdate } from './SidebarUpdateStatus'
+const SidebarUpdateStatus = lazy(() => import('./SidebarUpdateStatus'))
 
 type AppSidebarProps = {
   page: string
@@ -104,7 +87,7 @@ export function AppSidebar({
     if (isMobile) setOpenMobile(false)
   }
   const navButton =
-    'h-8 w-full justify-start gap-2 rounded-lg px-2.5 text-[14px] font-normal text-foreground shadow-none hover:bg-sidebar-accent'
+    'h-8 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal text-foreground shadow-none hover:bg-sidebar-accent'
 
   return (
     <ShadcnSidebar collapsible="offcanvas" className="pisper-sidebar-container border-0">
@@ -210,90 +193,24 @@ export function AppSidebar({
           </>
         )}
         <footer className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-2">
-          <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
-          <div className="flex h-10 items-center gap-2.5">
-            <button
-              type="button"
-              aria-label={t('config:configPage.models')}
-              title={t('config:configPage.models')}
-              aria-current={page === 'config' && configSection === 'models' ? 'page' : undefined}
-              onClick={() => runAndClose(() => navigateSettings({ type: 'config', id: 'models' }))}
-              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              P
-            </button>
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">Pisper</span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title={t('navigation:navigation.settings')}
-              aria-label={t('navigation:navigation.settings')}
-              onClick={() =>
+          {update.status &&
+            ['available', 'downloading', 'downloaded'].includes(update.status.state) && (
+              <Suspense fallback={null}>
+                <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
+              </Suspense>
+            )}
+          <Suspense fallback={<div className="h-11" aria-busy="true" />}>
+            <SidebarAccountMenu
+              onProvider={() =>
+                runAndClose(() => navigateSettings({ type: 'config', id: 'models' }))
+              }
+              onAppearance={() =>
                 runAndClose(() => navigateSettings({ type: 'config', id: 'interface' }))
               }
-            >
-              <Settings size={16} />
-            </Button>
-          </div>
+            />
+          </Suspense>
         </footer>
       </aside>
     </ShadcnSidebar>
-  )
-}
-
-function SidebarUpdateStatus({
-  update,
-  collapsed,
-  onOpen,
-}: {
-  update: SidebarUpdate
-  collapsed: boolean
-  onOpen: () => void
-}) {
-  const { t } = useI18n()
-  const status = update?.status || { state: 'idle' }
-  const nativeApp = Boolean(update?.info?.desktop || update?.info?.mobile)
-  if (!['available', 'downloading', 'downloaded'].includes(status.state)) return null
-  const downloading = status.state === 'downloading'
-  const downloaded = status.state === 'downloaded'
-  const label = downloaded
-    ? t('navigation:appSidebar.readyToRestart')
-    : downloading
-      ? t('navigation:appSidebar.downloading')
-      : nativeApp
-        ? t('navigation:appSidebar.updateAvailable')
-        : t('navigation:appSidebar.sourceUpdatesAvailable')
-  const detail = downloading
-    ? `${Math.round(status.percent || 0)}%`
-    : nativeApp && status.availableVersion
-      ? `v${status.availableVersion}`
-      : status.behindBy
-        ? t('navigation:appSidebar.countCommitsBehindBranch', {
-            branch: status.branch || 'main',
-            count: status.behindBy,
-          })
-        : status.availableCommit
-          ? status.availableCommit.slice(0, 7)
-          : t('navigation:appSidebar.viewUpdateDetails')
-  const Icon = downloaded ? Rocket : downloading ? RefreshCw : nativeApp ? Download : ExternalLink
-
-  return (
-    <button
-      type="button"
-      className={`flex min-h-11 w-full items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--accent-soft)] text-[var(--text)] transition-colors hover:bg-sidebar-accent ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-3 text-left'}`}
-      title={`${label} · ${detail}`}
-      aria-label={`${label} · ${detail}`}
-      onClick={onOpen}
-    >
-      <Icon className={downloading ? 'animate-spin shrink-0' : 'shrink-0'} size={16} />
-      {!collapsed && (
-        <span className="min-w-0">
-          <strong className="block truncate text-[12px]">{label}</strong>
-          <small className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
-            {detail}
-          </small>
-        </span>
-      )}
-    </button>
   )
 }

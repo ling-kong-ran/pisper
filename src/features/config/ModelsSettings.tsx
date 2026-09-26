@@ -49,6 +49,7 @@ export function ModelsSettings({
   const { t } = useI18n()
   const location = useLocation()
   const importRequested = new URLSearchParams(location.search).get('import') === '1'
+  const [selectedProviderId, setSelectedProviderId] = useState('')
   const [wizard, setWizard] = useState<WizardTarget | null>(null)
   // 连接弹窗按需新建或编辑；视觉连接也必须能修改 Key、URL 和模型定义。
   const [providerModal, setProviderModal] = useState<{
@@ -66,6 +67,7 @@ export function ModelsSettings({
   const { config } = settings
   const discovery = useProviderDiscovery({
     requestConfirm,
+    onAutoImported: settings.refreshConfig,
     onImported: (result) => {
       settings.applyConfig(result.config)
       const imported = result.config.providers.find((item) => item.id === result.providerId)
@@ -107,8 +109,6 @@ export function ModelsSettings({
   // 从列表进入连接编辑弹窗；摘要卡仍进入向导以便直接切换默认模型。
   const openProviderClonerFor = (provider: ProviderConfig) =>
     setProviderModal({ providerType: provider.type, cloneProvider: provider })
-  const openWizardFor = (provider: ProviderConfig) =>
-    setWizard({ providerId: provider.id, providerType: provider.type })
 
   return (
     <>
@@ -123,8 +123,19 @@ export function ModelsSettings({
           {t('config:configPage.quickSetup')}
         </Button>
       </div>
+      <p className="mb-4 flex items-center gap-2 text-xs text-muted-foreground" role="status">
+        {discovery.discovering && <RefreshCw size={12} className="animate-spin" />}
+        {discovery.discovering
+          ? t('config:providerWorkbench.scanningLocal')
+          : t('config:providerWorkbench.localImportStatus', {
+              imported: discovery.autoImport.imported,
+              skipped: discovery.autoImport.skipped,
+            })}
+      </p>
       <ProviderWorkbench
         config={config}
+        selectedProviderId={selectedProviderId}
+        onSelectProvider={setSelectedProviderId}
         toggling={settings.toggling}
         settingDefault={settings.settingDefault}
         settingModel={settings.settingModel}
@@ -133,9 +144,6 @@ export function ModelsSettings({
           notify(t('config:configPage.providerConnectionUpdated'))
         }}
         onAdd={() => setProviderModal({ providerType: 'chat' })}
-        onQuickSetup={(provider) =>
-          provider ? openWizardFor(provider) : setWizard({ providerType: 'chat' })
-        }
         onClone={openProviderClonerFor}
         onDelete={settings.deleteProvider}
         onToggle={settings.toggleProvider}
@@ -198,21 +206,26 @@ export function ModelsSettings({
               onConfigChanged={settings.applyConfig}
             />
           </div>
+          <VisualGenerationSettings
+            config={config}
+            notify={notify}
+            toggling={settings.toggling}
+            onToggleProvider={settings.toggleProvider}
+            onCloneProvider={openProviderClonerFor}
+            onDeleteProvider={settings.deleteProvider}
+            onQuickSetup={() => setWizard({ providerType: 'visual' })}
+            onEditVisualProvider={(providerId) => {
+              const provider = config.providers.find((item) => item.id === providerId)
+              if (provider) {
+                setSelectedProviderId(provider.id)
+                document
+                  .querySelector('[data-model-provider-split-panel]')
+                  ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }
+            }}
+          />
         </CollapsibleContent>
       </Collapsible>
-      <VisualGenerationSettings
-        config={config}
-        notify={notify}
-        toggling={settings.toggling}
-        onToggleProvider={settings.toggleProvider}
-        onCloneProvider={openProviderClonerFor}
-        onDeleteProvider={settings.deleteProvider}
-        onQuickSetup={() => setWizard({ providerType: 'visual' })}
-        onEditVisualProvider={(providerId) => {
-          const provider = config.providers.find((item) => item.id === providerId)
-          if (provider) setProviderModal({ providerType: 'visual', provider })
-        }}
-      />
       {wizard && (
         <QuickSetupWizard
           config={config}

@@ -1,5 +1,6 @@
 // 视觉模型选择与目录：模型类型完全由用户显式选择，不再按 ID 猜测；
 // 提供按 Provider 筛选可用图像/视频模型的能力。
+import { modelCapabilities } from '../provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 
 // 不再按模型 ID 猜测用途：类型完全由用户在添加时显式选择。
@@ -152,7 +153,7 @@ export class VisualModelCatalog {
         const definition = definitions.get(modelId) || {}
         const runtimeModel = runtimeModels.find((model) => model.id === modelId)
         const modelKind = inferModelKind(modelId, definition.kind || runtimeModel?.pisperKind)
-        if (modelKind !== kind) continue
+        if (!modelCapabilities({ ...definition, kind: modelKind }).includes(kind)) continue
         const api = definition.api || provider.api || runtimeModel?.api || ''
         const baseUrl = String(
           definition.baseUrl ||
@@ -167,7 +168,7 @@ export class VisualModelCatalog {
           providerId,
           providerName: provider.name || runtimeProvider?.name || providerId,
           api,
-          kind: modelKind,
+          kind,
           baseUrl,
           apiKey,
           headers: {

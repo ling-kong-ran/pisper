@@ -20,6 +20,7 @@ import {
   FolderClosed,
   FolderPlus,
   MessageSquare,
+  LoaderCircle,
   Pencil,
   Pin,
   PinOff,
@@ -86,6 +87,7 @@ type SessionSummary = {
   archived?: boolean
   unread?: boolean
   needsAttention?: boolean
+  streaming?: boolean
 }
 
 type SessionGroup = WorkspaceSessionGroup<SessionSummary>
@@ -152,7 +154,7 @@ export function SidebarRecentSessions({
 
   const { data: sidebarSessionData } = useQuery({
     ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
-    refetchInterval: 20_000,
+    refetchInterval: 2_000,
   })
   useEffect(
     () =>
@@ -554,7 +556,7 @@ export function SidebarRecentSessions({
                       onPointerDown={(event) => prepareTouchMenu(event, group.key)}
                     >
                       <button
-                        className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-left text-[13px] text-foreground hover:bg-sidebar-accent [&_span]:min-w-0 [&_span]:flex-1 [&_span]:truncate [&_small]:hidden [&_.is-open]:rotate-90"
+                        className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-left text-sm text-foreground hover:bg-sidebar-accent [&_span]:min-w-0 [&_span]:flex-1 [&_span]:truncate [&_small]:hidden [&_.is-open]:rotate-90"
                         aria-expanded={!groupCollapsed}
                         onClick={() => toggleWorkspace(group.key)}
                         title={group.cwd || label}
@@ -588,7 +590,7 @@ export function SidebarRecentSessions({
                     {!groupCollapsed &&
                       group.sessions.map((session) => (
                         <button
-                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-[13px] font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}
+                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}
                           aria-current={session.id === activeSessionId ? 'page' : undefined}
                           title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
                           onClick={() => openRecentSession(session.id)}
@@ -596,6 +598,12 @@ export function SidebarRecentSessions({
                           onPointerDown={(event) => prepareTouchMenu(event, '', session.id)}
                           key={session.id}
                         >
+                          {session.streaming && (
+                            <LoaderCircle
+                              className="mr-1 size-3.5 shrink-0 animate-spin text-foreground"
+                              aria-label={t('navigation:appSidebar.running')}
+                            />
+                          )}
                           {session.pinned && (
                             <Pin
                               className="mr-1 size-3 shrink-0"
@@ -618,7 +626,7 @@ export function SidebarRecentSessions({
                             {session.name || t('navigation:appSidebar.untitledChat')}
                           </span>
                           <time
-                            className="shrink-0 text-[10px] text-muted-foreground/70"
+                            className="shrink-0 text-xs text-muted-foreground/70"
                             dateTime={session.modified}
                           >
                             {relativeTime(session.modified, language)}
@@ -634,7 +642,7 @@ export function SidebarRecentSessions({
                 )
               })}
               {!visibleSessions.length && (
-                <span className="[padding:8px] text-[var(--text-muted)] text-[12px] font-normal">
+                <span className="[padding:8px] text-[var(--text-muted)] text-xs font-normal">
                   {sessionQuery.trim()
                     ? t('navigation:appSidebar.noMatchingChats')
                     : sessions.length

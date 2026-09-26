@@ -1,6 +1,6 @@
 // 会话上下文只在用户打开时挂载；文件列表按当前标签请求，不复制聊天状态。
 import { useMemo, useRef, useState } from 'react'
-import { ChevronDown, ExternalLink, Files, Globe2, ListTodo, Plus, X } from 'lucide-react'
+import { ExternalLink, Files, Globe2, ListTodo, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -163,37 +163,25 @@ export function SessionContextPanel({
     if (action.type === 'close' && pages.pages.length === 1) onClose()
   }
   const addPageLabel = t('chat:sessionContext.addPage')
-  const pageContentLabel = t('chat:sessionContext.pageContent')
   const pageLimitLabel = t('chat:sessionContext.pageLimit')
-  const contentMenu = (add: boolean) => (
+  // 页头只保留一个“新增页面”入口：点 + 选种类开新页；单页关闭走标签上的 ×，
+  // 整个面板的开关由主区“打开/关闭会话上下文”按钮承担。
+  const addMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-40"
-          disabled={add && pages.pages.length >= MAX_CONTEXT_PAGES}
-          aria-label={add ? addPageLabel : pageContentLabel}
-          title={
-            add && pages.pages.length >= MAX_CONTEXT_PAGES
-              ? pageLimitLabel
-              : add
-                ? addPageLabel
-                : pageContentLabel
-          }
+          disabled={pages.pages.length >= MAX_CONTEXT_PAGES}
+          aria-label={addPageLabel}
+          title={pages.pages.length >= MAX_CONTEXT_PAGES ? pageLimitLabel : addPageLabel}
         >
-          {add ? <Plus size={15} /> : <ChevronDown size={14} />}
+          <Plus size={15} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
         {tabs.map(({ id, icon: Icon, label }) => (
-          <DropdownMenuItem
-            key={id}
-            onSelect={() =>
-              dispatch(
-                add ? { type: 'add', kind: id } : { type: 'kind', id: selected.id, kind: id },
-              )
-            }
-          >
+          <DropdownMenuItem key={id} onSelect={() => dispatch({ type: 'add', kind: id })}>
             <Icon size={14} />
             {label}
           </DropdownMenuItem>
@@ -271,16 +259,7 @@ export function SessionContextPanel({
             )
           })}
         </div>
-        {contentMenu(true)}
-        {contentMenu(false)}
-        <button
-          type="button"
-          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-          aria-label={t('chat:sessionContext.close')}
-          onClick={onClose}
-        >
-          <X size={15} />
-        </button>
+        {addMenu}
       </header>
       {pages.pages.map((page) => {
         const type = getType(page)

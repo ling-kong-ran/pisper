@@ -169,5 +169,9 @@
   "window.controls": "Window controls",
   "window.minimize": "Minimize",
   "window.maximize": "Maximize / restore",
-  "window.close": "Close window"
+  "window.close": "Close window",
+  "appSidebar.accountMenu": "Pisper menu",
+  "appSidebar.providerSettings": "Provider settings",
+  "appSidebar.appearanceSettings": "Appearance settings",
+  "appSidebar.running": "Running"
 }

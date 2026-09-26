@@ -1062,6 +1062,10 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.getProviderDiscovery()
   }
 
+  async importLocalProviders() {
+    return this.providerPreferences.importLocalProviders()
+  }
+
   async importDiscoveredProvider(discoveryId) {
     return this.providerPreferences.importDiscoveredProvider(discoveryId)
   }
@@ -1100,6 +1104,10 @@ export class AgentRuntimeFacade {
 
   async createProvider(input) {
     return this.providerPreferences.createProvider(input)
+  }
+
+  async setProviderModelOptions(providerId, input) {
+    return this.providerPreferences.setProviderModelOptions(providerId, input)
   }
 
   async addProviderModel(providerId, input) {

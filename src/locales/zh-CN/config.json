@@ -639,5 +639,10 @@
   "providerWorkbench.manageModels": "发现与管理模型",
   "providerWorkbench.advanced": "更多设置",
   "providerWorkbench.advancedHint": "本地配置导入与运行策略",
-  "providerWorkbench.modelOptions": "模型能力与追加模型"
+  "providerWorkbench.modelOptions": "模型能力与追加模型",
+  "interfaceSettings.fontScaleHint": "固定字体层级比例；以 14px 为基准，仅微调 ±0.5px，不改变图标和布局尺寸。",
+  "providerWorkbench.custom": "自定义连接",
+  "providerWorkbench.presets": "预置服务",
+  "providerWorkbench.scanningLocal": "正在接入本机 Claude Code / Codex 配置…",
+  "providerWorkbench.localImportStatus": "本地配置自动接入 · 新增 {imported} 项 · 待检查 {skipped} 项"
 }

@@ -1,6 +1,7 @@
 // Provider 偏好与配置管理：负责模型运行时装配、Provider 配置（连接/密钥/模型）读写、
 // 模型发现与目录同步、默认模型对账、会话模型/思考等级切换，以及配置迁移与安全校验。
 import { randomUUID } from 'node:crypto'
+import { modelCapabilities, updateModelOptions } from '../services/provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
@@ -424,6 +425,7 @@ export class ProviderPreferences {
     const configuredReasoning = {}
     const configuredApiKeys = {}
     const configuredProviderTypes = {}
+    const configuredModelOptions = {}
     for (const provider of modelRuntime.getProviders()) {
       const overlay = modelsJson.providers?.[provider.id] || {}
       configuredProviderTypes[provider.id] =
@@ -449,6 +451,7 @@ export class ProviderPreferences {
         )
       }
       for (const model of overlay.models || []) {
+        configuredModelOptions[`${provider.id}:${model.id}`] = model
         if (Number(model?.contextWindow) > 0) {
           configuredContextWindows[`${provider.id}:${model.id}`] = Number(model.contextWindow)
         }
@@ -472,6 +475,7 @@ export class ProviderPreferences {
       configuredApis,
       configuredApiKeys,
       configuredProviderTypes,
+      configuredModelOptions,
     )
     // complete/completeSimple/fetchDeferred 委托对应 stream，统一覆盖会话、压缩和直接调用。
     for (const method of ['stream', 'streamSimple', 'streamDeferred', 'cancelDeferred']) {
@@ -504,6 +508,8 @@ export class ProviderPreferences {
     void this.modelMetadata.ensure(modelId).catch(() => {})
     const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
     if (!model) throw new Error('指定的模型不存在。')
+    if (inferModelKind(model.id, model.pisperKind) !== 'chat')
+      throw new Error('该模型未启用对话能力，请选择对话模型。')
     return model
   }
 
@@ -580,7 +586,8 @@ export class ProviderPreferences {
     const modelId = settings.defaultModel
     const modelRuntime = this.getModelRuntime()
     if (!provider || !modelId || !modelRuntime?.getModel) return null
-    return modelRuntime.getModel(String(provider), String(modelId)) || null
+    const model = modelRuntime.getModel(String(provider), String(modelId))
+    return model && inferModelKind(model.id, model.pisperKind) === 'chat' ? model : null
   }
 
   // Provider 的默认对话模型（与 getConfig 视图一致）：已保存的内部默认优先
@@ -635,6 +642,45 @@ export class ProviderPreferences {
           conflict,
         }
       }),
+    }
+  }
+
+  // 自动接入仅补齐尚未导入且无冲突的本地 CLI 配置；绝不覆盖用户已有凭据。
+  async importLocalProviders() {
+    if (this.localImportPromise) return this.localImportPromise
+    this.localImportPromise = (async () => {
+      let discovery = await this.getProviderDiscovery()
+      const imported = []
+      const skipped = []
+      for (const candidate of discovery.providers) {
+        if (candidate.imported || !candidate.importable) continue
+        if (candidate.conflict || (!candidate.credentialPresent && !candidate.configured)) {
+          skipped.push({
+            id: candidate.id,
+            source: candidate.source,
+            reason: candidate.conflict ? 'conflict' : 'authentication_required',
+          })
+          continue
+        }
+        try {
+          const result = await this.importDiscoveredProvider(candidate.id)
+          imported.push({
+            id: candidate.id,
+            providerId: result.providerId,
+            source: candidate.source,
+          })
+        } catch {
+          // 文件可能在扫描后被 CLI 更新；失败仅暴露状态，不把原始凭据/解析内容带到浏览器。
+          skipped.push({ id: candidate.id, source: candidate.source, reason: 'import_failed' })
+        }
+      }
+      discovery = await this.getProviderDiscovery()
+      return { imported, skipped, discovery, config: await this.getConfigFacade() }
+    })()
+    try {
+      return await this.localImportPromise
+    } finally {
+      this.localImportPromise = null
     }
   }
 
@@ -728,7 +774,9 @@ export class ProviderPreferences {
         ? modelRuntime.getModel(settings.defaultProvider, settings.defaultModel)
         : null
     const currentUsable = Boolean(
-      currentDefault && modelRuntime.hasConfiguredAuth(currentDefault.provider),
+      currentDefault &&
+      inferModelKind(currentDefault.id, currentDefault.pisperKind) === 'chat' &&
+      modelRuntime.hasConfiguredAuth(currentDefault.provider),
     )
     if (currentUsable) return false
     // 候选按 modelRank 降序（与配置视图/推荐逻辑一致），避免选到旧型号
@@ -868,6 +916,9 @@ export class ProviderPreferences {
               id: model.id,
               name: model.name || model.id,
               kind: resolvedKind,
+              capabilities: modelCapabilities({ kind: resolvedKind, ...definition }),
+              input: model.input || ['text'],
+              maxTokens: model.maxTokens || null,
               reasoning: Boolean(model.reasoning),
               // 回显有效思考等级，供模型编辑弹窗预填（与 Composer 下拉一致）。
               thinkingLevels: resolvedKind === 'chat' ? availableThinkingLevelsForModel(model) : [],
@@ -1223,6 +1274,11 @@ export class ProviderPreferences {
       )
     modelsJson.providers ||= {}
     const providerOverlay = { ...existingOverlay, api }
+    if (Object.hasOwn(input, 'name')) {
+      const name = typeof input.name === 'string' ? input.name.trim() : ''
+      if (!name || name.length > 240) throw new Error('Provider 名称无效。')
+      providerOverlay.name = name
+    }
     if (Array.isArray(providerOverlay.models)) {
       providerOverlay.models = providerOverlay.models.map((model) => ({ ...model, api }))
     }
@@ -1720,7 +1776,64 @@ export class ProviderPreferences {
     }
   }
 
-  // 手动添加模型（批量）：跳过已存在项，视觉 Provider 拒绝 chat 模型。
+  // 模型元数据使用独立写入入口，不能通过保存全局配置意外切换默认模型/工具模式。
+  async setProviderModelOptions(providerId, input) {
+    const operation = async () => {
+      if (this.providerState.refreshPromise) await this.providerState.refreshPromise.catch(() => {})
+      const provider = String(providerId || '').trim()
+      const modelId = String(input?.modelId || '').trim()
+      const runtimeModel = this.getModelRuntime().getModel(provider, modelId)
+      if (!runtimeModel) throw new Error('模型不存在。')
+      const modelsJson = await readJson(this.modelsPath, { providers: {} })
+      const overlay = { ...(modelsJson.providers?.[provider] || {}) }
+      const models = [...(overlay.models || [])]
+      const index = models.findIndex((model) => model.id === modelId)
+      const existing =
+        index < 0
+          ? {
+              id: modelId,
+              name: runtimeModel.name || modelId,
+              api: runtimeModel.api,
+              kind: inferModelKind(modelId, runtimeModel.pisperKind),
+              input: runtimeModel.input || ['text'],
+              reasoning: Boolean(runtimeModel.reasoning),
+              contextWindow: runtimeModel.contextWindow,
+              maxTokens: runtimeModel.maxTokens,
+              ...(runtimeModel.thinkingLevelMap
+                ? { thinkingLevelMap: runtimeModel.thinkingLevelMap }
+                : {}),
+            }
+          : models[index]
+      const updated = { ...updateModelOptions(existing, input), userConfigured: true }
+      if (index < 0) models.push(updated)
+      else models[index] = updated
+      modelsJson.providers ||= {}
+      modelsJson.providers[provider] = { ...overlay, models }
+      await writeJsonAtomic(this.modelsPath, modelsJson)
+      if (modelCapabilities(updated).includes('chat')) {
+        const appConfig = await readJson(this.appConfigPath, {})
+        if (appConfig.providerTypes?.[provider] === 'visual') {
+          appConfig.providerTypes[provider] = 'chat'
+          await writeJsonAtomic(this.appConfigPath, appConfig)
+        }
+      }
+      await this.reloadModelRuntime()
+      this.invalidateSessionRuntimes()
+      // 当前默认变成仅生图时，选择仍具备对话能力的模型；不得把图像模型用于聊天。
+      const config = await this.getConfigFacade()
+      const fallback = config.providers.find(
+        (item) => item.enabled && item.configured && item.defaultModel,
+      )
+      if (fallback) await this.bootstrapDefaultModel(fallback.id, fallback.defaultModel)
+      return this.getConfigFacade()
+    }
+    // 两个能力编辑保存不能互相覆盖同一配置文件。
+    const pending = (this.modelOptionsWrite || Promise.resolve()).catch(() => {}).then(operation)
+    this.modelOptionsWrite = pending
+    return pending
+  }
+
+  // 手动添加模型（批量）：跳过已存在项，同一连接可配置对话和视觉能力。
   async addProviderModels(providerId, inputs, { skipExisting = true } = {}) {
     const provider = String(providerId || '').trim()
     const modelRuntime = this.getModelRuntime()
@@ -1750,30 +1863,41 @@ export class ProviderPreferences {
       if (!modelId) throw new Error('模型 ID 不能为空。')
       if (modelId.length > 240) throw new Error('模型 ID 过长。')
       const modelKind = inferModelKind(modelId, input.kind)
-      if (providerType === 'visual' && modelKind === 'chat') {
-        throw new Error('视觉 Provider 只能添加图像或视频模型。')
-      }
+
       if (existing.has(modelId)) {
         if (!skipExisting) throw new Error('该模型已经存在。')
         continue
       }
-      overlay.models.push({
-        id: modelId,
-        name: String(input.name || modelId).trim() || modelId,
-        api: String(input.api || overlay.api || 'openai-responses'),
-        kind: modelKind,
-        ...(String(input.baseUrl || '').trim() ? { baseUrl: String(input.baseUrl).trim() } : {}),
-        reasoning: input.reasoning !== false,
-        input: ['text', 'image'],
-        contextWindow: Number(input.contextWindow) || 200_000,
-        maxTokens: Number(input.maxTokens) || 128_000,
-      })
+      overlay.models.push(
+        updateModelOptions(
+          {
+            id: modelId,
+            name: String(input.name || modelId).trim() || modelId,
+            api: String(input.api || overlay.api || 'openai-responses'),
+            kind: modelKind,
+            userConfigured: true,
+            ...(String(input.baseUrl || '').trim()
+              ? { baseUrl: String(input.baseUrl).trim() }
+              : {}),
+            reasoning: input.reasoning !== false,
+            input: ['text', 'image'],
+            contextWindow: Number(input.contextWindow) || 200_000,
+            maxTokens: Number(input.maxTokens) || 128_000,
+          },
+          input,
+        ),
+      )
       existing.add(modelId)
       addedModelIds.push(modelId)
     }
     if (!addedModelIds.length) throw new Error('所选模型均已添加。')
     modelsJson.providers[provider] = overlay
     await writeJsonAtomic(this.modelsPath, modelsJson)
+    if (providerType === 'visual' && overlay.models.some((item) => item.kind === 'chat')) {
+      appConfig.providerTypes ||= {}
+      appConfig.providerTypes[provider] = 'chat'
+      await writeJsonAtomic(this.appConfigPath, appConfig)
+    }
     const catalog = this.providerModelCatalog.get(provider)
     const providerBaseUrl = overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || ''
     if (catalog && sameBaseUrl(catalog.baseUrl, providerBaseUrl)) {

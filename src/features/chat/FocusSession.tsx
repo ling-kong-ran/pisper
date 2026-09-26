@@ -715,17 +715,6 @@ export const FocusSession = memo(function FocusSession({
         menuRef={toolTrayMenuRef}
       >
         {toolbarAllocation.overflow.map(renderComposerTool)}
-        {toolsOpen && (
-          <Suspense fallback={null}>
-            <QuickPromptIdeas
-              plansAvailable={plansAvailable}
-              onPromptSelect={(prompt) => {
-                applyWelcomeChip(prompt)
-                setToolsOpen(false)
-              }}
-            />
-          </Suspense>
-        )}
         <button
           type="button"
           className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
@@ -907,6 +896,11 @@ export const FocusSession = memo(function FocusSession({
           </>
         </div>
       </div>
+      {!hasConversation && !streaming && (
+        <Suspense fallback={null}>
+          <QuickPromptIdeas plansAvailable={plansAvailable} onPromptSelect={applyWelcomeChip} />
+        </Suspense>
+      )}
     </form>
   )
   return (

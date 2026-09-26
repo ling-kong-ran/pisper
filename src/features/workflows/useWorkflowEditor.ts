@@ -41,7 +41,7 @@ export function useWorkflowEditor({
   workflowId: string
   templateId: string | null
   notify: Notify
-  onCreated: (workflowId: string) => void
+  onCreated: (workflowId: string, quiet: boolean) => void
 }) {
   const { t } = useI18n()
   const [catalog, setCatalog] = useState<WorkflowsData>(EMPTY_WORKFLOWS_DATA)
@@ -474,7 +474,7 @@ export function useWorkflowEditor({
             })
         setCatalog(result.state)
         setDraft(structuredClone(result.workflow))
-        if (!draft.id) onCreated(result.workflow.id)
+        if (!draft.id) onCreated(result.workflow.id, quiet)
         if (!quiet) {
           notify(
             status === 'published'

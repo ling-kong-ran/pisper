@@ -169,5 +169,9 @@
   "window.controls": "窗口控制",
   "window.minimize": "最小化",
   "window.maximize": "最大化 / 还原",
-  "window.close": "关闭窗口"
+  "window.close": "关闭窗口",
+  "appSidebar.accountMenu": "Pisper 菜单",
+  "appSidebar.providerSettings": "Provider 配置",
+  "appSidebar.appearanceSettings": "外观配置",
+  "appSidebar.running": "正在执行"
 }

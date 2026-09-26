@@ -395,6 +395,7 @@ export function SessionModelSelect({
   compact = false,
   showLabel = false,
   modelLabelOnly = false,
+  displayLabel,
 }: {
   value: string
   models: ModelOption[]
@@ -403,6 +404,7 @@ export function SessionModelSelect({
   compact?: boolean
   showLabel?: boolean
   modelLabelOnly?: boolean
+  displayLabel?: React.ReactNode
 }) {
   const { t } = useI18n()
   const currentModel = models.find((model) => model.key === value)
@@ -422,8 +424,9 @@ export function SessionModelSelect({
     >
       {showLabel ? (
         <span className="min-w-0 truncate">
-          {(modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel) ||
-            t('chat:focusSession.toolbarModel')}
+          {displayLabel ??
+            ((modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel) ||
+              t('chat:focusSession.toolbarModel'))}
         </span>
       ) : (
         <Bot size={compact ? 11 : 14} />
@@ -610,13 +613,21 @@ export function ModelThinkingControl({
         className="model-effort-popover w-[224px] max-w-[calc(100vw_-_24px)] rounded-2xl border-border/70 bg-popover p-3 shadow-xl"
       >
         <div className="flex flex-col items-center gap-0.5 pb-2.5">
-          <output
-            className="inline-flex items-center gap-1 text-base font-semibold text-[#329bff]"
-            aria-live="polite"
-          >
-            {effortLabel}
-            <ChevronRight size={17} aria-hidden="true" />
-          </output>
+          <div className="model-effort-heading max-w-full [&>div]:h-7 [&>div]:text-base [&>div]:font-semibold [&>div]:text-[#329bff]">
+            <SessionModelSelect
+              showLabel
+              value={model}
+              models={models}
+              onChange={onModelChange}
+              disabled={modelDisabled || saving}
+              displayLabel={
+                <span className="inline-flex items-center gap-1" aria-live="polite">
+                  {effortLabel}
+                  <ChevronRight size={17} aria-hidden="true" />
+                </span>
+              }
+            />
+          </div>
           <div className="model-effort-model max-w-full [&>div]:h-7 [&>div]:text-sm">
             <SessionModelSelect
               showLabel

@@ -71,7 +71,7 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
   // 底部输入仍默认向上；模板将输入置顶时允许向下并由弹层约束视口。
   assert.match(tray, /placement = 'top'/)
   assert.match(tray, /placement=\{placement\}/)
-  assert.match(tray, /composer-tool-tray[^"\n]*flex-wrap/)
+  assert.match(tray, /composer-tool-tray[^"\n]*flex-col/)
   assert.doesNotMatch(tray, /AnimatedContent|AnimatedList|composer-energy-spin/)
   assert.match(settings, /setToolLocation/)
   assert.match(settings, /moveTool/)

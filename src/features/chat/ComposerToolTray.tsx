@@ -32,7 +32,7 @@ export function ComposerToolTray({
     >
       <div
         id={trayId}
-        className="composer-tool-tray flex max-h-[min(52vh,360px)] min-h-9 w-full min-w-0 flex-wrap items-center gap-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+        className="composer-tool-tray flex max-h-[min(52vh,360px)] min-h-9 w-full min-w-0 flex-col items-stretch gap-1 [&>.composer-toolbar-slot]:w-full overflow-x-hidden overflow-y-auto overscroll-contain"
       >
         {children}
       </div>

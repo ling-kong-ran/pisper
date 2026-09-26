@@ -1,3 +1,4 @@
+import './provider-messages'
 // Provider 配置对话框：新增/编辑 Provider（密钥、端点、模型列表），
 // 提交前校验必填项与端点格式。
 import { useEffect, useState } from 'react'
@@ -357,21 +358,20 @@ export function ProviderConfigModal({
               </summary>
               <FieldLabel variant="control">
                 {t('config:configPage.modelType')}
-                {draft.providerType === 'visual' ? (
-                  <AppSelect
-                    value={draft.modelKind}
-                    onChange={(event) => setDraft({ ...draft, modelKind: event.target.value })}
-                  >
-                    <option value="image">
-                      {t('config:configPage.imageGenerationAndEditing')}
-                    </option>
-                    <option value="video">{t('config:configPage.videoGeneration')}</option>
-                  </AppSelect>
-                ) : (
-                  <div className="rounded-[var(--r-xs)] bg-[var(--surface-subtle)] px-[10px] py-[8px] text-[13px] text-[var(--text-muted)]">
-                    {t('config:configPage.chat')}
-                  </div>
-                )}
+                <AppSelect
+                  value={draft.modelKind}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      modelKind: event.target.value,
+                      providerType: event.target.value === 'chat' ? 'chat' : 'visual',
+                    })
+                  }
+                >
+                  <option value="chat">{t('providers:modelEditor.chat')}</option>
+                  <option value="image">{t('providers:modelEditor.image')}</option>
+                  <option value="video">{t('providers:modelEditor.video')}</option>
+                </AppSelect>
               </FieldLabel>
               <div className="grid gap-[9px]">
                 <ManualModelIds

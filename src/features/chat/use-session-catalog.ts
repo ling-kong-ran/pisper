@@ -1,5 +1,6 @@
 // 会话目录 hook：拉取/刷新会话列表，维护会话状态缓存（含实时流），
 // 处理会话树的展开与定位，并负责新会话的创建（含工作区分组）。
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { STORAGE_KEYS } from '@/app/storage'
@@ -44,6 +45,7 @@ type CreateSessionOptions = {
 
 export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const { t } = useI18n()
+  const queryClient = useQueryClient()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeId, setActiveId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -86,18 +88,39 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   )
 
   // 整体替换会话状态表（供批量恢复/清空）。
-  const replaceSessionStates = useCallback((states: Record<string, SessionState>) => {
-    const previous = sessionStatesRef.current
-    sessionStatesRef.current = states
-    setSessionStates(states)
-    // 只通知 state 引用真正变化的会话订阅者。
-    const keys = new Set([...Object.keys(previous), ...Object.keys(states)])
-    for (const key of keys) {
-      if (previous[key] === states[key]) continue
-      const listeners = sessionStateListenersRef.current.get(key)
-      if (listeners) for (const listener of [...listeners]) listener()
-    }
-  }, [])
+  const replaceSessionStates = useCallback(
+    (states: Record<string, SessionState>) => {
+      const previous = sessionStatesRef.current
+      sessionStatesRef.current = states
+      setSessionStates(states)
+      const changedActivity = Object.keys(states).filter(
+        (id) => states[id].streaming !== previous[id]?.streaming,
+      )
+      if (changedActivity.length) {
+        const changed = new Set(changedActivity)
+        queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (catalog) =>
+          catalog
+            ? {
+                ...catalog,
+                sessions: catalog.sessions.map((session) =>
+                  changed.has(session.id)
+                    ? { ...session, streaming: states[session.id].streaming }
+                    : session,
+                ),
+              }
+            : catalog,
+        )
+      }
+      // 只通知 state 引用真正变化的会话订阅者。
+      const keys = new Set([...Object.keys(previous), ...Object.keys(states)])
+      for (const key of keys) {
+        if (previous[key] === states[key]) continue
+        const listeners = sessionStateListenersRef.current.get(key)
+        if (listeners) for (const listener of [...listeners]) listener()
+      }
+    },
+    [queryClient],
+  )
 
   useEffect(() => {
     return subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {

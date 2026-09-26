@@ -233,6 +233,7 @@ export function MemoryPage({
   })
   const [spaceId, setSpaceId] = useState('')
   const [selectedId, setSelectedId] = useState('')
+  const loadRevision = useRef(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -302,6 +303,7 @@ export function MemoryPage({
   // 加载记忆数据：按空间/搜索词拉取节点与候选；选中项失效时回退首节点。
   const load = useCallback(
     async (requestedSpaceId = '') => {
+      const revision = ++loadRevision.current
       setLoading(true)
       setError('')
       try {
@@ -309,22 +311,26 @@ export function MemoryPage({
         if (requestedSpaceId) params.set('spaceId', requestedSpaceId)
         if (query.trim()) params.set('query', query.trim())
         const result = await apiJson<MemoryData>(`/api/memory?${params}`)
+        if (revision !== loadRevision.current) return
         setData(result)
         setSpaceId(result.selectedSpaceId || '')
         setSelectedId((current) =>
           result.nodes.some((node) => node.id === current) ? current : result.nodes[0]?.id || '',
         )
       } catch (loadError) {
-        setError(errorMessage(loadError))
+        if (revision === loadRevision.current) setError(errorMessage(loadError))
       } finally {
-        setLoading(false)
+        if (revision === loadRevision.current) setLoading(false)
       }
     },
     [query],
   )
 
   useEffect(() => {
-    load(spaceId)
+    void load(spaceId)
+    return () => {
+      loadRevision.current += 1
+    }
   }, [load, spaceId])
 
   useEffect(() => {
@@ -983,6 +989,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
   const [error, setError] = useState('')
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
     setError('')
     try {
@@ -1005,9 +1012,12 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
   return (
     <div
       className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      onMouseDown={(event) => !saving && event.target === event.currentTarget && onClose()}
     >
       <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={node ? t('memory:memoryPage.editMemory') : t('memory:memoryPage.addMemory')}
         className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
         onSubmit={submit}
       >
@@ -1021,6 +1031,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
             variant="ghost"
             size="icon"
             aria-label={t('memory:memoryPage.closeDialog')}
+            disabled={saving}
             onClick={onClose}
           >
             <X size={17} />
@@ -1121,6 +1132,7 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
   const [error, setError] = useState('')
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
     setError('')
     try {
@@ -1146,9 +1158,14 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
   return (
     <div
       className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      onMouseDown={(event) => !saving && event.target === event.currentTarget && onClose()}
     >
       <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={
+          space ? t('memory:memoryPage.renameMemorySpace') : t('memory:memoryPage.newMemorySpace')
+        }
         className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
         onSubmit={submit}
       >
@@ -1170,6 +1187,7 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
             variant="ghost"
             size="icon"
             aria-label={t('memory:memoryPage.closeDialog')}
+            disabled={saving}
             onClick={onClose}
           >
             <X size={17} />

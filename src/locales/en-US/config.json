@@ -639,5 +639,10 @@
   "providerWorkbench.manageModels": "Discover and manage models",
   "providerWorkbench.advanced": "More settings",
   "providerWorkbench.advancedHint": "Local imports and runtime policies",
-  "providerWorkbench.modelOptions": "Model capabilities and additional models"
+  "providerWorkbench.modelOptions": "Model capabilities and additional models",
+  "interfaceSettings.fontScaleHint": "Fixed type proportions, based on 14px with only ±0.5px adjustment. Icons and layout stay the same size.",
+  "providerWorkbench.custom": "Custom connections",
+  "providerWorkbench.presets": "Preset services",
+  "providerWorkbench.scanningLocal": "Connecting local Claude Code / Codex settings…",
+  "providerWorkbench.localImportStatus": "Local configuration · {imported} imported · {skipped} need review"
 }

@@ -1,0 +1,18 @@
+{
+  "modelEditor.edit": "编辑模型",
+  "modelEditor.add": "添加模型",
+  "modelEditor.description": "能力与思考强度",
+  "modelEditor.id": "模型 ID",
+  "modelEditor.capabilities": "模型能力",
+  "modelEditor.chat": "对话",
+  "modelEditor.image": "图像生成",
+  "modelEditor.video": "视频生成",
+  "modelEditor.capabilitiesHint": "可单选或多选。仅选图像生成时，复用此连接的密钥，不会出现在对话模型中。",
+  "modelEditor.chatCapabilities": "对话能力",
+  "modelEditor.vision": "图片理解",
+  "modelEditor.reasoning": "深度思考",
+  "modelEditor.contextWindow": "上下文窗口（Token）",
+  "modelEditor.maxTokens": "最大输出（Token）",
+  "modelEditor.editNamed": "编辑模型 {name}",
+  "modelEditor.optionsNamed": "模型能力：{name}"
+}
