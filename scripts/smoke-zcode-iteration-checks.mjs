@@ -185,17 +185,17 @@ export async function verifyZcodeIteration({
   await page.getByRole('button', { name: '试运行', exact: true }).click()
   const started = await (await runResponse).json()
   assert.equal(started.started, true)
-  await page.waitForFunction(
-    async (id) => {
-      const run = await (await fetch('/api/workflow-runs/' + id)).json()
-      return ['completed', 'failed', 'cancelled', 'interrupted', 'waiting_approval'].includes(
-        run.status,
-      )
-    },
-    started.run.id,
-    { timeout: 30000 },
-  )
-  const finished = await api('/api/workflow-runs/' + started.run.id)
+  // Poll the API in Node and retain the exact terminal snapshot for assertions.
+  // A browser waitForFunction predicate returning a Promise can end before its
+  // eventual boolean is true; it must not be used as asynchronous API polling.
+  const deadline = Date.now() + 30000
+  const terminalStatuses = ['completed', 'failed', 'cancelled', 'interrupted', 'waiting_approval']
+  let finished
+  do {
+    finished = await api('/api/workflow-runs/' + started.run.id)
+    if (terminalStatuses.includes(finished.status)) break
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  } while (Date.now() < deadline)
   assert.equal(finished.status, 'completed', finished.error)
   assert.equal(finished.nodes.find((node) => node.kind === 'prompt').status, 'completed')
   assert.match(JSON.stringify(finished), /验收通过/)

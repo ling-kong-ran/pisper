@@ -335,3 +335,159 @@ test('model options and local import HTTP endpoints preserve the payload and rej
   assert.deepEqual(imported.body.imported, [])
   assert.deepEqual(calls, [{ id: 'relay', options }, 'local'])
 })
+
+test(
+  'concurrent connection, credentials, models and enable writes preserve every update',
+  { timeout: 15000 },
+  async (t) => {
+    const { runtime, directory } = await fixture(t)
+    await create(runtime)
+    await runtime.createProvider({
+      id: 'secondary-relay',
+      name: 'Secondary',
+      api: 'openai-completions',
+      baseUrl: 'http://127.0.0.1:9/v1',
+      apiKey: 'secondary-test-only',
+      model: 'secondary-model',
+    })
+    await Promise.all([
+      runtime.setProviderConnection('capability-relay', {
+        name: 'Renamed connection',
+        api: 'openai-completions',
+        baseUrl: 'http://127.0.0.1:9/updated',
+      }),
+      runtime.setProviderModelOptions('capability-relay', {
+        modelId: 'fixture-model',
+        name: 'Manual model',
+        capabilities: ['chat', 'image'],
+        reasoning: true,
+        thinkingLevels: ['low', 'high'],
+      }),
+      runtime.addProviderModel('capability-relay', { id: 'added-during-save', kind: 'chat' }),
+      runtime.setProviderApiKey('capability-relay', { apiKey: 'updated-fixture-only' }),
+      runtime.setProviderEnabled('secondary-relay', false),
+    ])
+    const config = await runtime.getConfig()
+    const connection = config.providers.find((p) => p.id === 'capability-relay')
+    assert.equal(connection.name, 'Renamed connection')
+    assert.equal(connection.baseUrl, 'http://127.0.0.1:9/updated')
+    assert.equal(connection.models.find((m) => m.id === 'fixture-model').name, 'Manual model')
+    assert.deepEqual(connection.models.find((m) => m.id === 'fixture-model').capabilities, [
+      'chat',
+      'image',
+    ])
+    assert.ok(connection.models.some((m) => m.id === 'added-during-save'))
+    assert.equal(config.providers.find((p) => p.id === 'secondary-relay').enabled, false)
+    assert.equal(
+      JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))['capability-relay'].key,
+      'updated-fixture-only',
+    )
+    assert.ok(!JSON.stringify(config).includes('updated-fixture-only'))
+    // Rejection neither changes the previous model nor poisons the global queue.
+    await assert.rejects(
+      runtime.setProviderModelOptions('capability-relay', {
+        modelId: 'fixture-model',
+        capabilities: [],
+      }),
+    )
+    await runtime.addProviderModel('capability-relay', { id: 'after-rejected-write', kind: 'chat' })
+    assert.ok(
+      (await runtime.getConfig()).providers
+        .find((p) => p.id === 'capability-relay')
+        .models.some((m) => m.id === 'after-rejected-write'),
+    )
+  },
+)
+
+test(
+  'refresh and local auto-import cannot overwrite a queued manual model edit',
+  { timeout: 15000 },
+  async (t) => {
+    let entered, release
+    const started = new Promise((resolve) => {
+      entered = resolve
+    })
+    const held = new Promise((resolve) => {
+      release = resolve
+    })
+    t.after(() => release())
+    const { runtime } = await fixture(t, {
+      providerModelDiscovery: {
+        async discover() {
+          entered()
+          await held
+          return { models: [{ id: 'fixture-model', name: 'Remote catalog name', kind: 'chat' }] }
+        },
+      },
+      providerDiscovery: {
+        async discover() {
+          return { providers: [], errors: [] }
+        },
+      },
+    })
+    await create(runtime)
+    const refresh = runtime.refreshProviderModels()
+    await started
+    const imports = [runtime.importLocalProviders(), runtime.importLocalProviders()]
+    const save = runtime.setProviderModelOptions('capability-relay', {
+      modelId: 'fixture-model',
+      name: 'Final manual name',
+      capabilities: ['chat', 'image'],
+    })
+    release()
+    const [, firstImport, secondImport] = await Promise.all([refresh, ...imports, save])
+    assert.deepEqual(firstImport, secondImport)
+    const model = (await runtime.getConfig()).providers
+      .find((p) => p.id === 'capability-relay')
+      .models.find((m) => m.id === 'fixture-model')
+    assert.equal(model.name, 'Final manual name')
+    assert.deepEqual(model.capabilities, ['chat', 'image'])
+  },
+)
+
+test(
+  'configuration queue supports nested writes but does not let detached work retain ownership',
+  { timeout: 15000 },
+  async (t) => {
+    const { runtime } = await fixture(t)
+    const preferences = runtime.providerPreferences
+    const order = []
+    let beginDetached, releaseBlocker, blockerEntered, detached
+    const gate = new Promise((resolve) => {
+      beginDetached = resolve
+    })
+    const blocker = new Promise((resolve) => {
+      releaseBlocker = resolve
+    })
+    const entered = new Promise((resolve) => {
+      blockerEntered = resolve
+    })
+    t.after(() => {
+      beginDetached()
+      releaseBlocker()
+    })
+    await preferences.withConfigurationWrite(async () => {
+      await preferences.withConfigurationWrite(async () => {
+        order.push('nested')
+      })
+      detached = (async () => {
+        await gate
+        await preferences.withConfigurationWrite(async () => {
+          order.push('detached')
+        })
+      })()
+    })
+    const holding = preferences.withConfigurationWrite(async () => {
+      blockerEntered()
+      await blocker
+      order.push('blocker')
+    })
+    await entered
+    beginDetached()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(order, ['nested'])
+    releaseBlocker()
+    await Promise.all([holding, detached])
+    assert.deepEqual(order, ['nested', 'blocker', 'detached'])
+  },
+)

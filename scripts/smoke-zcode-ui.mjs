@@ -732,6 +732,10 @@ try {
     .getByText(/正在生成停止测试/)
     .first()
     .waitFor({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: /^正在执行 PI background-run QA / })
+    .locator('svg.animate-spin')
+    .waitFor()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   assert.equal(
     await page
@@ -797,7 +801,17 @@ try {
     }, 25)
   })
   assert.equal(report.stopConnectionClosed, true)
-  report.checks.push('Stop button aborts backend run and closes upstream stream')
+  await page.getByRole('button', { name: /^(未读 )?PI background-run QA / }).waitFor()
+  assert.equal(
+    await page
+      .getByRole('button', { name: /^(未读 )?PI background-run QA / })
+      .locator('svg.animate-spin')
+      .count(),
+    0,
+  )
+  report.checks.push(
+    'Session spinner appears while running and clears after stop; Stop aborts backend run and closes upstream stream',
+  )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page.waitForFunction(
     () =>
@@ -832,14 +846,28 @@ try {
   await page.waitForURL('**/#/workflows')
   await page.getByRole('heading', { name: '工作流', level: 1, exact: true }).waitFor()
   finishDeferredResponse()
-  await page.waitForFunction(
-    async ({ id, expected }) => {
-      const response = await fetch(`/api/sessions/${id}/thinking-level`)
-      const data = await response.json()
-      return data.model === expected && data.thinkingLevel === 'off'
-    },
-    { id: sessionId, expected: `${provider}-fixed/${model}-fixed` },
+  const selectionDeadline = Date.now() + 30000
+  let appliedSelection
+  do {
+    appliedSelection = await api('/api/sessions/' + sessionId + '/thinking-level')
+    if (
+      appliedSelection.model === provider + '-fixed/' + model + '-fixed' &&
+      appliedSelection.thinkingLevel === 'off'
+    )
+      break
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  } while (Date.now() < selectionDeadline)
+  assert.equal(appliedSelection.model, provider + '-fixed/' + model + '-fixed')
+  assert.equal(appliedSelection.thinkingLevel, 'off')
+  await page.getByRole('button', { name: /^(未读 )?PI background-run QA / }).waitFor()
+  assert.equal(
+    await page
+      .getByRole('button', { name: /^(未读 )?PI background-run QA / })
+      .locator('svg.animate-spin')
+      .count(),
+    0,
   )
+  report.checks.push('Session spinner clears after natural completion even while viewing workflows')
   await page.goto(base + '/#/chat')
   await page
     .getByRole('heading', { name: '工作流', level: 1, exact: true })

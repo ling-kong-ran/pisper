@@ -1,6 +1,7 @@
 // Provider 偏好与配置管理：负责模型运行时装配、Provider 配置（连接/密钥/模型）读写、
 // 模型发现与目录同步、默认模型对账、会话模型/思考等级切换，以及配置迁移与安全校验。
 import { randomUUID } from 'node:crypto'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { modelCapabilities, updateModelOptions } from '../services/provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ModelRuntime } from './pi-coding-agent.mjs'
@@ -343,6 +344,27 @@ export class ProviderPreferences {
     this.reconcileDefaultModelFacade = reconcileDefaultModel
     this.providerState = providerState
     this.providerCreationQueue = Promise.resolve()
+    this.configurationWriteQueue = Promise.resolve()
+    this.configurationWriteContext = new AsyncLocalStorage()
+  }
+
+  // All facade configuration writes share one instance queue. Nested facade calls
+  // participate in the same operation, but detached work cannot retain a finished lock.
+  withConfigurationWrite(operation) {
+    if (this.configurationWriteContext.getStore()?.active) return operation()
+    const pending = this.configurationWriteQueue.then(() => {
+      const context = { active: true }
+      return this.configurationWriteContext.run(context, async () => {
+        try {
+          return await operation()
+        } finally {
+          context.active = false
+        }
+      })
+    })
+    // A rejected save must not poison subsequent writes.
+    this.configurationWriteQueue = pending.catch(() => {})
+    return pending
   }
 
   // 凭据文件始终以私有权限原子写入；避免 rename 覆盖后退回到进程 umask。
@@ -648,7 +670,7 @@ export class ProviderPreferences {
   // 自动接入仅补齐尚未导入且无冲突的本地 CLI 配置；绝不覆盖用户已有凭据。
   async importLocalProviders() {
     if (this.localImportPromise) return this.localImportPromise
-    this.localImportPromise = (async () => {
+    this.localImportPromise = this.withConfigurationWrite(async () => {
       let discovery = await this.getProviderDiscovery()
       const imported = []
       const skipped = []
@@ -676,7 +698,7 @@ export class ProviderPreferences {
       }
       discovery = await this.getProviderDiscovery()
       return { imported, skipped, discovery, config: await this.getConfigFacade() }
-    })()
+    })
     try {
       return await this.localImportPromise
     } finally {
@@ -1585,7 +1607,21 @@ export class ProviderPreferences {
 
   // 后台刷新各 Provider 的模型目录：跳过未配置密钥/未显式连接的 Provider，
   // 并发执行并去重（refreshPromise 保证同一时间只有一次刷新）。
-  async refreshProviderModels() {
+  refreshProviderModels() {
+    // Coalesce before queuing, including startup refresh callers. Only publish
+    // refreshPromise once the operation owns the lock, so saves cannot deadlock
+    // waiting for a refresh that is queued behind themselves.
+    if (this.queuedRefreshPromise) return this.queuedRefreshPromise
+    const pending = this.withConfigurationWrite(() => this.refreshProviderModelsInWrite()).finally(
+      () => {
+        if (this.queuedRefreshPromise === pending) this.queuedRefreshPromise = null
+      },
+    )
+    this.queuedRefreshPromise = pending
+    return pending
+  }
+
+  async refreshProviderModelsInWrite() {
     if (this.providerState.refreshPromise) return this.providerState.refreshPromise
     const refresh = async () => {
       const modelRuntime = this.getModelRuntime()
