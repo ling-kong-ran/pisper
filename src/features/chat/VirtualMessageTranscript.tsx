@@ -31,8 +31,8 @@ type VirtualMessageTranscriptProps = {
   onContentSizeChange: () => void
   onTargetScroll: () => void
   onTargetLocated: (entryId: string) => void
-  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
-  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
 }
 

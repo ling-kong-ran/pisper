@@ -105,11 +105,16 @@ test('stop intent suppresses context reveal when done arrives before the abort r
   assert.equal(f.state.lifecycle.phase, 'completed')
   assert.equal(f.state.runStopped, true)
   assert.equal(
-    shouldRevealSessionContext(before, {
-      sessionId: 'session',
-      streaming: f.state.streaming,
-      completed: f.state.lifecycle.phase === 'completed' && !f.state.error && !f.state.runStopped,
-    }),
+    shouldRevealSessionContext(
+      before,
+      {
+        sessionId: 'session',
+        streaming: f.state.streaming,
+        completed: f.state.lifecycle.phase === 'completed' && !f.state.error && !f.state.runStopped,
+        runStartedAt: f.state.runStartedAt,
+      },
+      [{ changedAt: '2026-09-24T10:00:00.500Z', added: 1, removed: 0, snapshot: true }],
+    ),
     false,
   )
   pending.resolve({ aborted: true })

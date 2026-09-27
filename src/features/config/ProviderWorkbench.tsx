@@ -1,6 +1,6 @@
 import './provider-messages'
 // Provider 导航、连接与模型列表共用同一详情页；视觉模型不再要求独立连接。
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Check,
   Copy,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { PROVIDER_ICONS } from './provider-constants'
 import { ProviderConnectionEditor, type ProviderConnectionDraft } from './ProviderConnectionEditor'
 import { ProviderModelEditor } from './ProviderModelEditor'
+import { getProviderWorkbenchState } from './provider-workbench-state'
 import { SettingsSwitch } from './settings-primitives'
 import type { ConfigData, ProviderConfig, ProviderModel } from './config-types'
 type Props = {
@@ -36,10 +38,11 @@ type Props = {
   toggling: string
   settingDefault: string
   settingModel: string
+  deletingModel: string
   onSave: (config: ConfigData) => void
-  onAdd: () => void
   onClone: (provider: ProviderConfig) => void
   onDelete: (provider: ProviderConfig) => void | Promise<void>
+  onDeleteModel: (provider: ProviderConfig, model: ProviderModel) => void | Promise<void>
   onToggle: (provider: ProviderConfig, enabled: boolean) => void | Promise<void>
   onSetDefault: (provider: ProviderConfig) => void | Promise<void>
   onSetDefaultModel: (provider: ProviderConfig, model: string) => void | Promise<void>
@@ -47,9 +50,11 @@ type Props = {
 
 export function ProviderWorkbench(props: Props) {
   const { t } = useI18n()
-  const defaultId = props.config.defaultProvider || props.config.provider
-  const providers = props.config.providers
-  const selectedId = props.selectedProviderId || defaultId
+  const defaultBadgeId = useId()
+  const { providers, selected, defaultId } = getProviderWorkbenchState(
+    props.config,
+    props.selectedProviderId,
+  )
   // 草稿仅在本次页面驻留期间存活，切换 Provider 不丢编辑，也不落盘密钥。
   const [drafts, setDrafts] = useState<Record<string, ProviderConnectionDraft | undefined>>({})
   const [connectionSaving, setConnectionSaving] = useState(false)
@@ -57,13 +62,14 @@ export function ProviderWorkbench(props: Props) {
     provider: ProviderConfig
     model?: ProviderModel
   } | null>(null)
-  const selected =
-    providers.find((provider) => provider.id === selectedId) ??
-    providers.find((provider) => provider.id === defaultId) ??
-    providers[0]
   const Icon = selected ? PROVIDER_ICONS[selected.id] || Server : Server
+  const hasProviders = providers.length > 0
   const busy = Boolean(
-    connectionSaving || props.settingDefault || props.settingModel || props.toggling,
+    connectionSaving ||
+    props.settingDefault ||
+    props.settingModel ||
+    props.toggling ||
+    props.deletingModel,
   )
   return (
     <section
@@ -72,70 +78,61 @@ export function ProviderWorkbench(props: Props) {
     >
       <div
         data-model-provider-split-panel
-        className="grid min-h-[36rem] grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[224px_minmax(0,1fr)]"
+        className={cn(
+          'grid grid-cols-1 content-start',
+          hasProviders && 'min-h-[36rem] md:grid-cols-[224px_minmax(0,1fr)]',
+        )}
       >
-        <nav
-          aria-label={t('config:configPage.connections')}
-          className="min-w-0 border-r border-border p-2 md:p-3"
-        >
-          <div className="mb-3 flex h-8 items-center justify-between px-1 text-xs text-muted-foreground">
-            <span className="max-md:sr-only">{t('config:configPage.connections')}</span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('config:configPage.addCustomConnection')}
-              title={t('config:configPage.addCustomConnection')}
-              disabled={busy}
-              onClick={props.onAdd}
-            >
-              <Plus size={16} />
-            </Button>
-          </div>
-          {[false, true].map((custom) => (
-            <div key={String(custom)} className="mb-4 space-y-1">
-              <p className="px-2 py-1.5 text-xs text-muted-foreground max-md:sr-only">
-                {custom
-                  ? t('config:providerWorkbench.custom')
-                  : t('config:providerWorkbench.presets')}
-              </p>
-              {providers
-                .filter((provider) => Boolean(provider.custom) === custom)
-                .map((provider) => {
-                  const ProviderIcon = PROVIDER_ICONS[provider.id] || Server
-                  return (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      title={provider.name}
-                      aria-label={provider.name}
-                      aria-current={selected?.id === provider.id ? 'true' : undefined}
-                      disabled={busy}
-                      onClick={() => props.onSelectProvider(provider.id)}
+        {hasProviders && (
+          <nav
+            aria-label={t('config:configPage.connections')}
+            className="min-w-0 border-b border-border p-3 md:border-r md:border-b-0"
+          >
+            <p className="mb-2 px-2 text-xs text-muted-foreground">
+              {t('config:configPage.connections')}
+            </p>
+            <div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-x-visible md:pb-0">
+              {providers.map((provider) => {
+                const ProviderIcon = PROVIDER_ICONS[provider.id] || Server
+                const isDefault = provider.id === defaultId
+                return (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    title={provider.name}
+                    aria-label={provider.name}
+                    aria-describedby={isDefault ? defaultBadgeId : undefined}
+                    aria-current={selected?.id === provider.id ? 'true' : undefined}
+                    disabled={busy}
+                    onClick={() => props.onSelectProvider(provider.id)}
+                    className={cn(
+                      'flex min-h-11 max-w-64 shrink-0 items-center gap-2.5 rounded-lg border px-3 text-left text-sm md:min-h-10 md:w-full md:px-2',
+                      selected?.id === provider.id
+                        ? 'border-border bg-muted text-foreground'
+                        : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <ProviderIcon size={17} className="shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{provider.name}</span>
+                    {isDefault && (
+                      <Badge id={defaultBadgeId} variant="secondary" className="px-1.5">
+                        {t('config:providerWorkbench.default')}
+                      </Badge>
+                    )}
+                    <span
                       className={cn(
-                        'flex min-h-10 w-full items-center gap-2.5 rounded-lg border px-2 text-left text-sm max-md:justify-center max-md:px-0',
-                        selected?.id === provider.id
-                          ? 'border-border bg-muted text-foreground'
-                          : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                        'size-1.5 shrink-0 rounded-full',
+                        provider.configured && provider.enabled
+                          ? 'bg-emerald-500'
+                          : 'bg-muted-foreground/25',
                       )}
-                    >
-                      <ProviderIcon size={17} className="shrink-0" />
-                      <span className="min-w-0 flex-1 truncate max-md:sr-only">
-                        {provider.name}
-                      </span>
-                      <span
-                        className={cn(
-                          'size-1.5 shrink-0 rounded-full max-md:hidden',
-                          provider.configured && provider.enabled
-                            ? 'bg-emerald-500'
-                            : 'bg-muted-foreground/25',
-                        )}
-                      />
-                    </button>
-                  )
-                })}
+                    />
+                  </button>
+                )
+              })}
             </div>
-          ))}
-        </nav>
+          </nav>
+        )}
         <div className="min-w-0 p-4 sm:p-6">
           {selected ? (
             <>
@@ -144,7 +141,14 @@ export function ProviderWorkbench(props: Props) {
                   <Icon size={23} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-lg font-semibold">{selected.name}</h2>
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <h2 className="max-w-full truncate text-lg font-semibold">{selected.name}</h2>
+                    {selected.id === defaultId && (
+                      <Badge variant="secondary">
+                        {t('config:providerWorkbench.defaultProvider')}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-muted-foreground">{selected.id}</p>
                 </div>
                 <SettingsSwitch
@@ -241,6 +245,7 @@ export function ProviderWorkbench(props: Props) {
                         <button
                           type="button"
                           onClick={() => setEditing({ provider: selected, model })}
+                          disabled={busy}
                           className="min-w-0 flex-1 text-left"
                           aria-label={t('providers:modelEditor.editNamed', {
                             name: model.name || model.id,
@@ -284,9 +289,22 @@ export function ProviderWorkbench(props: Props) {
                           variant="ghost"
                           size="icon-sm"
                           aria-label={t('providers:modelEditor.optionsNamed', { name: model.id })}
+                          disabled={busy}
                           onClick={() => setEditing({ provider: selected, model })}
                         >
                           <SlidersHorizontal size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={busy}
+                          aria-label={t('providers:modelEditor.deleteNamed', {
+                            name: model.name || model.id,
+                          })}
+                          title={t('providers:modelEditor.delete')}
+                          onClick={() => void props.onDeleteModel(selected, model)}
+                        >
+                          <Trash2 size={14} />
                         </Button>
                       </div>
                     )
@@ -296,11 +314,11 @@ export function ProviderWorkbench(props: Props) {
             </>
           ) : (
             <div className="grid min-h-80 place-content-center gap-4 text-center">
-              <p className="text-sm">{t('config:configPage.noModelConfiguredYet')}</p>
-              <Button onClick={props.onAdd}>
-                <Plus size={14} />
-                {t('config:configPage.addCustomConnection')}
-              </Button>
+              <Server size={28} className="mx-auto text-muted-foreground" />
+              <p className="text-sm font-medium">{t('config:providerWorkbench.noConnections')}</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                {t('config:providerWorkbench.addConnectionHint')}
+              </p>
             </div>
           )}
         </div>

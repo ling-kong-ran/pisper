@@ -26,6 +26,10 @@ export const CUSTOM_UI_PERMISSIONS = Object.freeze([
   // 只读数据
   'config.read',
   'sessions.read',
+  'game-assets.read',
+  // 工作流写入与运行独立授权；只读组件不能上传素材或启动任务。
+  'game-assets.write',
+  'game-assets.run',
   // 交互反馈
   'notify',
 ])
@@ -134,6 +138,19 @@ const BRIDGE_SCRIPT = String.raw`// Pisper 自定义 UI 桥：与父页面（应
     ready: function () { return post('ready') },
     getConfig: function () { return post('getConfig') },
     listSessions: function (params) { return post('listSessions', params) },
+    gameAssets: {
+      list: function (params) { return post('gameAssets.list', params) },
+      save: function (params) { return post('gameAssets.save', params) },
+      run: function (params) { return post('gameAssets.run', params) },
+      stop: function (params) { return post('gameAssets.stop', params) },
+      uploadImage: function (params) { return post('gameAssets.uploadImage', params) },
+      image: function (params) { return post('gameAssets.image', params) },
+      process: function (params) { return post('gameAssets.process', params) },
+      engine: function (params) { return post('gameAssets.engine', params) },
+      export: function (params) { return post('gameAssets.export', params) },
+      editFrames: function (params) { return post('gameAssets.editFrames', params) },
+      remove: function (params) { return post('gameAssets.remove', params) },
+    },
     notify: function (message, kind) { return post('notify', { message: message, kind: kind }) },
     onThemeChanged: function (listener) {
       themeListeners.add(listener)

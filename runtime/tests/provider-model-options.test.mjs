@@ -30,6 +30,114 @@ async function create(runtime) {
   })
 }
 
+test('deleting a default model preserves credentials and session bindings, and selects a remaining model', async (t) => {
+  const { runtime, directory } = await fixture(t)
+  await create(runtime)
+  await runtime.addProviderModels('capability-relay', [{ id: 'fallback/model', kind: 'chat' }])
+  const session = await runtime.createSession('Bound before delete')
+  await runtime.setSessionModel(session.id, 'capability-relay', 'fixture-model')
+  const auth = await readFile(join(directory, 'auth.json'), 'utf8')
+  const result = await runtime.deleteProviderModel('capability-relay', 'fixture-model')
+  assert.equal(result.defaultProvider, 'capability-relay')
+  assert.equal(result.defaultModel, 'fallback/model')
+  assert.equal(
+    result.providers.find((p) => p.id === 'capability-relay').defaultModel,
+    'fallback/model',
+  )
+  assert.equal(runtime.modelRuntime.getModel('capability-relay', 'fixture-model'), undefined)
+  assert.equal(await readFile(join(directory, 'auth.json'), 'utf8'), auth)
+  assert.equal(
+    (await runtime.listSessions()).find((entry) => entry.id === session.id).model,
+    'capability-relay/fixture-model',
+  )
+  await runtime.reloadModelRuntime()
+  assert.equal(runtime.modelRuntime.getModel('capability-relay', 'fixture-model'), undefined)
+  await runtime.deleteProviderModel('capability-relay', 'fixture-model')
+  const empty = await runtime.deleteProviderModel('capability-relay', 'fallback/model')
+  assert.equal(empty.defaultProvider, '')
+  assert.equal(empty.defaultModel, '')
+  assert.deepEqual(empty.providers.find((p) => p.id === 'capability-relay').models, [])
+  assert.equal(empty.providers.find((p) => p.id === 'capability-relay').configured, true)
+  await runtime.providerPreferences.reconcileDefaultModel()
+  assert.equal((await runtime.getConfig()).defaultModel, '')
+  await runtime.dispose()
+  const restored = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(() => restored.dispose())
+  await restored.init()
+  const restoredConfig = await restored.getConfig()
+  assert.equal(restoredConfig.defaultProvider, '')
+  assert.equal(restoredConfig.defaultModel, '')
+  assert.deepEqual(restoredConfig.providers.find((p) => p.id === 'capability-relay').models, [])
+  const added = await restored.addProviderModels('capability-relay', [{ id: 'fixture-model' }])
+  assert.equal(added.defaultProvider, 'capability-relay')
+  assert.equal(added.defaultModel, 'fixture-model')
+  const newSession = await restored.createSession('After restoring default')
+  assert.equal(newSession.model, 'capability-relay/fixture-model')
+})
+
+test('deleted discovered models stay removed after catalog refresh and can be explicitly added again', async (t) => {
+  const { runtime } = await fixture(t, {
+    providerModelDiscovery: {
+      async discover() {
+        return {
+          models: [
+            { id: 'fixture-model', kind: 'chat' },
+            { id: 'discovered/model', kind: 'chat' },
+          ],
+        }
+      },
+    },
+  })
+  await create(runtime)
+  await runtime.discoverProviderModels('capability-relay')
+  assert.ok(runtime.modelRuntime.getModel('capability-relay', 'discovered/model'))
+  await runtime.deleteProviderModel('capability-relay', 'discovered/model')
+  await runtime.discoverProviderModels('capability-relay')
+  assert.equal(runtime.modelRuntime.getModel('capability-relay', 'discovered/model'), undefined)
+  await runtime.addProviderModels('capability-relay', [{ id: 'discovered/model', kind: 'chat' }])
+  assert.ok(runtime.modelRuntime.getModel('capability-relay', 'discovered/model'))
+})
+
+test('legacy configuration can explicitly restore a deleted model', async (t) => {
+  const { runtime } = await fixture(t)
+  await create(runtime)
+  await runtime.deleteProviderModel('capability-relay', 'fixture-model')
+  const result = await runtime.saveConfig({
+    provider: 'capability-relay',
+    model: 'fixture-model',
+    api: 'openai-completions',
+    baseUrl: 'http://127.0.0.1:9/v1',
+  })
+  assert.equal(result.defaultModel, 'fixture-model')
+  assert.ok(runtime.modelRuntime.getModel('capability-relay', 'fixture-model'))
+  await runtime.reloadModelRuntime()
+  assert.ok(runtime.modelRuntime.getModel('capability-relay', 'fixture-model'))
+})
+
+test('built-in model deletion blocks fallback lookup and invalid deletions leave configuration intact', async (t) => {
+  const { runtime, directory } = await fixture(t)
+  const model = runtime.modelRuntime.getModels('openai')[0]
+  assert.ok(model)
+  await runtime.deleteProviderModel('openai', model.id)
+  await runtime.reloadModelRuntime()
+  assert.equal(runtime.modelRuntime.getError(), undefined)
+  assert.equal(runtime.modelRuntime.getModel('openai', model.id), undefined)
+  assert.ok(!runtime.modelRuntime.getModels('openai').some((entry) => entry.id === model.id))
+  const before = await readFile(join(directory, 'models.json'), 'utf8')
+  for (const input of [undefined, '', {}, 'x'.repeat(241)]) {
+    await assert.rejects(() => runtime.deleteProviderModel('openai', input), {
+      code: 'INVALID_PROVIDER_MODEL',
+    })
+  }
+  await assert.rejects(() => runtime.deleteProviderModel('unknown-provider', 'some-model'), {
+    code: 'PROVIDER_NOT_FOUND',
+  })
+  await assert.rejects(() => runtime.deleteProviderModel('openai', 'unknown-model'), {
+    code: 'PROVIDER_MODEL_NOT_FOUND',
+  })
+  assert.equal(await readFile(join(directory, 'models.json'), 'utf8'), before)
+})
+
 test('model options validate before mutation and preserve legacy kind', () => {
   assert.deepEqual(modelCapabilities({ kind: 'image' }), ['image'])
   const existing = { id: 'test', kind: 'chat', reasoning: true }
@@ -286,7 +394,7 @@ test('automatic import does not overwrite a preconfigured Provider or guess miss
 })
 
 // 公共接口保持增量兼容：模型元数据走独立入口，不借全局配置改变运行策略。
-test('model options and local import HTTP endpoints preserve the payload and reject legacy config routing', async () => {
+test('model options, deletion and local import HTTP endpoints preserve their payloads', async () => {
   const calls = []
   const handler = createApiHandler({
     async setProviderModelOptions(id, options) {
@@ -301,6 +409,13 @@ test('model options and local import HTTP endpoints preserve the payload and rej
         imported: [],
         skipped: [],
       }
+    },
+    async deleteProviderModel(id, modelId) {
+      if (!modelId) {
+        throw Object.assign(new Error('Invalid model'), { code: 'INVALID_PROVIDER_MODEL' })
+      }
+      calls.push({ deleted: { id, modelId } })
+      return { providers: [{ id, models: [] }] }
     },
     async saveConfig() {
       throw new Error('must not use global config')
@@ -333,7 +448,20 @@ test('model options and local import HTTP endpoints preserve the payload and rej
   const imported = await request('POST', '/api/providers/import-local')
   assert.equal(imported.status, 200)
   assert.deepEqual(imported.body.imported, [])
-  assert.deepEqual(calls, [{ id: 'relay', options }, 'local'])
+  const deleted = await request('DELETE', '/api/providers/relay/models', {
+    modelId: 'vendor/model:latest',
+  })
+  assert.equal(deleted.status, 200)
+  assert.deepEqual(deleted.body, { providers: [{ id: 'relay', models: [] }] })
+  assert.deepEqual(await request('DELETE', '/api/providers/relay/models', {}), {
+    status: 400,
+    body: { error: 'Invalid model', code: 'INVALID_PROVIDER_MODEL' },
+  })
+  assert.deepEqual(calls, [
+    { id: 'relay', options },
+    'local',
+    { deleted: { id: 'relay', modelId: 'vendor/model:latest' } },
+  ])
 })
 
 test(

@@ -37,6 +37,7 @@ export type ChatDockContextValue = {
   notify: Notify
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   openModelSettings: () => void
+  openLayoutSettings: () => void
   loadSessionMessages: (id: string, options?: { force?: boolean; limit?: number }) => Promise<void>
   loadOlderMessages: (id: string) => Promise<boolean>
   sendPrompt: (

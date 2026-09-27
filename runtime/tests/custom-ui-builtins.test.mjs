@@ -49,18 +49,27 @@ test('built-in island is available offline without populating the user directory
     await rm(directory, { recursive: true, force: true })
   })
   const result = await service.listComponents()
-  assert.equal(result.components.length, 1)
-  assert.equal(result.components[0].id, 'pisper-island')
-  assert.equal(result.components[0].builtIn, true)
-  assert.equal(result.components[0].directory, '')
-  assert.deepEqual(result.components[0].permissions, ['notify'])
+  assert.equal(result.components.length, 2)
+  const island = result.components.find((component) => component.id === 'pisper-island')
+  assert.ok(island)
+  assert.equal(island.builtIn, true)
+  assert.equal(island.directory, '')
+  assert.deepEqual(island.permissions, ['notify'])
+  const workbench = result.components.find(
+    (component) => component.id === 'pisper-game-asset-workbench',
+  )
+  assert.deepEqual(workbench.permissions, [
+    'game-assets.read',
+    'game-assets.write',
+    'game-assets.run',
+  ])
   await assert.rejects(stat(service.root), { code: 'ENOENT' })
   const userDirectory = join(service.root, 'pisper-island')
   await mkdir(userDirectory, { recursive: true })
   await writeFile(join(userDirectory, 'manifest.json'), JSON.stringify({ name: 'Pretend builtin' }))
   await writeFile(join(userDirectory, 'index.html'), 'user-owned content')
   await writeFile(join(userDirectory, 'private.txt'), 'not an island asset')
-  assert.equal((await service.listComponents()).components.length, 1)
+  assert.equal((await service.listComponents()).components.length, 2)
   assert.equal((await service.readManifest('pisper-island')).name, 'Pisper Island')
   assert.notEqual(
     (await service.resolveAssetPath('pisper-island', 'index.html')).content,

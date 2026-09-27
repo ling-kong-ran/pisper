@@ -3,6 +3,7 @@
 import { projectStoredTeam } from '../../services/team-workflow.mjs'
 import { SessionOrganizationInputError } from '../../services/chat-session-organization.mjs'
 import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
+import { SideChatError } from '../../services/side-chat-service.mjs'
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
   return (
@@ -21,7 +22,7 @@ async function speechTermsForSession(runtime, services, sessionId) {
   return services.speechTerms.termsForWorkspace(cwd)
 }
 
-export const sessionRuntimeRoutes = [
+const routes = [
   {
     method: 'GET',
     path: '/api/speech/terms',
@@ -165,6 +166,20 @@ export const sessionRuntimeRoutes = [
     async handler({ runtime, body, json }) {
       const input = await body()
       json(201, await runtime.createSession(input.name, input.cwd))
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/side-chat',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSideChat(params.sessionId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/side-chat',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.getSideChat(params.sessionId, { create: true }))
     },
   },
   {
@@ -602,6 +617,7 @@ export const sessionRuntimeRoutes = [
     async handler({ runtime, req, body, json, startSse, sendSse, startRun }) {
       const input = await body()
       const message = String(input.message || '').trim()
+      runtime.sideChats?.assertAvailable(input.sessionId)
       const invocation =
         input.invocation && typeof input.invocation === 'object' ? input.invocation : null
       if (!message && !invocation) throw new Error('消息或资源调用不能为空。')
@@ -666,3 +682,17 @@ export const sessionRuntimeRoutes = [
     },
   },
 ]
+
+// 过期 ID 必须在启动 SSE 之前拒绝；所有既有会话端点共用此边界，避免读取与发消息行为不一致。
+export const sessionRuntimeRoutes = routes.map((route) => ({
+  ...route,
+  async handler(context) {
+    try {
+      context.runtime.sideChats?.assertAvailable(context.params?.sessionId)
+      return await route.handler(context)
+    } catch (error) {
+      if (!(error instanceof SideChatError)) throw error
+      context.json(error.statusCode, { error: error.message, code: error.code })
+    }
+  },
+}))

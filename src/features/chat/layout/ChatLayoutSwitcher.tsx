@@ -22,10 +22,12 @@ export function ChatLayoutSwitcher({
   notify,
   onManage,
   widgetActionsSlot,
+  compact = false,
 }: {
-  notify: Notify
+  notify?: Notify
   onManage: () => void
   widgetActionsSlot?: ReactNode
+  compact?: boolean
 }) {
   const { t } = useI18n()
   const active = useChatLayoutStore((state) => state.active)
@@ -46,7 +48,7 @@ export function ChatLayoutSwitcher({
     useChatLayoutStore.getState().apply(template)
     setOpen(false)
     setError('')
-    notify(t('chat-layout:switcher.applied', { name: template.name }))
+    notify?.(t('chat-layout:switcher.applied', { name: template.name }))
   }
   const select = (template: ChatLayoutTemplate) => {
     try {
@@ -72,15 +74,24 @@ export function ChatLayoutSwitcher({
     >
       <DialogTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
-          className="h-[34px] min-w-[34px] gap-1.5 px-2.5 max-[650px]:px-2"
+          variant={compact ? 'ghost' : 'outline'}
+          size={compact ? 'icon' : 'sm'}
+          className={cn(
+            compact
+              ? 'size-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground'
+              : 'h-[34px] min-w-[34px] gap-1.5 px-2.5 max-[650px]:px-2',
+            '[-webkit-app-region:no-drag]',
+          )}
           aria-label={t('chat-layout:switcher.label')}
           title={`${t('chat-layout:switcher.label')} · ${activeName}`}
         >
-          <LayoutTemplate className="size-4" />
-          <span className="max-w-28 truncate max-[650px]:hidden">{activeName}</span>
-          <ChevronDown className="size-3 max-[650px]:hidden" />
+          <LayoutTemplate className="size-4" aria-hidden="true" />
+          {!compact && (
+            <>
+              <span className="max-w-28 truncate max-[650px]:hidden">{activeName}</span>
+              <ChevronDown className="size-3 max-[650px]:hidden" />
+            </>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="min-w-0 grid-cols-[minmax(0,1fr)] sm:max-w-lg">

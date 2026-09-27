@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { fork, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -86,6 +86,17 @@ test('Runtime bundle preserves host entries and only declares external package r
       'shared/speech-model-catalog.json',
       'shared/speech-resource-notices.json',
       'shared/ocr-model-catalog.mjs',
+      'runtime/services/workflow-image-processing.mjs',
+      'runtime/workers/workflow-image-worker.mjs',
+      'shared/workflow-image-nodes.mjs',
+      'shared/image-operations.mjs',
+      'shared/image-frame-edits.mjs',
+      'shared/image-alpha-strokes.mjs',
+      'shared/workflow-inputs.mjs',
+      'shared/raster-image.mjs',
+      'shared/vendor/framebaker/pixels.mjs',
+      'shared/vendor/framebaker/geometry.mjs',
+      'shared/vendor/framebaker/LICENSE',
     ]
     await Promise.all(
       speechSources.map(async (path) => {
@@ -97,6 +108,13 @@ test('Runtime bundle preserves host entries and only declares external package r
       }),
     )
     await Promise.all([
+      ...['pngjs', 'jpeg-js', '@jsquash/webp', 'wasm-feature-detect'].map(async (name) => {
+        const target = join(runtimeDir, 'node_modules', name)
+        await mkdir(dirname(target), { recursive: true })
+        await cp(new URL(`../../node_modules/${name}`, import.meta.url), target, {
+          recursive: true,
+        })
+      }),
       createFile(
         runtimeDir,
         'package.json',
@@ -105,12 +123,12 @@ test('Runtime bundle preserves host entries and only declares external package r
       createFile(
         runtimeDir,
         'runtime/sidecar.mjs',
-        "import { value } from '../shared/value.mjs'\nexport { SpeechEngineService } from './services/speech-engine-service.mjs'\nglobalThis.__bundleSidecar = value\n",
+        "import { value } from '../shared/value.mjs'\nexport { SpeechEngineService } from './services/speech-engine-service.mjs'\nexport { WorkflowImageProcessor } from './services/workflow-image-processing.mjs'\nglobalThis.__bundleSidecar = value\n",
       ),
       createFile(
         runtimeDir,
         'runtime/mobile-embedded.mjs',
-        "import { value } from '../shared/value.mjs'\nglobalThis.__bundleMobile = value\n",
+        "import { value } from '../shared/value.mjs'\nexport { WorkflowImageProcessor } from './services/workflow-image-processing.mjs'\nglobalThis.__bundleMobile = value\n",
       ),
       createFile(
         runtimeDir,
@@ -145,6 +163,7 @@ test('Runtime bundle preserves host entries and only declares external package r
       'runtime/sidecar.mjs',
       'runtime/mobile-embedded.mjs',
       'runtime/workers/speech-inference-worker.mjs',
+      'runtime/workers/workflow-image-worker.mjs',
     ])
     assert.deepEqual(Object.keys(stagedPackage.dependencies), [...RUNTIME_EXTERNAL_PACKAGES])
     assert.equal(await exists(join(runtimeDir, 'shared', 'value.mjs')), false)
@@ -167,6 +186,7 @@ test('Runtime bundle preserves host entries and only declares external package r
       'shared/speech-model-catalog.json',
       'shared/speech-resource-notices.json',
       resourcePath,
+      'shared/vendor/framebaker/LICENSE',
     ]
     const expectedResources = []
     for (const path of retained) {
@@ -197,12 +217,44 @@ test('Runtime bundle preserves host entries and only declares external package r
     assert.ok(manifest.inputFileCount >= 3)
     assert.ok(manifest.outputFileCount >= 3)
 
-    const { SpeechEngineService } = await import(
+    const { SpeechEngineService, WorkflowImageProcessor } = await import(
       pathToFileURL(join(runtimeDir, 'runtime', 'sidecar.mjs')).href
     )
     await import(pathToFileURL(join(runtimeDir, 'runtime', 'mobile-embedded.mjs')).href)
     assert.equal(globalThis.__bundleSidecar, 'bundled')
     assert.equal(globalThis.__bundleMobile, 'bundled')
+    const { PNG } = await import('pngjs')
+    const imageProcessor = new WorkflowImageProcessor({ engines: {} })
+    try {
+      const png = new PNG({ width: 2, height: 2 })
+      png.data.fill(255)
+      const result = await imageProcessor.process({
+        operation: 'background',
+        settings: { colors: ['#ffffff'] },
+        frames: [
+          {
+            buffer: PNG.sync.write(png),
+            mimeType: 'image/png',
+            width: 2,
+            height: 2,
+            durationMs: 125,
+            action: '',
+            direction: '',
+            columns: 1,
+            rows: 1,
+            frameCount: 1,
+          },
+        ],
+      })
+      assert.equal(PNG.sync.read(result.frames[0].buffer).data[3], 0)
+      assert.ok(
+        (await readFile(join(runtimeDir, 'THIRD_PARTY_LICENSES.txt'), 'utf8')).includes(
+          'Copyright (c) 2026 taotao7',
+        ),
+      )
+    } finally {
+      await imageProcessor.dispose()
+    }
 
     const workerPath = join(runtimeDir, 'runtime', 'workers', 'speech-inference-worker.mjs')
     const engine = new SpeechEngineService({ catalog: { models: [] }, modelDownloads: {} })
@@ -242,7 +294,7 @@ test('Runtime bundle preserves host entries and only declares external package r
     const entries = criticalRuntimeEntries().filter((entry) =>
       criticalSpeechPaths.includes(entry.path),
     )
-    assert.equal(entries.length, 4)
+    assert.equal(entries.length, 5)
     assert.ok((await inspectCriticalFiles(runtimeDir, entries)).every((entry) => entry.exists))
     for (const entry of entries) {
       await rm(join(runtimeDir, entry.path))

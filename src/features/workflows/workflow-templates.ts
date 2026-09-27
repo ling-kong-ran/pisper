@@ -15,10 +15,15 @@ import {
   Server,
   Zap,
 } from 'lucide-react'
+import {
+  isWorkflowImageNodeKind,
+  normalizeWorkflowImageSettings,
+  WORKFLOW_IMAGE_DIRECTIONS,
+} from '@shared/workflow-image-nodes.mjs'
 import { createLinearWorkflowEdges } from '@shared/workflow-graph.mjs'
 import type { I18nValues } from '@/app/i18n'
 import type { LucideIcon } from 'lucide-react'
-import type { NodeKind, Workflow, WorkflowNode } from './types'
+import type { NodeKind, Workflow, WorkflowInput, WorkflowNode, WorkflowEdge } from './types'
 
 export type WorkflowTranslate = (message: string, values?: I18nValues) => string
 export type WorkflowTemplate = {
@@ -27,6 +32,8 @@ export type WorkflowTemplate = {
   description: string
   Icon: LucideIcon
   nodes: WorkflowNode[]
+  inputs: WorkflowInput[]
+  edges?: WorkflowEdge[]
 }
 
 export const WORKFLOW_FILTERS = ['all', 'presets', 'custom', 'running', 'failed', 'draft'] as const
@@ -42,6 +49,14 @@ export const NODE_TYPE_NAMES: Record<NodeKind, string> = {
   condition: '判断',
   parallel: '并行',
   approval: '审批',
+  'media-input': '图片输入',
+  'media-inpaint': '区域修补',
+  'media-background': '去背景',
+  'media-generate': '动作生成',
+  'media-frames': '拆分帧',
+  'media-transform': '帧处理',
+  'media-preview': '动画预览',
+  'media-export': '图集输出',
 }
 
 export const WORKFLOW_PALETTE = [
@@ -54,6 +69,14 @@ export const WORKFLOW_PALETTE = [
   { kind: 'parallel', label: '并行汇合', Icon: Network },
   { kind: 'approval', label: '人工审批', Icon: CircleCheck },
   { kind: 'notification', label: '发送通知', Icon: Bell },
+  { kind: 'media-inpaint', label: '区域修补', Icon: Image },
+  { kind: 'media-input', label: '图片输入', Icon: Image },
+  { kind: 'media-background', label: '去背景', Icon: Image },
+  { kind: 'media-generate', label: '动作生成', Icon: Image },
+  { kind: 'media-frames', label: '拆分帧', Icon: Image },
+  { kind: 'media-transform', label: '帧处理', Icon: Image },
+  { kind: 'media-preview', label: '动画预览', Icon: Image },
+  { kind: 'media-export', label: '图集输出', Icon: Image },
 ] satisfies Array<{ kind: NodeKind; label: string; Icon: LucideIcon }>
 
 export function workflowFilterLabel(filter: WorkflowFilter, t: WorkflowTranslate) {
@@ -66,6 +89,14 @@ export function workflowFilterLabel(filter: WorkflowFilter, t: WorkflowTranslate
 }
 
 export function nodeTypeLabel(kind: NodeKind, t: WorkflowTranslate) {
+  if (kind === 'media-inpaint') return t('workflows:imageNodes.inpaint')
+  if (kind === 'media-input') return t('workflows:imageNodes.input')
+  if (kind === 'media-background') return t('workflows:imageNodes.background')
+  if (kind === 'media-generate') return t('workflows:imageNodes.generate')
+  if (kind === 'media-frames') return t('workflows:imageNodes.frames')
+  if (kind === 'media-transform') return t('workflows:imageNodes.transform')
+  if (kind === 'media-preview') return t('workflows:imageNodes.preview')
+  if (kind === 'media-export') return t('workflows:imageNodes.export')
   if (kind === 'trigger') return t('workflows:workflowsPage.triggerNode')
   if (kind === 'skill') return t('workflows:workflowsPage.skillNode')
   if (kind === 'file') return t('workflows:workflowsPage.fileNode')
@@ -78,6 +109,7 @@ export function nodeTypeLabel(kind: NodeKind, t: WorkflowTranslate) {
 }
 
 export function paletteLabel(kind: NodeKind, t: WorkflowTranslate) {
+  if (isWorkflowImageNodeKind(kind)) return nodeTypeLabel(kind, t)
   if (kind === 'trigger') return t('workflows:workflowsPage.manualTrigger')
   if (kind === 'skill') return t('workflows:workflowsPage.callSkill')
   if (kind === 'file') return t('workflows:workflowsPage.readWriteFiles')
@@ -90,6 +122,7 @@ export function paletteLabel(kind: NodeKind, t: WorkflowTranslate) {
 }
 
 export function templateName(templateId: string, t: WorkflowTranslate) {
+  if (templateId === 'sprite') return t('workflows:imageNodes.templateName')
   if (templateId === 'pr-fix') return t('workflows:workflowsPage.prFix')
   if (templateId === 'research') return t('workflows:workflowsPage.research')
   if (templateId === 'report') return t('workflows:workflowsPage.dailyWeeklyReport')
@@ -99,6 +132,7 @@ export function templateName(templateId: string, t: WorkflowTranslate) {
 }
 
 export function templateDescription(templateId: string, t: WorkflowTranslate) {
+  if (templateId === 'sprite') return t('workflows:imageNodes.templateDescription')
   if (templateId === 'pr-fix') return t('workflows:workflowsPage.prFixDescription')
   if (templateId === 'research') return t('workflows:workflowsPage.researchDescription')
   if (templateId === 'report') return t('workflows:workflowsPage.reportDescription')
@@ -136,12 +170,53 @@ export function createWorkflowNode(
     approval: { message: '', timeoutMinutes: 60 },
     notification: { title: '', content: '' },
     notificationTargets: [],
+    ...(isWorkflowImageNodeKind(kind) ? { image: normalizeWorkflowImageSettings() } : {}),
     ...extra,
   }
 }
 
 function linearEdges(nodes: WorkflowNode[]) {
   return createLinearWorkflowEdges(nodes, () => crypto.randomUUID())
+}
+
+function reusableInputs(t?: WorkflowTranslate): WorkflowInput[] {
+  return [
+    {
+      id: 'input-task',
+      name: 'task',
+      label: t ? t('workflows:inputs.task') : '本次任务',
+      description: t ? t('workflows:inputs.taskHint') : '描述这次运行需要完成的目标。',
+      type: 'text',
+      required: true,
+      defaultValue: '',
+    },
+    {
+      id: 'input-materials',
+      name: 'materials',
+      label: t ? t('workflows:inputs.materials') : '参考材料',
+      description: t
+        ? t('workflows:inputs.materialsHint')
+        : '填写文件路径、链接、代码片段或需要处理的内容。',
+      type: 'text',
+      required: false,
+      defaultValue: '',
+    },
+    {
+      id: 'input-constraints',
+      name: 'constraints',
+      label: t ? t('workflows:inputs.constraints') : '约束与输出要求',
+      description: t
+        ? t('workflows:inputs.constraintsHint')
+        : '说明范围、格式、禁止操作及验收条件。',
+      type: 'text',
+      required: false,
+      defaultValue: '',
+    },
+  ]
+}
+
+function reusablePrompt(rule: string) {
+  return `${rule}\n\n本次任务：{{inputs.task}}\n参考材料：{{inputs.materials}}\n约束与输出要求：{{inputs.constraints}}\n以本次运行输入限定任务范围，节点只规定处理方法；不要把节点示例或工作流名称当作本次任务。`
 }
 
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
@@ -331,12 +406,153 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       ),
     ],
   },
-]
+].map((template) => ({
+  ...template,
+  inputs: reusableInputs(),
+  nodes: template.nodes.map((node) =>
+    ['prompt', 'file', 'skill', 'mcp'].includes(node.kind)
+      ? { ...node, prompt: reusablePrompt(node.prompt) }
+      : node,
+  ),
+}))
 
-export function blankWorkflow(cwd = ''): Workflow {
+function spriteWorkflowTemplate(): WorkflowTemplate {
+  const nodes = [
+    createWorkflowNode('sprite-trigger', 'trigger', '手动触发', '', 0, 180),
+    createWorkflowNode('sprite-source', 'media-input', '参考图片', '', 180, 180),
+  ]
+  const edges: WorkflowEdge[] = [
+    {
+      id: 'sprite-input',
+      source: 'sprite-trigger',
+      target: 'sprite-source',
+      sourcePort: 'output',
+      targetPort: 'input',
+    },
+  ]
+  const actions = [
+    {
+      id: 'idle',
+      label: '待机呼吸',
+      prompt: 'Subtle breathing idle cycle. Preserve the reference style; the feet stay planted.',
+    },
+    {
+      id: 'walk',
+      label: '走路',
+      prompt:
+        'Walking cycle: alternating foot contact, passing pose and opposite contact. Keep the character in place.',
+    },
+    {
+      id: 'run',
+      label: '跑步',
+      prompt:
+        'Running cycle: contact, compression, passing and flight. Preserve proportions and keep the character in place.',
+    },
+    {
+      id: 'attack',
+      label: '攻击',
+      prompt:
+        'Attack sequence: anticipation, wind-up, strike and recovery. Use only the equipment visible in the reference.',
+    },
+  ]
+  actions.forEach((action, index) => {
+    const y = index * 140
+    const chain = [
+      createWorkflowNode(
+        `${action.id}-generate`,
+        'media-generate',
+        action.label,
+        `${action.prompt}\n{{inputs.task}}`,
+        380,
+        y,
+        {
+          image: normalizeWorkflowImageSettings({
+            action: action.id,
+            frameCount: 4,
+            directions: [...WORKFLOW_IMAGE_DIRECTIONS],
+          }),
+        },
+      ),
+      createWorkflowNode(`${action.id}-background`, 'media-background', '色键去背景', '', 560, y),
+      createWorkflowNode(`${action.id}-frames`, 'media-frames', '拆分连续帧', '', 740, y),
+      createWorkflowNode(`${action.id}-align`, 'media-transform', '裁边与脚底对齐', '', 920, y),
+    ]
+    nodes.push(...chain)
+    const ids = ['sprite-source', ...chain.map((node) => node.id), 'sprite-preview']
+    for (let i = 1; i < ids.length; i++)
+      edges.push({
+        id: `${action.id}-edge-${i}`,
+        source: ids[i - 1],
+        target: ids[i],
+        sourcePort: 'output',
+        targetPort: 'input',
+      })
+  })
+  nodes.push(
+    createWorkflowNode('sprite-preview', 'media-preview', '动画预览', '', 1100, 180),
+    createWorkflowNode('sprite-export', 'media-export', '输出精灵图集', '', 1280, 180),
+  )
+  edges.push({
+    id: 'sprite-output',
+    source: 'sprite-preview',
+    target: 'sprite-export',
+    sourcePort: 'output',
+    targetPort: 'input',
+  })
+  return {
+    id: 'sprite',
+    name: '游戏精灵图生成',
+    description: '参考图 → 分方向动作 → 去背景 → 拆帧对齐 → 动画预览 → 图集',
+    Icon: Image,
+    nodes,
+    edges,
+    inputs: [
+      {
+        id: 'sprite-reference',
+        name: 'reference',
+        type: 'image',
+        required: true,
+        label: '角色参考图',
+        description: '上传图片并保留原图风格。',
+        defaultValue: null,
+      },
+      {
+        id: 'sprite-task',
+        name: 'task',
+        type: 'text',
+        required: false,
+        label: '角色与动作要求',
+        description: '本次运行的角色特征、动作及其他要求。',
+        defaultValue: '',
+      },
+    ],
+  }
+}
+
+WORKFLOW_TEMPLATES.push(spriteWorkflowTemplate())
+
+export function workflowImageRequestCount(workflow: Pick<Workflow, 'nodes'>) {
+  return workflow.nodes.reduce(
+    (count, node) =>
+      count +
+      (node.enabled && node.kind === 'media-generate'
+        ? normalizeWorkflowImageSettings(node.image).directions.length
+        : 0),
+    0,
+  )
+}
+
+export function blankWorkflow(cwd = '', t?: WorkflowTranslate): Workflow {
   const nodes = [
     createWorkflowNode(crypto.randomUUID(), 'trigger', '手动触发', '', 65, 45),
-    createWorkflowNode(crypto.randomUUID(), 'prompt', '运行 Prompt', '', 235, 45),
+    createWorkflowNode(
+      crypto.randomUUID(),
+      'prompt',
+      '运行 Prompt',
+      reusablePrompt('按本次输入完成任务，结合材料执行所需步骤，验证产物并报告结果。'),
+      235,
+      45,
+    ),
   ]
   return {
     id: '',
@@ -346,7 +562,7 @@ export function blankWorkflow(cwd = ''): Workflow {
     revision: 1,
     cwd,
     model: null,
-    inputs: [],
+    inputs: reusableInputs(t),
     tags: [],
     visibility: 'private',
     notifications: [],
@@ -355,13 +571,57 @@ export function blankWorkflow(cwd = ''): Workflow {
   }
 }
 
-export function templateWorkflow(template: WorkflowTemplate, cwd = ''): Workflow {
-  const nodes = template.nodes.map((item) => ({ ...item, id: crypto.randomUUID() }))
+function spriteNodeLabel(node: WorkflowNode, t: WorkflowTranslate) {
+  if (node.kind === 'media-generate') {
+    if (node.image?.action === 'idle') return t('workflows:imageNodes.idle')
+    if (node.image?.action === 'walk') return t('workflows:imageNodes.walk')
+    if (node.image?.action === 'run') return t('workflows:imageNodes.run')
+    if (node.image?.action === 'attack') return t('workflows:imageNodes.attack')
+  }
+  return paletteLabel(node.kind, t)
+}
+
+export function templateWorkflow(
+  template: WorkflowTemplate,
+  cwd = '',
+  t?: WorkflowTranslate,
+): Workflow {
+  const nodes = template.nodes.map((item) => ({
+    ...structuredClone(item),
+    ...(template.id === 'sprite' && t ? { label: spriteNodeLabel(item, t) } : {}),
+    id: crypto.randomUUID(),
+  }))
+  const labels = WORKFLOW_TEMPLATES.includes(template) ? reusableInputs(t) : []
+  const nodeIds = new Map(template.nodes.map((node, index) => [node.id, nodes[index].id]))
   return {
-    ...blankWorkflow(cwd),
-    name: template.name,
-    description: template.description,
+    ...blankWorkflow(cwd, t),
+    name: t && WORKFLOW_TEMPLATES.includes(template) ? templateName(template.id, t) : template.name,
+    description:
+      t && WORKFLOW_TEMPLATES.includes(template)
+        ? templateDescription(template.id, t)
+        : template.description,
+    inputs: template.inputs.map((input) => {
+      const localized = labels.find((item) => item.name === input.name)
+      return {
+        ...structuredClone(input),
+        ...(localized ? { label: localized.label, description: localized.description } : {}),
+        ...(template.id === 'sprite' && input.name === 'reference' && t
+          ? {
+              label: t('workflows:imageNodes.reference'),
+              description: t('workflows:imageNodes.referenceHint'),
+            }
+          : {}),
+        id: crypto.randomUUID(),
+      }
+    }),
     nodes,
-    edges: linearEdges(nodes),
+    edges: template.edges
+      ? template.edges.map((edge) => ({
+          ...edge,
+          id: crypto.randomUUID(),
+          source: nodeIds.get(edge.source) ?? '',
+          target: nodeIds.get(edge.target) ?? '',
+        }))
+      : linearEdges(nodes),
   }
 }

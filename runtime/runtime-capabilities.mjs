@@ -43,6 +43,7 @@ function supportedTools(features) {
   if (features.plugins) tools.add('plugin_create')
   if (features.browserAutomation) tools.add('browser_automation')
   if (features.visualGeneration) tools.add('generate_visual')
+  if (features.imageAssets) tools.add('image_assets')
   return [...tools].sort()
 }
 
@@ -68,6 +69,7 @@ function buildCapabilities({
     webSearch: true,
     visualGeneration: true,
     imageProcessing: wasm,
+    imageAssets: workers && wasm,
     processes,
     shell: processes,
     terminal: processes && profile === 'desktop',

@@ -644,7 +644,12 @@ test('unknown or missing tool modes fall back to the full preset with Shell enab
     TOOL_PRESETS.full,
   )
   assert.ok(TOOL_PRESETS.full.includes('bash'))
-  assert.deepEqual(new Set(TOOL_PRESETS.full), new Set(TOOL_CATALOG.map((tool) => tool.id)))
+  // 图像素材工具需要用户显式开启，不能因默认 full 预设而自动暴露给 Agent。
+  assert.equal(TOOL_PRESETS.full.includes('image_assets'), false)
+  assert.deepEqual(
+    new Set(TOOL_PRESETS.full),
+    new Set(TOOL_CATALOG.filter((tool) => tool.id !== 'image_assets').map((tool) => tool.id)),
+  )
   assert.ok(MULTI_AGENT_TOOL_NAMES.every((name) => !TOOL_PRESETS.full.includes(name)))
 })
 

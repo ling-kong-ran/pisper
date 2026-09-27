@@ -1,6 +1,6 @@
 // 工作流编辑器核心 hook：节点的增删改查、连线与撤销式编辑，
 // 负责把编辑状态序列化保存到运行时。
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import {
@@ -22,6 +22,9 @@ import type {
   WorkflowsData,
 } from './types'
 import { EMPTY_WORKFLOWS_DATA, workflowErrorMessage } from './useWorkflowCatalog'
+import { workflowInputDefinitionError } from './workflow-inputs'
+import { workflowImageApi } from './workflow-image-api'
+import type { WorkflowInputValues } from './workflow-inputs'
 import {
   blankWorkflow,
   createWorkflowNode,
@@ -51,6 +54,27 @@ export function useWorkflowEditor({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const uploads = useRef(new Set<string>())
+  const [inputUploadsPending, setInputUploadsPending] = useState(false)
+  const mutationController = useRef<AbortController | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => {
+    const activeUploads = uploads.current
+    mounted.current = true
+    setBusy(false)
+    setInputUploadsPending(false)
+    return () => {
+      mounted.current = false
+      mutationController.current?.abort()
+      mutationController.current = null
+      activeUploads.clear()
+    }
+  }, [workflowId, templateId])
+  const onInputUploadBusy = useCallback((id: string, pending: boolean) => {
+    if (pending) uploads.current.add(id)
+    else uploads.current.delete(id)
+    if (mounted.current) setInputUploadsPending(uploads.current.size > 0)
+  }, [])
   const desktopNotifications = Boolean(window.pisperDesktop?.showNotification)
   const [systemNotificationPermission, setSystemNotificationPermission] =
     useState<DesktopNotificationPermission>(() =>
@@ -89,39 +113,45 @@ export function useWorkflowEditor({
 
   // 加载工作流：按 id 取已存工作流，或按模板/空白新建草稿，
   // 并恢复选中节点与系统通知权限。
-  const load = useCallback(async () => {
-    try {
-      const result = await apiJson<WorkflowsData>('/api/workflows')
-      setCatalog(result)
-      const stored =
-        workflowId !== 'new'
-          ? result.workflows.find((workflow) => workflow.id === workflowId)
-          : null
-      const template = WORKFLOW_TEMPLATES.find((item) => item.id === templateId)
-      const next = stored
-        ? structuredClone(stored)
-        : template
-          ? templateWorkflow(template, result.cwd)
-          : blankWorkflow(result.cwd)
-      setDraft(next)
-      setSelectedNodeId((current) =>
-        next.nodes.some((item) => item.id === current) ? current : next.nodes[0]?.id || '',
-      )
-      setSelectedEdgeId('')
-      setError(
-        stored || workflowId === 'new'
-          ? ''
-          : t('workflows:workflowsPage.workflowNotFoundABlankEditorWasOpened'),
-      )
-    } catch (caught) {
-      setError(workflowErrorMessage(caught))
-    } finally {
-      setLoading(false)
-    }
-  }, [t, templateId, workflowId])
+  const load = useCallback(
+    async (signal: AbortSignal) => {
+      try {
+        const result = await apiJson<WorkflowsData>('/api/workflows', { signal })
+        if (signal.aborted) return
+        setCatalog(result)
+        const stored =
+          workflowId !== 'new'
+            ? result.workflows.find((workflow) => workflow.id === workflowId)
+            : null
+        const template = WORKFLOW_TEMPLATES.find((item) => item.id === templateId)
+        const next = stored
+          ? structuredClone(stored)
+          : template
+            ? templateWorkflow(template, result.cwd, t)
+            : blankWorkflow(result.cwd, t)
+        setDraft(next)
+        setSelectedNodeId((current) =>
+          next.nodes.some((item) => item.id === current) ? current : next.nodes[0]?.id || '',
+        )
+        setSelectedEdgeId('')
+        setError(
+          stored || workflowId === 'new'
+            ? ''
+            : t('workflows:workflowsPage.workflowNotFoundABlankEditorWasOpened'),
+        )
+      } catch (caught) {
+        if (!signal.aborted) setError(workflowErrorMessage(caught))
+      } finally {
+        if (!signal.aborted) setLoading(false)
+      }
+    },
+    [t, templateId, workflowId],
+  )
 
   useEffect(() => {
-    void load()
+    const controller = new AbortController()
+    void load(controller.signal)
+    return () => controller.abort()
   }, [load])
 
   useEffect(() => {
@@ -138,17 +168,28 @@ export function useWorkflowEditor({
         .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))[0],
     [catalog.runs, draft?.id],
   )
-  const running = currentRun?.status === 'running'
+  const running = currentRun?.status === 'running' || currentRun?.status === 'waiting_approval'
 
   useEffect(() => {
     if (!running) return undefined
+    const controller = new AbortController()
+    let refreshing = false
     const timer = window.setInterval(async () => {
+      if (refreshing) return
+      refreshing = true
       try {
-        setCatalog(await apiJson<WorkflowsData>('/api/workflows'))
-      } catch {}
+        const next = await apiJson<WorkflowsData>('/api/workflows', { signal: controller.signal })
+        if (!controller.signal.aborted) setCatalog(next)
+      } catch {
+      } finally {
+        refreshing = false
+      }
     }, 1500)
-    return () => window.clearInterval(timer)
-  }, [running])
+    return () => {
+      controller.abort()
+      window.clearInterval(timer)
+    }
+  }, [running, workflowId])
 
   const selectedNode = useMemo(
     () => draft?.nodes.find((item) => item.id === selectedNodeId) || null,
@@ -437,9 +478,21 @@ export function useWorkflowEditor({
   // 保存后回写草稿（避免保存期间编辑被覆盖），新建时回调 created。
   const saveWorkflow = useCallback(
     async (status: Workflow['status'] = 'draft', quiet = false) => {
-      if (!draft) return null
+      if (!draft || !mounted.current || mutationController.current) return null
+      if (uploads.current.size) {
+        notify(t('workflows:inputs.uploading'), 'info')
+        return null
+      }
+      const definitionError = workflowInputDefinitionError(draft.inputs, t)
+      if (definitionError) {
+        setError(definitionError)
+        notify(definitionError, 'error')
+        return null
+      }
       setBusy(true)
       setError('')
+      const controller = new AbortController()
+      mutationController.current = controller
       try {
         const enabledTargets = new Set(
           Object.entries(catalog.notificationTargets)
@@ -466,15 +519,24 @@ export function useWorkflowEditor({
         const result = draft.id
           ? await apiJson<WorkflowMutationResult>(
               `/api/workflows/${encodeURIComponent(draft.id)}`,
-              { method: 'PATCH', body: JSON.stringify(payload) },
+              { method: 'PATCH', body: JSON.stringify(payload), signal: controller.signal },
             )
           : await apiJson<WorkflowMutationResult>('/api/workflows', {
               method: 'POST',
               body: JSON.stringify(payload),
+              signal: controller.signal,
             })
+        controller.signal.throwIfAborted()
         setCatalog(result.state)
-        setDraft(structuredClone(result.workflow))
-        if (!draft.id) onCreated(result.workflow.id, quiet)
+        setDraft((current) =>
+          current === draft
+            ? structuredClone(result.workflow)
+            : current
+              ? { ...current, id: result.workflow.id, revision: result.workflow.revision }
+              : current,
+        )
+        // 首次运行需要在新建保存后继续发起请求，地址切换延后到运行启动完成。
+        if (workflowId === 'new' && !quiet) onCreated(result.workflow.id, false)
         if (!quiet) {
           notify(
             status === 'published'
@@ -484,55 +546,120 @@ export function useWorkflowEditor({
         }
         return result.workflow
       } catch (caught) {
+        if (controller.signal.aborted) return null
         const message = workflowErrorMessage(caught)
         setError(message)
         notify(message, 'error')
         return null
       } finally {
-        setBusy(false)
+        if (mutationController.current === controller) {
+          mutationController.current = null
+          if (mounted.current) setBusy(false)
+        }
       }
     },
-    [catalog.notificationTargets, draft, notify, onCreated, systemNotificationPermission, t],
+    [
+      catalog.notificationTargets,
+      draft,
+      notify,
+      onCreated,
+      systemNotificationPermission,
+      t,
+      workflowId,
+    ],
   )
 
   // 运行工作流：先静默保存（确保最新状态），再触发运行并刷新目录。
-  const runWorkflow = useCallback(async () => {
-    const workflow = await saveWorkflow(draft?.status || 'draft', true)
-    if (!workflow) return
-    setBusy(true)
-    try {
-      await apiJson(`/api/workflows/${encodeURIComponent(workflow.id)}/run`, {
-        method: 'POST',
-        body: '{}',
-      })
-      setCatalog(await apiJson<WorkflowsData>('/api/workflows'))
-      notify(t('workflows:workflowsPage.workflowStarted'))
-    } catch (caught) {
-      const message = workflowErrorMessage(caught)
-      setError(message)
-      notify(message, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }, [draft?.status, notify, saveWorkflow, t])
+  const startWorkflow = useCallback(
+    async (inputs?: WorkflowInputValues, nodeRequest?: { nodeId: string; sourceRunId: string }) => {
+      const workflow = await saveWorkflow(draft?.status || 'draft', true)
+      if (!workflow || !mounted.current) return false
+      if (uploads.current.size) {
+        notify(t('workflows:inputs.uploading'), 'info')
+        return false
+      }
+      const controller = new AbortController()
+      mutationController.current = controller
+      setBusy(true)
+      try {
+        if (nodeRequest)
+          await workflowImageApi.runNode(
+            workflow.id,
+            nodeRequest.nodeId,
+            nodeRequest.sourceRunId,
+            controller.signal,
+          )
+        else
+          await apiJson(`/api/workflows/${encodeURIComponent(workflow.id)}/run`, {
+            method: 'POST',
+            body: JSON.stringify({ inputs }),
+            signal: controller.signal,
+          })
+        controller.signal.throwIfAborted()
+        const next = await apiJson<WorkflowsData>('/api/workflows', { signal: controller.signal })
+        controller.signal.throwIfAborted()
+        setCatalog(next)
+        notify(t('workflows:workflowsPage.workflowStarted'))
+        return true
+      } catch (caught) {
+        if (controller.signal.aborted) return false
+        const message = workflowErrorMessage(caught)
+        setError(message)
+        notify(message, 'error')
+        return false
+      } finally {
+        if (mutationController.current === controller) {
+          mutationController.current = null
+          if (mounted.current) setBusy(false)
+        }
+        if (mounted.current && !controller.signal.aborted && workflowId === 'new')
+          onCreated(workflow.id, true)
+      }
+    },
+    [draft?.status, notify, onCreated, saveWorkflow, t, workflowId],
+  )
+  const runWorkflow = useCallback(
+    (inputs: WorkflowInputValues) => startWorkflow(inputs),
+    [startWorkflow],
+  )
+  const runImageNode = useCallback(
+    (nodeId: string, sourceRunId: string) => startWorkflow(undefined, { nodeId, sourceRunId }),
+    [startWorkflow],
+  )
 
-  // 停止运行中的工作流（仅当前运行且状态为 running 时）。
+  // 停止当前执行或等待审批的工作流；离开编辑器只取消此请求，不主动停止后台运行。
   const stopWorkflow = useCallback(async () => {
-    if (!currentRun || currentRun.status !== 'running') return
+    if (
+      !mounted.current ||
+      mutationController.current ||
+      !currentRun ||
+      !['running', 'waiting_approval'].includes(currentRun.status)
+    )
+      return
+    const controller = new AbortController()
+    mutationController.current = controller
     setBusy(true)
     try {
       await apiJson(`/api/workflow-runs/${encodeURIComponent(currentRun.id)}/stop`, {
         method: 'POST',
         body: '{}',
+        signal: controller.signal,
       })
-      setCatalog(await apiJson<WorkflowsData>('/api/workflows'))
+      controller.signal.throwIfAborted()
+      const next = await apiJson<WorkflowsData>('/api/workflows', { signal: controller.signal })
+      controller.signal.throwIfAborted()
+      setCatalog(next)
       notify(t('workflows:workflowsPage.stoppingWorkflow'), 'info')
     } catch (caught) {
+      if (controller.signal.aborted) return
       const message = workflowErrorMessage(caught)
       setError(message)
       notify(message, 'error')
     } finally {
-      setBusy(false)
+      if (mutationController.current === controller) {
+        mutationController.current = null
+        if (mounted.current) setBusy(false)
+      }
     }
   }, [currentRun, notify, t])
 
@@ -547,7 +674,9 @@ export function useWorkflowEditor({
     selectedEdgeId,
     currentRun,
     loading,
-    busy,
+    busy: busy || inputUploadsPending,
+    inputUploadsPending,
+    onInputUploadBusy,
     running,
     error,
     systemNotificationPermission,
@@ -567,6 +696,7 @@ export function useWorkflowEditor({
     clearSelection,
     saveWorkflow,
     runWorkflow,
+    runImageNode,
     stopWorkflow,
     publishWorkflow,
   }

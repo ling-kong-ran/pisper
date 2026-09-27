@@ -14,5 +14,9 @@
   "modelEditor.contextWindow": "上下文窗口（Token）",
   "modelEditor.maxTokens": "最大输出（Token）",
   "modelEditor.editNamed": "编辑模型 {name}",
-  "modelEditor.optionsNamed": "模型能力：{name}"
+  "modelEditor.optionsNamed": "模型能力：{name}",
+  "modelEditor.delete": "删除模型",
+  "modelEditor.deleteNamed": "删除模型 {name}",
+  "modelEditor.deleteConfirmation": "删除“{name}”？供应商连接和密钥会保留。若它是默认模型，将选用其他可用模型，没有可用模型时清空默认值；已有会话的模型不会自动替换。之后可以重新添加此模型。",
+  "modelEditor.deleted": "模型已删除"
 }

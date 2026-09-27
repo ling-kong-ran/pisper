@@ -79,7 +79,7 @@ export function usePromptCommands({
       goalTokenBudget: number | null = null,
       invocation: ResourceInvocation | null = null,
       // 重试模式：乐观消息截掉最后一轮，流改走 /retry（服务端原地重跑该轮）。
-      options: { retryFromIndex?: number } = {},
+      options: { retryFromIndex?: number; activate?: boolean } = {},
     ) => {
       const retryFromIndex = options.retryFromIndex
       const prompt =
@@ -114,8 +114,11 @@ export function usePromptCommands({
         promise: localStreamSettled,
         resolve: resolveLocalStream,
       })
-      setActiveId(sessionId)
-      setGlobalError('')
+      // 侧边临时聊天共用流式管道，但不改变主会话选择和主区错误。
+      if (options.activate !== false) {
+        setActiveId(sessionId)
+        setGlobalError('')
+      }
 
       const userMessage = {
         id: `user-${Date.now()}`,
@@ -390,15 +393,16 @@ export function usePromptCommands({
           void syncLiveSession(sessionId)
         }
         if (!ownsStream()) return
-        browserNotify?.('chat.completed', {
-          chat: {
-            title: completed?.name || t('chat:chatPage.appChat', { app: APP_NAME }),
-            summary:
-              streamState.responseText.trim().slice(0, 260) ||
-              t('chat:chatPage.theAgentHasFinishedResponding'),
-            model: sessionStatesRef.current[sessionId]?.model || defaultModel,
-          },
-        })
+        if (options.activate !== false)
+          browserNotify?.('chat.completed', {
+            chat: {
+              title: completed?.name || t('chat:chatPage.appChat', { app: APP_NAME }),
+              summary:
+                streamState.responseText.trim().slice(0, 260) ||
+                t('chat:chatPage.theAgentHasFinishedResponding'),
+              model: sessionStatesRef.current[sessionId]?.model || defaultModel,
+            },
+          })
       } catch (error) {
         if (!ownsStream()) return
         if ((streamState.runId || streamState.startedAt) && !streamState.terminal) {
@@ -703,7 +707,7 @@ export function usePromptCommands({
   // 重试最后一轮：乐观截掉最后一轮（该用户消息起的尾部），复用同一条流式管道原地重跑；
   // 服务端负责树导航与真实输入恢复，前端的 text/attachments 只用于乐观气泡。
   const retryLastTurn = useCallback(
-    async (sessionId: string) => {
+    async (sessionId: string, options: { activate?: boolean } = {}) => {
       const current = sessionStatesRef.current[sessionId]
       if (!current || current.streaming) return
       const messages = current.messages || []
@@ -724,7 +728,7 @@ export function usePromptCommands({
         false,
         null,
         null,
-        { retryFromIndex: userIndex },
+        { retryFromIndex: userIndex, ...options },
       )
     },
     [sendPrompt, sessionStatesRef],

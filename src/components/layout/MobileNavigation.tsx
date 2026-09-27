@@ -22,7 +22,11 @@ export function MobilePrimaryNavigation({ page, onNavigate }: MobilePrimaryNavig
   const { t } = useI18n()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const items = useMemo(
-    () => getNavigation(t, capabilities).flatMap(([, groupItems]) => groupItems),
+    // 素材工作台属于「更多工具」；底栏只保留日常主入口，避免窄屏标签拥挤。
+    () =>
+      getNavigation(t, capabilities)
+        .flatMap(([, groupItems]) => groupItems)
+        .filter(([id]) => id !== 'gameAssetWorkbench'),
     [capabilities, t],
   )
   const activePage =

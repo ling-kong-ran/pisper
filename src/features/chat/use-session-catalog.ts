@@ -61,6 +61,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 流式帧只通知引用发生变化的会话，避免扇出到所有面板。
   const sessionStateListenersRef = useRef(new Map<string, Set<() => void>>())
   const creatingSessionRef = useRef<Promise<string> | null>(null)
+  const retainedSessionStatesRef = useRef(new Map<string, number>())
+  const discardedSessionStatesRef = useRef(new Set<string>())
   const [titleReconciler] = useState(createSessionTitleReconciler)
 
   // 更新会话列表（函数式或替换），同步 ref 与 state。
@@ -89,7 +91,12 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
 
   // 整体替换会话状态表（供批量恢复/清空）。
   const replaceSessionStates = useCallback(
-    (states: Record<string, SessionState>) => {
+    (incoming: Record<string, SessionState>) => {
+      const states = discardedSessionStatesRef.current.size
+        ? Object.fromEntries(
+            Object.entries(incoming).filter(([id]) => !discardedSessionStatesRef.current.has(id)),
+          )
+        : incoming
       const previous = sessionStatesRef.current
       sessionStatesRef.current = states
       setSessionStates(states)
@@ -159,7 +166,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 更新单个会话状态：经 applySessionUpdate 去重，无变化不触发渲染。
   const updateSessionState = useCallback(
     (id: string, update: SessionStateUpdate) => {
-      if (!id) return
+      if (!id || discardedSessionStatesRef.current.has(id)) return
       const current = sessionStatesRef.current
       const previous = current[id] || DEFAULT_SESSION_STATE
       const next = applySessionUpdate(previous, update)
@@ -173,7 +180,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 否则保留状态供重开无缝续显（返回是否释放）。
   const releaseSessionState = useCallback(
     (id: string, { panelOpen = false, localStreamOwned = false } = {}) => {
-      if (!id || panelOpen || localStreamOwned) return false
+      if (!id || panelOpen || localStreamOwned || retainedSessionStatesRef.current.has(id))
+        return false
       const current = sessionStatesRef.current
       const state = current[id]
       if (!state || shouldRetainClosedSessionState(state)) return false
@@ -183,6 +191,40 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       return true
     },
     [replaceSessionStates],
+  )
+
+  // 仅用于服务端已确认不存在的临时 ID。区别于关闭面板：旧流、在途快照
+  // 均不得恢复已清理正文；新建临时会话使用新的 ID，不会复用此墓碑。
+  const discardSessionState = useCallback(
+    (id: string) => {
+      if (!id) return
+      discardedSessionStatesRef.current.add(id)
+      const states = { ...sessionStatesRef.current }
+      delete states[id]
+      replaceSessionStates(states)
+    },
+    [replaceSessionStates],
+  )
+
+  // 非 Dock 展示面板持有窄租约，避免目录回收仍被临时侧聊使用的正文。
+  const retainSessionState = useCallback(
+    (id: string) => {
+      if (discardedSessionStatesRef.current.has(id)) return () => {}
+      const owners = retainedSessionStatesRef.current
+      owners.set(id, (owners.get(id) ?? 0) + 1)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        const count = owners.get(id) ?? 0
+        if (count > 1) owners.set(id, count - 1)
+        else {
+          owners.delete(id)
+          releaseSessionState(id)
+        }
+      }
+    },
+    [releaseSessionState],
   )
 
   // 刷新会话列表：拉取后更新活动 id，并广播列表更新事件；preferredId 优先。
@@ -408,6 +450,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     replaceSessionStates,
     updateSessionState,
     releaseSessionState,
+    retainSessionState,
+    discardSessionState,
     subscribeSessionState,
     getSessionState,
     refreshSessions,

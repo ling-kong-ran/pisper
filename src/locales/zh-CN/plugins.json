@@ -1,4 +1,8 @@
 {
+  "toolLabels.imageAssets": "素材工具",
+  "toolLabels.imageAssetsDescription": "为 Agent 提供动作生成、本地去背景、拆帧、人工帧修正与图集导出。默认关闭；工作流和工作台仍可直接使用。",
+  "toolLabels.imageAssetsScope": "导入的工作区图片与应用管理的素材",
+  "toolLabels.imageAssetsCapability": "复用素材处理引擎，可生成、修正、排列动画帧并导出图集",
   "pluginsPage.all": "全部",
   "toolLabels.read": "读取文件",
   "toolLabels.list": "浏览目录",

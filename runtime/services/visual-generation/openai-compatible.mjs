@@ -193,21 +193,26 @@ async function openAIVideo(client, model, request, signal, onProgress) {
   }
 }
 
-export async function generateOpenAICompatible(model, request, { signal, onProgress } = {}) {
+export async function generateOpenAICompatible(
+  model,
+  request,
+  { signal, onProgress, allowFallback } = {},
+) {
   const client = new OpenAI({
     apiKey: model.apiKey,
     baseURL: model.baseUrl,
     defaultHeaders: model.headers,
     fetch: createOpenAIRequestFetch(),
     timeout: request.kind === 'video' ? 10 * 60_000 : 3 * 60_000,
-    maxRetries: 1,
+    maxRetries: allowFallback === false ? 0 : 1,
   })
   if (request.kind === 'video') return openAIVideo(client, model, request, signal, onProgress)
   if (model.driver === 'openrouter-image') return openRouterImage(client, model, request, signal)
   try {
     return await openAIImage(client, model, request, signal)
   } catch (error) {
-    if (!shouldFallbackToResponsesImage(error, model, request)) throw error
+    if (allowFallback === false || !shouldFallbackToResponsesImage(error, model, request))
+      throw error
     onProgress?.('Images 接口不可用，正在通过 Responses 接口生成图片…')
     return openAIResponsesImage(client, model, request, signal)
   }

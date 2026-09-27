@@ -38,6 +38,8 @@
 
 无关平台不要求执行完整构建。进入合并或发布阶段时，主代理或负责合并的人应运行适用范围的完整检查，并在变更说明中列出未运行项目及原因。
 
+工作流的文字/图片/视频输入、ZIP 依赖包与精灵图算法使用说明见[工作流文档](workflows.md)，职责与回滚边界见[工作流输入与精灵图架构](architecture/workflow-inputs-and-sprites.md)。`npm run test:workflows:ui` 提供隔离 Runtime 的浏览器验收，也由 `npm run test:ui` 执行；真实本地算法验收需按文档准备固定版本测试资源。
+
 ## 检查范围与结果解释
 
 - `npm run typecheck` 覆盖 `src/`、Vite 配置和 `tsconfig.jscheck.json` 的指定文件及其依赖图，不等于全部 Runtime 已检查。当前 JS 配置列出 `runtime/http/route-registry.mjs`、`runtime/services/decision-remote-client.mjs`、`runtime/services/decision-service.mjs`、`runtime/runtime/workspace-directories.mjs`、`runtime/services/openai-request-transport.mjs` 和 `shared/app-update.mjs`，并检查它们引入的依赖（包括决策领域契约、模型注册表、Jev SDK 适配与答案校验）；扩大覆盖时记录实际纳入的范围，避免用宽泛 `any` 消除错误。

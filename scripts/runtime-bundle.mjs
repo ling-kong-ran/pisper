@@ -17,6 +17,7 @@ export const RUNTIME_EXTERNAL_PACKAGES = Object.freeze([
   'sherpa-onnx-node',
   'officeparser',
   'playwright-core',
+  '@jsquash/webp',
 ])
 
 const BUILD_EXTERNAL_PACKAGES = [...RUNTIME_EXTERNAL_PACKAGES, 'vite']
@@ -24,12 +25,14 @@ const ENTRY_POINTS = Object.freeze({
   sidecar: 'runtime/sidecar.mjs',
   'mobile-embedded': 'runtime/mobile-embedded.mjs',
   'workers/speech-inference-worker': 'runtime/workers/speech-inference-worker.mjs',
+  'workers/workflow-image-worker': 'runtime/workers/workflow-image-worker.mjs',
 })
 const SHARED_RESOURCES = Object.freeze([
   'speech-model-catalog.json',
   'speech-resource-notices.json',
   'speech-resources/xasr-bpe.vocab',
   'ocr-model-catalog.mjs',
+  'vendor/framebaker/LICENSE',
 ])
 
 function posixPath(path) {
@@ -82,6 +85,9 @@ async function writeBundledLicenses(runtimeDir, inputPaths) {
     inputPaths.map((path) => packageRootForInput(runtimeDir, path)).filter(Boolean),
   )
   const blocks = []
+  blocks.push(
+    `FrameBaker (taotao7) — f9846c985156f83f750bcc654b56cae2a1960229\n${await readFile(join(runtimeDir, 'shared/vendor/framebaker/LICENSE'), 'utf8')}`,
+  )
   for (const packageRoot of [...packageRoots].sort()) {
     const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
     const entries = await readdir(packageRoot, { withFileTypes: true })

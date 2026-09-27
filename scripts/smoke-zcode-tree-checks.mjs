@@ -55,7 +55,8 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
     .fill('PI derived history fixture')
   // 冻结浏览器时钟，让返回操作确定发生在历史 550ms 动画回调之前。
   // 点击仍经过真实 UI 与 HTTP；只跳过动画稳定性等待，不注入导航或会话状态。
-  await page.clock.pauseAt(await page.evaluate(() => Date.now()))
+  // pauseAt 要求未来时间；跨进程读取的“现在”在下一条命令抵达时已变成过去。
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000))
   try {
     await fork.getByRole('button', { name: '创建', exact: true }).click({ force: true })
     await fork.waitFor({ state: 'hidden' })

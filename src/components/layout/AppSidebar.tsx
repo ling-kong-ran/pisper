@@ -1,6 +1,7 @@
 // 工作台导航只负责展示；会话创建、搜索与设置跳转由应用壳传入。
 import { lazy, Suspense, useMemo } from 'react'
-import { ArrowLeft, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
+import { Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
+import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -14,11 +15,16 @@ import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { BrandLogo } from '@/components/BrandLogo'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
-const SidebarAccountMenu = lazy(() => import('@/components/layout/SidebarAccountMenu'))
+const SidebarSettingsButton = lazy(() =>
+  import('@/components/layout/SidebarSettingsButton').then((module) => ({
+    default: module.SidebarSettingsButton,
+  })),
+)
 
 const SidebarMoreTools = lazy(() => import('@/components/layout/SidebarMoreTools'))
 
@@ -37,7 +43,6 @@ type AppSidebarProps = {
   navigation: Array<[string, Array<[string, string, LucideIcon]>]>
   navigate: (page: string) => void
   navigateSettings: (destination: SettingsDestination) => void
-  onExitSettings: () => void
   onNewChat: () => void
   onSearch: () => void
   collapsed: boolean
@@ -54,7 +59,6 @@ export function AppSidebar({
   navigation,
   navigate,
   navigateSettings,
-  onExitSettings,
   onNewChat,
   onSearch,
   collapsed,
@@ -66,6 +70,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { t } = useI18n()
   const { isMobile, setOpenMobile } = useSidebar()
+  const compact = collapsed && !isMobile
   const mobileApp = useIsMobileApp()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const settingsActive = SETTINGS_PAGES.has(page)
@@ -86,34 +91,55 @@ export function AppSidebar({
     action()
     if (isMobile) setOpenMobile(false)
   }
-  const navButton =
-    'h-8 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal text-foreground shadow-none hover:bg-sidebar-accent'
+  const navButton = cn(
+    'w-full gap-2 rounded-lg text-sm font-normal text-foreground shadow-none hover:bg-sidebar-accent',
+    compact ? 'h-11 justify-center px-0' : 'h-8 justify-start px-2.5',
+  )
+  const navLabel = compact ? 'sr-only' : 'truncate'
 
   return (
-    <ShadcnSidebar collapsible="offcanvas" className="pisper-sidebar-container border-0">
+    <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container border-0">
       <aside
         className="sidebar flex h-full w-full min-w-0 flex-col bg-sidebar text-foreground"
+        id="workbench-sidebar"
         data-testid="workbench-sidebar"
       >
-        <div className="flex h-12 shrink-0 items-center px-3" data-window-drag-region>
-          <WorkbenchSidebarToggle inSidebar />
+        <div
+          className={cn(
+            'flex h-12 shrink-0 items-center gap-2 px-3',
+            compact ? 'justify-center' : 'justify-between',
+          )}
+          data-window-drag-region
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <BrandLogo className="size-6" size={24} />
+            <span className={cn(compact ? 'sr-only' : 'truncate', 'text-sm font-semibold')}>
+              {APP_NAME}
+            </span>
+          </div>
         </div>
         {settingsActive ? (
           <nav
-            className="min-h-0 flex-1 overflow-y-auto px-2 pb-4"
+            className="min-h-0 flex-1 overflow-y-auto px-2 pb-4 pt-3"
             aria-label={t('config:settingsShell.settingsNavigation')}
           >
             <Button
               variant="ghost"
               className={cn(navButton, 'mb-5')}
-              onClick={() => runAndClose(onExitSettings)}
+              onClick={() => runAndClose(() => navigate('chat'))}
+              data-testid="workbench-home"
+              title={compact ? t('navigation:workbench.home') : undefined}
             >
-              <ArrowLeft size={16} />
-              <span>{t('navigation:appSidebar.backToApp')}</span>
+              <Home size={16} aria-hidden="true" />
+              <span className={navLabel}>{t('navigation:workbench.home')}</span>
             </Button>
             {settingsNavigation.map((group) => (
               <div key={group.label} className="mb-5 flex flex-col gap-0.5">
-                <span className="px-2.5 pb-1.5 text-[12px] text-muted-foreground">
+                <span
+                  className={
+                    compact ? 'sr-only' : 'px-2.5 pb-1.5 text-[12px] text-muted-foreground'
+                  }
+                >
                   {group.label}
                 </span>
                 {group.items.map((item) => (
@@ -123,9 +149,10 @@ export function AppSidebar({
                     className={cn(navButton, activeSettingsKey === item.key && 'bg-sidebar-accent')}
                     aria-current={activeSettingsKey === item.key ? 'page' : undefined}
                     onClick={() => runAndClose(() => navigateSettings(item.destination))}
+                    title={compact ? item.label : undefined}
                   >
                     <item.icon size={16} />
-                    <span className="truncate">{item.label}</span>
+                    <span className={navLabel}>{item.label}</span>
                   </Button>
                 ))}
               </div>
@@ -134,25 +161,52 @@ export function AppSidebar({
         ) : (
           <>
             <nav
-              className="flex shrink-0 flex-col gap-1 px-2 py-3"
+              className="flex min-h-0 flex-col gap-1 overflow-y-auto px-2 py-3"
               aria-label={t('navigation:appSidebar.mainNavigation')}
             >
+              <Button
+                variant="ghost"
+                className={cn(navButton, page === 'chat' && 'bg-sidebar-accent')}
+                aria-current={page === 'chat' ? 'page' : undefined}
+                onClick={() => runAndClose(() => navigate('chat'))}
+                data-testid="workbench-home"
+                title={compact ? t('navigation:workbench.home') : undefined}
+              >
+                <Home size={16} aria-hidden="true" />
+                <span className={navLabel}>{t('navigation:workbench.home')}</span>
+              </Button>
               <Button
                 variant="ghost"
                 className={navButton}
                 onClick={() => runAndClose(onNewChat)}
                 data-testid="workbench-new-task"
+                title={compact ? t('navigation:workbench.newTask') : undefined}
               >
                 <MessageCirclePlus size={16} />
-                <span>{t('navigation:workbench.newTask')}</span>
-                <kbd className="ml-auto text-[10px] font-normal text-muted-foreground/60">
+                <span className={navLabel}>{t('navigation:workbench.newTask')}</span>
+                <kbd
+                  className={cn(
+                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
+                    compact && 'hidden',
+                  )}
+                >
                   {newChatShortcut}
                 </kbd>
               </Button>
-              <Button variant="ghost" className={navButton} onClick={() => runAndClose(onSearch)}>
+              <Button
+                variant="ghost"
+                className={navButton}
+                onClick={() => runAndClose(onSearch)}
+                title={compact ? t('navigation:workbench.search') : undefined}
+              >
                 <Search size={16} />
-                <span>{t('navigation:workbench.search')}</span>
-                <kbd className="ml-auto text-[10px] font-normal text-muted-foreground/60">
+                <span className={navLabel}>{t('navigation:workbench.search')}</span>
+                <kbd
+                  className={cn(
+                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
+                    compact && 'hidden',
+                  )}
+                >
                   {searchShortcut}
                 </kbd>
               </Button>
@@ -163,9 +217,10 @@ export function AppSidebar({
                   className={cn(navButton, page === id && 'bg-sidebar-accent')}
                   aria-current={page === id ? 'page' : undefined}
                   onClick={() => runAndClose(() => navigate(id))}
+                  title={compact ? label : undefined}
                 >
                   <Icon size={16} />
-                  <span>{label}</span>
+                  <span className={navLabel}>{label}</span>
                 </Button>
               ))}
               {extraItems.length > 0 && (
@@ -173,12 +228,13 @@ export function AppSidebar({
                   <SidebarMoreTools
                     items={extraItems}
                     buttonClassName={navButton}
+                    compact={compact}
                     onNavigate={(id) => runAndClose(() => navigate(id))}
                   />
                 </Suspense>
               )}
             </nav>
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className={cn('min-h-0 flex-1 flex-col', compact ? 'hidden' : 'flex')}>
               <Suspense
                 fallback={<div className="mx-2 h-20 animate-pulse rounded-lg bg-sidebar-accent" />}
               >
@@ -192,23 +248,32 @@ export function AppSidebar({
             </div>
           </>
         )}
-        <footer className="flex shrink-0 flex-col gap-2 px-3 pb-3 pt-2">
+        <footer
+          className={cn(
+            'mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-2',
+            compact ? 'px-2' : 'px-3',
+          )}
+        >
           {update.status &&
             ['available', 'downloading', 'downloaded'].includes(update.status.state) && (
               <Suspense fallback={null}>
-                <SidebarUpdateStatus update={update} collapsed={collapsed} onOpen={onOpenUpdates} />
+                <SidebarUpdateStatus update={update} collapsed={compact} onOpen={onOpenUpdates} />
               </Suspense>
             )}
-          <Suspense fallback={<div className="h-11" aria-busy="true" />}>
-            <SidebarAccountMenu
-              onProvider={() =>
-                runAndClose(() => navigateSettings({ type: 'config', id: 'models' }))
-              }
-              onAppearance={() =>
-                runAndClose(() => navigateSettings({ type: 'config', id: 'interface' }))
-              }
-            />
-          </Suspense>
+          <div className={cn('flex items-center', compact ? 'flex-col gap-1' : 'gap-2')}>
+            <div className={cn('min-w-0', compact ? 'w-full' : 'flex-1')}>
+              <Suspense fallback={<div className="h-11" aria-busy="true" />}>
+                <SidebarSettingsButton
+                  active={settingsActive}
+                  compact={compact}
+                  onOpen={() =>
+                    runAndClose(() => navigateSettings({ type: 'config', id: 'models' }))
+                  }
+                />
+              </Suspense>
+            </div>
+            <WorkbenchSidebarToggle inSidebar />
+          </div>
         </footer>
       </aside>
     </ShadcnSidebar>

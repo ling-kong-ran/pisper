@@ -8,6 +8,8 @@ import { chromium } from 'playwright-core'
 import { verifyRemoteWorkspaceSettings } from './smoke-zcode-remote-checks.mjs'
 import { verifyMemoryLifecycle } from './smoke-zcode-memory-checks.mjs'
 import { verifyZcodeIteration } from './smoke-zcode-iteration-checks.mjs'
+import { verifyFirstRunSetup } from './smoke-zcode-first-run-checks.mjs'
+import { verifySideChat } from './smoke-zcode-side-chat-checks.mjs'
 import { verifySessionTreeLifecycle } from './smoke-zcode-tree-checks.mjs'
 import { DEFAULT_BRANCH } from '../shared/app-update.mjs'
 // Every held test response has a bounded wait, including failure-injection paths.
@@ -86,6 +88,7 @@ const model = 'pi-ui-fixture'
 let finishDeferredResponse = () => {
   throw new Error('deferred fixture not started')
 }
+let activeDeferredFixture = null
 const report = {
   backend: base,
   fixture: 'loopback-only OpenAI-compatible SSE, no external model',
@@ -148,11 +151,24 @@ const fixture = createServer(async (req, res) => {
       )
     chunk({ role: 'assistant', content: slow ? content : '流式回复：' })
     if (deferred) {
+      const held = {
+        requestNumber: report.requests,
+        model: responseModel,
+        failureCase: JSON.stringify(last).includes('defer-model-test failure'),
+        startedAt: Date.now(),
+        finishedAt: null,
+        closedAt: null,
+      }
+      activeDeferredFixture = held
       chunk({ content: '正在生成模型切换测试' })
       finishDeferredResponse = () => {
+        held.finishedAt = Date.now()
         chunk({}, 'stop')
         res.end('data: [DONE]\n\n')
       }
+      res.on('close', () => {
+        held.closedAt = Date.now()
+      })
     } else if (slow) {
       const timer = setInterval(() => {
         if (!res.destroyed) chunk({ content: ' …' })
@@ -327,11 +343,44 @@ try {
     await within(catalogRelease.promise, 'release stale catalog response')
     await route.fulfill({ response })
   })
-  await nav.getByRole('button', { name: 'Pisper 菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Provider 配置', exact: true }).click()
+  await prompt.fill('return home keeps this draft')
+  await nav.getByRole('button', { name: '设置', exact: true }).click()
   await page.locator('[data-model-provider-split-panel]').waitFor()
   await page.getByRole('heading', { name: '设置', level: 1, exact: true }).waitFor()
   assert.match(page.url(), /config\/models/)
+  const connectionList = page
+    .locator('[data-model-provider-split-panel]')
+    .getByRole('navigation', { name: '连接', exact: true })
+  const visibleProviders = (await api('/api/config')).providers.filter(
+    (item) => item.configured || item.custom,
+  )
+  assert.deepEqual(
+    await connectionList
+      .getByRole('button')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))),
+    visibleProviders.map((item) => item.name),
+  )
+  const defaultConnection = connectionList.getByRole('button', {
+    name: 'PI Local UI Test',
+    exact: true,
+  })
+  await defaultConnection.getByText('默认', { exact: true }).waitFor()
+  await connectionList.getByRole('button', { name: 'PI Alternate UI Test', exact: true }).click()
+  assert.equal(await defaultConnection.getByText('默认', { exact: true }).isVisible(), true)
+  assert.equal(await defaultConnection.getAttribute('aria-current'), null)
+  assert.equal(await connectionList.getByText('默认', { exact: true }).count(), 1)
+  await defaultConnection.click()
+  report.checks.push(
+    'Default provider badge remains on the default connection when viewing another connection',
+  )
+  const quickSetup = page.locator('main > header').getByRole('button', {
+    name: '快速设置',
+    exact: true,
+  })
+  assert.equal(await quickSetup.count(), 1)
+  assert.equal(await page.getByRole('button', { name: '添加供应商', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: '快速配置', exact: true }).count(), 0)
+  assert.equal(await page.getByText('预置服务', { exact: true }).count(), 0)
   const formFont = await page
     .locator('[data-provider-connection-editor] input')
     .first()
@@ -373,71 +422,145 @@ try {
   )
 
   for (const outcome of ['retry', 'cancel']) {
-    const connectionId = `pi-batch-${outcome}`
     const connectionName = `PI Batch ${outcome}`
-    const batchPath = `/api/providers/${connectionId}/models/batch`
+    const batchRoute = /\/api\/providers\/custom-[0-9a-f]{32}\/models\/batch$/
+    let connectionId = ''
     let createCount = 0
     const trackCreates = (request) => {
-      if (new URL(request.url()).pathname === '/api/providers' && request.method() === 'POST')
+      if (new URL(request.url()).pathname === '/api/providers' && request.method() === 'POST') {
         createCount += 1
+        connectionId = request.postDataJSON().id
+      }
     }
     page.on('request', trackCreates)
-    await page.route(`**${batchPath}`, (route) =>
-      route.fulfill({ status: 503, json: { error: `PI fixture rejected batch ${outcome}` } }),
-    )
-    report.expectedFailedApi.push({ path: batchPath, status: 503 })
-    await page.getByRole('button', { name: '添加自定义连接', exact: true }).click()
+    await page.route(batchRoute, (route) => {
+      const batchPath = `/api/providers/${connectionId}/models/batch`
+      assert.equal(new URL(route.request().url()).pathname, batchPath)
+      report.expectedFailedApi.push({ path: batchPath, status: 503 })
+      return route.fulfill({
+        status: 503,
+        json: { error: `PI fixture rejected batch ${outcome}` },
+      })
+    })
+    await quickSetup.click()
     const editor = page.getByRole('dialog')
-    await editor.getByLabel('显示名称', { exact: true }).fill(connectionName)
-    // Exercise the server-normalized ID on retry, rather than relying on the draft ID.
-    await editor.getByLabel('Provider ID', { exact: true }).fill(`PI Batch ${outcome}`)
-    await editor.getByLabel('API Key', { exact: true }).fill('local-ui-fixture-key')
     await editor
       .getByLabel('Base URL', { exact: true })
       .fill(`http://127.0.0.1:${fixture.address().port}/${provider}/v1`)
-    await editor.getByLabel('初始模型 ID', { exact: true }).fill(model)
+    await editor.getByRole('button', { name: '下一步', exact: true }).click()
+    await editor.getByRole('combobox', { name: 'API 协议', exact: true }).click()
+    await page.getByRole('option', { name: 'OpenAI Chat Completions', exact: true }).click()
+    await editor.getByRole('button', { name: '下一步', exact: true }).click()
+    await editor.getByLabel('显示名称', { exact: true }).fill(connectionName)
+    await editor.getByLabel('API Key', { exact: true }).fill('local-ui-fixture-key')
+    const primaryModel = editor.getByLabel('模型 ID（手动输入）', { exact: true })
+    if (outcome === 'retry') {
+      const discovered = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/api/providers/models/discover-connection' &&
+          response.request().method() === 'POST',
+      )
+      await editor.getByRole('button', { name: '获取模型', exact: true }).click()
+      assert.equal((await discovered).status(), 200)
+      await editor.getByRole('button', { name: model, exact: true }).click()
+      assert.equal(await primaryModel.inputValue(), model)
+    } else {
+      const discoveryPath = '/api/providers/models/discover-connection'
+      const discoveryError = 'PI fixture model discovery unavailable'
+      await page.route(`**${discoveryPath}`, (route) =>
+        route.fulfill({ status: 503, json: { error: discoveryError } }),
+      )
+      report.expectedFailedApi.push({ path: discoveryPath, status: 503 })
+      await editor.getByRole('button', { name: '获取模型', exact: true }).click()
+      await editor.getByText(discoveryError, { exact: true }).waitFor()
+      await page.unroute(`**${discoveryPath}`)
+      await primaryModel.fill(model)
+    }
+    assert.equal(createCount, 0, 'model discovery must not persist a provider')
     await editor
       .getByRole('textbox', { name: '追加模型 ID（可选）', exact: true })
       .fill(`${model}-extra`)
     await editor.getByRole('button', { name: '追加模型 ID（可选）', exact: true }).click()
-    await editor.getByRole('button', { name: '创建连接', exact: true }).click()
+    await editor.getByRole('button', { name: '保存修改', exact: true }).click()
     await editor.getByText(`PI fixture rejected batch ${outcome}`, { exact: true }).waitFor()
-    assert.equal(await editor.getByLabel('Provider ID', { exact: true }).inputValue(), connectionId)
-    assert.equal(await editor.getByLabel('Provider ID', { exact: true }).isDisabled(), true)
-    assert.equal(await page.getByRole('button', { name: connectionName, exact: true }).count(), 1)
-    await page.unroute(`**${batchPath}`)
+    assert.match(connectionId, /^custom-[0-9a-f]{32}$/)
+    assert.equal(
+      await page
+        .locator('[data-model-provider-split-panel]')
+        .getByRole('button', { name: connectionName, exact: true, includeHidden: true })
+        .count(),
+      1,
+    )
+    await page.unroute(batchRoute)
     if (outcome === 'retry') {
       await editor.getByRole('button', { name: '保存修改', exact: true }).click()
     } else {
-      await editor.getByRole('button', { name: '取消', exact: true }).click()
+      await editor.getByRole('button', { name: '关闭对话框', exact: true }).click()
     }
     await editor.waitFor({ state: 'hidden' })
+    await page.getByRole('heading', { name: connectionName, exact: true }).waitFor()
     const savedProvider = (await api('/api/config')).providers.find(
       (item) => item.id === connectionId,
     )
     assert.ok(savedProvider, 'committed connection survives partial failure')
+    assert.equal(savedProvider.api, 'openai-completions')
+    assert.equal(savedProvider.defaultModel, model)
+    assert.ok(savedProvider.models.some((item) => item.id === model))
     assert.equal(
       savedProvider.models.some((item) => item.id === `${model}-extra`),
       outcome === 'retry',
     )
     assert.equal(createCount, 1, 'retry must never issue a second create')
     page.off('request', trackCreates)
-    await page.getByRole('button', { name: connectionName, exact: true }).click()
+    assert.equal(
+      await connectionList
+        .getByRole('button', { name: connectionName, exact: true })
+        .getAttribute('aria-current'),
+      'true',
+      'a committed connection stays selected after retry or close',
+    )
+    const deleteModel = page.getByRole('button', { name: `删除模型 ${model}`, exact: true })
+    await deleteModel.click()
+    const deleteDialog = page.getByRole('dialog', { name: '删除模型', exact: true })
+    await deleteDialog.getByRole('button', { name: '取消', exact: true }).click()
+    assert.ok(
+      (await api('/api/config')).providers
+        .find((item) => item.id === connectionId)
+        .models.some((item) => item.id === model),
+      'cancel keeps the model',
+    )
+    await deleteModel.click()
+    await deleteDialog.getByRole('button', { name: '删除', exact: true }).click()
+    await deleteDialog.waitFor({ state: 'hidden' })
+    await deleteModel.waitFor({ state: 'hidden' })
+    const remainingProvider = (await api('/api/config')).providers.find(
+      (item) => item.id === connectionId,
+    )
+    assert.ok(remainingProvider.configured, 'deleting a model retains the connection and key')
+    assert.ok(!remainingProvider.models.some((item) => item.id === model))
+    assert.equal(remainingProvider.models.length, outcome === 'retry' ? 1 : 0)
     await page.getByRole('heading', { name: connectionName, exact: true }).waitFor()
     await page.getByRole('button', { name: originalProviderName, exact: true }).click()
     await api(`/api/providers/${connectionId}`, 'DELETE')
   }
   report.checks.push(
-    'partial provider creation exposes committed progress; normalized-ID retry does not duplicate; cancel retains the saved connection',
+    'Quick setup discovers models or accepts manual IDs after discovery failure; partial creation stays visible and selected, retry creates only once, and close retains the saved connection',
+    'Model deletion supports cancel and confirmation, removes only the selected model, and retains an empty provider connection after the last model is deleted',
   )
 
-  await nav.getByRole('button', { name: 'Pisper 菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: '外观配置', exact: true }).click()
+  await nav
+    .getByRole('navigation', { name: '设置导航', exact: true })
+    .getByRole('button', { name: '界面设置', exact: true })
+    .click()
   await page.waitForURL('**/#/config/interface')
-  await page.goto(base + '/#/chat')
+  await nav.getByRole('button', { name: '主页', exact: true }).click()
+  await page.waitForURL('**/#/chat')
   await prompt.waitFor()
+  assert.equal(await prompt.inputValue(), 'return home keeps this draft')
+  await prompt.fill('')
   report.checks.push(
-    '32px send button; workflows/assets primary navigation; unified Pisper account menu opens Provider and appearance',
+    '32px send button; workflows/assets primary navigation; Settings opens complete settings navigation and Home restores the conversation draft',
+    'Provider navigation shows configured or custom connections with one Quick setup entry and no preset catalog',
   )
 
   assert.deepEqual(
@@ -489,12 +612,11 @@ try {
     .getByRole('combobox', { name: '当前会话模型' })
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor()
-  await page.getByRole('slider', { name: '当前思考等级' }).press('End')
+  // 模型名称先乐观更新；需要等保存结束后再操作暂时禁用的思考等级。
   await page.waitForFunction(
-    () =>
-      document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
-      '深度',
+    () => document.querySelector('[aria-label="当前思考等级"]')?.disabled === false,
   )
+  await page.getByRole('slider', { name: '当前思考等级' }).press('End')
   await page.waitForFunction(
     () =>
       document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
@@ -728,12 +850,33 @@ try {
     await page.screenshot({ path: join(output, `light-${width}.png`), animations: 'disabled' })
   }
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
-  await page.getByRole('button', { name: '切换主题', exact: true }).click()
+  const themeToggle = page.getByTestId('theme-toggle')
+  await page.emulateMedia({ colorScheme: 'light' })
+  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：浅色，点击切换为跟随系统')
+  await themeToggle.click()
+  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：跟随系统，点击切换为深色')
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  await themeToggle.click()
+  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
+  await themeToggle.click()
+  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：浅色，点击切换为跟随系统')
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  await themeToggle.click()
+  await themeToggle.click()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await page.reload()
   await prompt.waitFor()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
-  await page.getByRole('button', { name: '切换主题', exact: true }).waitFor()
+  await themeToggle.waitFor()
+  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
+  report.checks.push(
+    'Theme toggle cycles system/dark/light with current and next labels, follows OS changes only in system mode and persists after reload',
+  )
   await prompt.focus()
   await page.screenshot({ path: join(output, 'dark-1440.png'), animations: 'disabled' })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
@@ -755,6 +898,9 @@ try {
   )
   await page.getByText('流式回复：验收通过', { exact: true }).waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: '发送消息', exact: true }).waitFor()
+  await page.getByRole('button', { name: '打开会话上下文', exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: '关闭会话上下文', exact: true }).count(), 0)
+  report.checks.push('A completed ordinary text reply leaves the empty context panel closed')
   assert.ok(sessionId)
   const history = await api(`/api/sessions/${sessionId}/messages?limit=50`)
   assert.match(JSON.stringify(history), /流式回复：验收通过/)
@@ -939,57 +1085,138 @@ try {
     'model preselection applies after natural completion while on the workflows page, reconciles supported effort, and persists on reload',
   )
 
-  let releaseModelSave
-  const modelSaveStarted = new Promise((resolve) => {
-    releaseModelSave = { started: resolve }
-  })
-  const modelFailure = new Promise((resolve) => {
-    releaseModelSave.finish = resolve
-  })
+  const modelSaveStarted = Promise.withResolvers()
+  const modelFailure = Promise.withResolvers()
+  const modelSaveHandled = Promise.withResolvers()
+  const modelFailureDiagnostic = { fixture: null, interception: null, beforeRelease: null, sse: [] }
+  report.deferredModelFailureDiagnostic = modelFailureDiagnostic
+  const inspectChatResponse = (response) => {
+    if (new URL(response.url()).pathname !== '/api/chat') return
+    const entry = {
+      status: response.status(),
+      receivedAt: Date.now(),
+      finishedAt: null,
+      events: [],
+    }
+    modelFailureDiagnostic.sse.push(entry)
+    void response
+      .text()
+      .then((body) => {
+        entry.finishedAt = Date.now()
+        entry.events = [...body.matchAll(/^event:\s*([^\r\n]+)/gm)].map((match) => match[1])
+      })
+      .catch((error) => {
+        entry.bodyError = error.name
+      })
+  }
+  page.on('response', inspectChatResponse)
+  let modelSaveIntercepted = false
+  let modelRouteError
   const failedModelPath = `/api/sessions/${sessionId}/model`
-  await page.route(`**${failedModelPath}`, async (route) => {
-    releaseModelSave.started()
-    await within(modelFailure, 'release injected model failure')
-    await route.fulfill({ status: 503, json: { error: 'UI fixture rejected model save' } })
-  })
+  const failedModelRoute = async (route) => {
+    modelSaveIntercepted = true
+    modelFailureDiagnostic.interception = { at: Date.now(), fixture: { ...activeDeferredFixture } }
+    modelSaveStarted.resolve()
+    try {
+      // 释放动作由下方 finally 保证；路由回调不向事件循环抛出未处理拒绝，
+      // 否则浏览器断言还没输出就会直接退出，丢失失败截图和报告。
+      await modelFailure.promise
+      await route.fulfill({ status: 503, json: { error: 'UI fixture rejected model save' } })
+    } catch (error) {
+      modelRouteError = error
+    } finally {
+      modelSaveHandled.resolve()
+    }
+  }
+  await page.route(`**${failedModelPath}`, failedModelRoute)
   report.expectedFailedApi.push({ path: failedModelPath, status: 503 })
-  await prompt.fill('defer-model-test failure [pi-ui-sse]')
-  await page.getByRole('button', { name: '发送消息', exact: true }).click()
-  await page.getByRole('button', { name: '停止', exact: true }).waitFor()
-  // Wait for this fixture request, not text left by the previous turn.
-  await page
-    .getByText(/正在生成模型切换测试/)
-    .nth(1)
-    .waitFor()
-  await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
-  await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
-  await page.keyboard.press('Escape')
-  finishDeferredResponse()
-  await within(modelSaveStarted, 'deferred model save starts')
-  await page.getByRole('button', { name: '发送消息', exact: true }).waitFor()
-  await prompt.fill('保存失败仍然保留草稿')
-  assert.equal(await page.getByRole('button', { name: '发送消息', exact: true }).isDisabled(), true)
-  const requestCount = report.requests
-  await prompt.press('Enter')
-  assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
-  assert.equal(report.requests, requestCount)
-  releaseModelSave.finish()
-  await page.waitForFunction(() => !document.querySelector('[aria-label="发送消息"]')?.disabled)
-  await page.getByRole('button', { name: '查看详情', exact: true }).last().click()
-  await page.getByText('UI fixture rejected model save', { exact: true }).waitFor()
-  await page.getByRole('button', { name: /^模型与智力 ·.*pi-ui-fixture-fixed/ }).waitFor()
-  await page.waitForFunction(() => !document.querySelector('[aria-label="发送消息"]')?.disabled)
-  assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
-  assert.equal(
-    (await api(`/api/sessions/${sessionId}/thinking-level`)).model,
-    `${provider}-fixed/${model}-fixed`,
-  )
-  await page.unroute(`**${failedModelPath}`)
+  try {
+    await prompt.fill('defer-model-test failure [pi-ui-sse]')
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await page.getByRole('button', { name: '停止', exact: true }).waitFor()
+    // Wait for this fixture request, not text left by the previous turn.
+    await page
+      .getByText(/正在生成模型切换测试/)
+      .nth(1)
+      .waitFor()
+    await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
+    await page
+      .locator('.model-effort-model')
+      .getByRole('combobox', { name: '当前会话模型' })
+      .click()
+    await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
+    // 先等待内层 Select 关闭，避免 Escape 被它消费后外层模型面板仍遮挡错误详情。
+    await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    await page.keyboard.press('Escape')
+    await page.locator('.model-effort-popover').waitFor({ state: 'hidden' })
+    finishDeferredResponse()
+    modelFailureDiagnostic.fixture = { ...activeDeferredFixture }
+    await within(modelSaveStarted.promise, 'deferred model save starts')
+    await page.getByRole('button', { name: '发送消息', exact: true }).waitFor({ timeout: 10000 })
+    await prompt.fill('保存失败仍然保留草稿', { timeout: 10000 })
+    assert.equal(
+      await page.getByRole('button', { name: '发送消息', exact: true }).isDisabled(),
+      true,
+    )
+    const requestCount = report.requests
+    await prompt.press('Enter', { timeout: 10000 })
+    assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
+    assert.equal(report.requests, requestCount)
+    modelFailure.resolve()
+    await page.waitForFunction(() => !document.querySelector('[aria-label="发送消息"]')?.disabled)
+    await page.getByRole('button', { name: '查看详情', exact: true }).last().click()
+    await page.getByText('UI fixture rejected model save', { exact: true }).waitFor()
+    await page.getByRole('button', { name: /^模型与智力 ·.*pi-ui-fixture-fixed/ }).waitFor()
+    await page.waitForFunction(() => !document.querySelector('[aria-label="发送消息"]')?.disabled)
+    assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
+    assert.equal(
+      (await api(`/api/sessions/${sessionId}/thinking-level`)).model,
+      `${provider}-fixed/${model}-fixed`,
+    )
+  } catch (error) {
+    const snapshot = await within(
+      Promise.all([api(`/api/sessions/${sessionId}/live`), api('/api/sessions')]),
+      'deferred model failure diagnostics',
+      5000,
+    )
+    const [live, catalog] = snapshot
+    const fields = (value) =>
+      value &&
+      Object.fromEntries(
+        [
+          'id',
+          'streaming',
+          'model',
+          'startedAt',
+          'finishedAt',
+          'lastActivityAt',
+          'lifecycle',
+          'error',
+        ].map((key) => [key, value[key]]),
+      )
+    modelFailureDiagnostic.beforeRelease = {
+      at: Date.now(),
+      fixture: { ...activeDeferredFixture },
+      live: fields(live),
+      catalog: fields(catalog.sessions.find((session) => session.id === sessionId)),
+    }
+    throw error
+  } finally {
+    modelFailure.resolve()
+    if (modelSaveIntercepted)
+      await within(modelSaveHandled.promise, 'injected model failure settles')
+    await page.unroute(`**${failedModelPath}`, failedModelRoute)
+    page.off('response', inspectChatResponse)
+  }
+  if (modelRouteError) throw modelRouteError
   await prompt.fill('')
   report.checks.push(
     'deferred save blocks both send paths; failure restores actual model without losing draft or retrying the write',
   )
+
+  const sideChatParentId = sessionId
+  await verifySideChat({ page, base, api, report, output, parentSessionId: sideChatParentId })
+  sessionId = sideChatParentId
 
   // 使用真实历史页操作，避免从测试进程直接删除仍被活动视图读取的会话。
   await page.goto(base + '/#/chat/history')
@@ -1086,25 +1313,75 @@ try {
   await prompt.waitFor()
   await prompt.fill('layout and sidebar draft')
   const sidebar = page.locator('[data-slot="sidebar"][data-state]')
-  const previousState = await sidebar.getAttribute('data-state')
-  assert.equal(await page.getByRole('button', { name: '切换侧边栏', exact: true }).count(), 1)
-  await page.getByRole('button', { name: '切换侧边栏', exact: true }).click()
+  assert.equal(await sidebar.getAttribute('data-state'), 'expanded')
+  const collapseSidebar = page.getByRole('button', { name: '收起侧栏', exact: true })
+  const expandSidebar = page.getByRole('button', { name: '展开侧栏', exact: true })
+  assert.equal(await collapseSidebar.count(), 1)
+  await collapseSidebar.press('Enter')
   await page.waitForFunction(
-    (previous) =>
-      document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') !==
-      previous,
-    previousState,
-  )
-  await page.getByRole('button', { name: '切换侧边栏', exact: true }).first().click()
-  await page.waitForFunction(
-    (previous) =>
+    () =>
       document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
-      previous,
-    previousState,
+        'collapsed' && document.activeElement?.id === 'workbench-sidebar-expand',
   )
+  assert.equal(await expandSidebar.getAttribute('aria-expanded'), 'false')
+  const desktopViewport = page.viewportSize()
+  await page.waitForFunction(
+    () => document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 64,
+  )
+  for (const name of ['主页', '新任务', '搜索', '工作流', '资产', '更多工具', '设置']) {
+    const button = nav.getByRole('button', { name, exact: true })
+    assert.equal(await button.isVisible(), true)
+    assert.equal(await button.getAttribute('title'), name)
+  }
+  await page.setViewportSize({ width: desktopViewport.width, height: 400 })
+  assert.ok(
+    await expandSidebar.evaluate((el) => {
+      const bounds = el.getBoundingClientRect()
+      return bounds.top >= 0 && bounds.bottom <= window.innerHeight
+    }),
+  )
+  await page.setViewportSize(desktopViewport)
+  assert.equal(await nav.getByRole('region', { name: '最近会话', exact: true }).isVisible(), false)
+  await nav.getByRole('button', { name: '更多工具', exact: true }).click()
+  await page.getByRole('menu').waitFor()
+  await page.keyboard.press('Escape')
+  await nav.getByRole('button', { name: '设置', exact: true }).click()
+  await page.waitForURL('**/#/config/models')
+  assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
+  await nav.getByRole('button', { name: '主页', exact: true }).click()
+  await prompt.waitFor()
+  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+  await page.reload()
+  await expandSidebar.waitFor()
+  assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
+  // 草稿按既有契约只在内存保留；刷新仅检查折叠偏好，重建草稿验证后续布局切换。
+  await prompt.fill('layout and sidebar draft')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await sidebar.waitFor({ state: 'hidden' })
+  await expandSidebar.click()
+  const mobileSidebar = page.locator('[data-slot="sidebar"][data-mobile="true"]')
+  await mobileSidebar.waitFor()
+  assert.ok(
+    await mobileSidebar
+      .getByTestId('workbench-home')
+      .locator('span')
+      .evaluate((el) => el.getBoundingClientRect().width > 20),
+  )
+  await mobileSidebar.getByRole('button', { name: '主页', exact: true }).click()
+  await mobileSidebar.waitFor({ state: 'hidden' })
+  await page.setViewportSize(desktopViewport)
+  await sidebar.waitFor()
+  await expandSidebar.waitFor()
+  await expandSidebar.press('Enter')
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
+        'expanded' && document.activeElement?.id === 'workbench-sidebar-collapse',
+  )
+  assert.equal(await collapseSidebar.getAttribute('aria-expanded'), 'true')
   assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
   report.checks.push(
-    'one header click collapses sidebar and another restores it without losing the draft',
+    'Collapsed desktop sidebar keeps a 64px accessible navigation rail, tools and Settings remain usable, collapse persists after reload, mobile retains full drawer labels, and the toggle retains keyboard focus without losing the draft',
   )
   await page.goto(base + '/#/config/interface?view=layout')
   const layoutDialog = page.locator('[data-config-card="interface-chat-layout"]')
@@ -1129,7 +1406,122 @@ try {
     'existing settings-page layout JSON export/import-to-preview works and preserves the chat draft; no new frontend import mode',
   )
 
+  const layoutTrigger = page.getByRole('button', { name: '会话布局', exact: true })
+  const layoutSwitcher = page.getByRole('dialog', { name: '会话布局', exact: true })
+  const chatTitle = await page.getByRole('button', { name: '重命名会话', exact: true }).innerText()
+  await layoutTrigger.press('Enter')
+  await layoutSwitcher.waitFor()
+  await page.keyboard.press('Escape')
+  await layoutSwitcher.waitFor({ state: 'hidden' })
+  await page.waitForFunction(
+    () => document.activeElement?.getAttribute('aria-label') === '会话布局',
+  )
+  for (const [name, style, density] of [
+    ['专注', 'plain', 'comfortable'],
+    ['工作台', 'bubble', 'compact'],
+    ['简约工作台', 'bubble', 'comfortable'],
+    ['经典', 'bubble', 'comfortable'],
+  ]) {
+    await layoutTrigger.click()
+    await layoutSwitcher.getByRole('button', { name: new RegExp('^' + name + ' ') }).click()
+    await layoutSwitcher.waitFor({ state: 'hidden' })
+    assert.equal(
+      await page.locator('.focus-session').getAttribute('data-chat-message-style'),
+      style,
+    )
+    assert.equal(await page.locator('.focus-session').getAttribute('data-chat-density'), density)
+    assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+    assert.equal(
+      await page.getByRole('button', { name: '重命名会话', exact: true }).innerText(),
+      chatTitle,
+    )
+    await layoutTrigger.click()
+    assert.equal(
+      await layoutSwitcher
+        .getByRole('button', { name: new RegExp('^' + name + ' ') })
+        .getAttribute('aria-pressed'),
+      'true',
+    )
+    await layoutSwitcher.getByRole('button', { name: 'Close', exact: true }).click()
+    await layoutSwitcher.waitFor({ state: 'hidden' })
+  }
+  await layoutTrigger.click()
+  await layoutSwitcher
+    .getByRole('region', { name: '我的模板', exact: true })
+    .getByRole('button', { name: template.name, exact: true })
+    .click()
+  await layoutSwitcher.waitFor({ state: 'hidden' })
+  assert.equal(await layoutTrigger.getAttribute('title'), '会话布局 · ' + template.name)
+  await layoutTrigger.click()
+  await layoutSwitcher.getByRole('button', { name: '管理布局', exact: true }).click()
+  await page.waitForURL('**/#/config/interface?view=layout')
+  await layoutDialog.waitFor()
+  await page.goto(base + '/#/chat')
+  await layoutTrigger.click()
+  await layoutSwitcher.getByRole('button', { name: '导入', exact: true }).click()
+  const withoutHeader = (node) => ({
+    ...node,
+    ...(node.children
+      ? {
+          children: node.children
+            .filter((child) => child.kind !== 'header')
+            .map(withoutHeader)
+            .sort((a, b) => Number(b.kind === 'composer') - Number(a.kind === 'composer')),
+        }
+      : {}),
+  })
+  const headerlessTemplate = {
+    ...template,
+    name: 'PI headerless layout',
+    desktop: {
+      ...template.desktop,
+      composerPosition: 'top',
+      canvas: withoutHeader(template.desktop.canvas),
+    },
+    mobile: {
+      ...template.mobile,
+      composerPosition: 'top',
+      canvas: withoutHeader(template.mobile.canvas),
+    },
+  }
+  await importDialog.getByRole('textbox').fill(JSON.stringify(headerlessTemplate))
+  await importDialog.getByRole('button', { name: '导入并切换', exact: true }).click()
+  await importDialog.waitFor({ state: 'hidden' })
+  assert.equal(await page.locator('.workbench-chat-header').isVisible(), false)
+  assert.equal(await layoutTrigger.isVisible(), true)
+  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await layoutTrigger.click()
+  await layoutSwitcher.waitFor()
+  const switcherBounds = await layoutSwitcher.boundingBox()
+  assert.ok(
+    switcherBounds && switcherBounds.x >= 0 && switcherBounds.x + switcherBounds.width <= 390,
+  )
+  await layoutSwitcher.getByRole('button', { name: /^经典 / }).click()
+  await layoutSwitcher.waitFor({ state: 'hidden' })
+  assert.equal(await page.locator('.workbench-chat-header').isVisible(), true)
+  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+  await page.setViewportSize(desktopViewport)
+  await page.reload()
+  await layoutTrigger.click()
+  assert.equal(
+    await layoutSwitcher.getByRole('button', { name: /^经典 / }).getAttribute('aria-pressed'),
+    'true',
+  )
+  await page.keyboard.press('Escape')
+  report.checks.push(
+    'Header layout switcher shares built-in and saved settings templates, marks the active selection, preserves conversation/draft, persists after reload, links to settings and stays usable without a header at 390px',
+  )
+
   await verifyRemoteWorkspaceSettings({ browser, base, report, output })
+  await verifyFirstRunSetup({
+    browser,
+    root,
+    output,
+    modelBaseUrl: `http://127.0.0.1:${fixture.address().port}/${provider}/v1`,
+    modelId: model,
+    report,
+  })
 
   assert.deepEqual(report.pageErrors, [])
   assert.deepEqual(report.failedApi, report.expectedFailedApi)

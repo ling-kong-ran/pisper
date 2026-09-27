@@ -1,3 +1,4 @@
+import { workflowErrorMessage } from './useWorkflowCatalog'
 // 工作流运行控制：启动/停止运行、查看运行状态与日志。
 import { AlertTriangle, CheckCircle2, Pencil, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -42,7 +43,7 @@ export function WorkflowRunActions({
   onEdit: (workflowId: string) => void
   onDelete: (workflow: Workflow) => void
 }) {
-  const running = run?.status === 'running'
+  const running = run?.status === 'running' || run?.status === 'waiting_approval'
   const progress = workflowRunProgress(run)
   return (
     <>
@@ -137,7 +138,7 @@ export function WorkflowLatestRun({
           <div
             className={`activity-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_span]:text-[var(--text)] [&.failed]:text-[var(--danger)] [&.running]:text-[var(--star-strong)] grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:9px_2px] text-[var(--success)] ${run.status}`}
           >
-            {run.status === 'running' ? (
+            {run.status === 'running' || run.status === 'waiting_approval' ? (
               <RefreshCw className="animate-spin" size={15} />
             ) : run.status === 'completed' ? (
               <CheckCircle2 size={15} />
@@ -148,9 +149,13 @@ export function WorkflowLatestRun({
               <strong>
                 {run.status === 'completed'
                   ? run.summary || t('workflows:workflowsPage.workflowCompleted')
-                  : run.status === 'running'
-                    ? run.currentNodeLabel || t('workflows:workflowsPage.running')
-                    : run.error || t('workflows:workflowsPage.workflowFailed')}
+                  : run.status === 'waiting_approval'
+                    ? t('workflows:workflowsPage.waitingApproval')
+                    : run.status === 'running'
+                      ? run.currentNodeLabel || t('workflows:workflowsPage.running')
+                      : run.error
+                        ? workflowErrorMessage(run.error)
+                        : t('workflows:workflowsPage.workflowFailed')}
               </strong>
               <small>
                 {relativeTime(run.startedAt, language)} · {durationLabel(run.durationMs)}

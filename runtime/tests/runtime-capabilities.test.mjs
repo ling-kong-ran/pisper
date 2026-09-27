@@ -211,3 +211,21 @@ test('Pi compatibility patch removes eager optional builtin imports from headles
     assert.doesNotMatch(await readFile(join(piRoot, file), 'utf8'), eagerImport, file)
   }
 })
+
+test('image asset capability follows worker/WASM support independently of workflows and plugin enablement', async () => {
+  const capabilities = await resolveRuntimeCapabilities({
+    environment: { PISPER_RUNTIME_PROFILE: 'mobile-embedded' },
+    moduleSupport: { childProcess: false, workerThreads: true, sqlite: false, wasm: true },
+  })
+  assert.equal(capabilities.features.workflows, false)
+  assert.equal(capabilities.features.plugins, false)
+  assert.equal(capabilities.features.imageAssets, true)
+  assert.ok(capabilities.tools.includes('image_assets'))
+  assert.equal(requiredRuntimeFeature('/api/game-assets/projects'), 'imageAssets')
+  const unsupported = await resolveRuntimeCapabilities({
+    environment: { PISPER_RUNTIME_PROFILE: 'mobile-store' },
+    moduleSupport: { childProcess: false, workerThreads: true, sqlite: false, wasm: true },
+  })
+  assert.equal(unsupported.features.imageAssets, false)
+  assert.equal(unsupported.tools.includes('image_assets'), false)
+})

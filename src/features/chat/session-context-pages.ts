@@ -1,4 +1,4 @@
-export type SessionContextTab = 'files' | 'plan' | 'browser'
+export type SessionContextTab = 'files' | 'plan' | 'browser' | 'side-chat'
 export type ContextPage = { id: string; kind: SessionContextTab; draft: string; url: string }
 export type ContextPages = { pages: ContextPage[]; activeId: string; nextId: number }
 export type ContextPageAction =
@@ -13,6 +13,9 @@ export function createContextPages(kind: SessionContextTab = 'files'): ContextPa
 }
 export function updateContextPages(state: ContextPages, action: ContextPageAction): ContextPages {
   if (action.type === 'add') {
+    // 同一主会话只有一个临时侧聊，重复打开时回到已有页签。
+    const existing = state.pages.find((page) => page.kind === 'side-chat')
+    if (action.kind === 'side-chat' && existing) return { ...state, activeId: existing.id }
     if (state.pages.length >= MAX_CONTEXT_PAGES) return state
     const page = { id: `page-${state.nextId}`, kind: action.kind, draft: '', url: '' }
     return { pages: [...state.pages, page], activeId: page.id, nextId: state.nextId + 1 }

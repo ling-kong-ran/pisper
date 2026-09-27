@@ -102,14 +102,14 @@ export async function verifyZcodeIteration({
       scale,
     )
     const dimensions = await page
-      .getByRole('button', { name: 'Pisper 菜单', exact: true })
+      .getByRole('button', { name: '设置', exact: true })
       .evaluate((el) => ({
-        font: parseFloat(getComputedStyle(el.querySelector('span:nth-of-type(2)')).fontSize),
+        font: parseFloat(getComputedStyle(el.querySelector('span')).fontSize),
         height: el.getBoundingClientRect().height,
         icon: el.querySelector('svg').getBoundingClientRect().width,
         root: getComputedStyle(document.documentElement).fontSize,
       }))
-    assert.deepEqual(dimensions, { font: size, height: 44, icon: 15, root: '16px' })
+    assert.deepEqual(dimensions, { font: size, height: 44, icon: 16, root: '16px' })
   }
   await page.reload()
   await fontGroup.waitFor()
@@ -118,12 +118,22 @@ export async function verifyZcodeIteration({
     'true',
   )
   report.checks.push(
-    'Font scales are limited to 13.5/14/14.5px and persist; root spacing, 44px account row and 15px icons remain unchanged',
+    'Font scales are limited to 13.5/14/14.5px and persist; root spacing, 44px Settings row and 16px icon remain unchanged',
   )
 
+  const openWorkflowSettings = async () => {
+    await page.getByRole('button', { name: '工作流设置', exact: true }).click()
+    await page.getByRole('dialog', { name: '工作流设置', exact: true }).waitFor()
+  }
+  const closeWorkflowSettings = async () => {
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: '工作流设置', exact: true }).waitFor({ state: 'hidden' })
+  }
   await page.goto(base + '/#/workflows/new')
+  await openWorkflowSettings()
   const workflowName = page.getByLabel('名称', { exact: true })
   await workflowName.fill('PI workflow save return fixture')
+  await closeWorkflowSettings()
   await page.route('**/api/workflows', (r) =>
     r.request().method() === 'POST'
       ? r.fulfill({ status: 503, json: { error: 'PI workflow save failure fixture' } })
@@ -133,31 +143,44 @@ export async function verifyZcodeIteration({
   await page.getByRole('button', { name: '保存草稿', exact: true }).click()
   await page.getByText('PI workflow save failure fixture', { exact: true }).first().waitFor()
   assert.ok(page.url().endsWith('/#/workflows/new'))
+  await openWorkflowSettings()
   assert.equal(await workflowName.inputValue(), 'PI workflow save return fixture')
+  await closeWorkflowSettings()
   await page.unroute('**/api/workflows')
   await page.getByRole('button', { name: '保存草稿', exact: true }).click()
-  await page.waitForURL('**/#/workflows')
+  await page.waitForURL((url) => /^#\/workflows\/(?!new$)[^/]+$/.test(url.hash))
   const saved = (await api('/api/workflows')).workflows.find(
     (w) => w.name === 'PI workflow save return fixture',
   )
   assert.ok(saved?.id)
-  await page.reload()
+  assert.ok(page.url().endsWith('/#/workflows/' + saved.id))
+  await page.goto(base + '/#/workflows')
   await page.getByText('PI workflow save return fixture', { exact: true }).first().waitFor()
   report.checks.push(
-    'New workflow explicit save returns to list only after success; failed save preserves draft; saved workflow survives reload',
+    'New workflow explicit save retains its canvas only after success; failed save preserves draft; saved workflow remains in the list',
   )
 
   await page.goto(base + '/#/workflows/new')
+  await openWorkflowSettings()
   await workflowName.fill('PI quiet save fixture')
+  await closeWorkflowSettings()
   await page.route('**/api/workflows/*/run', async (r) => {
     report.expectedFailedApi.push({ path: new URL(r.request().url()).pathname, status: 503 })
     await r.fulfill({ status: 503, json: { error: 'PI workflow run failure fixture' } })
   })
   await page.getByRole('button', { name: '试运行', exact: true }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('textbox', { name: /^本次任务/ })
+    .fill('工作流失败恢复验收')
+  await page.getByRole('dialog').getByRole('button', { name: '运行', exact: true }).click()
   await page.getByText('PI workflow run failure fixture', { exact: true }).first().waitFor()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
   assert.match(page.url(), /#\/workflows\/[^/]+$/)
   assert.ok(!page.url().endsWith('/new'))
+  await openWorkflowSettings()
   assert.equal(await workflowName.inputValue(), 'PI quiet save fixture')
+  await closeWorkflowSettings()
   await page.unroute('**/api/workflows/*/run')
   report.checks.push(
     'Running a new workflow saves quietly to its editor URL, never jumps to the list, and preserves the saved workflow if execution fails',
@@ -183,6 +206,11 @@ export async function verifyZcodeIteration({
       r.request().method() === 'POST',
   )
   await page.getByRole('button', { name: '试运行', exact: true }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('textbox', { name: /^本次任务/ })
+    .fill('工作流运行验收')
+  await page.getByRole('dialog').getByRole('button', { name: '运行', exact: true }).click()
   const started = await (await runResponse).json()
   assert.equal(started.started, true)
   // Poll the API in Node and retain the exact terminal snapshot for assertions.
@@ -199,9 +227,15 @@ export async function verifyZcodeIteration({
   assert.equal(finished.status, 'completed', finished.error)
   assert.equal(finished.nodes.find((node) => node.kind === 'prompt').status, 'completed')
   assert.match(JSON.stringify(finished), /验收通过/)
-  await page.locator('.activity-row.completed').waitFor()
+  const openLatestWorkflowRun = async () => {
+    const inspectorButton = page.getByRole('button', { name: '节点属性', exact: true })
+    if (await inspectorButton.isVisible()) await inspectorButton.click()
+    await page.locator('summary').filter({ hasText: '最近运行' }).click()
+    await page.locator('.activity-row.completed').waitFor()
+  }
+  await openLatestWorkflowRun()
   await page.reload()
-  await page.locator('.activity-row.completed').waitFor()
+  await openLatestWorkflowRun()
   assert.ok(page.url().endsWith('/workflows/' + runnable.id))
   report.checks.push(
     'Workflow UI runs a saved prompt through the real runtime and loopback model; completed output and editor location survive reload',

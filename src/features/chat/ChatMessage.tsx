@@ -653,8 +653,8 @@ type FocusChatMessageProps = {
   /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
   cwd?: string
   sessionStreaming?: boolean
-  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
-  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   /** 最近一条前置用户消息 ID：存在时最新助手消息上展示重试按钮。 */
   retryUserMessageId?: string
   hideErrorNotice?: boolean
@@ -786,7 +786,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         !streaming &&
         (message.turnBoundaryEntryId || retryUserMessageId) && (
           <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
-            {message.turnBoundaryEntryId && (
+            {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
               <>
                 <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
                 <Tooltip>

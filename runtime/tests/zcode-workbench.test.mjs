@@ -71,14 +71,20 @@ test('ZCode shell has one chat header, no split selector, and retains optional b
   assert.match(sidebar, /navigateSettings\(\{ type: 'config', id: 'models' \}\)/)
 })
 
-test('brand toggle follows the left edge and Windows controls remain a narrow capability', async () => {
+test('dedicated sidebar toggle stays separate from branding and Windows controls remain a narrow capability', async () => {
   const toggle = await readFile('src/components/layout/WorkbenchSidebarToggle.tsx', 'utf8')
   const sidebar = await readFile('src/components/layout/AppSidebar.tsx', 'utf8')
   const bridge = await readFile('src-tauri/src/desktop_shell/desktop_bridge.rs', 'utf8')
-  assert.match(toggle, /!isMobile && inSidebar !== open/)
+  // 桌面图标栏常驻；移动端仍由页头入口打开抽屉，具体交互由 UI 回归覆盖。
+  assert.match(toggle, /!isMobile && !inSidebar/)
+  assert.match(sidebar, /collapsible="icon"/)
   const primitive = await readFile('src/components/ui/sidebar.tsx', 'utf8')
   assert.match(primitive, /inert=\{state === 'collapsed' && collapsible === 'offcanvas'\}/)
-  assert.match(toggle, /<BrandLogo/)
+  assert.doesNotMatch(toggle, /<BrandLogo/)
+  assert.match(sidebar, /<BrandLogo/)
+  assert.match(toggle, /<PanelLeftClose/)
+  assert.match(toggle, /<PanelLeftOpen/)
+  assert.match(toggle, /aria-expanded=\{expanded\}/)
   assert.match(sidebar, /<WorkbenchSidebarToggle inSidebar/)
   assert.match(bridge, /window.label\(\) != "main"/)
   assert.match(bridge, /Unsupported window action/)

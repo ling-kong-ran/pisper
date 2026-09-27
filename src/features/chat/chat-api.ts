@@ -434,8 +434,8 @@ export const chatApi = {
     }),
 
   // —— 会话文件变更审批（无 Git/SVN 时的快照 diff / 撤销 / 批准）——
-  getSessionFileChanges: (sessionId: string) =>
-    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes`),
+  getSessionFileChanges: (sessionId: string, options: { signal?: AbortSignal } = {}) =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes`, options),
 
   getSessionFileChangeDiff: (sessionId: string, path: string) =>
     requestJson<{ diff: string; diffTruncated?: boolean; found?: boolean }>(

@@ -1,3 +1,5 @@
+import type { SessionFileChangeFile } from './chat-api'
+
 export type SessionContextPreference = 'auto' | 'open' | 'closed'
 export type SessionContextPresentation = 'aside' | 'sheet' | 'closed'
 
@@ -5,10 +7,11 @@ export type SessionContextRun = {
   sessionId: string
   streaming: boolean
   completed: boolean
+  runStartedAt?: string | null
 }
 
 // 只跟随当前会话的运行终态；打开旧会话或后台会话结束都不能抢占面板。
-export function shouldRevealSessionContext(
+export function didCompleteSessionContextRun(
   previous: SessionContextRun | null,
   current: SessionContextRun,
 ): boolean {
@@ -19,6 +22,28 @@ export function shouldRevealSessionContext(
     !current.streaming &&
     current.completed,
   )
+}
+
+// 文件快照覆盖整个会话，只展示本轮留下的有效改动，不能用历史文件数量决定自动打开。
+export function shouldRevealSessionContext(
+  previous: SessionContextRun | null,
+  current: SessionContextRun,
+  files: readonly SessionFileChangeFile[] = [],
+): boolean {
+  if (!didCompleteSessionContextRun(previous, current)) return false
+  const startedAt = Date.parse(current.runStartedAt || '')
+  if (!Number.isFinite(startedAt)) return false
+  return files.some((file) => {
+    const changedAt = Date.parse(file.changedAt)
+    if (file.reverted || !Number.isFinite(changedAt) || changedAt < startedAt) return false
+    return (
+      file.added > 0 ||
+      file.removed > 0 ||
+      file.status === 'created' ||
+      file.status === 'deleted' ||
+      (!file.snapshot && file.pending)
+    )
+  })
 }
 
 export const SESSION_CONTEXT_DEFAULT_WIDTH = 360

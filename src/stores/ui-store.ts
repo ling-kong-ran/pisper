@@ -64,7 +64,13 @@ type PersistedUiState = Pick<
   | 'motion'
 >
 
-const THEME_SEQUENCE: ThemeMode[] = ['system', 'scheduled', 'light', 'dark']
+// 快捷按钮只循环三种常用模式；旧的定时偏好仍可读取并在设置页使用。
+const THEME_SEQUENCE: readonly ThemeMode[] = ['system', 'dark', 'light']
+const STORED_THEME_MODES: readonly ThemeMode[] = ['system', 'scheduled', 'light', 'dark']
+
+export function nextThemeMode(theme: ThemeMode): ThemeMode {
+  return THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(theme) + 1) % THEME_SEQUENCE.length]
+}
 
 export const useUiStore = create<UiState>()(
   persist(
@@ -76,7 +82,7 @@ export const useUiStore = create<UiState>()(
       setTheme: (theme) => set({ theme }),
       cycleTheme: () =>
         set((state) => ({
-          theme: THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(state.theme) + 1) % THEME_SEQUENCE.length],
+          theme: nextThemeMode(state.theme),
         })),
       setDensity: (density) => set({ density }),
       setAccent: (accent) => set({ accent }),
@@ -130,7 +136,7 @@ export const useUiStore = create<UiState>()(
             stored?.theme ??
             (legacyTheme === 'system'
               ? 'scheduled'
-              : THEME_SEQUENCE.includes(legacyTheme as ThemeMode)
+              : STORED_THEME_MODES.includes(legacyTheme as ThemeMode)
                 ? (legacyTheme as ThemeMode)
                 : current.theme),
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',

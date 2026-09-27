@@ -183,7 +183,7 @@ test('provider API keys update without changing the active model configuration',
     await rm(directory, { recursive: true, force: true })
   })
   await runtime.init()
-  const before = await runtime.getConfig()
+  const before = { ...runtime.settingsManager.getGlobalSettings() }
   const apiKey = ['terminal', 'secret', 'value'].join('-')
 
   const saved = await runtime.setProviderApiKey('kimi-coding', { apiKey })
@@ -191,8 +191,9 @@ test('provider API keys update without changing the active model configuration',
 
   assert.equal(saved.apiKeyUpdated, true)
   assert.equal(saved.updatedProviderId, 'kimi-coding')
-  assert.equal(after.defaultProvider, before.provider)
-  assert.equal(after.defaultModel, before.model)
+  // 配置视图可以给出未配置的候选，但修改密钥必须保留真实默认值（包括首次安装的空值）。
+  assert.equal(after.defaultProvider, before.defaultProvider)
+  assert.equal(after.defaultModel, before.defaultModel)
   assert.equal(saved.providers.find((provider) => provider.id === 'kimi-coding').configured, true)
   assert.equal(JSON.stringify(saved).includes(apiKey), false)
   const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))

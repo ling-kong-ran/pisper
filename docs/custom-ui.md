@@ -175,7 +175,38 @@ box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
 | `pisper.notify(message)` | `notify` | 在应用内弹出通知（≤500 字符） |
 | `pisper.onThemeChanged(listener)` | （无需声明） | 监听主题变化；返回取消订阅函数 |
 
-所有方法返回 Promise，失败时 reject 中文错误信息。
+请求方法返回 Promise，失败时 reject 错误信息。权限提示随界面语言显示。
+
+### 游戏素材组件
+
+组件负责布局、预览和人工编辑，独立素材领域负责项目、任务与结果存储。工作流和工作台通过同一内部图像插件调用生成与本地处理能力；两者没有状态同步。
+
+在 `manifest.json` 中按需声明以下能力；仅读取、写入和运行分别授权，互不包含：
+
+```json
+{
+  "name": "我的素材工具",
+  "permissions": ["game-assets.read", "game-assets.write", "game-assets.run"]
+}
+```
+
+| 方法 | 所需权限 | 用途 |
+| --- | --- | --- |
+| `pisper.gameAssets.list(params)` | `game-assets.read` | 查询素材项目、任务及可用图像能力 |
+| `pisper.gameAssets.image(params)` | `game-assets.read` | 读取受控图像素材或生成结果 |
+| `pisper.gameAssets.export(params)` | `game-assets.read` | 导出图集 PNG 或帧元数据 |
+| `pisper.gameAssets.save(params)` | `game-assets.write` | 保存独立素材项目 |
+| `pisper.gameAssets.uploadImage(params)` | `game-assets.write` | 上传经过格式与大小校验的图片 |
+| `pisper.gameAssets.process(params)` | `game-assets.write` | 调用本地图像处理操作 |
+| `pisper.gameAssets.engine(params)` | `game-assets.write` | 管理共享的本地图像算法 |
+| `pisper.gameAssets.run(params)` | `game-assets.run` | 启动素材生成任务 |
+| `pisper.gameAssets.stop(params)` | `game-assets.run` | 停止指定素材任务 |
+
+这些请求只接受素材领域公共接口定义的参数，不提供任意 HTTP、命令执行或文件路径访问。二进制结果通过 `ArrayBuffer` 返回，组件可以创建本地 Blob URL 展示，使用后应释放。素材接口按首次授权调用懒加载，普通组件不会加载画布或图像处理模块。
+
+每个组件最多同时进行 4 个素材请求，超过上限立即返回繁忙错误，不排队持有大图。握手、主题同步与通知不受此限制。卸载组件时取消该组件的在途请求，并忽略晚到的响应；已启动的后台素材任务继续运行，只有显式调用 `stop` 才会停止。界面布局编辑器中的组件预览不开放任何桥接权限，也不会加载素材业务模块。
+
+手动调帧使用 `pisper.gameAssets.editFrames({jobId, edits})`（`game-assets.write`），删除项目使用 `remove({id})`（`game-assets.write`）。工作台项目与工作流独立，不再提供 `openCanvas`。底层 `image_assets` 工具开关只控制 Agent，工作台与工作流无需开启。
 
 ## 主题适配
 
@@ -197,7 +228,7 @@ box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
 - 组件只能由用户在当前 Runtime 的组件根目录下手动放置，Runtime 不提供远程安装。默认目录和 `PISPER_AGENT_DIR` 覆盖规则见上方「快速开始」。
 - 资产服务限制在组件目录内：拒绝 `..` 穿越、绝对路径、隐藏文件、`manifest.json`
   与指向目录外的符号链接；单文件上限 8 MB。
-- 桥接能力白名单固定（`config.read`、`sessions.read`、`notify`），
+- 桥接能力白名单固定（`config.read`、`sessions.read`、`notify`、`game-assets.read`、`game-assets.write`、`game-assets.run`），
   manifest 中未声明的权限在调用时返回错误；未知声明会被忽略。
 - 组件通知文本截断到 500 字符；错误信息经 Runtime 脱敏。
 

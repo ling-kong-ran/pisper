@@ -1,6 +1,6 @@
 // 快速配置向导：通过 Base URL、API 协议和模型列表完成连接配置。
 // 对话与视觉共用流程，但模型类型严格隔离，避免视觉模型进入默认对话配置。
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, RefreshCw, Server, X } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
@@ -20,6 +20,7 @@ import type {
 } from './config-types'
 
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { FieldLabel } from '@/components/ui/field'
 import { AppCardHeader, AppError, AppNotice } from '@/components/ui/app-primitives'
 
@@ -29,6 +30,7 @@ type QuickSetupWizardProps = {
   // 从连接管理进入时复用已有连接的端点、协议和凭据。
   initialProviderId?: string
   onClose: () => void
+  onConfigChanged?: (data: ConfigData) => void
   onCompleted: (data: ConfigData) => void
 }
 
@@ -46,6 +48,7 @@ export function QuickSetupWizard({
   providerType = 'chat',
   initialProviderId,
   onClose,
+  onConfigChanged,
   onCompleted,
 }: QuickSetupWizardProps) {
   const { t } = useI18n()
@@ -55,6 +58,10 @@ export function QuickSetupWizard({
   const [step, setStep] = useState(1)
   const [provider, setProvider] = useState<ProviderConfig | null>(initialProvider)
   const [connectionId] = useState(createProviderConnectionId)
+  // 创建连接与追加模型分别提交；即使后续追加失败，也必须沿用已落盘的真实 ID。
+  const [createdProviderId, setCreatedProviderId] = useState('')
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const baseUrlInputRef = useRef<HTMLInputElement | null>(null)
   const [baseUrl, setBaseUrl] = useState(initialProvider?.baseUrl || '')
   const [api, setApi] = useState(initialProvider?.api || 'openai-responses')
   const [apiKeyDraft, setApiKeyDraft] = useState('')
@@ -72,18 +79,6 @@ export function QuickSetupWizard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [discoverWarning, setDiscoverWarning] = useState('')
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   const identity = connectionIdentity(baseUrl)
   const purposeLabel =
@@ -129,8 +124,9 @@ export function QuickSetupWizard({
 
   // 第三步才访问 Provider：临时参数只用于发现模型，成功选择后才写入配置文件。
   const fetchModels = async () => {
+    if (busy) return
     const existing = provider
-    if (!apiKey && !existing?.configured) {
+    if (!apiKey && !existing?.configured && !createdProviderId) {
       setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
       return
     }
@@ -143,7 +139,7 @@ export function QuickSetupWizard({
         {
           method: 'POST',
           body: JSON.stringify({
-            providerId: existing?.id || '',
+            providerId: existing?.id || createdProviderId,
             providerType,
             api,
             baseUrl,
@@ -194,13 +190,14 @@ export function QuickSetupWizard({
   }
 
   const save = async () => {
+    if (busy) return
     // 主模型取列表选中项/手动输入；都为空时退回第一个追加项。
     const model = modelId.trim() || manualIds[0] || ''
     if (!model) {
       setError(t('config:configPage.selectModelToFinish'))
       return
     }
-    if (!apiKey && !provider?.configured) {
+    if (!apiKey && !provider?.configured && !createdProviderId) {
       setError(t('config:configPage.enterTheAPIKeyForThisConnection'))
       return
     }
@@ -210,11 +207,12 @@ export function QuickSetupWizard({
     setBusy(true)
     setError('')
     try {
-      let data = provider
+      const existingProviderId = provider?.id || createdProviderId
+      let data = existingProviderId
         ? await apiJson<ConfigData>('/api/config', {
             method: 'PUT',
             body: JSON.stringify({
-              provider: provider.id,
+              provider: existingProviderId,
               providerType,
               api,
               baseUrl,
@@ -241,9 +239,15 @@ export function QuickSetupWizard({
               enabled: true,
             }),
           })
-      const targetProviderId = provider?.id || data.createdProviderId || connectionId
+      const targetProviderId = existingProviderId || data.createdProviderId || connectionId
+      const committedCreatedId = initialProvider ? '' : targetProviderId
+      if (committedCreatedId) setCreatedProviderId(committedCreatedId)
       const savedProvider = data.providers.find((item) => item.id === targetProviderId)
       if (savedProvider) setProvider(savedProvider)
+      // 先同步已提交的连接，让追加失败后关闭向导仍能看见并继续编辑它。
+      onConfigChanged?.(
+        committedCreatedId ? { ...data, createdProviderId: committedCreatedId } : data,
+      )
       // 主模型保存成功后再批量添加其余手动输入的模型；失败时保留向导以便修正重试
       //（重试安全：服务端会跳过已存在的模型）。
       if (extraIds.length) {
@@ -261,7 +265,7 @@ export function QuickSetupWizard({
           return
         }
       }
-      onCompleted(data)
+      onCompleted(committedCreatedId ? { ...data, createdProviderId: committedCreatedId } : data)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -270,27 +274,55 @@ export function QuickSetupWizard({
   }
 
   return (
-    <div
-      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
     >
-      <div className="modal max-h-[calc(100dvh_-_40px)] w-full max-w-lg overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]">
+      <DialogContent
+        showCloseButton={false}
+        className="modal z-[80] block max-h-[calc(100dvh_-_40px)] w-[calc(100%_-_40px)] max-w-lg overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] sm:max-w-lg max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:w-[calc(100%_-_16px)]"
+        overlayClassName="z-[70] bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)]"
+        aria-busy={busy}
+        onEscapeKeyDown={(event) => {
+          if (busy) event.preventDefault()
+        }}
+        onInteractOutside={(event) => {
+          if (busy) event.preventDefault()
+        }}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocusRef.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null
+          baseUrlInputRef.current?.focus()
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocusRef.current?.focus()
+        }}
+      >
         <AppCardHeader>
           <div>
-            <h2>
-              {providerType === 'visual'
-                ? t('config:configPage.visualQuickSetupTitle')
-                : t('config:configPage.quickSetupTitle')}
-            </h2>
-            <p>
-              {t('config:configPage.stepIndicator', { current: step, total: 3 })} · {stepLabel}
-            </p>
+            <DialogTitle asChild>
+              <h2>
+                {providerType === 'visual'
+                  ? t('config:configPage.visualQuickSetupTitle')
+                  : t('config:configPage.quickSetupTitle')}
+              </h2>
+            </DialogTitle>
+            <DialogDescription asChild>
+              <p>
+                {t('config:configPage.stepIndicator', { current: step, total: 3 })} · {stepLabel}
+              </p>
+            </DialogDescription>
           </div>
           <Button
             type="button"
             variant="ghost"
             size="icon"
             aria-label={t('config:configPage.closeDialog')}
+            disabled={busy}
             onClick={onClose}
           >
             <X size={17} />
@@ -315,7 +347,7 @@ export function QuickSetupWizard({
             <FieldLabel variant="control">
               Base URL
               <input
-                autoFocus
+                ref={baseUrlInputRef}
                 value={baseUrl}
                 onChange={(event) => setBaseUrl(event.target.value)}
                 placeholder="https://api.example.com/v1"
@@ -519,7 +551,7 @@ export function QuickSetupWizard({
             </Button>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

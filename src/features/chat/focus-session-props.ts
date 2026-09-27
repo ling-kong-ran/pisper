@@ -71,6 +71,7 @@ export type FocusSessionProps = {
   notify?: Notify
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onOpenModelSettings?: () => void
+  onOpenLayoutSettings?: () => void
   onAssetConsumed?: () => void
   onLoadOlder?: () => Promise<boolean> | boolean
   onModelChange: (model: string) => Promise<void> | void

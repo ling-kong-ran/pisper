@@ -21,12 +21,19 @@ import { remoteRoutes } from './routes/remote.mjs'
 import { runRoutes } from './routes/runs.mjs'
 import { sessionRuntimeRoutes } from './routes/sessions-runtime.mjs'
 import { speechRoutes } from './routes/speech.mjs'
+import { spriteEngineRoutes } from './routes/workflow-image-engines.mjs'
+import { gameAssetRoutes } from './routes/game-assets.mjs'
+import { workflowMediaRoutes } from './routes/workflow-media.mjs'
+import { WorkflowInputError } from '../../shared/workflow-inputs.mjs'
 import { workflowScheduleRoutes } from './routes/workflows-schedules.mjs'
 import { RunRegistry } from '../services/run-registry.mjs'
 
 const registry = createRouteRegistry([
   ...sessionRuntimeRoutes,
   ...speechRoutes,
+  ...spriteEngineRoutes,
+  ...workflowMediaRoutes,
+  ...gameAssetRoutes,
   ...configSettingsRoutes,
   ...workflowScheduleRoutes,
   ...memoryAssetRoutes,
@@ -53,6 +60,7 @@ function errorStatus(error) {
 }
 
 const CAPABILITY_ROUTES = [
+  { pattern: /^\/api\/game-assets(?:\/|$)/, feature: 'imageAssets' },
   { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/mcp-host(?:\/|$)/, feature: 'mcp' },
@@ -62,6 +70,11 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/channels(?:\/|$)/, feature: 'channels' },
   { pattern: /^\/api\/schedules(?:\/|$)/, feature: 'schedules' },
   { pattern: /^\/api\/(?:workflows|workflow-runs)(?:\/|$)/, feature: 'workflows' },
+  {
+    pattern:
+      /^\/api\/(?:workflow-media|workflow-image-models|workflow-image-process|sprite-engines)(?:\/|$)/,
+    feature: 'workflows',
+  },
   { pattern: /^\/api\/remote(?:\/|$)/, feature: 'remoteAccess' },
   { pattern: /^\/api\/desktop-pet(?:\/|$)/, feature: 'desktopPet' },
   { pattern: /^\/api\/sessions\/[^/]+\/(?:git|vcs)(?:\/|$)/, feature: 'vcs' },
@@ -201,7 +214,22 @@ export function createApiHandler(
         if (!handlerContext.context.hasTerminal?.())
           handlerContext.context.sendSse('error', { message: publicError(error) })
       } else if (!res.headersSent && !res.writableEnded && !res.destroyed) {
-        sendJson(res, errorStatus(error), { error: publicError(error) })
+        const invalidWorkflowBundle = error?.code === 'workflow_bundle_invalid'
+        sendJson(res, errorStatus(error), {
+          error: invalidWorkflowBundle ? '工作流压缩包无效或内容不完整。' : publicError(error),
+          ...(invalidWorkflowBundle ? { code: 'workflow_bundle_invalid' } : {}),
+          ...(typeof error?.code === 'string' && /^workflow_image_[a-z_]+$/.test(error.code)
+            ? { code: error.code }
+            : {}),
+          ...(error instanceof WorkflowInputError
+            ? {
+                code: error.code,
+                inputName: error.inputName,
+                label: error.label,
+                statusCode: error.statusCode,
+              }
+            : {}),
+        })
       }
     }
     if (handlerContext?.isSse()) {

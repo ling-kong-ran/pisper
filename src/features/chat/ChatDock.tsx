@@ -8,6 +8,7 @@ import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
 import { FocusSession } from './FocusSession'
+import { resolveSessionStreaming } from './session-streaming-state'
 import { ChatDockContext } from './chat-dock-context'
 import { closeMobileSessionTab, sessionIdFromPanel } from './dock-layout'
 
@@ -283,7 +284,7 @@ function SessionPanel({
   const sessionState = useSyncExternalStore(subscribe, getSnapshot)
   const session = context?.sessions.find((item) => item.id === sessionId)
   const state = sessionState || DEFAULT_SESSION_STATE
-  const streaming = Boolean(state.streaming || session?.streaming)
+  const streaming = resolveSessionStreaming(state, session)
   const plan = resolveSessionPlan(sessionState, session)
   const team =
     sessionState && Object.hasOwn(sessionState, 'team')
@@ -454,6 +455,7 @@ function SessionPanel({
         notify={context.notify}
         requestConfirm={context.requestConfirm}
         onOpenModelSettings={context.openModelSettings}
+        onOpenLayoutSettings={context.openLayoutSettings}
         onCompactionThresholdChange={context.setCompactionThreshold}
         canSplit={canSplitPanel}
         canClosePanel={canClosePanel}

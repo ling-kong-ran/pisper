@@ -16,6 +16,7 @@ export const PAGE_PATHS = Object.freeze({
   decisions: '/decisions',
   workflows: '/workflows',
   workflowCreate: '/workflows/new',
+  gameAssetWorkbench: '/tools/game-assets',
   config: '/config/models',
 } as const)
 

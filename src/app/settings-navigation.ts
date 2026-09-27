@@ -87,6 +87,17 @@ export function getSettingsNavigation(
       ]
   const groups: SettingsNavigationGroup[] = [
     {
+      label: t('config:settingsShell.agent'),
+      items: [
+        {
+          key: 'config:models',
+          label: t('config:configPage.models'),
+          icon: Bot,
+          destination: { type: 'config', id: 'models' },
+        },
+      ],
+    },
+    {
       label: t('config:settingsShell.agentCapabilities'),
       items: [
         {

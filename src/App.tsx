@@ -172,7 +172,6 @@ function App() {
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
   const startupPageRef = useRef(page)
-  const lastAppPathRef = useRef(SETTINGS_PAGES.has(page) ? '/chat' : location.pathname)
   const [query, setQuery] = useState('')
   const [activeSessionId, setActiveSessionId] = useState(
     () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
@@ -456,7 +455,7 @@ function App() {
 
   const openModelSettingsFromOnboarding = useCallback(() => {
     dismissModelOnboarding()
-    // 用户主动选择设置时，把模型页主操作排队；页面挂载后直接打开快速配置向导。
+    // 用户主动选择设置时，把模型页主操作排队；页面挂载后直接打开快速设置。
     primaryActions.clear()
     primaryActions.invoke()
     setConfigSection('models')
@@ -484,16 +483,6 @@ function App() {
     },
     [navigate, setConfigSection],
   )
-
-  useEffect(() => {
-    if (!SETTINGS_PAGES.has(page)) lastAppPathRef.current = location.pathname
-  }, [location.pathname, page])
-
-  // 退出设置页：回到进入设置前的最后一个应用页面。
-  const exitSettings = useCallback(() => {
-    routerNavigate(lastAppPathRef.current)
-    setQuery('')
-  }, [routerNavigate])
 
   // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
@@ -743,7 +732,6 @@ function App() {
             navigation={navigation}
             navigate={navigate}
             navigateSettings={navigateSettings}
-            onExitSettings={exitSettings}
             collapsed={sidebarCollapsed}
             onNewChat={startNewChat}
             onSearch={() => setPaletteOpen(true)}

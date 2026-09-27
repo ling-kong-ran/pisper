@@ -301,7 +301,7 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
     assets: t('navigation:appOverlays.exportAsset'),
     channels: t('navigation:appOverlays.connectChannel'),
     schedules: t('navigation:appOverlays.newScheduledTask'),
-    config: t('navigation:appOverlays.addProvider'),
+    config: t('navigation:appOverlays.quickSetup'),
     plugins: t('navigation:appOverlays.savePluginPolicy'),
     memory: t('navigation:appOverlays.addMemory'),
     mcp: t('navigation:appOverlays.addMCPService'),

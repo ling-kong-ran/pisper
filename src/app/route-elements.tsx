@@ -1,8 +1,9 @@
 // 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载聊天页。
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
-import { Navigate, useOutletContext } from 'react-router-dom'
-import { ensureChannelsMessages, ensureMcpMessages } from './i18n'
+import { useCallback } from 'react'
+import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
+import { ensureChannelsMessages, ensureMcpMessages, ensureWorkflowMessages } from './i18n'
 import type { AppRouteContext } from './route-context'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
@@ -15,10 +16,16 @@ export async function chatRoute() {
 
   function ChatRoute() {
     const context = useAppRouteContext()
+    const navigate = useNavigate()
+    const openLayoutSettings = useCallback(
+      () => navigate('/config/interface?view=layout'),
+      [navigate],
+    )
     return (
       <ChatPage
         notify={context.notify}
         navigate={context.navigate}
+        onOpenLayoutSettings={openLayoutSettings}
         browserNotify={context.browserNotify}
         registerPrimaryAction={context.registerPrimaryAction}
         pendingAsset={context.pendingAsset}
@@ -216,6 +223,18 @@ export async function componentsRoute() {
   return { Component: LegacyComponentsRoute }
 }
 
+export async function gameAssetWorkbenchRoute() {
+  const [{ CustomUiToolPage }] = await Promise.all([
+    import('@/features/custom-ui/public'),
+    ensureWorkflowMessages(),
+  ])
+  function GameAssetWorkbenchRoute() {
+    const context = useAppRouteContext()
+    return <CustomUiToolPage componentId="pisper-game-asset-workbench" notify={context.notify} />
+  }
+  return { Component: GameAssetWorkbenchRoute }
+}
+
 export async function decisionsRoute() {
   const { DecisionsPage } = await import('@/features/decisions/DecisionsPage')
 
@@ -228,7 +247,10 @@ export async function decisionsRoute() {
 }
 
 export async function workflowsRoute() {
-  const { WorkflowsPage } = await import('@/features/workflows/WorkflowsPage')
+  const [{ WorkflowsPage }] = await Promise.all([
+    import('@/features/workflows/WorkflowsPage'),
+    ensureWorkflowMessages(),
+  ])
 
   function WorkflowsRoute() {
     const context = useAppRouteContext()
@@ -245,7 +267,10 @@ export async function workflowsRoute() {
 }
 
 export async function workflowBuilderRoute() {
-  const { WorkflowBuilder } = await import('@/features/workflows/WorkflowsPage')
+  const [{ WorkflowBuilder }] = await Promise.all([
+    import('@/features/workflows/WorkflowsPage'),
+    ensureWorkflowMessages(),
+  ])
 
   function WorkflowBuilderRoute() {
     const context = useAppRouteContext()

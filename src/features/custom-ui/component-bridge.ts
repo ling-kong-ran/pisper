@@ -1,8 +1,9 @@
 // 自定义 UI 组件的父页面桥：组件 iframe 运行在 opaque origin（sandbox 不含
 // allow-same-origin），只能通过 postMessage 与应用交互。这里实现宿主侧：
-// 按组件 manifest 声明的 permissions 过滤请求、代理只读 API、转发通知，
+// 按组件 manifest 声明的 permissions 过滤请求、代理领域 API、转发通知，
 // 并在主题变化时向组件广播 CSS 变量。
 import { apiJson } from '@/lib/api'
+import { translateText } from '@/app/i18n'
 import type { CustomUiComponent } from './custom-ui-api'
 
 // 桥协议与 runtime/services/custom-ui-service.mjs 的 BRIDGE_SCRIPT 一一对应：
@@ -80,7 +81,20 @@ const METHOD_PERMISSIONS: Record<string, string> = {
   getConfig: 'config.read',
   listSessions: 'sessions.read',
   notify: 'notify',
+  'gameAssets.list': 'game-assets.read',
+  'gameAssets.save': 'game-assets.write',
+  'gameAssets.run': 'game-assets.run',
+  'gameAssets.stop': 'game-assets.run',
+  'gameAssets.uploadImage': 'game-assets.write',
+  'gameAssets.image': 'game-assets.read',
+  'gameAssets.process': 'game-assets.write',
+  'gameAssets.engine': 'game-assets.write',
+  'gameAssets.export': 'game-assets.read',
+  'gameAssets.editFrames': 'game-assets.write',
+  'gameAssets.remove': 'game-assets.write',
 }
+
+const MAX_GAME_ASSET_REQUESTS = 4
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -102,6 +116,8 @@ export function attachComponentBridge(
   const grantedPermissions = preview ? [] : component.permissions
   const permissions = new Set(grantedPermissions)
   const controller = new AbortController()
+  let activeGameAssetRequests = 0
+  const language = locale === 'en-US' ? 'en-US' : 'zh-CN'
   const theme = () => ({ ...currentBridgeTheme(), locale })
 
   const postTheme = () => {
@@ -141,9 +157,25 @@ export function attachComponentBridge(
       }
     }
     const permission = METHOD_PERMISSIONS[method]
-    if (!permission) throw new Error(`未知的桥接方法：${method}`)
+    if (!permission) throw new Error(translateText('custom-ui:bridge.unknownMethod', language))
     if (!permissions.has(permission)) {
-      throw new Error(`组件未在 manifest.json 声明权限 ${permission}。`)
+      throw new Error(translateText('custom-ui:bridge.permissionDenied', language, { permission }))
+    }
+    if (method.startsWith('gameAssets.')) {
+      // 在懒加载之前限流；大图处理期间仍允许握手、主题同步和通知。
+      if (activeGameAssetRequests >= MAX_GAME_ASSET_REQUESTS) {
+        throw new Error(translateText('custom-ui:bridge.gameAssetBusy', language))
+      }
+      activeGameAssetRequests += 1
+      try {
+        const { handleGameAssetComponentRequest } =
+          await import('@/features/game-assets/component-api')
+        // 导入可能晚于组件卸载完成，不能再启动新的写入或运行。
+        controller.signal.throwIfAborted()
+        return await handleGameAssetComponentRequest(method, params, controller.signal)
+      } finally {
+        activeGameAssetRequests -= 1
+      }
     }
     if (method === 'getConfig') return apiJson('/api/config', { signal: controller.signal })
     if (method === 'listSessions') {

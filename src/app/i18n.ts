@@ -15,7 +15,6 @@ import enSchedules from '@/locales/en-US/schedules.json' with { type: 'json' }
 import enDecisions from '@/locales/en-US/decisions.json' with { type: 'json' }
 import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
 import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
-import enWorkflows from '@/locales/en-US/workflows.json' with { type: 'json' }
 import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
@@ -27,7 +26,6 @@ import zhSchedules from '@/locales/zh-CN/schedules.json' with { type: 'json' }
 import zhDecisions from '@/locales/zh-CN/decisions.json' with { type: 'json' }
 import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
 import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
-import zhWorkflows from '@/locales/zh-CN/workflows.json' with { type: 'json' }
 import { STORAGE_KEYS } from './storage.ts'
 
 export const DEFAULT_LANGUAGE = 'zh-CN' as const
@@ -98,7 +96,6 @@ void i18n.use(initReactI18next).init({
       schedules: zhSchedules,
       skills: zhSkills,
       terminal: zhTerminal,
-      workflows: zhWorkflows,
     },
     'en-US': {
       assets: enAssets,
@@ -112,7 +109,6 @@ void i18n.use(initReactI18next).init({
       schedules: enSchedules,
       skills: enSkills,
       terminal: enTerminal,
-      workflows: enWorkflows,
     },
   },
   interpolation: {
@@ -169,13 +165,10 @@ export function ensureChatLayoutMessages(): Promise<void> {
 export function ensureChannelsMessages(): Promise<void> {
   if (i18n.hasResourceBundle('zh-CN', 'channels') && i18n.hasResourceBundle('en-US', 'channels'))
     return Promise.resolve()
-  channelsMessagesPromise ??= Promise.all([
-    import('@/locales/zh-CN/channels.json', { with: { type: 'json' } }),
-    import('@/locales/en-US/channels.json', { with: { type: 'json' } }),
-  ])
-    .then(([zh, en]) => {
-      i18n.addResourceBundle('zh-CN', 'channels', zh.default)
-      i18n.addResourceBundle('en-US', 'channels', en.default)
+  channelsMessagesPromise ??= import('./channels-messages')
+    .then(({ channelsMessages: { zh, en } }) => {
+      i18n.addResourceBundle('zh-CN', 'channels', zh)
+      i18n.addResourceBundle('en-US', 'channels', en)
     })
     .catch((error: unknown) => {
       channelsMessagesPromise = null
@@ -211,4 +204,21 @@ export function translateText(
   values?: I18nValues,
 ): string {
   return i18n.getFixedT(language)(message, values)
+}
+
+// 工作流文案随页面加载，图片算法与输入编辑器不占用会话首屏预算。
+let workflowMessagesPromise: Promise<void> | null = null
+export function ensureWorkflowMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'workflows') && i18n.hasResourceBundle('en-US', 'workflows'))
+    return Promise.resolve()
+  workflowMessagesPromise ??= import('./workflow-messages')
+    .then(({ workflowMessages: { zh, en } }) => {
+      i18n.addResourceBundle('zh-CN', 'workflows', zh)
+      i18n.addResourceBundle('en-US', 'workflows', en)
+    })
+    .catch((error: unknown) => {
+      workflowMessagesPromise = null
+      throw error
+    })
+  return workflowMessagesPromise
 }

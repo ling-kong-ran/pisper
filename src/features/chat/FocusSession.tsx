@@ -12,14 +12,15 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
-  SunMoon,
   SlidersHorizontal,
   TerminalSquare,
   Pencil,
   X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { ensureChatLayoutMessages } from '@/app/i18n'
 import { WorkbenchSidebarToggle } from '@/components/layout/WorkbenchSidebarToggle'
+import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import { useUiStore } from '@/stores/ui-store'
 import { AppCard as Panel, AppCardHeader } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
@@ -82,6 +83,14 @@ import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/s
 export type { FocusSessionProps }
 
 const QuickPromptIdeas = lazy(() => import('./QuickPromptIdeas'))
+
+const ChatLayoutSwitcher = lazy(async () => {
+  const [{ ChatLayoutSwitcher }] = await Promise.all([
+    import('./layout/ChatLayoutSwitcher'),
+    ensureChatLayoutMessages(),
+  ])
+  return { default: ChatLayoutSwitcher }
+})
 
 const CanvasSessionContext = lazy(() =>
   import('./layout/CanvasSessionContext').then((module) => ({
@@ -168,6 +177,7 @@ export const FocusSession = memo(function FocusSession({
   notify,
   requestConfirm,
   onOpenModelSettings,
+  onOpenLayoutSettings,
   onAssetConsumed,
   onLoadOlder,
   onModelChange,
@@ -192,6 +202,7 @@ export const FocusSession = memo(function FocusSession({
 }: FocusSessionProps) {
   const { t, language } = useI18n()
   const cycleTheme = useUiStore((state) => state.cycleTheme)
+  const theme = useUiStore((state) => state.theme)
   const shortcuts = useShortcutStore((state) => state.bindings)
   const COMMAND_PALETTE_SHORTCUT = useShortcutLabel('commandPalette')
   const mobileApp = useIsMobileApp()
@@ -207,6 +218,7 @@ export const FocusSession = memo(function FocusSession({
   const canvasTools = canvasHasKind(appearance.canvas, 'tools')
   const canvasUsage = canvasHasKind(appearance.canvas, 'usage')
   const canvasContext = canvasHasKind(appearance.canvas, 'context')
+  const canvasHeader = canvasHasKind(appearance.canvas, 'header')
   const canvasContextId = useId()
   const [canvasContextOpen, setCanvasContextOpen] = useState(true)
   const visibleContextOpen = canvasContext ? canvasContextOpen : contextOpen
@@ -548,6 +560,11 @@ export const FocusSession = memo(function FocusSession({
       <span className="truncate">{workspaceName(cwd, language)}</span>
     </button>
   )
+  const layoutSwitcher = onOpenLayoutSettings && (
+    <Suspense fallback={<span className="size-8 shrink-0" aria-busy="true" />}>
+      <ChatLayoutSwitcher compact notify={notify} onManage={onOpenLayoutSettings} />
+    </Suspense>
+  )
   const headerBlock = (
     <AppCardHeader
       data-window-drag-region
@@ -638,15 +655,8 @@ export const FocusSession = memo(function FocusSession({
         >
           {visibleContextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
         </button>
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted"
-          aria-label={t('navigation:workbench.changeTheme')}
-          title={t('navigation:workbench.changeTheme')}
-          onClick={cycleTheme}
-        >
-          <SunMoon size={16} />
-        </button>
+        {canvasHeader && layoutSwitcher}
+        <ThemeToggleButton compact theme={theme} onCycle={cycleTheme} />
       </div>
     </AppCardHeader>
   )
@@ -916,6 +926,12 @@ export const FocusSession = memo(function FocusSession({
       data-chat-density={appearance.density}
       data-chat-composer-position={appearance.composerPosition}
     >
+      {/* 自定义模板可移除页头，仍留一个不占布局空间的入口以便切回其他方案。 */}
+      {!canvasHeader && layoutSwitcher && (
+        <div className="absolute right-3 top-2 z-30 rounded-lg bg-background/90 shadow-sm">
+          {layoutSwitcher}
+        </div>
+      )}
       <ChatCanvasLayout
         root={appearance.canvas}
         notify={notify}
@@ -935,6 +951,7 @@ export const FocusSession = memo(function FocusSession({
                 plan={plan ?? null}
                 streaming={Boolean(streaming)}
                 completed={runCompleted}
+                runStartedAt={runStartedAt}
                 plansAvailable={plansAvailable}
                 requestConfirm={requestConfirm}
                 open={canvasContextOpen}

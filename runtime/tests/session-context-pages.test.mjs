@@ -48,3 +48,20 @@ test('closing the last page resets reopen state and closing an inactive page ret
   state = update(state, { type: 'close', id: 'page-2' })
   assert.deepEqual(state, createContextPages())
 })
+
+test('side chat uses one tab per parent while repeated opening restores its selection', () => {
+  let state = update(createContextPages(), { type: 'add', kind: 'side-chat' })
+  const side = state.activeId
+  state = update(state, { type: 'add', kind: 'browser' })
+  state = update(state, { type: 'add', kind: 'side-chat' })
+  assert.equal(state.activeId, side)
+  assert.equal(state.pages.filter((page) => page.kind === 'side-chat').length, 1)
+  assert.equal(state.pages.length, 3)
+  state = update(state, { type: 'close', id: side })
+  assert.equal(
+    state.pages.some((page) => page.kind === 'side-chat'),
+    false,
+  )
+  state = update(state, { type: 'add', kind: 'side-chat' })
+  assert.notEqual(state.activeId, side)
+})

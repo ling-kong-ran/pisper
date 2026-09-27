@@ -23,6 +23,10 @@ function permissionLabel(permission: string, t: ReturnType<typeof useI18n>['t'])
   if (permission === 'config.read') return t('custom-ui:customUiPage.permissionConfigRead')
   if (permission === 'sessions.read') return t('custom-ui:customUiPage.permissionSessionsRead')
   if (permission === 'notify') return t('custom-ui:customUiPage.permissionNotify')
+  if (permission === 'game-assets.read') return t('custom-ui:customUiPage.permissionGameAssetsRead')
+  if (permission === 'game-assets.write')
+    return t('custom-ui:customUiPage.permissionGameAssetsWrite')
+  if (permission === 'game-assets.run') return t('custom-ui:customUiPage.permissionGameAssetsRun')
   return permission
 }
 

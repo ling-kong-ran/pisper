@@ -5,6 +5,7 @@ export type ToolLabelSource =
 
 // 内置工具名称 → 翻译标签（按工具 id 精确匹配，未知名回退工具名/id）。
 export function toolName(tool: ToolLabelSource, t: ToolLabelTranslate) {
+  if (tool?.id === 'image_assets') return t('plugins:toolLabels.imageAssets')
   if (tool?.id === 'read') return t('plugins:toolLabels.read')
   if (tool?.id === 'ls') return t('plugins:toolLabels.list')
   if (tool?.id === 'grep') return t('plugins:toolLabels.grep')
@@ -26,6 +27,7 @@ export function toolName(tool: ToolLabelSource, t: ToolLabelTranslate) {
 
 // 内置工具描述 → 翻译文案（同样按 id 匹配，未知回退原始描述）。
 export function toolDescription(tool: ToolLabelSource, t: ToolLabelTranslate) {
+  if (tool?.id === 'image_assets') return t('plugins:toolLabels.imageAssetsDescription')
   if (tool?.id === 'read') return t('plugins:toolLabels.readDescription')
   if (tool?.id === 'ls') return t('plugins:toolLabels.listDescription')
   if (tool?.id === 'grep') return t('plugins:toolLabels.grepDescription')
@@ -73,6 +75,7 @@ export function toolCategoryLabel(category: string | undefined, t: ToolLabelTran
 // 工具作用域标签：内置工具映射为“影响范围”说明（当前工作区/系统用户/…），
 // 未知工具回退原始 scope 字段。
 export function toolScopeLabel(tool: Record<string, unknown>, t: ToolLabelTranslate) {
+  if (tool.id === 'image_assets') return t('plugins:toolLabels.imageAssetsScope')
   if (['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(String(tool.id)))
     return t('plugins:toolLabels.currentChatWorkspace')
   if (tool.id === 'bash') return t('plugins:toolLabels.currentOsUser')
@@ -90,6 +93,7 @@ export function toolScopeLabel(tool: Record<string, unknown>, t: ToolLabelTransl
 
 // 工具能力标签：内置工具的能力描述映射（未知回退原始 capability）。
 export function toolCapabilityLabel(tool: Record<string, unknown>, t: ToolLabelTranslate) {
+  if (tool.id === 'image_assets') return t('plugins:toolLabels.imageAssetsCapability')
   if (tool.id === 'read') return t('plugins:toolLabels.readCapability')
   if (tool.id === 'ls') return t('plugins:toolLabels.listCapability')
   if (tool.id === 'grep') return t('plugins:toolLabels.grepCapability')
