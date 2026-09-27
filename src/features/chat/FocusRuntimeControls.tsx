@@ -20,6 +20,7 @@ import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatTokenCount } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption, Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
 import { formatRunDuration } from './run-activity'
@@ -396,6 +397,7 @@ export function SessionModelSelect({
   showLabel = false,
   modelLabelOnly = false,
   displayLabel,
+  className,
 }: {
   value: string
   models: ModelOption[]
@@ -405,6 +407,7 @@ export function SessionModelSelect({
   showLabel?: boolean
   modelLabelOnly?: boolean
   displayLabel?: React.ReactNode
+  className?: string
 }) {
   const { t } = useI18n()
   const currentModel = models.find((model) => model.key === value)
@@ -413,7 +416,11 @@ export function SessionModelSelect({
     : value.split('/').at(-1)
   return (
     <div
-      className={`${showLabel ? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES} ${compact ? 'compact' : ''}`}
+      className={cn(
+        showLabel ? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES,
+        compact && 'compact',
+        className,
+      )}
       title={
         disabled
           ? t('chat:focusSession.currentModelModelCannotSwitchWhileRunning', {
@@ -612,32 +619,29 @@ export function ModelThinkingControl({
         sideOffset={8}
         className="model-effort-popover w-[224px] max-w-[calc(100vw_-_24px)] rounded-2xl border-border/70 bg-popover p-3 shadow-xl"
       >
-        <div className="flex flex-col items-center gap-0.5 pb-2.5">
-          <div className="model-effort-heading max-w-full [&>div]:h-7 [&>div]:text-base [&>div]:font-semibold [&>div]:text-[#329bff]">
-            <SessionModelSelect
-              showLabel
-              value={model}
-              models={models}
-              onChange={onModelChange}
-              disabled={modelDisabled || saving}
-              displayLabel={
-                <span className="inline-flex items-center gap-1" aria-live="polite">
+        <div className="model-effort-model flex justify-center pb-2.5">
+          <SessionModelSelect
+            showLabel
+            value={model}
+            models={models}
+            onChange={onModelChange}
+            disabled={modelDisabled || saving}
+            className="h-auto min-w-20 max-w-full bg-foreground/5 px-3 py-1.5 hover:bg-foreground/10"
+            displayLabel={
+              <span className="flex min-w-0 flex-col items-center gap-0.5">
+                <span
+                  className="model-effort-heading text-base leading-5 font-semibold text-[#329bff]"
+                  aria-live="polite"
+                >
                   {effortLabel}
-                  <ChevronRight size={17} aria-hidden="true" />
                 </span>
-              }
-            />
-          </div>
-          <div className="model-effort-model max-w-full [&>div]:h-7 [&>div]:text-sm">
-            <SessionModelSelect
-              showLabel
-              modelLabelOnly
-              value={model}
-              models={models}
-              onChange={onModelChange}
-              disabled={modelDisabled || saving}
-            />
-          </div>
+                <span className="inline-flex max-w-full items-center gap-0.5 text-sm leading-5">
+                  <span className="truncate">{modelLabel}</span>
+                  <ChevronRight size={14} className="shrink-0" aria-hidden="true" />
+                </span>
+              </span>
+            }
+          />
         </div>
         {supported && (
           <div

@@ -23,6 +23,33 @@ async function within(promise, label, ms = 30000) {
     clearTimeout(timer)
   }
 }
+// 思考等级和模型名称共用一个选择器，上下两行、键盘和触发器间留白都可操作。
+async function verifyUnifiedModelPicker(page) {
+  const panel = page.locator('.model-effort-popover')
+  const picker = panel.getByRole('combobox', { name: '当前会话模型' })
+  assert.equal(await panel.getByRole('combobox').count(), 1)
+  assert.equal(await picker.isEnabled(), true)
+  const bounds = await picker.boundingBox()
+  assert.ok(bounds && bounds.height >= 48 && bounds.height <= 60)
+  for (const fraction of [0.25, 0.5, 0.75]) {
+    await picker.click({ position: { x: bounds.width / 2, y: bounds.height * fraction } })
+    await page.getByRole('listbox').waitFor()
+    await page.keyboard.press('Escape')
+    await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    assert.equal(await picker.evaluate((el) => el === document.activeElement), true)
+  }
+  await picker.press('Enter')
+  await page.getByRole('listbox').waitFor()
+  await page.keyboard.press('Escape')
+  await page.getByRole('listbox').waitFor({ state: 'hidden' })
+  await picker.press('Tab')
+  assert.equal(
+    await page
+      .getByRole('slider', { name: '当前思考等级' })
+      .evaluate((el) => el === document.activeElement),
+    true,
+  )
+}
 // 始终使用全新的临时后端，不连接已安装应用，也不读取真实密钥。
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-zcode-ui-'))
@@ -447,6 +474,13 @@ try {
       .isEnabled(),
     true,
   )
+  await verifyUnifiedModelPicker(page)
+  await page
+    .locator('.model-effort-popover')
+    .screenshot({ path: join(output, 'unified-model-picker-light.png') })
+  report.checks.push(
+    'One shared model trigger opens from its upper/lower rows and middle, with keyboard access and focus restored; Tab reaches the independent effort slider',
+  )
   await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
   await page
@@ -701,6 +735,12 @@ try {
   await page.getByRole('button', { name: '切换主题', exact: true }).waitFor()
   await prompt.focus()
   await page.screenshot({ path: join(output, 'dark-1440.png'), animations: 'disabled' })
+  await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
+  await verifyUnifiedModelPicker(page)
+  await page
+    .locator('.model-effort-popover')
+    .screenshot({ path: join(output, 'unified-model-picker-dark.png') })
+  await page.keyboard.press('Escape')
   report.checks.push(
     '320/390/768/1440 px: all three primary controls remain accessible inline or in the overflow tray without horizontal clipping; light/dark screenshots',
   )
@@ -746,6 +786,11 @@ try {
       .isEnabled(),
     true,
   )
+  await verifyUnifiedModelPicker(page)
+  await page
+    .locator('.model-effort-popover')
+    .screenshot({ path: join(output, 'unified-model-picker-running.png') })
+  report.checks.push('Unified model trigger upper/lower rows remain clickable while streaming')
   assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).isEnabled(), true)
   await page.getByRole('slider', { name: '当前思考等级' }).press('Home')
   await page.waitForFunction(
