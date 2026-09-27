@@ -4,6 +4,7 @@ mod computer_use;
 mod desktop_bridge;
 mod desktop_pet;
 mod desktop_terminal;
+mod remote_workspaces;
 mod startup_diagnostics;
 mod tunnel_lifecycle;
 
@@ -794,6 +795,10 @@ pub fn run() {
             quitting: AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
+            remote_workspaces::desktop_remote_list,
+            remote_workspaces::desktop_remote_pair,
+            remote_workspaces::desktop_remote_open,
+            remote_workspaces::desktop_remote_forget,
             desktop_bridge::desktop_get_app_info,
             desktop_bridge::desktop_window_action,
             desktop_bridge::desktop_pick_directory,
@@ -872,6 +877,10 @@ pub fn run() {
                     child,
                     pid: ready.pid,
                 }))));
+                app.manage(remote_workspaces::DesktopRemoteState::new(
+                    app.handle(),
+                    ready.bootstrap_url.clone(),
+                )?);
                 app.manage(desktop_pet::DesktopPetWindowState::new(
                     ready.bootstrap_url.clone(),
                 ));

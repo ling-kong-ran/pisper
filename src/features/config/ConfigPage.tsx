@@ -11,6 +11,7 @@ import { ModelsSettings } from './ModelsSettings'
 import { MobileServerSettings } from './MobileServerSettings'
 import { NotificationSettings } from './NotificationSettings'
 import { RemoteAccessSettings } from './RemoteAccessSettings'
+import { RemoteWorkspaceSettings } from './RemoteWorkspaceSettings'
 import { UpdateSettings } from './UpdateSettings'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -56,7 +57,12 @@ export function ConfigPage({
   } else if (section === 'mobile-server') {
     content = <MobileServerSettings requestConfirm={requestConfirm} />
   } else if (section === 'remote-access') {
-    content = <RemoteAccessSettings notify={notify} />
+    content = (
+      <div className="flex flex-col gap-4">
+        <RemoteWorkspaceSettings requestConfirm={requestConfirm} />
+        {!window.__PISPER_REMOTE_WORKSPACE__ && <RemoteAccessSettings notify={notify} />}
+      </div>
+    )
   } else if (section === 'updates') {
     content = <UpdateSettings notify={notify} update={update} />
   } else if (section === 'about') {

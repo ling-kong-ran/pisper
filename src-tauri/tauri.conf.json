@@ -11,7 +11,7 @@
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
     "security": {
-      "capabilities": ["desktop-runtime", "desktop-terminal", "mobile-bridge"],
+      "capabilities": ["desktop-runtime", "desktop-terminal", "desktop-remote", "mobile-bridge"],
       "csp": null
     }
   },

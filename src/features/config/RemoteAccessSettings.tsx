@@ -1,3 +1,4 @@
+import './remote-workspace-messages'
 // 远程访问设置：开关局域网监听、展示接入地址与证书指纹、
 // 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
 import { useCallback, useEffect, useState } from 'react'
@@ -63,6 +64,7 @@ type PairingCode = {
   code: string
   expiresAt: string
   qrDataUrl: string
+  connectionInfo?: { fingerprint: string; endpoints: { t: string; url: string }[] }
 }
 
 type PairingApproval = {
@@ -194,6 +196,10 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       const result = await apiJson<PairingCode>('/api/remote/pairing-code', { method: 'POST' })
       if (!result?.code || !result?.expiresAt)
         throw new Error(t('config:remoteAccess.qrUnavailable'))
+      // 旧 Runtime 可继续使用二维码；新增的手动信息只从本机受保护端点读取。
+      result.connectionInfo = await apiJson<PairingCode['connectionInfo']>(
+        '/api/remote/connection-info',
+      ).catch(() => undefined)
       setPairing(result)
       setPairingOpen(true)
       if (!result.qrDataUrl) setPairingError(t('config:remoteAccess.qrUnavailable'))
@@ -270,6 +276,23 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               </div>
             ) : null}
           </div>
+          {pairing?.connectionInfo && (
+            <details className="min-w-0 rounded-md border px-3 py-2 text-sm">
+              <summary className="cursor-pointer">{t('remote-workspace:manualConnection')}</summary>
+              <div className="mt-2 space-y-2 text-xs">
+                <div>{t('remote-workspace:serverAddress')}</div>
+                {pairing.connectionInfo.endpoints.map((endpoint) => (
+                  <code key={endpoint.url} className="block select-all break-all">
+                    {endpoint.url}
+                  </code>
+                ))}
+                <div>{t('remote-workspace:fingerprint')}</div>
+                <code className="block select-all break-all">
+                  {pairing.connectionInfo.fingerprint}
+                </code>
+              </div>
+            </details>
+          )}
           <DialogFooter>
             <Button disabled={busy} onClick={() => void generatePairingCode()}>
               {busy ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}

@@ -92,6 +92,25 @@ async function waitForRemoteEndpoints(remoteControl) {
 export const remoteRoutes = [
   {
     method: 'GET',
+    path: '/api/remote/connection-info',
+    handler({ services, req, json }) {
+      // 仅已通过本机监听鉴权的页面可读取；公共状态接口仍不暴露拓扑和指纹。
+      if (req.pisperRemote) {
+        json(403, {
+          error: '连接信息只能在服务器本机查看。',
+          code: 'local_connection_info_required',
+        })
+        return
+      }
+      const status = services.remoteControl.status()
+      json(200, {
+        fingerprint: status.fingerprint,
+        endpoints: status.endpoints.filter((endpoint) => endpoint.t === 'lan'),
+      })
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/remote/status',
     handler({ services, json }) {
       json(200, publicRemoteStatus(services.remoteControl.status()))

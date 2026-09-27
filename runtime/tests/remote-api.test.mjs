@@ -314,3 +314,25 @@ test('远程鉴权中间件：配对接口放行，其余要求有效设备令�
   assert.equal(authedReq.pisperDevice.id, device.id)
   assert.equal(remoteAccess.activeResponses.get(device.id)?.has(authedRes), true)
 })
+
+test('手动连接信息仅可从本机监听获取，已配对远程设备也不可读取', async () => {
+  const { remoteAccess, remoteControl } = createRemoteFixture()
+  const handler = createApiHandler({}, { remoteAccess, remoteControl })
+  const url = new URL('http://localhost/api/remote/connection-info')
+  const local = response()
+  await handler(request('GET'), local, url)
+  assert.equal(local.status, 200)
+  assert.deepEqual(JSON.parse(local.body), {
+    fingerprint: 'SHA256:ABCD',
+    endpoints: [{ t: 'lan', url: 'https://192.168.1.5:5174' }],
+  })
+  const remote = response()
+  await handler(
+    { ...request('GET'), pisperRemote: true, pisperDevice: { id: 'paired' } },
+    remote,
+    url,
+  )
+  assert.equal(remote.status, 403)
+  assert.equal(JSON.parse(remote.body).code, 'local_connection_info_required')
+  assert.equal(remote.body.includes('SHA256'), false)
+})

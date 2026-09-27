@@ -645,5 +645,6 @@
   "providerWorkbench.custom": "自定义连接",
   "providerWorkbench.presets": "预置服务",
   "providerWorkbench.scanningLocal": "正在接入本机 Claude Code / Codex 配置…",
-  "providerWorkbench.localImportStatus": "本地配置自动接入 · 新增 {imported} 项 · 待检查 {skipped} 项"
+  "providerWorkbench.localImportStatus": "本地配置自动接入 · 新增 {imported} 项 · 待检查 {skipped} 项",
+  "remoteWorkspace.title": "连接到 Linux 工作区"
 }

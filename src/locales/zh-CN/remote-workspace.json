@@ -1,0 +1,19 @@
+{
+  "description": "使用本机的 Pisper 界面，在另一台 Linux 上运行会话、读写文件和执行任务。",
+  "instructions": "先在 Linux 上运行 Pisper，在「设置 → 远程访问」启用连接，然后复制 HTTPS 地址、证书指纹和配对码。请通过可信渠道核对指纹。",
+  "isolation": "每个工作区在独立窗口中打开。会话、文件、模型配置与任务属于远程机器，不会复制本机密钥；关闭窗口不会停止远程正在执行的任务。本机终端与桌面控制不会在远程窗口中启用。",
+  "refresh": "刷新远程工作区",
+  "name": "工作区名称（可选）",
+  "address": "Linux HTTPS 地址",
+  "fingerprint": "证书指纹",
+  "code": "配对码",
+  "pair": "配对并打开",
+  "open": "连接",
+  "show": "显示窗口",
+  "forget": "移除 {name}",
+  "forgetDescription": "这会关闭该工作区的本机窗口并移除保存的连接，不删除远程文件或会话，也不会停止远程任务。如需吊销设备授权，请在 Linux 的远程访问页操作。",
+  "activeTitle": "当前为远程工作区",
+  "activeDescription": "这里的会话、文件和模型设置属于远程 Linux。连接管理请回到本机主窗口；如需修改远程访问服务，请在 Linux 本机操作。",
+  "manualConnection": "手动连接所需信息",
+  "serverAddress": "HTTPS 服务器地址"
+}

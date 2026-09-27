@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
+import { verifyRemoteWorkspaceSettings } from './smoke-zcode-remote-checks.mjs'
 import { verifyMemoryLifecycle } from './smoke-zcode-memory-checks.mjs'
 import { verifyZcodeIteration } from './smoke-zcode-iteration-checks.mjs'
 import { verifySessionTreeLifecycle } from './smoke-zcode-tree-checks.mjs'
@@ -1127,6 +1128,8 @@ try {
   report.checks.push(
     'existing settings-page layout JSON export/import-to-preview works and preserves the chat draft; no new frontend import mode',
   )
+
+  await verifyRemoteWorkspaceSettings({ browser, base, report, output })
 
   assert.deepEqual(report.pageErrors, [])
   assert.deepEqual(report.failedApi, report.expectedFailedApi)

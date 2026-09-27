@@ -1,0 +1,19 @@
+{
+  "description": "Use the local Pisper interface to run conversations, work with files, and execute tasks on another Linux machine.",
+  "instructions": "Run Pisper on Linux and enable Settings → Remote access. Copy its HTTPS address, certificate fingerprint, and pairing code. Verify the fingerprint through a trusted channel.",
+  "isolation": "Each workspace opens in a separate window. Sessions, files, model settings, and tasks belong to the remote machine; local credentials are not copied. Closing the window does not stop remote tasks. Local terminals and desktop controls are not enabled in remote windows.",
+  "refresh": "Refresh remote workspaces",
+  "name": "Workspace name (optional)",
+  "address": "Linux HTTPS address",
+  "fingerprint": "Certificate fingerprint",
+  "code": "Pairing code",
+  "pair": "Pair and open",
+  "open": "Connect",
+  "show": "Show window",
+  "forget": "Remove {name}",
+  "forgetDescription": "Close this workspace’s local windows and forget the saved connection. Remote files, sessions, and running tasks are not deleted or stopped. To revoke the device authorization, use Remote access on Linux.",
+  "activeTitle": "Remote workspace",
+  "activeDescription": "Sessions, files and model settings in this window belong to the remote Linux machine. Manage connections in your local main window; change remote access service settings directly on Linux.",
+  "manualConnection": "Manual connection details",
+  "serverAddress": "HTTPS server address"
+}
