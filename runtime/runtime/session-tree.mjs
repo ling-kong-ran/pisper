@@ -106,24 +106,40 @@ function isTreePosition(node) {
 }
 
 function visibleChildren(node, leafId, positionContext) {
-  const children = node?.children || []
-  const targetId = node.entry?.id
-  const pending = children.filter((child) =>
-    isPendingTreePosition(child, targetId, positionContext),
-  )
-  const keepId =
-    pending.length > 1
-      ? pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0].entry.id
-      : pending[0]?.entry.id
-  return children.filter((child) => !isTreePosition(child) || child.entry.id === keepId)
+  const frameFor = (parent) => {
+    const children = parent?.children || []
+    const pending = children.filter((child) =>
+      isPendingTreePosition(child, parent.entry?.id, positionContext),
+    )
+    return {
+      children,
+      index: 0,
+      keepId: pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0]?.entry.id,
+    }
+  }
+  const visible = []
+  const stack = [frameFor(node)]
+  // 定位条目只属于导航实现。隐藏它时提升其子节点，而不是剪掉已继续的整条分支；
+  // 使用显式栈，让连续导航形成的深层定位链也不会耗尽 JavaScript 调用栈。
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    if (frame.index >= frame.children.length) {
+      stack.pop()
+      continue
+    }
+    const child = frame.children[frame.index++]
+    if (!isTreePosition(child) || child.entry.id === frame.keepId) visible.push(child)
+    else if (child.children?.length) stack.push(frameFor(child))
+  }
+  return visible
 }
 
-function projectNode(node, activeIds, leafId, children = node.children || []) {
+function projectNode(node, activeIds, leafId, children, parentId) {
   const entry = node.entry
   const projected = entryProjection(entry)
   return {
     id: entry.id,
-    parentId: entry.parentId || null,
+    parentId,
     type: entry.type,
     kind: projected.kind,
     role: projected.role,
@@ -145,14 +161,15 @@ export function projectSessionTree(manager, { sessionId = '', streaming = false 
   const roots = manager.getTree()
   const positionContext = getPositionContext(manager)
   const nodes = []
-  const stack = [...roots].reverse()
+  const stack = roots.map((node) => ({ node, parentId: null })).reverse()
   let branchCount = 0
   while (stack.length > 0) {
-    const node = stack.pop()
+    const { node, parentId } = stack.pop()
     const children = visibleChildren(node, leafId, positionContext)
-    nodes.push(projectNode(node, activeIds, leafId, children))
+    nodes.push(projectNode(node, activeIds, leafId, children, parentId))
     branchCount += Math.max(0, children.length - 1)
-    for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index])
+    for (let index = children.length - 1; index >= 0; index -= 1)
+      stack.push({ node: children[index], parentId: node.entry.id })
   }
   return {
     sessionId: sessionId || manager.getSessionId(),

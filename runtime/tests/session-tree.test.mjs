@@ -211,6 +211,100 @@ test('session tree projection hides consumed and duplicate pending markers', () 
   assert.equal(tree.nodeCount, 4)
 })
 
+test('session tree retains continued branches below consumed navigation positions', () => {
+  const manager = SessionManager.inMemory(process.cwd())
+  const entries = appendConversation(manager)
+  manager.branch(entries.firstAssistant)
+  const positionId = appendTreePosition(manager, entries.firstAssistant)
+  const continuedUser = manager.appendMessage({
+    role: 'user',
+    content: 'Continue after navigation',
+    timestamp: Date.now(),
+  })
+  const continuedAssistant = manager.appendMessage(assistantMessage('Continued branch'))
+  manager.appendLabelChange(continuedAssistant, 'Continued mark')
+  const originalEntries = JSON.stringify(manager.getEntries())
+  const tree = projectSessionTree(manager)
+  const byId = new Map(tree.nodes.map((node) => [node.id, node]))
+  assert.equal(byId.has(positionId), false)
+  assert.equal(byId.get(continuedUser).parentId, entries.firstAssistant)
+  assert.equal(byId.get(continuedAssistant).parentId, continuedUser)
+  assert.equal(byId.get(continuedAssistant).active, true)
+  assert.equal(byId.get(continuedAssistant).label, 'Continued mark')
+  assert.equal(byId.get(entries.originalAssistant).active, false)
+  assert.equal(byId.get(entries.alternateAssistant).active, false)
+  assert.equal(byId.get(tree.leafId).leaf, true)
+  assert.equal(tree.branchCount, 2)
+  assert(tree.nodes.every((node) => !node.parentId || byId.has(node.parentId)))
+  assert.equal(
+    JSON.stringify(manager.getEntries()),
+    originalEntries,
+    'Projection must not rewrite persisted parent IDs',
+  )
+})
+
+test('session tree promotes descendants of nested consumed positions in stable order', () => {
+  const manager = SessionManager.inMemory(process.cwd())
+  manager.appendMessage({ role: 'user', content: 'Question', timestamp: Date.now() })
+  const assistant = manager.appendMessage(assistantMessage('Answer'))
+  const firstPosition = appendTreePosition(manager, assistant)
+  appendTreePosition(manager, firstPosition)
+  const userA = manager.appendMessage({ role: 'user', content: 'A', timestamp: Date.now() })
+  const answerA = manager.appendMessage(assistantMessage('A answer'))
+  manager.branch(firstPosition)
+  const userB = manager.appendMessage({ role: 'user', content: 'B', timestamp: Date.now() })
+  const answerB = manager.appendMessage(assistantMessage('B answer'))
+  const tree = projectSessionTree(manager)
+  assert.deepEqual(
+    tree.nodes.filter((node) => node.parentId === assistant).map((node) => node.id),
+    [userA, userB],
+  )
+  assert.equal(
+    tree.nodes.some((node) => node.kind === 'position'),
+    false,
+  )
+  assert.equal(tree.nodes.find((node) => node.id === answerA).active, false)
+  assert.equal(tree.nodes.find((node) => node.id === answerB).leaf, true)
+  assert.equal(tree.branchCount, 1)
+})
+
+test('runtime continued navigation branches and labels survive a cold reload', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-continued-tree-'))
+  let runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const created = await runtime.createSession('Continued tree', directory)
+  const entries = appendConversation(runtime.pendingSessions.get(created.id).manager)
+  await runtime.navigateSessionTree(created.id, entries.firstAssistant, { summarize: false })
+  const manager = runtime.sessions.get(created.id).session.sessionManager
+  const user = manager.appendMessage({
+    role: 'user',
+    content: 'Continued question',
+    timestamp: Date.now(),
+  })
+  const answer = manager.appendMessage(assistantMessage('Continued answer'))
+  await runtime.setSessionTreeLabel(created.id, answer, 'Continued checkpoint')
+  const assertContinued = (tree) => {
+    assert.equal(tree.nodes.find((node) => node.id === user).parentId, entries.firstAssistant)
+    assert.equal(tree.nodes.find((node) => node.id === answer).active, true)
+    assert.equal(tree.nodes.find((node) => node.id === answer).label, 'Continued checkpoint')
+    assert.equal(tree.nodes.find((node) => node.id === entries.alternateAssistant).active, false)
+    assert.equal(tree.branchCount, 2)
+  }
+  assertContinued(await runtime.getSessionTree(created.id))
+  await runtime.dispose()
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  assertContinued(await runtime.getSessionTree(created.id))
+  const labels = await runtime.searchSessionTreeLabels('Continued checkpoint')
+  assert.equal(labels.length, 1)
+  assert.equal(labels[0].entryId, answer)
+  assert.equal(labels[0].active, true)
+})
+
 test('runtime navigation uses AgentSession tree semantics and survives a cold reload', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-session-tree-'))
   let runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
