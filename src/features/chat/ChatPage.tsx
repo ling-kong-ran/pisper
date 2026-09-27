@@ -364,10 +364,11 @@ export function ChatPage({
       try {
         setGlobalError('')
         const created = await chatApi.deriveSession(session.id, boundaryEntryId, name)
-        await refreshSessions(created.id)
-        setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 550))
+        // 目录刷新不抢先选中子会话，只由 Dock 执行一次切换。延时再次打开会覆盖
+        // 用户紧接着发起的「返回原对话」；动画不能拥有会话选择状态。
+        await refreshSessions()
         openSessionInDock(created.id)
+        setRecallPulse((current) => ({ sessionId: created.id, token: current.token + 1 }))
         notify(t('chat:chatPage.childChatCreated'))
       } catch (error) {
         setGlobalError(error instanceof Error ? error.message : String(error))

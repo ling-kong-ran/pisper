@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { verifyMemoryLifecycle } from './smoke-zcode-memory-checks.mjs'
 import { verifyZcodeIteration } from './smoke-zcode-iteration-checks.mjs'
+import { verifySessionTreeLifecycle } from './smoke-zcode-tree-checks.mjs'
 import { DEFAULT_BRANCH } from '../shared/app-update.mjs'
 // Every held test response has a bounded wait, including failure-injection paths.
 async function within(promise, label, ms = 30000) {
@@ -218,6 +219,7 @@ try {
     locale: 'zh-CN',
   })
   page = await context.newPage()
+  await page.clock.install()
   page.on('pageerror', (e) => report.pageErrors.push(e.message))
   page.on('response', (r) => {
     if (r.url().includes('/api/') && r.status() >= 400)
@@ -980,6 +982,8 @@ try {
   assert.ok(!JSON.stringify(sessions).includes(secondaryId))
   report.checks.push('session deletion through confirmed history UI and release API')
   await verifyZcodeIteration({ page, base, api, report, output, provider, alternate })
+
+  await verifySessionTreeLifecycle({ page, base, api, report, output })
 
   await verifyMemoryLifecycle({ page, base, api, runtime: runtime.runtime, report, output })
 
