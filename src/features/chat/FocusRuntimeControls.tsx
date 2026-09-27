@@ -6,11 +6,12 @@ import {
   Bot,
   Brain,
   Check,
+  ChevronRight,
   Database,
   FileCheck2,
   Gauge,
   ListTodo,
-  ShieldOff,
+  ShieldAlert,
   Sigma,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -19,6 +20,7 @@ import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatTokenCount } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption, Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
 import { formatRunDuration } from './run-activity'
@@ -380,6 +382,9 @@ export function ContextUsageIndicator({
   )
 }
 
+const LABEL_SELECT_CLASSES =
+  'relative flex h-10 min-w-0 items-center gap-1 rounded-lg px-1.5 text-[13px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground focus-within:ring-2 focus-within:ring-ring'
+
 const ICON_SELECT_CLASSES =
   'session-model-select relative grid size-[38px] min-w-[38px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--star-soft)] hover:text-[var(--star-strong)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)] [&.compact]:size-8 [&.compact]:min-w-8'
 
@@ -389,12 +394,20 @@ export function SessionModelSelect({
   onChange,
   disabled,
   compact = false,
+  showLabel = false,
+  modelLabelOnly = false,
+  displayLabel,
+  className,
 }: {
   value: string
   models: ModelOption[]
   onChange: (model: string) => void
   disabled?: boolean
   compact?: boolean
+  showLabel?: boolean
+  modelLabelOnly?: boolean
+  displayLabel?: React.ReactNode
+  className?: string
 }) {
   const { t } = useI18n()
   const currentModel = models.find((model) => model.key === value)
@@ -403,7 +416,11 @@ export function SessionModelSelect({
     : value.split('/').at(-1)
   return (
     <div
-      className={`${ICON_SELECT_CLASSES} ${compact ? 'compact' : ''}`}
+      className={cn(
+        showLabel ? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES,
+        compact && 'compact',
+        className,
+      )}
       title={
         disabled
           ? t('chat:focusSession.currentModelModelCannotSwitchWhileRunning', {
@@ -412,9 +429,17 @@ export function SessionModelSelect({
           : t('chat:focusSession.currentModelModelClickToSwitch', { model: currentLabel })
       }
     >
-      <Bot size={compact ? 11 : 14} />
+      {showLabel ? (
+        <span className="min-w-0 truncate">
+          {displayLabel ??
+            ((modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel) ||
+              t('chat:focusSession.toolbarModel'))}
+        </span>
+      ) : (
+        <Bot size={compact ? 11 : 14} />
+      )}
       <AppSelect
-        className="absolute inset-0 !size-full cursor-pointer opacity-0"
+        className="absolute inset-0 !size-full cursor-pointer !opacity-0"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || models.length === 0}
@@ -431,6 +456,18 @@ export function SessionModelSelect({
   )
 }
 
+function thinkingLevelLabel(t: Translate, level: string) {
+  const thinkingLabels: Record<string, string> = {
+    off: t('chat:focusSession.thinkingLabel.off'),
+    minimal: t('chat:focusSession.thinkingLabel.minimal'),
+    low: t('chat:focusSession.thinkingLabel.low'),
+    medium: t('chat:focusSession.thinkingLabel.medium'),
+    high: t('chat:focusSession.thinkingLabel.high'),
+    xhigh: t('chat:focusSession.thinkingLabel.xhigh'),
+  }
+  return thinkingLabels[level] || level
+}
+
 export function SessionThinkingSelect({
   value,
   levels,
@@ -439,6 +476,7 @@ export function SessionThinkingSelect({
   onChange,
   disabled,
   compact = false,
+  showLabel = false,
 }: {
   value: string
   levels: string[]
@@ -447,9 +485,11 @@ export function SessionThinkingSelect({
   onChange: (level: string) => void
   disabled?: boolean
   compact?: boolean
+  showLabel?: boolean
 }) {
   const { t } = useI18n()
   const current = value || levels[0] || 'off'
+  const levelLabel = (level: string) => thinkingLevelLabel(t, level)
   const loading = !status && levels.length === 0
   const supported = status !== 'unsupported' && levels.length > 0
   const fixed = supported && levels.length <= 1 && levels.includes(current)
@@ -466,25 +506,211 @@ export function SessionThinkingSelect({
           : t('chat:focusSession.currentThinkingLevelLevelClickToSwitch', { level: current })
   return (
     <div
-      className={`${ICON_SELECT_CLASSES} session-thinking-select ${compact ? 'compact' : ''}`}
+      className={`${showLabel ? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES} session-thinking-select ${compact ? 'compact' : ''}`}
       title={title}
     >
-      <Brain size={compact ? 11 : 14} />
+      {showLabel ? (
+        <span className="min-w-0 truncate">{levelLabel(current)}</span>
+      ) : (
+        <Brain size={compact ? 11 : 14} />
+      )}
       <AppSelect
-        className="absolute inset-0 !size-full cursor-pointer opacity-0"
+        className="absolute inset-0 !size-full cursor-pointer !opacity-0"
         value={current}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || loading || !supported || fixed}
         aria-label={t('chat:focusSession.currentThinkingLevel')}
       >
-        {!levels.includes(current) && <option value={current}>{current}</option>}
+        {!levels.includes(current) && <option value={current}>{levelLabel(current)}</option>}
         {levels.map((level) => (
           <option key={level} value={level}>
-            {level}
+            {levelLabel(level)}
           </option>
         ))}
       </AppSelect>
     </div>
+  )
+}
+
+// The slider uses only the levels advertised by the current backend/model.
+export function ModelThinkingControl({
+  model,
+  models,
+  onModelChange,
+  thinkingLevel,
+  levels,
+  status,
+  message,
+  onThinkingChange,
+  modelDisabled,
+  thinkingDisabled,
+  deferred = false,
+  pendingModel = false,
+}: {
+  model: string
+  models: ModelOption[]
+  onModelChange: (model: string) => void
+  thinkingLevel: string
+  levels: string[]
+  status?: string
+  message?: string
+  onThinkingChange: (level: string) => Promise<void> | void
+  modelDisabled?: boolean
+  thinkingDisabled?: boolean
+  deferred?: boolean
+  pendingModel?: boolean
+}) {
+  const { t } = useI18n()
+  const [draft, setDraft] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
+  const currentModel = models.find((item) => item.key === model)
+  const modelLabel =
+    currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
+  const supported = status !== 'unsupported' && levels.length > 0
+  const index = Math.max(0, levels.indexOf(thinkingLevel))
+  const selected = draft ?? index
+  const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
+  const effortHint = pendingModel
+    ? t('chat:focusSession.thinkingAfterModelSwitch')
+    : supported
+      ? effortLabel
+      : message ||
+        (status === 'unsupported'
+          ? t('chat:focusSession.thinkingLevelUnsupported')
+          : t('chat:focusSession.loadingThinkingLevels'))
+  const disabled = thinkingDisabled || saving || !supported || levels.length < 2
+  const label = `${t('chat:focusSession.modelAndThinking')} · ${resolveModelLabel(model, models)} · ${effortHint}`
+  const levelsKey = levels.join('|')
+  useEffect(() => {
+    setDraft(null)
+  }, [model, thinkingLevel, levelsKey])
+  const commit = async (nextIndex: number) => {
+    const level = levels[nextIndex]
+    if (disabled || savingRef.current || !level || level === thinkingLevel) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await onThinkingChange(level)
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+      setDraft(null)
+    }
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="model-effort-pill inline-flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={label}
+          title={label}
+        >
+          <span className="min-w-0 truncate">{modelLabel}</span>
+          <span className="shrink-0">
+            {supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        side="top"
+        sideOffset={8}
+        className="model-effort-popover w-[224px] max-w-[calc(100vw_-_24px)] rounded-2xl border-border/70 bg-popover p-3 shadow-xl"
+      >
+        <div className="model-effort-model flex justify-center pb-2.5">
+          <SessionModelSelect
+            showLabel
+            value={model}
+            models={models}
+            onChange={onModelChange}
+            disabled={modelDisabled || saving}
+            className="h-auto min-w-20 max-w-full bg-foreground/5 px-3 py-1.5 hover:bg-foreground/10"
+            displayLabel={
+              <span className="flex min-w-0 flex-col items-center gap-0.5">
+                <span
+                  className="model-effort-heading text-base leading-5 font-semibold text-[#329bff]"
+                  aria-live="polite"
+                >
+                  {effortLabel}
+                </span>
+                <span className="inline-flex max-w-full items-center gap-0.5 text-sm leading-5">
+                  <span className="truncate">{modelLabel}</span>
+                  <ChevronRight size={14} className="shrink-0" aria-hidden="true" />
+                </span>
+              </span>
+            }
+          />
+        </div>
+        {supported && (
+          <div
+            className="relative h-7"
+            style={
+              {
+                '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
+              } as React.CSSProperties
+            }
+          >
+            <div
+              aria-hidden="true"
+              className="effort-track absolute inset-y-1 inset-x-0 overflow-hidden rounded-full bg-foreground/10"
+            >
+              <div className="h-full bg-[#329bff]" style={{ width: 'var(--effort-fill)' }} />
+              <div className="absolute inset-0 flex items-center justify-between px-2.5">
+                {levels.map((level) => (
+                  <i key={level} className="size-1.5 rounded-full bg-foreground/20" />
+                ))}
+              </div>
+            </div>
+            <input
+              className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
+              type="range"
+              min={0}
+              max={Math.max(1, levels.length - 1)}
+              step={1}
+              value={selected}
+              disabled={disabled}
+              aria-label={t('chat:focusSession.currentThinkingLevel')}
+              aria-valuetext={effortLabel}
+              onChange={(event) => setDraft(Number(event.currentTarget.value))}
+              onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
+              onBlur={(event) => void commit(Number(event.currentTarget.value))}
+              onKeyUp={(event) => {
+                if (
+                  [
+                    'ArrowLeft',
+                    'ArrowRight',
+                    'ArrowUp',
+                    'ArrowDown',
+                    'Home',
+                    'End',
+                    'PageUp',
+                    'PageDown',
+                  ].includes(event.key)
+                )
+                  void commit(Number(event.currentTarget.value))
+              }}
+            />
+          </div>
+        )}
+        {deferred && (
+          <p className="pt-2 text-center text-xs leading-4 text-muted-foreground" role="status">
+            {t('chat:focusSession.runtimeSelectionDeferred')}
+          </p>
+        )}
+        {(!supported || levels.length === 1) && (
+          <p
+            className="pt-2 text-center text-xs leading-relaxed text-muted-foreground"
+            role="status"
+          >
+            {supported
+              ? t('chat:focusSession.thinkingLevelFixed', { level: effortLabel })
+              : effortHint}
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -506,7 +732,7 @@ function executionModeOptions(t: Translate): ExecutionModeOption[] {
       'full-access',
       t('chat:focusSession.fullAccess'),
       t('chat:focusSession.fullAccessRunsShellWithoutPerCommandApproval'),
-      ShieldOff,
+      ShieldAlert,
     ],
   ]
 }
@@ -516,11 +742,13 @@ export function ApprovalModeSelect({
   onChange,
   disabled,
   compact = false,
+  showLabel = false,
 }: {
   value: string
   onChange: (mode: string) => void
   disabled?: boolean
   compact?: boolean
+  showLabel?: boolean
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -618,11 +846,11 @@ export function ApprovalModeSelect({
     <>
       <div
         ref={rootRef}
-        className={`permission-mode-select [&.compact]:min-w-[68px] [&.compact]:h-[32px] relative min-w-[78px] h-[32px] text-[var(--text-tertiary)] execution-mode-select icon-only [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] ${compact ? 'compact' : ''}    ${open ? 'open' : ''}`}
+        className={`permission-mode-select relative min-w-0 shrink-0 ${compact ? 'compact' : ''} ${open ? 'open' : ''}`}
       >
         <button
           type="button"
-          className={`permission-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.permission-mode-select.open_&]:border-[var(--accent-border)] [.permission-mode-select.open_&]:bg-[var(--accent-soft)] [.permission-mode-select.open_&]:text-[var(--star-strong)] disabled:[cursor:not-allowed] disabled:opacity-[.55] [.permission-mode-select.compact_&]:gap-[3px] [.permission-mode-select.compact_&]:rounded-[var(--r-xs)] [.permission-mode-select.compact_&]:p-[0_4px] [.permission-mode-select.compact_&]:text-[13px] dark:hover:bg-[var(--accent-soft)] grid w-full h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[5px] [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit [padding:0_7px] text-[length:var(--app-font-size)] font-medium icon-only [.permission-mode-select&]:min-w-0 [.permission-mode-select.compact&]:min-w-0 [.permission-mode-trigger&]:relative [.permission-mode-trigger&]:w-[38px] [.permission-mode-trigger&]:grid-cols-[1fr] [.permission-mode-trigger&]:[justify-items:center] [.permission-mode-trigger&]:p-0 [.permission-mode-select.compact_.permission-mode-trigger&]:w-[32px] [.permission-mode-trigger&.mode-auto]:text-[var(--star-strong)] [.permission-mode-trigger&.mode-ignore]:text-[var(--danger)] [.permission-mode-trigger&.mode-full-access]:text-[var(--danger)] mode-${current[0]}`}
+          className={`permission-mode-trigger inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-transparent px-1.5 text-[13px] transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-55 ${showLabel ? 'max-w-[104px] min-[651px]:max-w-[124px]' : 'w-[38px]'} ${current[0] === 'full-access' ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'} mode-${current[0]}`}
           title={t('chat:focusSession.approvalModeModeDescription', {
             mode: current[1],
             description: current[2],
@@ -633,7 +861,11 @@ export function ApprovalModeSelect({
           aria-label={t('chat:focusSession.approvalModeMode', { mode: current[1] })}
           onClick={() => setOpen((visible) => !visible)}
         >
-          <CurrentIcon size={compact ? 11 : 14} />
+          <CurrentIcon
+            className={`shrink-0 ${showLabel ? 'max-[650px]:hidden' : ''}`}
+            size={showLabel ? 16 : compact ? 11 : 14}
+          />
+          {showLabel && <span className="truncate">{current[1]}</span>}
         </button>
       </div>
       {menu}

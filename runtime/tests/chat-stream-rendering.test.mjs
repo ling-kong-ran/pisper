@@ -115,10 +115,10 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
   assert.match(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
   assert.match(focus, /compacting[^']*text-\[var\(--warning-strong\)\]/)
-  assert.match(focus, /\.focus-session\.has-conversation_&\.idle/)
+  assert.match(focus, /\[&\.idle\]:hidden/)
 })
 
-test('new chats expose their working directory in the welcome surface', async () => {
+test('all chats expose their working directory in the title header, not in the composer or welcome screen', async () => {
   const [focus, transcript, chinese, english] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
@@ -127,10 +127,16 @@ test('new chats expose their working directory in the welcome surface', async ()
   ])
   assert.match(focus, /cwd=\{cwd\}/)
   assert.match(focus, /onWorkspace=\{onWorkspace\}/)
-  assert.match(transcript, /className="welcome-workspace[^"\n]*text-\[var\(--accent-strong\)\]/)
-  assert.match(transcript, /workspaceName\(cwd, language\)/)
-  assert.match(transcript, /welcome-workspace[^"\n]*@max-\[470px\]:max-w-\[100%\]/)
-  assert.doesNotMatch(focus, /className="workspace-chip"/)
+  assert.match(focus, /header-workspace/)
+  assert.match(focus, /workspaceName\(cwd, language\)/)
+  assert.match(focus, /aria-label=\{t\('chat:focusSession\.changeWorkingDirectoryWorkspace'/)
+  assert.match(focus, /onClick=\{onWorkspace\}/)
+  assert.match(focus, /const headerBlock[\s\S]*\{workspaceBlock\}[\s\S]*onClick=\{onRename\}/)
+  assert.doesNotMatch(
+    focus.slice(focus.indexOf('const composerBlock')),
+    /kind="workspace"|workspaceBlock/,
+  )
+  assert.doesNotMatch(transcript, /welcome-workspace/)
   assert.match(chinese, /"focusSession\.workingDirectory": "工作目录"/)
   assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
 })
@@ -142,8 +148,11 @@ test('conversation layout keeps a compact title header without a persistent avat
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
-  assert.match(focus, /<AppCardHeader[\s\S]*session\.name \|\| t\('chat:chatPage\.untitledChat'\)/)
-  assert.match(focus, /!hasConversation && <div[^>]*>\{sessionActionsMenu\}<\/div>/)
+  assert.match(
+    focus,
+    /<AppCardHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
+  )
+  assert.doesNotMatch(focus, /sessionActionsMenu|<SessionActionsMenu/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
   // 模板可调宽度/间距；保留默认 1040px / 32px，非法配置由布局契约测试拒绝。
@@ -153,7 +162,8 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.match(message, /message-content[\s\S]*message\.role === 'agent'[\s\S]*'w-full'/)
   assert.match(message, /agent-message-mark/)
   assert.match(message, /data-state=\{agentState\}/)
-  assert.match(transcript, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
+  assert.match(transcript, /<WorkbenchGreeting \/>/)
+  assert.doesNotMatch(transcript, /WelcomeEffects|WelcomeFallback/)
 })
 
 test('composer send action has distinct enabled, disabled, and streaming states', async () => {
@@ -163,13 +173,15 @@ test('composer send action has distinct enabled, disabled, and streaming states'
   assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
   assert.match(focus, /send-button[^`\n]*\$\{streaming \? 'stop[^']*' : ''\}/)
   assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
-  assert.match(focus, /streaming \? \(\s*<Square size=\{16\} fill="currentColor"/)
-  assert.match(focus, /send-button[^`\n]*bg-\[var\(--star\)\]/)
+  assert.match(focus, /streaming \? \(\s*<Square size=\{12\} fill="currentColor"/)
+  assert.match(focus, /send-button[^`\n]*bg-foreground[^`\n]*text-background/)
   assert.doesNotMatch(focus, /send-button[^`\n]*bg-\[var\(--surface-subtle\)\]/)
   assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
-  assert.match(focus, /send-button[^`\n]*disabled:bg-\[var\(--surface-muted\)\]/)
-  assert.match(focus, /send-button[^`\n]*disabled:text-\[var\(--text-muted\)\]/)
+  assert.match(focus, /send-button[^`\n]*disabled:bg-foreground\/20/)
+  assert.match(focus, /send-button[^`\n]*disabled:text-background\/70/)
   assert.doesNotMatch(focus, /send-button[^`\n]*disabled:opacity-/)
+  assert.match(focus, /<ArrowUp size=\{17\}/)
+  assert.match(focus, /rounded-full/)
 })
 
 test('image previews portal above session-level controls', async () => {

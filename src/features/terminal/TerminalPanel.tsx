@@ -491,7 +491,7 @@ export function TerminalPanel({
 
   return (
     <section
-      className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : ''}`}
+      className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : '!hidden'}`}
       style={open ? { height } : undefined}
       aria-label={labels.terminal}
     >

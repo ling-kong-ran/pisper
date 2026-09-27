@@ -137,7 +137,11 @@ function normalizeCodexConfig(data, env, location) {
     profile === 'openai' ? CODEX_DEFAULT_BASE_URL : '',
   )
   const baseUrl = normalizeUrl(rawBaseUrl)
-  const envKey = nonEmptyString(definition.env_key)
+  const envKey = definition.requires_openai_auth === true ? '' : nonEmptyString(definition.env_key)
+  const bearerToken =
+    definition.requires_openai_auth === true
+      ? ''
+      : nonEmptyString(definition.experimental_bearer_token)
   const warnings = []
   if (!api) warnings.push({ code: 'unsupported_api', message: 'Codex wire_api is not supported' })
   if (rawBaseUrl && !baseUrl)
@@ -185,19 +189,21 @@ function normalizeCodexConfig(data, env, location) {
     baseUrl,
     models: model ? [{ id: model, role: 'default', selected: true }] : [],
     selectedModel: model,
-    authType: envKey
-      ? 'environment'
-      : definition.requires_openai_auth === true
-        ? 'external-login'
-        : 'none',
+    authType: bearerToken
+      ? 'api_key'
+      : envKey
+        ? 'environment'
+        : definition.requires_openai_auth === true
+          ? 'external-login'
+          : 'none',
     authVariable: envKey || null,
-    credentialPresent: Boolean(envKey && env[envKey]),
+    credentialPresent: Boolean(bearerToken || (envKey && env[envKey])),
     importable,
     warnings,
     fingerprint,
     providerConfig,
   }
-  item.credential = null
+  item.credential = bearerToken ? apiKeyCredential(bearerToken) : null
   return item
 }
 

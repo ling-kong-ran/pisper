@@ -18,6 +18,7 @@ use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
 use crate::iroh_tunnel::TunnelBridgePool;
+use crate::loopback_access::LoopbackAccess;
 
 use super::pinning::pinned_client;
 use super::store::{ServerEndpoint, ServerProfile, SharedStore};
@@ -129,9 +130,29 @@ pub struct ProxyHandle {
     resolution: tokio::sync::Mutex<()>,
     tunnels: Option<Arc<TunnelBridgePool>>,
     local_runtime: Mutex<Option<LocalRuntime>>,
+    /// 桌面远程窗口采用独立 Cookie 认证；移动端保持已有入口契约。
+    access: Option<LoopbackAccess>,
+    shutdown: tokio::sync::watch::Sender<bool>,
 }
 
 impl ProxyHandle {
+    pub fn bootstrap_url(&self) -> Option<String> {
+        self.access.as_ref().map(LoopbackAccess::bootstrap_url)
+    }
+
+    /// 关闭窗口时连监听器和在途 SSE 一起释放，不留下携带设备凭据的后台代理。
+    pub fn shutdown(&self) {
+        self.shutdown.send_replace(true);
+    }
+
+    fn client_kind(&self) -> &'static str {
+        if self.access.is_some() {
+            "desktop-remote"
+        } else {
+            "mobile-app"
+        }
+    }
+
     pub fn active_transport(&self) -> Option<String> {
         self.remote
             .lock()
@@ -225,6 +246,9 @@ impl ProxyHandle {
     }
 
     fn use_remote_api(&self) -> bool {
+        if self.access.is_some() {
+            return true;
+        }
         self.store
             .lock()
             .is_ok_and(|store| store.last_mode() == Some("remote") && store.active().is_some())
@@ -701,13 +725,18 @@ async fn forward_remote_response(
             .bearer_auth(&profile.token);
         for (name, value) in &parts.headers {
             let lower = name.as_str().to_ascii_lowercase();
-            if HOP_BY_HOP.contains(&lower.as_str()) {
+            if HOP_BY_HOP.contains(&lower.as_str())
+                || matches!(
+                    lower.as_str(),
+                    "cookie" | "authorization" | "origin" | "referer" | "x-pisper-client"
+                )
+            {
                 continue;
             }
             outgoing = outgoing.header(name, value);
         }
         // 标记流量来源：runtime/前端据此把设置页换成移动端形态（服务器切换而非发码管理）。
-        outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
+        outgoing = outgoing.header("X-Pisper-Client", proxy.client_kind());
         trace.record("headers_start", attempt, proxy, 0);
         match tokio::time::timeout(headers_timeout, outgoing.body(body_bytes.clone()).send()).await
         {
@@ -746,7 +775,9 @@ async fn forward_remote_response(
     let mut builder = Response::builder().status(response.status());
     for (name, value) in response.headers() {
         let lower = name.as_str().to_ascii_lowercase();
-        if HOP_BY_HOP.contains(&lower.as_str()) || lower == "content-length" {
+        if HOP_BY_HOP.contains(&lower.as_str())
+            || matches!(lower.as_str(), "content-length" | "set-cookie")
+        {
             continue;
         }
         builder = builder.header(name, value);
@@ -836,7 +867,24 @@ async fn forward_local(
     };
 
     let is_frontend = !path_and_query.starts_with("/api/");
-    let client = reqwest::Client::new();
+    let client = if proxy.access.is_some() {
+        // 本机前端只读同源安装资源；不跟随重定向，也不交给环境中的 HTTP 代理。
+        match reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .build()
+        {
+            Ok(client) => client,
+            Err(_) => {
+                return Ok(text_response(
+                    StatusCode::BAD_GATEWAY,
+                    "本机前端客户端不可用。",
+                ))
+            }
+        }
+    } else {
+        reqwest::Client::new()
+    };
     let mut outgoing = client
         .request(parts.method, &url)
         .header(reqwest::header::COOKIE, &local.cookie);
@@ -851,7 +899,7 @@ async fn forward_local(
         }
         outgoing = outgoing.header(name, value);
     }
-    outgoing = outgoing.header("X-Pisper-Client", "mobile-app");
+    outgoing = outgoing.header("X-Pisper-Client", proxy.client_kind());
 
     let response = match outgoing.body(body_bytes).send().await {
         Ok(response) => response,
@@ -944,6 +992,17 @@ async fn forward(
     proxy: &Arc<ProxyHandle>,
     request: Request<Incoming>,
 ) -> Result<Response<ProxyBody>, Infallible> {
+    if *proxy.shutdown.borrow() {
+        return Ok(text_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "远程工作区已关闭。",
+        ));
+    }
+    if let Some(access) = &proxy.access {
+        if let Some(response) = access.intercept(&request) {
+            return Ok(response.map(BodyExt::boxed_unsync));
+        }
+    }
     let remote_api = route_to_remote(request.uri().path(), proxy.use_remote_api());
     if remote_api {
         forward_remote(proxy, request).await
@@ -952,10 +1011,29 @@ async fn forward(
     }
 }
 
-/// 启动回环代理（绑定随机端口），返回句柄。调用方需持有 Arc 以保持运行。
+/// 移动端入口，保留原有切换档案契约。
 pub async fn start_proxy(
     store: Arc<SharedStore>,
     tunnels: Option<Arc<TunnelBridgePool>>,
+) -> Result<Arc<ProxyHandle>, String> {
+    start_proxy_internal(store, tunnels, None).await
+}
+
+/// 桌面主动连接：前端只来自本机 Runtime，所有 API 固定发往此档案，连接失败绝不回退本机。
+pub async fn start_desktop_proxy(
+    bootstrap_url: &str,
+    profile: ServerProfile,
+) -> Result<Arc<ProxyHandle>, String> {
+    let store = Arc::new(Mutex::new(super::store::ProfileStore::for_connection(
+        profile,
+    )));
+    start_proxy_internal(store, None, Some(bootstrap_url)).await
+}
+
+async fn start_proxy_internal(
+    store: Arc<SharedStore>,
+    tunnels: Option<Arc<TunnelBridgePool>>,
+    desktop_bootstrap: Option<&str>,
 ) -> Result<Arc<ProxyHandle>, String> {
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
         .await
@@ -964,6 +1042,7 @@ pub async fn start_proxy(
         .local_addr()
         .map_err(|error| error.to_string())?
         .port();
+    let (shutdown, mut stopped) = tokio::sync::watch::channel(false);
     let handle = Arc::new(ProxyHandle {
         port,
         store,
@@ -971,25 +1050,39 @@ pub async fn start_proxy(
         resolution: tokio::sync::Mutex::new(()),
         tunnels,
         local_runtime: Mutex::new(None),
+        access: desktop_bootstrap.map(|_| LoopbackAccess::new(port)),
+        shutdown,
     });
+    if let Some(bootstrap) = desktop_bootstrap {
+        handle.configure_local_runtime(bootstrap)?;
+    }
     let server = handle.clone();
-    // 监听器绑定在哪个 Tokio reactor，就必须留在哪个运行时驱动；
-    // 测试运行时与 Tauri 全局运行时不同，跨运行时移动会在部分平台卡住 I/O。
+    // 监听器必须在创建它的 Tokio reactor 驱动；关闭时同时取消监听与既有长连接。
     tokio::spawn(async move {
         loop {
-            let Ok((stream, _)) = listener.accept().await else {
-                continue;
+            let accepted = tokio::select! {
+                _ = stopped.changed() => break,
+                accepted = listener.accept() => accepted,
+            };
+            let Ok((stream, _)) = accepted else {
+                break;
             };
             let proxy = server.clone();
+            let mut connection_stopped = proxy.shutdown.subscribe();
             tokio::spawn(async move {
+                if *connection_stopped.borrow() {
+                    return;
+                }
                 let io = TokioIo::new(stream);
                 let service = service_fn(move |request| {
                     let proxy = proxy.clone();
                     async move { forward(&proxy, request).await }
                 });
-                let _ = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(io, service)
-                    .await;
+                let builder = hyper::server::conn::http1::Builder::new();
+                tokio::select! {
+                    _ = connection_stopped.changed() => {},
+                    _ = builder.serve_connection(io, service) => {},
+                }
             });
         }
     });
@@ -1402,6 +1495,8 @@ mod tests {
             resolution: tokio::sync::Mutex::new(()),
             tunnels,
             local_runtime: Mutex::new(None),
+            access: None,
+            shutdown: tokio::sync::watch::channel(false).0,
         });
         let server = proxy.clone();
         tokio::spawn(async move {
@@ -2334,3 +2429,7 @@ mod tests {
         assert!(String::from_utf8_lossy(&rest).contains("event: done"));
     }
 }
+
+#[cfg(test)]
+#[path = "desktop_proxy_tests.rs"]
+mod desktop_tests;

@@ -1,0 +1,18 @@
+{
+  "modelEditor.edit": "Edit model",
+  "modelEditor.add": "Add model",
+  "modelEditor.description": "Capabilities and reasoning levels",
+  "modelEditor.id": "Model ID",
+  "modelEditor.capabilities": "Model capabilities",
+  "modelEditor.chat": "Chat",
+  "modelEditor.image": "Image generation",
+  "modelEditor.video": "Video generation",
+  "modelEditor.capabilitiesHint": "Choose one or more. Image-only models reuse this connection’s key and stay out of the chat model picker.",
+  "modelEditor.chatCapabilities": "Chat capabilities",
+  "modelEditor.vision": "Image understanding",
+  "modelEditor.reasoning": "Reasoning",
+  "modelEditor.contextWindow": "Context window (tokens)",
+  "modelEditor.maxTokens": "Maximum output (tokens)",
+  "modelEditor.editNamed": "Edit model {name}",
+  "modelEditor.optionsNamed": "Model capabilities: {name}"
+}

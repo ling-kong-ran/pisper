@@ -67,7 +67,6 @@ type PluginsPageProps = {
   query?: string
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
-  onStatusChange: (status: { enabled: number; total: number }) => void
   requestText?: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
@@ -491,7 +490,6 @@ export function PluginsPage({
   query = '',
   notify,
   registerPrimaryAction,
-  onStatusChange,
   requestText,
   requestConfirm,
 }: PluginsPageProps) {
@@ -516,20 +514,12 @@ export function PluginsPage({
   const [removing, setRemoving] = useState(false)
   const [error, setError] = useState('')
 
-  // 应用插件数据：写入列表/草稿/Web 搜索配置，并向壳层上报启用统计。
-  const applyData = useCallback(
-    (result: PluginsData) => {
-      setData(result)
-      setDraft(result.plugins)
-      setWebSearch(result.webSearch)
-      const tools = toolEntries(result.plugins)
-      onStatusChange({
-        enabled: tools.filter((tool) => tool.enabled).length,
-        total: tools.length,
-      })
-    },
-    [onStatusChange],
-  )
+  // 应用插件数据：写入列表、草稿和 Web 搜索配置。
+  const applyData = useCallback((result: PluginsData) => {
+    setData(result)
+    setDraft(result.plugins)
+    setWebSearch(result.webSearch)
+  }, [])
 
   // 加载插件列表（含工具启用状态）。
   const load = useCallback(async () => {

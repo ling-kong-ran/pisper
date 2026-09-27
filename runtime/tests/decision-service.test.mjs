@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 
 import {
@@ -335,7 +335,7 @@ test('DecisionService 配置：密钥不回传，空密钥保留，null 清除',
   assert.equal(config.remote.hasKey, false)
 
   // 重启后配置仍在（持久化）
-  const reloaded = new DecisionService({ dataDir: service.dir.replace(/\/decisions$/, '') })
+  const reloaded = new DecisionService({ dataDir: dirname(service.dir) })
   await reloaded.init()
   assert.equal(reloaded.publicConfig().remote.modelId, 'typesafe/jev-2')
 

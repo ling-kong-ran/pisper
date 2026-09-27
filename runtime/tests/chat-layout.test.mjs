@@ -47,9 +47,9 @@ test('built-in layouts round trip through the same contract as imported layouts'
 
 test('default layout keeps current widths, inherited typography and automatic completion panels', () => {
   const { desktop, mobile } = DEFAULT_CHAT_LAYOUT
-  assert.equal(desktop.contentWidth, 1040)
+  assert.equal(desktop.contentWidth, 768)
   assert.equal(desktop.contextWidth, 360)
-  assert.equal(desktop.navigationWidth, 236)
+  assert.equal(desktop.navigationWidth, 264)
   assert.equal(desktop.navigationCollapsed, null)
   for (const viewport of [desktop, mobile]) {
     assert.equal(viewport.composerPosition, 'bottom')

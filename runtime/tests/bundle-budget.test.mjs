@@ -20,8 +20,6 @@ const REACT_BITS_SOURCES = [
   'src/components/react-bits/AnimatedList.tsx',
   'src/components/react-bits/ClickSpark.tsx',
   'src/components/react-bits/ShinyText.tsx',
-  'src/components/react-bits/Threads.tsx',
-  'src/features/chat/WelcomeEffects.tsx',
 ]
 
 function passingReport() {
@@ -123,4 +121,18 @@ test('bundle budget rejects size, eager vendor, and CSS ownership regressions', 
   assert.ok(failures.some((failure) => failure.startsWith('largest JS chunk gzip:')))
   assert.ok(failures.includes('route-only vendor is eager: vendor-markdown'))
   assert.ok(failures.includes('React Bits CSS is owned by the application entry'))
+})
+
+test('PI bundle rejects unused split-view code and decorative welcome styles', () => {
+  const report = passingReport()
+  report.keyByName.set('vendor-dockview', '_vendor-dockview')
+  report.manifest['src/features/chat/WelcomeEffects.tsx'] = {
+    file: 'assets/WelcomeEffects.js',
+    isDynamicEntry: true,
+    css: ['assets/react-bits.css'],
+  }
+
+  const failures = validateBundle(report)
+  assert.ok(failures.includes('unused split-view vendor is bundled'))
+  assert.ok(failures.includes('PI welcome must not load decorative React Bits CSS'))
 })

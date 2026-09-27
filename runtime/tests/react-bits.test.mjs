@@ -71,15 +71,15 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     readFile('src/index.css', 'utf8'),
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
-  assert.match(focus, /lazy\(\(\) => import\('\.\/WelcomeEffects'\)\)/)
-  assert.match(focus, /fallback=\{\s*<WelcomeFallback/)
-  assert.match(focus, /data-target-cursor/)
-  assert.match(welcome, /radial-gradient\(560px_380px_at_50%_24%/)
-  assert.match(welcome, /const ROTATE_MS = 60 \* 60 \* 1000/)
+  assert.match(focus, /<WorkbenchGreeting \/>/)
+  assert.doesNotMatch(focus, /WelcomeEffects|WelcomeFallback|TargetCursor/)
+  const brand = await readFile('src/features/chat/WorkbenchGreeting.tsx', 'utf8')
+  assert.match(brand, /data-testid="workbench-greeting"/)
+  assert.match(brand, /aria-hidden="true"/)
+  assert.match(brand, /pointer-events-none/)
+  assert.doesNotMatch(brand, /<Aurora|<BlurText|<TargetCursor|setInterval/)
+  // Legacy optional effects remain quiet and isolated from the entry canvas.
   assert.doesNotMatch(welcome, /<Aurora\s*\/>/)
-  assert.match(welcome, /<WelcomeBrandStage \/>/)
-  assert.match(welcome, /<BlurText/)
-  assert.match(welcome, /<TargetCursor/)
   assert.match(activity, /import\('@\/components\/react-bits\/AnimatedList'\)/)
   assert.match(composerBits, /import\('@\/components\/react-bits\/ShinyText'\)/)
   assert.match(activity, /<Suspense fallback=\{activityCards\}>/)
@@ -91,8 +91,8 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   assert.match(preview, /<Suspense fallback=\{null\}>/)
   assert.doesNotMatch(main, /react-bits\.css/)
   assert.match(shinyText, /import '\.\/react-bits\.css'/)
-  assert.match(focus, /agent-welcome-content[^"\n]*max-w-\[680px\]/)
-  assert.match(focus, /agent-welcome-content[\s\S]*text-\[var\(--accent-strong\)\]/)
+  assert.match(brand, /max-w-2xl/)
+  assert.match(brand, /text-foreground/)
   assert.match(aurora, /rb-aurora[^"\n]*:root\[data-theme='light'\]/)
 
   const auroraRule = bitsStyles.match(/\.rb-aurora i \{([^}]+)\}/)?.[1] || ''

@@ -2,6 +2,7 @@
 //! 持久化为应用数据目录下的 JSON。令牌属于敏感数据，仅存放在应用私有目录。
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -100,7 +101,7 @@ struct StoreFile {
 }
 
 pub struct ProfileStore {
-    path: PathBuf,
+    path: Option<PathBuf>,
     file: StoreFile,
 }
 
@@ -112,13 +113,29 @@ impl ProfileStore {
             .filter(|file| file.version <= 1)
             .unwrap_or_default();
         Self {
-            path: path.to_path_buf(),
+            path: Some(path.to_path_buf()),
             file,
         }
     }
 
+    /// 每个桌面远程窗口固定一个档案；不能共享可切换的 active_id，否则旧窗口会误写新主机。
+    pub fn for_connection(profile: ServerProfile) -> Self {
+        Self {
+            path: None,
+            file: StoreFile {
+                version: 1,
+                active_id: Some(profile.id.clone()),
+                last_mode: Some("remote".into()),
+                servers: vec![profile],
+            },
+        }
+    }
+
     fn save(&self) -> Result<(), String> {
-        if let Some(parent) = self.path.parent() {
+        let Some(path) = &self.path else {
+            return Ok(());
+        };
+        if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
         let file = StoreFile {
@@ -128,13 +145,34 @@ impl ProfileStore {
             servers: self.file.servers.clone(),
         };
         // 临时文件 + rename：避免写入中断留下半截 JSON。
-        let temporary = self.path.with_extension("json.tmp");
-        fs::write(
-            &temporary,
-            serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-        fs::rename(&temporary, &self.path).map_err(|error| error.to_string())?;
+        let temporary = path.with_extension("json.tmp");
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut output = options
+            .open(&temporary)
+            .map_err(|error| error.to_string())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            output
+                .set_permissions(fs::Permissions::from_mode(0o600))
+                .map_err(|error| error.to_string())?;
+        }
+        output
+            .write_all(
+                serde_json::to_string_pretty(&file)
+                    .map_err(|error| error.to_string())?
+                    .as_bytes(),
+            )
+            .map_err(|error| error.to_string())?;
+        output.sync_all().map_err(|error| error.to_string())?;
+        drop(output);
+        fs::rename(&temporary, path).map_err(|error| error.to_string())?;
         Ok(())
     }
 

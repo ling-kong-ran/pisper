@@ -139,6 +139,9 @@ export function shouldRetainClosedSessionState(state: Partial<SessionState> | un
   return Boolean(
     state?.streaming ||
     state?.recovering ||
+    state?.pendingRuntimeSelection ||
+    state?.switchingModel ||
+    state?.switchingThinking ||
     state?.agents?.some((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
   )
 }

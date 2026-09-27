@@ -1,5 +1,5 @@
 // 会话级命令：重命名/删除/清空等操作的确认与执行。
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -11,6 +11,7 @@ import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { announceSessionsUpdated } from './events'
+import { sessionRuntimeSelections } from './session-runtime-selections'
 
 type SessionCommandOptions = {
   notify: Notify
@@ -41,6 +42,16 @@ export function useSessionCommands({
 }: SessionCommandOptions) {
   const { t, language } = useI18n()
   const [workspaceSession, setWorkspaceSession] = useState<SessionSummary | null>(null)
+
+  const markRuntimeSelectionChanged = useCallback(
+    (id: string) => {
+      updateSessionState(id, (current) => ({
+        ...current,
+        runtimeSelectionRevision: (current.runtimeSelectionRevision || 0) + 1,
+      }))
+    },
+    [updateSessionState],
+  )
 
   // 更新会话摘要项（函数式），供会话命令同步列表字段。
   const updateSessionSummary = useCallback(
@@ -174,14 +185,19 @@ export function useSessionCommands({
     [sessionStatesRef, updateSessionState, updateSessionSummary],
   )
 
-  // 加载会话思考强度（流式中跳过）。
+  // 只读查询可以在生成时加载；档位仍以当前模型的后端能力为准。
   const loadSessionThinkingLevel = useCallback(
     async (sessionId: string) => {
-      if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
+      if (!sessionId) return
+      const revision = sessionStatesRef.current[sessionId]?.runtimeSelectionRevision
+      const current = sessionStatesRef.current[sessionId]
+      if (current?.switchingModel || current?.switchingThinking) return
       try {
         const state = await chatApi.getThinkingLevel(sessionId)
+        if (sessionStatesRef.current[sessionId]?.runtimeSelectionRevision !== revision) return
         applyThinkingState(sessionId, state)
       } catch {
+        if (sessionStatesRef.current[sessionId]?.runtimeSelectionRevision !== revision) return
         updateSessionState(sessionId, {
           thinkingStatus: 'error',
           thinkingMessage: t('chat:focusSession.thinkingLevelsLoadFailed'),
@@ -191,13 +207,22 @@ export function useSessionCommands({
     [applyThinkingState, sessionStatesRef, t, updateSessionState],
   )
 
-  // 切换会话模型：流式中忽略；先乐观更新（防止受控下拉回弹），
+  // 生成时只记录预选，避免改动正在运行的模型；空闲时乐观更新，
   // 成功后回写并提示是否压缩上下文，失败时回滚模型。
   const switchSessionModel = useCallback(
     async (sessionId: string, nextModel: string) => {
       const selected = availableModels.find((item) => item.key === nextModel)
-      if (!sessionId || !selected || sessionStatesRef.current[sessionId]?.streaming) return
+      if (!sessionId || !selected) return
       const current = sessionStatesRef.current[sessionId]
+      if (current?.switchingModel || current?.switchingThinking) return
+      if (current?.streaming || current?.pendingRuntimeSelection) {
+        sessionRuntimeSelections.select(
+          sessionId,
+          selected.key === current.model ? undefined : { model: selected },
+        )
+        return
+      }
+      markRuntimeSelectionChanged(sessionId)
       const previousModel = current?.model || ''
       const shouldOfferCompaction =
         Boolean(current?.messages?.length) && !current?.compaction?.active
@@ -210,6 +235,7 @@ export function useSessionCommands({
       updateSessionSummary(sessionId, (session) => ({ ...session, model: selected.key }))
       try {
         const updated = await chatApi.updateModel(sessionId, selected.provider, selected.modelId)
+        markRuntimeSelectionChanged(sessionId)
         updateSessionState(sessionId, {
           model: updated.model || selected.key,
           contextUsage: updated.contextUsage ?? null,
@@ -231,6 +257,7 @@ export function useSessionCommands({
           if (confirmed) await compactSession(sessionId)
         }
       } catch (error) {
+        markRuntimeSelectionChanged(sessionId)
         updateSessionState(sessionId, {
           switchingModel: false,
           model: previousModel || undefined,
@@ -245,6 +272,7 @@ export function useSessionCommands({
       applyThinkingState,
       availableModels,
       compactSession,
+      markRuntimeSelectionChanged,
       notify,
       requestConfirm,
       sessionStatesRef,
@@ -258,8 +286,19 @@ export function useSessionCommands({
   const switchSessionThinkingLevel = useCallback(
     async (sessionId: string, nextLevel: string) => {
       const level = String(nextLevel || '').trim()
-      if (!sessionId || !level || sessionStatesRef.current[sessionId]?.streaming) return
+      if (!sessionId || !level) return
       const previous = sessionStatesRef.current[sessionId] || {}
+      if (previous.switchingModel || previous.switchingThinking) return
+      if (previous.streaming || previous.pendingRuntimeSelection) {
+        // 切换目标模型后尚不知道它的档位，不能把旧模型的等级冒充成新模型能力。
+        if (previous.pendingRuntimeSelection?.model) return
+        sessionRuntimeSelections.select(
+          sessionId,
+          level === previous.thinkingLevel ? undefined : { thinkingLevel: level },
+        )
+        return
+      }
+      markRuntimeSelectionChanged(sessionId)
       const previousLevel = String(previous.thinkingLevel || '')
       updateSessionState(sessionId, {
         switchingThinking: true,
@@ -269,6 +308,7 @@ export function useSessionCommands({
       updateSessionSummary(sessionId, (session) => ({ ...session, thinkingLevel: level }))
       try {
         const updated = await chatApi.setThinkingLevel(sessionId, level)
+        markRuntimeSelectionChanged(sessionId)
         applyThinkingState(sessionId, updated)
         notify(
           t('chat:chatPage.switchedToThinkingLevel', {
@@ -276,6 +316,7 @@ export function useSessionCommands({
           }),
         )
       } catch (error) {
+        markRuntimeSelectionChanged(sessionId)
         updateSessionState(sessionId, {
           switchingThinking: false,
           thinkingLevel: previousLevel || undefined,
@@ -289,7 +330,70 @@ export function useSessionCommands({
         }
       }
     },
-    [applyThinkingState, notify, sessionStatesRef, t, updateSessionState, updateSessionSummary],
+    [
+      applyThinkingState,
+      markRuntimeSelectionChanged,
+      notify,
+      sessionStatesRef,
+      t,
+      updateSessionState,
+      updateSessionSummary,
+    ],
+  )
+
+  // 命令队列独立于路由；离开聊天页仍会应用，重新进入时消费未送达的结果。
+  useEffect(
+    () =>
+      sessionRuntimeSelections.subscribe((id, entry) => {
+        if (!entry) {
+          updateSessionState(id, { pendingRuntimeSelection: undefined })
+          return
+        }
+        const { selection, status } = entry
+        if (status === 'pending' || status === 'applying') {
+          markRuntimeSelectionChanged(id)
+          updateSessionState(id, {
+            pendingRuntimeSelection: {
+              model: selection.model?.key,
+              thinkingLevel: selection.thinkingLevel,
+            },
+            switchingModel: status === 'applying' && Boolean(selection.model),
+            switchingThinking: status === 'applying' && Boolean(selection.thinkingLevel),
+            error: '',
+          })
+          return
+        }
+        markRuntimeSelectionChanged(id)
+        updateSessionState(id, {
+          pendingRuntimeSelection: undefined,
+          switchingModel: false,
+          switchingThinking: false,
+          ...(entry.error ? { error: chatErrorMessage(entry.error) } : {}),
+        })
+        if (status === 'error') return
+        const result = entry.result || {}
+        if (selection.model) {
+          const model = String(result.model || selection.model.key)
+          updateSessionState(id, { model, contextUsage: result.contextUsage ?? null })
+          updateSessionSummary(id, (session) => ({ ...session, model }))
+        }
+        applyThinkingState(id, result)
+        notify(
+          selection.model
+            ? t('chat:chatPage.switchedToModel', { model: selection.model.label })
+            : t('chat:chatPage.switchedToThinkingLevel', {
+                level: String(result.thinkingLevel || selection.thinkingLevel),
+              }),
+        )
+      }),
+    [
+      applyThinkingState,
+      markRuntimeSelectionChanged,
+      notify,
+      t,
+      updateSessionState,
+      updateSessionSummary,
+    ],
   )
 
   // 切换执行模式：切到 full-access 前强制二次确认；

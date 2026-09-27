@@ -1,7 +1,5 @@
-// 聊天主页面：dockview 多会话分屏布局的宿主，持有会话目录与实时
-// 同步状态，管理 Dock 的初始化/持久化与多面板交互。
-// 移动端 App 不渲染 Dock：轻量标签栏切换活动会话，内容区只挂载一个会话，
-// dockview 及其样式经懒加载分包，移动端不下载。
+// 聊天主页面：保留会话目录、实时同步与辅助面板，仅挂载当前活动会话。
+// 此 UI 不挂载 Dockview；历史分屏布局不会恢复，其他会话仍可在后台运行。
 import {
   lazy,
   Suspense,
@@ -27,7 +25,7 @@ import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { MobileSessionPanel } from './ChatDock'
+import { SingleSessionPanel } from './ChatDock'
 import { chatApi } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useChatDock } from './use-chat-dock'
@@ -49,10 +47,6 @@ import { SessionContextLayout } from './SessionContextLayout'
 import { useChatLayoutStore } from './layout/chat-layout-store'
 import { canvasHasKind } from './layout/chat-canvas'
 
-// Dock 分屏视图懒加载：只有桌面布局才下载 dockview 分包。
-const LazyChatDockView = lazy(() =>
-  import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
-)
 const LazySessionContextPanel = lazy(() =>
   import('./SessionContextPanel').then((module) => ({ default: module.SessionContextPanel })),
 )
@@ -167,7 +161,7 @@ export function ChatPage({
     localStreamSessionsRef,
     loadSessionMessages: liveSync.loadSessionMessages,
     releaseSessionState: catalog.releaseSessionState,
-    singleSessionLayout: mobileLayout,
+    singleSessionLayout: true,
     notify,
   })
   const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
@@ -370,10 +364,11 @@ export function ChatPage({
       try {
         setGlobalError('')
         const created = await chatApi.deriveSession(session.id, boundaryEntryId, name)
-        await refreshSessions(created.id)
-        setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 550))
+        // 目录刷新不抢先选中子会话，只由 Dock 执行一次切换。延时再次打开会覆盖
+        // 用户紧接着发起的「返回原对话」；动画不能拥有会话选择状态。
+        await refreshSessions()
         openSessionInDock(created.id)
+        setRecallPulse((current) => ({ sessionId: created.id, token: current.token + 1 }))
         notify(t('chat:chatPage.childChatCreated'))
       } catch (error) {
         setGlobalError(error instanceof Error ? error.message : String(error))
@@ -527,25 +522,9 @@ export function ChatPage({
               <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
             </AppEmptyState>
           ) : (
-            <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-md)] bg-[var(--panel)]">
+            <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
               <ChatDockContext.Provider value={dockContextValue}>
-                {clientLoaded && mobileLayout ? (
-                  <MobileSessionPanel
-                    sessionIds={dock.mobileSessionIds}
-                    onSelectSession={openSessionInDock}
-                    onCreateSession={createSession}
-                    onOpenHistory={() => navigate('chatHistory')}
-                  />
-                ) : clientLoaded ? (
-                  <Suspense fallback={null}>
-                    <LazyChatDockView
-                      compactDock={dock.compactDock}
-                      onDockReady={dock.onDockReady}
-                      getTabContextMenuItems={dock.getTabContextMenuItems}
-                      createSession={createSession}
-                    />
-                  </Suspense>
-                ) : null}
+                {clientLoaded && <SingleSessionPanel onCreateSession={createSession} />}
               </ChatDockContext.Provider>
             </div>
           )}

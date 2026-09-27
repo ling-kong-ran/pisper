@@ -32,7 +32,7 @@ export const useComposerToolbarStore = create<ComposerToolbarState>()(
       resetLayout: () => set({ layout: normalizeComposerToolbarLayout(undefined) }),
     }),
     {
-      name: 'pisper-composer-toolbar',
+      name: 'pisper-zcode-composer-toolbar',
       // 存储形状保持兼容；新增和恢复的工具统一由 merge 归一，不重置用户排序。
       version: 1,
       partialize: ({ layout }) => ({ layout }),

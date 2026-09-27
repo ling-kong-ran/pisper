@@ -14,7 +14,7 @@ test('default chat layout inherits application typography and theme tokens', () 
   assert.equal(style['--app-message-font-size'], undefined)
   assert.equal(style['--brand-blue'], undefined)
   assert.equal(style['--user-bubble-text'], undefined)
-  assert.equal(style['--chat-content-width'], '1040px')
+  assert.equal(style['--chat-content-width'], '768px')
 })
 
 test('chat typography changes stay scoped and preserve semantic colors', () => {

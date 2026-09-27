@@ -144,12 +144,12 @@ export function ExecutionModeControl({
   return (
     <div
       ref={rootRef}
-      className={`task-execution-mode-select relative w-[38px] h-[38px] text-[var(--text-tertiary)] ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
+      className={`task-execution-mode-select relative h-10 min-w-0 text-muted-foreground ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
     >
       <button
         ref={triggerRef}
         type="button"
-        className="task-execution-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.task-execution-mode-select.open_&]:border-[var(--accent-border)] [.task-execution-mode-select.open_&]:bg-[var(--accent-soft)] [.task-execution-mode-select.open_&]:text-[var(--star-strong)] [.task-execution-mode-select.active_&]:text-[var(--star-strong)] grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer disabled:cursor-not-allowed disabled:opacity-[.55]"
+        className="task-execution-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.task-execution-mode-select.open_&]:border-[var(--accent-border)] [.task-execution-mode-select.open_&]:bg-[var(--accent-soft)] [.task-execution-mode-select.open_&]:text-[var(--star-strong)] [.task-execution-mode-select.active_&]:text-[var(--star-strong)] inline-flex w-full h-full items-center justify-center gap-1.5 px-1.5 rounded-lg border-0 bg-transparent text-[13px] text-inherit cursor-pointer disabled:cursor-not-allowed disabled:opacity-[.55]"
         title={label}
         aria-label={label}
         aria-haspopup="menu"
@@ -157,7 +157,8 @@ export function ExecutionModeControl({
         disabled={disabled}
         onClick={() => setOpen((visible) => !visible)}
       >
-        <CurrentIcon size={14} />
+        <CurrentIcon className="shrink-0 max-[650px]:hidden" size={15} />
+        <span className="truncate">{current.label}</span>
       </button>
       {open && (
         <AnchoredPopupMenu

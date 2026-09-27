@@ -49,6 +49,8 @@ fn main() {
     println!("cargo:rerun-if-changed=desktop-package.json");
     // 移动命令权限变更必须重建 release ACL，避免 Cargo 复用旧 manifest。
     println!("cargo:rerun-if-changed=permissions/mobile.toml");
+    println!("cargo:rerun-if-changed=permissions/desktop-remote.toml");
+    println!("cargo:rerun-if-changed=capabilities/desktop-remote.json");
     println!("cargo:rerun-if-changed=capabilities/mobile-bridge.json");
     println!("cargo:rerun-if-env-changed=PISPER_TAURI_UPDATER_PUBLIC_KEY");
     let updater_public_key = std::env::var("PISPER_TAURI_UPDATER_PUBLIC_KEY")

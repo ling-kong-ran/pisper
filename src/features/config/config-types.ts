@@ -9,6 +9,9 @@ export type ProviderModel = EntityRecord & {
   id: string
   name: string
   kind: string
+  capabilities?: Array<'chat' | 'image' | 'video'>
+  input?: string[]
+  maxTokens?: number
   api?: string
   reasoning?: boolean
   // 该模型当前有效的思考等级（与对话输入框思考下拉一致），供编辑弹窗预填。

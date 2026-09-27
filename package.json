@@ -51,7 +51,8 @@
     "test": "tsx --test runtime/tests/*.test.mjs",
     "test:startup": "node scripts/check-sidecar-startup.mjs",
     "preview": "node runtime/index.mjs --production",
-    "start": "node runtime/index.mjs --production"
+    "start": "node runtime/index.mjs --production",
+    "test:ui": "node scripts/smoke-zcode-ui.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",

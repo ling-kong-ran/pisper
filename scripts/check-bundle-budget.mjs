@@ -19,7 +19,6 @@ export const BUNDLE_BUDGETS = {
     'vendor-react': 100 * KIB,
     'vendor-state': 6 * KIB,
     'vendor-ui': 12 * KIB,
-    'vendor-dockview': 90 * KIB,
     'vendor-xyflow': 65 * KIB,
     'vendor-motion': 50 * KIB,
     'vendor-markdown': 145 * KIB,
@@ -46,8 +45,6 @@ const REACT_BITS_DYNAMIC_SOURCES = [
   'src/components/react-bits/AnimatedList.tsx',
   'src/components/react-bits/ClickSpark.tsx',
   'src/components/react-bits/ShinyText.tsx',
-  'src/components/react-bits/Threads.tsx',
-  'src/features/chat/WelcomeEffects.tsx',
 ]
 
 function formatSize(bytes) {
@@ -203,6 +200,12 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     }
     check(`${name} gzip`, report.fileMetrics.get(report.manifest[key].file).gzip, limit)
   }
+
+  // PI 单会话界面不装载分屏 vendor；这比仅验证懒加载更严格。
+  if (report.keyByName.has('vendor-dockview')) failures.push('unused split-view vendor is bundled')
+  const welcomeCss = report.manifest['src/features/chat/WelcomeEffects.tsx']?.css || []
+  if (welcomeCss.some((file) => file.includes('react-bits')))
+    failures.push('PI welcome must not load decorative React Bits CSS')
 
   const cycle = findStaticCycle(report.manifest)
   if (cycle) failures.push(`static chunk cycle: ${cycle.join(' -> ')}`)

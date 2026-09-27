@@ -36,6 +36,7 @@ export function ManualModelIds({
         {t('config:configPage.manualModelIds')}
         <div className="flex items-stretch gap-[6px]">
           <input
+            aria-label={t('config:configPage.manualModelIds')}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {

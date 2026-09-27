@@ -51,10 +51,13 @@ test('visual Provider settings expose a direct connection editor and hide unused
   assert.match(dialogSource, /initialProvider\?: ProviderConfig/)
   assert.match(dialogSource, /apiJson<ConfigData>\('\/api\/config'/)
   assert.match(modelsSource, /onEditVisualProvider=/)
-  // 视觉供应商不混入对话连接列表，统一由视觉生成专区的「视觉连接」提供启停开关。
+  // 高级视觉区域保留启停入口，但编辑必须选中统一工作台，不走旧单能力编辑弹窗。
   assert.match(connectionSource, /provider\.configured \|\| provider\.custom\)/)
-  assert.match(modelsSource, /onConfigure=\{openProviderEditorFor\}/)
-  assert.match(modelsSource, /setProviderModal\(\{ providerType: provider\.type, provider \}\)/)
+  assert.match(modelsSource, /<ProviderWorkbench/)
+  assert.match(modelsSource, /setSelectedProviderId\(provider\.id\)/)
+  assert.match(modelsSource, /onSelectProvider=\{setSelectedProviderId\}/)
+  assert.match(modelsSource, /data-model-provider-split-panel/)
+  assert.doesNotMatch(modelsSource, /setProviderModal\(\{ providerType: 'visual', provider \}\)/)
   assert.doesNotMatch(connectionSource, /provider\.type === 'visual'/)
   // 视觉连接与对话连接共用同一套卡片网格（ConnectionCardGrid），启停/删除交互一致。
   assert.match(visualSource, /<ConnectionCardGrid/)

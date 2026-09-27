@@ -130,6 +130,8 @@ export type SessionSummary = EntityRecord & {
 }
 
 export type SessionState = EntityRecord & {
+  runtimeSelectionRevision?: number
+  pendingRuntimeSelection?: { model?: string; thinkingLevel?: string }
   messages: ChatMessage[]
   tools: ToolActivity[]
   approvals: EntityRecord[]

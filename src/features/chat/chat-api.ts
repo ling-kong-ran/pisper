@@ -251,8 +251,8 @@ export const chatApi = {
       data: { thresholdPercent },
     }),
 
-  getLiveSession: (sessionId: string) =>
-    requestJson<MessagePageResponse>(`${sessionPath(sessionId)}/live`),
+  getLiveSession: (sessionId: string, options: HttpRequestOptions = {}) =>
+    requestJson<MessagePageResponse>(`${sessionPath(sessionId)}/live`, options),
 
   getMessages: (sessionId: string, options: { limit: number; before?: string }) => {
     const params = new URLSearchParams({ limit: String(options.limit) })

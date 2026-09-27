@@ -7,6 +7,8 @@ declare module '*.css'
 declare global {
   interface Window {
     pisperDesktop?: DesktopBridge
+    // 原生远程窗口标记只用于界面提示；权限由原生 capability 和代理隔离执行。
+    __PISPER_REMOTE_WORKSPACE__?: boolean
     // 移动 Tauri 壳在首个页面脚本前注入，用于不依赖网络握手识别移动布局。
     __PISPER_MOBILE_APP__?: boolean
     // 前台恢复监听器全部安装后接管普通恢复，原生脚本仍负责模块损坏兜底。

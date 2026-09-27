@@ -1063,8 +1063,14 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.getProviderDiscovery()
   }
 
+  async importLocalProviders() {
+    return this.providerPreferences.importLocalProviders()
+  }
+
   async importDiscoveredProvider(discoveryId) {
-    return this.providerPreferences.importDiscoveredProvider(discoveryId)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.importDiscoveredProvider(discoveryId),
+    )
   }
 
   async getConfig() {
@@ -1076,41 +1082,63 @@ export class AgentRuntimeFacade {
   }
 
   async importProviderConfig(input) {
-    return this.providerPreferences.importProviderConfig(input)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.importProviderConfig(input),
+    )
   }
 
   async saveConfig(input) {
-    return this.providerPreferences.saveConfig(input, toolsFromConfig, TOOL_PRESETS)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.saveConfig(input, toolsFromConfig, TOOL_PRESETS),
+    )
   }
 
   async setProviderConnection(id, input) {
-    return this.providerPreferences.setProviderConnection(id, input)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setProviderConnection(id, input),
+    )
   }
 
   async setProviderApiKey(id, input) {
-    return this.providerPreferences.setProviderApiKey(id, input)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setProviderApiKey(id, input),
+    )
   }
 
   async setProviderEnabled(id, enabled) {
-    return this.providerPreferences.setProviderEnabled(id, enabled)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setProviderEnabled(id, enabled),
+    )
   }
 
   async cloneProvider(id, input) {
-    return this.providerPreferences.cloneProvider(id, input)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.cloneProvider(id, input),
+    )
   }
 
   async createProvider(input) {
-    return this.providerPreferences.createProvider(input)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.createProvider(input),
+    )
+  }
+
+  async setProviderModelOptions(providerId, input) {
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setProviderModelOptions(providerId, input),
+    )
   }
 
   async addProviderModel(providerId, input) {
-    return this.providerPreferences.addProviderModels(providerId, [input], {
-      skipExisting: false,
-    })
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.addProviderModels(providerId, [input], { skipExisting: false }),
+    )
   }
 
   async reconcileDefaultModel() {
-    return this.providerPreferences.reconcileDefaultModel()
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.reconcileDefaultModel(),
+    )
   }
 
   async refreshProviderModels() {
@@ -1118,7 +1146,9 @@ export class AgentRuntimeFacade {
   }
 
   async discoverProviderModels(providerId, input = {}) {
-    return this.providerPreferences.discoverProviderModels(providerId, input)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.discoverProviderModels(providerId, input),
+    )
   }
 
   async discoverConnectionModels(input = {}) {
@@ -1126,11 +1156,15 @@ export class AgentRuntimeFacade {
   }
 
   async addProviderModels(providerId, inputs, options = {}) {
-    return this.providerPreferences.addProviderModels(providerId, inputs, options)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.addProviderModels(providerId, inputs, options),
+    )
   }
 
   async deleteProvider(id) {
-    return this.providerPreferences.deleteProvider(id)
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.deleteProvider(id),
+    )
   }
 
   // 视觉模型状态：返回当前选中的模型和全部候选，供配置页切换视觉模型。

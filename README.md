@@ -2,6 +2,8 @@
 
 <a id="top"></a>
 
+> **ZCode / PI 前端分支**：本分支 `feat/zcode-visual-refresh` 已同步 release 后端，使用独立简约界面。模型与智力合并选择，Plan 与访问权限常驻输入栏。不是 release 的前端导入包；官方发布下载也不代表本分支构建。详见 [分支开发与验证](docs/pi-frontend.md)。
+
 <p align="center">
   <img src="docs/brand/banner.svg" width="880" alt="Pisper — 想法，不必排队" />
 </p>

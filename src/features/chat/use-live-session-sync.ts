@@ -129,7 +129,12 @@ export function reconcileLiveSnapshot(
   current: SessionState,
   data: ApiRecord,
   fallbackFinishedAt = new Date().toISOString(),
+  selectionRevisionAtRequest = current.runtimeSelectionRevision || 0,
 ): SessionState {
+  const selectionChanged = selectionRevisionAtRequest !== (current.runtimeSelectionRevision || 0)
+  const preserveSelection = Boolean(
+    current.switchingModel || current.switchingThinking || selectionChanged,
+  )
   const finishedAt = data.finishedAt || current.runFinishedAt || fallbackFinishedAt
   const reconciled = preserveUnsavedFailedTurn(current, data, reconcileMessagePage(current, data))
   return {
@@ -145,8 +150,8 @@ export function reconcileLiveSnapshot(
     runNotice: data.streaming ? current.runNotice || '' : '',
     loaded: true,
     loading: false,
-    error: reconciled.error,
-    model: data.model || current.model,
+    error: preserveSelection ? current.error : reconciled.error,
+    model: preserveSelection ? current.model : data.model || current.model,
     cwd: data.cwd || current.cwd,
     permissionMode: data.permissionMode || current.permissionMode,
     executionMode: data.executionMode || current.executionMode,
@@ -154,7 +159,9 @@ export function reconcileLiveSnapshot(
     goal: data.goal ?? current.goal ?? null,
     team: teamFromSnapshot(data, current.team),
     plan: planFromPayloadOr(data, current.plan ?? null),
-    contextUsage: data.contextUsage ?? current.contextUsage ?? null,
+    contextUsage: preserveSelection
+      ? current.contextUsage
+      : (data.contextUsage ?? current.contextUsage ?? null),
     sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
     compaction: data.compaction ?? current.compaction ?? null,
     approvals: data.approvals || [],
@@ -199,6 +206,7 @@ export function useLiveSessionSync({
       )
         return
       liveSyncInFlightRef.current.add(id)
+      const selectionRevision = sessionStatesRef.current[id]?.runtimeSelectionRevision || 0
       try {
         const data = await chatApi.getLiveSession(id)
         // 请求期间新流仍拥有状态；强制恢复时则使旧流失去写入资格，再采用服务端快照。
@@ -209,14 +217,16 @@ export function useLiveSessionSync({
           localStreamSessionsRef.current.delete(id)
         }
         publishVoiceSnapshot(id, data)
-        updateSessionState(id, (current) => reconcileLiveSnapshot(current, data))
+        updateSessionState(id, (current) =>
+          reconcileLiveSnapshot(current, data, undefined, selectionRevision),
+        )
         updateSessions((current) =>
           current.map((session) =>
             session.id === id
               ? {
                   ...session,
                   streaming: data.streaming,
-                  model: data.model || session.model,
+                  model: sessionStatesRef.current[id]?.model || data.model || session.model,
                   cwd: data.cwd || session.cwd,
                   permissionMode: data.permissionMode || session.permissionMode,
                   executionMode: data.executionMode || session.executionMode,
@@ -240,7 +250,13 @@ export function useLiveSessionSync({
         liveSyncInFlightRef.current.delete(id)
       }
     },
-    [localStreamSessionsRef, streamGenerationRef, updateSessionState, updateSessions],
+    [
+      localStreamSessionsRef,
+      sessionStatesRef,
+      streamGenerationRef,
+      updateSessionState,
+      updateSessions,
+    ],
   )
 
   // 加载会话消息：恢复中先走实时同步；已加载且页足够大时不重复拉取；

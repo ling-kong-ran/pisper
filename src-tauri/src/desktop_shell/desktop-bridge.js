@@ -96,7 +96,15 @@
     enumerable: true,
     writable: false,
     value: Object.freeze({
+      remoteWorkspaces: Object.freeze({
+        list: () => invoke('desktop_remote_list'),
+        pair: (input) => invoke('desktop_remote_pair', { input }),
+        open: (id) => invoke('desktop_remote_open', { id }),
+        forget: (id) => invoke('desktop_remote_forget', { id }),
+      }),
       getAppInfo: () => invoke('desktop_get_app_info'),
+      customTitlebar: /Windows/.test(navigator.userAgent),
+      windowAction: (action) => invoke('desktop_window_action', { action }),
       pickDirectory: (initialDirectory) => invoke('desktop_pick_directory', { initialDirectory }),
       pickFiles: (initialDirectory) => invoke('desktop_pick_files', { initialDirectory }),
       setLanguage: (language) => invoke('desktop_set_language', { language }),

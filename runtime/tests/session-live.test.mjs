@@ -1600,6 +1600,12 @@ test('oversized session histories are parsed in chunks without remaining in the 
 test('closed chat state is retained only while background work remains active', () => {
   assert.equal(shouldRetainClosedSessionState({ streaming: true }), true)
   assert.equal(shouldRetainClosedSessionState({ recovering: true }), true)
+  assert.equal(
+    shouldRetainClosedSessionState({ pendingRuntimeSelection: { thinkingLevel: 'high' } }),
+    true,
+  )
+  assert.equal(shouldRetainClosedSessionState({ switchingModel: true }), true)
+  assert.equal(shouldRetainClosedSessionState({ switchingThinking: true }), true)
   assert.equal(shouldRetainClosedSessionState({ agents: [{ status: 'running' }] }), true)
   assert.equal(shouldRetainClosedSessionState({ agents: [{ status: 'completed' }] }), false)
   assert.equal(

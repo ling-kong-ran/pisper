@@ -272,6 +272,13 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
   },
   // —— remote-access 分区卡片 ——
   {
+    id: 'remote-workspaces',
+    section: 'remote-access',
+    card: 'remote-workspaces',
+    titleKey: 'config:remoteWorkspace.title',
+    keywords: ['linux', 'remote workspace', '服务器', '远程工作区'],
+  },
+  {
     id: 'remote-access-main',
     section: 'remote-access',
     card: 'remote-access-main',
@@ -393,6 +400,12 @@ export function searchConfig(query: string, language: SupportedLanguage): Config
 
   const scored: Array<{ entry: ConfigSearchEntry; score: number }> = []
   for (const entry of ENTRIES) {
+    if (
+      typeof window !== 'undefined' &&
+      ((entry.id === 'remote-workspaces' && !window.pisperDesktop?.remoteWorkspaces) ||
+        (entry.id === 'remote-access-main' && window.__PISPER_REMOTE_WORKSPACE__))
+    )
+      continue
     const [zh, en] = titlePair(entry)
     let score = 0
     if (aliasHits.has(entry.id)) score = 100

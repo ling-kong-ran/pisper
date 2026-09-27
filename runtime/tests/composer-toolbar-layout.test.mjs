@@ -22,16 +22,16 @@ test('composer toolbar layout repairs stale, duplicate, and unknown tool ids', (
   assert.deepEqual(new Set([...layout.inline, ...layout.overflow]), new Set(COMPOSER_TOOL_IDS))
 })
 
-test('new composer preferences keep the compact toolbar visible by default', () => {
+test('new composer preferences keep readable permission, Plan and combined model/reasoning inline', () => {
   const initial = normalizeComposerToolbarLayout(null)
   assert.deepEqual(initial, DEFAULT_COMPOSER_TOOLBAR_LAYOUT)
-  assert.deepEqual(initial.inline, COMPOSER_TOOL_IDS)
-  assert.deepEqual(initial.overflow, [])
+  assert.deepEqual(initial.inline, ['permission', 'run-mode', 'model'])
+  assert.deepEqual(new Set([...initial.inline, ...initial.overflow]), new Set(COMPOSER_TOOL_IDS))
   assert.notEqual(initial.inline, DEFAULT_COMPOSER_TOOLBAR_LAYOUT.inline)
 })
 
 test('composer tools move between locations and reorder without affecting other tools', () => {
-  const initial = normalizeComposerToolbarLayout(null)
+  const initial = normalizeComposerToolbarLayout({ inline: COMPOSER_TOOL_IDS, overflow: [] })
   const overflowed = setComposerToolLocation(initial, 'resource', 'overflow')
   assert.deepEqual(overflowed.overflow, ['resource'])
   assert.deepEqual(
@@ -44,7 +44,7 @@ test('composer tools move between locations and reorder without affecting other 
   assert.equal(restored.inline.at(-1), 'resource')
 
   const moved = moveComposerTool(restored, 'resource', -1)
-  assert.deepEqual(moved.inline.slice(-2), ['resource', 'session-actions'])
+  assert.deepEqual(moved.inline.slice(-2), ['resource', 'compact-context'])
   assert.deepEqual(moved.inline.slice(0, -2), restored.inline.slice(0, -2))
 })
 
@@ -63,14 +63,14 @@ test('bulk placement preserves every tool and its order through storage and rest
 test('composer allocation preserves user overflow and temporarily overflows the inline tail', () => {
   const layout = normalizeComposerToolbarLayout({
     inline: ['attachment', 'resource', 'commands'],
-    overflow: ['session-actions'],
+    overflow: ['compact-context'],
   })
-  const available = ['attachment', 'resource', 'commands', 'session-actions']
+  const available = ['attachment', 'resource', 'commands', 'compact-context']
   const allocation = allocateComposerToolbar(layout, available, 2)
 
   assert.deepEqual(allocation.inline, ['attachment', 'resource'])
   assert.deepEqual(allocation.automaticallyOverflowed, ['commands'])
-  assert.equal(allocation.overflow.includes('session-actions'), true)
+  assert.equal(allocation.overflow.includes('compact-context'), true)
 })
 
 test('legacy twelve-tool defaults remove retired controls and keep remaining tools inline', () => {
@@ -91,7 +91,7 @@ test('legacy twelve-tool defaults remove retired controls and keep remaining too
     ],
     overflow: [],
   })
-  assert.deepEqual(legacy, DEFAULT_COMPOSER_TOOLBAR_LAYOUT)
+  assert.deepEqual(legacy, { inline: [...COMPOSER_TOOL_IDS], overflow: [] })
   assert.equal(COMPOSER_TOOL_IDS.includes('model'), true)
   assert.equal(COMPOSER_TOOL_IDS.includes('permission'), true)
   assert.equal(COMPOSER_TOOL_IDS.includes('run-mode'), true)
@@ -117,16 +117,8 @@ test('retired change controls are filtered from both locations without resetting
   const before = structuredClone(previous)
   const migrated = normalizeComposerToolbarLayout(previous)
   assert.deepEqual(migrated, {
-    inline: ['commands', 'attachment', 'thinking'],
-    overflow: [
-      'visual',
-      'permission',
-      'model',
-      'resource',
-      'run-mode',
-      'session-actions',
-      'compact-context',
-    ],
+    inline: ['commands', 'attachment'],
+    overflow: ['visual', 'permission', 'model', 'resource', 'run-mode', 'compact-context'],
   })
   assert.deepEqual(normalizeComposerToolbarLayout(migrated), migrated)
   assert.deepEqual(previous, before)
@@ -164,7 +156,7 @@ test('preferences restore missing runtime controls inline and retain every saved
 
 test('temporarily overflowed controls return when space grows without changing saved locations', () => {
   const layout = setComposerToolLocation(
-    normalizeComposerToolbarLayout(null),
+    normalizeComposerToolbarLayout({ inline: COMPOSER_TOOL_IDS, overflow: [] }),
     'permission',
     'overflow',
   )
@@ -192,4 +184,35 @@ test('unavailable capabilities do not mutate or leak into the rendered allocatio
   assert.deepEqual(allocation.overflow, ['commands'])
   assert.equal(layout.inline.includes('visual'), true)
   assert.equal(layout.inline.includes('model'), true)
+})
+
+test('readable controls use weighted widths without losing tools or rewriting preferences', () => {
+  const layout = normalizeComposerToolbarLayout(null)
+  const before = structuredClone(layout)
+  const widths = { permission: 2.4, 'run-mode': 1.4, model: 2.7 }
+  assert.deepEqual(allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 6.5, widths).inline, [
+    'permission',
+    'run-mode',
+    'model',
+  ])
+  const small = allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 5.1, widths)
+  assert.deepEqual(small.inline, ['permission', 'run-mode'])
+  assert.deepEqual(small.automaticallyOverflowed, ['model'])
+  assert.deepEqual(new Set([...small.inline, ...small.overflow]), new Set(COMPOSER_TOOL_IDS))
+  assert.deepEqual(allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 0, widths).inline, [])
+  assert.deepEqual(layout, before)
+})
+
+test('legacy separate effort shortcut retires without losing combined model access or mutating preferences', () => {
+  const previous = {
+    inline: ['thinking', 'permission', 'model'],
+    overflow: ['commands', 'run-mode'],
+  }
+  const before = structuredClone(previous)
+  const migrated = normalizeComposerToolbarLayout(previous)
+  assert.deepEqual(migrated.inline, ['permission', 'model'])
+  assert.equal([...migrated.inline, ...migrated.overflow].includes('thinking'), false)
+  assert.deepEqual(normalizeComposerToolbarLayout(migrated), migrated)
+  assert.deepEqual(previous, before)
+  assert.deepEqual(new Set([...migrated.inline, ...migrated.overflow]), new Set(COMPOSER_TOOL_IDS))
 })

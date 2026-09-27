@@ -1,5 +1,5 @@
 // 历史会话页：搜索完整会话目录并分批展示，支持继续打开和管理。
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Archive,
   ArchiveRestore,
@@ -8,10 +8,6 @@ import {
   History,
   MessageSquare,
   MoreHorizontal,
-  PanelBottom,
-  PanelLeft,
-  PanelRight,
-  PanelTop,
   Pencil,
   Pin,
   PinOff,
@@ -37,7 +33,6 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
 import { fetchStartupQuery } from '@/lib/startup-queries'
-import { useIsMobileApp } from '@/stores/client-store'
 import type { SessionSummary } from '@/types/chat'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
@@ -48,13 +43,7 @@ import {
   sessionDeletionUpdateFromEvent,
   sessionOrganizationUpdateFromEvent,
 } from './events'
-import type { SessionOpenDisposition } from './dock-layout'
-import {
-  canSplitHistorySessions,
-  HISTORY_BATCH_SIZE,
-  selectHistorySessions,
-  type HistoryView,
-} from './history-list'
+import { HISTORY_BATCH_SIZE, selectHistorySessions, type HistoryView } from './history-list'
 import { applySessionOrganizationUpdate, orderVisibleSessions } from './session-list'
 import {
   SessionOrganizationProtocolError,
@@ -71,18 +60,6 @@ type ChatHistoryPageProps = {
   requestText: (options: PromptDialogOptions) => Promise<string | null>
 }
 
-const compactDockQuery = '(max-width: 900px)'
-
-function subscribeCompactDock(onChange: () => void) {
-  const media = window.matchMedia(compactDockQuery)
-  media.addEventListener('change', onChange)
-  return () => media.removeEventListener('change', onChange)
-}
-
-function compactDockSnapshot() {
-  return window.matchMedia(compactDockQuery).matches
-}
-
 export function ChatHistoryPage({
   query,
   navigate,
@@ -91,9 +68,6 @@ export function ChatHistoryPage({
   requestText,
 }: ChatHistoryPageProps) {
   const { t, language } = useI18n()
-  const mobileApp = useIsMobileApp()
-  const compactDock = useSyncExternalStore(subscribeCompactDock, compactDockSnapshot, () => true)
-  const canSplit = canSplitHistorySessions(compactDock, mobileApp)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [historyView, setHistoryView] = useState<HistoryView>('active')
   const filterKey = `${historyView}\0${query}`
@@ -194,8 +168,8 @@ export function ChatHistoryPage({
     completedBatchStatusRef.current?.focus()
   }, [visible.items.length, visible.total])
 
-  const openSession = (id: string, disposition: SessionOpenDisposition = 'open') => {
-    requestSessionSelection(id, disposition)
+  const openSession = (id: string) => {
+    requestSessionSelection(id)
     navigate('chat')
   }
 
@@ -457,39 +431,6 @@ export function ChatHistoryPage({
                       >
                         {t('chat:chatHistoryPage.markRead')}
                       </DropdownMenuItem>
-                    )}
-                    {canSplit && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="min-h-11"
-                          onSelect={() => openSession(session.id, 'left')}
-                        >
-                          <PanelLeft />
-                          {t('chat:chatHistoryPage.splitToLeft')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="min-h-11"
-                          onSelect={() => openSession(session.id, 'right')}
-                        >
-                          <PanelRight />
-                          {t('chat:chatHistoryPage.splitToRight')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="min-h-11"
-                          onSelect={() => openSession(session.id, 'above')}
-                        >
-                          <PanelTop />
-                          {t('chat:chatHistoryPage.splitToTop')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="min-h-11"
-                          onSelect={() => openSession(session.id, 'below')}
-                        >
-                          <PanelBottom />
-                          {t('chat:chatHistoryPage.splitToBottom')}
-                        </DropdownMenuItem>
-                      </>
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-pisper-desktop-remote"
+description = "Allows only the authenticated local main window to pair, open and forget remote workspaces."
+commands.allow = ["desktop_remote_list", "desktop_remote_pair", "desktop_remote_open", "desktop_remote_forget"]

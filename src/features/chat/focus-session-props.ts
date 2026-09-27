@@ -46,6 +46,7 @@ export type FocusSessionProps = {
   sessionTreePulse?: number
   cwd?: string
   availableModels: ModelOption[]
+  pendingRuntimeSelection?: { model?: string; thinkingLevel?: string }
   switchingModel?: boolean
   switchingThinking?: boolean
   switchingCwd?: boolean

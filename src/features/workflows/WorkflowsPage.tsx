@@ -130,8 +130,8 @@ export function WorkflowBuilder({
   const { workflowId = 'new' } = useParams()
   const [searchParams] = useSearchParams()
   const onCreated = useCallback(
-    (createdWorkflowId: string) => {
-      navigate(workflowPath(createdWorkflowId), { replace: true })
+    (createdWorkflowId: string, quiet: boolean) => {
+      navigate(quiet ? workflowPath(createdWorkflowId) : '/workflows', { replace: true })
     },
     [navigate],
   )
