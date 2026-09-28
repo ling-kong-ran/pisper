@@ -62,7 +62,7 @@ export function WorkflowNodePalette({
             aria-label={t('workflows:editor.searchNodes')}
           />
         </div>
-        <div className="node-library max-h-[min(420px,60dvh)] overflow-y-auto overscroll-contain">
+        <div className="node-library max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain supports-[height:100dvh]:max-h-[min(420px,60dvh)]">
           {groups.map((group) => {
             const items = visible.filter(({ kind }) => group.match(kind))
             if (items.length === 0) return null

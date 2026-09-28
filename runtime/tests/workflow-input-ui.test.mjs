@@ -465,6 +465,29 @@ function editorFixture(context) {
   }
 }
 
+test('editor load failure remains actionable and retry restores the blank canvas draft', async (context) => {
+  const f = editorFixture(context)
+  f.render()
+  f.requests[0].reject(new Error('workflow catalog unavailable'))
+  await setImmediate()
+  let editor = f.render()
+  assert.equal(editor.loading, false)
+  assert.equal(editor.draft, null)
+  assert.match(editor.error, /workflow catalog unavailable/)
+
+  editor.retryLoad()
+  editor = f.render()
+  assert.equal(editor.loading, true)
+  assert.equal(editor.error, '')
+  assert.equal(f.requests.length, 2)
+  f.requests[1].resolve(emptyCatalog)
+  await setImmediate()
+  editor = f.render()
+  assert.equal(editor.loading, false)
+  assert.equal(editor.error, '')
+  assert.equal(editor.draft.nodes.length, 2)
+})
+
 test('switching ordinary workflows aborts the previous load and ignores its late result', async (context) => {
   const f = editorFixture(context)
   f.render({ workflowId: 'first' })

@@ -15,6 +15,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PAGE_PATHS, workflowPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { cn } from '@/lib/utils'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -227,14 +228,41 @@ export function WorkflowBuilder({
       registerWorkflowActions?.({
         save: () => saveWorkflow('draft'),
         run: running ? stopWorkflow : openRunDialog,
-        busy,
+        busy: busy || editor.loading || !editor.draft,
         running,
       }),
-    [busy, registerWorkflowActions, openRunDialog, running, saveWorkflow, stopWorkflow],
+    [
+      busy,
+      editor.draft,
+      editor.loading,
+      registerWorkflowActions,
+      openRunDialog,
+      running,
+      saveWorkflow,
+      stopWorkflow,
+    ],
   )
 
-  if (editor.loading || !editor.draft) {
+  if (editor.loading) {
     return <WorkflowLoading label={t('workflows:workflowsPage.loadingWorkflowEditor')} />
+  }
+  if (!editor.draft) {
+    return (
+      <AppEmptyState size="sm" className="gap-4 rounded-xl border bg-card p-6">
+        <AlertTriangle className="size-6 text-destructive" aria-hidden="true" />
+        <h2>{t('workflows:workflowsPage.workflowEditorLoadFailed')}</h2>
+        <WorkflowError message={editor.error} />
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button onClick={editor.retryLoad}>
+            <RefreshCw className="size-4" />
+            {t('workflows:workflowsPage.retryLoading')}
+          </Button>
+          <Button variant="outline" onClick={() => navigate(PAGE_PATHS.workflows)}>
+            {t('workflows:workflowsPage.backToWorkflows')}
+          </Button>
+        </div>
+      </AppEmptyState>
+    )
   }
 
   const inspector = (
@@ -332,7 +360,12 @@ export function WorkflowBuilder({
       {editor.running && editor.currentRun && (
         <WorkflowRunningNotice run={editor.currentRun} t={t} />
       )}
-      <div className="builder-layout grid h-[max(440px,calc(100dvh-220px))] min-w-0 grid-cols-1 overflow-hidden rounded-xl border bg-card @min-[1000px]/workflow:grid-cols-[minmax(0,1fr)_320px]">
+      <div
+        className={cn(
+          'builder-layout grid h-[max(440px,calc(100vh-220px))] min-h-[440px] min-w-0 overflow-hidden rounded-xl border bg-card supports-[height:100dvh]:h-[max(440px,calc(100dvh-220px))]',
+          wideEditor ? 'grid-cols-[minmax(0,1fr)_320px]' : 'grid-cols-1',
+        )}
+      >
         <WorkflowEditorCanvas
           draft={editor.draft}
           selectedNodeId={editor.selectedNodeId}

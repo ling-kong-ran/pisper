@@ -126,6 +126,8 @@
   "workflowsPage.inputPort": "Input port",
   "workflowsPage.latestRun": "Latest run",
   "workflowsPage.loadingWorkflowEditor": "Loading workflow editor",
+  "workflowsPage.workflowEditorLoadFailed": "Could not load the workflow editor.",
+  "workflowsPage.retryLoading": "Retry",
   "workflowsPage.loadingWorkflows": "Loading workflows",
   "workflowsPage.maximumConcurrency": "Maximum concurrency",
   "workflowsPage.name": "Name",

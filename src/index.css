@@ -502,29 +502,33 @@
   --star: var(--brand-blue);
   --star-hover: var(--brand-blue-hover);
   --star-strong: var(--brand-blue-strong);
-  --star-soft: color-mix(in srgb, var(--brand-blue) 15%, transparent);
-  --star-border: color-mix(in srgb, var(--brand-blue) 38%, transparent);
+  --star-soft: rgba(var(--brand-blue-rgb), .15);
+  --star-border: rgba(var(--brand-blue-rgb), .38);
   --on-accent: #fff;
-  --brand-blue-soft: color-mix(in srgb, var(--brand-blue) 15%, transparent);
-  --brand-blue-border: color-mix(in srgb, var(--brand-blue) 34%, transparent);
+  --brand-blue-soft: rgba(var(--brand-blue-rgb), .15);
+  --brand-blue-border: rgba(var(--brand-blue-rgb), .34);
 }
 
 :root[data-theme='dark'][data-accent='blue'] {
+  --brand-blue-rgb: 98, 169, 242;
   --brand-blue: #62a9f2;
   --brand-blue-hover: #7bb8f5;
   --brand-blue-strong: #93c5fd;
 }
 :root[data-theme='dark'][data-accent='teal'] {
+  --brand-blue-rgb: 77, 201, 189;
   --brand-blue: #4dc9bd;
   --brand-blue-hover: #67d6cb;
   --brand-blue-strong: #86e1d8;
 }
 :root[data-theme='dark'][data-accent='violet'] {
+  --brand-blue-rgb: 169, 145, 234;
   --brand-blue: #a991ea;
   --brand-blue-hover: #b8a4ef;
   --brand-blue-strong: #c8b9f4;
 }
 :root[data-theme='dark'][data-accent='coral'] {
+  --brand-blue-rgb: 239, 137, 148;
   --brand-blue: #ef8994;
   --brand-blue-hover: #f19ca5;
   --brand-blue-strong: #f5b0b7;

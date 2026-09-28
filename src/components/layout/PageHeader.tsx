@@ -197,6 +197,7 @@ export function PageHeader({
                 : primary[0]
             }
             onClick={onPrimary}
+            disabled={page === 'workflowCreate' && (!workflowActions || workflowActions.busy)}
           >
             {(() => {
               const PrimaryIcon = primary[1]

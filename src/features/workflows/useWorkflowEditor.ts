@@ -54,6 +54,7 @@ export function useWorkflowEditor({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const loadController = useRef<AbortController | null>(null)
   const uploads = useRef(new Set<string>())
   const [inputUploadsPending, setInputUploadsPending] = useState(false)
   const mutationController = useRef<AbortController | null>(null)
@@ -148,11 +149,19 @@ export function useWorkflowEditor({
     [t, templateId, workflowId],
   )
 
-  useEffect(() => {
+  const retryLoad = useCallback(() => {
+    loadController.current?.abort()
     const controller = new AbortController()
+    loadController.current = controller
+    setLoading(true)
+    setError('')
     void load(controller.signal)
-    return () => controller.abort()
   }, [load])
+
+  useEffect(() => {
+    retryLoad()
+    return () => loadController.current?.abort()
+  }, [retryLoad])
 
   useEffect(() => {
     void refreshSystemNotificationPermission()
@@ -674,6 +683,7 @@ export function useWorkflowEditor({
     selectedEdgeId,
     currentRun,
     loading,
+    retryLoad,
     busy: busy || inputUploadsPending,
     inputUploadsPending,
     onInputUploadBusy,

@@ -47,7 +47,7 @@ process.env.PISPER_WORKSPACE_DIR = workspace
 const { createPisperRuntime } = await import('../runtime/app-runtime.mjs')
 const app = await createPisperRuntime({
   root,
-  frontendRoot: join(root, 'dist'),
+  frontendRoot: process.env.PISPER_UI_DIST_DIR || join(root, 'dist'),
   runtimeCwd: workspace,
   dataDir,
   production: !development,
@@ -116,6 +116,7 @@ try {
     assert.equal(engine.status, 'ready', `Engine ${id}: ${engine.status}`)
   }
   browser = await chromium.launch({ headless: true, executablePath: browserPath })
+  report.browserVersion = browser.version()
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: 'zh-CN' })
   page.on('pageerror', (error) => report.errors.push(error.message))
   const oldProjectCalls = []
@@ -133,8 +134,64 @@ try {
   )
   await page.goto(base + '/#/workflows')
   await page.getByRole('button', { name: '稍后再说', exact: true }).click()
+  const themeColors = await page.evaluate(() => {
+    const root = document.documentElement
+    const previousTheme = root.dataset.theme
+    const previousAccent = root.dataset.accent
+    const probe = document.createElement('span')
+    probe.style.cssText =
+      'position:fixed;width:0;height:0;pointer-events:none;color:var(--color-red-600);background:var(--star-soft)'
+    document.body.append(probe)
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const context = canvas.getContext('2d')
+    const rgba = (value) => {
+      context.clearRect(0, 0, 1, 1)
+      context.fillStyle = value
+      context.fillRect(0, 0, 1, 1)
+      return [...context.getImageData(0, 0, 1, 1).data]
+    }
+    try {
+      root.dataset.theme = 'light'
+      const red = rgba(getComputedStyle(probe).color)
+      root.dataset.theme = 'dark'
+      const accents = Object.fromEntries(
+        ['blue', 'teal', 'violet', 'coral'].map((accent) => {
+          root.dataset.accent = accent
+          return [accent, rgba(getComputedStyle(probe).backgroundColor)]
+        }),
+      )
+      return { red, accents }
+    } finally {
+      if (previousTheme === undefined) delete root.dataset.theme
+      else root.dataset.theme = previousTheme
+      if (previousAccent === undefined) delete root.dataset.accent
+      else root.dataset.accent = previousAccent
+      probe.remove()
+    }
+  })
+  report.themeColors = themeColors
+  assert.ok(
+    themeColors.red[0] > 200 && themeColors.red[1] < 100 && themeColors.red[2] < 130,
+    `Palette red must not fall back to inherited gray: ${themeColors.red}`,
+  )
+  for (const color of Object.values(themeColors.accents))
+    assert.ok(color[3] >= 37 && color[3] <= 39, 'Dark accent surfaces retain 15% alpha')
+  report.checks.push(
+    'Palette colors and translucent dark accents survive the actual browser CSS parser',
+  )
   await page.getByRole('button', { name: '使用工作流', exact: true }).click()
   await page.waitForURL((url) => url.hash === '#/workflows/new?template=sprite')
+  await page.locator('.builder-layout').waitFor({ state: 'attached' })
+  report.canvasMetrics = await page.locator('.builder-layout').evaluate((element) => ({
+    height: element.getBoundingClientRect().height,
+    dynamicViewportUnits: CSS.supports('height', '100dvh'),
+    oklch: CSS.supports('color', 'oklch(50% .1 180)'),
+  }))
+  assert.ok(
+    report.canvasMetrics.height >= 440,
+    `Workflow canvas needs a usable height: ${JSON.stringify(report.canvasMetrics)}`,
+  )
   await page.locator('.react-flow__node').first().waitFor()
   assert.equal(await page.locator('.react-flow__node').count(), 20)
   assert.equal(await page.locator('.react-flow__edge').count(), 22)

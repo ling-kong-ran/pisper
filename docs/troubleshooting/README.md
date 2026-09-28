@@ -2,6 +2,8 @@
 
 本文档规定开发、测试和 CI 失败时的基本排查方式。具体平台问题继续记录在本目录或对应平台文档中，例如 `local-file-reveal.md`、`docs/mobile.md` 和 `docs/mobile-resume-network-verification.md`。
 
+旧 Windows 上的画布缺失、颜色退化与字体排查见 [旧 WebView2 显示兼容性](legacy-webview.md)。
+
 ## 基本流程
 
 1. 记录失败命令、源提交、Node/npm/Rust/平台版本、运行目标和首次失败时间。

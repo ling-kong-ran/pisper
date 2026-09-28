@@ -85,7 +85,7 @@ function strongOnDarkSurface(base: Rgb) {
   return '#fff'
 }
 
-// 生成完整 CSS 规则:亮色块复刻预设变量面,暗色块复刻预设的增亮 + color-mix 策略
+// 运行时注入不会经过 CSS 构建降级；直接生成 RGBA，保留旧 WebView 中的透明度。
 export function customAccentStyleRules(hex: string) {
   const base = hexToRgb(hex)
   const hover = mix(base, INK, 0.12)
@@ -118,14 +118,14 @@ export function customAccentStyleRules(hex: string) {
   --star: ${darkBase};
   --star-hover: ${darkHover};
   --star-strong: ${darkStrong};
-  --star-soft: color-mix(in srgb, ${darkBase} 15%, transparent);
-  --star-border: color-mix(in srgb, ${darkBase} 38%, transparent);
+  --star-soft: ${alpha(darkBaseRgb, 0.15)};
+  --star-border: ${alpha(darkBaseRgb, 0.38)};
   --on-accent: ${darkOn};
   --brand-blue: ${darkBase};
   --brand-blue-hover: ${darkHover};
   --brand-blue-strong: ${darkStrong};
-  --brand-blue-soft: color-mix(in srgb, ${darkBase} 15%, transparent);
-  --brand-blue-border: color-mix(in srgb, ${darkBase} 34%, transparent);
+  --brand-blue-soft: ${alpha(darkBaseRgb, 0.15)};
+  --brand-blue-border: ${alpha(darkBaseRgb, 0.34)};
   --accent-ring: ${alpha(darkBaseRgb, 0.22)};
   --focus: ${darkBase};
   --focus-ring: ${alpha(darkBaseRgb, 0.26)};

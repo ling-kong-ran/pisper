@@ -126,6 +126,8 @@
   "workflowsPage.inputPort": "输入端口",
   "workflowsPage.latestRun": "最近运行",
   "workflowsPage.loadingWorkflowEditor": "正在加载工作流编辑器",
+  "workflowsPage.workflowEditorLoadFailed": "无法加载工作流编辑器。",
+  "workflowsPage.retryLoading": "重试",
   "workflowsPage.loadingWorkflows": "正在加载工作流",
   "workflowsPage.maximumConcurrency": "最大并发",
   "workflowsPage.name": "名称",

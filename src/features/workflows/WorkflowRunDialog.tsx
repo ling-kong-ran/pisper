@@ -101,7 +101,10 @@ export function WorkflowRunDialog({
         if (!open && !submitting.current) onClose()
       }}
     >
-      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl" showCloseButton={!busy}>
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto supports-[height:100dvh]:max-h-[85dvh] sm:max-w-xl"
+        showCloseButton={!busy}
+      >
         <DialogHeader>
           <DialogTitle>{t('workflows:inputs.runTitle', { name: workflow.name })}</DialogTitle>
           <DialogDescription>{t('workflows:inputs.runHint')}</DialogDescription>
