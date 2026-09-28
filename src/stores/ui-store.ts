@@ -1,8 +1,9 @@
 // 全局 UI 偏好持久化到 localStorage；迁移层保留旧版按时间自动主题的行为，
 // 避免升级后用户在相同环境下看到意外的明暗变化。
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'
@@ -94,6 +95,7 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'pisper-ui',
+      storage: createJSONStorage(() => pageStateStorage),
       version: 1,
       migrate: (persisted, version): PersistedUiState => {
         const stored = persisted as Partial<PersistedUiState>

@@ -1,9 +1,13 @@
 // 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载聊天页。
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
-import { useCallback } from 'react'
-import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
-import { ensureChannelsMessages, ensureMcpMessages, ensureWorkflowMessages } from './i18n'
+import { Navigate, useOutletContext, useParams } from 'react-router-dom'
+import {
+  ensureChannelsMessages,
+  ensureCustomUiMessages,
+  ensureMcpMessages,
+  ensureWorkflowMessages,
+} from './i18n'
 import type { AppRouteContext } from './route-context'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
@@ -16,16 +20,10 @@ export async function chatRoute() {
 
   function ChatRoute() {
     const context = useAppRouteContext()
-    const navigate = useNavigate()
-    const openLayoutSettings = useCallback(
-      () => navigate('/config/interface?view=layout'),
-      [navigate],
-    )
     return (
       <ChatPage
         notify={context.notify}
         navigate={context.navigate}
-        onOpenLayoutSettings={openLayoutSettings}
         browserNotify={context.browserNotify}
         registerPrimaryAction={context.registerPrimaryAction}
         pendingAsset={context.pendingAsset}
@@ -218,7 +216,7 @@ export async function skillsRoute() {
 
 export async function componentsRoute() {
   function LegacyComponentsRoute() {
-    return <Navigate to="/config/interface?view=layout" replace />
+    return <Navigate to="/config/interface?view=widgets" replace />
   }
   return { Component: LegacyComponentsRoute }
 }
@@ -226,13 +224,26 @@ export async function componentsRoute() {
 export async function gameAssetWorkbenchRoute() {
   const [{ CustomUiToolPage }] = await Promise.all([
     import('@/features/custom-ui/public'),
-    ensureWorkflowMessages(),
+    ensureCustomUiMessages(),
   ])
   function GameAssetWorkbenchRoute() {
     const context = useAppRouteContext()
     return <CustomUiToolPage componentId="pisper-game-asset-workbench" notify={context.notify} />
   }
   return { Component: GameAssetWorkbenchRoute }
+}
+
+export async function customComponentRoute() {
+  const [{ CustomUiToolPage }] = await Promise.all([
+    import('@/features/custom-ui/public'),
+    ensureCustomUiMessages(),
+  ])
+  function CustomComponentRoute() {
+    const context = useAppRouteContext()
+    const { componentId = '' } = useParams()
+    return <CustomUiToolPage componentId={componentId} notify={context.notify} />
+  }
+  return { Component: CustomComponentRoute }
 }
 
 export async function decisionsRoute() {

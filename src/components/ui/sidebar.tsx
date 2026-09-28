@@ -51,6 +51,7 @@ function useSidebar() {
 
 function SidebarProvider({
   defaultOpen = true,
+  mobile,
   open: openProp,
   onOpenChange: setOpenProp,
   openMobile: openMobileProp,
@@ -61,12 +62,14 @@ function SidebarProvider({
   ...props
 }: React.ComponentProps<'div'> & {
   defaultOpen?: boolean
+  mobile?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
   openMobile?: boolean
   onOpenMobileChange?: (open: boolean) => void
 }) {
-  const isMobile = useIsMobile()
+  const phoneViewport = useIsMobile()
+  const isMobile = mobile ?? phoneViewport
   const [_openMobile, _setOpenMobile] = React.useState(false)
   const openMobile = openMobileProp ?? _openMobile
   const setOpenMobile = React.useCallback(
@@ -202,7 +205,7 @@ function Sidebar({
 
   return (
     <div
-      className="group peer hidden text-sidebar-foreground min-[901px]:block"
+      className="group peer hidden text-sidebar-foreground min-[651px]:block"
       data-state={state}
       data-collapsible={state === 'collapsed' ? collapsible : ''}
       data-variant={variant}
@@ -226,7 +229,7 @@ function Sidebar({
         data-side={side}
         inert={state === 'collapsed' && collapsible === 'offcanvas'}
         className={cn(
-          'absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] min-[901px]:flex',
+          'absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] min-[651px]:flex',
           // Adjust the padding for floating and inset variants.
           variant === 'floating' || variant === 'inset'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'

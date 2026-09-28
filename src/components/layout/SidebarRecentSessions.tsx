@@ -59,6 +59,7 @@ import {
 } from '@/features/chat/session-workspaces'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
 import {
@@ -114,7 +115,7 @@ function WorkspaceActionButton({
     <Button
       type="button"
       variant="ghost"
-      className="opacity-0 group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 !size-7 !min-h-7 !shrink-0 !p-0 !text-[var(--text-muted)] hover:!bg-[var(--surface-hover)] hover:!text-[var(--text)] max-[900px]:!size-11 max-[900px]:!min-h-11"
+      className="opacity-0 group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 !size-7 !min-h-7 !shrink-0 !p-0 !text-[var(--text-muted)] hover:!bg-[var(--surface-hover)] hover:!text-[var(--text)] max-[650px]:!size-11 max-[650px]:!min-h-11"
       title={label}
       aria-label={label}
       onClick={onClick}
@@ -142,7 +143,7 @@ export function SidebarRecentSessions({
   const workspaceNames = useWorkspaceOrderStore((state) => state.names)
   const setWorkspaceName = useWorkspaceOrderStore((state) => state.setWorkspaceName)
   const [activeSessionId, setActiveSessionId] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
+    () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   // 右键菜单状态：menuTargetKey 记录右键落在哪个工作区分组（空串=空白区域），
   // menuTargetSessionId 记录右键落点是否为某个会话（优先级高于分组）；
@@ -216,7 +217,7 @@ export function SidebarRecentSessions({
     }
     const syncActive = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string }>).detail
-      setActiveSessionId(detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || '')
+      setActiveSessionId(detail?.id || pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '')
     }
     document.addEventListener('visibilitychange', refreshWhenVisible)
     window.addEventListener(SESSION_SELECTED_EVENT, syncActive)
@@ -266,7 +267,7 @@ export function SidebarRecentSessions({
     }
     const deletedIds = new Set(result.deletedIds)
     const remaining = refreshed ?? baseline.filter((session) => !deletedIds.has(session.id))
-    const currentActiveId = localStorage.getItem(STORAGE_KEYS.activeSession) || activeSessionId
+    const currentActiveId = pageStateStorage.getItem(STORAGE_KEYS.activeSession) || activeSessionId
     const nextId = replacementActiveSessionId(
       currentActiveId,
       remaining,
@@ -277,7 +278,7 @@ export function SidebarRecentSessions({
       setActiveSessionId(nextId)
       if (nextId) requestSessionSelection(nextId)
       else {
-        localStorage.removeItem(STORAGE_KEYS.activeSession)
+        pageStateStorage.removeItem(STORAGE_KEYS.activeSession)
         announceActiveSession('')
       }
     }

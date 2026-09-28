@@ -154,7 +154,9 @@ export function PageHeader({
                 : t('navigation:pageHeader.testRun')}
             </Button>
           </>
-        ) : page === 'chat' || page === 'gameAssetWorkbench' ? null : page === 'config' ? (
+        ) : page === 'chat' ||
+          page === 'gameAssetWorkbench' ||
+          page === 'customComponentTool' ? null : page === 'config' ? (
           searchSlot
         ) : (
           <label

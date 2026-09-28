@@ -27,6 +27,7 @@ import zhDecisions from '@/locales/zh-CN/decisions.json' with { type: 'json' }
 import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
 import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
 import { STORAGE_KEYS } from './storage.ts'
+import { pageStateStorage } from '@/lib/page-state-storage'
 
 export const DEFAULT_LANGUAGE = 'zh-CN' as const
 export const SUPPORTED_LANGUAGES = ['zh-CN', 'en-US'] as const
@@ -53,7 +54,6 @@ export const I18N_NAMESPACES = Object.freeze([
   'providers',
   'remote-workspace',
   'custom-ui',
-  'chat-layout',
   'mcp',
   'memory',
   'plugins',
@@ -68,7 +68,7 @@ export type I18nNamespace = (typeof I18N_NAMESPACES)[number]
 // 读取持久化语言：localStorage 里无值或值非法时回退默认语言（zh-CN）。
 export function storedLanguage(): SupportedLanguage {
   try {
-    const stored = localStorage.getItem(STORAGE_KEYS.language)
+    const stored = pageStateStorage.getItem(STORAGE_KEYS.language)
     return isSupportedLanguage(stored) ? stored : DEFAULT_LANGUAGE
   } catch {
     return DEFAULT_LANGUAGE
@@ -123,7 +123,6 @@ void i18n.use(initReactI18next).init({
 
 let channelsMessagesPromise: Promise<void> | null = null
 let mcpMessagesPromise: Promise<void> | null = null
-let chatLayoutMessagesPromise: Promise<void> | null = null
 let customUiMessagesPromise: Promise<void> | null = null
 
 // 独立组件的文案随目录或沙箱宿主加载，普通会话无须预载全部组件提示。
@@ -140,25 +139,6 @@ export function ensureCustomUiMessages(): Promise<void> {
       throw error
     })
   return customUiMessagesPromise
-}
-
-// 布局编辑器的文案只在进入该页时加载，不挤占会话首屏预算。
-export function ensureChatLayoutMessages(): Promise<void> {
-  if (
-    i18n.hasResourceBundle('zh-CN', 'chat-layout') &&
-    i18n.hasResourceBundle('en-US', 'chat-layout')
-  )
-    return Promise.resolve()
-  chatLayoutMessagesPromise ??= import('./chat-layout-messages')
-    .then(({ chatLayoutMessages: { zh, en } }) => {
-      i18n.addResourceBundle('zh-CN', 'chat-layout', zh)
-      i18n.addResourceBundle('en-US', 'chat-layout', en)
-    })
-    .catch((error: unknown) => {
-      chatLayoutMessagesPromise = null
-      throw error
-    })
-  return chatLayoutMessagesPromise
 }
 
 // 通道词条只由通道页使用；在路由挂载前同时注册两种语言，避免切换语言时闪现键名。

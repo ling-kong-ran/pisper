@@ -8,7 +8,7 @@
 //   与应用的交互只能走父页面代理的 postMessage 桥，能力按 manifest.permissions 过滤。
 // - 资产读取限制在组件目录内：拒绝绝对路径、.. 穿越与符号链接逃逸；
 //   manifest.json 与隐藏文件永不作为资产返回。
-// - 组件目录完全由用户在本机放置，runtime 不做远程安装/下载。
+// - 用户可本机放置目录，或经鉴权 API 导入 ZIP；Runtime 不做远程下载。
 import { randomBytes } from 'node:crypto'
 import { parse, serialize } from 'parse5'
 import { createReadStream } from 'node:fs'
@@ -17,6 +17,7 @@ import { extname, isAbsolute, join, normalize, resolve, sep } from 'node:path'
 import { readJson } from '../storage/json-file.mjs'
 import { displayCustomUiPath } from './custom-ui-path.mjs'
 import { BUILTIN_CUSTOM_UI_COMPONENTS } from './custom-ui-builtins.mjs'
+import { importCustomUiZip, CUSTOM_UI_MANIFEST_MAX_BYTES } from './custom-ui-import.mjs'
 
 // 组件 id 即目录名：只允许安全的文件名字符，避免路径与 URL 编码问题。
 const COMPONENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/
@@ -53,7 +54,7 @@ const ASSET_MIME = {
 
 // 资产大小上限：组件应是轻量静态页面，防止把目录当成文件服务器滥用。
 const MAX_ASSET_BYTES = 8 * 1024 * 1024
-const MAX_MANIFEST_BYTES = 64 * 1024
+const MAX_MANIFEST_BYTES = CUSTOM_UI_MANIFEST_MAX_BYTES
 const VIEW_TTL_MS = 5 * 60_000
 const MAX_VIEWS = 128
 
@@ -166,6 +167,15 @@ export class CustomUiService {
     this.now = now
     this.views = new Map()
     this.builtins = new Map(builtinComponents.map((component) => [component.id, component]))
+  }
+
+  async importBundle(bytes) {
+    return importCustomUiZip({
+      root: this.root,
+      bytes,
+      normalizeManifest: normalizeComponentManifest,
+      reservedIds: [...this.builtins.keys()],
+    })
   }
 
   // 仅由已鉴权的父页面签发；凭证只能读取单个组件静态资源，不能用于任何应用 API。

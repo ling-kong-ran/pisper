@@ -1,6 +1,6 @@
 // 工作台导航只负责展示；会话创建、搜索与设置跳转由应用壳传入。
 import { lazy, Suspense, useMemo } from 'react'
-import { Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
+import { Blocks, Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
@@ -41,7 +41,9 @@ type AppSidebarProps = {
   page: string
   configSection: string
   navigation: Array<[string, Array<[string, string, LucideIcon]>]>
+  installedTools: Array<{ id: string; name: string }>
   navigate: (page: string) => void
+  onOpenComponent: (id: string) => void
   navigateSettings: (destination: SettingsDestination) => void
   onNewChat: () => void
   onSearch: () => void
@@ -57,7 +59,9 @@ export function AppSidebar({
   page,
   configSection,
   navigation,
+  installedTools,
   navigate,
+  onOpenComponent,
   navigateSettings,
   onNewChat,
   onSearch,
@@ -86,7 +90,14 @@ export function AppSidebar({
   const workspaceItems = ['workflows', 'assets'].flatMap((id) =>
     items.filter(([key]) => key === id),
   )
-  const extraItems = items.filter(([id]) => !['chat', 'workflows', 'assets'].includes(id))
+  const extraItems: Array<[string, string, LucideIcon]> = [
+    ...items.filter(([id]) => !['chat', 'workflows', 'assets'].includes(id)),
+    ...installedTools.map(({ id, name }): [string, string, LucideIcon] => [
+      `component:${id}`,
+      name,
+      Blocks,
+    ]),
+  ]
   const runAndClose = (action: () => void) => {
     action()
     if (isMobile) setOpenMobile(false)
@@ -229,7 +240,11 @@ export function AppSidebar({
                     items={extraItems}
                     buttonClassName={navButton}
                     compact={compact}
-                    onNavigate={(id) => runAndClose(() => navigate(id))}
+                    onNavigate={(id) =>
+                      runAndClose(() =>
+                        id.startsWith('component:') ? onOpenComponent(id.slice(10)) : navigate(id),
+                      )
+                    }
                   />
                 </Suspense>
               )}

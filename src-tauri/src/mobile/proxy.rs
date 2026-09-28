@@ -1,5 +1,6 @@
 //! 本地回环代理：WebView 只访问 `http://127.0.0.1:<port>`（明文、仅回环）。
-//! 签名包内 Runtime 始终提供 React UI；远程模式仅把 `/api/*` 转发到当前桌面端，
+//! 签名包内 Runtime 始终提供 React UI；远程模式把业务 `/api/*` 转发到当前桌面端，
+//! `/api/local/browser-preferences` 始终由本机 Runtime 处理，
 //! 并执行 TLS 指纹锁定、Bearer 注入与 SSE 字节流透传。
 use std::{
     convert::Infallible,
@@ -985,7 +986,7 @@ async fn forward_local(
 }
 
 fn route_to_remote(path: &str, remote_mode: bool) -> bool {
-    path.starts_with("/api/") && remote_mode
+    path.starts_with("/api/") && path != "/api/local/browser-preferences" && remote_mode
 }
 
 async fn forward(
@@ -1100,6 +1101,7 @@ mod routing_tests {
         assert!(!route_to_remote("/", true));
         assert!(!route_to_remote("/assets/index.js", true));
         assert!(!route_to_remote("/release-notes.json", true));
+        assert!(!route_to_remote("/api/local/browser-preferences", true));
     }
 }
 

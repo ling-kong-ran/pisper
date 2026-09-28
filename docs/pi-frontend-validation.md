@@ -13,7 +13,7 @@
 | `npm run check` | TypeScript、oxlint、双语 i18n、Prettier、桌面伴随进程启动门禁通过 |
 | `npm test` | 2443 项：2438 通过、5 跳过、0 失败 |
 | `npm run build` | Vite 生产构建、体积预算、285 个 JS 的 Safari 15 解析兼容审计通过 |
-| `node scripts/smoke-zcode-ui.mjs` | 25 项交互检查、20 个功能/配置路由，无 React 异常 |
+| `node scripts/smoke-pisper-ui.mjs` | 25 项交互检查、20 个功能/配置路由，无 React 异常 |
 | `git diff --check` | 通过 |
 
 生产构建审计：入口约 40.99 kB gzip、ChatPage 约 126.07 kB gzip、总 CSS 约 80.25 kB gzip。没有将 Dockview 或欢迎页装饰 CSS 打包进此单会话界面，其他路由懒加载预算仍受保护。

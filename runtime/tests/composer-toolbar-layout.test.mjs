@@ -216,3 +216,42 @@ test('legacy separate effort shortcut retires without losing combined model acce
   assert.deepEqual(previous, before)
   assert.deepEqual(new Set([...migrated.inline, ...migrated.overflow]), new Set(COMPOSER_TOOL_IDS))
 })
+
+test('renamed toolbar storage preserves custom placements and prefers already migrated state', async () => {
+  const legacyKey = 'pisper-zcode-composer-toolbar'
+  const key = 'pisper-composer-toolbar'
+  const custom = normalizeComposerToolbarLayout({
+    inline: ['commands', 'model'],
+    overflow: ['permission', 'run-mode', 'attachment'],
+  })
+  const legacyValue = JSON.stringify({ state: { layout: custom }, version: 1 })
+  const values = new Map([[legacyKey, legacyValue]])
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (name) => values.get(name) ?? null,
+        setItem: (name, value) => values.set(name, value),
+        removeItem: (name) => values.delete(name),
+      },
+    },
+  })
+  try {
+    const { useComposerToolbarStore: store } =
+      await import('../../src/features/chat/composer-toolbar-store.ts')
+    assert.deepEqual(store.getState().layout, custom)
+    assert.equal(values.get(key), legacyValue)
+    assert.equal(values.has(legacyKey), false)
+
+    store.getState().setAllToolsLocation('overflow')
+    const edited = structuredClone(store.getState().layout)
+    values.set(legacyKey, legacyValue)
+    await store.persist.rehydrate()
+    assert.deepEqual(store.getState().layout, edited)
+    assert.equal(store.getState().layout.inline.length, 0)
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+    else Reflect.deleteProperty(globalThis, 'window')
+  }
+})

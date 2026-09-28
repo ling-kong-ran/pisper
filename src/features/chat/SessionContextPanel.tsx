@@ -326,7 +326,15 @@ export function SessionContextPanel({
         side="right"
         showCloseButton={false}
         className="gap-0 overflow-hidden p-0"
-        style={{ width: 'min(100vw, 420px)', maxWidth: 'none' }}
+        style={{
+          top: 'var(--pisper-safe-area-top)',
+          right: 'var(--pisper-safe-area-right)',
+          bottom: 'var(--pisper-safe-area-bottom)',
+          height: 'auto',
+          width:
+            'min(calc(100vw - var(--pisper-safe-area-left) - var(--pisper-safe-area-right)), 420px)',
+          maxWidth: 'none',
+        }}
       >
         <SheetHeader className="sr-only">
           <SheetTitle>{t('chat:sessionContext.title')}</SheetTitle>

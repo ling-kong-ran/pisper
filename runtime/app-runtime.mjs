@@ -27,9 +27,11 @@ import { DecisionService } from './services/decision-service.mjs'
 import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
 import { SpeechTermsService } from './services/speech-terms-service.mjs'
 import { CustomUiService } from './services/custom-ui-service.mjs'
+import { BrowserPreferencesService } from './services/browser-preferences-service.mjs'
 import { McpHostService } from './services/mcp-host-service.mjs'
 import { createMcpHostAdapter } from './runtime/mcp-host-adapter.mjs'
 import { handleCustomUiResource } from './http/routes/custom-ui.mjs'
+import { handleLocalBrowserPreferences } from './http/local-browser-preferences.mjs'
 
 // 运行时尚未初始化完成时的 503 响应：避免把半初始化状态当成正常服务暴露。
 function serviceUnavailable(res) {
@@ -99,6 +101,7 @@ export async function createPisperRuntime({
 
   const desktopPet = new WebDesktopPetService({ dataDir: agentDir })
   const customUi = new CustomUiService({ dataDir: agentDir })
+  const browserPreferences = new BrowserPreferencesService({ dataDir: agentDir })
   const mcpHost = new McpHostService({ dataDir: agentDir, getRuntime: () => mcpHostAdapter })
   const serveProduction = createStaticHandler(appRoot, { distRoot: frontendRoot })
   let runtime = null
@@ -426,6 +429,13 @@ export async function createPisperRuntime({
     } else if (authorizeDesktopRequest(req, res, url, { token: desktopAuthToken, origin })) {
       return
     }
+    if (
+      await handleLocalBrowserPreferences(req, res, url, browserPreferences, {
+        remote: isRemoteListener,
+        origin,
+      })
+    )
+      return
     if (req.method === 'GET' && url.pathname === '/api/ready') {
       // 必须经过上面的正常鉴权；轮询不排队，未就绪直接返回 503。
       const ready = initialization.base === 'ready'
@@ -531,6 +541,7 @@ export async function createPisperRuntime({
         await decisionsInitialized?.catch(() => null)
         await decisions?.dispose()
         customUi.dispose()
+        await browserPreferences.dispose()
         await runtime?.dispose()
         await vite?.close()
         await new Promise((resolveClose) => server.close(() => resolveClose()))

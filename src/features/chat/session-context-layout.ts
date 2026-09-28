@@ -10,7 +10,8 @@ export type SessionContextRun = {
   runStartedAt?: string | null
 }
 
-// 只跟随当前会话的运行终态；打开旧会话或后台会话结束都不能抢占面板。
+// 目录摘要可能先显示“运行中”，实时快照随后给出已完成的历史轮次。
+// 只有前后都确认是同一轮运行，才把流结束视为本页观察到的完成事件。
 export function didCompleteSessionContextRun(
   previous: SessionContextRun | null,
   current: SessionContextRun,
@@ -19,8 +20,12 @@ export function didCompleteSessionContextRun(
     current.sessionId &&
     previous?.sessionId === current.sessionId &&
     previous.streaming &&
+    !previous.completed &&
     !current.streaming &&
-    current.completed,
+    current.completed &&
+    previous.runStartedAt &&
+    Number.isFinite(Date.parse(previous.runStartedAt)) &&
+    previous.runStartedAt === current.runStartedAt,
   )
 }
 

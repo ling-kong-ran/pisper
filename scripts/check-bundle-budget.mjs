@@ -11,8 +11,8 @@ export const BUNDLE_BUDGETS = {
   // 移动端恢复门禁保留在统一请求层，入口只增加极小的按需加载开销。
   // 状态栏新增连接探针与重连提示（自适应轮询 + 内置 toast）后，入口文件小幅增长。
   entryFileGzip: 57 * KIB + 384,
-  // 插件市场与 Pi Extension 桥接加入首屏插件路由，保留约 1 KB 的压缩预算余量。
-  entryStaticJsGzip: 283 * KIB,
+  // 页面偏好恢复后无条件加载的 mount-app 也计入启动面；分块与恢复客户端增加约 7 KB。
+  entryStaticJsGzip: 292 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
   chunks: {
@@ -64,6 +64,16 @@ function staticClosure(manifest, startKey) {
   }
   visit(startKey)
   return visited
+}
+
+export function initialApplicationClosure(manifest, entryKey) {
+  const closure = staticClosure(manifest, entryKey)
+  const mount = 'src/mount-app.tsx'
+  // 页面状态恢复后会无条件加载应用壳；预算应把它算进启动面，而非误算成 Markdown 懒加载。
+  if (manifest[entryKey]?.dynamicImports?.includes(mount)) {
+    for (const key of staticClosure(manifest, mount)) closure.add(key)
+  }
+  return closure
 }
 
 function findStaticCycle(manifest) {
@@ -121,7 +131,7 @@ export async function inspectBundle(distDirectory = resolve('dist')) {
   const entryKey = records.find(([, record]) => record.isEntry)?.[0]
   if (!entryKey) throw new Error('Bundle manifest does not contain an application entry')
 
-  const entryClosure = staticClosure(manifest, entryKey)
+  const entryClosure = initialApplicationClosure(manifest, entryKey)
   const initialFiles = unique(
     [...entryClosure].map((key) => manifest[key]?.file).filter((file) => file?.endsWith('.js')),
   )

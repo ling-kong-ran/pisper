@@ -172,6 +172,13 @@ mDNS 广播，但建议同时吊销不再使用的设备。
 
 ## 排障
 
+### Android 状态栏遮挡会话上下文
+
+Android 15/16 的 edge-to-edge WebView 可能把 CSS `safe-area-inset-*` 返回为 0。
+Pisper 从原生 `WindowInsetsCompat` 同步系统栏和挖孔的安全区，应用外壳及 Portal 中的
+会话上下文抽屉使用同一组变量；旋转和键盘变化时重新计算，关闭按钮不应进入状态栏区域。
+iOS 继续使用 WebKit 的 CSS 安全区，桌面默认安全区为 0。
+
 ### 手机无法连接桌面
 
 - 确认桌面 Pisper 正在运行，且 **设置 -> 远程访问** 的开关已开启；监听失败时页面会显示错误信息。

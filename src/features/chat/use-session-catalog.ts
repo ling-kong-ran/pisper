@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import {
   applySessionUpdate,
@@ -48,7 +49,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const queryClient = useQueryClient()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeId, setActiveId] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
+    () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [sessionStates, setSessionStates] = useState<Record<string, SessionState>>({})
   const [loading, setLoading] = useState(true)
@@ -370,7 +371,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
               : {}),
           })
         }
-        const storedId = localStorage.getItem(STORAGE_KEYS.activeSession)
+        const storedId = pageStateStorage.getItem(STORAGE_KEYS.activeSession)
         const knownIds = new Set([
           ...list.map((session) => session.id),
           ...Object.keys(sessionStatesRef.current),
@@ -415,8 +416,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   }, [notify, t, titleReconciler, updateSessionState, updateSessions])
 
   useEffect(() => {
-    if (activeId) localStorage.setItem(STORAGE_KEYS.activeSession, activeId)
-    else localStorage.removeItem(STORAGE_KEYS.activeSession)
+    if (activeId) pageStateStorage.setItem(STORAGE_KEYS.activeSession, activeId)
+    else pageStateStorage.removeItem(STORAGE_KEYS.activeSession)
   }, [activeId])
 
   const activeSession = sessions.find((session) => session.id === activeId)

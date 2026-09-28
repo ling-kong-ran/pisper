@@ -1,5 +1,4 @@
 // 内置示例与用户组件使用同一沙箱和桥接协议；资源随 Runtime 模块打包，离线可用。
-import { GAME_ASSET_WORKBENCH_COMPONENT } from './custom-ui-game-asset-workbench.mjs'
 /**
  * @typedef {Readonly<{
  *   id: string,
@@ -365,5 +364,4 @@ export const BUILTIN_CUSTOM_UI_COMPONENTS = Object.freeze([
 </html>`,
     }),
   }),
-  GAME_ASSET_WORKBENCH_COMPONENT,
 ])

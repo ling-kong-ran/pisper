@@ -631,7 +631,6 @@
   "configSearch.noResults": "未找到匹配的设置项",
   "interfaceSettings.tabsLabel": "界面设置分类",
   "interfaceSettings.appearanceTab": "外观",
-  "interfaceSettings.chatLayoutTab": "会话布局",
   "interfaceSettings.customUiTab": "独立组件",
   "providerWorkbench.actions": "连接操作",
   "providerWorkbench.connection": "连接配置",

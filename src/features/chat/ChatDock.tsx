@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore 
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, History, MessageSquare, Plus, X } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
@@ -80,7 +81,9 @@ const MOBILE_SESSION_TAB_LIMIT = 6
 
 function readMobileSessionTabs() {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEYS.mobileSessionTabs) || '[]')
+    const value: unknown = JSON.parse(
+      pageStateStorage.getItem(STORAGE_KEYS.mobileSessionTabs) || '[]',
+    )
     return Array.isArray(value)
       ? value
           .filter((item): item is string => typeof item === 'string')
@@ -138,7 +141,7 @@ export function MobileSessionPanel({
   }, [activeId, context?.sessions, sessionIds])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.mobileSessionTabs, JSON.stringify(tabIds))
+    pageStateStorage.setItem(STORAGE_KEYS.mobileSessionTabs, JSON.stringify(tabIds))
   }, [tabIds])
 
   useEffect(() => {
@@ -446,16 +449,13 @@ function SessionPanel({
         lastActivityAt={state.lastActivityAt}
         runFinishedAt={state.runFinishedAt}
         runStopped={state.runStopped}
-        runCompleted={state.lifecycle?.phase === 'completed' && !state.error && !state.runStopped}
         runNotice={state.runNotice}
         approvals={state.approvals || EMPTY_LIST}
         error={state.error || (context.activeId === sessionId ? context.globalError : '')}
         pendingAsset={pending}
         onAssetConsumed={context.onAssetConsumed}
         notify={context.notify}
-        requestConfirm={context.requestConfirm}
         onOpenModelSettings={context.openModelSettings}
-        onOpenLayoutSettings={context.openLayoutSettings}
         onCompactionThresholdChange={context.setCompactionThreshold}
         canSplit={canSplitPanel}
         canClosePanel={canClosePanel}

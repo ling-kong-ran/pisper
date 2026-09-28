@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, type PersistStorage } from 'zustand/middleware'
+import { pageStateStorage } from '@/lib/page-state-storage'
 
 type FloatingWidgetsPreferences = { prefs: Record<string, boolean> }
 type FloatingWidgetsState = FloatingWidgetsPreferences & {
@@ -70,7 +71,7 @@ export const useFloatingWidgetsStore = create<FloatingWidgetsState>()((set, get,
   const storage: PersistStorage<FloatingWidgetsPreferences> = {
     getItem: (key) => {
       try {
-        const raw = window.localStorage.getItem(key)
+        const raw = pageStateStorage.getItem(key)
         if (raw === null) {
           reportStorage(false)
           return null
@@ -92,7 +93,7 @@ export const useFloatingWidgetsStore = create<FloatingWidgetsState>()((set, get,
     },
     setItem: (key, value) => {
       try {
-        window.localStorage.setItem(key, JSON.stringify(value))
+        pageStateStorage.setItem(key, JSON.stringify(value))
         reportStorage(false)
       } catch {
         reportStorage(true)
@@ -100,7 +101,7 @@ export const useFloatingWidgetsStore = create<FloatingWidgetsState>()((set, get,
     },
     removeItem: (key) => {
       try {
-        window.localStorage.removeItem(key)
+        pageStateStorage.removeItem(key)
         reportStorage(false)
       } catch {
         reportStorage(true)

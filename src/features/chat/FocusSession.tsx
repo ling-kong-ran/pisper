@@ -3,7 +3,7 @@
 // use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
 // focus-session-composer-bits，状态文案在 focus-session-status；
 // composer 主体与发送行为约定保留在本文件。
-import { lazy, memo, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react'
 import {
   AudioLines,
   Braces,
@@ -18,7 +18,6 @@ import {
   X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { ensureChatLayoutMessages } from '@/app/i18n'
 import { WorkbenchSidebarToggle } from '@/components/layout/WorkbenchSidebarToggle'
 import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import { useUiStore } from '@/stores/ui-store'
@@ -50,14 +49,6 @@ import {
   SessionUsageMetrics,
 } from './FocusRuntimeControls'
 import { FocusTranscript } from './FocusTranscript'
-import { useChatLayoutStore } from './layout/chat-layout-store'
-import { ChatCanvasLayout, ChatCanvasSlot } from './layout/ChatCanvasLayout'
-import { canvasHasKind, createDefaultCanvas, parseChatCanvas } from './layout/chat-canvas'
-import {
-  CHAT_LAYOUT_ACCENT_CLASS,
-  chatLayoutAppearanceStyle,
-  chatLayoutMeasurementKey,
-} from './layout/chat-layout-appearance'
 import { ExecutionModeControl } from './GoalModeControl'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
@@ -83,20 +74,6 @@ import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/s
 export type { FocusSessionProps }
 
 const QuickPromptIdeas = lazy(() => import('./QuickPromptIdeas'))
-
-const ChatLayoutSwitcher = lazy(async () => {
-  const [{ ChatLayoutSwitcher }] = await Promise.all([
-    import('./layout/ChatLayoutSwitcher'),
-    ensureChatLayoutMessages(),
-  ])
-  return { default: ChatLayoutSwitcher }
-})
-
-const CanvasSessionContext = lazy(() =>
-  import('./layout/CanvasSessionContext').then((module) => ({
-    default: module.CanvasSessionContext,
-  })),
-)
 
 // 托盘外部点击关闭的排除区域：触发按钮、托盘壳、锚定弹层，以及 portal 到 body 的
 // 对话框与浮层（Git diff 对话框、Radix Dialog/AlertDialog/Popover/DropdownMenu/Select/Sheet）。
@@ -165,7 +142,6 @@ export const FocusSession = memo(function FocusSession({
   lastActivityAt,
   runFinishedAt,
   runStopped,
-  runCompleted = false,
   runNotice,
   approvals,
   error,
@@ -175,9 +151,7 @@ export const FocusSession = memo(function FocusSession({
   contextPanelId,
   onToggleContext,
   notify,
-  requestConfirm,
   onOpenModelSettings,
-  onOpenLayoutSettings,
   onAssetConsumed,
   onLoadOlder,
   onModelChange,
@@ -208,20 +182,6 @@ export const FocusSession = memo(function FocusSession({
   const mobileApp = useIsMobileApp()
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  const chatLayout = useChatLayoutStore((state) => state.active)
-  const appearance = mobileLayout ? chatLayout.mobile : chatLayout.desktop
-  const layoutMeasurementKey = useMemo(
-    () => `${chatLayoutMeasurementKey(appearance)}:${JSON.stringify(appearance.canvas)}`,
-    [appearance],
-  )
-  const canvasModel = canvasHasKind(appearance.canvas, 'model')
-  const canvasTools = canvasHasKind(appearance.canvas, 'tools')
-  const canvasUsage = canvasHasKind(appearance.canvas, 'usage')
-  const canvasContext = canvasHasKind(appearance.canvas, 'context')
-  const canvasHeader = canvasHasKind(appearance.canvas, 'header')
-  const canvasContextId = useId()
-  const [canvasContextOpen, setCanvasContextOpen] = useState(true)
-  const visibleContextOpen = canvasContext ? canvasContextOpen : contextOpen
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
   const teamAvailable = runtimeFeatureAvailable(capabilities, 'multiAgent')
@@ -261,15 +221,7 @@ export const FocusSession = memo(function FocusSession({
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
-  // 只调整未自定义的默认空白画布；用户拖拽、CSS 和置顶输入布局保持原样。
-  const centeredWelcome =
-    !hasConversation &&
-    appearance.composerPosition === 'bottom' &&
-    [true, false].some(
-      (includeIsland) =>
-        JSON.stringify(appearance.canvas) ===
-        JSON.stringify(parseChatCanvas(createDefaultCanvas({ ...appearance, includeIsland }))),
-    )
+  const centeredWelcome = !hasConversation
   const composerStatusLabel = useFocusSessionStatusLabel(
     {
       streaming,
@@ -514,9 +466,7 @@ export const FocusSession = memo(function FocusSession({
       />
     ),
   }
-  const availableComposerToolIds = COMPOSER_TOOL_IDS.filter(
-    (id) => composerTools[id] !== null && !(id === 'model' && canvasModel),
-  )
+  const availableComposerToolIds = COMPOSER_TOOL_IDS.filter((id) => composerTools[id] !== null)
   const toolbarAllocation = allocateComposerToolbar(
     toolbarLayout,
     availableComposerToolIds,
@@ -537,7 +487,7 @@ export const FocusSession = memo(function FocusSession({
       data-composer-tool-id={id}
       key={id}
     >
-      {id === 'model' ? <ChatCanvasSlot kind="model" /> : composerTools[id]}
+      {composerTools[id]}
       {!['model', 'permission', 'run-mode'].includes(id) && (
         <span className="hidden text-xs text-muted-foreground [.composer-tool-tray_&]:block">
           {composerToolLabels[id]}
@@ -560,15 +510,10 @@ export const FocusSession = memo(function FocusSession({
       <span className="truncate">{workspaceName(cwd, language)}</span>
     </button>
   )
-  const layoutSwitcher = onOpenLayoutSettings && (
-    <Suspense fallback={<span className="size-8 shrink-0" aria-busy="true" />}>
-      <ChatLayoutSwitcher compact notify={notify} onManage={onOpenLayoutSettings} />
-    </Suspense>
-  )
   const headerBlock = (
     <AppCardHeader
       data-window-drag-region
-      data-context-aside={(visibleContextOpen && !contextCompact && !canvasContext) || undefined}
+      data-context-aside={(contextOpen && !contextCompact) || undefined}
       className={cn(
         'workbench-chat-header relative z-4 h-12 shrink-0 items-center gap-2 border-0 bg-transparent px-4 py-1',
         window.pisperDesktop?.platform === 'darwin' && 'pl-[74px]',
@@ -626,15 +571,11 @@ export const FocusSession = memo(function FocusSession({
         <button
           type="button"
           className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={
-            visibleContextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')
-          }
-          title={
-            visibleContextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')
-          }
-          aria-expanded={visibleContextOpen}
-          aria-controls={canvasContext ? canvasContextId : contextPanelId}
-          aria-haspopup={!canvasContext && contextCompact ? 'dialog' : undefined}
+          aria-label={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
+          title={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
+          aria-expanded={contextOpen}
+          aria-controls={contextPanelId}
+          aria-haspopup={contextCompact ? 'dialog' : undefined}
           onPointerDown={() => {
             // 指针点击其他 Dock 面板时，焦点会先切换活动会话；保留点击时看到的开关状态。
             contextOpenAtPointerDownRef.current = contextOpen
@@ -643,19 +584,13 @@ export const FocusSession = memo(function FocusSession({
             contextOpenAtPointerDownRef.current = null
           }}
           onClick={() => {
-            if (canvasContext) {
-              setCanvasContextOpen((open) => !open)
-              contextOpenAtPointerDownRef.current = null
-              return
-            }
             const wasOpen = contextOpenAtPointerDownRef.current ?? contextOpen
             contextOpenAtPointerDownRef.current = null
             onToggleContext(!wasOpen)
           }}
         >
-          {visibleContextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+          {contextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
         </button>
-        {canvasHeader && layoutSwitcher}
         <ThemeToggleButton compact theme={theme} onCycle={cycleTheme} />
       </div>
     </AppCardHeader>
@@ -663,7 +598,7 @@ export const FocusSession = memo(function FocusSession({
   const transcriptBlock = (
     <FocusTranscript
       key="transcript"
-      layoutMeasurementKey={layoutMeasurementKey}
+      layoutMeasurementKey="fixed"
       sessionId={session.id}
       messages={messages}
       transcriptLoadState={transcriptLoadState}
@@ -717,7 +652,7 @@ export const FocusSession = memo(function FocusSession({
         {toolbarAllocation.inline.map(renderComposerTool)}
       </div>
       <ComposerToolTray
-        placement={appearance.composerPosition === 'top' ? 'bottom' : 'top'}
+        placement="top"
         open={toolsOpen}
         label={t('chat:focusSession.quickActions')}
         trayId={toolTrayId}
@@ -792,7 +727,7 @@ export const FocusSession = memo(function FocusSession({
       />
       <div className="focus-composer relative flex min-w-0 flex-col gap-2 rounded-[18px] border border-border/70 bg-muted/45 p-2.5 shadow-xs transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#242424] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[40px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground">
         <ComposerCommandMenu
-          placement={appearance.composerPosition === 'top' ? 'bottom' : 'top'}
+          placement="top"
           sessionId={session.id}
           value={value}
           onChange={updateValue}
@@ -824,7 +759,7 @@ export const FocusSession = memo(function FocusSession({
           placeholder={composerPlaceholder}
         />
         <div className="focus-composer-footer flex min-w-0 items-end gap-1">
-          {!canvasTools ? <ChatCanvasSlot kind="tools" /> : <div className="min-w-0 flex-1" />}
+          {toolsBlock}
           <ComposerSendButton
             streaming={streaming}
             queueing={queueing}
@@ -846,7 +781,7 @@ export const FocusSession = memo(function FocusSession({
           !detailsOpen && '!hidden',
         )}
       >
-        {hasConversation && appearance.showUsage && !canvasUsage && <ChatCanvasSlot kind="usage" />}
+        {hasConversation && usageBlock}
         <button
           type="button"
           className="grid size-7 place-items-center rounded-md hover:bg-muted"
@@ -916,52 +851,28 @@ export const FocusSession = memo(function FocusSession({
   return (
     <Panel
       className={cn(
-        `focus-session [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
+        `focus-session [--chat-content-width:768px] [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
         centeredWelcome &&
-          '[&_[data-canvas-node=canvas-messages]]:!flex-none [&_[data-canvas-node=canvas-messages]]:mt-[max(48px,calc((100dvh-560px)/2))] [&_[data-canvas-node=canvas-messages]]:h-[160px] [&_[data-canvas-node=canvas-messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-canvas-node=canvas-messages]]:mt-8 max-[650px]:[&_[data-canvas-node=canvas-messages]]:h-[150px]',
-        chatLayout.accent !== 'inherit' && CHAT_LAYOUT_ACCENT_CLASS,
+          '[&_[data-chat-region=messages]]:!flex-none [&_[data-chat-region=messages]]:mt-[max(48px,calc((100dvh-560px)/2))] [&_[data-chat-region=messages]]:h-[160px] [&_[data-chat-region=messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-chat-region=messages]]:mt-8 max-[650px]:[&_[data-chat-region=messages]]:h-[150px]',
       )}
-      style={chatLayoutAppearanceStyle(appearance, chatLayout.accent)}
-      data-chat-message-style={appearance.messageStyle}
-      data-chat-density={appearance.density}
-      data-chat-composer-position={appearance.composerPosition}
+      data-chat-message-style="bubble"
     >
-      {/* 自定义模板可移除页头，仍留一个不占布局空间的入口以便切回其他方案。 */}
-      {!canvasHeader && layoutSwitcher && (
-        <div className="absolute right-3 top-2 z-30 rounded-lg bg-background/90 shadow-sm">
-          {layoutSwitcher}
+      <div
+        className={cn(
+          'flex h-full min-h-0 min-w-0 flex-1 flex-col',
+          hasConversation ? 'overflow-hidden' : 'overflow-auto',
+        )}
+      >
+        <div className="shrink-0" data-chat-region="header">
+          {headerBlock}
         </div>
-      )}
-      <ChatCanvasLayout
-        root={appearance.canvas}
-        notify={notify}
-        slots={{
-          header: headerBlock,
-          messages: transcriptBlock,
-          composer: composerBlock,
-          model: composerTools.model,
-          tools: toolsBlock,
-          usage: usageBlock,
-          workspace: null,
-          context: canvasContext ? (
-            <Suspense fallback={<div aria-busy="true" className="min-h-12" />}>
-              <CanvasSessionContext
-                panelId={canvasContextId}
-                sessionId={session.id}
-                plan={plan ?? null}
-                streaming={Boolean(streaming)}
-                completed={runCompleted}
-                runStartedAt={runStartedAt}
-                plansAvailable={plansAvailable}
-                requestConfirm={requestConfirm}
-                open={canvasContextOpen}
-                autoOpen={appearance.openContextOnCompletion}
-                onOpenChange={setCanvasContextOpen}
-              />
-            </Suspense>
-          ) : null,
-        }}
-      />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-chat-region="messages">
+          {transcriptBlock}
+        </div>
+        <div className="shrink-0" data-chat-region="composer">
+          {composerBlock}
+        </div>
+      </div>
       <ChatResourcePicker
         open={resourcePickerOpen}
         sessionId={session.id}

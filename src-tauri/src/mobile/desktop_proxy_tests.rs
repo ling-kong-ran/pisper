@@ -182,6 +182,35 @@ fn url(proxy: &ProxyHandle, path: &str) -> String {
 }
 
 #[tokio::test]
+async fn page_state_requests_stay_on_the_mobile_runtime_in_remote_mode() {
+    let local = upstream(false, "mobile-runtime").await;
+    let remote = upstream(true, "desktop-runtime").await;
+    let (proxy, cookie) = connect(&local, &remote).await;
+    let client = local_client();
+    for method in [reqwest::Method::GET, reqwest::Method::PUT] {
+        let response = client
+            .request(method, url(&proxy, "/api/local/browser-preferences"))
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            response.json::<serde_json::Value>().await.unwrap()["name"],
+            "mobile-runtime"
+        );
+    }
+    let local_requests = local.requests.lock().unwrap();
+    assert!(local_requests
+        .iter()
+        .any(|request| request.starts_with("GET /api/local/browser-preferences ")));
+    assert!(local_requests
+        .iter()
+        .any(|request| request.starts_with("PUT /api/local/browser-preferences ")));
+    assert!(remote.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn desktop_authenticates_locally_serves_bundled_ui_and_sends_only_device_credentials_to_remote(
 ) {
     let local = upstream(false, "bundled-ui").await;

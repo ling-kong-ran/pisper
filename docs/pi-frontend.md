@@ -1,4 +1,6 @@
-# ZCode / PI 前端分支
+# Pisper 界面分支历史记录
+
+> 此文档记录 2026-09 的实验分支，不描述当前 `release` 界面或发布流程。
 
 本分支为 `feat/zcode-visual-refresh`，后端基于远端 `release` 提交 `15f41936133cd7fdecca8a4c491b1127fe3f223a`（2026-09-24，Runtime 0.5.57）。它直接使用独立的 PI 简约界面，**不是** release 的模板导入包，也没有给 release 添加第二种界面。
 
@@ -37,7 +39,7 @@ npm start
 npm run check
 npm test
 npm run build
-node scripts/smoke-zcode-ui.mjs
+node scripts/smoke-pisper-ui.mjs
 ```
 
 UI 冒烟测试启动随机回环端口和临时后端数据目录，用本地 OpenAI-compatible SSE fixture 而非真实付费模型；Provider 网络发现和 GitHub 更新检查使用固定响应，真实更新请求另行验收。Windows 默认使用已安装的 Edge，其他环境可用 `PISPER_UI_BROWSER_PATH` 指定浏览器。测试结束后关闭服务并删除临时会话/配置，仅保留系统临时目录中的报告和截图供检查，可手动删除整个报告目录。不要将测试产物提交到仓库。

@@ -40,6 +40,7 @@ type MessagePageResponse = EntityRecord & {
     nextCursor: string | null
   }
 }
+type LiveSessionResponse = MessagePageResponse & { configurationBusy?: boolean }
 
 type CompactionPreferenceResponse = {
   thresholdPercent: number
@@ -252,7 +253,7 @@ export const chatApi = {
     }),
 
   getLiveSession: (sessionId: string, options: HttpRequestOptions = {}) =>
-    requestJson<MessagePageResponse>(`${sessionPath(sessionId)}/live`, options),
+    requestJson<LiveSessionResponse>(`${sessionPath(sessionId)}/live`, options),
 
   getMessages: (sessionId: string, options: { limit: number; before?: string }) => {
     const params = new URLSearchParams({ limit: String(options.limit) })

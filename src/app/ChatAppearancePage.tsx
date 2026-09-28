@@ -1,20 +1,10 @@
-// 界面设置由应用层组装三个公开功能；配置域通过插槽交出原有外观设置。
+// 界面设置组合外观与独立组件；会话布局画布不再作为用户设置入口。
 import { lazy, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useI18n } from '@/app/use-i18n'
-import { ensureChatLayoutMessages, ensureCustomUiMessages } from '@/app/i18n'
+import { ensureCustomUiMessages } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useFloatingWidgetDefaults } from '@/app/useFloatingWidgetDefaults'
-
-const ChatLayoutEditor = lazy(async () => {
-  const [{ ChatLayoutEditor }] = await Promise.all([
-    import('@/features/chat/layout/editor'),
-    ensureChatLayoutMessages(),
-    ensureCustomUiMessages(),
-  ])
-  return { default: ChatLayoutEditor }
-})
 const CustomUiPage = lazy(async () => {
   const [{ CustomUiPage }] = await Promise.all([
     import('@/features/custom-ui/public'),
@@ -31,10 +21,9 @@ export function ChatAppearancePage({
   notify: Notify
 }) {
   const { t } = useI18n()
-  const floatingDefaults = useFloatingWidgetDefaults()
   const [params, setParams] = useSearchParams()
   const view = params.get('view')
-  const tab = view === 'layout' || view === 'widgets' ? view : 'appearance'
+  const tab = view === 'layout' || view === 'widgets' ? 'widgets' : 'appearance'
   return (
     <Tabs
       value={tab}
@@ -53,16 +42,10 @@ export function ChatAppearancePage({
     >
       <TabsList aria-label={t('config:interfaceSettings.tabsLabel')} className="max-w-full">
         <TabsTrigger value="appearance">{t('config:interfaceSettings.appearanceTab')}</TabsTrigger>
-        <TabsTrigger value="layout">{t('config:interfaceSettings.chatLayoutTab')}</TabsTrigger>
         <TabsTrigger value="widgets">{t('config:interfaceSettings.customUiTab')}</TabsTrigger>
       </TabsList>
       <TabsContent value="appearance" className="min-w-0">
         {appearance}
-      </TabsContent>
-      <TabsContent value="layout" className="min-w-0" data-config-card="interface-chat-layout">
-        <Suspense fallback={<p role="status">{t('common:webPreview.loading')}</p>}>
-          <ChatLayoutEditor />
-        </Suspense>
       </TabsContent>
       <TabsContent
         value="widgets"
@@ -70,7 +53,7 @@ export function ChatAppearancePage({
         data-config-card="interface-custom-ui"
       >
         <Suspense fallback={<p role="status">{t('common:webPreview.loading')}</p>}>
-          <CustomUiPage notify={notify} floatingDefaults={floatingDefaults} />
+          <CustomUiPage notify={notify} />
         </Suspense>
       </TabsContent>
     </Tabs>

@@ -3,6 +3,7 @@
 // 事件。请求同时写入 localStorage（跨页面/重启持久），供壳层与其他
 // 会话面板消费；consum 函数取出即删，避免重复处理。
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   createSessionOpenRequest,
   parseSessionOpenRequest,
@@ -96,7 +97,7 @@ export function requestSessionSelection(
 ) {
   const request = createSessionOpenRequest(id, disposition, targetEntryId)
   if (!request) return
-  localStorage.setItem(STORAGE_KEYS.activeSession, id)
+  pageStateStorage.setItem(STORAGE_KEYS.activeSession, id)
   localStorage.setItem(STORAGE_KEYS.sessionOpenRequest, JSON.stringify(request))
   if (targetEntryId) {
     localStorage.setItem(

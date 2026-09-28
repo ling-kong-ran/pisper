@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   DEFAULT_SHORTCUTS,
   normalizeShortcutBindings,
@@ -11,7 +12,7 @@ import {
 function readBindings(): ShortcutBindings {
   try {
     return normalizeShortcutBindings(
-      JSON.parse(localStorage.getItem(STORAGE_KEYS.shortcuts) || 'null'),
+      JSON.parse(pageStateStorage.getItem(STORAGE_KEYS.shortcuts) || 'null'),
     )
   } catch {
     return { ...DEFAULT_SHORTCUTS }
@@ -27,7 +28,7 @@ type ShortcutState = {
 export const useShortcutStore = create<ShortcutState>((set, get) => {
   const save = (bindings: ShortcutBindings) => {
     // 先确认持久化成功，再让界面和实际按键一起生效，避免保存失败却显示已保存。
-    localStorage.setItem(STORAGE_KEYS.shortcuts, JSON.stringify(bindings))
+    pageStateStorage.setItem(STORAGE_KEYS.shortcuts, JSON.stringify(bindings))
     set({ bindings })
   }
   return {

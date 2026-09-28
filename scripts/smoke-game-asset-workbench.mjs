@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { PNG } from 'pngjs'
+import { zipSync } from 'fflate'
 import { SPRITE_ENGINE_CATALOG } from '../shared/sprite-engine-catalog.mjs'
 
 assert.equal(process.versions.node.split('.')[0], '24', 'Use the project Node.js 24 baseline')
@@ -55,6 +56,17 @@ process.env.PI_SKIP_VERSION_CHECK = '1'
 process.env.PI_TELEMETRY = '0'
 process.env.PISPER_AGENT_DIR = dataDir
 process.env.PISPER_WORKSPACE_DIR = workspace
+const componentSource = process.env.PISPER_WORKBENCH_COMPONENT_DIR
+if (!componentSource)
+  throw new Error('Set PISPER_WORKBENCH_COMPONENT_DIR to the manually downloaded component folder')
+const componentArchive = join(output, 'game-asset-workbench.zip')
+const componentFiles = {}
+for (const name of ['manifest.json', 'index.html', 'frame-editor.js']) {
+  componentFiles[`pisper-game-asset-workbench/${name}`] = await readFile(
+    join(componentSource, name),
+  )
+}
+await writeFile(componentArchive, zipSync(componentFiles))
 const { createPisperRuntime } = await import('../runtime/app-runtime.mjs')
 const app = await createPisperRuntime({
   root,
@@ -170,9 +182,25 @@ try {
   )
   await page.goto(base + '/#/workflows')
   await page.getByRole('button', { name: '稍后再说', exact: true }).click()
+  await page.goto(base + '/#/config/interface?view=widgets')
+  const importResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/custom-ui/import',
+  )
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: '导入 ZIP', exact: true }).click()
+  await (await chooser).setFiles(componentArchive)
+  const importedResponse = await importResponse
+  assert.equal(importedResponse.status(), 201)
+  await page.getByRole('dialog', { name: /已导入/ }).waitFor()
+  await page.getByRole('button', { name: '稍后', exact: true }).click()
+  await page.goto(base + '/#/chat')
   await page.getByRole('button', { name: '更多工具', exact: true }).click()
-  await page.getByRole('menuitem', { name: '游戏素材工作台', exact: true }).click()
-  await page.waitForURL((url) => url.hash === '#/tools/game-assets')
+  assert.equal(await page.getByRole('menuitem', { name: 'Game Asset Workbench' }).count(), 0)
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await page.getByRole('button', { name: '更多工具', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Game Asset Workbench', exact: true }).click()
+  await page.waitForURL((url) => url.hash === '#/tools/components/pisper-game-asset-workbench')
   const workflowRequests = []
   page.on('request', (request) => {
     if (/\/api\/workflow/.test(new URL(request.url()).pathname))
@@ -187,7 +215,7 @@ try {
     }
   }
   const beforeWorkflowFiles = await workflowFiles()
-  const widget = page.frameLocator('iframe[title="游戏素材工作台"]')
+  const widget = page.frameLocator('iframe[title="Game Asset Workbench"]')
   await widget.getByRole('button', { name: '保存项目', exact: true }).waitFor()
   await widget.getByLabel('项目名称', { exact: true }).fill('Workbench empty draft')
   const emptySave = page.waitForResponse(projectResponse)
@@ -212,9 +240,26 @@ try {
   const directionInputs = widget.locator('#directions input[type="checkbox"]')
   for (let index = 1; index < (await directionInputs.count()); index++)
     await directionInputs.nth(index).uncheck()
+  assert.equal(
+    await directionInputs.evaluateAll((inputs) => inputs.filter((input) => input.checked).length),
+    1,
+  )
   const actionInputs = widget.locator('#actions input[type="checkbox"]')
   for (let index = 1; index < (await actionInputs.count()); index++)
     await actionInputs.nth(index).uncheck()
+  assert.equal(
+    await actionInputs.evaluateAll((inputs) => inputs.filter((input) => input.checked).length),
+    1,
+  )
+  // 保存会替换草稿对象；之后的动作编辑必须写入新草稿，不能继续写旧闭包。
+  const configuredSave = page.waitForResponse(projectResponse)
+  await widget.getByRole('button', { name: '保存项目', exact: true }).click()
+  assert.equal((await configuredSave).status(), 201)
+  await widget.getByText('项目已保存。', { exact: true }).waitFor()
+  await actionInputs.nth(1).check()
+  assert.match(await widget.locator('#request-count').textContent(), /^2 个动作 × 1 个方向/)
+  await actionInputs.nth(1).uncheck()
+  assert.match(await widget.locator('#request-count').textContent(), /^1 个动作 × 1 个方向/)
   const uploadResponse = () =>
     page.waitForResponse(
       (response) =>
@@ -404,6 +449,14 @@ try {
     )
   }
   releaseExport = Promise.withResolvers()
+  assert.equal(
+    await directionInputs.evaluateAll((inputs) => inputs.filter((input) => input.checked).length),
+    1,
+  )
+  assert.equal(
+    await actionInputs.evaluateAll((inputs) => inputs.filter((input) => input.checked).length),
+    1,
+  )
   const startEvent = page.waitForResponse(
     (response) =>
       /\/api\/game-assets\/projects\/[^/]+\/run$/.test(new URL(response.url()).pathname) &&
@@ -413,6 +466,11 @@ try {
   const startResponse = await startEvent
   assert.equal(startResponse.status(), 202)
   const started = await startResponse.json()
+  const savedScope = (await api('/api/game-assets')).projects.find(
+    (project) => project.id === started.job.projectId,
+  )
+  assert.equal(savedScope.directions.length, 1)
+  assert.equal(savedScope.actions.filter((action) => action.enabled).length, 1)
   await widget.getByRole('button', { name: '播放', exact: true }).click()
   await widget.getByRole('button', { name: '暂停', exact: true }).click()
   assert.equal(
@@ -424,7 +482,8 @@ try {
   releaseExport.resolve()
   releaseExport = null
   const completed = await waitRun(started.job.id)
-  assert.equal(report.generatedImages, 1)
+  const generationCount = report.generatedImages
+  assert.equal(generationCount, 1)
   const exported = completed.output
   assert.equal(exported.frames.length, 4)
   assert.equal(exported.atlas.frames.length, 4)
@@ -448,7 +507,7 @@ try {
   await widget.locator('body').evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: join(output, 'workbench-desktop.png'), fullPage: true })
   report.checks.push(
-    'Real bridge upload and local color processing; one controlled image call produces four preview frames before the atlas completes, plus PNG/JSON host downloads',
+    'Real bridge upload and local color processing produce four preview frames before the atlas completes, plus PNG/JSON host downloads',
   )
 
   const beforeFrame = await runtime.gameAssetMedia.load(completed.output.frames[0].media.id)
@@ -563,7 +622,7 @@ try {
   assert.equal(edited.edits.frames[0].rotation, 15)
   assert.equal(edited.edits.frames[0].scale, 0.8)
   assert.equal(edited.edits.frames[0].opacity, 0.8)
-  assert.equal(report.generatedImages, 1, 'Manual edits do not call the image model')
+  assert.equal(report.generatedImages, generationCount, 'Manual edits do not call the image model')
   assert.notDeepEqual(
     (await runtime.gameAssetMedia.load(edited.output.frames[0].media.id)).buffer,
     beforeFrame.buffer,
@@ -652,30 +711,48 @@ try {
     'Workbench never creates or changes workflow files',
   )
 
-  await page.goto(base + '/#/config/interface?view=layout')
-  await page.getByRole('button', { name: '游戏素材工作台', exact: true }).waitFor()
-  await page.evaluate(() => {
-    window.workbenchPreviewRequests = []
-    window.addEventListener('message', (event) => {
-      if (
-        event.data?.pisperBridge === 1 &&
-        String(event.data.method || '').startsWith('gameAssets.')
-      )
-        window.workbenchPreviewRequests.push(event.data.method)
-    })
-  })
-  await page.clock.install()
-  await page.getByRole('button', { name: '游戏素材工作台', exact: true }).click()
-  await widget.getByText('布局预览，打开工具后即可使用。', { exact: true }).waitFor()
+  await page.goto(base + '/#/config/interface?view=widgets')
+  await page.getByRole('button', { name: /Game Asset Workbench/ }).waitFor()
+  await page.getByRole('link', { name: '打开组件' }).waitFor()
+  report.checks.push('Manually installed workbench appears in custom components and can be opened')
+  const folderComponent = join(output, 'folder-import-fixture')
+  await mkdir(folderComponent)
+  await writeFile(
+    join(folderComponent, 'manifest.json'),
+    JSON.stringify({ name: 'Folder import fixture', entry: 'index.html', permissions: [] }),
+  )
+  await writeFile(
+    join(folderComponent, 'index.html'),
+    '<!doctype html><title>Folder import fixture</title><p>Imported from a directory.</p>',
+  )
+  const folderChooser = page.waitForEvent('filechooser')
+  const folderImportResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/custom-ui/import' &&
+      response.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: '导入文件夹', exact: true }).click()
+  await (await folderChooser).setFiles(folderComponent)
+  const folderImported = await folderImportResponse
+  assert.equal(folderImported.status(), 201)
+  assert.equal((await folderImported.json()).id, 'folder-import-fixture')
+  await page.getByRole('dialog', { name: /已导入/ }).waitFor()
+  await page.getByRole('button', { name: '稍后', exact: true }).click()
+  await page.getByRole('button', { name: /Folder import fixture/ }).waitFor()
+  await page.goto(base + '/#/chat')
+  await page.getByRole('button', { name: '更多工具', exact: true }).click()
   assert.equal(
-    await widget.getByRole('button', { name: '保存项目', exact: true }).isDisabled(),
-    true,
+    await page.getByRole('menuitem', { name: 'Folder import fixture', exact: true }).count(),
+    0,
   )
-  await page.clock.runFor(5000)
-  assert.deepEqual(await page.evaluate(() => window.workbenchPreviewRequests), [])
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await page.getByRole('button', { name: '更多工具', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Folder import fixture', exact: true }).waitFor()
   report.checks.push(
-    'Layout preview has no asset permissions, stays disabled and sends no asset bridge requests or recurring polls',
+    'Both ZIP and folder import install complete components; restart confirmation is shown and new tools appear after reloading',
   )
+
   assert.deepEqual(report.errors, [])
   assert.equal(
     report.engineDownloads,

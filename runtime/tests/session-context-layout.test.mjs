@@ -103,6 +103,20 @@ test('finishing the active run reveals context only for file changes made in tha
 test('loading history, switching sessions and unsuccessful runs do not reveal context', () => {
   assert.equal(shouldRevealSessionContext(null, finished, [currentFile]), false)
   assert.equal(
+    shouldRevealSessionContext({ ...running, runStartedAt: null }, finished, [currentFile]),
+    false,
+  )
+  assert.equal(
+    shouldRevealSessionContext(running, { ...finished, runStartedAt: '2026-09-27T00:01:00.000Z' }, [
+      currentFile,
+    ]),
+    false,
+  )
+  assert.equal(
+    shouldRevealSessionContext({ ...running, completed: true }, finished, [currentFile]),
+    false,
+  )
+  assert.equal(
     shouldRevealSessionContext({ ...running, streaming: false }, finished, [currentFile]),
     false,
   )

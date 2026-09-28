@@ -36,15 +36,11 @@ import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
 import { updateSessionOrganization } from './session-organization-api'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
-import {
-  resolveSessionContextPresentation,
-  type SessionContextPreference,
-} from './session-context-layout'
+import { resolveSessionContextPresentation } from './session-context-layout'
+import { useSessionContextStore } from './session-context-store'
 import { useSessionContextAutoReveal } from './useSessionContextAutoReveal'
 import type { SessionContextTab } from './SessionContextPanel'
 import { SessionContextLayout } from './SessionContextLayout'
-import { useChatLayoutStore } from './layout/chat-layout-store'
-import { canvasHasKind } from './layout/chat-canvas'
 import { SideChatProvider } from './SideChatProvider'
 import type { SideChatRuntime } from './side-chat-context'
 import { resolveSessionStreaming } from './session-streaming-state'
@@ -68,7 +64,6 @@ type MobileRuntimeState = {
 type ChatPageProps = {
   notify: Notify
   navigate: (page: string, options?: { replace?: boolean }) => void
-  onOpenLayoutSettings: () => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
   pendingAsset: PendingAsset | null
@@ -80,7 +75,6 @@ type ChatPageProps = {
 export function ChatPage({
   notify,
   navigate,
-  onOpenLayoutSettings,
   browserNotify,
   registerPrimaryAction,
   pendingAsset,
@@ -93,22 +87,12 @@ export function ChatPage({
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  const layoutTemplate = useChatLayoutStore((state) => state.active)
-  const layoutRevision = useChatLayoutStore((state) => state.revision)
-  const deviceLayout = mobileLayout ? layoutTemplate.mobile : layoutTemplate.desktop
-  const embeddedContext = canvasHasKind(deviceLayout.canvas, 'context')
-  const openContextOnCompletion = deviceLayout.openContextOnCompletion && !embeddedContext
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const chatLayoutRef = useRef<HTMLDivElement>(null)
   const [contextWidth, setContextWidth] = useState(0)
-  const [contextPreference, setContextPreference] = useState<SessionContextPreference>(
-    () => layoutTemplate.desktop.contextVisibility,
-  )
+  const contextOpen = useSessionContextStore((state) => state.open)
+  const setContextOpen = useSessionContextStore((state) => state.setOpen)
   const [contextTab, setContextTab] = useState<SessionContextTab>('files')
-  useEffect(() => {
-    // 模板只设定初始显示方式，之后仍允许用户手动打开和关闭上下文。
-    setContextPreference(mobileLayout ? 'auto' : layoutTemplate.desktop.contextVisibility)
-  }, [layoutTemplate.desktop.contextVisibility, layoutRevision, mobileLayout])
   useLayoutEffect(() => {
     const layout = chatLayoutRef.current
     if (!layout) return
@@ -180,8 +164,8 @@ export function ChatPage({
   const contextPresentation = resolveSessionContextPresentation({
     availableWidth: contextWidth,
     mobileLayout,
-    hasSession: Boolean(activeSession) && !embeddedContext,
-    preference: contextPreference,
+    hasSession: Boolean(activeSession),
+    preference: contextOpen ? 'open' : 'closed',
   })
   const contextCompact = mobileLayout || contextWidth < 800
   useSessionContextAutoReveal({
@@ -190,11 +174,11 @@ export function ChatPage({
     completed: activeCompleted,
     runStartedAt:
       typeof activeSessionState?.runStartedAt === 'string' ? activeSessionState.runStartedAt : null,
-    enabled: openContextOnCompletion,
+    enabled: true,
     open: contextPresentation !== 'closed',
     onReveal: () => {
       setContextTab('files')
-      setContextPreference('open')
+      setContextOpen(true)
     },
   })
   const setActiveId = catalog.setActiveId
@@ -203,12 +187,12 @@ export function ChatPage({
       if (!sessionId) return
       if (open) {
         setActiveId(sessionId)
-        setContextPreference('open')
+        setContextOpen(true)
       } else {
-        setContextPreference('closed')
+        setContextOpen(false)
       }
     },
-    [setActiveId],
+    [setActiveId, setContextOpen],
   )
 
   const createSessionRecord = catalog.createSessionRecord
@@ -404,9 +388,7 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
-      requestConfirm,
       openModelSettings,
-      openLayoutSettings: onOpenLayoutSettings,
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
       sendPrompt: promptCommands.sendPrompt,
@@ -452,9 +434,7 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
-      requestConfirm,
       openModelSettings,
-      onOpenLayoutSettings,
       liveSync.loadSessionMessages,
       liveSync.loadOlderMessages,
       promptCommands.sendPrompt,
@@ -539,7 +519,7 @@ export function ChatPage({
         plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
         requestConfirm={requestConfirm}
         onTabChange={setContextTab}
-        onClose={() => setContextPreference('closed')}
+        onClose={() => setContextOpen(false)}
       />
     </Suspense>
   )
@@ -554,7 +534,7 @@ export function ChatPage({
           availableWidth={contextWidth}
           presentation={contextPresentation}
           context={contextPanel}
-          side={layoutTemplate.desktop.contextSide}
+          side="right"
         >
           {catalog.loading ? (
             <AppEmptyState>

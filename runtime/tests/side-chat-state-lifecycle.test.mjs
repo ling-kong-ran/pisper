@@ -33,6 +33,9 @@ function fixture() {
     '@/app/brand': { APP_NAME: 'Pisper' },
     '@/app/storage': { STORAGE_KEYS: { activeSession: 'test-active' } },
     '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/page-state-storage': {
+      pageStateStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    },
     '@/lib/session-state': sessionState,
     '@/lib/plan-protocol': {},
     './chat-api': {},

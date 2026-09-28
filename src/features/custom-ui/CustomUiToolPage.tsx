@@ -37,7 +37,9 @@ export function CustomUiToolPage({ componentId, notify }: { componentId: string;
           >
             {query.isPending
               ? t('custom-ui:customUiPage.loading')
-              : t('custom-ui:widget.catalogFailed')}
+              : query.error
+                ? t('custom-ui:widget.catalogFailed')
+                : t('custom-ui:widget.missing', { id: componentId })}
             {!query.isPending && (
               <Button variant="outline" onClick={() => void query.refetch()}>
                 {t('custom-ui:widget.retry')}

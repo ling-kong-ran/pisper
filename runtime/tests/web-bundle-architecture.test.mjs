@@ -456,7 +456,7 @@ test('mobile shell keeps navigation in the viewport and model settings retain re
   assert.doesNotMatch(models, /!grid-cols-/)
   assert.match(models, /<ProviderWorkbench/)
   const workbench = await readFile('src/features/config/ProviderWorkbench.tsx', 'utf8')
-  // 布局与窄屏可读性由 smoke-zcode-ui 行为验收；这里保护统一连接工作台的职责边界。
+  // 布局与窄屏可读性由 smoke-pisper-ui 行为验收；这里保护统一连接工作台的职责边界。
   assert.match(workbench, /data-model-provider-split-panel/)
   assert.match(workbench, /<nav[\s\S]*?aria-label=\{t\('config:configPage.connections'\)\}/)
   assert.match(workbench, /<ProviderConnectionEditor/)
@@ -507,7 +507,7 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   for (const [index, loader] of loaders.entries()) {
     const body = routeElements.slice(loader.index, loaders[index + 1]?.index)
     if (loader[1] === 'componentsRoute') {
-      assert.match(body, /<Navigate to="\/config\/interface\?view=layout" replace/)
+      assert.match(body, /<Navigate to="\/config\/interface\?view=widgets" replace/)
       assert.doesNotMatch(body, /@\/features\//)
     } else {
       assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
@@ -516,8 +516,9 @@ test('route code and route-specific vendor styles remain lazy', async () => {
     assert.match(router, new RegExp(`lazy: ${loader[1]}\\b`))
   }
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
+  assert.doesNotMatch(appearance, /ChatLayoutEditor|interface-chat-layout/)
+  assert.doesNotMatch(chat, /useChatLayoutStore|canvasHasKind/)
   assert.doesNotMatch(router, /from '@\/features\//)
-  assert.match(appearance, /import\('@\/features\/chat\/layout\/editor'\)/)
   assert.match(appearance, /import\('@\/features\/custom-ui\/public'\)/)
   assert.doesNotMatch(appearance, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)

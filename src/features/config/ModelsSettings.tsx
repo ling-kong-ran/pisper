@@ -1,8 +1,9 @@
-// 模型设置：ZCode 式连接列表/详情分栏；保留本地导入、快速向导及运行策略。
+// 模型设置：连接列表/详情分栏；保留本地导入、快速向导及运行策略。
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Button } from '@/components/ui/button'
 import { ProviderWorkbench } from './ProviderWorkbench'
@@ -25,7 +26,7 @@ import { AppError, AppEmptyState } from '@/components/ui/app-primitives'
 const MANAGE_CONNECTIONS_STORAGE_KEY = 'pisper.config.manageConnectionsOpen'
 
 function storedManageOpen(): boolean | null {
-  const stored = window.localStorage.getItem(MANAGE_CONNECTIONS_STORAGE_KEY)
+  const stored = pageStateStorage.getItem(MANAGE_CONNECTIONS_STORAGE_KEY)
   return stored === '1' ? true : stored === '0' ? false : null
 }
 
@@ -102,7 +103,7 @@ export function ModelsSettings({
   const importableCount = providerDiscoveryImportableCount(discovery.discovery)
   const setManageOpenPersisted = (open: boolean) => {
     setManageOpen(open)
-    window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
+    pageStateStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
   }
   // 克隆需要保留来源连接的模型定义，继续复用完整连接弹窗。
   const openProviderClonerFor = (provider: ProviderConfig) => setCloningProvider(provider)

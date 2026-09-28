@@ -217,7 +217,10 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.doesNotMatch(shell, /let on_device_url/)
   assert.doesNotMatch(shell, /WebviewUrl::App\("index\.html"\.into\(\)\)/)
   assert.match(shell, /proxy\.configure_local_runtime\(&status\.url\)/)
-  assert.match(proxy, /path\.starts_with\("\/api\/"\) && remote_mode/)
+  assert.match(
+    proxy,
+    /path\.starts_with\("\/api\/"\) && path != "\/api\/local\/browser-preferences" && remote_mode/,
+  )
   assert.match(
     proxy,
     /forward_remote\(proxy, request\)\.await[\s\S]*forward_local\(proxy, request\)\.await/,

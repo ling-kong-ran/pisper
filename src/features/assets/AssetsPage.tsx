@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import {
   AppCard as Panel,
@@ -103,7 +104,7 @@ export function AssetsPage({
       if (tab === 'file') params.set('kind', 'file')
       if (tab === 'link') params.set('kind', 'link')
       if (tab === 'current')
-        params.set('sessionId', localStorage.getItem(STORAGE_KEYS.activeSession) || '__none__')
+        params.set('sessionId', pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '__none__')
       const data = await apiJson<{ assets: Asset[] }>(`/api/assets?${params}`)
       setAssets(data.assets)
     } catch (caught) {

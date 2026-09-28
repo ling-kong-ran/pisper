@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { BUNDLE_BUDGETS, validateBundle } from '../../scripts/check-bundle-budget.mjs'
+import {
+  BUNDLE_BUDGETS,
+  initialApplicationClosure,
+  validateBundle,
+} from '../../scripts/check-bundle-budget.mjs'
 
 const ROUTE_SOURCES = [
   'src/features/chat/ChatPage.tsx',
@@ -94,6 +98,19 @@ function passingReport() {
 
 test('bundle budget accepts lazy routes and split Shiki/React Bits assets', () => {
   assert.deepEqual(validateBundle(passingReport()), [])
+})
+
+test('bootstrap restore counts the unconditional app mount in the initial bundle', () => {
+  const manifest = {
+    'index.html': { imports: ['_bootstrap'], dynamicImports: ['src/mount-app.tsx'] },
+    _bootstrap: { imports: [] },
+    'src/mount-app.tsx': { imports: ['_router'] },
+    _router: { imports: [] },
+  }
+  assert.deepEqual(
+    initialApplicationClosure(manifest, 'index.html'),
+    new Set(['index.html', '_bootstrap', 'src/mount-app.tsx', '_router']),
+  )
 })
 
 test('bundle budget rejects development JSX runtime output', () => {

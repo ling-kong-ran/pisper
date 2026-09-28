@@ -1,6 +1,6 @@
 // 侧边栏导航与页面元信息（标题/描述）的集中定义，翻译由调用方注入。
 // 用数组而非对象保持分组顺序稳定；getPageMeta 供文档标题与路由描述使用。
-import { CalendarClock, FolderOpen, MessageSquare, Workflow, Film } from 'lucide-react'
+import { CalendarClock, FolderOpen, MessageSquare, Workflow } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageId } from './routes'
 import {
@@ -24,7 +24,6 @@ export function getNavigation(
     ['assets', t('navigation:navigation.assets'), FolderOpen],
     ['workflows', t('navigation:navigation.workflows'), Workflow],
     ['schedules', t('navigation:navigation.schedules'), CalendarClock],
-    ['gameAssetWorkbench', t('navigation:navigation.gameAssetWorkbench'), Film],
   ]
   return [
     [
@@ -68,6 +67,10 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
     gameAssetWorkbench: [
       t('navigation:navigation.gameAssetWorkbench'),
       t('navigation:navigation.gameAssetWorkbenchDescription'),
+    ],
+    customComponentTool: [
+      t('navigation:navigation.components'),
+      t('navigation:navigation.componentsDescription'),
     ],
     workflowCreate: [
       t('navigation:navigation.newWorkflow'),

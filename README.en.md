@@ -2,8 +2,6 @@
 
 <a id="top"></a>
 
-> **ZCode / PI frontend branch:** `feat/zcode-visual-refresh` follows the release backend with a separate minimal interface. Model and reasoning share one control; execution and approval modes stay visible. This is not a frontend import package, and official release downloads do not represent this branch. See [branch development and validation](docs/pi-frontend.md).
-
 <p align="center">
   <img src="docs/brand/banner.en.svg" width="880" alt="Pisper — Ideas don't queue" />
 </p>
@@ -247,6 +245,8 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 ## 🧩 Components & independent updates
 
 Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated independently, with automatic rollback to the bundled version on component failure. Desktop provides one component-update entry; the mobile App uses its own release manifest.
+
+Standalone UI components can be imported from a folder or ZIP under Settings → Interface → Custom components. They appear in More Tools after reloading the interface. The Game Asset Workbench is no longer bundled; its source lives in [pisper-components](https://github.com/ling-kong-ran/pisper-components). See the [custom component guide](./docs/custom-ui.md).
 
 ## 📚 Docs
 

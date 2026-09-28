@@ -1,6 +1,7 @@
 // 输入框快捷栏偏好独立持久化，避免恢复主题等外观设置时连带重置工具位置。
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   moveComposerTool,
   normalizeComposerToolbarLayout,
@@ -19,6 +20,26 @@ type ComposerToolbarState = {
   resetLayout: () => void
 }
 
+const LEGACY_TOOLBAR_KEY = 'pisper-zcode-composer-toolbar'
+const toolbarStorage = createJSONStorage<Pick<ComposerToolbarState, 'layout'>>(() => ({
+  getItem: (key) => {
+    const current = pageStateStorage.getItem(key)
+    if (current !== null) return current
+    const legacy = pageStateStorage.getItem(LEGACY_TOOLBAR_KEY)
+    if (legacy === null) return null
+    try {
+      JSON.parse(legacy)
+      pageStateStorage.setItem(key, legacy)
+      pageStateStorage.removeItem(LEGACY_TOOLBAR_KEY)
+      return legacy
+    } catch {
+      return null
+    }
+  },
+  setItem: (key, value) => pageStateStorage.setItem(key, value),
+  removeItem: (key) => pageStateStorage.removeItem(key),
+}))
+
 export const useComposerToolbarStore = create<ComposerToolbarState>()(
   persist(
     (set) => ({
@@ -32,7 +53,8 @@ export const useComposerToolbarStore = create<ComposerToolbarState>()(
       resetLayout: () => set({ layout: normalizeComposerToolbarLayout(undefined) }),
     }),
     {
-      name: 'pisper-zcode-composer-toolbar',
+      name: 'pisper-composer-toolbar',
+      storage: toolbarStorage,
       // 存储形状保持兼容；新增和恢复的工具统一由 merge 归一，不重置用户排序。
       version: 1,
       partialize: ({ layout }) => ({ layout }),

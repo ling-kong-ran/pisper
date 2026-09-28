@@ -148,6 +148,23 @@ test('context inspection runs only when an observed active run finishes successf
   assert.equal(f.requests[0].signal.aborted, false)
 })
 
+test('entering chat or refreshing while the session catalog reports a stale stream does not reveal history', async (t) => {
+  const f = fixture(t)
+  f.render({ streaming: true, completed: false, runStartedAt: null })
+  f.render({ streaming: false, completed: true, runStartedAt: RUN_STARTED_AT })
+  assert.equal(f.requests.length, 0, 'a catalog summary is not an observed run')
+  assert.deepEqual(f.reveals, [])
+
+  // A snapshot for a different turn must not complete the run shown by the previous frame.
+  f.render({ streaming: true, completed: false })
+  f.render({
+    streaming: false,
+    completed: true,
+    runStartedAt: '2026-09-27T10:01:00.000Z',
+  })
+  assert.equal(f.requests.length, 0)
+})
+
 for (const [scenario, files] of [
   ['empty snapshots', []],
   ['historical file changes', [fileChange({ changedAt: '2026-09-26T10:00:01.000Z' })]],

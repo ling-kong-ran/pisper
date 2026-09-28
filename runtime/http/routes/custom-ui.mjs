@@ -1,5 +1,6 @@
 // 自定义 UI 组件路由：组件清单、资产服务（沙箱 iframe 加载）与桥接脚本。
 // 旧资产路由保留三级路径兼容；凭证预览支持嵌套资源，由服务层限制目录边界。
+import { CustomUiImportError } from '../../services/custom-ui-import.mjs'
 
 function customUiUnavailable(services) {
   if (!services.customUi) throw new Error('当前 Runtime 不支持自定义 UI 组件。')
@@ -13,6 +14,19 @@ function serveComponentAsset(services, params, res, json) {
 }
 
 export const customUiRoutes = [
+  {
+    method: 'POST',
+    path: '/api/custom-ui/import',
+    async handler({ services, bodyBuffer, json }) {
+      try {
+        const bytes = await bodyBuffer(16 * 1024 * 1024)
+        json(201, await customUiUnavailable(services).importBundle(bytes))
+      } catch (error) {
+        if (!(error instanceof CustomUiImportError)) throw error
+        json(error.statusCode, { code: error.code, error: error.code })
+      }
+    },
+  },
   {
     method: 'POST',
     path: '/api/custom-ui/components/:componentId/views',

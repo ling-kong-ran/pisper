@@ -18,6 +18,7 @@ import { APP_NAME } from '@/app/brand'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { StarOrbit } from '@/components/StarOrbit'
 import { AppCard as Panel, AppError, AppEmptyState } from '@/components/ui/app-primitives'
@@ -76,7 +77,7 @@ export function ChatHistoryPage({
   const completedBatchFocusRef = useRef(false)
   const completedBatchStatusRef = useRef<HTMLParagraphElement>(null)
   const [activeId, setActiveId] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
+    () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -130,7 +131,7 @@ export function ChatHistoryPage({
     const syncActive = (event: Event) =>
       setActiveId(
         (event as CustomEvent<{ id?: string }>).detail?.id ||
-          localStorage.getItem(STORAGE_KEYS.activeSession) ||
+          pageStateStorage.getItem(STORAGE_KEYS.activeSession) ||
           '',
       )
     window.addEventListener(SESSIONS_UPDATED_EVENT, refresh)
@@ -235,8 +236,8 @@ export function ChatHistoryPage({
       if (activeId === session.id) {
         const nextId = remaining[0]?.id || ''
         setActiveId(nextId)
-        if (nextId) localStorage.setItem(STORAGE_KEYS.activeSession, nextId)
-        else localStorage.removeItem(STORAGE_KEYS.activeSession)
+        if (nextId) pageStateStorage.setItem(STORAGE_KEYS.activeSession, nextId)
+        else pageStateStorage.removeItem(STORAGE_KEYS.activeSession)
         announceActiveSession(nextId)
       }
       announceSessionsUpdated({ deletedIds: [session.id] })

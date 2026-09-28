@@ -17,6 +17,7 @@ export const PAGE_PATHS = Object.freeze({
   workflows: '/workflows',
   workflowCreate: '/workflows/new',
   gameAssetWorkbench: '/tools/game-assets',
+  customComponentTool: '/tools/components',
   config: '/config/models',
 } as const)
 
@@ -38,6 +39,7 @@ export function pagePath(page: string) {
 export function pageFromPath(pathname: string): PageId | null {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
   if (/^\/workflows\/[^/]+$/.test(normalized)) return 'workflowCreate'
+  if (/^\/tools\/components\/[^/]+$/.test(normalized)) return 'customComponentTool'
   if (/^\/config(?:\/[^/]+)?$/.test(normalized)) return 'config'
   return PATH_PAGES.get(normalized) || null
 }

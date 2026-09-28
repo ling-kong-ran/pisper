@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useIsMobileApp } from '@/stores/client-store'
 import { cn } from '@/lib/utils'
 import { CustomUiWidget } from './CustomUiWidget'
 import {
@@ -45,7 +46,9 @@ function FloatingWidget({
   stackIndex: number
 }) {
   const { t } = useI18n()
-  const mobile = useIsMobile()
+  const phoneViewport = useIsMobile()
+  const mobileApp = useIsMobileApp()
+  const mobile = phoneViewport || mobileApp
   const key = floatingPlacementKey(id, mobile)
   const saved = useFloatingPlacementStore(
     (state) => state.positions.find((item) => item.key === key)?.position,

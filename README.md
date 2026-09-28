@@ -2,8 +2,6 @@
 
 <a id="top"></a>
 
-> **ZCode / PI 前端分支**：本分支 `feat/zcode-visual-refresh` 已同步 release 后端，使用独立简约界面。模型与智力合并选择，Plan 与访问权限常驻输入栏。不是 release 的前端导入包；官方发布下载也不代表本分支构建。详见 [分支开发与验证](docs/pi-frontend.md)。
-
 <p align="center">
   <img src="docs/brand/banner.svg" width="880" alt="Pisper — 想法，不必排队" />
 </p>
@@ -246,6 +244,8 @@ Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；�
 ## 🧩 组件与独立更新
 
 Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立更新，失败自动回退到内置版本。桌面端提供统一组件检查入口；移动 App 使用独立发布清单。
+
+独立 UI 组件可在「设置 → 界面设置 → 独立组件」导入文件夹或 ZIP；重新加载界面后会出现在「更多工具」。游戏素材工作台不再内置，源码位于 [pisper-components](https://github.com/ling-kong-ran/pisper-components)。[自定义组件说明](./docs/custom-ui.md)
 
 ## 📚 文档
 

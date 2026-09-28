@@ -50,6 +50,18 @@ export async function listCustomUiComponents(
   return { root: data.root, components: data.components }
 }
 
+export async function importCustomUiBundle(bundle: Blob): Promise<{ id: string; name: string }> {
+  const data = await apiJson<unknown>('/api/custom-ui/import', { method: 'POST', body: bundle })
+  if (
+    !isRecord(data) ||
+    typeof data.id !== 'string' ||
+    typeof data.name !== 'string' ||
+    !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(data.id)
+  )
+    throw new Error('Invalid custom UI import response')
+  return { id: data.id, name: data.name }
+}
+
 export type CustomUiView = { id: string; entryUrl: string }
 
 export async function createCustomUiView(

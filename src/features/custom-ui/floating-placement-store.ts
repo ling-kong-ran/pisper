@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   restoreFloatingPlacements,
   saveFloatingPlacement,
@@ -17,21 +18,21 @@ type FloatingPlacementState = FloatingPlacementPreferences & {
 const storage = createJSONStorage<FloatingPlacementPreferences>(() => ({
   getItem: (key) => {
     try {
-      return window.localStorage.getItem(key)
+      return pageStateStorage.getItem(key)
     } catch {
       return null
     }
   },
   setItem: (key, value) => {
     try {
-      window.localStorage.setItem(key, value)
+      pageStateStorage.setItem(key, value)
     } catch {
       // 隐私模式或配额不足时保留本次页面的位置。
     }
   },
   removeItem: (key) => {
     try {
-      window.localStorage.removeItem(key)
+      pageStateStorage.removeItem(key)
     } catch {
       // 清理失败不阻断界面复位。
     }
