@@ -1,9 +1,9 @@
 {
-  "version": "0.1.52",
-  "tag": "app-v0.1.52",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.52",
+  "version": "0.1.53",
+  "tag": "app-v0.1.53",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.53",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- feat: add workflows and independent game asset workbench\n- feat(ui): squash ZCode workbench and remote workspace changes",
-  "releaseDate": "2026-09-27"
+  "notes": "- fix: persist interface state and simplify custom components",
+  "releaseDate": "2026-09-28"
 }
