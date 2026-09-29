@@ -385,12 +385,12 @@ function SelectedNode({
             </FieldLabel>
           )}
           {node.kind === 'trigger' && (
-            <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
+            <p className="rounded-lg bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-muted-foreground">
               {t('workflows:editor.manualTriggerHint')}
             </p>
           )}
           {node.kind === 'parallel' && (
-            <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
+            <p className="rounded-lg bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-muted-foreground">
               {t('workflows:editor.parallelHint')}
             </p>
           )}

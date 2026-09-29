@@ -60,7 +60,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
   return (
     <div
       className={cn(
-        'flow-node relative flex w-40 min-h-16 cursor-grab flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm transition-shadow [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-muted-foreground [&_strong]:text-[13px] [&_strong]:font-medium [&.active]:border-primary [&.active]:ring-2 [&.active]:ring-primary/15 [&.type-condition]:border-amber-500/40 [&.type-parallel]:border-violet-500/40 [&.type-approval]:border-emerald-500/40 [&.compact]:w-28 [&.compact]:min-h-10 [&.compact]:px-2 [&.compact]:py-1',
+        'flow-node relative flex w-40 min-h-16 cursor-grab flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm transition-shadow [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-muted-foreground [&_strong]:text-[13px] [&_strong]:font-medium [&.active]:border-primary [&.active]:ring-2 [&.active]:ring-[var(--brand-blue-border)] [&.type-condition]:border-amber-500/40 [&.type-parallel]:border-violet-500/40 [&.type-approval]:border-emerald-500/40 [&.compact]:w-28 [&.compact]:min-h-10 [&.compact]:px-2 [&.compact]:py-1',
         `type-${data.kind}`,
         selected && 'active',
         data.compact && 'compact',
@@ -343,7 +343,7 @@ function WorkflowCanvasInner({
         />
         <Controls position="top-left" showInteractive={false} />
       </ReactFlow>
-      <div className="pointer-events-none absolute bottom-3 left-3 z-[5] hidden max-w-[calc(100%-180px)] rounded-md bg-card/90 px-2 py-1 text-[11px] leading-relaxed text-muted-foreground @min-[640px]/workflow:block">
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[5] hidden max-w-[calc(100%-180px)] rounded-md bg-card px-2 py-1 text-[11px] leading-relaxed text-muted-foreground @min-[640px]/workflow:block">
         {hint}
       </div>
     </div>

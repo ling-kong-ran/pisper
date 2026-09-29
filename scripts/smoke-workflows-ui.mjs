@@ -180,6 +180,52 @@ try {
   report.checks.push(
     'Palette colors and translucent dark accents survive the actual browser CSS parser',
   )
+  // var 色透明度工具类(如 bg-primary/10)在构建产物中带「全强度基色」降级;
+  // 旧内核(无 color-mix)必须由 index.css 的 @supports not 降级块接管,否则整体灰蒙蒙。
+  report.opacityFallbacks = await page.evaluate(() => {
+    const root = document.documentElement
+    const probe = document.createElement('div')
+    probe.style.cssText = 'position:fixed;width:0;height:0;overflow:hidden;pointer-events:none'
+    probe.innerHTML =
+      '<i class="bg-foreground/10"></i><i class="bg-muted/50"></i>' +
+      '<i class="dark:bg-input/30"></i><i class="ring-1 ring-foreground/10 block"></i>' +
+      '<b style="background:var(--foreground)"></b><b style="background:var(--muted)"></b>' +
+      '<b style="background:var(--input)"></b>'
+    document.body.append(probe)
+    try {
+      const [inkTint, mutedTint, inputTint, ring, solidInkBg, solidMuted, solidInput] = [
+        ...probe.children,
+      ]
+      const bg = (el) => getComputedStyle(el).backgroundColor
+      root.classList.add('dark')
+      const darkInput = bg(inputTint)
+      root.classList.remove('dark')
+      return {
+        inkTint: bg(inkTint),
+        mutedTint: bg(mutedTint),
+        darkInput,
+        ringColor: getComputedStyle(ring).boxShadow,
+        solidInk: bg(solidInkBg),
+        solidMuted: bg(solidMuted),
+        solidInput: bg(solidInput),
+      }
+    } finally {
+      root.classList.remove('dark')
+      probe.remove()
+    }
+  })
+  const tint = report.opacityFallbacks
+  assert.notEqual(tint.inkTint, tint.solidInk, 'bg-foreground/10 不得退化为实心前景色')
+  assert.notEqual(tint.mutedTint, tint.solidMuted, 'bg-muted/50 不得退化为实心灰')
+  assert.notEqual(tint.darkInput, tint.solidInput, 'dark:bg-input/30 不得退化为实心灰')
+  assert.ok(
+    tint.ringColor === 'none' ||
+      !tint.ringColor.includes(tint.solidInk.match(/\d+/g)?.slice(0, 3).join(', ') || ''),
+    'ring-foreground/10 不得退化为全强度前景色',
+  )
+  report.checks.push(
+    'Opacity utilities over theme vars degrade to soft design tokens instead of full-strength bases',
+  )
   await page.getByRole('button', { name: '使用工作流', exact: true }).click()
   await page.waitForURL((url) => url.hash === '#/workflows/new?template=sprite')
   await page.locator('.builder-layout').waitFor({ state: 'attached' })

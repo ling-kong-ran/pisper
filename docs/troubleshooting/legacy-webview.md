@@ -14,6 +14,11 @@ Windows 版本与 WebView2 版本是两项独立信息。例如 Windows 10 `1904
 - Chromium 104 不支持 OKLCH 和 `color-mix`。CSS 构建目标明确包含 `chrome104`，
   为静态颜色生成 sRGB 基础值；预设及动态自定义强调色的透明底色使用 RGBA。
   JavaScript 构建目标仍为 `safari16`，不改变移动端入口语法与依赖边界。
+- Tailwind 对「变量色 + 透明度」工具类（如 `bg-muted/50`、`dark:bg-input/30`）生成的
+  降级值是全强度基色，Chromium 104 会把 10%~50% 的浅底色渲染成实心块，表现为整体
+  灰蒙蒙、图标底色实心。`src/index.css` 末尾用 `@supports not (color: color-mix(...))`
+  统一降级到最接近的设计 token；现代内核不满足条件，保持原语义。新增此类工具类时
+  必须同步该降级块，工作流 UI smoke 会断言探测类不退化为全强度基色。
 - 编辑器首次请求失败会显示错误、重试和返回入口，不再因缺少草稿永久显示加载状态。
 
 这不是对所有旧版 WebView2 的支持承诺。更早的内核还可能缺少层叠层等基础能力。

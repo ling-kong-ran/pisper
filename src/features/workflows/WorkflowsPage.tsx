@@ -131,7 +131,7 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
       {view === 'workflows' && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-5">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-blue-soft)] text-[var(--star-strong)]">
               <Film className="size-5" />
             </span>
             <div className="space-y-1">
