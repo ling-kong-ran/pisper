@@ -1,9 +1,9 @@
 {
-  "version": "0.1.54",
-  "tag": "app-v0.1.54",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.54",
+  "version": "0.1.55",
+  "tag": "app-v0.1.55",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.55",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- fix: restore workflow and color rendering in WebView2 104",
-  "releaseDate": "2026-09-28"
+  "notes": "- fix: rebalance legacy foreground wash fallbacks for disabled and pill surfaces\n- fix: degrade var-color opacity utilities to soft tokens on legacy WebView2",
+  "releaseDate": "2026-09-29"
 }
