@@ -860,21 +860,27 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   .dark\:hover\:bg-input\/50:is(.dark *):hover {
     background-color: var(--surface-hover);
   }
-  /* 前景色浅洗(hover/禁用等)→ 中性表面色 */
+  /* 前景色浅洗(hover/禁用等)→ 中性表面色,按浓度分级保证可辨识 */
   .bg-foreground\/5,
-  .bg-foreground\/10,
   .bg-muted-foreground\/10,
-  .disabled\:bg-foreground\/20:disabled {
+  .hover\:bg-foreground\/5:hover {
     background-color: var(--surface-subtle);
   }
-  .bg-foreground\/20,
+  .bg-foreground\/10,
   .bg-muted-foreground\/25,
-  .hover\:bg-foreground\/5:hover,
   .hover\:bg-foreground\/10:hover,
   .hover\:bg-muted-foreground\/10:hover,
   .hover\:bg-accent\/50:hover,
   .dark\:hover\:bg-accent\/50:is(.dark *):hover {
     background-color: var(--surface-hover);
+  }
+  .bg-foreground\/20,
+  .disabled\:bg-foreground\/20:disabled {
+    background-color: var(--surface-muted);
+  }
+  /* 反色文字配浅灰底(如禁用发送钮):页面色文字在灰底上不可读,降级为柔和正文色 */
+  .disabled\:text-background\/70:disabled {
+    color: var(--text-muted);
   }
   /* 1px 环与细边:全强度前景/文本色过重,降级到描边 token */
   .ring-foreground\/10 {
