@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   importMobileWorkspaceDirectory,
   mobileWorkspaceMode,
-} from '../../src/lib/mobile-workspace.ts'
+} from '../../src/lib/mobile/mobile-workspace.ts'
 
 function mobileFixture(
   t,

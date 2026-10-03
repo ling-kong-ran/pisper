@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { PNG } from 'pngjs'
-import { applyImageAlphaStrokes } from '../../shared/image-alpha-strokes.mjs'
-import { normalizeImageFrameEdits } from '../../shared/image-frame-edits.mjs'
-import { normalizeWorkflowImageSettings } from '../../shared/workflow-image-nodes.mjs'
+import { applyImageAlphaStrokes } from '../../shared/image/image-alpha-strokes.mjs'
+import { normalizeImageFrameEdits } from '../../shared/image/image-frame-edits.mjs'
+import { normalizeWorkflowImageSettings } from '../../shared/workflow/workflow-image-nodes.mjs'
 import { WorkflowImageProcessor } from '../services/workflow-image-processing.mjs'
 
 const settings = normalizeWorkflowImageSettings({ padding: 0, trim: false, align: 'none' })

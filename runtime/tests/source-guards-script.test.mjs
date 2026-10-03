@@ -19,7 +19,7 @@ test('default mode lists guarded source files grouped by test file', () => {
 })
 
 test('--source reverse lookup finds every test reading the given source file', () => {
-  const result = runSourceGuards(['--source', 'src/features/chat/AgentRunActivity.tsx'])
+  const result = runSourceGuards(['--source', 'src/features/chat/components/message/AgentRunActivity.tsx'])
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /^runtime\/tests\/chat-stream-rendering\.test\.mjs$/m)
 })

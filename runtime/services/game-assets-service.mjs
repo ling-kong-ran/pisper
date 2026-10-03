@@ -7,18 +7,18 @@ import {
   parseGameAssetProject,
   parseGameAssetJob,
   parseGameAssetsCatalog,
-} from '../../shared/game-assets.mjs'
-import { parseImageOutput } from '../../shared/image-operations.mjs'
-import { normalizeImageFrameEdits } from '../../shared/image-frame-edits.mjs'
+} from '../../shared/game/game-assets.mjs'
+import { parseImageOutput } from '../../shared/image/image-operations.mjs'
+import { normalizeImageFrameEdits } from '../../shared/image/image-frame-edits.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
-/** @typedef {import('../../shared/game-assets.mjs').GameAssetProject} Project */
-/** @typedef {import('../../shared/game-assets.mjs').GameAssetJob} Job */
-/** @typedef {import('../../shared/game-assets.mjs').GameAssetsCatalog} Catalog */
-/** @typedef {import('../../shared/workflow-inputs.mjs').WorkflowMedia} Media */
-/** @typedef {import('../../shared/image-operations.mjs').ImageOutput} Output */
-/** @typedef {import('../../shared/image-operations.mjs').ImageSettings} Settings */
-/** @typedef {{operation:'input'|'background'|'inpaint'|'generate'|'frames'|'transform'|'preview'|'export'|'edit',settings?:Partial<Settings>,source?:Media,images?:Output['frames'],prompt?:string,model?:Project['model'],resumeOutput?:Output,edits?:import('../../shared/image-frame-edits.mjs').ImageFrameEdits,signal?:AbortSignal}} ImageOperation */
+/** @typedef {import('../../shared/game/game-assets.mjs').GameAssetProject} Project */
+/** @typedef {import('../../shared/game/game-assets.mjs').GameAssetJob} Job */
+/** @typedef {import('../../shared/game/game-assets.mjs').GameAssetsCatalog} Catalog */
+/** @typedef {import('../../shared/workflow/workflow-inputs.mjs').WorkflowMedia} Media */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageOutput} Output */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageSettings} Settings */
+/** @typedef {{operation:'input'|'background'|'inpaint'|'generate'|'frames'|'transform'|'preview'|'export'|'edit',settings?:Partial<Settings>,source?:Media,images?:Output['frames'],prompt?:string,model?:Project['model'],resumeOutput?:Output,edits?:import('../../shared/image/image-frame-edits.mjs').ImageFrameEdits,signal?:AbortSignal}} ImageOperation */
 /** @typedef {{execute(input:ImageOperation):Promise<{output:Output,summary:string}>}} Operations */
 const SAFE_ERRORS = new Set([
   'game_assets_cancelled',

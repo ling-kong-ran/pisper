@@ -141,7 +141,8 @@ test('Android staging 不接受文件名匹配但摘要错误的 BPE 资源', as
   const sourceDir = join(root, 'source')
   const targetDir = join(root, 'assets')
   await mkdir(join(sourceDir, 'speech-resources'), { recursive: true })
-  for (const name of ['speech-model-catalog.json', 'speech-resource-notices.json']) {
+  for (const name of ['speech/speech-model-catalog.json', 'speech/speech-resource-notices.json']) {
+    await mkdir(join(sourceDir, 'speech'), { recursive: true })
     await writeFile(join(sourceDir, name), await readFile(join('shared', name)))
   }
   await writeFile(join(sourceDir, 'speech-resources/xasr-bpe.vocab'), 'untrusted vocab')

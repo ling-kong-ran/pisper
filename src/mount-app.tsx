@@ -2,8 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AppProviders } from '@/app/providers'
-import { router } from '@/app/router'
-import { legacyHashPath } from '@/app/routes'
+import { router } from '@/app/routes/router'
+import { legacyHashPath } from '@/app/routes/routes'
 
 const syncPageVisibility = () => {
   document.documentElement.dataset.pageVisibility = document.visibilityState

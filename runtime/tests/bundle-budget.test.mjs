@@ -7,16 +7,16 @@ import {
 } from '../../scripts/check-bundle-budget.mjs'
 
 const ROUTE_SOURCES = [
-  'src/features/chat/ChatPage.tsx',
-  'src/features/chat/ChatHistoryPage.tsx',
-  'src/features/assets/AssetsPage.tsx',
+  'src/features/chat/pages/ChatPage.tsx',
+  'src/features/chat/pages/ChatHistoryPage.tsx',
+  'src/features/assets/pages/AssetsPage.tsx',
   'src/features/channels/ChannelsPage.tsx',
   'src/features/schedules/SchedulesPage.tsx',
-  'src/features/config/ConfigPage.tsx',
-  'src/features/plugins/PluginsPage.tsx',
+  'src/features/config/pages/ConfigPage.tsx',
+  'src/features/plugins/pages/PluginsPage.tsx',
   'src/features/memory/MemoryPage.tsx',
-  'src/features/mcp/McpPage.tsx',
-  'src/features/skills/SkillsPage.tsx',
+  'src/features/mcp/pages/McpPage.tsx',
+  'src/features/skills/pages/SkillsPage.tsx',
   'src/features/workflows/WorkflowsPage.tsx',
 ]
 
@@ -47,7 +47,7 @@ function passingReport() {
   for (const source of ROUTE_SOURCES) {
     manifest[source] = { file: `assets/${source.split('/').at(-1)}.js`, isDynamicEntry: true }
   }
-  manifest['src/features/chat/ChatHistoryPage.tsx'].css = ['assets/react-bits.css']
+  manifest['src/features/chat/pages/ChatHistoryPage.tsx'].css = ['assets/react-bits.css']
   for (const source of REACT_BITS_SOURCES) {
     manifest[source] = {
       file: `assets/${source.split('/').at(-1)}.js`,
@@ -143,7 +143,7 @@ test('bundle budget rejects size, eager vendor, and CSS ownership regressions', 
 test('PI bundle rejects unused split-view code and decorative welcome styles', () => {
   const report = passingReport()
   report.keyByName.set('vendor-dockview', '_vendor-dockview')
-  report.manifest['src/features/chat/WelcomeEffects.tsx'] = {
+  report.manifest['src/features/chat/components/WelcomeEffects.tsx'] = {
     file: 'assets/WelcomeEffects.js',
     isDynamicEntry: true,
     css: ['assets/react-bits.css'],

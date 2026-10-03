@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   hasActiveSessionAgents,
   shouldPollLiveSession,
-} from '../../src/features/chat/live-session-sync.ts'
+} from '../../src/features/chat/model/live-session-sync.ts'
 
 test('a locally owned SSE stream blocks live snapshot polling', () => {
   const active = {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyTextPatch, consumeEventStream } from '../../src/lib/api.ts'
+import { applyTextPatch, consumeEventStream } from '../../src/lib/http/api.ts'
 
 function chunkedResponse(chunks) {
   const encoder = new TextEncoder()

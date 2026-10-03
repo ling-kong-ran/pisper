@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Minus, Square, X } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+import { useI18n } from '@/app/i18n/use-i18n'
 
 export function DesktopWindowControls() {
   const { t } = useI18n()

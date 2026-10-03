@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   componentUpdateStatus,
   currentDesktopVersion,
-} from '../../src/features/updates/component-update-state.ts'
+} from '../../src/features/updates/model/component-update-state.ts'
 
 function component(component, state, size, transferred = 0) {
   return {

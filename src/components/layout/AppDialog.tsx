@@ -2,7 +2,7 @@
 // 输入框受控聚焦，Enter 确认、Esc 关闭；输入值在提交时回调 onFinish。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'

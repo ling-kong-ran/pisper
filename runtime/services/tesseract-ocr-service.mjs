@@ -9,7 +9,7 @@ import {
   OCR_LANGUAGES,
   OCR_MODEL_FILES,
   OCR_MODEL_VERSION,
-} from '../../shared/ocr-model-catalog.mjs'
+} from '../../shared/speech/ocr-model-catalog.mjs'
 
 const require = createRequire(import.meta.url)
 const WORKER_PATH = require.resolve('tesseract.js/src/worker-script/node/index.js')

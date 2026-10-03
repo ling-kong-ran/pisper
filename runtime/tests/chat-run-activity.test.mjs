@@ -14,7 +14,7 @@ import {
   RUN_INACTIVITY_THRESHOLD_MS,
   settleToolCalls,
   planChanges,
-} from '../../src/features/chat/run-activity.ts'
+} from '../../src/features/chat/model/run-activity.ts'
 
 test('chat activity derives meaningful stages and inactivity states', () => {
   const now = Date.parse('2026-07-20T10:00:20.000Z')

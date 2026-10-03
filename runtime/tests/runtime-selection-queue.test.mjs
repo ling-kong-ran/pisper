@@ -4,7 +4,7 @@ import test from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import { createRuntimeSelectionQueue } from '../../src/features/chat/runtime-selection-queue.ts'
+import { createRuntimeSelectionQueue } from '../../src/features/chat/model/runtime-selection-queue.ts'
 
 function deferred() {
   let resolve, reject
@@ -17,7 +17,7 @@ function deferred() {
 
 test('session selections wait for runtime configuration readiness after visible streaming stops', async () => {
   const code = transformSync(
-    await readFile('src/features/chat/session-runtime-selections.ts', 'utf8'),
+    await readFile('src/features/chat/model/session-runtime-selections.ts', 'utf8'),
     { loader: 'ts', format: 'cjs' },
   ).code
   const snapshots = [
@@ -32,8 +32,8 @@ test('session selections wait for runtime configuration readiness after visible 
     module,
     exports: module.exports,
     require(id) {
-      if (id === './chat-api') return { chatApi: { getLiveSession: async () => snapshots.shift() } }
-      if (id === './runtime-selection-queue')
+      if (id === './chat-api' || id === '@/features/chat/api/chat-api') return { chatApi: { getLiveSession: async () => snapshots.shift() } }
+      if (id === './runtime-selection-queue' || id === '@/features/chat/model/runtime-selection-queue')
         return { createRuntimeSelectionQueue: (options) => (dependencies = options) }
       assert.fail(`Unexpected dependency: ${id}`)
     },

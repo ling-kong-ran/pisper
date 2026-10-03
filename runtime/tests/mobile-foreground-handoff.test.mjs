@@ -10,7 +10,7 @@ const initializationScript = shell.match(
 )?.[1]
 assert.ok(initializationScript, '移动壳初始化脚本必须来自实际 Rust 字符串')
 const recoverySource = await readFile(
-  new URL('../../src/lib/mobile-runtime-recovery.ts', import.meta.url),
+  new URL('../../src/lib/mobile/mobile-runtime-recovery.ts', import.meta.url),
   'utf8',
 )
 const recoveryScript = transformSync(recoverySource, {
@@ -45,7 +45,7 @@ test('manual route reload waits for shared recovery and navigates even when reco
       },
     },
     require: (name) =>
-      name === '@/lib/http'
+      name === '@/lib/http/http'
         ? {
             waitForMobileRuntimeReady: () => {
               waits += 1

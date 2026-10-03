@@ -4,10 +4,10 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PNG } from 'pngjs'
 import jpeg from 'jpeg-js'
-import { assertRasterBounds, readRasterDimensions } from '../../shared/raster-image.mjs'
-import { imageOperationError } from '../../shared/image-operations.mjs'
-import { applyImageAlphaStrokes } from '../../shared/image-alpha-strokes.mjs'
-import { normalizeImageFrameEdits } from '../../shared/image-frame-edits.mjs'
+import { assertRasterBounds, readRasterDimensions } from '../../shared/image/raster-image.mjs'
+import { imageOperationError } from '../../shared/image/image-operations.mjs'
+import { applyImageAlphaStrokes } from '../../shared/image/image-alpha-strokes.mjs'
+import { normalizeImageFrameEdits } from '../../shared/image/image-frame-edits.mjs'
 import {
   computeOpaqueBounds,
   extractPalette,
@@ -19,7 +19,7 @@ import {
 } from '../../shared/vendor/framebaker/geometry.mjs'
 
 /** @typedef {import('../services/workflow-image-processing.mjs').ProcessingFrame} ProcessingFrame */
-/** @typedef {import('../../shared/image-operations.mjs').ImageSettings} Settings */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageSettings} Settings */
 /** @typedef {ProcessingFrame & { data: Uint8ClampedArray }} Pixels */
 /** @typedef {import('../../shared/vendor/framebaker/pixels.mjs').RgbColor} RgbColor */
 

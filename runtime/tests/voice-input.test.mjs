@@ -4,15 +4,15 @@ import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import ts from '@ts-morph/common/dist/typescript.js'
-import * as abortSignal from '../../src/lib/abort-signal.ts'
-import * as speechTerms from '../../shared/speech-terms.mjs'
+import * as abortSignal from '../../src/lib/http/abort-signal.ts'
+import * as speechTerms from '../../shared/speech/speech-terms.mjs'
 
 const compile = async (path) =>
   ts.transpileModule(await readFile(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-const inputCode = await compile('src/features/chat/voice-input.ts')
-const hookCode = await compile('src/features/chat/use-voice-session.ts')
+const inputCode = await compile('src/features/chat/model/voice-input.ts')
+const hookCode = await compile('src/features/chat/hooks/use-voice-session.ts')
 function deferred() {
   let resolve, reject
   const promise = new Promise((yes, no) => {
@@ -50,9 +50,9 @@ function inputFixture(t, settings = {}) {
   const lease = new AbortController()
   let leaseParent
   const modules = {
-    '@/lib/http': { waitForMobileRuntimeReady: async () => {} },
-    '@/lib/abort-signal': abortSignal,
-    '@shared/speech-terms.mjs': speechTerms,
+    '@/lib/http/http': { waitForMobileRuntimeReady: async () => {} },
+    '@/lib/http/abort-signal': abortSignal,
+    '@shared/speech/speech-terms.mjs': speechTerms,
     './speech-session': {
       loadSpeechHotwords: async (sessionId, signal) => {
         calls.push({ type: 'terms', sessionId, signal })
@@ -70,7 +70,11 @@ function inputFixture(t, settings = {}) {
       },
     },
   }
-  const { createSpeechRecognizer } = load(inputCode, modules, {
+  Object.assign(modules, {
+  '@/features/chat/model/speech-session': modules['./speech-session'],
+  '@/features/chat/model/voice-input': modules['./voice-input'],
+})
+const { createSpeechRecognizer } = load(inputCode, modules, {
     crypto: { randomUUID: () => 'recognition-request' },
     btoa,
     window: {
@@ -284,8 +288,8 @@ function hookFixture(t, settings = {}) {
   const document = { ...eventHost(), hidden: false }
   const modules = {
     react,
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/abort-signal': abortSignal,
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/http/abort-signal': abortSignal,
     './speech-session': {
       loadSpeechHotwords: async (sessionId, signal) => {
         calls.push({ type: 'terms', sessionId, signal })
@@ -319,7 +323,7 @@ function hookFixture(t, settings = {}) {
         return { stop: async () => {} }
       },
     },
-    './voice-endpoint': { createVoiceEndpoint: async () => ({ hasSpeech: true, dispose() {} }) },
+    '@/features/chat/model/voice-endpoint': { createVoiceEndpoint: async () => ({ hasSpeech: true, dispose() {} }) },
     './voice-response-stream': {
       createVoiceTextStream: () => ({ update() {}, finish() {} }),
       subscribeVoiceResponse: () => () => {},
@@ -329,7 +333,13 @@ function hookFixture(t, settings = {}) {
       pcmLevel: () => 0,
     },
   }
-  const { useVoiceSession: hook } = load(hookCode, modules, {
+  Object.assign(modules, {
+  '@/features/chat/model/speech-session': modules['./speech-session'],
+  '@/features/chat/model/voice-input': modules['./voice-input'],
+  '@/features/chat/model/voice-response-stream': modules['./voice-response-stream'],
+  '@/features/chat/model/voice-mode-state': modules['./voice-mode-state'],
+})
+const { useVoiceSession: hook } = load(hookCode, modules, {
     window,
     document,
     performance: { now: () => 0 },

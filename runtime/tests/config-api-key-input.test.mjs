@@ -4,8 +4,8 @@ import test from 'node:test'
 
 test('quick setup wizard saves provider config after fetching and selecting a model', async () => {
   const [wizardSource, modelsSettingsSource] = await Promise.all([
-    readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
-    readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/QuickSetupWizard.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/ModelsSettings.tsx', 'utf8'),
   ])
 
   assert.match(wizardSource, /setAsDefault: false/)
@@ -34,9 +34,9 @@ test('quick setup wizard saves provider config after fetching and selecting a mo
 
 test('Provider API key input uses a single password value without an add confirmation', async () => {
   const [wizardSource, dialogSource, keyListSource] = await Promise.all([
-    readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
-    readFile('src/features/config/ProviderDialogs.tsx', 'utf8'),
-    readFile('src/features/config/ApiKeyInput.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/QuickSetupWizard.tsx', 'utf8'),
+    readFile('src/features/config/components/provider/ProviderDialogs.tsx', 'utf8'),
+    readFile('src/features/config/components/provider/ApiKeyInput.tsx', 'utf8'),
   ])
   assert.match(wizardSource, /<ApiKeyInput/)
   assert.match(dialogSource, /<ApiKeyInput/)
@@ -48,10 +48,10 @@ test('Provider API key input uses a single password value without an add confirm
 
 test('visual Provider settings expose a direct connection editor and hide unused presets', async () => {
   const [dialogSource, modelsSource, connectionSource, visualSource] = await Promise.all([
-    readFile('src/features/config/ProviderDialogs.tsx', 'utf8'),
-    readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
-    readFile('src/features/config/ConnectionList.tsx', 'utf8'),
-    readFile('src/features/config/VisualGenerationSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/provider/ProviderDialogs.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/ModelsSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/provider/ConnectionList.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/VisualGenerationSettings.tsx', 'utf8'),
   ])
   assert.match(dialogSource, /initialProvider\?: ProviderConfig/)
   assert.match(dialogSource, /apiJson<ConfigData>\('\/api\/config'/)

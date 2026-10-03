@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { OCR_LANGUAGES, OCR_MODEL_VERSION } from '../../shared/ocr-model-catalog.mjs'
+import { OCR_LANGUAGES, OCR_MODEL_VERSION } from '../../shared/speech/ocr-model-catalog.mjs'
 
 const OFFICIAL_EXTENSION_ENTRY = '@injaneity/pi-computer-use/extensions/computer-use.ts'
 

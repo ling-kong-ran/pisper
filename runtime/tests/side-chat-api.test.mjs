@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { decodeSideChatResponse } from '../../src/features/chat/side-chat-api.ts'
-import { ApiError } from '../../src/lib/api-error.ts'
+import { decodeSideChatResponse } from '../../src/features/chat/model/side-chat-api.ts'
+import { ApiError } from '../../src/lib/http/api-error.ts'
 
 const response = {
   session: { id: 'side-fixture', cwd: '/workspace', model: 'provider/model', streaming: false },

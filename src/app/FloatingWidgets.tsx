@@ -1,11 +1,11 @@
 // 悬浮组件由应用壳持有；路由与会话切换只更新页面内容，不重建沙箱和计时器。
 import { useMemo, type RefObject } from 'react'
-import { useI18n } from '@/app/use-i18n'
-import { FloatingCustomUi } from '@/features/custom-ui/floating'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { FloatingCustomUi } from '@/features/custom-ui/model/floating'
 import {
   resolveFloatingWidgetIds,
   useFloatingWidgetsStore,
-} from '@/features/custom-ui/floating-preferences'
+} from '@/features/custom-ui/model/floating-preferences'
 
 export function FloatingWidgets({
   anchorRef,

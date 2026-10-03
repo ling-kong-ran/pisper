@@ -5,7 +5,7 @@ import {
   TERMINAL_TRUNCATION_MARKER,
   stripTerminalControlSequences,
   terminalDisplayOutput,
-} from '../../src/lib/terminal-output.ts'
+} from '../../src/lib/ui/terminal-output.ts'
 
 test('terminal display keeps full short output while removing controls from streaming text', () => {
   const source = '\u001b[32mgreen\u001b[0m\n\u001b]0;ignored title\u0007plain\u0000text'

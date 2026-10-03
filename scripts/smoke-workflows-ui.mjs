@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { createServer } from 'node:net'
-import { SPRITE_ENGINE_CATALOG } from '../shared/sprite-engine-catalog.mjs'
+import { SPRITE_ENGINE_CATALOG } from '../shared/game/sprite-engine-catalog.mjs'
 import { decodeWorkflowBundle } from '../runtime/services/workflow-bundle-archive.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')

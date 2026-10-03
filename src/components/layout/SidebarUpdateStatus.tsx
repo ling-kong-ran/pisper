@@ -1,6 +1,6 @@
 // 更新提示仅在确有可用更新时加载，避免给常驻导航增加入口体积。
 import { Download, ExternalLink, RefreshCw, Rocket } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+import { useI18n } from '@/app/i18n/use-i18n'
 export type SidebarUpdate = {
   info?: { desktop?: boolean; mobile?: boolean }
   status?: {

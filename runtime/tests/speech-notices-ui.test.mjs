@@ -4,9 +4,9 @@ import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import ts from '@ts-morph/common/dist/typescript.js'
 
-const notices = JSON.parse(await readFile('shared/speech-resource-notices.json', 'utf8'))
+const notices = JSON.parse(await readFile('shared/speech/speech-resource-notices.json', 'utf8'))
 const code = ts.transpileModule(
-  await readFile('src/features/chat/SpeechResourceNoticesDialog.tsx', 'utf8'),
+  await readFile('src/features/chat/components/voice/SpeechResourceNoticesDialog.tsx', 'utf8'),
   {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -49,8 +49,8 @@ function load() {
     window: { setTimeout: (callback) => timers.push(callback) },
     require(name) {
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx }
-      if (name === './speech-resource-notices') return { speechResourceNotices: notices }
-      if (name === '@/app/use-i18n') return { useI18n: () => ({ t: (key) => key }) }
+      if (name === './speech-resource-notices' || name === '@/features/chat/model/speech-resource-notices') return { speechResourceNotices: notices }
+      if (name === '@/app/i18n/use-i18n') return { useI18n: () => ({ t: (key) => key }) }
       if (name === 'lucide-react' || name.startsWith('@/components/ui/')) return primitives
       throw new Error(`Unexpected notice dependency: ${name}`)
     },

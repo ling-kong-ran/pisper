@@ -12,9 +12,9 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'pisper-mobile-archive-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const runtimeDir = join(root, 'runtime')
-  await mkdir(join(runtimeDir, 'runtime'), { recursive: true })
+  await mkdir(join(runtimeDir, 'runtime', 'services'), { recursive: true })
   await mkdir(join(runtimeDir, 'dist'), { recursive: true })
-  await writeFile(join(runtimeDir, 'runtime/mobile-embedded.mjs'), 'export const ready = true\n')
+  await writeFile(join(runtimeDir, 'runtime/services/mobile-embedded.mjs'), 'export const ready = true\n')
   await writeFile(join(runtimeDir, 'dist/index.html'), '<!doctype html><div id="root"></div>\n')
   return {
     runtimeDir,
@@ -54,7 +54,7 @@ test('首条小清单可在 16 KiB 内读取，并覆盖两个实际入口摘要
   assert.equal(manifest.runtimeProfile, options.runtimeProfile)
   assert.match(manifest.buildSha256, /^[a-f0-9]{64}$/)
   for (const [field, path] of [
-    ['entrySha256', 'runtime/mobile-embedded.mjs'],
+    ['entrySha256', 'runtime/services/mobile-embedded.mjs'],
     ['frontendSha256', 'dist/index.html'],
   ]) {
     assert.equal(
@@ -70,7 +70,7 @@ test('重建排除旧清单且不受 mtime 影响，归档没有重复条目', a
   const options = await fixture(t)
   const first = await createMobileRuntimeArchive(options)
   const bytes = await readFile(options.output)
-  await utimes(join(options.runtimeDir, 'runtime/mobile-embedded.mjs'), 123456, 123456)
+  await utimes(join(options.runtimeDir, 'runtime/services/mobile-embedded.mjs'), 123456, 123456)
   await writeFile(join(options.runtimeDir, 'embedded-runtime.json'), '{"stale":true}')
   assert.deepEqual(await createMobileRuntimeArchive(options), first)
   assert.deepEqual(await readFile(options.output), bytes)
@@ -101,7 +101,7 @@ test('同 App 版本的闭包、前端、版本或 profile 变化都会改变 bu
 for (const runtimeProfile of ['mobile-embedded', 'mobile-store']) {
   test(`${runtimeProfile} 同版本实际归档重建区分不同 build 并可还原原指纹`, async (t) => {
     const options = { ...(await fixture(t)), runtimeProfile }
-    const entryPath = join(options.runtimeDir, 'runtime/mobile-embedded.mjs')
+    const entryPath = join(options.runtimeDir, 'runtime/services/mobile-embedded.mjs')
     const originalEntry = await readFile(entryPath)
     const original = await createMobileRuntimeArchive(options)
     const originalArchive = await readFile(options.output)
@@ -142,9 +142,9 @@ test('缺失、空入口及越界清单在发布归档前失败', async (t) => {
     createMobileRuntimeArchive({ ...options, appVersion: '1'.repeat(8192) }),
     /probe limit/,
   )
-  await writeFile(join(options.runtimeDir, 'runtime/mobile-embedded.mjs'), '')
+  await writeFile(join(options.runtimeDir, 'runtime/services/mobile-embedded.mjs'), '')
   await assert.rejects(createMobileRuntimeArchive(options), /Empty/)
-  await rm(join(options.runtimeDir, 'runtime/mobile-embedded.mjs'))
+  await rm(join(options.runtimeDir, 'runtime/services/mobile-embedded.mjs'))
   await assert.rejects(createMobileRuntimeArchive(options), /ENOENT/)
   await assert.rejects(readFile(options.output), /ENOENT/)
 })

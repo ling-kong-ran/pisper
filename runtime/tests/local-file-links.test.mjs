@@ -5,7 +5,7 @@ import {
   encodeLocalFileHref,
   parseLocalFileTarget,
   remarkLocalFileLinks,
-} from '../../src/lib/local-file-links.ts'
+} from '../../src/lib/platform/local-file-links.ts'
 
 const bases = ['C:\\work\\project', '/work/project', '/']
 

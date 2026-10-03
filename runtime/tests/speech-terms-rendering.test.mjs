@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { access, readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { searchConfig } from '../../src/features/config/config-search.ts'
+import { searchConfig } from '../../src/features/config/model/config-search.ts'
 
 test('model settings have no speech hotword controls or component', async () => {
-  const models = await readFile('src/features/config/ModelsSettings.tsx', 'utf8')
+  const models = await readFile('src/features/config/components/settings/ModelsSettings.tsx', 'utf8')
   assert.doesNotMatch(models, /SpeechTermsSettings|models-speech|projectTermsEnabled|builtinTerms/)
   await assert.rejects(access('src/features/config/SpeechTermsSettings.tsx'), { code: 'ENOENT' })
 })

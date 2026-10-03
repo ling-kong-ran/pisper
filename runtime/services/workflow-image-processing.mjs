@@ -1,13 +1,13 @@
 import { Worker } from 'node:worker_threads'
-import { normalizeImageSettings, imageOperationError } from '../../shared/image-operations.mjs'
-import { assertRasterBounds, readRasterDimensions } from '../../shared/raster-image.mjs'
-import { normalizeImageFrameEdits } from '../../shared/image-frame-edits.mjs'
+import { normalizeImageSettings, imageOperationError } from '../../shared/image/image-operations.mjs'
+import { assertRasterBounds, readRasterDimensions } from '../../shared/image/raster-image.mjs'
+import { normalizeImageFrameEdits } from '../../shared/image/image-frame-edits.mjs'
 
-/** @typedef {import('../../shared/image-operations.mjs').ImageSettings} ImageSettings */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageSettings} ImageSettings */
 /** @typedef {{ buffer: Uint8Array, mimeType: string, width: number, height: number, durationMs: number, action: string, direction: string, columns: number, rows: number, frameCount: number }} ProcessingFrame */
 /** @typedef {Omit<ProcessingFrame, 'buffer' | 'mimeType'> & { buffer: Buffer, mimeType: 'image/png' }} ProcessedFrame */
 /** @typedef {{ frames: ProcessedFrame[], recommendedBackground?: string, atlas?: { buffer: Buffer, width: number, height: number, frames: Array<{ x: number, y: number, width: number, height: number, durationMs: number, action: string, direction: string }> } }} ProcessingResult */
-/** @typedef {{ operation: 'background' | 'inpaint' | 'frames' | 'transform' | 'edit' | 'export' | 'palette', frames: ProcessingFrame[], settings: ImageSettings, edits?: import('../../shared/image-frame-edits.mjs').ImageFrameEdits }} ProcessingRequest */
+/** @typedef {{ operation: 'background' | 'inpaint' | 'frames' | 'transform' | 'edit' | 'export' | 'palette', frames: ProcessingFrame[], settings: ImageSettings, edits?: import('../../shared/image/image-frame-edits.mjs').ImageFrameEdits }} ProcessingRequest */
 
 /** 先检查压缩头与总量，避免将不可信的超大图片送入解码器。 @param {ProcessingFrame[]} frames */
 function validateFrames(frames) {

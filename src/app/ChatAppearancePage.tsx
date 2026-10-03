@@ -1,9 +1,9 @@
 // 界面设置组合外观与独立组件；会话布局画布不再作为用户设置入口。
 import { lazy, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useI18n } from '@/app/use-i18n'
-import { ensureCustomUiMessages } from '@/app/i18n'
-import type { Notify } from '@/app/route-context'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { ensureCustomUiMessages } from '@/app/i18n/i18n'
+import type { Notify } from '@/app/routes/route-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 const CustomUiPage = lazy(async () => {
   const [{ CustomUiPage }] = await Promise.all([

@@ -4,15 +4,15 @@ import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import { createVoiceEndpointAdapter } from '../../src/features/chat/voice-endpoint.ts'
-import * as voiceResponse from '../../src/features/chat/voice-response-stream.ts'
-import { streamingSpeechSegments } from '../../src/features/chat/speech-stream-text.ts'
-import * as abortSignal from '../../src/lib/abort-signal.ts'
+import { createVoiceEndpointAdapter } from '../../src/features/chat/model/voice-endpoint.ts'
+import * as voiceResponse from '../../src/features/chat/model/voice-response-stream.ts'
+import { streamingSpeechSegments } from '../../src/features/chat/model/speech-stream-text.ts'
+import * as abortSignal from '../../src/lib/http/abort-signal.ts'
 
-const source = await readFile('src/features/chat/use-voice-session.ts', 'utf8')
+const source = await readFile('src/features/chat/hooks/use-voice-session.ts', 'utf8')
 const compiled = transformSync(source, { loader: 'ts', format: 'cjs' }).code
 const stateCompiled = transformSync(
-  await readFile('src/features/chat/voice-mode-state.ts', 'utf8'),
+  await readFile('src/features/chat/model/voice-mode-state.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 
@@ -213,8 +213,8 @@ function fixture(t, settings = {}) {
   }
   const modules = {
     react,
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/abort-signal': abortSignal,
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/http/abort-signal': abortSignal,
     './voice-input': microphone,
     './voice-response-stream': voiceResponse,
     './speech-session': {
@@ -224,7 +224,7 @@ function fixture(t, settings = {}) {
         return { requestId: 'fixture-session', signal }
       },
     },
-    './voice-endpoint': {
+    '@/features/chat/model/voice-endpoint': {
       async createVoiceEndpoint() {
         const endpoint = createVoiceEndpointAdapter(() => ({
           processFrame: (frame) => (frame[0] ? 1 : 0),
@@ -269,6 +269,11 @@ function fixture(t, settings = {}) {
     return module.exports
   }
   modules['./voice-mode-state'] = load(stateCompiled)
+  // 别名映射：源码已迁移到 model/，require 使用 @/ 路径。
+  modules['@/features/chat/model/voice-input'] = modules['./voice-input']
+  modules['@/features/chat/model/voice-response-stream'] = modules['./voice-response-stream']
+  modules['@/features/chat/model/speech-session'] = modules['./speech-session']
+  modules['@/features/chat/model/voice-mode-state'] = modules['./voice-mode-state']
   const hook = load(compiled).useVoiceSession
   function render() {
     if (!mounted) return

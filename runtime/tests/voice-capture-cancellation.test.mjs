@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import { startMicrophoneCapture } from '../../src/features/chat/voice-input.ts'
+import { startMicrophoneCapture } from '../../src/features/chat/model/voice-input.ts'
 
 function deferred() {
   let resolve

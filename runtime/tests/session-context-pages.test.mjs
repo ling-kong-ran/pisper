@@ -4,7 +4,7 @@ import {
   createContextPages,
   updateContextPages as update,
   MAX_CONTEXT_PAGES,
-} from '../../src/features/chat/session-context-pages.ts'
+} from '../../src/features/chat/model/session-context-pages.ts'
 
 test('auxiliary pages maintain independent browser state through select, change and close', () => {
   let state = createContextPages('browser')

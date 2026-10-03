@@ -5,7 +5,7 @@ import {
   CHAT_ATTACHMENT_ACCEPT,
   clipboardFiles,
   pathAttachments,
-} from '../../src/features/chat/attachments.ts'
+} from '../../src/features/chat/model/attachments.ts'
 
 test('clipboard files include images and general files', () => {
   const image = { name: 'screenshot.png', type: 'image/png' }
@@ -41,8 +41,8 @@ test('system picker advertises every supported mobile attachment family', () => 
 
 test('mobile chat uses the system file picker while desktop keeps path attachments', async () => {
   const [focus, picker] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/AttachmentPicker.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/composer/AttachmentPicker.tsx', 'utf8'),
   ])
   assert.match(focus, /<AttachmentPicker cwd=\{cwd\} selection=\{selection\} \/>/)
   assert.match(picker, /const mobileApp = useIsMobileApp\(\)/)

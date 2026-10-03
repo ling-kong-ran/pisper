@@ -9,7 +9,7 @@ import {
   validateWorkflowInputs,
   renderWorkflowTemplate,
   parseWorkflowMedia,
-} from '../../shared/workflow-inputs.mjs'
+} from '../../shared/workflow/workflow-inputs.mjs'
 
 const definition = (name, type = 'text', required = true) => ({
   id: name,

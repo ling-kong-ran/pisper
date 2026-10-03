@@ -3,13 +3,13 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import * as sessionState from '../../src/lib/session-state.ts'
-import * as runActivity from '../../src/features/chat/run-activity.ts'
-import { reconcileTerminalStreamState } from '../../src/features/chat/stream-event-dispatch.ts'
-import { shouldRevealSessionContext } from '../../src/features/chat/session-context-layout.ts'
+import * as sessionState from '../../src/lib/session/session-state.ts'
+import * as runActivity from '../../src/features/chat/model/run-activity.ts'
+import { reconcileTerminalStreamState } from '../../src/features/chat/model/stream-event-dispatch.ts'
+import { shouldRevealSessionContext } from '../../src/features/chat/model/session-context-layout.ts'
 
 const promptCode = transformSync(
-  await readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+  await readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 
@@ -45,14 +45,19 @@ function fixture({ abort, syncLiveSession = async () => {}, initial = {} }) {
   const modules = {
     react: { useCallback: (callback) => callback, useRef: (value) => ({ current: value }) },
     '@/app/brand': { APP_NAME: 'Pisper' },
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/session-state': sessionState,
-    '@/lib/streaming-ui': {},
-    './chat-api': { chatApi: { abort } },
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/session/session-state': sessionState,
+    '@/lib/streaming/streaming-ui': {},
+    '@/features/chat/api/chat-api': { chatApi: { abort } },
     './chat-errors': {},
+    '@/features/chat/model/chat-errors': {},
     './run-activity': runActivity,
     './stream-event-dispatch': {},
+    '@/features/chat/model/run-activity': null,
+    '@/features/chat/model/stream-event-dispatch': null,
   }
+  modules['@/features/chat/model/run-activity'] = modules['./run-activity']
+  modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
   const module = { exports: {} }
   runInNewContext(promptCode, {
     module,

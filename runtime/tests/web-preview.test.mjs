@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { normalizeWebPreviewInput, shouldOpenWebPreview } from '../../src/lib/web-preview.ts'
+import { normalizeWebPreviewInput, shouldOpenWebPreview } from '../../src/lib/ui/web-preview.ts'
 import {
   WEB_PREVIEW_PANEL_ID,
   webPreviewPanelTitle,
-} from '../../src/features/chat/web-preview-panel.ts'
+} from '../../src/features/chat/model/web-preview-panel.ts'
 
 test('external http links open in the in-app preview while internal and special links keep native behavior', () => {
   const baseUrl = 'http://127.0.0.1:5173/chat'
@@ -48,9 +48,9 @@ test('application routes external links into a right-side Dockview Web Preview p
   const [app, provider, dockView, dockHook, dockPanel, component] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/app/WebPreviewProvider.tsx', 'utf8'),
-    readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
-    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
-    readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
+    readFile('src/features/chat/components/ChatDockView.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-chat-dock.ts', 'utf8'),
+    readFile('src/features/chat/components/WebPreviewDockPanel.tsx', 'utf8'),
     readFile('src/components/ai-elements/web-preview.tsx', 'utf8'),
   ])
 

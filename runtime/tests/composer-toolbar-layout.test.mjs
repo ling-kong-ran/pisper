@@ -8,7 +8,7 @@ import {
   normalizeComposerToolbarLayout,
   setAllComposerToolsLocation,
   setComposerToolLocation,
-} from '../../src/features/chat/composer-toolbar-layout.ts'
+} from '../../src/features/chat/model/composer-toolbar-layout.ts'
 
 test('composer toolbar layout repairs stale, duplicate, and unknown tool ids', () => {
   const layout = normalizeComposerToolbarLayout({
@@ -239,7 +239,7 @@ test('renamed toolbar storage preserves custom placements and prefers already mi
   })
   try {
     const { useComposerToolbarStore: store } =
-      await import('../../src/features/chat/composer-toolbar-store.ts')
+      await import('../../src/features/chat/model/composer-toolbar-store.ts')
     assert.deepEqual(store.getState().layout, custom)
     assert.equal(values.get(key), legacyValue)
     assert.equal(values.has(legacyKey), false)

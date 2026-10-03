@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createMobileRuntimeRecoveryCoordinator } from '../../src/lib/mobile-runtime-recovery.ts'
-import { createRemoteFallback } from '../../src/lib/mobile-remote-fallback.ts'
+import { createMobileRuntimeRecoveryCoordinator } from '../../src/lib/mobile/mobile-runtime-recovery.ts'
+import { createRemoteFallback } from '../../src/lib/mobile/mobile-remote-fallback.ts'
 
 test('mobile foreground recovery gates API work behind one shared readiness check', async () => {
   let releaseResume

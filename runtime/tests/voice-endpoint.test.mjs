@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   createVoiceEndpoint,
   createVoiceEndpointAdapter,
-} from '../../src/features/chat/voice-endpoint.ts'
+} from '../../src/features/chat/model/voice-endpoint.ts'
 
 function fixture(options = {}) {
   const frames = []

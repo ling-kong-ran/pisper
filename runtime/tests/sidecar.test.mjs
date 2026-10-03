@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { spawn } from 'node:child_process'
 import test from 'node:test'
-import { DESKTOP_BOOTSTRAP_PATH } from '../desktop-sidecar-auth.mjs'
+import { DESKTOP_BOOTSTRAP_PATH } from '../security/desktop-sidecar-auth.mjs'
 
 function waitForReady(child) {
   return new Promise((resolveReady, rejectReady) => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseUnifiedDiff } from '../../src/features/chat/git-diff.ts'
+import { parseUnifiedDiff } from '../../src/features/chat/model/git-diff.ts'
 import { normalizeSvnDiff, parseSvnStatusXml } from '../services/svn-changes-service.mjs'
 import { VcsChangesService } from '../services/vcs-changes-service.mjs'
 

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('Agent avatar avoids filtered SVG paint surfaces that corrupt after session tab switches', async () => {
-  const component = await readFile('src/components/AgentStatusAvatar.tsx', 'utf8')
+  const component = await readFile('src/components/common/AgentStatusAvatar.tsx', 'utf8')
 
   assert.equal(component.includes('<filter'), false)
   assert.equal(component.includes('<feDropShadow'), false)

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
-import * as abortSignal from '../../src/lib/abort-signal.ts'
+import * as abortSignal from '../../src/lib/http/abort-signal.ts'
 // 主 TypeScript 7 不再导出转译 API，沿用已安装 ts-morph 自带的真实编译器。
 import ts from '@ts-morph/common/dist/typescript.js'
 
@@ -11,8 +11,8 @@ const compile = async (path) =>
   ts.transpileModule(await readFile(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-const modelCode = await compile('src/features/chat/speech-models.ts')
-const hookCode = await compile('src/features/chat/use-speech-models.ts')
+const modelCode = await compile('src/features/chat/model/speech-models.ts')
+const hookCode = await compile('src/features/chat/hooks/use-speech-models.ts')
 const storageCode = await compile('src/app/storage.ts')
 function deferred() {
   let resolve, reject
@@ -134,9 +134,9 @@ function fixture(t, settings = {}) {
     __TAURI_INTERNALS__: { invoke: async (command, args) => get({ command, args }) },
   }
   const modules = {
-    '@/lib/abort-signal': abortSignal,
+    '@/lib/http/abort-signal': abortSignal,
     react,
-    '@/lib/api': {
+    '@/lib/http/api': {
       apiJson: async (path, options) => {
         assert.equal(
           Boolean(settings.android),
@@ -178,7 +178,7 @@ function fixture(t, settings = {}) {
   }
   modules['@/app/storage'] = load(storageCode)
   const api = load(modelCode)
-  modules['./speech-models'] = api
+  modules['@/features/chat/model/speech-models'] = api
   const hook = load(hookCode).useSpeechModels
   function render() {
     if (!mounted) return

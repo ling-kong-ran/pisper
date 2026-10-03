@@ -19,7 +19,7 @@
     "url": "https://github.com/ling-kong-ran/pisper/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19"
   },
   "bin": {
     "pisper": "bin/pisper.mjs"

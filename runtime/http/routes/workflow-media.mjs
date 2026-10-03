@@ -1,4 +1,4 @@
-import { WorkflowInputError } from '../../../shared/workflow-inputs.mjs'
+import { WorkflowInputError } from '../../../shared/workflow/workflow-inputs.mjs'
 
 /** @typedef {{runtime:{workflowMedia: import('../../services/workflow-media-service.mjs').WorkflowMediaService},bodyBuffer:(max:number)=>Promise<Buffer>,req:import('node:http').IncomingMessage,res:import('node:http').ServerResponse,url:URL,params:Record<string,string>,json:(status:number,value:unknown)=>void}} MediaContext */
 /** @param {MediaContext} context @param {unknown} failure */

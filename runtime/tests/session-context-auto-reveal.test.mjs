@@ -4,10 +4,10 @@ import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import * as sessionContextLayout from '../../src/features/chat/session-context-layout.ts'
+import * as sessionContextLayout from '../../src/features/chat/model/session-context-layout.ts'
 
 const hookCode = transformSync(
-  await readFile('src/features/chat/useSessionContextAutoReveal.ts', 'utf8'),
+  await readFile('src/features/chat/hooks/useSessionContextAutoReveal.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 const RUN_STARTED_AT = '2026-09-27T10:00:00.000Z'
@@ -80,7 +80,7 @@ function fixture(t) {
       useLayoutEffect: registerEffect('layout'),
       useEffect: registerEffect('passive'),
     },
-    './chat-api': {
+    '@/features/chat/api/chat-api': {
       chatApi: {
         getSessionFileChanges(sessionId, { signal }) {
           const pending = deferred()
@@ -90,6 +90,7 @@ function fixture(t) {
       },
     },
     './session-context-layout': sessionContextLayout,
+    '@/features/chat/model/session-context-layout': sessionContextLayout,
   }
   const module = { exports: {} }
   runInNewContext(hookCode, {

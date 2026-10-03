@@ -1,0 +1,461 @@
+// 会话目录 hook：拉取/刷新会话列表，维护会话状态缓存（含实时流），
+// 处理会话树的展开与定位，并负责新会话的创建（含工作区分组）。
+import { useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { APP_NAME } from '@/app/brand'
+import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/storage/page-state-storage'
+import { useI18n } from '@/app/i18n/use-i18n'
+import {
+  applySessionUpdate,
+  DEFAULT_SESSION_STATE,
+  shouldRetainClosedSessionState,
+} from '@/lib/session/session-state'
+import type { SessionStateUpdate } from '@/lib/session/session-state'
+import { planFromPayloadOr } from '@/lib/session/plan-protocol'
+import type { Notify } from '@/app/routes/route-context'
+import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
+import { chatApi } from '@/features/chat/api/chat-api'
+import { chatErrorMessage } from '@/features/chat/model/chat-errors'
+import {
+  announceActiveSession,
+  announceSessionsUpdated,
+  subscribeSessionDeletionUpdates,
+  subscribeSessionOrganizationUpdates,
+  subscribeSessionTitleUpdates,
+} from '@/features/chat/model/events'
+import {
+  applySessionOrganizationUpdate,
+  applySessionTitleUpdate,
+  createSessionTitleReconciler,
+  mergeSessionLists,
+  sessionCwdForCreate,
+} from '@/features/chat/model/session-list'
+
+export const FOCUS_MESSAGE_PAGE_SIZE = 40
+
+type SessionsUpdate = SessionSummary[] | ((current: SessionSummary[]) => SessionSummary[])
+
+type SessionCatalogOptions = {
+  notify: Notify
+}
+
+type CreateSessionOptions = {
+  inheritRecentCwd?: boolean
+}
+
+export function useSessionCatalog({ notify }: SessionCatalogOptions) {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [activeId, setActiveId] = useState(
+    () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
+  )
+  const [sessionStates, setSessionStates] = useState<Record<string, SessionState>>({})
+  const [loading, setLoading] = useState(true)
+  const [globalError, setGlobalError] = useState('')
+  const [defaultModel, setDefaultModel] = useState(() => t('chat:chatPage.waitingForConfiguration'))
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+  const sessionsRef = useRef(sessions)
+  const sessionStatesRef = useRef(sessionStates)
+  // 面板级订阅：每个 Dock 面板只关心自己会话的 state，
+  // 流式帧只通知引用发生变化的会话，避免扇出到所有面板。
+  const sessionStateListenersRef = useRef(new Map<string, Set<() => void>>())
+  const creatingSessionRef = useRef<Promise<string> | null>(null)
+  const retainedSessionStatesRef = useRef(new Map<string, number>())
+  const discardedSessionStatesRef = useRef(new Set<string>())
+  const [titleReconciler] = useState(createSessionTitleReconciler)
+
+  // 更新会话列表（函数式或替换），同步 ref 与 state。
+  const updateSessions = useCallback((update: SessionsUpdate) => {
+    const current = sessionsRef.current
+    const next = typeof update === 'function' ? update(current) : update
+    sessionsRef.current = next
+    setSessions(next)
+    return next
+  }, [])
+
+  useEffect(() => {
+    return subscribeSessionTitleUpdates(window, (titleUpdate) => {
+      titleReconciler.record(titleUpdate)
+      updateSessions((current) => applySessionTitleUpdate(current, titleUpdate))
+    })
+  }, [titleReconciler, updateSessions])
+
+  useEffect(
+    () =>
+      subscribeSessionOrganizationUpdates(window, (update) => {
+        updateSessions((current) => applySessionOrganizationUpdate(current, update))
+      }),
+    [updateSessions],
+  )
+
+  // 整体替换会话状态表（供批量恢复/清空）。
+  const replaceSessionStates = useCallback(
+    (incoming: Record<string, SessionState>) => {
+      const states = discardedSessionStatesRef.current.size
+        ? Object.fromEntries(
+            Object.entries(incoming).filter(([id]) => !discardedSessionStatesRef.current.has(id)),
+          )
+        : incoming
+      const previous = sessionStatesRef.current
+      sessionStatesRef.current = states
+      setSessionStates(states)
+      const changedActivity = Object.keys(states).filter(
+        (id) => states[id].streaming !== previous[id]?.streaming,
+      )
+      if (changedActivity.length) {
+        const changed = new Set(changedActivity)
+        queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (catalog) =>
+          catalog
+            ? {
+                ...catalog,
+                sessions: catalog.sessions.map((session) =>
+                  changed.has(session.id)
+                    ? { ...session, streaming: states[session.id].streaming }
+                    : session,
+                ),
+              }
+            : catalog,
+        )
+      }
+      // 只通知 state 引用真正变化的会话订阅者。
+      const keys = new Set([...Object.keys(previous), ...Object.keys(states)])
+      for (const key of keys) {
+        if (previous[key] === states[key]) continue
+        const listeners = sessionStateListenersRef.current.get(key)
+        if (listeners) for (const listener of [...listeners]) listener()
+      }
+    },
+    [queryClient],
+  )
+
+  useEffect(() => {
+    return subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
+      titleReconciler.remove(deletedIds)
+      const deleted = new Set(deletedIds)
+      const remaining = updateSessions((current) =>
+        current.filter((session) => !deleted.has(session.id)),
+      )
+      setActiveId((current) => (deleted.has(current) ? remaining[0]?.id || '' : current))
+      const states = sessionStatesRef.current
+      if (deletedIds.some((id) => id in states)) {
+        replaceSessionStates(
+          Object.fromEntries(Object.entries(states).filter(([id]) => !deleted.has(id))),
+        )
+      }
+    })
+  }, [replaceSessionStates, titleReconciler, updateSessions])
+
+  // 订阅单个会话状态（配 useSyncExternalStore）：返回退订函数。
+  const subscribeSessionState = useCallback((id: string, listener: () => void) => {
+    const listeners = sessionStateListenersRef.current.get(id) || new Set()
+    listeners.add(listener)
+    sessionStateListenersRef.current.set(id, listeners)
+    return () => {
+      listeners.delete(listener)
+      if (!listeners.size) sessionStateListenersRef.current.delete(id)
+    }
+  }, [])
+
+  // 读取单个会话状态快照（引用稳定：applySessionUpdate 无变化时保留原引用）。
+  const getSessionState = useCallback(
+    (id: string): SessionState => sessionStatesRef.current[id] || DEFAULT_SESSION_STATE,
+    [],
+  )
+
+  // 更新单个会话状态：经 applySessionUpdate 去重，无变化不触发渲染。
+  const updateSessionState = useCallback(
+    (id: string, update: SessionStateUpdate) => {
+      if (!id || discardedSessionStatesRef.current.has(id)) return
+      const current = sessionStatesRef.current
+      const previous = current[id] || DEFAULT_SESSION_STATE
+      const next = applySessionUpdate(previous, update)
+      if (next === previous) return
+      replaceSessionStates({ ...current, [id]: next })
+    },
+    [replaceSessionStates],
+  )
+
+  // 释放会话状态：面板已关且未持有本地流、且无运行中活动时才真正丢弃，
+  // 否则保留状态供重开无缝续显（返回是否释放）。
+  const releaseSessionState = useCallback(
+    (id: string, { panelOpen = false, localStreamOwned = false } = {}) => {
+      if (!id || panelOpen || localStreamOwned || retainedSessionStatesRef.current.has(id))
+        return false
+      const current = sessionStatesRef.current
+      const state = current[id]
+      if (!state || shouldRetainClosedSessionState(state)) return false
+      const states = { ...current }
+      delete states[id]
+      replaceSessionStates(states)
+      return true
+    },
+    [replaceSessionStates],
+  )
+
+  // 仅用于服务端已确认不存在的临时 ID。区别于关闭面板：旧流、在途快照
+  // 均不得恢复已清理正文；新建临时会话使用新的 ID，不会复用此墓碑。
+  const discardSessionState = useCallback(
+    (id: string) => {
+      if (!id) return
+      discardedSessionStatesRef.current.add(id)
+      const states = { ...sessionStatesRef.current }
+      delete states[id]
+      replaceSessionStates(states)
+    },
+    [replaceSessionStates],
+  )
+
+  // 非 Dock 展示面板持有窄租约，避免目录回收仍被临时侧聊使用的正文。
+  const retainSessionState = useCallback(
+    (id: string) => {
+      if (discardedSessionStatesRef.current.has(id)) return () => {}
+      const owners = retainedSessionStatesRef.current
+      owners.set(id, (owners.get(id) ?? 0) + 1)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        const count = owners.get(id) ?? 0
+        if (count > 1) owners.set(id, count - 1)
+        else {
+          owners.delete(id)
+          releaseSessionState(id)
+        }
+      }
+    },
+    [releaseSessionState],
+  )
+
+  // 刷新会话列表：拉取后更新活动 id，并广播列表更新事件；preferredId 优先。
+  // 恢复阶段若服务端暂时返回空列表，保留已有目录，避免活动页签短暂失去会话摘要。
+  const refreshSessions = useCallback(
+    async (preferredId?: string, { preserveExistingOnEmpty = false } = {}) => {
+      const titleRevision = titleReconciler.getRevision()
+      const data = await chatApi.listSessions()
+      const nextSessions =
+        preserveExistingOnEmpty && !data.sessions.length && sessionsRef.current.length
+          ? sessionsRef.current
+          : titleReconciler.reconcile(data.sessions, titleRevision)
+      updateSessions(nextSessions)
+      if (preferredId) setActiveId(preferredId)
+      else
+        setActiveId((current) =>
+          nextSessions.some((session) => session.id === current)
+            ? current
+            : nextSessions[0]?.id || '',
+        )
+      announceSessionsUpdated()
+      return nextSessions
+    },
+    [titleReconciler, updateSessions],
+  )
+
+  // 创建会话记录：按调用方决定是否继承最近会话的工作目录；
+  // 用 ref 去重并发创建，成功后初始化会话状态并合并进列表。
+  const createSessionRecord = useCallback(
+    (cwd = '', { inheritRecentCwd = true }: CreateSessionOptions = {}) => {
+      if (creatingSessionRef.current) return creatingSessionRef.current
+      const request = (async () => {
+        try {
+          setGlobalError('')
+          const created = await chatApi.createSession(
+            t('chat:chatPage.newChat'),
+            sessionCwdForCreate(cwd, sessionsRef.current, inheritRecentCwd),
+          )
+          setActiveId(created.id)
+          updateSessions((current) => mergeSessionLists(current, [created]))
+          updateSessionState(created.id, {
+            messages: [],
+            tools: [],
+            approvals: [],
+            queuedInputs: [],
+            permissionMode: created.permissionMode || 'ask',
+            executionMode: created.executionMode || 'approval-required',
+            runMode: created.runMode || 'plan',
+            goal: created.goal || null,
+            plan: planFromPayloadOr(created, null),
+            contextUsage: created.contextUsage || null,
+            sessionUsage: created.sessionUsage || null,
+            compaction: null,
+            streaming: false,
+            error: '',
+            loaded: true,
+            pageSize: FOCUS_MESSAGE_PAGE_SIZE,
+            messageStart: 0,
+            hasOlder: false,
+            olderCursor: null,
+            runStartedAt: null,
+            lastActivityAt: null,
+            runFinishedAt: null,
+            runStopped: false,
+            runNotice: '',
+          })
+          try {
+            await refreshSessions(created.id)
+          } catch (error) {
+            setGlobalError(
+              t('chat:chatPage.theChatWasCreatedButTheListCouldNotBeRefreshedError', {
+                error: chatErrorMessage(error),
+              }),
+            )
+          }
+          notify(t('chat:chatPage.newChatCreated'))
+          return created.id
+        } catch (error) {
+          setGlobalError(chatErrorMessage(error))
+          return ''
+        }
+      })()
+      creatingSessionRef.current = request
+      void request.finally(() => {
+        if (creatingSessionRef.current === request) creatingSessionRef.current = null
+      })
+      return request
+    },
+    [notify, refreshSessions, t, updateSessionState, updateSessions],
+  )
+
+  useEffect(() => {
+    let active = true
+    let titleRevision = titleReconciler.getRevision()
+    // 懒加载聊天页可能晚于壳层请求完成，首次读取也须复用尚未失效的共享快照。
+    Promise.all([chatApi.listSessions({ refresh: false }), chatApi.getConfig()])
+      .then(async ([sessionData, configData]) => {
+        if (!active) return
+        setDefaultModel(
+          configData.model
+            ? `${configData.provider}/${configData.model}`
+            : t('chat:chatPage.noModelConfigured'),
+        )
+        setAvailableModels(
+          configData.providers.flatMap((provider) =>
+            provider.configured && provider.enabled
+              ? provider.models
+                  .filter((item) => item.kind === 'chat')
+                  .map((item) => ({
+                    key: `${provider.id}/${item.id}`,
+                    provider: provider.id,
+                    modelId: item.id,
+                    label: item.name || item.id,
+                    providerName: provider.name || provider.id,
+                  }))
+              : [],
+          ),
+        )
+        let list = sessionData.sessions
+        if (
+          !list.length &&
+          (creatingSessionRef.current || Object.keys(sessionStatesRef.current).length)
+        ) {
+          await creatingSessionRef.current
+          if (!active) return
+          titleRevision = titleReconciler.getRevision()
+          list = (await chatApi.listSessions()).sessions
+        }
+        if (!list.length) {
+          const created = await chatApi.createSession(t('chat:chatPage.newChat'))
+          list = [created]
+        }
+        if (!active) return
+        list = titleReconciler.reconcile(list, titleRevision)
+        updateSessions((current) => mergeSessionLists(current, list))
+        for (const session of list) {
+          updateSessionState(session.id, {
+            team: session.team || null,
+            agents: session.agents || [],
+            plan: planFromPayloadOr(session, null),
+            ...(session.streaming
+              ? { streaming: true, recovering: true, loaded: false, error: '' }
+              : {}),
+          })
+        }
+        const storedId = pageStateStorage.getItem(STORAGE_KEYS.activeSession)
+        const knownIds = new Set([
+          ...list.map((session) => session.id),
+          ...Object.keys(sessionStatesRef.current),
+        ])
+        setActiveId((current) =>
+          knownIds.has(current)
+            ? current
+            : storedId && knownIds.has(storedId)
+              ? storedId
+              : list[0]?.id || '',
+        )
+        // 远程回落重载后的首次成功加载：告知用户为何回到本机模式。
+        if (typeof window !== 'undefined' && window.__PISPER_MOBILE_APP__) {
+          try {
+            const { consumeRemoteFallbackNotice } = await import('@/lib/mobile/mobile-remote-fallback')
+            if (consumeRemoteFallbackNotice())
+              notify(t('chat:chatPage.remoteUnavailableSwitchedToLocal'))
+          } catch {
+            // 提示模块加载失败不应把已经成功的会话目录变成失败状态。
+          }
+        }
+      })
+      .catch(async (error) => {
+        if (!active) return
+        // 远程桌面链路超时/不可达时自动回落本机模式，而不是停在「正在唤醒 Agent」。
+        if (typeof window !== 'undefined' && window.__PISPER_MOBILE_APP__) {
+          try {
+            const { fallbackRemoteToLocalAfterFailure } =
+              await import('@/lib/mobile/mobile-remote-fallback')
+            if (await fallbackRemoteToLocalAfterFailure(error)) return
+          } catch {
+            // 回落模块加载失败时继续展示原始错误，避免初始化 Promise 变成未处理拒绝。
+          }
+        }
+        if (!active) return
+        setGlobalError(chatErrorMessage(error))
+      })
+      .finally(() => active && setLoading(false))
+    return () => {
+      active = false
+    }
+  }, [notify, t, titleReconciler, updateSessionState, updateSessions])
+
+  useEffect(() => {
+    if (activeId) pageStateStorage.setItem(STORAGE_KEYS.activeSession, activeId)
+    else pageStateStorage.removeItem(STORAGE_KEYS.activeSession)
+  }, [activeId])
+
+  const activeSession = sessions.find((session) => session.id === activeId)
+  const activeState = sessionStates[activeId] || DEFAULT_SESSION_STATE
+  const announcedModel = activeState.model || activeSession?.model || ''
+
+  useEffect(() => {
+    announceActiveSession(activeId, announcedModel)
+  }, [activeId, announcedModel])
+
+  useEffect(() => {
+    document.title = activeSession?.name ? `${activeSession.name} · ${APP_NAME}` : APP_NAME
+    return () => {
+      document.title = APP_NAME
+    }
+  }, [activeSession?.name])
+
+  return {
+    sessions,
+    sessionsRef,
+    activeId,
+    setActiveId,
+    sessionStates,
+    sessionStatesRef,
+    loading,
+    globalError,
+    setGlobalError,
+    defaultModel,
+    availableModels,
+    updateSessions,
+    replaceSessionStates,
+    updateSessionState,
+    releaseSessionState,
+    retainSessionState,
+    discardSessionState,
+    subscribeSessionState,
+    getSessionState,
+    refreshSessions,
+    createSessionRecord,
+  }
+}

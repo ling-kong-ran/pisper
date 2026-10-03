@@ -31,7 +31,7 @@ test('context visibility and width remain usable across reloads and storage fail
 
   try {
     const { useSessionContextStore: store } =
-      await import('../../src/features/chat/session-context-store.ts')
+      await import('../../src/features/chat/stores/session-context-store.ts')
 
     await t.test('migrates the saved width and defaults visibility to closed', () => {
       assert.equal(store.getState().width, 516)

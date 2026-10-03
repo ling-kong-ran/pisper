@@ -6,8 +6,8 @@ import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
 import { DEFAULT_SHORTCUTS, formatShortcut, matchesShortcut } from '../../shared/shortcuts.mjs'
 
-const componentSource = await readFile('src/features/chat/VoiceInputControl.tsx', 'utf8')
-const shortcutSource = await readFile('src/features/chat/use-voice-shortcut.ts', 'utf8')
+const componentSource = await readFile('src/features/chat/components/voice/VoiceInputControl.tsx', 'utf8')
+const shortcutSource = await readFile('src/features/chat/hooks/use-voice-shortcut.ts', 'utf8')
 const compiled = new Map(
   [
     ['component', componentSource],
@@ -217,9 +217,9 @@ function fixture(t, options = {}) {
         name,
       ]),
     ),
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
     '@/stores/shortcut-store': { useShortcutStore: (selector) => selector(store) },
-    '@/lib/shortcuts': {
+    '@/lib/ui/shortcuts': {
       formatShortcut: (binding) => formatShortcut(binding, Boolean(options.mac)),
       matchesShortcut: (event, binding) => matchesShortcut(event, binding, Boolean(options.mac)),
     },
@@ -230,7 +230,7 @@ function fixture(t, options = {}) {
       pcmLevel: () => 0,
     },
     // 端点检测替身：永不停顿自动结束，保留人声标记以免走静音丢弃分支。
-    './voice-endpoint': {
+    '@/features/chat/model/voice-endpoint': {
       createVoiceEndpoint: async () => ({
         acceptPcm: () => false,
         hasSpeech: true,
@@ -248,6 +248,14 @@ function fixture(t, options = {}) {
       }),
     },
   }
+  // 别名映射：源码已迁移到子目录，require 使用 @/ 路径。
+  Object.assign(modules, {
+    '@/features/chat/model/voice-mode-state': modules['./voice-mode-state'],
+    '@/features/chat/model/voice-input': modules['./voice-input'],
+    '@/features/chat/components/AnchoredPopupMenu': modules['./AnchoredPopupMenu'],
+    '@/features/chat/components/voice/SpeechModelsDialog': modules['./SpeechModelsDialog'],
+    '@/features/chat/hooks/use-speech-models': modules['./use-speech-models'],
+  })
   const load = (name) => {
     const module = { exports: {} }
     runInNewContext(compiled.get(name), {
@@ -268,6 +276,7 @@ function fixture(t, options = {}) {
     return module.exports
   }
   modules['./use-voice-shortcut'] = load('shortcut')
+  modules['@/features/chat/hooks/use-voice-shortcut'] = modules['./use-voice-shortcut']
   component = load('component').VoiceInputControl
   const render = () => {
     if (!mounted) return

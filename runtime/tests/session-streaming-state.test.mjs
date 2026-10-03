@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { resolveSessionStreaming } from '../../src/features/chat/session-streaming-state.ts'
+import { resolveSessionStreaming } from '../../src/features/chat/model/session-streaming-state.ts'
 
 test('unloaded chats use catalog activity to show a recovering background run', () => {
   assert.equal(resolveSessionStreaming(undefined, { streaming: true }), true)

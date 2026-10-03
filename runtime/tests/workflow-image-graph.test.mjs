@@ -7,7 +7,7 @@ import { WorkflowService } from '../services/workflow-service.mjs'
 import {
   normalizeWorkflowImageSettings,
   parseWorkflowImageOutput,
-} from '../../shared/workflow-image-nodes.mjs'
+} from '../../shared/workflow/workflow-image-nodes.mjs'
 
 const output = {
   type: 'workflow-images',

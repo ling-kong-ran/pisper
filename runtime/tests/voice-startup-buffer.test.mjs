@@ -5,7 +5,7 @@ import {
   createSpeechRecognizer,
   VOICE_MAX_DURATION_SECONDS,
   VOICE_SAMPLE_RATE,
-} from '../../src/features/chat/voice-input.ts'
+} from '../../src/features/chat/model/voice-input.ts'
 
 function deferred() {
   let resolve

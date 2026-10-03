@@ -37,7 +37,7 @@ test('page state restores server values before stores load and migrates local-on
   })
   try {
     const { pageStateStorage, restorePageState } =
-      await import('../../src/lib/page-state-storage.ts')
+      await import('../../src/lib/storage/page-state-storage.ts')
     await restorePageState()
     assert.equal(values.get('pisper-ui'), 'saved-theme')
     assert.equal(values.get('pisper-language'), 'zh-CN')
@@ -88,7 +88,7 @@ test('refresh keeps a recent close while its Runtime write is still unconfirmed'
   })
   try {
     const { pageStateStorage, restorePageState } =
-      await import('../../src/lib/page-state-storage.ts')
+      await import('../../src/lib/storage/page-state-storage.ts')
     await restorePageState()
     pageStateStorage.setItem(key, closed)
     assert.equal(local.get(key), closed)
@@ -142,7 +142,7 @@ test('a stalled migration cannot block startup or permanently block newer prefer
   })
   try {
     const { pageStateStorage, restorePageState } =
-      await import('../../src/lib/page-state-storage.ts')
+      await import('../../src/lib/storage/page-state-storage.ts')
     await restorePageState()
     assert.equal(writes.length, 1, 'startup returns while the initial write is pending')
     pageStateStorage.setItem(key, 'closed')

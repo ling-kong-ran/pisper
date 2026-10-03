@@ -158,7 +158,7 @@ test('lightweight public contracts do not pull feature pages into their import g
 test('optional application widgets stay lazy and page header consumes feature-free slots', () => {
   const appDependencies = graph.get(resolve(root, 'src/App.tsx'))
   for (const file of [
-    'src/features/desktop-pet/WebDesktopPet.tsx',
+    'src/features/desktop-pet/components/WebDesktopPet.tsx',
     'src/features/config/public-components.ts',
   ]) {
     const dependency = appDependencies.find((entry) => entry.path === resolve(root, file))

@@ -3,15 +3,15 @@ import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { readRasterDimensions, assertRasterBounds } from '../../shared/raster-image.mjs'
+import { readRasterDimensions, assertRasterBounds } from '../../shared/image/raster-image.mjs'
 import {
   parseWorkflowMedia,
   validateWorkflowInputDefinitions,
   WorkflowInputError,
-} from '../../shared/workflow-inputs.mjs'
+} from '../../shared/workflow/workflow-inputs.mjs'
 import { writeJsonAtomic } from '../storage/json-file.mjs'
 
-/** @typedef {import('../../shared/workflow-inputs.mjs').WorkflowMedia} WorkflowMedia */
+/** @typedef {import('../../shared/workflow/workflow-inputs.mjs').WorkflowMedia} WorkflowMedia */
 /** @typedef {{version: 1, media: WorkflowMedia, sha256: string}} StoredMedia */
 /** @typedef {{kind:'image',name:string,mimeType:string,data:string,size:number}} MediaAttachment */
 const MAX_BYTES = 64 * 1024 * 1024

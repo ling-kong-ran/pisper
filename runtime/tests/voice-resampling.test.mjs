@@ -4,7 +4,7 @@ import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
 
-const source = await readFile('src/features/chat/voice-input.ts', 'utf8')
+const source = await readFile('src/features/chat/model/voice-input.ts', 'utf8')
 const compiled = transformSync(`${source}\nexport { VOICE_WORKLET_JS }`, {
   loader: 'ts',
   format: 'cjs',
@@ -15,7 +15,7 @@ runInNewContext(compiled, {
   exports: module.exports,
   require(name) {
     assert.ok(
-      ['@/lib/http', '@/lib/api', '@/lib/abort-signal', '@shared/speech-terms.mjs'].includes(name),
+      ['@/lib/http/http', '@/lib/http/api', '@/lib/http/abort-signal', '@shared/speech/speech-terms.mjs'].includes(name),
     )
     return {}
   },

@@ -11,8 +11,8 @@ import {
   replacementActiveSessionId,
   sessionsInWorkspace,
   sessionWorkspaceKey,
-} from '../../src/features/chat/session-workspaces.ts'
-import { orderVisibleSessions } from '../../src/features/chat/session-list.ts'
+} from '../../src/features/chat/model/session-workspaces.ts'
+import { orderVisibleSessions } from '../../src/features/chat/model/session-list.ts'
 
 test('new projects remain in the sidebar when pinned chats fill the recent limit', () => {
   const sessions = [
@@ -157,7 +157,7 @@ test('workspace ordering survives persistence and records new workspaces only on
   })
   try {
     const { useWorkspaceOrderStore: store } =
-      await import('../../src/features/chat/workspace-order-store.ts')
+      await import('../../src/features/chat/model/workspace-order-store.ts')
     store.getState().rememberWorkspaces(['/alpha', '/beta'])
     const saved = values.get('pisper-workspace-order')
     store.getState().rememberWorkspaces(['/beta', '/alpha'])

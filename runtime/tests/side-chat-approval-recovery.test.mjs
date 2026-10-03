@@ -3,16 +3,16 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import { ApiError } from '../../src/lib/api-error.ts'
-import * as sessionState from '../../src/lib/session-state.ts'
-import * as planProtocol from '../../src/lib/plan-protocol.ts'
-import * as runActivity from '../../src/features/chat/run-activity.ts'
-import * as chatErrors from '../../src/features/chat/chat-errors.ts'
+import { ApiError } from '../../src/lib/http/api-error.ts'
+import * as sessionState from '../../src/lib/session/session-state.ts'
+import * as planProtocol from '../../src/lib/session/plan-protocol.ts'
+import * as runActivity from '../../src/features/chat/model/run-activity.ts'
+import * as chatErrors from '../../src/features/chat/model/chat-errors.ts'
 
 const [commandCode, syncCode] = await Promise.all(
   ['use-session-commands', 'use-live-session-sync'].map(
     async (name) =>
-      transformSync(await readFile(`src/features/chat/${name}.ts`, 'utf8'), {
+      transformSync(await readFile(`src/features/chat/hooks/${name}.ts`, 'utf8'), {
         loader: 'ts',
         format: 'cjs',
       }).code,
@@ -52,12 +52,12 @@ function fixture({ resolveApproval, getLiveSession }) {
       useRef: (value) => ({ current: value }),
       useState: (value) => [value, () => {}],
     },
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key, language: 'en-US' }) },
-    '@/lib/format': {},
-    '@/lib/http': { ApiError },
-    '@/lib/pick-system-directory': {},
-    '@/lib/plan-protocol': planProtocol,
-    '@/lib/session-state': sessionState,
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key, language: 'en-US' }) },
+    '@/lib/format/format': {},
+    '@/lib/http/http': { ApiError },
+    '@/lib/platform/pick-system-directory': {},
+    '@/lib/session/plan-protocol': planProtocol,
+    '@/lib/session/session-state': sessionState,
     './chat-errors': chatErrors,
     './events': {},
     './session-runtime-selections': {},
@@ -81,7 +81,12 @@ function fixture({ resolveApproval, getLiveSession }) {
       module,
       exports: module.exports,
       require: (id) => {
-        assert.ok(modules[id], id)
+        if (id.startsWith('@/features/chat/')) {
+        const parts = id.split('/')
+        const shortId = './' + parts[parts.length - 1]
+        if (modules[shortId] !== undefined) return modules[shortId]
+      }
+      assert.ok(modules[id], id)
         return modules[id]
       },
     })

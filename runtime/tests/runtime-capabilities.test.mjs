@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 import { requiredRuntimeFeature } from '../http/api-handler.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
-import { resolveRuntimeCapabilities } from '../runtime-capabilities.mjs'
+import { resolveRuntimeCapabilities } from '../services/runtime-capabilities.mjs'
 
 const unavailableModules = {
   childProcess: false,

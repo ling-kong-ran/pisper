@@ -3,17 +3,17 @@ import { access, readFile } from 'node:fs/promises'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import MarkdownMessage from '../../src/components/MarkdownMessage.tsx'
+import MarkdownMessage from '../../src/components/common/MarkdownMessage.tsx'
 import {
   decodeLocalFileHref,
   encodeLocalFileHref,
   parseLocalFileTarget,
-} from '../../src/lib/local-file-links.ts'
+} from '../../src/lib/platform/local-file-links.ts'
 import {
   createIncrementalBlockParser,
   parseMarkdownBlocksCached,
   streamdownPlugins,
-} from '../../src/lib/streamdown.ts'
+} from '../../src/lib/streaming/streamdown.ts'
 
 const ROOT = new URL('../../', import.meta.url)
 
@@ -227,13 +227,13 @@ test('incomplete Markdown streams through the same incremental renderer', () => 
 test('production Markdown surfaces delegate to one Streamdown adapter', async () => {
   const [adapter, pluginConfig, chat, activity, reasoning, message, updates, packageJson] =
     await Promise.all([
-      readFile(new URL('src/components/MarkdownMessage.tsx', ROOT), 'utf8'),
-      readFile(new URL('src/lib/streamdown.ts', ROOT), 'utf8'),
-      readFile(new URL('src/features/chat/ChatMessage.tsx', ROOT), 'utf8'),
-      readFile(new URL('src/features/chat/AgentRunActivity.tsx', ROOT), 'utf8'),
+      readFile(new URL('src/components/common/MarkdownMessage.tsx', ROOT), 'utf8'),
+      readFile(new URL('src/lib/streaming/streamdown.ts', ROOT), 'utf8'),
+      readFile(new URL('src/features/chat/components/message/ChatMessage.tsx', ROOT), 'utf8'),
+      readFile(new URL('src/features/chat/components/message/AgentRunActivity.tsx', ROOT), 'utf8'),
       readFile(new URL('src/components/ai-elements/reasoning.tsx', ROOT), 'utf8'),
       readFile(new URL('src/components/ai-elements/message.tsx', ROOT), 'utf8'),
-      readFile(new URL('src/features/config/UpdateSettings.tsx', ROOT), 'utf8'),
+      readFile(new URL('src/features/config/components/settings/UpdateSettings.tsx', ROOT), 'utf8'),
       readFile(new URL('package.json', ROOT), 'utf8'),
     ])
 
@@ -269,7 +269,7 @@ test('production Markdown surfaces delegate to one Streamdown adapter', async ()
 test('Markdown styling covers Streamdown controls, task lists, and math', async () => {
   const [css, markdown] = await Promise.all([
     readFile(new URL('src/index.css', ROOT), 'utf8'),
-    readFile(new URL('src/components/MarkdownMessage.tsx', ROOT), 'utf8'),
+    readFile(new URL('src/components/common/MarkdownMessage.tsx', ROOT), 'utf8'),
   ])
   assert.match(css, /@source "\.\.\/node_modules\/streamdown\/dist\/\*\.js";/)
   assert.match(

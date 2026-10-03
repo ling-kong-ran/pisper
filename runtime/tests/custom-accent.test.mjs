@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { customAccentStyleRules } from '../../src/lib/custom-accent.ts'
+import { customAccentStyleRules } from '../../src/lib/format/custom-accent.ts'
 
 function rules(css) {
   return new Map(

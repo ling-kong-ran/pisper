@@ -28,16 +28,16 @@ export const BUNDLE_BUDGETS = {
 }
 
 const ROUTE_SOURCES = [
-  'src/features/chat/ChatPage.tsx',
-  'src/features/chat/ChatHistoryPage.tsx',
-  'src/features/assets/AssetsPage.tsx',
+  'src/features/chat/pages/ChatPage.tsx',
+  'src/features/chat/pages/ChatHistoryPage.tsx',
+  'src/features/assets/pages/AssetsPage.tsx',
   'src/features/channels/ChannelsPage.tsx',
   'src/features/schedules/SchedulesPage.tsx',
-  'src/features/config/ConfigPage.tsx',
-  'src/features/plugins/PluginsPage.tsx',
+  'src/features/config/pages/ConfigPage.tsx',
+  'src/features/plugins/pages/PluginsPage.tsx',
   'src/features/memory/MemoryPage.tsx',
-  'src/features/mcp/McpPage.tsx',
-  'src/features/skills/SkillsPage.tsx',
+  'src/features/mcp/pages/McpPage.tsx',
+  'src/features/skills/pages/SkillsPage.tsx',
   'src/features/workflows/WorkflowsPage.tsx',
 ]
 
@@ -213,7 +213,7 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
 
   // PI 单会话界面不装载分屏 vendor；这比仅验证懒加载更严格。
   if (report.keyByName.has('vendor-dockview')) failures.push('unused split-view vendor is bundled')
-  const welcomeCss = report.manifest['src/features/chat/WelcomeEffects.tsx']?.css || []
+  const welcomeCss = report.manifest['src/features/chat/components/WelcomeEffects.tsx']?.css || []
   if (welcomeCss.some((file) => file.includes('react-bits')))
     failures.push('PI welcome must not load decorative React Bits CSS')
 
@@ -266,7 +266,7 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     walk(key)
     return css
   }
-  for (const source of [...REACT_BITS_DYNAMIC_SOURCES, 'src/features/chat/ChatHistoryPage.tsx']) {
+  for (const source of [...REACT_BITS_DYNAMIC_SOURCES, 'src/features/chat/pages/ChatHistoryPage.tsx']) {
     const css = transitiveCss(source)
     if (![...css].some((file) => file.includes('react-bits')))
       failures.push(`React Bits CSS is not attached to its consumer: ${source}`)
@@ -280,7 +280,7 @@ export async function auditBundle(distDirectory = resolve('dist')) {
   const failures = validateBundle(report)
   const rows = [
     ['entry', report.entryKey],
-    ['ChatPage', 'src/features/chat/ChatPage.tsx'],
+    ['ChatPage', 'src/features/chat/pages/ChatPage.tsx'],
     ['MarkdownMessage', report.keyByName.get('MarkdownMessage')],
     ...Object.keys(BUNDLE_BUDGETS.chunks).map((name) => [name, report.keyByName.get(name)]),
     ['Shiki wasm', 'node_modules/shiki/dist/wasm.mjs'],

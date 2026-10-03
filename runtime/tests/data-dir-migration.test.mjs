@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
-import { cleanupRemovedLocalEmbeddingData, resolveAgentDataDir } from '../data-dir-migration.mjs'
+import { cleanupRemovedLocalEmbeddingData, resolveAgentDataDir } from '../services/data-dir-migration.mjs'
 
 function withTempHome(t) {
   const home = mkdtempSync(join(tmpdir(), 'pisper-data-dir-'))

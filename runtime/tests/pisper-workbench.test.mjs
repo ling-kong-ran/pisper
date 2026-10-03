@@ -5,7 +5,7 @@ import {
   greetingPeriod,
   nextGreetingDelay,
   greetingFontSize,
-} from '../../src/features/chat/workbench-greeting.ts'
+} from '../../src/features/chat/model/workbench-greeting.ts'
 
 const at = (hour, minute = 0, second = 0) => new Date(2026, 8, 25, hour, minute, second)
 
@@ -50,7 +50,7 @@ test('Pisper greeting font measurement remains bounded and tolerates hidden cont
 
 test('Pisper shell has one chat header, no split selector, and retains optional backend tools', async () => {
   const app = await readFile('src/App.tsx', 'utf8')
-  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
+  const focus = await readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8')
   const sidebar = await readFile('src/components/layout/AppSidebar.tsx', 'utf8')
   assert.doesNotMatch(app, /<ChatLayoutSwitcher|<ChatLayoutNavigation|<StatusBar/)
   assert.match(app, /page !== 'chat' &&/)
@@ -62,7 +62,7 @@ test('Pisper shell has one chat header, no split selector, and retains optional 
   assert.match(sidebar, /<SidebarRecentSessions/)
   assert.match(sidebar, /<SidebarMoreTools/)
   // 工作流/资产取自壳层已按能力过滤的清单；可选后台工具仍通过更多菜单或设置访问。
-  const navigation = await readFile('src/app/navigation.ts', 'utf8')
+  const navigation = await readFile('src/app/routes/navigation.ts', 'utf8')
   assert.match(
     navigation,
     /items\.filter\(\(\[page\]\) => runtimePageAvailable\(capabilities, page\)\)/,

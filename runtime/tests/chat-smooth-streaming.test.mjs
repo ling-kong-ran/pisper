@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { DEFAULT_SESSION_STATE } from '../../src/lib/session-state.ts'
-import { reconcileMessagePage } from '../../src/features/chat/use-live-session-sync.ts'
-import { reconcileTerminalStreamState } from '../../src/features/chat/stream-event-dispatch.ts'
+import { DEFAULT_SESSION_STATE } from '../../src/lib/session/session-state.ts'
+import { reconcileMessagePage } from '../../src/features/chat/hooks/use-live-session-sync.ts'
+import { reconcileTerminalStreamState } from '../../src/features/chat/model/stream-event-dispatch.ts'
 
 function sessionState(update = {}) {
   return {
@@ -83,8 +83,8 @@ test('changed messages are replaced while unchanged rows keep their identity', (
 
 test('SSE text deltas flow only through the typewriter, never direct state writes', async () => {
   const [dispatch, prompt] = await Promise.all([
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   ])
   // text_patch / text_delta 分支只更新打字机目标，不直接写会话正文。
   const patchBranch = dispatch.slice(
@@ -105,9 +105,9 @@ test('SSE text deltas flow only through the typewriter, never direct state write
 
 test('transcript keeps natural scroll following and live row remeasure wiring', async () => {
   const [transcript, virtualList, liveSync] = await Promise.all([
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/use-live-session-sync.ts', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/VirtualMessageTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-live-session-sync.ts', 'utf8'),
   ])
   assert.match(transcript, /useAutoScroll\(transcriptVersion/)
   assert.match(transcript, /onContentSizeChange=\{maintainBottom\}/)

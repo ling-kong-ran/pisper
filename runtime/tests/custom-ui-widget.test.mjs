@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { listCustomUiComponents } from '../../src/features/custom-ui/custom-ui-api.ts'
-import { customUiComponentsQueryOptions } from '../../src/features/custom-ui/useCustomUiComponents.ts'
-import { attachComponentBridge } from '../../src/features/custom-ui/component-bridge.ts'
-import { startCustomUiView } from '../../src/features/custom-ui/custom-ui-view.ts'
-import { customUiComponentLabel } from '../../src/features/custom-ui/custom-ui-labels.ts'
+import { listCustomUiComponents } from '../../src/features/custom-ui/api/custom-ui-api.ts'
+import { customUiComponentsQueryOptions } from '../../src/features/custom-ui/hooks/useCustomUiComponents.ts'
+import { attachComponentBridge } from '../../src/features/custom-ui/model/component-bridge.ts'
+import { startCustomUiView } from '../../src/features/custom-ui/model/custom-ui-view.ts'
+import { customUiComponentLabel } from '../../src/features/custom-ui/model/custom-ui-labels.ts'
 
 const component = {
   id: 'fixture',

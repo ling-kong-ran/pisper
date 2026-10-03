@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import { createPisperRuntime } from './app-runtime.mjs'
-import { resolveAgentDataDir } from './data-dir-migration.mjs'
+import { resolveAgentDataDir } from './services/data-dir-migration.mjs'
 
 const serverDir = dirname(fileURLToPath(import.meta.url))
 const defaultRoot = resolve(serverDir, '..')

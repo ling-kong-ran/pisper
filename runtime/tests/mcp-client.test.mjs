@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { McpService, parseMcpServerInput } from '../services/mcp-service.mjs'
-import { mcpApi, parseMcpDashboard } from '../../src/features/mcp/mcp-api.ts'
+import { mcpApi, parseMcpDashboard } from '../../src/features/mcp/api/mcp-api.ts'
 import {
   MCP_QUERY_KEY,
   mcpDashboardQueryOptions,
   mcpMutationOptions,
-} from '../../src/features/mcp/mcp-queries.ts'
+} from '../../src/features/mcp/api/mcp-queries.ts'
 
 const dashboard = (name = 'Example') => ({
   services: [{ id: 'server / 1', name, enabled: true, transport: 'stdio', status: 'offline' }],

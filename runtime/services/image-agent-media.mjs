@@ -1,10 +1,10 @@
 import { constants } from 'node:fs'
 import { lstat, open, realpath } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { assertRasterBounds, readRasterDimensions } from '../../shared/raster-image.mjs'
+import { assertRasterBounds, readRasterDimensions } from '../../shared/image/raster-image.mjs'
 
 const MAX_BYTES = 8 * 1024 * 1024
-/** @typedef {import('../../shared/workflow-inputs.mjs').WorkflowMedia} WorkflowMedia */
+/** @typedef {import('../../shared/workflow/workflow-inputs.mjs').WorkflowMedia} WorkflowMedia */
 /** @typedef {{path:string, info:import('node:fs').Stats}} FileIdentity */
 
 /** @param {string} code @param {number} [statusCode] */

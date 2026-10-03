@@ -24,7 +24,7 @@ import { speechRoutes } from './routes/speech.mjs'
 import { spriteEngineRoutes } from './routes/workflow-image-engines.mjs'
 import { gameAssetRoutes } from './routes/game-assets.mjs'
 import { workflowMediaRoutes } from './routes/workflow-media.mjs'
-import { WorkflowInputError } from '../../shared/workflow-inputs.mjs'
+import { WorkflowInputError } from '../../shared/workflow/workflow-inputs.mjs'
 import { workflowScheduleRoutes } from './routes/workflows-schedules.mjs'
 import { RunRegistry } from '../services/run-registry.mjs'
 

@@ -22,6 +22,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Security audit (non-blocking)
+        run: npm audit --audit-level=high || true
       - run: npm run check
       - run: npm test
       - run: npm run build
@@ -58,6 +60,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tui
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+      - name: Security audit (non-blocking)
+        run: cargo audit || true
       - name: Check formatting
         run: cargo fmt --manifest-path src-tui/Cargo.toml -- --check
       - name: Check TUI

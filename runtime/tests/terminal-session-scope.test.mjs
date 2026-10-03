@@ -4,7 +4,7 @@ import {
   activeSessionTerminalId,
   markOrphanedSessionTerminals,
   visibleSessionTerminals,
-} from '../../src/features/terminal/terminal-session-scope.ts'
+} from '../../src/features/terminal/model/terminal-session-scope.ts'
 
 const terminals = [
   { id: 'a-1', sessionId: 'session-a', orphaned: false },

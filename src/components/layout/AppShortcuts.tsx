@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { isEditableTarget, matchesShortcut, shortcutEventBlocked } from '@/lib/shortcuts'
+import { isEditableTarget, matchesShortcut, shortcutEventBlocked } from '@/lib/ui/shortcuts'
 import { useShortcutStore } from '@/stores/shortcut-store'
 
 export function AppShortcuts({

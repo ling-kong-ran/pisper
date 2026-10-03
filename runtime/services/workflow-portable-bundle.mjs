@@ -1,8 +1,8 @@
-import { validateWorkflowInputDefinitions } from '../../shared/workflow-inputs.mjs'
+import { validateWorkflowInputDefinitions } from '../../shared/workflow/workflow-inputs.mjs'
 import {
   isWorkflowImageNodeKind,
   normalizeWorkflowImageSettings,
-} from '../../shared/workflow-image-nodes.mjs'
+} from '../../shared/workflow/workflow-image-nodes.mjs'
 import {
   bundleError,
   bundleJson,

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { streamEventsWithResume } from '../../src/lib/api.ts'
-import { ApiError } from '../../src/lib/http.ts'
+import { streamEventsWithResume } from '../../src/lib/http/api.ts'
+import { ApiError } from '../../src/lib/http/http.ts'
 
 // 把若干 SSE 帧字符串编成一个 fetch Response；fail=true 时在末尾制造传输层中断
 //（模拟连接被重置/代理提前收尾），否则干净 EOF。
@@ -223,7 +223,7 @@ test('repeated clean EOF without a terminal frame remains retryable and eventual
 
 test('resync_required hands the session over to snapshot polling', async () => {
   // 接线断言：缓冲溢出缺口时放弃流所有权并移交实时快照轮询。
-  const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
+  const source = await readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8')
   assert.match(source, /event === 'resync_required'/)
   assert.match(
     source,

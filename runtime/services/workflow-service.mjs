@@ -7,21 +7,21 @@ import {
   analyzeWorkflowGraph,
   createLinearWorkflowEdges,
   normalizeWorkflowEdges,
-} from '../../shared/workflow-graph.mjs'
+} from '../../shared/workflow/workflow-graph.mjs'
 import {
   renderWorkflowTemplate,
   validateWorkflowInputDefinitions,
   validateWorkflowInputs,
   validateWorkflowTemplate,
   WorkflowInputError,
-} from '../../shared/workflow-inputs.mjs'
+} from '../../shared/workflow/workflow-inputs.mjs'
 import {
   WORKFLOW_IMAGE_NODE_KINDS,
   isWorkflowImageNodeKind,
   normalizeWorkflowImageSettings,
   parseWorkflowImageOutput,
   workflowImageError,
-} from '../../shared/workflow-image-nodes.mjs'
+} from '../../shared/workflow/workflow-image-nodes.mjs'
 
 const STATE_VERSION = 2
 const NODE_KINDS = new Set([

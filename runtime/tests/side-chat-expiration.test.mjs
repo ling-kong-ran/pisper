@@ -6,7 +6,7 @@ import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
 
 const providerCode = transformSync(
-  await readFile('src/features/chat/SideChatProvider.tsx', 'utf8'),
+  await readFile('src/features/chat/components/session/SideChatProvider.tsx', 'utf8'),
   { loader: 'tsx', format: 'cjs', jsx: 'automatic' },
 ).code
 const BASE_TIME = Date.parse('2026-09-27T00:00:00.000Z')
@@ -131,6 +131,11 @@ function fixture(t) {
     './side-chat-api': { getSideChat: request('GET'), ensureSideChat: request('POST') },
     './side-chat-context': { SideChatContext: { Provider: 'provider' }, EMPTY_ENTRY: emptyEntry },
   }
+  // @/ 别名映射：编译后的模块使用 @/ 路径 require。
+  modules['@/features/chat/model/chat-errors'] = modules['./chat-errors']
+  modules['@/features/chat/model/composer-drafts'] = modules['./composer-drafts']
+  modules['@/features/chat/model/side-chat-api'] = modules['./side-chat-api']
+  modules['@/features/chat/model/side-chat-context'] = modules['./side-chat-context']
   const module = { exports: {} }
   runInNewContext(providerCode, {
     module,

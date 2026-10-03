@@ -3,8 +3,8 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createPisperRuntime } from './app-runtime.mjs'
-import { resolveAgentDataDir } from './data-dir-migration.mjs'
-import { openBrowser, shouldOpenBrowser } from './open-browser.mjs'
+import { resolveAgentDataDir } from './services/data-dir-migration.mjs'
+import { openBrowser, shouldOpenBrowser } from './services/open-browser.mjs'
 
 // 关闭 Pi 引擎自带的版本检查与遥测：这些行为由 Pisper 自己控制，避免重复或干扰。
 process.env.PI_SKIP_VERSION_CHECK ||= '1'

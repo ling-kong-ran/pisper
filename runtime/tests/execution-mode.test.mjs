@@ -77,11 +77,12 @@ test('approval-required execution exposes low-risk and approval-gated tools', ()
 })
 
 test('React exposes approval-required, workspace-write, and full-access execution modes', async () => {
-  const [session, controls, commands, schedules] = await Promise.all([
-    readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/chat/FocusRuntimeControls.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/chat/use-session-commands.ts', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/schedules/SchedulesPage.tsx', import.meta.url), 'utf8'),
+  const [session, controls, commands, schedules, scheduleTypes] = await Promise.all([
+    readFile(new URL('../../src/features/chat/components/runtime/FocusSession.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/chat/components/runtime/FocusRuntimeControls.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/chat/hooks/use-session-commands.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/schedules/pages/SchedulesPage.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/schedules/model/schedule-types.ts', import.meta.url), 'utf8'),
   ])
   assert.match(session, /<ExecutionModeSelect[\s\S]*?disabled=\{switchingPermission\}/)
   assert.doesNotMatch(session, /disabled=\{streaming \|\| switchingPermission\}/)
@@ -90,7 +91,7 @@ test('React exposes approval-required, workspace-write, and full-access executio
   assert.match(controls, /BadgeCheck/)
   assert.match(controls, /focusSession.workspaceWrite/)
   assert.doesNotMatch(commands, /stopTheActiveRunBeforeChangingTheExecutionMode/)
-  assert.match(schedules, /type ScheduleExecutionMode = 'full-access'/)
+  assert.match(scheduleTypes, /type ScheduleExecutionMode = 'full-access'/)
   assert.doesNotMatch(schedules, /read-only/)
 })
 

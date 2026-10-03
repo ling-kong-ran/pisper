@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { loadAttachmentPreview } from '../../src/features/chat/attachment-preview.ts'
+import { loadAttachmentPreview } from '../../src/features/chat/model/attachment-preview.ts'
 
 test('file preview uses the bounded asset endpoint, not attachment paths or URLs', async (t) => {
   const calls = []

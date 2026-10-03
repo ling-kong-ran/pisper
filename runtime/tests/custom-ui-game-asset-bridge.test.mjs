@@ -8,7 +8,7 @@ import { CustomUiService, normalizeComponentManifest } from '../services/custom-
 
 // 把模块边界替换为可观测的领域适配器，不启动 Runtime、不接触个人配置或网络。
 const hostCode = transformSync(
-  await readFile('src/features/custom-ui/component-bridge.ts', 'utf8'),
+  await readFile('src/features/custom-ui/model/component-bridge.ts', 'utf8'),
   { loader: 'ts', format: 'cjs', supported: { 'dynamic-import': false } },
 ).code
 
@@ -56,8 +56,8 @@ function hostFixture(t, { permissions = [], preview = false, handler } = {}) {
       },
     },
     require(name) {
-      if (name === '@/app/i18n') return { translateText: (key) => key }
-      if (name === '@/lib/api') {
+      if (name === '@/app/i18n/i18n') return { translateText: (key) => key }
+      if (name === '@/lib/http/api') {
         return {
           apiJson(path, options) {
             apiCalls.push({ path, options })
@@ -65,7 +65,7 @@ function hostFixture(t, { permissions = [], preview = false, handler } = {}) {
           },
         }
       }
-      assert.equal(name, '@/features/game-assets/component-api')
+      assert.equal(name, '@/features/game-assets/model/component-api')
       domainImports += 1
       return {
         handleGameAssetComponentRequest(method, params, signal) {

@@ -30,8 +30,8 @@ import {
   Trash2,
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
-import { useI18n } from '@/app/use-i18n'
-import type { Notify } from '@/app/route-context'
+import { useI18n } from '@/app/i18n/use-i18n'
+import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
@@ -41,12 +41,12 @@ import {
   requestSessionCreation,
   requestSessionSelection,
   subscribeSessionDeletionUpdates,
-} from '@/features/chat/events'
+} from '@/features/chat/model/events'
 import {
   SessionOrganizationProtocolError,
   updateSessionOrganization,
-} from '@/features/chat/session-organization-api'
-import { orderVisibleSessions } from '@/features/chat/session-list'
+} from '@/features/chat/api/session-organization-api'
+import { orderVisibleSessions } from '@/features/chat/model/session-list'
 import {
   deleteSessionsSequentially,
   groupSessionsByWorkspace,
@@ -56,12 +56,12 @@ import {
   sessionWorkspaceKey,
   sessionsInWorkspace,
   type WorkspaceSessionGroup,
-} from '@/features/chat/session-workspaces'
-import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
-import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
-import { pageStateStorage } from '@/lib/page-state-storage'
-import { apiJson } from '@/lib/api'
-import { relativeTime, workspaceName } from '@/lib/format'
+} from '@/features/chat/model/session-workspaces'
+import { useWorkspaceOrderStore } from '@/features/chat/model/workspace-order-store'
+import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup/startup-queries'
+import { pageStateStorage } from '@/lib/storage/page-state-storage'
+import { apiJson } from '@/lib/http/api'
+import { relativeTime, workspaceName } from '@/lib/format/format'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -76,7 +76,7 @@ import { Button } from '@/components/ui/button'
 
 // 目录选择器只在「新建项目」时用到：按需加载。
 const WorkspacePicker = lazy(() =>
-  import('@/components/WorkspacePicker').then((m) => ({ default: m.WorkspacePicker })),
+  import('@/components/common/WorkspacePicker').then((m) => ({ default: m.WorkspacePicker })),
 )
 
 type SessionSummary = {

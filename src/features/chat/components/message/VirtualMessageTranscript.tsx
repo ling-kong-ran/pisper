@@ -1,0 +1,271 @@
+// 虚拟化消息转录：大数据量消息列表的窗口化渲染，支持
+// 顶部加载更早消息与底部自动滚动。
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { resolveMessageRunActivity } from '@/lib/session/session-state'
+import type { ChatMessage } from '@/types/chat'
+import type { AgentRunActivityProps } from '@/features/chat/components/message/AgentRunActivity'
+import { FocusChatMessage } from '@/features/chat/components/message/ChatMessage'
+import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from '@/features/chat/model/transcript-virtualization'
+
+type VirtualMessageTranscriptProps = {
+  sessionId: string
+  layoutMeasurementKey?: string
+  messages: ChatMessage[]
+  streaming?: boolean
+  latestRunProps: AgentRunActivityProps
+  scrollElement: HTMLDivElement | null
+  prefixRef: RefObject<HTMLDivElement | null>
+  /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
+  cwd?: string
+  targetEntryId?: string
+  onContentSizeChange: () => void
+  onTargetScroll: () => void
+  onTargetLocated: (entryId: string) => void
+  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
+  onRetryLastTurn: () => Promise<void> | void
+}
+
+function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEntry) {
+  const borderBox = entry?.borderBoxSize?.[0]
+  return Math.ceil(borderBox?.blockSize ?? element.getBoundingClientRect().height)
+}
+
+function useTranscriptScrollMargin(
+  scrollElement: HTMLDivElement | null,
+  prefixRef: RefObject<HTMLDivElement | null>,
+  listRef: RefObject<HTMLDivElement | null>,
+) {
+  const [scrollMargin, setScrollMargin] = useState(0)
+
+  useLayoutEffect(() => {
+    const listElement = listRef.current
+    if (!scrollElement || !listElement) return undefined
+
+    const measure = () => {
+      const next = Math.max(
+        0,
+        listElement.getBoundingClientRect().top -
+          scrollElement.getBoundingClientRect().top +
+          scrollElement.scrollTop,
+      )
+      setScrollMargin((current) => (Math.abs(current - next) < 1 ? current : next))
+    }
+    let measureFrame: number | null = null
+    const scheduleMeasure = () => {
+      if (measureFrame !== null) return
+      measureFrame = window.requestAnimationFrame(() => {
+        measureFrame = null
+        measure()
+      })
+    }
+    measure()
+
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure)
+    observer?.observe(scrollElement)
+    if (prefixRef.current) observer?.observe(prefixRef.current)
+    window.addEventListener('resize', scheduleMeasure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', scheduleMeasure)
+      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame)
+    }
+  }, [listRef, prefixRef, scrollElement])
+
+  return scrollMargin
+}
+
+export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
+  sessionId,
+  layoutMeasurementKey,
+  messages,
+  streaming,
+  latestRunProps,
+  scrollElement,
+  prefixRef,
+  cwd,
+  targetEntryId,
+  onContentSizeChange,
+  onTargetScroll,
+  onTargetLocated,
+  onBranchFromHere,
+  onCreateChildSession,
+  onRetryLastTurn,
+}: VirtualMessageTranscriptProps) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const [highlightedEntryId, setHighlightedEntryId] = useState('')
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  // 每条消息记录最近的前置用户消息 ID，供最新一条助手消息上的「重试」按钮重新发送该轮输入；
+  // 旧节点不提供重试——那会把历史提问追加到会话末尾，语义与「从此处继续/另开对话」冲突。
+  const retryUserIdByIndex = useMemo(() => {
+    const result: (string | undefined)[] = Array.from({ length: messages.length })
+    let lastUserId: string | undefined
+    for (let index = 0; index < messages.length; index += 1) {
+      if (messages[index]?.role === 'user') lastUserId = messages[index].id
+      result[index] = lastUserId
+    }
+    return result
+  }, [messages])
+  const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
+  const getItemKey = useCallback(
+    (index: number) => messagesRef.current[index]?.id ?? `transcript-message-${index}`,
+    [],
+  )
+  // 行高估算随容器宽度分档：窄屏实际行高更大，固定估算会让滚动条明显跳动。
+  const estimateSize = useCallback(
+    () => estimateTranscriptRowHeight(scrollElement?.clientWidth),
+    [scrollElement],
+  )
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: messages.length,
+    getScrollElement: () => scrollElement,
+    getItemKey,
+    estimateSize,
+    measureElement: measuredElementHeight,
+    overscan: TRANSCRIPT_OVERSCAN,
+    scrollMargin,
+    useAnimationFrameWithResizeObserver: true,
+  })
+  const virtualItems = virtualizer.getVirtualItems()
+  const totalSize = virtualizer.getTotalSize()
+
+  const remeasureLayout = useCallback(() => {
+    const list = listRef.current
+    if (!list || !scrollElement || list.getBoundingClientRect().width < 1) return
+    const scrollTop = scrollElement.scrollTop
+    const anchor = virtualizer.getVirtualItems().find((item) => item.end > scrollTop)
+    const anchorOffset = anchor ? Math.max(0, scrollTop - anchor.start) : 0
+    // ResizeObserver 只覆盖挂载行；模板与列宽改变时也要作废屏幕外的旧字号/旧宽度行高。
+    virtualizer.measure()
+    virtualizer.getTotalSize()
+    for (const row of list.children) {
+      if (row instanceof HTMLDivElement) virtualizer.measureElement(row)
+    }
+    virtualizer.getTotalSize()
+    if (anchor) {
+      const offset = virtualizer.getOffsetForIndex(anchor.index, 'start')?.[0]
+      if (offset !== undefined) virtualizer.scrollToOffset(offset + anchorOffset)
+    }
+    onContentSizeChange()
+  }, [onContentSizeChange, scrollElement, virtualizer])
+
+  useLayoutEffect(() => {
+    remeasureLayout()
+  }, [layoutMeasurementKey, remeasureLayout])
+
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list || typeof ResizeObserver === 'undefined') return
+    let width = list.getBoundingClientRect().width
+    let frame: number | null = null
+    const observer = new ResizeObserver(() => {
+      const nextWidth = list.getBoundingClientRect().width
+      if (Math.abs(nextWidth - width) < 1) return
+      width = nextWidth
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+        remeasureLayout()
+      })
+    })
+    observer.observe(list)
+    return () => {
+      observer.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [remeasureLayout])
+
+  useLayoutEffect(() => {
+    onContentSizeChange()
+  }, [onContentSizeChange, totalSize])
+
+  // 流式行高变化由虚拟器的 ResizeObserver + rAF 通道重测（useAnimationFrameWithResizeObserver），
+  // 不再在 useLayoutEffect 里同步 measureElement——那会在每个流式帧强制同步布局。
+
+  useEffect(() => {
+    if (!targetEntryId) return undefined
+    const targetIndex = messages.findIndex(
+      (message) => message.turnBoundaryEntryId === targetEntryId,
+    )
+    if (targetIndex < 0) return undefined
+    onTargetScroll()
+    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+    setHighlightedEntryId(targetEntryId)
+    const frame = window.requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+      onTargetLocated(targetEntryId)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [messages, onTargetLocated, onTargetScroll, targetEntryId, virtualizer])
+
+  useEffect(() => {
+    if (!highlightedEntryId) return undefined
+    const timer = window.setTimeout(() => setHighlightedEntryId(''), 2200)
+    return () => window.clearTimeout(timer)
+  }, [highlightedEntryId])
+
+  return (
+    <div
+      className="relative w-full"
+      data-pisper-transcript-size={messages.length}
+      data-pisper-rendered-count={virtualItems.length}
+      ref={listRef}
+      style={{ height: `${totalSize}px` }}
+    >
+      {virtualItems.map((virtualItem) => {
+        const message = messages[virtualItem.index]
+        if (!message) return null
+        const isLatestAgent = message.role === 'agent' && virtualItem.index === messages.length - 1
+        const agentState =
+          message.streaming || (isLatestAgent && streaming)
+            ? 'thinking'
+            : isLatestAgent && !message.error
+              ? 'waiting'
+              : 'idle'
+        const runProps = resolveMessageRunActivity(message, isLatestAgent, latestRunProps)
+        return (
+          <div
+            className={`virtual-transcript-item absolute left-0 [display:flow-root] w-full rounded-[var(--r-sm)] ${message.turnBoundaryEntryId === highlightedEntryId ? 'targeted [.virtual-transcript-item&]:bg-[var(--star-soft)] [.virtual-transcript-item&]:shadow-[inset_3px_0_0_var(--star-strong)]' : ''}`}
+            data-index={virtualItem.index}
+            data-pisper-target-entry={
+              message.turnBoundaryEntryId === highlightedEntryId
+                ? message.turnBoundaryEntryId
+                : undefined
+            }
+            data-pisper-virtual-item={message.id}
+            key={virtualItem.key}
+            ref={virtualizer.measureElement}
+            style={{ top: `${virtualItem.start - scrollMargin}px` }}
+          >
+            <FocusChatMessage
+              sessionId={sessionId}
+              message={message}
+              agentState={agentState}
+              showRunActivity={Boolean(runProps)}
+              runProps={runProps}
+              cwd={cwd}
+              sessionStreaming={streaming}
+              onBranchFromHere={onBranchFromHere}
+              onCreateChildSession={onCreateChildSession}
+              retryUserMessageId={isLatestAgent ? retryUserIdByIndex[virtualItem.index] : undefined}
+              hideErrorNotice={isLatestAgent && Boolean(message.error)}
+              onRetryLastTurn={onRetryLastTurn}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+})

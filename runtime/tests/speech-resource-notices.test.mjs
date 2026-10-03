@@ -5,9 +5,9 @@ import test from 'node:test'
 
 const root = new URL('../../', import.meta.url)
 const read = (path) => readFile(new URL(path, root))
-const raw = await read('shared/speech-resource-notices.json')
+const raw = await read('shared/speech/speech-resource-notices.json')
 const notices = JSON.parse(raw.toString('utf8'))
-const catalog = JSON.parse(await read('shared/speech-model-catalog.json'))
+const catalog = JSON.parse(await read('shared/speech/speech-model-catalog.json'))
 const catalogModels = new Map(catalog.models.map((model) => [model.id, model]))
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 const shaPattern = /^[a-f0-9]{64}$/

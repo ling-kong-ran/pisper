@@ -3,14 +3,14 @@ import test from 'node:test'
 import {
   normalizeWorkflowImageSettings,
   WORKFLOW_IMAGE_NODE_KINDS,
-} from '../../shared/workflow-image-nodes.mjs'
+} from '../../shared/workflow/workflow-image-nodes.mjs'
 import {
   createWorkflowNode,
   templateWorkflow,
   WORKFLOW_TEMPLATES,
   WORKFLOW_PALETTE,
   workflowImageRequestCount,
-} from '../../src/features/workflows/workflow-templates.ts'
+} from '../../src/features/workflows/model/workflow-templates.ts'
 
 test('sprite template is an editable workflow graph with four action branches and one export', () => {
   const template = WORKFLOW_TEMPLATES.find((item) => item.id === 'sprite')

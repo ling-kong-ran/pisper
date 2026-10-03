@@ -16,21 +16,21 @@ import {
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
-import { createPrimaryActionRegistry } from '@/app/primary-action'
-import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-context'
+import { createPrimaryActionRegistry } from '@/app/routes/primary-action'
+import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/routes/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
-import { pageStateStorage } from '@/lib/page-state-storage'
-import { getNavigation, getPageMeta } from '@/app/navigation'
-import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
+import { pageStateStorage } from '@/lib/storage/page-state-storage'
+import { getNavigation, getPageMeta } from '@/app/routes/navigation'
+import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes/routes'
 import {
   CONFIG_SECTIONS,
   SETTINGS_PAGES,
   type SettingsDestination,
-} from '@/app/settings-navigation'
-import { useI18n } from '@/app/use-i18n'
-import { ensureCustomUiMessages } from '@/app/i18n'
+} from '@/app/routes/settings-navigation'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { ensureCustomUiMessages } from '@/app/i18n/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
-import { BrandLogo } from '@/components/BrandLogo'
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import {
@@ -39,25 +39,25 @@ import {
 } from '@/components/layout/MobileNavigation'
 import { AppDialog } from '@/components/layout/AppDialog'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
-import { chatApi } from '@/features/chat/chat-api'
+import { chatApi } from '@/features/chat/api/chat-api'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
   requestSessionSelection,
   requestSessionCreation,
-} from '@/features/chat/events'
-import { apiJson } from '@/lib/api'
+} from '@/features/chat/model/events'
+import { apiJson } from '@/lib/http/api'
 import {
   fetchStartupQuery,
   invalidateStartupQuery,
   queryClient,
   startupQueryOptions,
-} from '@/lib/startup-queries'
-import { markStartupPhase } from '@/lib/startup-diagnostics'
-import { showBrowserSystemNotification } from '@/lib/browser-notifications'
+} from '@/lib/startup/startup-queries'
+import { markStartupPhase } from '@/lib/startup/startup-diagnostics'
+import { showBrowserSystemNotification } from '@/lib/platform/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
-import { useAppUpdate } from '@/features/updates/useAppUpdate'
+import { useAppUpdate } from '@/features/updates/hooks/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
@@ -68,8 +68,8 @@ import {
   runtimeFeatureAvailable,
   runtimePageAvailable,
 } from '@/types/runtime-capabilities'
-import { readStoredTerminalPanel } from '@/features/terminal/terminal-state'
-import { tauriNotificationAvailable, tauriNotificationNotify } from '@/lib/tauri-notification'
+import { readStoredTerminalPanel } from '@/features/terminal/model/terminal-state'
+import { tauriNotificationAvailable, tauriNotificationNotify } from '@/lib/mobile/tauri-notification'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
@@ -98,7 +98,7 @@ const QuickCreate = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({ default: module.QuickCreate })),
 )
 const WebDesktopPet = lazy(() =>
-  import('@/features/desktop-pet/WebDesktopPet').then((module) => ({
+  import('@/features/desktop-pet/components/WebDesktopPet').then((module) => ({
     default: module.WebDesktopPet,
   })),
 )
@@ -116,7 +116,7 @@ const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
 )
 const TerminalPanel = lazy(() =>
-  import('@/features/terminal/TerminalPanel').then((module) => ({
+  import('@/features/terminal/components/TerminalPanel').then((module) => ({
     default: module.TerminalPanel,
   })),
 )
@@ -177,7 +177,7 @@ function App() {
   const [installedTools, setInstalledTools] = useState<Array<{ id: string; name: string }>>([])
   useEffect(() => {
     let mounted = true
-    void import('@/features/custom-ui/catalog')
+    void import('@/features/custom-ui/model/catalog')
       .then(({ listCustomUiComponents }) => listCustomUiComponents())
       .then(({ components }) => {
         if (mounted)

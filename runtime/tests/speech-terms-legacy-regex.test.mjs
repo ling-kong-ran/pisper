@@ -24,7 +24,7 @@ class LegacyJSCRegExp extends NativeRegExp {
 globalThis.RegExp = LegacyJSCRegExp
 
 // 探测在首次调用时进行，此时全局 RegExp 已被替换，模块必然走降级分支。
-const { formatSpeechTerms } = await import('../../shared/speech-terms.mjs')
+const { formatSpeechTerms } = await import('../../shared/speech/speech-terms.mjs')
 
 test('patched RegExp rejects lookbehind so the legacy branch is exercised', () => {
   assert.throws(() => new RegExp('(?<=a)'), /invalid group specifier name/)

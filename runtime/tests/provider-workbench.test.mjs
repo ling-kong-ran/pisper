@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getProviderWorkbenchState } from '../../src/features/config/provider-workbench-state.ts'
-import { getSettingsNavigation } from '../../src/app/settings-navigation.ts'
+import { getProviderWorkbenchState } from '../../src/features/config/model/provider-workbench-state.ts'
+import { getSettingsNavigation } from '../../src/app/routes/settings-navigation.ts'
 
 const provider = (id, overrides = {}) => ({
   id,

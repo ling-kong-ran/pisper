@@ -3,13 +3,13 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
+import { FocusChatMessage } from '../../src/features/chat/components/message/ChatMessage.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
   const [page, liveSync, prompt] = await Promise.all([
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/use-live-session-sync.ts', 'utf8'),
-    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+    readFile('src/features/chat/pages/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-live-session-sync.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   ])
   assert.match(page, /document\.addEventListener\('visibilitychange', recover\)/)
   assert.match(page, /window\.addEventListener\('pageshow', recover\)/)
@@ -28,11 +28,11 @@ test('foreground resume refreshes cached sessions and invalidates stale SSE owne
 
 test('chat renders thinking and tool activity above one uninterrupted response body', async () => {
   const [dock, focus, focusProps, message, activity] = await Promise.all([
-    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/focus-session-props.ts', 'utf8'),
-    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/features/chat/components/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/model/focus-session-props.ts', 'utf8'),
+    readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8'),
   ])
   // 空数组兑底用共享常量，避免每次渲染新建数组击穿 FocusSession 的 memo。
   assert.match(dock, /const EMPTY_LIST: never\[\] = \[\]/)
@@ -58,10 +58,10 @@ test('chat renders thinking and tool activity above one uninterrupted response b
 
 test('streaming chat keeps its text lifecycle without decorative SSE motion', async () => {
   const [activity, transcript, styles, markdown] = await Promise.all([
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
-    readFile('src/components/MarkdownMessage.tsx', 'utf8'),
+    readFile('src/components/common/MarkdownMessage.tsx', 'utf8'),
   ])
 
   assert.match(markdown, /aria-busy=\{streaming \|\| undefined\}/)
@@ -73,7 +73,7 @@ test('streaming chat keeps its text lifecycle without decorative SSE motion', as
 })
 
 test('SSE activity isolates one total-duration clock from the streamed activity tree', async () => {
-  const activity = await readFile('src/features/chat/AgentRunActivity.tsx', 'utf8')
+  const activity = await readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8')
   const durationLabel = activity.slice(
     activity.indexOf('function RunDurationLabel'),
     activity.indexOf('function cleanInline'),
@@ -94,7 +94,7 @@ test('SSE activity isolates one total-duration clock from the streamed activity 
 })
 
 test('tool activity uses a polished scroll viewport without truncating records', async () => {
-  const activity = await readFile('src/features/chat/AgentRunActivity.tsx', 'utf8')
+  const activity = await readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8')
   assert.match(activity, /ref=\{liveFeedRef\}[\s\S]*agent-run-feed[^"\n]*live/)
   assert.match(activity, /tabIndex=\{activities\.length > 3 \? 0 : undefined\}/)
   assert.match(activity, /if \(!streaming \|\| !activities\.length\) return undefined/)
@@ -110,7 +110,7 @@ test('tool activity uses a polished scroll viewport without truncating records',
 
 test('composer is the sole persistent Agent run status surface', async () => {
   // 状态胶囊样式随 composer 展示组件拆分到 focus-session-composer-bits.tsx。
-  const focus = await readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8')
+  const focus = await readFile('src/features/chat/model/focus-session-composer-bits.tsx', 'utf8')
   assert.match(focus, /focus-composer-status/)
   assert.match(focus, /compaction\?\.active \? 'compacting[^']*' : streaming \? 'running' : 'idle'/)
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
@@ -121,8 +121,8 @@ test('composer is the sole persistent Agent run status surface', async () => {
 
 test('all chats expose their working directory in the title header, not in the composer or welcome screen', async () => {
   const [focus, transcript, chinese, english] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
     readFile('src/locales/zh-CN/chat.json', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8'),
   ])
@@ -144,9 +144,9 @@ test('all chats expose their working directory in the title header, not in the c
 
 test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
   const [focus, message, transcript] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
   assert.match(
@@ -169,7 +169,7 @@ test('conversation layout keeps a compact title header without a persistent avat
 
 test('composer send action has distinct enabled, disabled, and streaming states', async () => {
   // 发送/停止按钮随 composer 展示组件拆分到 focus-session-composer-bits.tsx。
-  const focus = await readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8')
+  const focus = await readFile('src/features/chat/model/focus-session-composer-bits.tsx', 'utf8')
   assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
   assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
   assert.match(focus, /send-button[^`\n]*\$\{streaming \? 'stop[^']*' : ''\}/)
@@ -186,7 +186,7 @@ test('composer send action has distinct enabled, disabled, and streaming states'
 })
 
 test('image previews portal above session-level controls', async () => {
-  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
+  const message = await readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8')
   assert.match(message, /import \{ createPortal \} from 'react-dom'/)
   assert.match(message, /createPortal\([\s\S]*<ImageLightbox[\s\S]*document\.body/)
   assert.match(message, /<Button\s+asChild\s+size="lg"/)
@@ -220,20 +220,20 @@ test('empty completed replies stay empty and request diagnostics never replace t
 })
 
 test('core chat activity loads synchronously with the message renderer', async () => {
-  const message = await readFile('src/features/chat/ChatMessage.tsx', 'utf8')
+  const message = await readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8')
   assert.match(
     message,
-    /import AgentRunActivity, \{ type AgentRunActivityProps \} from '\.\/AgentRunActivity'/,
+    /import AgentRunActivity, \{ type AgentRunActivityProps \} from '@\/features\/chat\/components\/message\/AgentRunActivity'/,
   )
   assert.doesNotMatch(message, /lazy\(\(\) => .*AgentRunActivity/)
-  assert.doesNotMatch(message, /import\('\.\/AgentRunActivity'\)/)
+  assert.doesNotMatch(message, /import\('@\/features\/chat\/components\/message\/AgentRunActivity'\)/)
   assert.doesNotMatch(message, /agent-run-activity-placeholder/)
 })
 
 test('live snapshots cannot overwrite a locally owned SSE assistant message', async () => {
   const [liveSync, promptCommands] = await Promise.all([
-    readFile('src/features/chat/use-live-session-sync.ts', 'utf8'),
-    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-live-session-sync.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   ])
   assert.match(promptCommands, /localStreamSessionsRef\.current\.add\(sessionId\)/)
   assert.match(promptCommands, /localStreamSessionsRef\.current\.delete\(sessionId\)/)
@@ -243,8 +243,8 @@ test('live snapshots cannot overwrite a locally owned SSE assistant message', as
 
 test('settled SSE runs reconcile metadata from the done frame without a transcript reload', async () => {
   const [source, dispatch, runtime] = await Promise.all([
-    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
   ])
   // done 帧直接携带回合边界条目，前端就地补全消息元数据（资产随 assets 字段）。
@@ -260,8 +260,8 @@ test('settled SSE runs reconcile metadata from the done frame without a transcri
 
 test('assistant text completion drains the typewriter before settling Markdown and history', async () => {
   const [dispatcher, promptCommands] = await Promise.all([
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   ])
   const textEndHandler = dispatcher.slice(
     dispatcher.indexOf("event === 'text_end'"),
@@ -287,12 +287,12 @@ test('assistant text completion drains the typewriter before settling Markdown a
 test('ephemeral reasoning remains rendered after a textless response completes', async () => {
   const [dispatcher, promptCommands, transcript, virtualTranscript, activity, sessionState] =
     await Promise.all([
-      readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-      readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
-      readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-      readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
-      readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-      readFile('src/lib/session-state.ts', 'utf8'),
+      readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
+      readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
+      readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/components/message/VirtualMessageTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8'),
+      readFile('src/lib/session/session-state.ts', 'utf8'),
     ])
   const doneHandler = dispatcher.slice(
     dispatcher.indexOf("event === 'done'"),
@@ -329,9 +329,9 @@ test('ephemeral reasoning remains rendered after a textless response completes',
 test('background Agent completion uses code-level UI state without prompt or custom-context injection', async () => {
   const [runtime, dispatcher, virtualTranscript, sessionState] = await Promise.all([
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
-    readFile('src/lib/session-state.ts', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/components/message/VirtualMessageTranscript.tsx', 'utf8'),
+    readFile('src/lib/session/session-state.ts', 'utf8'),
   ])
   assert.doesNotMatch(runtime, /sendCustomMessage/)
   assert.doesNotMatch(runtime, /pisper_agent_mailbox_results/)
@@ -345,7 +345,7 @@ test('background Agent completion uses code-level UI state without prompt or cus
 })
 
 test('stale streaming queue errors settle the old stream and resend as a new turn', async () => {
-  const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
+  const source = await readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8')
   const queueStart = source.indexOf('const queuePrompt')
   // 从队列处理之后找函数边界，避免命中前面新增的 abortingSessionsRef。
   const queueHandler = source.slice(queueStart, source.indexOf('const abort =', queueStart))
@@ -361,12 +361,12 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
 
 test('shared plan board opens from the composer progress metric', async () => {
   const [dock, session, transcript, controls, board, catalog, styles] = await Promise.all([
-    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
-    readFile('src/features/chat/PlanBoard.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/features/chat/components/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusRuntimeControls.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/PlanBoard.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
   assert.match(dock, /resolveSessionPlan\(sessionState, session\)/)
@@ -400,9 +400,9 @@ test('shared plan board opens from the composer progress metric', async () => {
 test('bash tool output stays multiline in a bounded theme-aware result block', async () => {
   const [runtime, dispatcher, activity, terminalOutput, packageJson] = await Promise.all([
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
-    readFile('src/lib/terminal-output.ts', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/lib/ui/terminal-output.ts', 'utf8'),
     readFile('package.json', 'utf8'),
   ])
   assert.match(
@@ -426,8 +426,8 @@ test('bash tool output stays multiline in a bounded theme-aware result block', a
 
 test('chat keeps hidden panels and continuous canvas work out of the renderer', async () => {
   const [dock, dispatcher, ascii] = await Promise.all([
-    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/components/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
     readFile('src/components/react-bits/AsciiText.tsx', 'utf8'),
   ])
   assert.match(dock, /api\.onDidVisibilityChange/)

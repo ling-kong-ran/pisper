@@ -7,7 +7,7 @@ import {
   OCR_MODEL_FILES,
   OCR_MODEL_VERSION,
   OCR_MODEL_TOTAL_BYTES,
-} from '../shared/ocr-model-catalog.mjs'
+} from '../shared/speech/ocr-model-catalog.mjs'
 
 async function sha256File(filePath) {
   const hash = createHash('sha256')

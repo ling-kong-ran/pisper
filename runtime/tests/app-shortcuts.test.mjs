@@ -9,7 +9,7 @@ const compile = async (path) =>
   transformSync(await readFile(path, 'utf8'), { loader: 'tsx', format: 'cjs' }).code
 const [componentCode, helpersCode] = await Promise.all([
   compile('src/components/layout/AppShortcuts.tsx'),
-  compile('src/lib/shortcuts.ts'),
+  compile('src/lib/ui/shortcuts.ts'),
 ])
 
 function fixture({
@@ -62,7 +62,7 @@ function fixture({
           cleanups.push(callback())
         },
       }
-    if (id === '@/lib/shortcuts') return helpers
+    if (id === '@/lib/ui/shortcuts') return helpers
     if (id === '@/stores/shortcut-store') return store
     throw new Error(id)
   })

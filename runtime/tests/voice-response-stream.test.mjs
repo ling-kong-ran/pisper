@@ -4,12 +4,12 @@ import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import * as sessionState from '../../src/lib/session-state.ts'
-import { applyTextPatch, consumeEventStream } from '../../src/lib/api.ts'
-import * as responseStream from '../../src/features/chat/voice-response-stream.ts'
+import * as sessionState from '../../src/lib/session/session-state.ts'
+import { applyTextPatch, consumeEventStream } from '../../src/lib/http/api.ts'
+import * as responseStream from '../../src/features/chat/model/voice-response-stream.ts'
 
 const compiled = transformSync(
-  await readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+  await readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 
@@ -17,22 +17,35 @@ test('actual SSE byte frames publish reconstructed text and prompt ownership bef
   const updates = []
   t.after(responseStream.subscribeVoiceResponse('session', (event) => updates.push(event)))
   const modules = {
-    '@/lib/api': { applyTextPatch },
+    '@/lib/http/api': { applyTextPatch },
     './voice-response-stream': responseStream,
-    '@/lib/plan-protocol': {
+    '@/lib/session/plan-protocol': {
       isPlanUpdateEvent: () => false,
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
-    '@/lib/session-state': sessionState,
-    '@/lib/streaming-debug': { recordStreamingDebug() {} },
+    '@/lib/session/session-state': sessionState,
+    '@/lib/streaming/streaming-debug': { recordStreamingDebug() {} },
     './mobile-operations': {},
     './run-activity': { settleToolCalls: (tools) => tools || [] },
+  }
+  // @/ 别名映射
+  for (const [key, value] of Object.entries(modules)) {
+    if (key.startsWith('./')) {
+      modules[`@/features/chat/model/${key.slice(2)}`] = value
+      modules[`@/features/chat/api/${key.slice(2)}`] = value
+      modules[`@/features/chat/hooks/${key.slice(2)}`] = value
+    }
   }
   const module = { exports: {} }
   runInNewContext(compiled, {
     module,
     exports: module.exports,
     require: (id) => {
+      // 动态别名解析：@/features/chat/model/X 映射到 ./X。
+      if (id.startsWith('@/features/chat/model/')) {
+        const shortId = './' + id.split('/').pop()
+        if (modules[shortId] !== undefined) return modules[shortId]
+      }
       assert.ok(modules[id], id)
       return modules[id]
     },
@@ -93,11 +106,11 @@ test('actual SSE byte frames publish reconstructed text and prompt ownership bef
 })
 
 const promptCode = transformSync(
-  await readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+  await readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 const syncCode = transformSync(
-  await readFile('src/features/chat/use-live-session-sync.ts', 'utf8'),
+  await readFile('src/features/chat/hooks/use-live-session-sync.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 
@@ -129,16 +142,16 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
   const modules = {
     react: { useCallback: (fn) => fn, useRef: (value) => ({ current: value }), useEffect() {} },
     '@/app/brand': { APP_NAME: 'Pisper' },
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/api': { applyTextPatch },
-    '@/lib/plan-protocol': {
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/http/api': { applyTextPatch },
+    '@/lib/session/plan-protocol': {
       isPlanUpdateEvent: () => false,
       planFromPayload: (data) => data.plan,
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
-    '@/lib/session-state': sessionState,
-    '@/lib/streaming-debug': { recordStreamingDebug() {} },
-    '@/lib/streaming-ui': {
+    '@/lib/session/session-state': sessionState,
+    '@/lib/streaming/streaming-debug': { recordStreamingDebug() {} },
+    '@/lib/streaming/streaming-ui': {
       createStreamingTextScheduler: scheduler,
       createToolUpdateScheduler: scheduler,
       createTypewriterDisplay: scheduler,
@@ -160,12 +173,25 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
       },
     },
   }
+  // @/ 别名映射
+  for (const [key, value] of Object.entries(modules)) {
+    if (key.startsWith('./')) {
+      modules[`@/features/chat/model/${key.slice(2)}`] = value
+      modules[`@/features/chat/api/${key.slice(2)}`] = value
+      modules[`@/features/chat/hooks/${key.slice(2)}`] = value
+    }
+  }
+  if (modules['./stream-event-dispatch']) modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
   function load(code) {
     const module = { exports: {} }
     runInNewContext(code, {
       module,
       exports: module.exports,
       require: (id) => {
+      if (id.startsWith('@/features/chat/model/')) {
+        const shortId = './' + id.split('/').pop()
+        if (modules[shortId] !== undefined) return modules[shortId]
+      }
         assert.ok(modules[id], id)
         return modules[id]
       },

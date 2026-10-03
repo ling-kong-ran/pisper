@@ -7,7 +7,7 @@ import {
   ensureMcpMessages,
   i18n,
   translateText,
-} from '../../src/app/i18n.ts'
+} from '../../src/app/i18n/i18n.ts'
 
 test('English interface translations resolve static and interpolated messages', () => {
   assert.equal(translateText('navigation:navigation.settings', 'en-US'), 'Settings')

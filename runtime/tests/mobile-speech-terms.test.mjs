@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createSpeechRecognizer } from '../../src/features/chat/voice-input.ts'
+import { createSpeechRecognizer } from '../../src/features/chat/model/voice-input.ts'
 
 function fixture(t, response) {
   const previousWindow = globalThis.window

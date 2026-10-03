@@ -81,19 +81,19 @@ test('Runtime bundle preserves host entries and only declares external package r
       'runtime/workers/speech-inference-worker.mjs',
       'runtime/services/speech-recognition-service.mjs',
       'runtime/services/speech-engine-service.mjs',
-      'shared/speech-terms.mjs',
+      'shared/speech/speech-terms.mjs',
       'shared/speech-resources/xasr-bpe.vocab',
-      'shared/speech-model-catalog.json',
-      'shared/speech-resource-notices.json',
-      'shared/ocr-model-catalog.mjs',
+      'shared/speech/speech-model-catalog.json',
+      'shared/speech/speech-resource-notices.json',
+      'shared/speech/ocr-model-catalog.mjs',
       'runtime/services/workflow-image-processing.mjs',
       'runtime/workers/workflow-image-worker.mjs',
-      'shared/workflow-image-nodes.mjs',
-      'shared/image-operations.mjs',
-      'shared/image-frame-edits.mjs',
-      'shared/image-alpha-strokes.mjs',
-      'shared/workflow-inputs.mjs',
-      'shared/raster-image.mjs',
+      'shared/workflow/workflow-image-nodes.mjs',
+      'shared/image/image-operations.mjs',
+      'shared/image/image-frame-edits.mjs',
+      'shared/image/image-alpha-strokes.mjs',
+      'shared/workflow/workflow-inputs.mjs',
+      'shared/image/raster-image.mjs',
       'shared/vendor/framebaker/pixels.mjs',
       'shared/vendor/framebaker/geometry.mjs',
       'shared/vendor/framebaker/LICENSE',
@@ -127,8 +127,8 @@ test('Runtime bundle preserves host entries and only declares external package r
       ),
       createFile(
         runtimeDir,
-        'runtime/mobile-embedded.mjs',
-        "import { value } from '../shared/value.mjs'\nexport { WorkflowImageProcessor } from './services/workflow-image-processing.mjs'\nglobalThis.__bundleMobile = value\n",
+        'runtime/services/mobile-embedded.mjs',
+        "import { value } from '../../shared/value.mjs'\nexport { WorkflowImageProcessor } from './workflow-image-processing.mjs'\nglobalThis.__bundleMobile = value\n",
       ),
       createFile(
         runtimeDir,
@@ -161,7 +161,7 @@ test('Runtime bundle preserves host entries and only declares external package r
     assert.equal(manifest.schema, RUNTIME_BUNDLE_SCHEMA)
     assert.deepEqual(manifest.entries, [
       'runtime/sidecar.mjs',
-      'runtime/mobile-embedded.mjs',
+      'runtime/services/mobile-embedded.mjs',
       'runtime/workers/speech-inference-worker.mjs',
       'runtime/workers/workflow-image-worker.mjs',
     ])
@@ -182,9 +182,9 @@ test('Runtime bundle preserves host entries and only declares external package r
       '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5',
     )
     const retained = [
-      'shared/ocr-model-catalog.mjs',
-      'shared/speech-model-catalog.json',
-      'shared/speech-resource-notices.json',
+      'shared/speech/ocr-model-catalog.mjs',
+      'shared/speech/speech-model-catalog.json',
+      'shared/speech/speech-resource-notices.json',
       resourcePath,
       'shared/vendor/framebaker/LICENSE',
     ]
@@ -204,7 +204,7 @@ test('Runtime bundle preserves host entries and only declares external package r
       manifest.files.reduce((sum, file) => sum + file.bytes, 0),
     )
     assert.equal(await exists(join(runtimeDir, 'runtime', 'sidecar.mjs')), true)
-    assert.equal(await exists(join(runtimeDir, 'runtime', 'mobile-embedded.mjs')), true)
+    assert.equal(await exists(join(runtimeDir, 'runtime', 'services', 'mobile-embedded.mjs')), true)
     assert.equal(await exists(join(runtimeDir, 'THIRD_PARTY_LICENSES.txt')), true)
     assert.equal(
       await exists(join(runtimeDir, 'runtime', 'plugins', 'local-plugin-worker.mjs')),
@@ -220,7 +220,7 @@ test('Runtime bundle preserves host entries and only declares external package r
     const { SpeechEngineService, WorkflowImageProcessor } = await import(
       pathToFileURL(join(runtimeDir, 'runtime', 'sidecar.mjs')).href
     )
-    await import(pathToFileURL(join(runtimeDir, 'runtime', 'mobile-embedded.mjs')).href)
+    await import(pathToFileURL(join(runtimeDir, 'runtime', 'services', 'mobile-embedded.mjs')).href)
     assert.equal(globalThis.__bundleSidecar, 'bundled')
     assert.equal(globalThis.__bundleMobile, 'bundled')
     const { PNG } = await import('pngjs')
@@ -318,7 +318,7 @@ test('Runtime bundle rejects a missing external production dependency', async ()
         `${JSON.stringify({ name: 'fixture', type: 'module', dependencies: {} })}\n`,
       ),
       createFile(runtimeDir, 'runtime/sidecar.mjs', 'export {}\n'),
-      createFile(runtimeDir, 'runtime/mobile-embedded.mjs', 'export {}\n'),
+      createFile(runtimeDir, 'runtime/services/mobile-embedded.mjs', 'export {}\n'),
       createFile(runtimeDir, 'runtime/plugins/local-plugin-worker.mjs', 'export {}\n'),
       createFile(runtimeDir, 'shared/value.mjs', 'export {}\n'),
     ])

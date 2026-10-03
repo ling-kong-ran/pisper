@@ -8,8 +8,8 @@ import { randomUUID } from 'node:crypto'
 import {
   normalizeWorkflowImageSettings,
   workflowImageError,
-} from '../../../shared/workflow-image-nodes.mjs'
-import { parseWorkflowMedia } from '../../../shared/workflow-inputs.mjs'
+} from '../../../shared/workflow/workflow-image-nodes.mjs'
+import { parseWorkflowMedia } from '../../../shared/workflow/workflow-inputs.mjs'
 
 export const workflowScheduleRoutes = [
   {

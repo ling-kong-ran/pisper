@@ -9,7 +9,7 @@ import {
   createAbortScope,
   throwIfAborted,
   waitWithAbort,
-} from '../../src/lib/abort-signal.ts'
+} from '../../src/lib/http/abort-signal.ts'
 
 test('aborting a readiness wait settles immediately without cancelling shared recovery', async () => {
   let finish
@@ -82,7 +82,7 @@ test('legacy system signals without reason or throwIfAborted still reject and cl
       this.signal.dispatchEvent(new Event('abort'))
     }
   }
-  const code = transformSync(await readFile('src/lib/abort-signal.ts', 'utf8'), {
+  const code = transformSync(await readFile('src/lib/http/abort-signal.ts', 'utf8'), {
     loader: 'ts',
     format: 'cjs',
   }).code

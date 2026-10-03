@@ -1,13 +1,13 @@
 import { Type } from 'typebox'
 import { Compile } from 'typebox/compile'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
-import { normalizeImageFrameEdits } from '../../../shared/image-frame-edits.mjs'
-import { parseWorkflowMedia } from '../../../shared/workflow-inputs.mjs'
+import { normalizeImageFrameEdits } from '../../../shared/image/image-frame-edits.mjs'
+import { parseWorkflowMedia } from '../../../shared/workflow/workflow-inputs.mjs'
 import {
   normalizeImageSettings,
   parseImageOutput,
   imageOperationError,
-} from '../../../shared/image-operations.mjs'
+} from '../../../shared/image/image-operations.mjs'
 
 export const manifest = {
   id: 'image_assets',

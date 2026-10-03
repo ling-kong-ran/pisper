@@ -26,7 +26,7 @@ test('workspace display names persist independently from paths and project order
 
   try {
     const { useWorkspaceOrderStore: store } =
-      await import('../../src/features/chat/workspace-order-store.ts')
+      await import('../../src/features/chat/model/workspace-order-store.ts')
 
     await t.test('old v1 preferences retain project order without introducing aliases', () => {
       assert.deepEqual(store.getState().order, ['/beta', '/alpha'])

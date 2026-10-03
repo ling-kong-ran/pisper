@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
-import { applyImageAlphaStrokes } from '../../shared/image-alpha-strokes.mjs'
+import { applyImageAlphaStrokes } from '../../shared/image/image-alpha-strokes.mjs'
 
 function frame(width = 17, height = 11) {
   const data = new Uint8ClampedArray(width * height * 4)

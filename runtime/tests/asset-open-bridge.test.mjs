@@ -4,8 +4,8 @@ import test from 'node:test'
 
 test('asset UI previews text and video while preserving a web download fallback', async () => {
   const [page, helper] = await Promise.all([
-    readFile('src/features/assets/AssetsPage.tsx', 'utf8'),
-    readFile('src/lib/open-asset.ts', 'utf8'),
+    readFile('src/features/assets/pages/AssetsPage.tsx', 'utf8'),
+    readFile('src/lib/platform/open-asset.ts', 'utf8'),
   ])
 
   assert.match(page, /content\?preview=1/)

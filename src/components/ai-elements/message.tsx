@@ -2,7 +2,7 @@
 // 复制等操作），由 conversation 列表驱动。
 'use client'
 
-import MarkdownMessage, { type MarkdownMessageProps } from '@/components/MarkdownMessage'
+import MarkdownMessage, { type MarkdownMessageProps } from '@/components/common/MarkdownMessage'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'

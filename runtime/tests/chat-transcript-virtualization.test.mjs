@@ -8,7 +8,7 @@ import {
   TRANSCRIPT_ESTIMATED_ROW_HEIGHT,
   TRANSCRIPT_NARROW_ESTIMATED_ROW_HEIGHT,
   TRANSCRIPT_OVERSCAN,
-} from '../../src/features/chat/transcript-virtualization.ts'
+} from '../../src/features/chat/model/transcript-virtualization.ts'
 
 function transcriptVirtualizer(sizes, initialOffset = 0) {
   const getItemKey = (index) => `message-${index}`
@@ -91,11 +91,11 @@ test('virtualization source owns only message rows and preserves stable render b
     autoScrollSource,
     packageJson,
   ] = await Promise.all([
-    readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/VirtualMessageTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8'),
     readFile('src/hooks/useAutoScroll.ts', 'utf8'),
     readFile('package.json', 'utf8').then(JSON.parse),
   ])

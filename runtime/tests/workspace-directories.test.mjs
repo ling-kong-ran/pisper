@@ -83,6 +83,7 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
     workspacePicker,
     chat,
     schedules,
+    scheduleWorkspace,
     routes,
   ] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
@@ -90,10 +91,11 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
     readFile('src-tauri/src/desktop_shell/desktop_bridge.rs', 'utf8'),
     readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
-    readFile('src/lib/pick-system-directory.ts', 'utf8'),
-    readFile('src/components/WorkspacePicker.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-commands.ts', 'utf8'),
-    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+    readFile('src/lib/platform/pick-system-directory.ts', 'utf8'),
+    readFile('src/components/common/WorkspacePicker.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-session-commands.ts', 'utf8'),
+    readFile('src/features/schedules/pages/SchedulesPage.tsx', 'utf8'),
+    readFile('src/features/schedules/components/ScheduleWorkspaceField.tsx', 'utf8'),
     readFile('runtime/http/routes/memory-assets.mjs', 'utf8'),
   ])
   assert.match(cargo, /tauri-plugin-dialog/)
@@ -114,8 +116,8 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
   assert.match(workspacePicker, /\/api\/directories\?path=/)
   assert.match(chat, /setWorkspaceSession\(session\)/)
   assert.match(chat, /pickSystemDirectory\(session\.cwd\)/)
-  assert.match(schedules, /<WorkspacePicker/)
-  assert.match(schedules, /pickSystemDirectory\(value\)/)
+  assert.match(schedules, /<ScheduleWorkspaceField/)
+  assert.match(scheduleWorkspace, /pickSystemDirectory\(value\)/)
   assert.match(routes, /\/api\/directories/)
   assert.match(routes, /\/api\/workspace-entries/)
 })

@@ -37,7 +37,8 @@ export async function verifyIosSpeechBundle({ appRoot, root = projectRoot }) {
     'speech-resource-notices.json',
     'speech-resources/xasr-bpe.vocab',
   ]) {
-    const source = await readFile(join(root, 'shared', name))
+    const sharedName = name === 'speech-resources/xasr-bpe.vocab' ? name : `speech/${name}`
+    const source = await readFile(join(root, 'shared', sharedName))
     const target = await readFile(join(resources, name))
     if (!source.equals(target))
       throw new Error(`iOS speech resource differs from shared source: ${name}`)

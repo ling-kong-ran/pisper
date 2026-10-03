@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
-import { authorizeRemoteRequest } from '../remote-auth.mjs'
+import { authorizeRemoteRequest } from '../remote/remote-auth.mjs'
 import { RemoteAccessService } from '../services/remote-access-service.mjs'
 
 function request(method, body, headers = {}) {
