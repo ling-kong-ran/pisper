@@ -15,7 +15,7 @@ path = "src/main.rs"
 anyhow = "1"
 base64 = "0.22"
 crossterm = { version = "0.29", features = ["event-stream"] }
-dirs = "6"
+dirs = "7"
 futures-util = "0.3"
 getrandom = "0.2"
 humantime = "2"
