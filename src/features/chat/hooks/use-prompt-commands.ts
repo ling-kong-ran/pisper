@@ -4,7 +4,10 @@ import { useCallback, useRef } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/i18n/use-i18n'
 import type { Notify } from '@/app/routes/route-context'
-import { insertInteractiveUserMessage, reconcileQueuedInputSnapshot } from '@/lib/session/session-state'
+import {
+  insertInteractiveUserMessage,
+  reconcileQueuedInputSnapshot,
+} from '@/lib/session/session-state'
 import type { SessionStateUpdate } from '@/lib/session/session-state'
 import {
   createStreamingTextScheduler,
@@ -15,7 +18,10 @@ import type { ChatAttachment, ResourceInvocation, SessionState, SessionSummary }
 import { chatApi, type WithdrawnInput } from '@/features/chat/api/chat-api'
 import { chatErrorMessage, isEndedSessionQueueError } from '@/features/chat/model/chat-errors'
 import { pushCurrentActivity, settleToolCalls } from '@/features/chat/model/run-activity'
-import { createStreamEventDispatcher, type StreamDispatchState } from '@/features/chat/model/stream-event-dispatch'
+import {
+  createStreamEventDispatcher,
+  type StreamDispatchState,
+} from '@/features/chat/model/stream-event-dispatch'
 
 const USAGE_UPDATED_EVENT = 'pisper:usage-updated'
 

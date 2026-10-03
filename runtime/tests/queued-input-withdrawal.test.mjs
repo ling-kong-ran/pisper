@@ -429,14 +429,20 @@ test('a new local run clears its withdrawal records but suppresses late prior-ru
   assert.deepEqual(f.state.queuedInputs, [])
 })
 
-const composerCode = transformSync(await readFile('src/features/chat/model/composer-drafts.ts', 'utf8'), {
-  loader: 'ts',
-  format: 'cjs',
-}).code
-const attachmentsCode = transformSync(await readFile('src/features/chat/model/attachments.ts', 'utf8'), {
-  loader: 'ts',
-  format: 'cjs',
-}).code
+const composerCode = transformSync(
+  await readFile('src/features/chat/model/composer-drafts.ts', 'utf8'),
+  {
+    loader: 'ts',
+    format: 'cjs',
+  },
+).code
+const attachmentsCode = transformSync(
+  await readFile('src/features/chat/model/attachments.ts', 'utf8'),
+  {
+    loader: 'ts',
+    format: 'cjs',
+  },
+).code
 
 // 保留真实草稿和附件 hook，仅用确定性的 React hook 调度模拟切换、卸载与迟到回调。
 function composerFixture() {
@@ -494,10 +500,15 @@ function composerFixture() {
   modules['./attachments'] = load(attachmentsCode)
   // @/ 别名映射：编译后的模块使用 @/ 路径 require。
   modules['@/features/chat/model/attachments'] = modules['./attachments']
-  modules['@/features/chat/model/chat-errors'] = { chatErrorMessage: (e) => e?.message || String(e) }
-  if (modules['./run-activity']) modules['@/features/chat/model/run-activity'] = modules['./run-activity']
-  if (modules['./stream-event-dispatch']) modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
-  if (modules['./side-chat-api']) modules['@/features/chat/model/side-chat-api'] = modules['./side-chat-api']
+  modules['@/features/chat/model/chat-errors'] = {
+    chatErrorMessage: (e) => e?.message || String(e),
+  }
+  if (modules['./run-activity'])
+    modules['@/features/chat/model/run-activity'] = modules['./run-activity']
+  if (modules['./stream-event-dispatch'])
+    modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
+  if (modules['./side-chat-api'])
+    modules['@/features/chat/model/side-chat-api'] = modules['./side-chat-api']
   if (modules['./events']) modules['@/features/chat/model/events'] = modules['./events']
   const composer = load(composerCode)
   return {

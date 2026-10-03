@@ -4,7 +4,12 @@ import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileDiff, X } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
-import { parseUnifiedDiff, type GitDiffCell, type GitDiffFile, type GitDiffRow } from '@/features/chat/model/git-diff'
+import {
+  parseUnifiedDiff,
+  type GitDiffCell,
+  type GitDiffFile,
+  type GitDiffRow,
+} from '@/features/chat/model/git-diff'
 
 import { Button } from '@/components/ui/button'
 

@@ -2,13 +2,7 @@
 // 仅负责状态编排和数据请求，星系渲染委托给 MemoryGalaxy。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import {
-  ChevronRight,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react'
+import { ChevronRight, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import {
   AppCard as Panel,
   AppSectionTitle as SectionTitle,
@@ -25,11 +19,7 @@ import { MemoryNodeModal } from '@/features/memory/components/MemoryNodeModal'
 import { MemorySpaceModal } from '@/features/memory/components/MemorySpaceModal'
 import { MEMORY_TYPES } from '@/features/memory/model/memory-galaxy-constants'
 import { memoryTypeLabel, spaceLabel } from '@/features/memory/model/memory-utils'
-import type {
-  MemoryData,
-  MemoryNode,
-  MemorySpace,
-} from '@/features/memory/model/memory-types'
+import type { MemoryData, MemoryNode, MemorySpace } from '@/features/memory/model/memory-types'
 import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
@@ -191,11 +181,7 @@ export function MemoryPage({
 
   return (
     <>
-      {error && (
-        <AppError>
-          {error}
-        </AppError>
-      )}
+      {error && <AppError>{error}</AppError>}
       <div className="memory-layout grid min-h-[100%] min-w-0 grid-cols-[repeat(4,minmax(0,1fr))] gap-[12px] overflow-x-hidden max-[1150px]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:grid-cols-[1fr]">
         <Panel className="memory-spaces-panel">
           <SectionTitle title={t('memory:memoryPage.memorySpaces')} />
@@ -268,11 +254,7 @@ export function MemoryPage({
               <strong>{selected.title}</strong>
               <p>{selected.content}</p>
               <div className="flex gap-[6px] [margin-top:8px]">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setNodeModal(selected)}
-                >
+                <Button size="sm" variant="outline" onClick={() => setNodeModal(selected)}>
                   <Pencil size={12} />
                   {t('memory:memoryPage.edit')}
                 </Button>

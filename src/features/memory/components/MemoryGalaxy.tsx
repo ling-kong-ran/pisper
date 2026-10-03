@@ -1,7 +1,13 @@
 // 记忆星系可视化：星点、连线和视差效果的纯渲染组件。
 import { useMemo } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, RefObject } from 'react'
-import { galaxyLayout, hashSeed, linkCurve, starColor, starGlow } from '@/features/memory/model/memory-layout'
+import {
+  galaxyLayout,
+  hashSeed,
+  linkCurve,
+  starColor,
+  starGlow,
+} from '@/features/memory/model/memory-layout'
 import { GALAXY_VIEW } from '@/features/memory/model/memory-galaxy-constants'
 import { formatMemoryTime, memoryTypeLabel } from '@/features/memory/model/memory-utils'
 import type { GalaxyStar, MemoryLink, MemoryNode } from '@/features/memory/model/memory-types'
@@ -50,9 +56,11 @@ export function MemoryGalaxy({
       className={`memory-galaxy-stage graph-panel galaxy-panel bg-[var(--galaxy-bg)]! ${pauseClass}`}
       onPointerMove={playing ? onParallax : undefined}
       onPointerLeave={onParallaxReset}
-      style={{
-        '--galaxy-zoom': zoom,
-      } as CSSProperties}
+      style={
+        {
+          '--galaxy-zoom': zoom,
+        } as CSSProperties
+      }
     >
       <svg
         viewBox={`0 0 ${GALAXY_VIEW.width} ${GALAXY_VIEW.height}`}
@@ -78,7 +86,9 @@ export function MemoryGalaxy({
               d={linkCurve(source, target, seed)}
               fill="none"
               stroke="var(--g-link)"
-              strokeOpacity={selectedId === link.sourceId || selectedId === link.targetId ? 0.5 : 0.15}
+              strokeOpacity={
+                selectedId === link.sourceId || selectedId === link.targetId ? 0.5 : 0.15
+              }
               strokeWidth="0.8"
             />
           )
@@ -131,20 +141,11 @@ function MemoryStar({
       aria-label={memoryTypeLabel(node.type, (key) => key)}
     >
       <circle r="14" fill={`url(#star-glow-${node.id})`} opacity="0.6" />
-      <circle
-        r={selected ? 5 : 3.5}
-        fill={starColor(node.type)}
-        className="memory-star-dot"
-      />
+      <circle r={selected ? 5 : 3.5} fill={starColor(node.type)} className="memory-star-dot" />
       {selected && (
         <circle r="8" fill="none" stroke={starColor(node.type)} strokeWidth="0.8" opacity="0.4">
           <animate attributeName="r" values="7;12;7" dur="2s" repeatCount="indefinite" />
-          <animate
-            attributeName="opacity"
-            values="0.4;0;0.4"
-            dur="2s"
-            repeatCount="indefinite"
-          />
+          <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite" />
         </circle>
       )}
       <title>

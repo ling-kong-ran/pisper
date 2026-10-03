@@ -98,7 +98,13 @@ test('stages only trusted small speech resources offline and preserves embedded 
   assert.deepEqual(calls, [])
   assert.deepEqual(
     (await readdir(input.targetDir)).sort(),
-    ['pisper-embedded-runtime.tgz', 'speech', 'speech-model-catalog.json', 'speech-resource-notices.json', 'speech-resources'].sort(),
+    [
+      'pisper-embedded-runtime.tgz',
+      'speech',
+      'speech-model-catalog.json',
+      'speech-resource-notices.json',
+      'speech-resources',
+    ].sort(),
   )
   assert.deepEqual(await readdir(join(input.targetDir, 'speech-resources')), ['xasr-bpe.vocab'])
   assert.equal(

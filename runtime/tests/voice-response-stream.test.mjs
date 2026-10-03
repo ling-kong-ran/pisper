@@ -181,17 +181,18 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
       modules[`@/features/chat/hooks/${key.slice(2)}`] = value
     }
   }
-  if (modules['./stream-event-dispatch']) modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
+  if (modules['./stream-event-dispatch'])
+    modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
   function load(code) {
     const module = { exports: {} }
     runInNewContext(code, {
       module,
       exports: module.exports,
       require: (id) => {
-      if (id.startsWith('@/features/chat/model/')) {
-        const shortId = './' + id.split('/').pop()
-        if (modules[shortId] !== undefined) return modules[shortId]
-      }
+        if (id.startsWith('@/features/chat/model/')) {
+          const shortId = './' + id.split('/').pop()
+          if (modules[shortId] !== undefined) return modules[shortId]
+        }
         assert.ok(modules[id], id)
         return modules[id]
       },

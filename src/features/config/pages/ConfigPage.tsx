@@ -3,7 +3,10 @@
 // 内容根带 data-config-card="section" 锚点，供设置搜索结果跳转高亮定位。
 import type { ReactNode } from 'react'
 import { AboutSettings } from '@/features/config/components/settings/AboutSettings'
-import { CONFIG_SECTION_ANCHOR, useConfigCardHighlight } from '@/features/config/model/config-search'
+import {
+  CONFIG_SECTION_ANCHOR,
+  useConfigCardHighlight,
+} from '@/features/config/model/config-search'
 import { DesktopPetSettings } from '@/features/config/components/settings/DesktopPetSettings'
 import { InterfaceSettings } from '@/features/config/components/settings/InterfaceSettings'
 import { ShortcutSettings } from '@/features/config/components/settings/ShortcutSettings'

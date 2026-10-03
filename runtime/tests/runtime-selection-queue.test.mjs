@@ -32,8 +32,12 @@ test('session selections wait for runtime configuration readiness after visible 
     module,
     exports: module.exports,
     require(id) {
-      if (id === './chat-api' || id === '@/features/chat/api/chat-api') return { chatApi: { getLiveSession: async () => snapshots.shift() } }
-      if (id === './runtime-selection-queue' || id === '@/features/chat/model/runtime-selection-queue')
+      if (id === './chat-api' || id === '@/features/chat/api/chat-api')
+        return { chatApi: { getLiveSession: async () => snapshots.shift() } }
+      if (
+        id === './runtime-selection-queue' ||
+        id === '@/features/chat/model/runtime-selection-queue'
+      )
         return { createRuntimeSelectionQueue: (options) => (dependencies = options) }
       assert.fail(`Unexpected dependency: ${id}`)
     },

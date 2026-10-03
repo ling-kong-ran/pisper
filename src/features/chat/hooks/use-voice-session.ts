@@ -13,7 +13,10 @@ import {
 import { createVoiceEndpoint, type VoiceEndpoint } from '@/features/chat/model/voice-endpoint'
 import { loadSpeechHotwords, prepareSpeechSession } from '@/features/chat/model/speech-session'
 import type { SpeechTextSource } from '@/features/chat/model/speech-output'
-import { createVoiceTextStream, subscribeVoiceResponse } from '@/features/chat/model/voice-response-stream'
+import {
+  createVoiceTextStream,
+  subscribeVoiceResponse,
+} from '@/features/chat/model/voice-response-stream'
 import {
   createLevelSmoother,
   pcmLevel,

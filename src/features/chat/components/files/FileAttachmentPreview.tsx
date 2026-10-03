@@ -14,7 +14,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatFileSize } from '@/lib/format/format'
 import type { ChatAttachment } from '@/types/chat'
-import { loadAttachmentPreview, type AttachmentPreview } from '@/features/chat/model/attachment-preview'
+import {
+  loadAttachmentPreview,
+  type AttachmentPreview,
+} from '@/features/chat/model/attachment-preview'
 
 export function FileAttachmentPreview({
   attachment,

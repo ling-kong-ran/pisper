@@ -69,7 +69,10 @@ import {
   runtimePageAvailable,
 } from '@/types/runtime-capabilities'
 import { readStoredTerminalPanel } from '@/features/terminal/model/terminal-state'
-import { tauriNotificationAvailable, tauriNotificationNotify } from '@/lib/mobile/tauri-notification'
+import {
+  tauriNotificationAvailable,
+  tauriNotificationNotify,
+} from '@/lib/mobile/tauri-notification'
 import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'

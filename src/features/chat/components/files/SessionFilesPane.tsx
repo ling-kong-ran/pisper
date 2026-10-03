@@ -8,7 +8,9 @@ import { chatApi, type SessionFileChangesResponse } from '@/features/chat/api/ch
 import { invalidateSessionChangeSummary } from '@/features/chat/model/session-change-summary-api'
 
 const GitDiffDialog = lazy(() =>
-  import('@/features/chat/components/files/GitDiffViewer').then((module) => ({ default: module.GitDiffDialog })),
+  import('@/features/chat/components/files/GitDiffViewer').then((module) => ({
+    default: module.GitDiffDialog,
+  })),
 )
 const MAX_VISIBLE_FILES = 100
 

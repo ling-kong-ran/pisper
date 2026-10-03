@@ -82,11 +82,11 @@ function fixture({ resolveApproval, getLiveSession }) {
       exports: module.exports,
       require: (id) => {
         if (id.startsWith('@/features/chat/')) {
-        const parts = id.split('/')
-        const shortId = './' + parts[parts.length - 1]
-        if (modules[shortId] !== undefined) return modules[shortId]
-      }
-      assert.ok(modules[id], id)
+          const parts = id.split('/')
+          const shortId = './' + parts[parts.length - 1]
+          if (modules[shortId] !== undefined) return modules[shortId]
+        }
+        assert.ok(modules[id], id)
         return modules[id]
       },
     })

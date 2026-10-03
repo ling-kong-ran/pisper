@@ -9,7 +9,11 @@ import {
 } from 'react'
 import { chatErrorMessage } from '@/features/chat/model/chat-errors'
 import { clearComposerDraft } from '@/features/chat/model/composer-drafts'
-import { ensureSideChat, getSideChat, type SideChatResponse } from '@/features/chat/model/side-chat-api'
+import {
+  ensureSideChat,
+  getSideChat,
+  type SideChatResponse,
+} from '@/features/chat/model/side-chat-api'
 import {
   SideChatContext,
   EMPTY_ENTRY,

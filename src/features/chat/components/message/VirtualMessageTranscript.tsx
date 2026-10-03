@@ -15,7 +15,10 @@ import { resolveMessageRunActivity } from '@/lib/session/session-state'
 import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from '@/features/chat/components/message/AgentRunActivity'
 import { FocusChatMessage } from '@/features/chat/components/message/ChatMessage'
-import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from '@/features/chat/model/transcript-virtualization'
+import {
+  estimateTranscriptRowHeight,
+  TRANSCRIPT_OVERSCAN,
+} from '@/features/chat/model/transcript-virtualization'
 
 type VirtualMessageTranscriptProps = {
   sessionId: string

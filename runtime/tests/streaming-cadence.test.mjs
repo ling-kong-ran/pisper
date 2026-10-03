@@ -111,8 +111,10 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
   modules['@/features/chat/model/mobile-operations'] = modules['./mobile-operations']
   modules['@/features/chat/model/chat-errors'] = modules['./chat-errors']
   modules['@/features/chat/api/chat-api'] = modules['./chat-api']
-  if (modules['./voice-response-stream']) modules['@/features/chat/model/voice-response-stream'] = modules['./voice-response-stream']
-  if (modules['./session-context-layout']) modules['@/features/chat/model/session-context-layout'] = modules['./session-context-layout']
+  if (modules['./voice-response-stream'])
+    modules['@/features/chat/model/voice-response-stream'] = modules['./voice-response-stream']
+  if (modules['./session-context-layout'])
+    modules['@/features/chat/model/session-context-layout'] = modules['./session-context-layout']
   function load(code) {
     const module = { exports: {} }
     runInNewContext(code, {

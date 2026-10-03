@@ -1,11 +1,7 @@
 // 新建定时任务面板：名称、频率、时区和执行目标完整配置。
 import { useState } from 'react'
 import { AlertTriangle, Plus, RefreshCw } from 'lucide-react'
-import {
-  AppCard as Panel,
-  AppCardHeader,
-  AppError,
-} from '@/components/ui/app-primitives'
+import { AppCard as Panel, AppCardHeader, AppError } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/common/AppSelect'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
@@ -14,8 +10,16 @@ import { apiJson } from '@/lib/http/api'
 import { ScheduleExecutionModeField } from './ScheduleExecutionModeField'
 import { ScheduleTargetFields } from './ScheduleTargetFields'
 import { ScheduleWorkspaceField } from './ScheduleWorkspaceField'
-import { FREQUENCIES, INTERVAL_UNITS, TIMEZONES } from '@/features/schedules/model/schedule-constants'
-import { frequencyLabel, intervalUnitLabel, scheduleTargetValid } from '@/features/schedules/model/schedule-utils'
+import {
+  FREQUENCIES,
+  INTERVAL_UNITS,
+  TIMEZONES,
+} from '@/features/schedules/model/schedule-constants'
+import {
+  frequencyLabel,
+  intervalUnitLabel,
+  scheduleTargetValid,
+} from '@/features/schedules/model/schedule-utils'
 import type {
   IntervalUnit,
   NotificationTargets,

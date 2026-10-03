@@ -7,7 +7,11 @@ import type { Notify } from '@/app/routes/route-context'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
 import { RemoteSettingsCard } from '@/features/decisions/components/RemoteSettingsCard'
 import { DelegationCard } from '@/features/decisions/components/DelegationCard'
-import { decisionErrorMessage, fetchDecisionsStatus, type DecisionsStatus } from '@/features/decisions/api/decisions-api'
+import {
+  decisionErrorMessage,
+  fetchDecisionsStatus,
+  type DecisionsStatus,
+} from '@/features/decisions/api/decisions-api'
 
 export function DecisionsPage({ notify }: { notify: Notify }) {
   const { t } = useI18n()

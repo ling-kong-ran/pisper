@@ -73,7 +73,10 @@ test('streaming chat keeps its text lifecycle without decorative SSE motion', as
 })
 
 test('SSE activity isolates one total-duration clock from the streamed activity tree', async () => {
-  const activity = await readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8')
+  const activity = await readFile(
+    'src/features/chat/components/message/AgentRunActivity.tsx',
+    'utf8',
+  )
   const durationLabel = activity.slice(
     activity.indexOf('function RunDurationLabel'),
     activity.indexOf('function cleanInline'),
@@ -94,7 +97,10 @@ test('SSE activity isolates one total-duration clock from the streamed activity 
 })
 
 test('tool activity uses a polished scroll viewport without truncating records', async () => {
-  const activity = await readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8')
+  const activity = await readFile(
+    'src/features/chat/components/message/AgentRunActivity.tsx',
+    'utf8',
+  )
   assert.match(activity, /ref=\{liveFeedRef\}[\s\S]*agent-run-feed[^"\n]*live/)
   assert.match(activity, /tabIndex=\{activities\.length > 3 \? 0 : undefined\}/)
   assert.match(activity, /if \(!streaming \|\| !activities\.length\) return undefined/)
@@ -223,10 +229,13 @@ test('core chat activity loads synchronously with the message renderer', async (
   const message = await readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8')
   assert.match(
     message,
-    /import AgentRunActivity, \{ type AgentRunActivityProps \} from '@\/features\/chat\/components\/message\/AgentRunActivity'/,
+    /import AgentRunActivity,\s*\{\s*type AgentRunActivityProps,?\s*\}\s*from '@\/features\/chat\/components\/message\/AgentRunActivity'/,
   )
   assert.doesNotMatch(message, /lazy\(\(\) => .*AgentRunActivity/)
-  assert.doesNotMatch(message, /import\('@\/features\/chat\/components\/message\/AgentRunActivity'\)/)
+  assert.doesNotMatch(
+    message,
+    /import\('@\/features\/chat\/components\/message\/AgentRunActivity'\)/,
+  )
   assert.doesNotMatch(message, /agent-run-activity-placeholder/)
 })
 

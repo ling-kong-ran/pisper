@@ -6,7 +6,10 @@ import { AlertTriangle, RefreshCw, Save, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { apiJson } from '@/lib/http/api'
 import { AppSelect } from '@/components/common/AppSelect'
-import { SettingsCard, SettingsSectionTitle } from '@/features/config/components/settings/settings-primitives'
+import {
+  SettingsCard,
+  SettingsSectionTitle,
+} from '@/features/config/components/settings/settings-primitives'
 import type { Notify } from '@/app/routes/route-context'
 import type { ConfigData } from '@/features/config/model/config-types'
 

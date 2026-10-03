@@ -18,7 +18,10 @@ import { authorizeRemoteRequest } from './remote/remote-auth.mjs'
 import { ensureRemoteCertificate } from './remote/remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote/remote-endpoints.mjs'
 import { readIrohTunnelStatus } from './remote/iroh-endpoint.mjs'
-import { resolveRuntimeCapabilities, mobileBaseInitialization } from './services/runtime-capabilities.mjs'
+import {
+  resolveRuntimeCapabilities,
+  mobileBaseInitialization,
+} from './services/runtime-capabilities.mjs'
 import { createStartupObserver } from './services/startup-observer.mjs'
 import { json as sendJson } from './http/response.mjs'
 import { SpeechEngineService } from './services/speech-engine-service.mjs'

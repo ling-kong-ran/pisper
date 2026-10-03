@@ -4,7 +4,10 @@ import test from 'node:test'
 import { searchConfig } from '../../src/features/config/model/config-search.ts'
 
 test('model settings have no speech hotword controls or component', async () => {
-  const models = await readFile('src/features/config/components/settings/ModelsSettings.tsx', 'utf8')
+  const models = await readFile(
+    'src/features/config/components/settings/ModelsSettings.tsx',
+    'utf8',
+  )
   assert.doesNotMatch(models, /SpeechTermsSettings|models-speech|projectTermsEnabled|builtinTerms/)
   await assert.rejects(access('src/features/config/SpeechTermsSettings.tsx'), { code: 'ENOENT' })
 })

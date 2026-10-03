@@ -27,10 +27,7 @@ export function formatMemoryTime(value: string | undefined, locale = 'zh-CN') {
   }
 }
 
-export function spaceLabel(
-  space: MemorySpace | null | undefined,
-  t: Translate = (value) => value,
-) {
+export function spaceLabel(space: MemorySpace | null | undefined, t: Translate = (value) => value) {
   if (!space) return ''
   if (space.kind === 'global') return t('memory:memoryPage.globalSpace')
   return space.name

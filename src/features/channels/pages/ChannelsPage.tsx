@@ -202,10 +202,10 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   const submitManualCredentials = async (credentials: ManualCredentials) => {
     if (!onboarding) return
     try {
-      await apiJson(
-        `/api/channels/${onboarding.platform}/onboarding/manual`,
-        { method: 'POST', body: JSON.stringify(credentials) },
-      )
+      await apiJson(`/api/channels/${onboarding.platform}/onboarding/manual`, {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      })
       notify(t('channels:channelsPage.connecting'))
     } catch (caught) {
       setOnboarding({ ...onboarding, status: 'failed', error: errorMessage(caught) })
@@ -319,9 +319,7 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                       : t('channels:channelsPage.noMessages')}
                   </small>
                 </div>
-                <em>
-                  {scope.updatedAt ? relativeTime(scope.updatedAt, language) : ''}
-                </em>
+                <em>{scope.updatedAt ? relativeTime(scope.updatedAt, language) : ''}</em>
               </div>
             ))
           ) : (

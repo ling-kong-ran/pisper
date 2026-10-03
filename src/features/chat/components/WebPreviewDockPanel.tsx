@@ -12,7 +12,10 @@ import {
   WebPreviewUrl,
 } from '@/components/ai-elements/web-preview'
 import { normalizeWebPreviewInput } from '@/lib/ui/web-preview'
-import { webPreviewPanelTitle, type WebPreviewPanelParams } from '@/features/chat/model/web-preview-panel'
+import {
+  webPreviewPanelTitle,
+  type WebPreviewPanelParams,
+} from '@/features/chat/model/web-preview-panel'
 
 const Threads = lazy(() =>
   import('@/components/react-bits/Threads').then((module) => ({ default: module.Threads })),

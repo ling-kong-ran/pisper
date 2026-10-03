@@ -19,7 +19,10 @@ import { cn } from '@/lib/utils'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
-import { WorkflowEditorCanvas, WorkflowNodePalette } from '@/features/workflows/components/WorkflowEditorCanvas'
+import {
+  WorkflowEditorCanvas,
+  WorkflowNodePalette,
+} from '@/features/workflows/components/WorkflowEditorCanvas'
 import {
   WorkflowAssetList,
   WorkflowOperationsSummary,
@@ -28,7 +31,10 @@ import {
   WorkflowViewTabs,
   type WorkflowView,
 } from '@/features/workflows/components/WorkflowListSidebar'
-import { WorkflowNodeInspector, WorkflowSettings } from '@/features/workflows/components/WorkflowNodeInspector'
+import {
+  WorkflowNodeInspector,
+  WorkflowSettings,
+} from '@/features/workflows/components/WorkflowNodeInspector'
 import { WorkflowRunningNotice } from '@/features/workflows/components/WorkflowRunControls'
 import { useWorkflowCatalog } from '@/features/workflows/hooks/useWorkflowCatalog'
 import { useWorkflowEditor } from '@/features/workflows/hooks/useWorkflowEditor'

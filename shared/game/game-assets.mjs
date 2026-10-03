@@ -123,7 +123,9 @@ export function parseGameAssetProjectInput(value) {
     reference: image(input.reference),
     originalReference: image(input.originalReference),
     frameCount,
-    directions: /** @type {import('./image-operations.mjs').ImageDirection[]} */ ([...directions]),
+    directions: /** @type {import('../image/image-operations.mjs').ImageDirection[]} */ ([
+      ...directions,
+    ]),
     model,
     actions: parsedActions,
   }
@@ -174,11 +176,11 @@ export function parseGameAssetJob(value) {
     (stored.status === 'completed' && completed !== total)
   )
     return invalid()
-  /** @type {import('./image-operations.mjs').ImageOutput} */
+  /** @type {import('../image/image-operations.mjs').ImageOutput} */
   let output
-  /** @type {import('./image-operations.mjs').ImageOutput} */
+  /** @type {import('../image/image-operations.mjs').ImageOutput} */
   let originalOutput
-  /** @type {import('./image-frame-edits.mjs').ImageFrameEdits|undefined} */
+  /** @type {import('../image/image-frame-edits.mjs').ImageFrameEdits|undefined} */
   let edits
   try {
     output = parseImageOutput(stored.output)

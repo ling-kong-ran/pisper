@@ -1,8 +1,14 @@
 // 独立工作台 HTTP 边界；不读取工作流能力、实体或 Agent 插件开关。
 import { GameAssetError, parseGameAssetProjectInput } from '../../../shared/game/game-assets.mjs'
-import { normalizeImageSettings, parseImageOutput } from '../../../shared/image/image-operations.mjs'
+import {
+  normalizeImageSettings,
+  parseImageOutput,
+} from '../../../shared/image/image-operations.mjs'
 import { normalizeImageFrameEdits } from '../../../shared/image/image-frame-edits.mjs'
-import { parseWorkflowMedia, WorkflowInputError } from '../../../shared/workflow/workflow-inputs.mjs'
+import {
+  parseWorkflowMedia,
+  WorkflowInputError,
+} from '../../../shared/workflow/workflow-inputs.mjs'
 import {
   parseSpriteEngineCatalog,
   SpriteEngineError,

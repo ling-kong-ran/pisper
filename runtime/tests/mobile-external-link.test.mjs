@@ -79,8 +79,14 @@ test('mobile links report a missing native bridge without navigating the WebView
 
 test('settings external links bypass the capture preview before native click handlers run', async () => {
   const [about, updates] = await Promise.all([
-    readFile(new URL('../../src/features/config/components/settings/AboutSettings.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/config/components/settings/UpdateSettings.tsx', import.meta.url), 'utf8'),
+    readFile(
+      new URL('../../src/features/config/components/settings/AboutSettings.tsx', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../../src/features/config/components/settings/UpdateSettings.tsx', import.meta.url),
+      'utf8',
+    ),
   ])
   const aboutAnchors = [...about.matchAll(/<a\b[^>]*>/g)]
   assert.equal(aboutAnchors.length, 2)

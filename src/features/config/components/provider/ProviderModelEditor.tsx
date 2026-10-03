@@ -15,7 +15,11 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { providerApi, type ModelOptionsDraft } from '@/features/config/api/provider-api'
-import type { ConfigData, ProviderConfig, ProviderModel } from '@/features/config/model/config-types'
+import type {
+  ConfigData,
+  ProviderConfig,
+  ProviderModel,
+} from '@/features/config/model/config-types'
 const levels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 function Option({
   label,

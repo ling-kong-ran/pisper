@@ -6,7 +6,11 @@ import { Search } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { requestConfigCardHighlight, searchConfig, type ConfigSearchMatch } from '@/features/config/model/config-search'
+import {
+  requestConfigCardHighlight,
+  searchConfig,
+  type ConfigSearchMatch,
+} from '@/features/config/model/config-search'
 
 type ConfigSearchBoxProps = {
   query: string

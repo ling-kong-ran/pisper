@@ -23,7 +23,12 @@ import {
 import { Controls } from '@/components/ai-elements/controls'
 import { cn } from '@/lib/utils'
 
-import { WORKFLOW_NODE_KINDS, type NodeKind, type WorkflowEdge, type WorkflowNode } from '@/features/workflows/model/types'
+import {
+  WORKFLOW_NODE_KINDS,
+  type NodeKind,
+  type WorkflowEdge,
+  type WorkflowNode,
+} from '@/features/workflows/model/types'
 
 type WorkflowCanvasNodeData = {
   kind: NodeKind

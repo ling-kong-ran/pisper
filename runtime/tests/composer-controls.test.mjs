@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('labeled and icon controls hide the Radix overlay even while disabled', async () => {
-  const component = await readFile('src/features/chat/components/runtime/FocusRuntimeControls.tsx', 'utf8')
+  const component = await readFile(
+    'src/features/chat/components/runtime/FocusRuntimeControls.tsx',
+    'utf8',
+  )
 
   assert.match(component, /const ICON_SELECT_CLASSES =/)
   assert.match(component, /showLabel \? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES/)

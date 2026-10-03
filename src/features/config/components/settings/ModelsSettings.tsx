@@ -12,7 +12,10 @@ import { ProviderDiscovery } from '@/features/config/components/provider/Provide
 import { providerDiscoveryImportableCount } from '@/features/config/model/provider-discovery-state'
 import { QuickSetupWizard } from '@/features/config/components/settings/QuickSetupWizard'
 import { RuntimePolicySettings } from '@/features/config/components/settings/RuntimeSettings'
-import { useProviderDiscovery, useProvidersConfig } from '@/features/config/hooks/useProvidersConfig'
+import {
+  useProviderDiscovery,
+  useProvidersConfig,
+} from '@/features/config/hooks/useProvidersConfig'
 import { VisualGenerationSettings } from '@/features/config/components/settings/VisualGenerationSettings'
 import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'

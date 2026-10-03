@@ -2,7 +2,10 @@
 import { CheckCircle2, Download, RefreshCw, Terminal, Trash2, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/i18n/use-i18n'
-import { SettingsBadge as Badge, SettingsCard as Panel } from '@/features/config/components/settings/settings-primitives'
+import {
+  SettingsBadge as Badge,
+  SettingsCard as Panel,
+} from '@/features/config/components/settings/settings-primitives'
 import type { Notify } from '@/app/routes/route-context'
 import type { DesktopCliStatus } from '@/types/update'
 

@@ -455,7 +455,10 @@ test('mobile shell keeps navigation in the viewport and model settings retain re
   // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
   assert.doesNotMatch(models, /!grid-cols-/)
   assert.match(models, /<ProviderWorkbench/)
-  const workbench = await readFile('src/features/config/components/provider/ProviderWorkbench.tsx', 'utf8')
+  const workbench = await readFile(
+    'src/features/config/components/provider/ProviderWorkbench.tsx',
+    'utf8',
+  )
   // 布局与窄屏可读性由 smoke-pisper-ui 行为验收；这里保护统一连接工作台的职责边界。
   assert.match(workbench, /data-model-provider-split-panel/)
   assert.match(workbench, /<nav[\s\S]*?aria-label=\{t\('config:configPage.connections'\)\}/)

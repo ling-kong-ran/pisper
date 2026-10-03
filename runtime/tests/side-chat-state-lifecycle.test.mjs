@@ -6,10 +6,13 @@ import { transformSync } from 'esbuild'
 import * as sessionState from '../../src/lib/session/session-state.ts'
 import { shouldPollLiveSession } from '../../src/features/chat/model/live-session-sync.ts'
 
-const code = transformSync(await readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'), {
-  loader: 'ts',
-  format: 'cjs',
-}).code
+const code = transformSync(
+  await readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
+  {
+    loader: 'ts',
+    format: 'cjs',
+  },
+).code
 const SIDE_ID = 'side-retired'
 function runningState() {
   return {

@@ -1,5 +1,9 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MCP_MUTATION_KEY, mcpDashboardQueryOptions, mcpMutationOptions } from '@/features/mcp/api/mcp-queries'
+import {
+  MCP_MUTATION_KEY,
+  mcpDashboardQueryOptions,
+  mcpMutationOptions,
+} from '@/features/mcp/api/mcp-queries'
 
 export function useMcpDashboard() {
   const client = useQueryClient()

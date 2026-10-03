@@ -177,7 +177,10 @@ export async function memoryRoute() {
 }
 
 export async function mcpRoute() {
-  const [{ McpPage }] = await Promise.all([import('@/features/mcp/pages/McpPage'), ensureMcpMessages()])
+  const [{ McpPage }] = await Promise.all([
+    import('@/features/mcp/pages/McpPage'),
+    ensureMcpMessages(),
+  ])
 
   function McpRoute() {
     const context = useAppRouteContext()

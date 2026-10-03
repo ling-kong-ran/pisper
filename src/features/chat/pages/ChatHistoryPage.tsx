@@ -44,8 +44,15 @@ import {
   sessionDeletionUpdateFromEvent,
   sessionOrganizationUpdateFromEvent,
 } from '@/features/chat/model/events'
-import { HISTORY_BATCH_SIZE, selectHistorySessions, type HistoryView } from '@/features/chat/model/history-list'
-import { applySessionOrganizationUpdate, orderVisibleSessions } from '@/features/chat/model/session-list'
+import {
+  HISTORY_BATCH_SIZE,
+  selectHistorySessions,
+  type HistoryView,
+} from '@/features/chat/model/history-list'
+import {
+  applySessionOrganizationUpdate,
+  orderVisibleSessions,
+} from '@/features/chat/model/session-list'
 import {
   SessionOrganizationProtocolError,
   updateSessionOrganization,

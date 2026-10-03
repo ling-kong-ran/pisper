@@ -18,7 +18,10 @@ import { useI18n } from '@/app/i18n/use-i18n'
 import { apiJson } from '@/lib/http/api'
 import { pageStateStorage } from '@/lib/storage/page-state-storage'
 import { ConnectionCardGrid } from '@/features/config/components/provider/ConnectionList'
-import { SettingsBadge, SettingsCard } from '@/features/config/components/settings/settings-primitives'
+import {
+  SettingsBadge,
+  SettingsCard,
+} from '@/features/config/components/settings/settings-primitives'
 import type { Notify } from '@/app/routes/route-context'
 import type {
   ConfigData,

@@ -16,7 +16,10 @@ import { FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { workflowImageApi } from '@/features/workflows/api/workflow-image-api'
-import { spriteEnginesApi, SPRITE_ENGINES_QUERY_KEY } from '@/features/workflows/api/workflow-image-engine-api'
+import {
+  spriteEnginesApi,
+  SPRITE_ENGINES_QUERY_KEY,
+} from '@/features/workflows/api/workflow-image-engine-api'
 import type { WorkflowInput, WorkflowNode } from '@/features/workflows/model/types'
 import type { WorkflowTranslate } from '@/features/workflows/model/workflow-templates'
 

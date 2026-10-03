@@ -29,7 +29,7 @@ export function linkCurve(source: GalaxyPoint, target: GalaxyPoint, seed: number
   const my = (source.y + target.y) / 2
   const dx = target.x - source.x
   const dy = target.y - source.y
-  const bend = (seed % 40 - 20) / 200
+  const bend = ((seed % 40) - 20) / 200
   const cx = mx + -dy * bend
   const cy = my + dx * bend
   return `M ${source.x} ${source.y} Q ${cx} ${cy} ${target.x} ${target.y}`

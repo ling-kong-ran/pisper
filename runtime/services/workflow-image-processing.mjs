@@ -1,5 +1,8 @@
 import { Worker } from 'node:worker_threads'
-import { normalizeImageSettings, imageOperationError } from '../../shared/image/image-operations.mjs'
+import {
+  normalizeImageSettings,
+  imageOperationError,
+} from '../../shared/image/image-operations.mjs'
 import { assertRasterBounds, readRasterDimensions } from '../../shared/image/raster-image.mjs'
 import { normalizeImageFrameEdits } from '../../shared/image/image-frame-edits.mjs'
 

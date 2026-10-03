@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { legacyHashPath, pageFromPath, pagePath, workflowPath } from '../../src/app/routes/routes.ts'
+import {
+  legacyHashPath,
+  pageFromPath,
+  pagePath,
+  workflowPath,
+} from '../../src/app/routes/routes.ts'
 
 test('page ids map to stable application paths', () => {
   assert.equal(pagePath('chat'), '/chat')

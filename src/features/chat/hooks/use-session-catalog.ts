@@ -386,7 +386,8 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
         // 远程回落重载后的首次成功加载：告知用户为何回到本机模式。
         if (typeof window !== 'undefined' && window.__PISPER_MOBILE_APP__) {
           try {
-            const { consumeRemoteFallbackNotice } = await import('@/lib/mobile/mobile-remote-fallback')
+            const { consumeRemoteFallbackNotice } =
+              await import('@/lib/mobile/mobile-remote-fallback')
             if (consumeRemoteFallbackNotice())
               notify(t('chat:chatPage.remoteUnavailableSwitchedToLocal'))
           } catch {

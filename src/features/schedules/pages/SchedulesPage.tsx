@@ -24,7 +24,12 @@ import { CreateSchedulePanel } from '@/features/schedules/components/CreateSched
 import { ScheduleExecutionModeField } from '@/features/schedules/components/ScheduleExecutionModeField'
 import { ScheduleTargetFields } from '@/features/schedules/components/ScheduleTargetFields'
 import { ScheduleWorkspaceField } from '@/features/schedules/components/ScheduleWorkspaceField'
-import { FREQUENCIES, INTERVAL_UNITS, TARGETS, TIMEZONES } from '@/features/schedules/model/schedule-constants'
+import {
+  FREQUENCIES,
+  INTERVAL_UNITS,
+  TARGETS,
+  TIMEZONES,
+} from '@/features/schedules/model/schedule-constants'
 import {
   frequencyLabel,
   intervalUnitLabel,
@@ -48,14 +53,14 @@ type SchedulesPageProps = {
   openNotificationSettings: () => void
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
-  
+
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 
 export function SchedulesPage({
   notify,
   registerPrimaryAction,
-  
+
   requestConfirm,
   openNotificationSettings: _openNotificationSettings,
 }: SchedulesPageProps) {

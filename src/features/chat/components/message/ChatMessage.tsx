@@ -35,7 +35,9 @@ import {
   revealPathThroughRuntime,
 } from '@/lib/platform/local-path-reveal'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
-import AgentRunActivity, { type AgentRunActivityProps } from '@/features/chat/components/message/AgentRunActivity'
+import AgentRunActivity, {
+  type AgentRunActivityProps,
+} from '@/features/chat/components/message/AgentRunActivity'
 import { chatErrorMessage } from '@/features/chat/model/chat-errors'
 import { ChatRequestNotice } from '@/features/chat/components/ChatRequestNotice'
 import { chatApi } from '@/features/chat/api/chat-api'

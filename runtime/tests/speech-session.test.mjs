@@ -10,9 +10,12 @@ import * as abortSignal from '../../src/lib/http/abort-signal.ts'
 import { consumeEventStream } from '../../src/lib/http/api.ts'
 import { speechHotwords } from '../../shared/speech/speech-terms.mjs'
 
-const code = ts.transpileModule(await readFile('src/features/chat/model/speech-session.ts', 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText
+const code = ts.transpileModule(
+  await readFile('src/features/chat/model/speech-session.ts', 'utf8'),
+  {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  },
+).outputText
 function deferred() {
   let resolve, reject
   const promise = new Promise((yes, no) => {
@@ -62,7 +65,11 @@ function fixture(t, settings = {}) {
     exports: module.exports,
     require: (id) => {
       assert.ok(modules[id], id)
-      if (id === '@/features/chat/model/speech-text' || id === '@/features/chat/model/speech-stream-text') calls.push({ module: id })
+      if (
+        id === '@/features/chat/model/speech-text' ||
+        id === '@/features/chat/model/speech-stream-text'
+      )
+        calls.push({ module: id })
       return modules[id]
     },
     window: {

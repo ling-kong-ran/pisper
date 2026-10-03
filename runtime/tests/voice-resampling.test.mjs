@@ -15,7 +15,12 @@ runInNewContext(compiled, {
   exports: module.exports,
   require(name) {
     assert.ok(
-      ['@/lib/http/http', '@/lib/http/api', '@/lib/http/abort-signal', '@shared/speech/speech-terms.mjs'].includes(name),
+      [
+        '@/lib/http/http',
+        '@/lib/http/api',
+        '@/lib/http/abort-signal',
+        '@shared/speech/speech-terms.mjs',
+      ].includes(name),
     )
     return {}
   },

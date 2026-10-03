@@ -54,11 +54,7 @@ export function isManualPlatform(platform: ChannelPlatform) {
   return platform === 'telegram'
 }
 
-export function connectActionLabel(
-  platform: ChannelPlatform,
-  connected: boolean,
-  t: Translate,
-) {
+export function connectActionLabel(platform: ChannelPlatform, connected: boolean, t: Translate) {
   if (connected)
     return t('channels:channelsPage.reconnectName', { name: providerName(platform, t) })
   return isManualPlatform(platform)

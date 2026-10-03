@@ -370,6 +370,9 @@ test('the chat composer exposes the global command palette shortcut', async () =
 })
 
 test('the git changes badge uses the theme-aware contrasting text color', async () => {
-  const controls = await readFile('src/features/chat/components/files/GitChangesControl.tsx', 'utf8')
+  const controls = await readFile(
+    'src/features/chat/components/files/GitChangesControl.tsx',
+    'utf8',
+  )
   assert.match(controls, /git-changes-trigger[^"\n]*\[&_>_i\]:text-\[var\(--on-accent\)\]/)
 })

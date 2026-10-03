@@ -35,7 +35,10 @@ import { useSessionCatalog } from '@/features/chat/hooks/use-session-catalog'
 import { useSessionCommands } from '@/features/chat/hooks/use-session-commands'
 import { shouldInheritRecentSessionCwd } from '@/features/chat/model/session-list'
 import { updateSessionOrganization } from '@/features/chat/api/session-organization-api'
-import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from '@/features/chat/model/events'
+import {
+  SESSION_CREATE_REQUESTED_EVENT,
+  consumeSessionCreationRequest,
+} from '@/features/chat/model/events'
 import { resolveSessionContextPresentation } from '@/features/chat/model/session-context-layout'
 import { useSessionContextStore } from '@/features/chat/stores/session-context-store'
 import { useSessionContextAutoReveal } from '@/features/chat/hooks/useSessionContextAutoReveal'
@@ -46,7 +49,9 @@ import type { SideChatRuntime } from '@/features/chat/model/side-chat-context'
 import { resolveSessionStreaming } from '@/features/chat/model/session-streaming-state'
 
 const LazySessionContextPanel = lazy(() =>
-  import('@/features/chat/components/session/SessionContextPanel').then((module) => ({ default: module.SessionContextPanel })),
+  import('@/features/chat/components/session/SessionContextPanel').then((module) => ({
+    default: module.SessionContextPanel,
+  })),
 )
 const SESSION_CONTEXT_PANEL_ID = 'chat-session-context-panel'
 

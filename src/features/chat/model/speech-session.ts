@@ -92,7 +92,10 @@ export async function prepareSpeechSession(
   }
   // JS 模块与原生模型同时预热，避免首个 SSE 短语再承担动态导入等待。
   if (!modulesReady)
-    void Promise.all([import('@/features/chat/model/speech-text'), import('@/features/chat/model/speech-stream-text')])
+    void Promise.all([
+      import('@/features/chat/model/speech-text'),
+      import('@/features/chat/model/speech-stream-text'),
+    ])
       .then(() => {
         modulesReady = true
         finishReady()

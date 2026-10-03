@@ -6,8 +6,16 @@ import {
   providerDiscoveryShouldCollapse,
   providerDiscoveryShouldRender,
 } from '@/features/config/model/provider-discovery-state'
-import { SettingsBadge, SettingsCard } from '@/features/config/components/settings/settings-primitives'
-import type { DiscoveredProvider, DiscoveryData, DiscoveryError, Translate } from '@/features/config/model/config-types'
+import {
+  SettingsBadge,
+  SettingsCard,
+} from '@/features/config/components/settings/settings-primitives'
+import type {
+  DiscoveredProvider,
+  DiscoveryData,
+  DiscoveryError,
+  Translate,
+} from '@/features/config/model/config-types'
 
 import { Button } from '@/components/ui/button'
 

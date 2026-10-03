@@ -49,7 +49,11 @@ function load() {
     window: { setTimeout: (callback) => timers.push(callback) },
     require(name) {
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx }
-      if (name === './speech-resource-notices' || name === '@/features/chat/model/speech-resource-notices') return { speechResourceNotices: notices }
+      if (
+        name === './speech-resource-notices' ||
+        name === '@/features/chat/model/speech-resource-notices'
+      )
+        return { speechResourceNotices: notices }
       if (name === '@/app/i18n/use-i18n') return { useI18n: () => ({ t: (key) => key }) }
       if (name === 'lucide-react' || name.startsWith('@/components/ui/')) return primitives
       throw new Error(`Unexpected notice dependency: ${name}`)

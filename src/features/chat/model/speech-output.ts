@@ -108,10 +108,9 @@ async function playSpeech(
       ? (async function* () {
           yield* speechSegments(text)
         })()
-      : (await abortable(import('@/features/chat/model/speech-stream-text'), signal)).streamingSpeechSegments(
-          text,
-          signal,
-        )
+      : (
+          await abortable(import('@/features/chat/model/speech-stream-text'), signal)
+        ).streamingSpeechSegments(text, signal)
   const iterator = segments[Symbol.asyncIterator]()
   const native = Boolean(window.__PISPER_MOBILE_APP__)
   const requests = new Set<string>()

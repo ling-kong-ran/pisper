@@ -71,10 +71,10 @@ function inputFixture(t, settings = {}) {
     },
   }
   Object.assign(modules, {
-  '@/features/chat/model/speech-session': modules['./speech-session'],
-  '@/features/chat/model/voice-input': modules['./voice-input'],
-})
-const { createSpeechRecognizer } = load(inputCode, modules, {
+    '@/features/chat/model/speech-session': modules['./speech-session'],
+    '@/features/chat/model/voice-input': modules['./voice-input'],
+  })
+  const { createSpeechRecognizer } = load(inputCode, modules, {
     crypto: { randomUUID: () => 'recognition-request' },
     btoa,
     window: {
@@ -323,7 +323,9 @@ function hookFixture(t, settings = {}) {
         return { stop: async () => {} }
       },
     },
-    '@/features/chat/model/voice-endpoint': { createVoiceEndpoint: async () => ({ hasSpeech: true, dispose() {} }) },
+    '@/features/chat/model/voice-endpoint': {
+      createVoiceEndpoint: async () => ({ hasSpeech: true, dispose() {} }),
+    },
     './voice-response-stream': {
       createVoiceTextStream: () => ({ update() {}, finish() {} }),
       subscribeVoiceResponse: () => () => {},
@@ -334,12 +336,12 @@ function hookFixture(t, settings = {}) {
     },
   }
   Object.assign(modules, {
-  '@/features/chat/model/speech-session': modules['./speech-session'],
-  '@/features/chat/model/voice-input': modules['./voice-input'],
-  '@/features/chat/model/voice-response-stream': modules['./voice-response-stream'],
-  '@/features/chat/model/voice-mode-state': modules['./voice-mode-state'],
-})
-const { useVoiceSession: hook } = load(hookCode, modules, {
+    '@/features/chat/model/speech-session': modules['./speech-session'],
+    '@/features/chat/model/voice-input': modules['./voice-input'],
+    '@/features/chat/model/voice-response-stream': modules['./voice-response-stream'],
+    '@/features/chat/model/voice-mode-state': modules['./voice-mode-state'],
+  })
+  const { useVoiceSession: hook } = load(hookCode, modules, {
     window,
     document,
     performance: { now: () => 0 },

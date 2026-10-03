@@ -23,8 +23,15 @@ import {
   handleMobileOperationCancellation,
   handleMobileOperationRequest,
 } from '@/features/chat/model/mobile-operations'
-import { planChanges, pushCurrentActivity, settleToolCalls } from '@/features/chat/model/run-activity'
-import { publishVoiceResponse, type VoiceResponseUpdate } from '@/features/chat/model/voice-response-stream'
+import {
+  planChanges,
+  pushCurrentActivity,
+  settleToolCalls,
+} from '@/features/chat/model/run-activity'
+import {
+  publishVoiceResponse,
+  type VoiceResponseUpdate,
+} from '@/features/chat/model/voice-response-stream'
 
 const MAX_LIVE_THINKING_CHARS = 6_000
 

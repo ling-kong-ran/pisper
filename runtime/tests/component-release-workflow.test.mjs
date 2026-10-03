@@ -188,7 +188,10 @@ test('release paths select one or every affected component without coupling docu
   assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])
   assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['runtime'])
   assert.deepEqual(releaseComponentsForPath('src/features/chat/pages/ChatPage.tsx'), ['desktop'])
-  assert.deepEqual(releaseComponentsForPath('shared/workflow/workflow-graph.mjs'), ['desktop', 'runtime'])
+  assert.deepEqual(releaseComponentsForPath('shared/workflow/workflow-graph.mjs'), [
+    'desktop',
+    'runtime',
+  ])
   assert.deepEqual(releaseComponentsForPath('crates/component-updater/src/lib.rs'), [
     'desktop',
     'tui',

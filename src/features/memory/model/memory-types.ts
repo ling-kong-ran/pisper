@@ -1,12 +1,5 @@
 // 记忆领域类型：空间、节点、链接和候选条目。
-export type MemoryType =
-  | 'concept'
-  | 'file'
-  | 'risk'
-  | 'preference'
-  | 'decision'
-  | 'fact'
-  | 'task'
+export type MemoryType = 'concept' | 'file' | 'risk' | 'preference' | 'decision' | 'fact' | 'task'
 
 export type MemorySpace = {
   id: string

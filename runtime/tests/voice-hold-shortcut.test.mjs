@@ -6,7 +6,10 @@ import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
 import { DEFAULT_SHORTCUTS, formatShortcut, matchesShortcut } from '../../shared/shortcuts.mjs'
 
-const componentSource = await readFile('src/features/chat/components/voice/VoiceInputControl.tsx', 'utf8')
+const componentSource = await readFile(
+  'src/features/chat/components/voice/VoiceInputControl.tsx',
+  'utf8',
+)
 const shortcutSource = await readFile('src/features/chat/hooks/use-voice-shortcut.ts', 'utf8')
 const compiled = new Map(
   [

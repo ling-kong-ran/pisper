@@ -26,11 +26,18 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { PROVIDER_ICONS } from '@/features/config/model/provider-constants'
-import { ProviderConnectionEditor, type ProviderConnectionDraft } from '@/features/config/components/provider/ProviderConnectionEditor'
+import {
+  ProviderConnectionEditor,
+  type ProviderConnectionDraft,
+} from '@/features/config/components/provider/ProviderConnectionEditor'
 import { ProviderModelEditor } from '@/features/config/components/provider/ProviderModelEditor'
 import { getProviderWorkbenchState } from '@/features/config/model/provider-workbench-state'
 import { SettingsSwitch } from '@/features/config/components/settings/settings-primitives'
-import type { ConfigData, ProviderConfig, ProviderModel } from '@/features/config/model/config-types'
+import type {
+  ConfigData,
+  ProviderConfig,
+  ProviderModel,
+} from '@/features/config/model/config-types'
 type Props = {
   config: ConfigData
   selectedProviderId: string

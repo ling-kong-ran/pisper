@@ -2,7 +2,10 @@
 // 未配置时突出「快速配置」入口，降低新用户的迷路概率。
 import { Bot, CheckCircle2, CircleAlert, PencilLine, Wand2 } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
-import { SettingsBadge, SettingsCard } from '@/features/config/components/settings/settings-primitives'
+import {
+  SettingsBadge,
+  SettingsCard,
+} from '@/features/config/components/settings/settings-primitives'
 import type { ConfigData } from '@/features/config/model/config-types'
 
 import { Button } from '@/components/ui/button'

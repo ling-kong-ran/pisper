@@ -29,8 +29,14 @@ import type { Notify } from '@/app/routes/route-context'
 import { CustomUiFrame } from '@/features/custom-ui/components/CustomUiFrame'
 import { importCustomUiBundle } from '@/features/custom-ui/api/custom-ui-api'
 import { useCustomUiComponents } from '@/features/custom-ui/hooks/useCustomUiComponents'
-import { customUiComponentLabel, customUiComponentDescription } from '@/features/custom-ui/model/custom-ui-labels'
-import { resolveFloatingWidgetIds, useFloatingWidgetsStore } from '@/features/custom-ui/model/floating-widgets-store'
+import {
+  customUiComponentLabel,
+  customUiComponentDescription,
+} from '@/features/custom-ui/model/custom-ui-labels'
+import {
+  resolveFloatingWidgetIds,
+  useFloatingWidgetsStore,
+} from '@/features/custom-ui/model/floating-widgets-store'
 import type { CustomUiComponent } from '@/features/custom-ui/api/custom-ui-api'
 
 type CustomUiPageProps = {

@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { customUiComponentLabel } from '@/features/custom-ui/model/custom-ui-labels'
-import { resolveFloatingWidgetIds, useFloatingWidgetsStore } from '@/features/custom-ui/model/floating-widgets-store'
+import {
+  resolveFloatingWidgetIds,
+  useFloatingWidgetsStore,
+} from '@/features/custom-ui/model/floating-widgets-store'
 import { useCustomUiComponents } from '@/features/custom-ui/hooks/useCustomUiComponents'
 
 export function FloatingWidgetControls({

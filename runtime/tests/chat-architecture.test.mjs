@@ -340,7 +340,10 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
 })
 
 test('Team task statuses are localized and optional roles remain omitted', async () => {
-  const activity = await readFile(resolve(root, 'src/features/chat/components/message/AgentRunActivity.tsx'), 'utf8')
+  const activity = await readFile(
+    resolve(root, 'src/features/chat/components/message/AgentRunActivity.tsx'),
+    'utf8',
+  )
   const labels = {
     queued: ['Queued', '排队中'],
     starting: ['Starting', '启动中'],

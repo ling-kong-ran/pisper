@@ -3,7 +3,10 @@ import { AppSelect } from '@/components/common/AppSelect'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { FieldLabel } from '@/components/ui/field'
 import { workflowInputDefaults } from '@/features/schedules/model/schedule-utils'
-import type { ScheduleTargetType, ScheduleWorkflow } from '@/features/schedules/model/schedule-types'
+import type {
+  ScheduleTargetType,
+  ScheduleWorkflow,
+} from '@/features/schedules/model/schedule-types'
 
 export function ScheduleTargetFields({
   targetType,

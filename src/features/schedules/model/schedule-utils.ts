@@ -74,12 +74,7 @@ export function scheduleTargetValid(
 }
 
 export function taskDraft(task: ScheduleTask): ScheduleDraft {
-  const {
-    nextRunAt: _nextRunAt,
-    lastRunAt: _lastRunAt,
-    lastStatus: _lastStatus,
-    ...draft
-  } = task
+  const { nextRunAt: _nextRunAt, lastRunAt: _lastRunAt, lastStatus: _lastStatus, ...draft } = task
   return draft
 }
 

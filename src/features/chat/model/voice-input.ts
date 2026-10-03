@@ -91,7 +91,8 @@ class RuntimeSpeechRecognizer implements SpeechRecognizer {
     this.controller = controller
     await waitForMobileRuntimeReady()
     throwIfAborted(controller.signal)
-    const { loadSpeechHotwords, prepareSpeechSession } = await import('@/features/chat/model/speech-session')
+    const { loadSpeechHotwords, prepareSpeechSession } =
+      await import('@/features/chat/model/speech-session')
     const { terms, hotwords } = await loadSpeechHotwords(this.chatSessionId, controller.signal)
     this.terms = terms
     const lease = await prepareSpeechSession({ kinds: ['asr'], hotwords }, controller.signal)

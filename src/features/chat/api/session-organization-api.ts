@@ -1,6 +1,9 @@
 // @public 会话整理 API：Runtime 持有状态，界面只广播服务端确认后的字段。
 import { apiJson } from '@/lib/http/api'
-import { announceSessionsUpdated, type SessionOrganizationUpdate } from '@/features/chat/model/events'
+import {
+  announceSessionsUpdated,
+  type SessionOrganizationUpdate,
+} from '@/features/chat/model/events'
 
 export type SessionOrganizationPatch = {
   pinned?: boolean

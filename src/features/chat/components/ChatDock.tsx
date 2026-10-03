@@ -6,7 +6,11 @@ import { AlertTriangle, History, MessageSquare, Plus, X } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/storage/page-state-storage'
 import { useI18n } from '@/app/i18n/use-i18n'
-import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session/session-state'
+import {
+  DEFAULT_SESSION_STATE,
+  isPlanActive,
+  resolveSessionPlan,
+} from '@/lib/session/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
 import { FocusSession } from '@/features/chat/components/runtime/FocusSession'
 import { resolveSessionStreaming } from '@/features/chat/model/session-streaming-state'

@@ -3,7 +3,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { SPRITE_ENGINE_CATALOG, SpriteEngineError } from '../../shared/game/sprite-engine-catalog.mjs'
+import {
+  SPRITE_ENGINE_CATALOG,
+  SpriteEngineError,
+} from '../../shared/game/sprite-engine-catalog.mjs'
 import { writeJsonAtomic } from '../storage/json-file.mjs'
 
 /** @typedef {import('../../shared/game/sprite-engine-catalog.mjs').SpriteEngineDefinition} EngineDefinition */

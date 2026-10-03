@@ -15,7 +15,11 @@ const compile = async (path) =>
   ts.transpileModule(await readFile(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-const speechModelStub = { invokeLocalSpeech: async () => { throw new Error('not available in test') } }
+const speechModelStub = {
+  invokeLocalSpeech: async () => {
+    throw new Error('not available in test')
+  },
+}
 const outputCode = await compile('src/features/chat/model/speech-output.ts')
 const modelsCode = await compile('src/features/chat/model/speech-models.ts')
 const { speechSegments } = speechText
@@ -163,7 +167,8 @@ function fixture(t, settings = {}) {
       module,
       exports: module.exports,
       require: (id) => {
-        if (id === '@/features/chat/model/speech-text' && settings.importing) return settings.importing.promise
+        if (id === '@/features/chat/model/speech-text' && settings.importing)
+          return settings.importing.promise
         assert.ok(modules[id], id)
         return modules[id]
       },

@@ -7,7 +7,10 @@ import type {
   ComponentUpdateStatus,
   UpdateStatus,
 } from '@/types/update'
-import { scheduleAppUpdateChecks, shouldAutomaticallyCheckForUpdates } from '@/features/updates/model/auto-update'
+import {
+  scheduleAppUpdateChecks,
+  shouldAutomaticallyCheckForUpdates,
+} from '@/features/updates/model/auto-update'
 import {
   componentUpdateStatus as componentStatus,
   currentDesktopVersion,

@@ -15,7 +15,10 @@ import { useI18n } from '@/app/i18n/use-i18n'
 import type { Notify } from '@/app/routes/route-context'
 import { apiJson } from '@/lib/http/api'
 import { relativeTime } from '@/lib/format/format'
-import { SettingsCard as Panel, SettingsSwitch as Switch } from '@/features/config/components/settings/settings-primitives'
+import {
+  SettingsCard as Panel,
+  SettingsSwitch as Switch,
+} from '@/features/config/components/settings/settings-primitives'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

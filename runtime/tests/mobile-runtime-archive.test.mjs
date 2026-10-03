@@ -14,7 +14,10 @@ async function fixture(t) {
   const runtimeDir = join(root, 'runtime')
   await mkdir(join(runtimeDir, 'runtime', 'services'), { recursive: true })
   await mkdir(join(runtimeDir, 'dist'), { recursive: true })
-  await writeFile(join(runtimeDir, 'runtime/services/mobile-embedded.mjs'), 'export const ready = true\n')
+  await writeFile(
+    join(runtimeDir, 'runtime/services/mobile-embedded.mjs'),
+    'export const ready = true\n',
+  )
   await writeFile(join(runtimeDir, 'dist/index.html'), '<!doctype html><div id="root"></div>\n')
   return {
     runtimeDir,

@@ -2,4 +2,7 @@
 export { useCustomUiComponents } from '@/features/custom-ui/hooks/useCustomUiComponents'
 export { listCustomUiComponents } from '@/features/custom-ui/api/custom-ui-api'
 export type { CustomUiComponent } from '@/features/custom-ui/api/custom-ui-api'
-export { customUiComponentLabel, customUiComponentDescription } from '@/features/custom-ui/model/custom-ui-labels'
+export {
+  customUiComponentLabel,
+  customUiComponentDescription,
+} from '@/features/custom-ui/model/custom-ui-labels'

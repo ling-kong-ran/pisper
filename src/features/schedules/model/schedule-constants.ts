@@ -1,7 +1,12 @@
 // 定时计划常量：目标渠道、频率、时间单位和时区列表。
 import { Bell, Bot, MessageCircle, Send } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { IntervalUnit, NotificationTarget, ScheduleExecutionMode, ScheduleFrequency } from './schedule-types'
+import type {
+  IntervalUnit,
+  NotificationTarget,
+  ScheduleExecutionMode,
+  ScheduleFrequency,
+} from './schedule-types'
 
 export const TARGETS: Record<NotificationTarget, { name: string; Icon: LucideIcon }> = {
   browser: { name: '通知', Icon: Bell },
