@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('asset page exposes a dedicated video filter', async () => {
-  const source = await readFile('src/features/assets/AssetsPage.tsx', 'utf8')
+  const source = await readFile('src/features/assets/pages/AssetsPage.tsx', 'utf8')
 
   assert.match(source, /ASSET_TABS[^\n]*'image', 'video', 'file'/)
   assert.match(source, /tab === 'video'[^\n]*assetsPage\.videos/)
@@ -11,7 +11,7 @@ test('asset page exposes a dedicated video filter', async () => {
 })
 
 test('asset cards grow with their copy instead of clipping the action row', async () => {
-  const source = await readFile('src/features/assets/AssetsPage.tsx', 'utf8')
+  const source = await readFile('src/features/assets/pages/AssetsPage.tsx', 'utf8')
 
   // 行高随文字内容增长，截图高度不再决定行高
   assert.match(source, /asset-grid[^"\n]*auto-rows-\[minmax\(292px,auto\)\]/)

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { SessionFileChangesService } from '../services/session-file-changes.mjs'
 import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
-import { parseUnifiedDiff } from '../../src/features/chat/git-diff.ts'
+import { parseUnifiedDiff } from '../../src/features/chat/model/git-diff.ts'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'pisper-snapshot-preview-'))

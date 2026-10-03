@@ -344,7 +344,7 @@ test('concurrent model and threshold changes serialize and restart with a matchi
 
 test('client accepts legacy status and validates new approval states without copying secrets', async () => {
   const { parseDecisionsStatus, REMOTE_PROVIDER_PRESETS } =
-    await import('../../src/features/decisions/decisions-api.ts')
+    await import('../../src/features/decisions/api/decisions-api.ts')
   const config = {
     remote: {
       provider: 'typesafe',

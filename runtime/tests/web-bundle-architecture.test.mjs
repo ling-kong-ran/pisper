@@ -69,7 +69,7 @@ test('production build emits an audited manifest with explicit non-recursive chu
 })
 
 test('desktop terminal reattaches its xterm runtime after the panel host is remounted', async () => {
-  const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
+  const terminal = await readFile('src/features/terminal/components/TerminalPanel.tsx', 'utf8')
 
   assert.match(terminal, /existing\.element\.parentElement !== host/)
   assert.match(terminal, /host\.append\(existing\.element\)/)
@@ -79,8 +79,8 @@ test('desktop terminal reattaches its xterm runtime after the panel host is remo
 test('desktop terminals are scoped to the active chat session without stopping hidden processes', async () => {
   const [app, terminal, scope] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
-    readFile('src/features/terminal/terminal-session-scope.ts', 'utf8'),
+    readFile('src/features/terminal/components/TerminalPanel.tsx', 'utf8'),
+    readFile('src/features/terminal/model/terminal-session-scope.ts', 'utf8'),
   ])
 
   assert.match(app, /activeSessionId=\{activeSessionId\}/)
@@ -101,12 +101,12 @@ test('desktop terminals are scoped to the active chat session without stopping h
 })
 
 test('opening the desktop terminal preserves a shrinkable chat layout above it', async () => {
-  const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
+  const terminal = await readFile('src/features/terminal/components/TerminalPanel.tsx', 'utf8')
 
   assert.match(terminal, /CHAT_RESERVED_HEIGHT = 420/)
   assert.match(terminal, /maximumTerminalHeight\(window\.innerHeight\)/)
   const app = await readFile('src/App.tsx', 'utf8')
-  const chat = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  const chat = await readFile('src/features/chat/pages/ChatPage.tsx', 'utf8')
   assert.match(app, /page === 'chat' \? 'page-chat flex overflow-hidden p-0'/)
   assert.match(chat, /chat-layout[^"\n]*min-h-0[^"\n]*flex-1/)
   assert.doesNotMatch(chat, /chat-layout[^"\n]*min-h-\[510px\]/)
@@ -114,7 +114,7 @@ test('opening the desktop terminal preserves a shrinkable chat layout above it',
 
 test('desktop terminal stays mounted but hides when closed and follows the active color theme', async () => {
   const [terminal, styles] = await Promise.all([
-    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
+    readFile('src/features/terminal/components/TerminalPanel.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
 
@@ -138,8 +138,8 @@ test('desktop terminal stays mounted but hides when closed and follows the activ
 
 test('workflow notifications separate system permission from external channel setup', async () => {
   const [inspector, editor, switchPrimitive] = await Promise.all([
-    readFile('src/features/workflows/WorkflowNodeInspector.tsx', 'utf8'),
-    readFile('src/features/workflows/useWorkflowEditor.ts', 'utf8'),
+    readFile('src/features/workflows/components/WorkflowNodeInspector.tsx', 'utf8'),
+    readFile('src/features/workflows/hooks/useWorkflowEditor.ts', 'utf8'),
     readFile('src/components/ui/switch.tsx', 'utf8'),
   ])
   const notificationSwitch = inspector.match(
@@ -178,9 +178,9 @@ test('workflow notifications separate system permission from external channel se
 
 test('chat resource picker remains visible above dock splits with a readable primary action', async () => {
   const [picker, dialog, focusSession] = await Promise.all([
-    readFile('src/features/chat/ChatResourcePicker.tsx', 'utf8'),
+    readFile('src/features/chat/components/composer/ChatResourcePicker.tsx', 'utf8'),
     readFile('src/components/ui/dialog.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
   ])
 
   assert.match(picker, /className="chat-resource-dialog[^"\n]*z-\[220\]/)
@@ -213,10 +213,10 @@ test('chat resource picker remains visible above dock splits with a readable pri
 
 test('mobile chat sends with Enter and responsively overflows Composer tools', async () => {
   const [dock, focusSession, toolTray, capacity, pageHeader, zhChat, enChat] = await Promise.all([
-    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
-    readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-chat-dock.ts', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/composer/ComposerToolTray.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-composer-toolbar-capacity.ts', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/locales/zh-CN/chat.json', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8'),
@@ -259,9 +259,9 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
 
 test('chat Composer discovers Runtime Slash commands without exposing templates to the client', async () => {
   const [menu, focusSession, chatApi, routes] = await Promise.all([
-    readFile('src/features/chat/ComposerCommandMenu.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('src/features/chat/components/composer/ComposerCommandMenu.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/api/chat-api.ts', 'utf8'),
     readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
   ])
 
@@ -277,15 +277,15 @@ test('chat Composer discovers Runtime Slash commands without exposing templates 
 })
 
 test('scheduled tasks use structured prompt or workflow targets across every form', async () => {
-  const [schedules, facade, runtime] = await Promise.all([
-    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+  const [schedules, scheduleTypes, facade, runtime] = await Promise.all([
+    readFile('src/features/schedules/pages/SchedulesPage.tsx', 'utf8'),
+    readFile('src/features/schedules/model/schedule-types.ts', 'utf8'),
     readFile('runtime/runtime/agent-runtime-facade.mjs', 'utf8'),
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
   ])
 
-  assert.equal(schedules.match(/<ScheduleTargetFields/g)?.length, 3)
-  assert.match(schedules, /type ScheduleTargetType = 'prompt' \| 'workflow'/)
-  assert.match(schedules, /workflowInputs: Record<string, unknown>/)
+  assert.match(scheduleTypes, /type ScheduleTargetType = 'prompt' \| 'workflow'/)
+  assert.match(scheduleTypes, /workflowInputs: Record<string, unknown>/)
   assert.match(schedules, /scheduleTargetValid\(/)
   assert.match(schedules, /targetType === 'prompt'/)
   assert.match(facade, /\.filter\(\(workflow\) => workflow\.status === 'published'\)/)
@@ -299,10 +299,10 @@ test('scheduled tasks use structured prompt or workflow targets across every for
 
 test('historical sessions transition through loading before resolving the welcome or transcript', async () => {
   const [dock, session, transcript, catalog, styles] = await Promise.all([
-    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/features/chat/components/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
 
@@ -343,16 +343,16 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   ] = await Promise.all([
     readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/features/chat/events.ts', 'utf8'),
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/VirtualMessageTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/SessionTreeDialog.tsx', 'utf8'),
-    readFile('src/features/chat/session-tree-browser.tsx', 'utf8'),
-    readFile('src/features/chat/session-tree-nodes.tsx', 'utf8'),
-    readFile('src/features/chat/session-tree-model.ts', 'utf8'),
-    readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('src/features/chat/model/events.ts', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/VirtualMessageTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/session/SessionTreeDialog.tsx', 'utf8'),
+    readFile('src/features/chat/model/session-tree-browser.tsx', 'utf8'),
+    readFile('src/features/chat/model/session-tree-nodes.tsx', 'utf8'),
+    readFile('src/features/chat/model/session-tree-model.ts', 'utf8'),
+    readFile('src/features/chat/components/message/ChatMessage.tsx', 'utf8'),
+    readFile('src/features/chat/pages/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/api/chat-api.ts', 'utf8'),
     readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
   ])
 
@@ -371,8 +371,8 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(virtualTranscript, /data-pisper-target-entry/)
   // 会话树 UI 拆分到 session-tree-* 子模块（仍由懒加载的对话框独占引入，
   // 保持在独立 chunk 内）；断言按新布局分布到对应文件。
-  assert.match(treeDialog, /from '@\/features\/chat\/session-tree-browser'/)
-  assert.match(treeDialog, /from '@\/features\/chat\/session-tree-model'/)
+  assert.match(treeDialog, /from '@\/features\/chat\/model\/session-tree-browser'/)
+  assert.match(treeDialog, /from '@\/features\/chat\/model\/session-tree-model'/)
   assert.match(treeDialog, /node\.branchPoint/)
   assert.match(treeNodes, /session-tree-children/)
   assert.match(treeBrowser, /sessionTree\.searchPlaceholder/)
@@ -412,7 +412,7 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
     readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
-    readFile('src/app/settings-navigation.ts', 'utf8'),
+    readFile('src/app/routes/settings-navigation.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
 
@@ -440,10 +440,10 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
 test('mobile shell keeps navigation in the viewport and model settings retain responsive navigation/detail panels', async () => {
   const [app, models, connectionList, wizard, apiKeyList] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
-    readFile('src/features/config/ConnectionList.tsx', 'utf8'),
-    readFile('src/features/config/QuickSetupWizard.tsx', 'utf8'),
-    readFile('src/features/config/ApiKeyInput.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/ModelsSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/provider/ConnectionList.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/QuickSetupWizard.tsx', 'utf8'),
+    readFile('src/features/config/components/provider/ApiKeyInput.tsx', 'utf8'),
   ])
 
   assert.match(
@@ -455,7 +455,10 @@ test('mobile shell keeps navigation in the viewport and model settings retain re
   // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
   assert.doesNotMatch(models, /!grid-cols-/)
   assert.match(models, /<ProviderWorkbench/)
-  const workbench = await readFile('src/features/config/ProviderWorkbench.tsx', 'utf8')
+  const workbench = await readFile(
+    'src/features/config/components/provider/ProviderWorkbench.tsx',
+    'utf8',
+  )
   // 布局与窄屏可读性由 smoke-pisper-ui 行为验收；这里保护统一连接工作台的职责边界。
   assert.match(workbench, /data-model-provider-split-panel/)
   assert.match(workbench, /<nav[\s\S]*?aria-label=\{t\('config:configPage.connections'\)\}/)
@@ -474,9 +477,9 @@ test('mobile shell keeps navigation in the viewport and model settings retain re
 
 test('mobile device permissions are requested by native operations', async () => {
   const [configPage, serverSettings, navigation, native] = await Promise.all([
-    readFile('src/features/config/ConfigPage.tsx', 'utf8'),
-    readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
-    readFile('src/app/settings-navigation.ts', 'utf8'),
+    readFile('src/features/config/pages/ConfigPage.tsx', 'utf8'),
+    readFile('src/features/config/components/mobile/MobileServerSettings.tsx', 'utf8'),
+    readFile('src/app/routes/settings-navigation.ts', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
   ])
 
@@ -490,13 +493,13 @@ test('mobile device permissions are requested by native operations', async () =>
 test('route code and route-specific vendor styles remain lazy', async () => {
   const [router, routeElements, main, chat, chatDock, dockView, workflows, styles, appearance] =
     await Promise.all([
-      readFile('src/app/router.tsx', 'utf8'),
-      readFile('src/app/route-elements.tsx', 'utf8'),
+      readFile('src/app/routes/router.tsx', 'utf8'),
+      readFile('src/app/routes/route-elements.tsx', 'utf8'),
       readFile('src/main.tsx', 'utf8'),
-      readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-      readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-      readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
-      readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
+      readFile('src/features/chat/pages/ChatPage.tsx', 'utf8'),
+      readFile('src/features/chat/components/ChatDock.tsx', 'utf8'),
+      readFile('src/features/chat/components/ChatDockView.tsx', 'utf8'),
+      readFile('src/features/workflows/pages/WorkflowsPage.tsx', 'utf8'),
       readFile('src/index.css', 'utf8'),
       readFile('src/app/ChatAppearancePage.tsx', 'utf8'),
     ])

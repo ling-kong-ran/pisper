@@ -1,5 +1,5 @@
 import { Clock, MonitorCog, Moon, Sun, type LucideIcon } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { nextThemeMode, type ThemeMode } from '@/stores/ui-store'

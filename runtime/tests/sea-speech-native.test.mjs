@@ -160,7 +160,7 @@ for (const path of [
 test('speech native smoke permits speech metadata, vocabulary and native libraries', async (t) => {
   const input = await fixture(t)
   for (const path of [
-    'shared/speech-model-catalog.json',
+    'shared/speech/speech-model-catalog.json',
     'shared/speech-resources/xasr-bpe.vocab',
     'runtime/tokens.txt',
     'node_modules/package/libonnxruntime.so',

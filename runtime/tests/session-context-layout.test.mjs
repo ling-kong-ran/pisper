@@ -4,7 +4,7 @@ import {
   normalizeSessionContextWidth,
   resolveSessionContextPresentation,
   shouldRevealSessionContext,
-} from '../../src/features/chat/session-context-layout.ts'
+} from '../../src/features/chat/model/session-context-layout.ts'
 
 function presentation(overrides = {}) {
   return resolveSessionContextPresentation({

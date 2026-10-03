@@ -341,7 +341,7 @@ test('组件凭证在桌面 Cookie 鉴权下加载资源，保持沙箱并拒绝
   const { createServer } = await import('node:http')
   const { createApiHandler } = await import('../http/api-handler.mjs')
   const { handleCustomUiResource } = await import('../http/routes/custom-ui.mjs')
-  const { authorizeDesktopRequest } = await import('../desktop-sidecar-auth.mjs')
+  const { authorizeDesktopRequest } = await import('../security/desktop-sidecar-auth.mjs')
   const directory = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-auth-'))
   let now = 1
   const service = new CustomUiService({ dataDir: directory, now: () => now })

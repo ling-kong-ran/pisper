@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { recommendedChatModel } from '../../src/features/config/model-recommendation.ts'
+import { recommendedChatModel } from '../../src/features/config/model/model-recommendation.ts'
 
 function provider(overrides = {}) {
   return {

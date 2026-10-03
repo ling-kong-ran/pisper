@@ -1,5 +1,5 @@
-import { mobileBaseInitialization } from '../runtime-capabilities.mjs'
-import { createStartupObserver } from '../startup-observer.mjs'
+import { mobileBaseInitialization } from '../services/runtime-capabilities.mjs'
+import { createStartupObserver } from '../services/startup-observer.mjs'
 
 export function prepareRuntimeInitialization(
   runtime,

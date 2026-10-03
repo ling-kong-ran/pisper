@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { formatSpeechTerms, speechHotwords } from '../../shared/speech-terms.mjs'
+import { formatSpeechTerms, speechHotwords } from '../../shared/speech/speech-terms.mjs'
 
 const SAMPLE_RATE = 16_000
 const MAX_SAMPLES = SAMPLE_RATE * 10 * 60

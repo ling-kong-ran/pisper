@@ -5,20 +5,20 @@ import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import * as sessionState from '../../src/lib/session-state.ts'
+import * as sessionState from '../../src/lib/session/session-state.ts'
 import {
   clearComposerDraft,
   mergeComposerDraft,
   readComposerDraft,
   updateComposerDraft,
-} from '../../src/features/chat/composer-drafts.ts'
-import { createStreamEventDispatcher } from '../../src/features/chat/stream-event-dispatch.ts'
-import { reconcileLiveSnapshot } from '../../src/features/chat/use-live-session-sync.ts'
-import { QueuedInputsTray } from '../../src/features/chat/focus-session-composer-bits.tsx'
+} from '../../src/features/chat/model/composer-drafts.ts'
+import { createStreamEventDispatcher } from '../../src/features/chat/model/stream-event-dispatch.ts'
+import { reconcileLiveSnapshot } from '../../src/features/chat/hooks/use-live-session-sync.ts'
+import { QueuedInputsTray } from '../../src/features/chat/model/focus-session-composer-bits.tsx'
 import { TooltipProvider } from '../../src/components/ui/tooltip.tsx'
 
 const promptCode = transformSync(
-  await readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+  await readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 
@@ -57,14 +57,14 @@ function fixture(api = {}, initial = {}) {
   const modules = {
     react: { useCallback: (callback) => callback, useRef: (value) => ({ current: value }) },
     '@/app/brand': { APP_NAME: 'Pisper' },
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/session-state': sessionState,
-    '@/lib/streaming-ui': {
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/session/session-state': sessionState,
+    '@/lib/streaming/streaming-ui': {
       createStreamingTextScheduler: () => scheduler,
       createToolUpdateScheduler: () => scheduler,
       createTypewriterDisplay: () => scheduler,
     },
-    './chat-api': { chatApi: api },
+    '@/features/chat/api/chat-api': { chatApi: api },
     './chat-errors': {
       chatErrorMessage: (error) => error.message,
       isEndedSessionQueueError: () => false,
@@ -72,6 +72,10 @@ function fixture(api = {}, initial = {}) {
     './run-activity': { settleToolCalls: (tools) => tools, pushCurrentActivity: (items) => items },
     './stream-event-dispatch': { createStreamEventDispatcher },
   }
+  // @/ 别名映射：在对象定义完成后赋值。
+  modules['@/features/chat/model/chat-errors'] = modules['./chat-errors']
+  modules['@/features/chat/model/run-activity'] = modules['./run-activity']
+  modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
   runInNewContext(promptCode, {
     module,
     exports: module.exports,
@@ -425,14 +429,20 @@ test('a new local run clears its withdrawal records but suppresses late prior-ru
   assert.deepEqual(f.state.queuedInputs, [])
 })
 
-const composerCode = transformSync(await readFile('src/features/chat/composer-drafts.ts', 'utf8'), {
-  loader: 'ts',
-  format: 'cjs',
-}).code
-const attachmentsCode = transformSync(await readFile('src/features/chat/attachments.ts', 'utf8'), {
-  loader: 'ts',
-  format: 'cjs',
-}).code
+const composerCode = transformSync(
+  await readFile('src/features/chat/model/composer-drafts.ts', 'utf8'),
+  {
+    loader: 'ts',
+    format: 'cjs',
+  },
+).code
+const attachmentsCode = transformSync(
+  await readFile('src/features/chat/model/attachments.ts', 'utf8'),
+  {
+    loader: 'ts',
+    format: 'cjs',
+  },
+).code
 
 // 保留真实草稿和附件 hook，仅用确定性的 React hook 调度模拟切换、卸载与迟到回调。
 function composerFixture() {
@@ -473,7 +483,7 @@ function composerFixture() {
   }
   const modules = {
     react,
-    '@/app/i18n.ts': { storedLanguage: () => 'en-US', translateText: (key) => key },
+    '@/app/i18n/i18n': { storedLanguage: () => 'en-US', translateText: (key) => key },
   }
   function load(code) {
     const module = { exports: {} }
@@ -488,6 +498,18 @@ function composerFixture() {
     return module.exports
   }
   modules['./attachments'] = load(attachmentsCode)
+  // @/ 别名映射：编译后的模块使用 @/ 路径 require。
+  modules['@/features/chat/model/attachments'] = modules['./attachments']
+  modules['@/features/chat/model/chat-errors'] = {
+    chatErrorMessage: (e) => e?.message || String(e),
+  }
+  if (modules['./run-activity'])
+    modules['@/features/chat/model/run-activity'] = modules['./run-activity']
+  if (modules['./stream-event-dispatch'])
+    modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
+  if (modules['./side-chat-api'])
+    modules['@/features/chat/model/side-chat-api'] = modules['./side-chat-api']
+  if (modules['./events']) modules['@/features/chat/model/events'] = modules['./events']
   const composer = load(composerCode)
   return {
     ...composer,

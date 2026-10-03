@@ -4,7 +4,7 @@ import {
   createStreamingTextScheduler,
   createToolUpdateScheduler,
   createTypewriterDisplay,
-} from '../../src/lib/streaming-ui.ts'
+} from '../../src/lib/streaming/streaming-ui.ts'
 
 test('streaming text scheduler coalesces rapid updates into one flush', async () => {
   const frames = []

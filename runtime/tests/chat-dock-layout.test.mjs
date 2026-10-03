@@ -12,7 +12,7 @@ import {
   parseSessionOpenRequest,
   sessionIdFromPanel,
   sessionIdsFromDockLayout,
-} from '../../src/features/chat/dock-layout.ts'
+} from '../../src/features/chat/model/dock-layout.ts'
 
 test('session panel ids round-trip through dock panel metadata', () => {
   assert.equal(panelIdForSession('alpha'), 'session:alpha')
@@ -100,15 +100,15 @@ test('session open requests accept horizontal and vertical dispositions', () => 
 
 test('single-session UI hides split entry points while preserving session management', async () => {
   const [dock, focus, dockHook, history, page, catalog, app, header, actions] = await Promise.all([
-    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
-    readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/features/chat/components/ChatDock.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-chat-dock.ts', 'utf8'),
+    readFile('src/features/chat/pages/ChatHistoryPage.tsx', 'utf8'),
+    readFile('src/features/chat/pages/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
-    readFile('src/features/chat/SessionActionsMenu.tsx', 'utf8'),
+    readFile('src/features/chat/components/session/SessionActionsMenu.tsx', 'utf8'),
   ])
   assert.match(dock, /splitDockPanel\(panelId, 'above'\)/)
   assert.match(dock, /splitDockPanel\(panelId, 'below'\)/)
@@ -171,8 +171,8 @@ test('移动 WebView 在 API 握手前也稳定识别为移动客户端', async 
 
 test('移动端前台恢复会先校准本机 Runtime，再保留瞬时空目录', async () => {
   const [page, catalog, shell] = await Promise.all([
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+    readFile('src/features/chat/pages/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
   ])
   assert.match(page, /await waitForMobileRuntimeReady\(\)/)
@@ -188,7 +188,7 @@ test('移动端前台恢复会先校准本机 Runtime，再保留瞬时空目录
 })
 
 test('dock layout persistence flushes before suspension through the Runtime queue', async () => {
-  const dockHook = await readFile('src/features/chat/use-chat-dock.ts', 'utf8')
+  const dockHook = await readFile('src/features/chat/hooks/use-chat-dock.ts', 'utf8')
   assert.match(dockHook, /const persistDockLayout = useCallback/)
   assert.match(dockHook, /apiJson<unknown>\('\/api\/settings\/chat-dock-layout'\)/)
   assert.match(dockHook, /pendingLayoutWriteRef\.current = serialized/)

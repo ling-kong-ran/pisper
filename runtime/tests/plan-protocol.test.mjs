@@ -8,7 +8,7 @@ import {
   isPlanWriteTool,
   planFromPayload,
   planFromPayloadOr,
-} from '../../src/lib/plan-protocol.ts'
+} from '../../src/lib/session/plan-protocol.ts'
 
 test('plan protocol prefers canonical fields and preserves explicit clears', () => {
   const canonical = { items: [{ id: 'new' }] }

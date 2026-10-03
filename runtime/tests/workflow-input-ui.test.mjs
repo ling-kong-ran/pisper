@@ -5,16 +5,16 @@ import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import * as inputContract from '../../shared/workflow-inputs.mjs'
-import * as graph from '../../shared/workflow-graph.mjs'
-import * as imageNodes from '../../shared/workflow-image-nodes.mjs'
+import * as inputContract from '../../shared/workflow/workflow-inputs.mjs'
+import * as graph from '../../shared/workflow/workflow-graph.mjs'
+import * as imageNodes from '../../shared/workflow/workflow-image-nodes.mjs'
 
 const paths = [
-  'workflow-templates.ts',
-  'workflow-inputs.ts',
-  'WorkflowContentField.tsx',
-  'WorkflowRunDialog.tsx',
-  'useWorkflowEditor.ts',
+  'model/workflow-templates.ts',
+  'model/workflow-inputs.ts',
+  'components/WorkflowContentField.tsx',
+  'components/WorkflowRunDialog.tsx',
+  'hooks/useWorkflowEditor.ts',
 ]
 const code = new Map(
   await Promise.all(
@@ -33,7 +33,25 @@ const iconModules = new Proxy({}, { get: (_target, name) => name })
 const jsx = (type, props) => ({ type, props })
 
 function load(path, modules = {}, globals = {}) {
+  // 自动为 @/features/workflows 路径提供 ./ 模块的别名。
+  for (const [key, value] of Object.entries(modules)) {
+    if (key.startsWith('./')) {
+      const name = key.slice(2)
+      const aliasKey = `@/features/workflows/api/${name}`
+      if (!(aliasKey in modules)) modules[aliasKey] = value
+      const modelAlias = `@/features/workflows/model/${name}`
+      if (!(modelAlias in modules)) modules[modelAlias] = value
+      const componentAlias = `@/features/workflows/components/${name.replace('.ts', '.tsx').replace('.tsx', '.tsx')}`
+      if (!(componentAlias in modules)) modules[componentAlias] = value
+    }
+  }
   const module = { exports: {} }
+  Object.assign(modules, {
+    '@/features/workflows/api/workflow-media-api': modules['./workflow-media-api'],
+    '@/features/workflows/components/WorkflowContentField': modules['./WorkflowContentField'],
+    '@/features/workflows/api/workflow-image-api': modules['./workflow-image-api'],
+    '@/features/workflows/hooks/useWorkflowCatalog': modules['./useWorkflowCatalog'],
+  })
   runInNewContext(code.get(path), {
     module,
     exports: module.exports,
@@ -46,10 +64,10 @@ function load(path, modules = {}, globals = {}) {
       if (name in modules) return modules[name]
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx }
       if (name === 'lucide-react') return iconModules
-      if (name === '@/app/use-i18n') return { useI18n: () => ({ t }) }
-      if (name === '@shared/workflow-inputs.mjs') return inputContract
-      if (name === '@shared/workflow-graph.mjs') return graph
-      if (name === '@shared/workflow-image-nodes.mjs') return imageNodes
+      if (name === '@/app/i18n/use-i18n') return { useI18n: () => ({ t }) }
+      if (name === '@shared/workflow/workflow-inputs.mjs') return inputContract
+      if (name === '@shared/workflow/workflow-graph.mjs') return graph
+      if (name === '@shared/workflow/workflow-image-nodes.mjs') return imageNodes
       throw new Error(`Unexpected test dependency ${name}`)
     },
     ...globals,
@@ -57,8 +75,8 @@ function load(path, modules = {}, globals = {}) {
   return module.exports
 }
 
-const templates = load('workflow-templates.ts')
-const inputs = load('workflow-inputs.ts')
+const templates = load('model/workflow-templates.ts')
+const inputs = load('model/workflow-inputs.ts')
 code.set(
   'ContentInput',
   transformSync(await readFile('src/components/app/ContentInput.tsx', 'utf8'), {
@@ -265,8 +283,11 @@ function contentFixture(context) {
   const requests = [],
     changes = [],
     busy = []
-  const component = load('WorkflowContentField.tsx', {
+  const component = load('components/WorkflowContentField.tsx', {
     react: runtime.react,
+    'lucide-react': { LoaderCircle: 'LoaderCircle' },
+    '@shared/workflow/workflow-inputs.mjs': inputContract,
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
     '@/components/app/ContentInput': { ContentInput: 'ContentInput' },
     './workflow-media-api': {
       workflowMediaApi: {
@@ -363,7 +384,7 @@ test('run submission cannot overtake upload status or duplicate within one rende
       'Switch',
     ].map((name) => [name, name]),
   )
-  const component = load('WorkflowRunDialog.tsx', {
+  const component = load('components/WorkflowRunDialog.tsx', {
     react: runtime.react,
     ...Object.fromEntries(
       ['button', 'dialog', 'input', 'label', 'switch'].map((name) => [
@@ -372,8 +393,8 @@ test('run submission cannot overtake upload status or duplicate within one rende
       ]),
     ),
     './WorkflowContentField': { WorkflowContentField: 'WorkflowContentField' },
-    './workflow-inputs': inputs,
-    './workflow-templates': templates,
+    '@/features/workflows/model/workflow-inputs': inputs,
+    '@/features/workflows/model/workflow-templates': templates,
     './workflow-image-api': {
       workflowImageApi: {
         runNode() {
@@ -424,19 +445,19 @@ function editorFixture(context) {
   const requests = [],
     notices = []
   const component = load(
-    'useWorkflowEditor.ts',
+    'hooks/useWorkflowEditor.ts',
     {
       react: runtime.react,
-      '@/lib/api': {
+      '@/lib/http/api': {
         apiJson(path, options = {}) {
           const pending = deferred()
           requests.push({ ...pending, path, options })
           return pending.promise
         },
       },
-      '@/lib/browser-notifications': { getBrowserNotificationPermission: () => 'denied' },
+      '@/lib/platform/browser-notifications': { getBrowserNotificationPermission: () => 'denied' },
       './useWorkflowCatalog': { EMPTY_WORKFLOWS_DATA: emptyCatalog, workflowErrorMessage: String },
-      './workflow-inputs': inputs,
+      '@/features/workflows/model/workflow-inputs': inputs,
       './workflow-image-api': {
         workflowImageApi: {
           runNode() {
@@ -444,7 +465,7 @@ function editorFixture(context) {
           },
         },
       },
-      './workflow-templates': templates,
+      '@/features/workflows/model/workflow-templates': templates,
     },
     { window: { addEventListener() {}, removeEventListener() {}, setInterval, clearInterval } },
   ).useWorkflowEditor

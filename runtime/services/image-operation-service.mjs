@@ -1,22 +1,22 @@
 import { constants } from 'node:fs'
 import { lstat, mkdir, mkdtemp, open, realpath, rm, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { assertRasterBounds, readRasterDimensions } from '../../shared/raster-image.mjs'
-import { parseWorkflowMedia } from '../../shared/workflow-inputs.mjs'
+import { assertRasterBounds, readRasterDimensions } from '../../shared/image/raster-image.mjs'
+import { parseWorkflowMedia } from '../../shared/workflow/workflow-inputs.mjs'
 import {
   normalizeImageSettings,
   parseImageOutput,
   imageOperationError,
-} from '../../shared/image-operations.mjs'
+} from '../../shared/image/image-operations.mjs'
 import {
   buildActionSheetPrompt,
   suggestActionSheetGrid,
 } from '../../shared/vendor/framebaker/action-prompts.mjs'
 
-/** @typedef {import('../../shared/workflow-inputs.mjs').WorkflowMedia} Media */
-/** @typedef {import('../../shared/image-operations.mjs').ImageFrame} Frame */
-/** @typedef {import('../../shared/image-operations.mjs').ImageOutput} Output */
-/** @typedef {import('../../shared/image-operations.mjs').ImageSettings} Settings */
+/** @typedef {import('../../shared/workflow/workflow-inputs.mjs').WorkflowMedia} Media */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageFrame} Frame */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageOutput} Output */
+/** @typedef {import('../../shared/image/image-operations.mjs').ImageSettings} Settings */
 /** @typedef {Omit<Frame, 'media'> & {buffer: Uint8Array, mimeType: string}} Pixels */
 /** @typedef {{frames: Pixels[], atlas?: {buffer: Uint8Array, width: number, height: number, frames: NonNullable<Output['atlas']>['frames']}}} Processed */
 /** @typedef {{process(input:{operation:'background'|'frames'|'transform'|'export'|'inpaint'|'edit',edits?:unknown,frames:Pixels[],settings:Settings},options:{signal:AbortSignal}):Promise<Processed>,suggestBackground(input:{buffer:Uint8Array,mimeType:string},options:{signal:AbortSignal}):Promise<string>}} Processor */
@@ -153,7 +153,7 @@ function actionPhase(action, index, count) {
   return phases[Math.floor((index * phases.length) / count)] || `motion phase ${index + 1}/${count}`
 }
 
-/** @param {Settings} settings @param {import('../../shared/image-operations.mjs').ImageDirection} direction @param {string} prompt @param {string} background */
+/** @param {Settings} settings @param {import('../../shared/image/image-operations.mjs').ImageDirection} direction @param {string} prompt @param {string} background */
 function sheetPrompt(settings, direction, prompt, background) {
   const { cols, rows } = suggestActionSheetGrid(settings.frameCount)
   return buildActionSheetPrompt({

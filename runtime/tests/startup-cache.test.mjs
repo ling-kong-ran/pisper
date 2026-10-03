@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import { QueryObserver } from '@tanstack/react-query'
-import { chatApi } from '../../src/features/chat/chat-api.ts'
+import { chatApi } from '../../src/features/chat/api/chat-api.ts'
 import {
   fetchStartupQuery,
   installStartupQueryEvents,
   invalidateStartupQuery,
   queryClient,
   startupQueryOptions,
-} from '../../src/lib/startup-queries.ts'
-import { markStartupPhase } from '../../src/lib/startup-diagnostics.ts'
+} from '../../src/lib/startup/startup-queries.ts'
+import { markStartupPhase } from '../../src/lib/startup/startup-diagnostics.ts'
 import { useClientStore } from '../../src/stores/client-store.ts'
 import { useRuntimeCapabilitiesStore } from '../../src/stores/runtime-capabilities-store.ts'
 

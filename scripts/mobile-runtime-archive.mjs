@@ -28,7 +28,7 @@ export async function createMobileRuntimeArchive({
 }) {
   if (!appVersion || !['mobile-embedded', 'mobile-store'].includes(runtimeProfile))
     throw new Error('Invalid mobile Runtime App version or profile')
-  const entry = 'runtime/mobile-embedded.mjs'
+  const entry = 'runtime/services/mobile-embedded.mjs'
   const fingerprint = async (path) => {
     const contents = await readFile(join(runtimeDir, path))
     if (!contents.length) throw new Error(`Empty mobile Runtime entry: ${path}`)

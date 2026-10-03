@@ -148,7 +148,7 @@ test('desktop and TUI launch independently installed signed components with bund
     readFile('src-tui/src/sidecar.rs', 'utf8'),
     readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
-    readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/UpdateSettings.tsx', 'utf8'),
   ])
 
   assert.match(updater, /component signature verification failed/)
@@ -187,8 +187,11 @@ test('release paths select one or every affected component without coupling docu
   assert.deepEqual(releaseComponentsForPath('scripts/smoke-mobile-runtime.mjs'), [])
   assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])
   assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['runtime'])
-  assert.deepEqual(releaseComponentsForPath('src/features/chat/ChatPage.tsx'), ['desktop'])
-  assert.deepEqual(releaseComponentsForPath('shared/workflow-graph.mjs'), ['desktop', 'runtime'])
+  assert.deepEqual(releaseComponentsForPath('src/features/chat/pages/ChatPage.tsx'), ['desktop'])
+  assert.deepEqual(releaseComponentsForPath('shared/workflow/workflow-graph.mjs'), [
+    'desktop',
+    'runtime',
+  ])
   assert.deepEqual(releaseComponentsForPath('crates/component-updater/src/lib.rs'), [
     'desktop',
     'tui',

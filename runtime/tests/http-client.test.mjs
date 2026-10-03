@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { apiJson, consumeEventStream } from '../../src/lib/api.ts'
-import { invalidResponseError } from '../../src/lib/http-response.ts'
+import { apiJson, consumeEventStream } from '../../src/lib/http/api.ts'
+import { invalidResponseError } from '../../src/lib/http/http-response.ts'
 import {
   ApiError,
   DEFAULT_HTTP_TIMEOUT_MS,
   requestBlob,
   requestJson,
   requestText,
-} from '../../src/lib/http.ts'
+} from '../../src/lib/http/http.ts'
 
 async function withFetch(fetchImplementation, callback) {
   const originalFetch = globalThis.fetch
@@ -157,7 +157,7 @@ test('mobile API timeout and cancellation also bound a stalled native readiness 
   }
   globalThis.document = { visibilityState: 'hidden', addEventListener() {} }
   try {
-    const recovery = await import('../../src/lib/mobile-runtime-recovery.ts')
+    const recovery = await import('../../src/lib/mobile/mobile-runtime-recovery.ts')
     recovery.installMobileRuntimeForegroundRecovery()
     await withFetch(
       async (url) => {

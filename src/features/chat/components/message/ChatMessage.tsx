@@ -1,0 +1,924 @@
+// 单条聊天消息：Markdown 渲染 + 消息操作（复制/下载/删除/跳转），
+// 长代码自动展开，附件与工具调用内嵌展示。
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  File,
+  FileDiff,
+  FolderOpen,
+  GitFork,
+  MessageSquarePlus,
+  LoaderCircle,
+  RotateCcw,
+  Tag,
+  Trash2,
+  Undo2,
+  X,
+} from 'lucide-react'
+import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/routes/route-context'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { BrandLogo } from '@/components/common/BrandLogo'
+import MarkdownMessage from '@/components/common/MarkdownMessage'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import {
+  LocalPathRevealError,
+  requestLocalPathReveal,
+  revealPathThroughRuntime,
+} from '@/lib/platform/local-path-reveal'
+import type { ChatAttachment, ChatMessage } from '@/types/chat'
+import AgentRunActivity, {
+  type AgentRunActivityProps,
+} from '@/features/chat/components/message/AgentRunActivity'
+import { chatErrorMessage } from '@/features/chat/model/chat-errors'
+import { ChatRequestNotice } from '@/features/chat/components/ChatRequestNotice'
+import { chatApi } from '@/features/chat/api/chat-api'
+import { GitDiffDialog } from '@/features/chat/components/files/GitDiffViewer'
+import { FileAttachmentPreview } from '@/features/chat/components/files/FileAttachmentPreview'
+import { Message as AiMessage } from '@/components/ai-elements/message-shell'
+
+type PreviewImage = { attachment: ChatAttachment; source: string; attachmentIndex: number }
+type ImagePreview = { images: PreviewImage[]; index: number }
+type RunProps = AgentRunActivityProps
+
+function ImageLightbox({
+  images,
+  index,
+  onClose,
+  onNavigate,
+}: ImagePreview & { onClose: () => void; onNavigate: (index: number) => void }) {
+  const { t } = useI18n()
+  const touchStartX = useRef<number | null>(null)
+  const image = images[index]
+  const hasPrevious = index > 0
+  const hasNext = index < images.length - 1
+  const navigate = useCallback(
+    (nextIndex: number) => {
+      if (nextIndex >= 0 && nextIndex < images.length) onNavigate(nextIndex)
+    },
+    [images.length, onNavigate],
+  )
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+      else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        navigate(index - 1)
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        navigate(index + 1)
+      }
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [index, navigate, onClose])
+
+  if (!image) return null
+  return (
+    <div
+      className="image-lightbox [&_img]:h-full [&_img]:min-h-0 [&_img]:w-full [&_img]:object-contain fixed z-[100] inset-0 grid grid-rows-[auto_minmax(0,1fr)] gap-[12px] bg-[var(--lightbox-bg)] [padding:18px_72px_24px_24px] [backdrop-filter:blur(8px)] max-sm:[padding:12px_56px_16px_12px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('chat:chatMessage.fullScreenImagePreview')}
+    >
+      <div className="image-lightbox-toolbar flex min-w-0 items-center justify-between gap-[16px] text-[var(--on-ink)]">
+        <div className="flex min-w-0 items-center gap-[10px]">
+          <span
+            className="overflow-hidden text-[13px] font-[700] text-ellipsis whitespace-nowrap"
+            title={image.attachment.name}
+          >
+            {image.attachment.name || t('chat:chatMessage.generatedImage')}
+          </span>
+          {images.length > 1 && (
+            <span className="flex-none text-[12px] font-[600] text-[var(--on-ink)]/70">
+              {index + 1} / {images.length}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-none items-center gap-[8px]">
+          <Button
+            asChild
+            size="lg"
+            className="border border-[var(--lightbox-action-border)] bg-[var(--lightbox-action-bg)] text-[var(--lightbox-action-text)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)]"
+          >
+            <a
+              href={image.attachment.downloadUrl || image.source}
+              download={image.attachment.name || 'generated-image'}
+              aria-label={t('chat:chatMessage.downloadOriginal')}
+              title={t('chat:chatMessage.downloadOriginal')}
+            >
+              <Download size={14} />
+              <span className="max-sm:hidden">{t('chat:chatMessage.downloadOriginal')}</span>
+            </a>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className="size-11 bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)]"
+            aria-label={t('chat:chatMessage.closePreview')}
+            title={t('chat:chatMessage.closePreview')}
+            onClick={onClose}
+          >
+            <X size={20} />
+          </Button>
+        </div>
+      </div>
+      <div
+        className="relative flex min-h-0 items-center justify-center [touch-action:pan-y]"
+        onTouchStart={(event) => {
+          touchStartX.current = event.changedTouches[0]?.clientX ?? null
+        }}
+        onTouchEnd={(event) => {
+          const startX = touchStartX.current
+          touchStartX.current = null
+          const endX = event.changedTouches[0]?.clientX
+          if (startX === null || endX === undefined || Math.abs(endX - startX) < 48) return
+          navigate(index + (endX < startX ? 1 : -1))
+        }}
+        onTouchCancel={() => {
+          touchStartX.current = null
+        }}
+      >
+        {images.length > 1 && (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className="absolute left-0 z-10 size-11 rounded-full bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)] disabled:opacity-30"
+              aria-label={t('chat:chatMessage.previousImage')}
+              title={t('chat:chatMessage.previousImage')}
+              disabled={!hasPrevious}
+              onClick={() => navigate(index - 1)}
+            >
+              <ChevronLeft size={22} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className="absolute right-0 z-10 size-11 rounded-full bg-[var(--lightbox-control-bg)] text-[var(--on-ink)] shadow-[0_8px_24px_var(--lightbox-action-shadow)] hover:bg-[var(--lightbox-control-bg)] hover:text-[var(--on-ink)] disabled:opacity-30"
+              aria-label={t('chat:chatMessage.nextImage')}
+              title={t('chat:chatMessage.nextImage')}
+              disabled={!hasNext}
+              onClick={() => navigate(index + 1)}
+            >
+              <ChevronRight size={22} />
+            </Button>
+          </>
+        )}
+        <img
+          alt={image.attachment.name || t('chat:chatMessage.generatedImage')}
+          decoding="async"
+          src={image.source}
+        />
+      </div>
+    </div>
+  )
+}
+
+// 文件操作结果交给应用壳的统一 Toast 展示（与 MarkdownMessage 的 reveal 同一事件）。
+function emitFileNotice(message: string, tone: 'info' | 'error') {
+  window.dispatchEvent(new CustomEvent(LOCAL_REVEAL_NOTICE_EVENT, { detail: { message, tone } }))
+}
+
+function FileActionButton({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+export function MessageAttachments({
+  attachments,
+  compact = false,
+  sessionId,
+  sessionStreaming = false,
+}: {
+  attachments: ChatAttachment[]
+  compact?: boolean
+  // 改动和撤销依赖会话上下文；文件内容预览只依赖附件资产。
+  sessionId?: string
+  sessionStreaming?: boolean
+}) {
+  const { t } = useI18n()
+  const [preview, setPreview] = useState<ImagePreview | null>(null)
+  const [fileMenuFor, setFileMenuFor] = useState<string | null>(null)
+  const [filePreview, setFilePreview] = useState<ChatAttachment | null>(null)
+  const [loadingDiff, setLoadingDiff] = useState<string | null>(null)
+  const fileTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const [confirmingRevertFor, setConfirmingRevertFor] = useState<string | null>(null)
+  const [revertingFile, setRevertingFile] = useState<string | null>(null)
+  const [fileDiff, setFileDiff] = useState<{ diff: string; truncated: boolean } | null>(null)
+  const [diffInfo, setDiffInfo] = useState<
+    Record<string, { diff: string; truncated: boolean; canRevert?: boolean } | null>
+  >({})
+  const imagePreviews = attachments.flatMap<PreviewImage>((attachment, attachmentIndex) => {
+    const source =
+      attachment.url ||
+      (attachment.data ? `data:${attachment.mimeType};base64,${attachment.data}` : '')
+    return attachment.kind === 'image' && source ? [{ attachment, source, attachmentIndex }] : []
+  })
+
+  const revealInFileManager = async (path: string) => {
+    try {
+      await requestLocalPathReveal(path, revealPathThroughRuntime)
+      emitFileNotice(t('common:markdownMessage.revealLocalPathOk', { path }), 'info')
+    } catch (error: unknown) {
+      const message =
+        error instanceof LocalPathRevealError && error.reason === 'unavailable'
+          ? t('common:markdownMessage.revealLocalPathUnavailable')
+          : error instanceof LocalPathRevealError && error.reason === 'timeout'
+            ? t('common:markdownMessage.revealLocalPathTimeout')
+            : t('common:markdownMessage.revealLocalPathFailed', { path })
+      emitFileNotice(message, 'error')
+    }
+  }
+
+  // 菜单打开时探测快照撤销能力；内容预览和查看改动入口不依赖探测结果。
+  const checkFileDiff = async (key: string, path: string) => {
+    if (!sessionId) return
+    try {
+      const result = await chatApi.getFileDiff(sessionId, path)
+      setDiffInfo((current) => ({
+        ...current,
+        [key]: result.diff?.trim()
+          ? {
+              diff: result.diff,
+              truncated: Boolean(result.diffTruncated),
+              canRevert: Boolean(result.canRevert),
+            }
+          : null,
+      }))
+    } catch {
+      // 探测失败（如路径已不存在）同样隐藏按钮，不打扰用户。
+      setDiffInfo((current) => ({ ...current, [key]: null }))
+    }
+  }
+
+  // 快照撤销：先二次确认，避免新建文件被附件菜单中的一次点击直接删除。
+  const revertFileChange = async (key: string, path: string) => {
+    if (!sessionId || sessionStreaming || revertingFile) return
+    if (confirmingRevertFor !== key) {
+      setConfirmingRevertFor(key)
+      return
+    }
+    setConfirmingRevertFor(null)
+    setRevertingFile(key)
+    try {
+      await chatApi.revertSessionFileChanges(sessionId, path)
+      setDiffInfo((current) => ({ ...current, [key]: null }))
+      emitFileNotice(t('chat:chatMessage.fileActionRevertDone', { path }), 'info')
+    } catch (error: unknown) {
+      emitFileNotice(t('chat:chatMessage.fileActionRevertFailed', { path }), 'error')
+      console.error('[chat] 撤销文件改动失败。', error)
+    } finally {
+      setRevertingFile(null)
+    }
+  }
+
+  const openFileDiff = async (key: string, path: string) => {
+    if (!sessionId || loadingDiff) return
+    setLoadingDiff(key)
+    try {
+      const result = await chatApi.getFileDiff(sessionId, path)
+      if (result.diff?.trim()) {
+        setFileMenuFor(null)
+        setFileDiff({ diff: result.diff, truncated: Boolean(result.diffTruncated) })
+      } else {
+        emitFileNotice(t('chat:chatMessage.fileDiffEmpty'), 'info')
+      }
+    } catch (caught: unknown) {
+      emitFileNotice(
+        caught instanceof Error ? caught.message : t('chat:chatMessage.fileDiffFailed'),
+        'error',
+      )
+    } finally {
+      setLoadingDiff(null)
+    }
+  }
+
+  const downloadAttachment = (attachment: ChatAttachment) => {
+    if (!attachment.downloadUrl) return
+    const anchor = document.createElement('a')
+    anchor.href = attachment.downloadUrl
+    if (attachment.name) anchor.download = attachment.name
+    anchor.click()
+  }
+  return (
+    <>
+      <div
+        className={`message-attachments flex flex-wrap gap-[6px] [margin-top:6px] ${compact ? 'compact' : ''}`}
+      >
+        {attachments.map((attachment, index) => {
+          const key = String(attachment.id || index)
+          const source =
+            attachment.url ||
+            (attachment.data ? `data:${attachment.mimeType};base64,${attachment.data}` : '')
+          if (attachment.kind === 'image' && source)
+            return (
+              <button
+                type="button"
+                className="generated-media [.message-attachments_&]:flex [.message-attachments_&]:w-[min(360px,100%)] [.message-attachments_&]:flex-col [.message-attachments_&]:gap-[5px] [.message-attachments_&]:text-[var(--text-muted)] [.message-attachments_&]:no-underline [.message-attachments_button&]:border-0 [.message-attachments_button&]:bg-transparent [.message-attachments_button&]:p-0 [.message-attachments_button&]:text-left [.message-attachments_button&]:[cursor:zoom-in] [.message-attachments_&_img]:w-full [.message-attachments_&_img]:max-h-[320px] [.message-attachments_&_img]:[border:1px_solid_var(--stroke)] [.message-attachments_&_img]:rounded-[var(--r-sm)] [.message-attachments_&_img]:object-contain [.message-attachments_&_img]:bg-[var(--media-bg)] [.message-attachments_&_video]:w-full [.message-attachments_&_video]:max-h-[320px] [.message-attachments_&_video]:[border:1px_solid_var(--stroke)] [.message-attachments_&_video]:rounded-[var(--r-sm)] [.message-attachments_&_video]:object-contain [.message-attachments_&_video]:bg-[var(--media-bg)] [.message-attachments_&_small]:overflow-hidden [.message-attachments_&_small]:text-[13px] [.message-attachments_&_small]:text-ellipsis [.message-attachments_&_small]:whitespace-nowrap [.message-attachments.compact_&]:w-[min(190px,100%)] [.message-attachments.compact_&_img]:max-h-[130px] [.message-attachments.compact_&_video]:max-h-[130px]"
+                onClick={() => {
+                  const imageIndex = imagePreviews.findIndex(
+                    (item) => item.attachmentIndex === index,
+                  )
+                  if (imageIndex >= 0) setPreview({ images: imagePreviews, index: imageIndex })
+                }}
+                title={t('chat:chatMessage.openFullScreenPreview')}
+                key={key}
+              >
+                <img
+                  alt={attachment.name || t('chat:chatMessage.imageAttachment')}
+                  decoding="async"
+                  loading="lazy"
+                  src={source}
+                />
+                <small>{attachment.name || t('chat:chatMessage.generatedImage')}</small>
+              </button>
+            )
+          if (attachment.kind === 'video' && source)
+            return (
+              <div
+                className="generated-media [.message-attachments_&]:flex [.message-attachments_&]:w-[min(360px,100%)] [.message-attachments_&]:flex-col [.message-attachments_&]:gap-[5px] [.message-attachments_&]:text-[var(--text-muted)] [.message-attachments_&]:no-underline [.message-attachments_button&]:border-0 [.message-attachments_button&]:bg-transparent [.message-attachments_button&]:p-0 [.message-attachments_button&]:text-left [.message-attachments_button&]:[cursor:zoom-in] [.message-attachments_&_img]:w-full [.message-attachments_&_img]:max-h-[320px] [.message-attachments_&_img]:[border:1px_solid_var(--stroke)] [.message-attachments_&_img]:rounded-[var(--r-sm)] [.message-attachments_&_img]:object-contain [.message-attachments_&_img]:bg-[var(--media-bg)] [.message-attachments_&_video]:w-full [.message-attachments_&_video]:max-h-[320px] [.message-attachments_&_video]:[border:1px_solid_var(--stroke)] [.message-attachments_&_video]:rounded-[var(--r-sm)] [.message-attachments_&_video]:object-contain [.message-attachments_&_video]:bg-[var(--media-bg)] [.message-attachments_&_small]:overflow-hidden [.message-attachments_&_small]:text-[13px] [.message-attachments_&_small]:text-ellipsis [.message-attachments_&_small]:whitespace-nowrap [.message-attachments.compact_&]:w-[min(190px,100%)] [.message-attachments.compact_&_img]:max-h-[130px] [.message-attachments.compact_&_video]:max-h-[130px] video"
+                key={key}
+              >
+                <video controls preload="metadata" src={source} />
+                <small>{attachment.name || t('chat:chatMessage.generatedVideo')}</small>
+              </div>
+            )
+          if (attachment.kind !== 'link')
+            return (
+              <Popover
+                key={key}
+                open={fileMenuFor === key}
+                onOpenChange={(open) => {
+                  setFileMenuFor(open ? key : null)
+                  if (open && attachment.path && sessionId)
+                    void checkFileDiff(key, String(attachment.path))
+                  else setConfirmingRevertFor(null)
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      fileTriggerRef.current = event.currentTarget
+                    }}
+                    className="inline-flex max-w-full min-w-0 items-center gap-[5px] rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-[7px] py-[5px] text-[13px] text-[var(--text-tertiary)] cursor-pointer"
+                  >
+                    <File size={12} className="shrink-0" />
+                    <span className="truncate">
+                      {attachment.name || t('chat:chatMessage.fileAttachment')}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  sideOffset={6}
+                  className="flex w-[190px] max-w-[calc(100vw-2rem)] flex-col gap-[2px] p-[4px]"
+                >
+                  <FileActionButton
+                    icon={<Eye size={13} />}
+                    label={t('chat:chatMessage.fileActionPreview')}
+                    onClick={() => {
+                      setFileMenuFor(null)
+                      setFilePreview(attachment)
+                    }}
+                  />
+                  <FileActionButton
+                    icon={<Download size={13} />}
+                    label={t('chat:chatMessage.fileActionDownload')}
+                    disabled={!attachment.downloadUrl}
+                    onClick={() => downloadAttachment(attachment)}
+                  />
+                  {attachment.path && (
+                    <FileActionButton
+                      icon={<FolderOpen size={13} />}
+                      label={t('chat:chatMessage.fileActionReveal')}
+                      onClick={() => void revealInFileManager(String(attachment.path))}
+                    />
+                  )}
+                  {sessionId && attachment.path && (
+                    <FileActionButton
+                      icon={
+                        loadingDiff === key ? (
+                          <LoaderCircle size={13} className="animate-spin" />
+                        ) : (
+                          <FileDiff size={13} />
+                        )
+                      }
+                      label={t('chat:chatMessage.fileActionDiff')}
+                      disabled={Boolean(loadingDiff)}
+                      onClick={() => void openFileDiff(key, String(attachment.path))}
+                    />
+                  )}
+                  {diffInfo[String(key)]?.canRevert && (
+                    <FileActionButton
+                      icon={
+                        revertingFile === String(key) ? (
+                          <LoaderCircle className="animate-spin" size={13} />
+                        ) : (
+                          <Undo2 size={13} />
+                        )
+                      }
+                      label={
+                        confirmingRevertFor === String(key)
+                          ? t('chat:chatMessage.fileActionConfirmRevert')
+                          : t('chat:chatMessage.fileActionRevert')
+                      }
+                      disabled={Boolean(sessionStreaming || revertingFile)}
+                      onClick={() => void revertFileChange(String(key), String(attachment.path))}
+                    />
+                  )}
+                </PopoverContent>
+              </Popover>
+            )
+          return (
+            <a
+              className="inline-flex max-w-full min-w-0 items-center gap-[5px] rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-[7px] py-[5px] text-[13px] text-[var(--text-tertiary)] no-underline"
+              href={attachment.downloadUrl || undefined}
+              key={key}
+            >
+              <File size={12} className="shrink-0" />
+              <span className="truncate">
+                {attachment.name || t('chat:chatMessage.fileAttachment')}
+              </span>
+            </a>
+          )
+        })}
+      </div>
+      {preview &&
+        createPortal(
+          <ImageLightbox
+            images={preview.images}
+            index={preview.index}
+            onClose={() => setPreview(null)}
+            onNavigate={(index) =>
+              setPreview((current) => (current ? { ...current, index } : current))
+            }
+          />,
+          document.body,
+        )}
+      {filePreview && (
+        <FileAttachmentPreview
+          attachment={filePreview}
+          onClose={() => setFilePreview(null)}
+          onRestoreFocus={() => fileTriggerRef.current?.focus()}
+          onDownload={() => downloadAttachment(filePreview)}
+        />
+      )}
+      {fileDiff && (
+        <GitDiffDialog
+          diff={fileDiff.diff}
+          truncated={fileDiff.truncated}
+          onClose={() => setFileDiff(null)}
+        />
+      )}
+    </>
+  )
+}
+
+function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: string }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [label, setLabel] = useState('')
+  const [savedLabel, setSavedLabel] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    setLoading(true)
+    setError('')
+    void chatApi
+      .getSessionTree(sessionId)
+      .then((tree) => {
+        if (!active) return
+        const currentLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
+        setLabel(currentLabel)
+        setSavedLabel(currentLabel)
+      })
+      .catch((reason) => active && setError(chatErrorMessage(reason)))
+      .finally(() => active && setLoading(false))
+    return () => {
+      active = false
+    }
+  }, [entryId, open, sessionId])
+
+  // 保存条目标签：写入运行时并回显新标签，成功后关闭编辑；防重入。
+  const save = async () => {
+    if (saving || loading) return
+    setSaving(true)
+    setError('')
+    try {
+      const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, label)
+      const nextLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
+      setLabel(nextLabel)
+      setSavedLabel(nextLabel)
+      setOpen(false)
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 移除条目标签：置空标签并同步回显；防重入。
+  const remove = async () => {
+    if (saving || loading) return
+    setSaving(true)
+    setError('')
+    try {
+      const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, '')
+      const nextLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
+      setLabel(nextLabel)
+      setSavedLabel(nextLabel)
+      setOpen(false)
+    } catch (reason) {
+      setError(chatErrorMessage(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={savedLabel ? 'bg-surface-hover text-brand' : undefined}
+              aria-label={t('chat:chatMessage.labelThisTurn')}
+              data-pisper-label-entry={entryId}
+            >
+              <Tag size={14} />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6}>
+          {t('chat:chatMessage.labelThisTurn')}
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="message-label-popover [&_form]:grid [&_form]:gap-[10px] [&_[data-slot='popover-title']]:text-[12px]"
+        align="end"
+        sideOffset={6}
+      >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+        >
+          <PopoverTitle>{t('chat:sessionTree.nodeLabel')}</PopoverTitle>
+          <Input
+            autoFocus
+            value={label}
+            maxLength={80}
+            disabled={loading || saving}
+            placeholder={t('chat:sessionTree.labelPlaceholder')}
+            onChange={(event) => setLabel(event.target.value)}
+          />
+          {error && <small className="danger-text">{error}</small>}
+          <div className="message-label-actions flex items-center justify-between gap-[8px]">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              title={t('chat:sessionTree.removeLabel')}
+              aria-label={t('chat:sessionTree.removeLabel')}
+              disabled={loading || saving}
+              onClick={() => void remove()}
+            >
+              <Trash2 />
+            </Button>
+            <Button
+              className="message-label-save [.message-label-actions_&]:min-w-[104px] [.message-label-actions_&]:text-[var(--primary-foreground)]"
+              type="submit"
+              disabled={loading || saving}
+            >
+              {saving ? <LoaderCircle className="animate-spin" /> : <Check />}
+              {saving ? t('chat:sessionTree.savingLabel') : t('chat:sessionTree.saveLabel')}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+type FocusChatMessageProps = {
+  sessionId: string
+  message: ChatMessage
+  agentState: string
+  showRunActivity: boolean
+  runProps: RunProps | null
+  /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
+  cwd?: string
+  sessionStreaming?: boolean
+  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
+  /** 最近一条前置用户消息 ID：存在时最新助手消息上展示重试按钮。 */
+  retryUserMessageId?: string
+  hideErrorNotice?: boolean
+  onRetryLastTurn: () => Promise<void> | void
+}
+
+function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
+  return (
+    prev.sessionId === next.sessionId &&
+    prev.message === next.message &&
+    prev.agentState === next.agentState &&
+    prev.showRunActivity === next.showRunActivity &&
+    prev.runProps === next.runProps &&
+    prev.cwd === next.cwd &&
+    prev.sessionStreaming === next.sessionStreaming &&
+    prev.onBranchFromHere === next.onBranchFromHere &&
+    prev.onCreateChildSession === next.onCreateChildSession &&
+    prev.retryUserMessageId === next.retryUserMessageId &&
+    prev.hideErrorNotice === next.hideErrorNotice &&
+    prev.onRetryLastTurn === next.onRetryLastTurn
+  )
+}
+
+export const FocusChatMessage = memo(function FocusChatMessage({
+  sessionId,
+  message,
+  agentState,
+  showRunActivity,
+  runProps,
+  cwd,
+  sessionStreaming,
+  onBranchFromHere,
+  onCreateChildSession,
+  retryUserMessageId,
+  hideErrorNotice,
+  onRetryLastTurn,
+}: FocusChatMessageProps) {
+  const { t } = useI18n()
+  const [branching, setBranching] = useState(false)
+  const [creatingChild, setCreatingChild] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const streaming = Boolean(message.streaming)
+  const fullText = message.text || ''
+  // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
+  const displayText = message.error && fullText === message.error ? '' : fullText
+  // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——否则首轮事件
+  // 空窗期活动区渲染空壳，三点动画永远不会出现。
+  const hasVisibleRunActivity = Boolean(
+    runProps &&
+    (String(runProps.thinkingText || '').trim() ||
+      (runProps.activityFeed?.length ?? 0) > 0 ||
+      (runProps.tools?.length ?? 0) > 0 ||
+      runProps.team),
+  )
+
+  return (
+    <AiMessage
+      from={message.role === 'agent' ? 'assistant' : 'user'}
+      className={cn(
+        'message mx-auto mb-[var(--chat-message-gap,32px)] w-full max-w-[var(--chat-content-width,1040px)] min-w-0 gap-0',
+        message.role === 'agent'
+          ? 'items-stretch'
+          : "items-end [[data-chat-message-style='plain']_&]:items-start",
+        message.role,
+      )}
+      data-pisper-message-id={message.id}
+      data-pisper-role={message.role}
+      data-pisper-streaming={streaming || undefined}
+      data-pisper-error={message.error ? 'true' : undefined}
+    >
+      {message.role === 'agent' && (
+        <span className="mb-3 flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
+          <span
+            className="agent-message-mark grid size-[22px] place-items-center"
+            data-state={agentState}
+            aria-hidden="true"
+          >
+            <BrandLogo size={20} />
+          </span>
+          Pisper
+        </span>
+      )}
+      <div
+        className={cn(
+          'message-content relative min-w-0',
+          message.role === 'agent'
+            ? 'w-full'
+            : "w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%] [[data-chat-message-style='plain']_&]:w-full [[data-chat-message-style='plain']_&]:max-w-full",
+        )}
+      >
+        {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
+        {streaming && !displayText && !hasVisibleRunActivity && (
+          // 首轮 SSE 事件到达前的空窗：只有头像会显得卡住，用三点动画表明正在工作。
+          <div
+            className="agent-thinking-dots [&_i]:w-[4px] [&_i]:h-[4px] [&_i]:rounded-[50%] [&_i]:bg-[var(--text-muted)] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-center gap-[3px] py-2"
+            aria-hidden="true"
+          >
+            <i />
+            <i />
+            <i />
+          </div>
+        )}
+        {displayText && (
+          <MarkdownMessage
+            cwd={cwd}
+            streaming={streaming}
+            className={cn(
+              'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
+              message.role === 'agent'
+                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.72] [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
+                : "rounded-[22px] border border-[var(--stroke-soft)] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.72] text-[var(--user-bubble-text)] shadow-none [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
+            )}
+          >
+            {displayText}
+          </MarkdownMessage>
+        )}
+        {message.attachments && message.attachments.length > 0 && (
+          <MessageAttachments
+            attachments={message.attachments}
+            sessionId={sessionId}
+            sessionStreaming={sessionStreaming}
+          />
+        )}
+      </div>
+      {message.error && !streaming && !hideErrorNotice && (
+        <ChatRequestNotice error={String(message.error)} className="mt-3" />
+      )}
+      {message.role === 'agent' &&
+        !streaming &&
+        (message.turnBoundaryEntryId || retryUserMessageId) && (
+          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+            {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
+              <>
+                <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('chat:chatMessage.deriveFromHere')}
+                      data-pisper-derive-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild || sessionStreaming}
+                      onClick={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId) return
+                        setBranching(true)
+                        try {
+                          await onBranchFromHere(boundaryEntryId)
+                        } finally {
+                          setBranching(false)
+                        }
+                      }}
+                    >
+                      {branching ? (
+                        <LoaderCircle className="animate-spin" size={14} />
+                      ) : (
+                        <GitFork size={14} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    {t('chat:chatMessage.deriveFromHere')}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('chat:chatMessage.createChildChat')}
+                      data-pisper-child-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild}
+                      onClick={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId) return
+                        setCreatingChild(true)
+                        try {
+                          await onCreateChildSession(boundaryEntryId)
+                        } finally {
+                          setCreatingChild(false)
+                        }
+                      }}
+                    >
+                      {creatingChild ? (
+                        <LoaderCircle className="animate-spin" size={14} />
+                      ) : (
+                        <MessageSquarePlus size={14} />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    {t('chat:chatMessage.createChildChat')}
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            )}
+            {retryUserMessageId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('chat:chatMessage.retry')}
+                    data-pisper-retry-message={retryUserMessageId}
+                    disabled={retrying || sessionStreaming}
+                    onClick={async () => {
+                      setRetrying(true)
+                      try {
+                        await onRetryLastTurn()
+                      } finally {
+                        setRetrying(false)
+                      }
+                    }}
+                  >
+                    {retrying ? (
+                      <LoaderCircle className="animate-spin" size={14} />
+                    ) : (
+                      <RotateCcw size={14} />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>
+                  {t('chat:chatMessage.retry')}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
+    </AiMessage>
+  )
+}, focusPropsEqual)
+
+type MiniChatMessageProps = { message: ChatMessage }
+
+function miniPropsEqual(prev: MiniChatMessageProps, next: MiniChatMessageProps) {
+  return prev.message === next.message
+}
+
+export const MiniChatMessage = memo(function MiniChatMessage({ message }: MiniChatMessageProps) {
+  return (
+    <AiMessage
+      from={message.role === 'agent' ? 'assistant' : 'user'}
+      className={`[&_>_span]:pt-[5px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_span]:text-[13px] [&_>_span]:font-[600] [&_>_span]:[text-transform:uppercase] [&.agent_>_span::before]:[content:'✦'] [&.agent_>_span::before]:mr-[4px] [&.agent_>_span::before]:text-[var(--star)] [&_.markdown-body]:rounded-[var(--r-xs)] [&_.markdown-body]:bg-[var(--surface-subtle)] [&_.markdown-body]:[padding:6px_8px] [&_.markdown-body]:text-[13px] [&_.markdown-body]:leading-[1.45] [&_.markdown-body]:[overflow-wrap:anywhere] [&.agent_.markdown-body]:bg-[var(--accent-soft)] [&_.markdown-body_pre]:max-h-[130px] [&_.markdown-body_pre]:[padding:7px] grid grid-cols-[34px_minmax(0,1fr)] gap-[6px] [margin-bottom:6px] [align-items:start] ${message.role}`}
+      data-pisper-message-id={message.id}
+      data-pisper-role={message.role}
+      data-pisper-streaming={message.streaming || undefined}
+    >
+      <span>{message.role === 'agent' ? 'Pisper' : 'You'}</span>
+      <div className="min-w-0">
+        {(message.text || !message.streaming) && (
+          <MarkdownMessage streaming={message.streaming}>{message.text}</MarkdownMessage>
+        )}
+        {message.attachments && message.attachments.length > 0 && (
+          <MessageAttachments attachments={message.attachments} compact />
+        )}
+      </div>
+    </AiMessage>
+  )
+}, miniPropsEqual)
+
+/** Stable empty run props for memoized messages that are not the active agent turn. */
+export const EMPTY_RUN_PROPS = null

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import AgentRunActivity from '../../src/features/chat/AgentRunActivity.tsx'
-import { translateText } from '../../src/app/i18n.ts'
+import AgentRunActivity from '../../src/features/chat/components/message/AgentRunActivity.tsx'
+import { translateText } from '../../src/app/i18n/i18n.ts'
 
 const t = (key, values) => translateText(key, 'zh-CN', values)
 const render = (props) => renderToStaticMarkup(React.createElement(AgentRunActivity, props))

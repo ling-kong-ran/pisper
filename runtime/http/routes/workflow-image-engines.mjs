@@ -1,5 +1,5 @@
 // 工作流图像节点的可选引擎资源。项目和运行状态由普通工作流持有。
-import { SpriteEngineError } from '../../../shared/sprite-engine-catalog.mjs'
+import { SpriteEngineError } from '../../../shared/game/sprite-engine-catalog.mjs'
 /** @typedef {{runtime:{spriteEngines:import('../../services/sprite-engine-service.mjs').SpriteEngineService},params:Record<string,string>,json:(status:number,value:unknown)=>void,res:import('node:http').ServerResponse}} EngineRouteContext */
 /** @param {EngineRouteContext} context @param {unknown} error */
 function respondError(context, error) {

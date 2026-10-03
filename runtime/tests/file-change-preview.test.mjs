@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { parseUnifiedDiff } from '../../src/features/chat/git-diff.ts'
+import { parseUnifiedDiff } from '../../src/features/chat/model/git-diff.ts'
 import { createFileChangePreview, sameFileChangeSource } from '../services/file-change-preview.mjs'
 import { stripBom } from '../runtime/pi-coding-agent.mjs'
 

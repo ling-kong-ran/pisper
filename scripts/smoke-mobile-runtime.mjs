@@ -30,7 +30,9 @@ export async function smokeMobileRuntime({ runtimeDir, runtimeProfile = 'mobile-
       { code: 'ENOENT' },
     )
     Object.assign(process.env, overrides)
-    const entry = pathToFileURL(join(resolve(runtimeDir), 'runtime/mobile-embedded.mjs')).href
+    const entry = pathToFileURL(
+      join(resolve(runtimeDir), 'runtime/services/mobile-embedded.mjs'),
+    ).href
     const { startEmbeddedRuntime } = await import(entry)
     app = await startEmbeddedRuntime({ startupObserver: null })
     const bootstrap = await fetch(

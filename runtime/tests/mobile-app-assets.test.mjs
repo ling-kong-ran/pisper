@@ -43,8 +43,8 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
     ['crates/tauri-plugin-dns-sd/src/lib.rs', ['desktop']],
     ['src/app/App.tsx', ['desktop']],
     ['runtime/index.mjs', ['runtime']],
-    ['runtime/mobile-embedded.mjs', ['runtime']],
-    ['shared/workflow-graph.mjs', ['desktop', 'runtime']],
+    ['runtime/services/mobile-embedded.mjs', ['runtime']],
+    ['shared/workflow/workflow-graph.mjs', ['desktop', 'runtime']],
     ['package-lock.json', ['desktop', 'runtime']],
     ['scripts/sea-runtime.mjs', ['desktop', 'runtime']],
   ]
@@ -138,8 +138,8 @@ test('iOS 工程重生成保留现有链接参数并幂等补齐原生依赖', (
 
 test('移动端删除配对使用应用确认框且运行按钮不能被窄屏压缩', async () => {
   const [page, settings] = await Promise.all([
-    readFile('src/features/config/ConfigPage.tsx', 'utf8'),
-    readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
+    readFile('src/features/config/pages/ConfigPage.tsx', 'utf8'),
+    readFile('src/features/config/components/mobile/MobileServerSettings.tsx', 'utf8'),
   ])
   assert.match(page, /<MobileServerSettings requestConfirm=\{requestConfirm\}/)
   assert.doesNotMatch(settings, /window\.confirm/)
@@ -188,9 +188,9 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
     readFile('public/mobile-startup.html', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
     readFile('runtime/http/static-handler.mjs', 'utf8'),
-    readFile('src/lib/mobile-runtime-recovery.ts', 'utf8'),
-    readFile('src/lib/http.ts', 'utf8'),
-    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('src/lib/mobile/mobile-runtime-recovery.ts', 'utf8'),
+    readFile('src/lib/http/http.ts', 'utf8'),
+    readFile('src/features/chat/api/chat-api.ts', 'utf8'),
     readFile('src-tauri/build.rs', 'utf8'),
     readFile('scripts/build-mobile-ios.mjs', 'utf8'),
   ])
@@ -319,7 +319,7 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
     await Promise.all([
       readFile('src/App.tsx', 'utf8'),
       readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
-      readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+      readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
       readFile('src/components/layout/MobileViewportStabilizer.tsx', 'utf8'),
       readFile('src/index.css', 'utf8'),
       readFile('index.html', 'utf8'),
@@ -461,9 +461,9 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
     readFile('src-tauri/mobile-device-plugin/android/build.gradle.kts', 'utf8'),
     readFile('src-tauri/mobile-device-plugin/android/consumer-rules.pro', 'utf8'),
     readFile('src-tauri/mobile/android/MainActivity.kt', 'utf8'),
-    readFile('src/features/chat/VoiceInputControl.tsx', 'utf8'),
-    readFile('src/features/chat/voice-input.ts', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/voice/VoiceInputControl.tsx', 'utf8'),
+    readFile('src/features/chat/model/voice-input.ts', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile('src-tauri/src/mobile/android_bridge.rs', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
@@ -478,7 +478,7 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
       'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/SpeechModelStore.kt',
       'utf8',
     ),
-    readFile('shared/speech-model-catalog.json', 'utf8').then(JSON.parse),
+    readFile('shared/speech/speech-model-catalog.json', 'utf8').then(JSON.parse),
   ])
   const permissionIndex = voiceControl.indexOf('await requestMicrophonePermission()')
   const captureIndex = voiceControl.indexOf('await startMicrophoneCapture')
@@ -641,7 +641,7 @@ test('Wry 媒体权限补丁精确替换一次并在模板漂移时失败', () =
 test('外部应用操作只使用用户可见的标准系统入口', async () => {
   const [tool, client, androidPlugin, iosPlugin, store] = await Promise.all([
     readFile('runtime/tools/app/mobile-device.mjs', 'utf8'),
-    readFile('src/features/chat/mobile-operations.ts', 'utf8'),
+    readFile('src/features/chat/model/mobile-operations.ts', 'utf8'),
     readFile(
       'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
       'utf8',
@@ -675,7 +675,7 @@ test('外部应用操作只使用用户可见的标准系统入口', async () =>
 test('受控移动设备协议在两端原生桥完整对齐', async () => {
   const [tool, client, rust, android, ios] = await Promise.all([
     readFile('runtime/tools/app/mobile-device.mjs', 'utf8'),
-    readFile('src/features/chat/mobile-operations.ts', 'utf8'),
+    readFile('src/features/chat/model/mobile-operations.ts', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile(
       'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/MobileDevicePlugin.kt',
@@ -717,8 +717,8 @@ test('移动设备操作通过当前会话 SSE 与原生桥闭环', async () => 
   const [routes, runtime, dispatcher, client, native, permissions] = await Promise.all([
     readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
-    readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/features/chat/mobile-operations.ts', 'utf8'),
+    readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
+    readFile('src/features/chat/model/mobile-operations.ts', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
   ])
@@ -844,8 +844,8 @@ test('移动端明确区分远程档案与当前 Runtime 路由', async () => {
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
     readFile('src-tauri/capabilities/mobile-bridge.json', 'utf8'),
     readFile('scripts/app-paths.mjs', 'utf8'),
-    readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
-    readFile('src/features/config/MobilePairingDialog.tsx', 'utf8'),
+    readFile('src/features/config/components/mobile/MobileServerSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/mobile/MobilePairingDialog.tsx', 'utf8'),
   ])
   assert.match(native, /mode: Option<String>/)
   assert.match(native, /store\.last_mode\(\)\.map\(str::to_string\)/)
@@ -893,8 +893,8 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
     readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('package.json', 'utf8'),
     readFile('src-tauri/src/mobile/mod.rs', 'utf8'),
-    readFile('src/features/config/MobilePairingDialog.tsx', 'utf8'),
-    readFile('src/features/config/RemoteAccessSettings.tsx', 'utf8'),
+    readFile('src/features/config/components/mobile/MobilePairingDialog.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/RemoteAccessSettings.tsx', 'utf8'),
     readFile('src-tauri/capabilities/mobile-bridge.json', 'utf8'),
     readFile('src-tauri/permissions/mobile.toml', 'utf8'),
     readFile('src-tauri/Info.ios.plist', 'utf8'),
@@ -1074,7 +1074,7 @@ test('iOS 隐私清单显式进入 App target 的资源构建阶段', () => {
 
 test('embedded Node 使用后台线程、真实初始化 READY 与 App 生命周期', async () => {
   const [entry, kotlin, cpp, rustHost, carrier] = await Promise.all([
-    readFile('runtime/mobile-embedded.mjs', 'utf8'),
+    readFile('runtime/services/mobile-embedded.mjs', 'utf8'),
     readFile('src-tauri/mobile/node-host/android/EmbeddedNodeHost.kt', 'utf8'),
     readFile('src-tauri/mobile/node-host/android/node_host.cpp', 'utf8'),
     readFile('src-tauri/src/mobile/embedded_runtime.rs', 'utf8'),

@@ -79,8 +79,8 @@ test('sidebar and usage popover wire project context menu and session stats pane
   const [sidebar, appSidebar, controls, focus, app, runtime, projection] = await Promise.all([
     source('../../src/components/layout/SidebarRecentSessions.tsx'),
     source('../../src/components/layout/AppSidebar.tsx'),
-    source('../../src/features/chat/FocusRuntimeControls.tsx'),
-    source('../../src/features/chat/FocusSession.tsx'),
+    source('../../src/features/chat/components/runtime/FocusRuntimeControls.tsx'),
+    source('../../src/features/chat/components/runtime/FocusSession.tsx'),
     source('../../src/App.tsx'),
     source('../../runtime/runtime/agent-runtime.mjs'),
     source('../../runtime/runtime/stream-projection.mjs'),

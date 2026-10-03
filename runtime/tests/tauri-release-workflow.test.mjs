@@ -46,7 +46,7 @@ test('new desktop shells use component updates while legacy clients retain relea
     readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
     readFile('.github/workflows/release.yml', 'utf8'),
-    readFile('src/features/updates/useAppUpdate.ts', 'utf8'),
+    readFile('src/features/updates/hooks/useAppUpdate.ts', 'utf8'),
   ])
 
   assert.doesNotMatch(cargo, /tauri-plugin-updater/)

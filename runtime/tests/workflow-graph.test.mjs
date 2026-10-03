@@ -5,7 +5,7 @@ import {
   createLinearWorkflowEdges,
   normalizeWorkflowEdges,
   wouldCreateWorkflowCycle,
-} from '../../shared/workflow-graph.mjs'
+} from '../../shared/workflow/workflow-graph.mjs'
 
 const nodes = [
   { id: 'trigger', kind: 'trigger', enabled: true },

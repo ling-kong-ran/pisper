@@ -3,7 +3,7 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
-import { waitForMobileRuntimeReady } from '@/lib/http'
+import { waitForMobileRuntimeReady } from '@/lib/http/http'
 
 async function recoverRoute() {
   if (window.__PISPER_MOBILE_APP__) {

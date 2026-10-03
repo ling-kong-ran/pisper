@@ -13,8 +13,8 @@ import {
   waitForAgentMailbox,
 } from '../runtime/agent-runtime.mjs'
 import { classifyTeamTaskError } from '../services/team-workflow.mjs'
-import { applyTextPatch } from '../../src/lib/api.ts'
-import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
+import { applyTextPatch } from '../../src/lib/http/api.ts'
+import { shouldRetainClosedSessionState } from '../../src/lib/session/session-state.ts'
 
 test('embedded mobile sessions repair stale workspace paths before runtime actions', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-mobile-session-cwd-'))

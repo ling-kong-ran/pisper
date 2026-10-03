@@ -6,17 +6,22 @@ import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 // 主 TypeScript 7 不再导出转译 API，沿用已安装 ts-morph 自带的真实编译器。
 import ts from '@ts-morph/common/dist/typescript.js'
-import * as abortSignal from '../../src/lib/abort-signal.ts'
-import * as speechText from '../../src/features/chat/speech-text.ts'
-import * as speechStreamText from '../../src/features/chat/speech-stream-text.ts'
-import { createVoiceTextStream } from '../../src/features/chat/voice-response-stream.ts'
+import * as abortSignal from '../../src/lib/http/abort-signal.ts'
+import * as speechText from '../../src/features/chat/model/speech-text.ts'
+import * as speechStreamText from '../../src/features/chat/model/speech-stream-text.ts'
+import { createVoiceTextStream } from '../../src/features/chat/model/voice-response-stream.ts'
 
 const compile = async (path) =>
   ts.transpileModule(await readFile(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-const outputCode = await compile('src/features/chat/speech-output.ts')
-const modelsCode = await compile('src/features/chat/speech-models.ts')
+const speechModelStub = {
+  invokeLocalSpeech: async () => {
+    throw new Error('not available in test')
+  },
+}
+const outputCode = await compile('src/features/chat/model/speech-output.ts')
+const modelsCode = await compile('src/features/chat/model/speech-models.ts')
 const { speechSegments } = speechText
 const compact = (text) => text.replace(/\s+/g, '')
 const cost = (text) => Array.from(text).length
@@ -150,10 +155,11 @@ function fixture(t, settings = {}) {
     }
   }
   const modules = {
-    '@/lib/abort-signal': abortSignal,
-    '@/lib/api': { apiJson },
-    './speech-text': speechText,
-    './speech-stream-text': speechStreamText,
+    '@/lib/http/abort-signal': abortSignal,
+    '@/lib/http/api': { apiJson },
+    '@/features/chat/model/speech-text': speechText,
+    '@/features/chat/model/speech-stream-text': speechStreamText,
+    '@/features/chat/model/speech-models': speechModelStub,
   }
   function load(code) {
     const module = { exports: {} }
@@ -161,7 +167,8 @@ function fixture(t, settings = {}) {
       module,
       exports: module.exports,
       require: (id) => {
-        if (id === './speech-text' && settings.importing) return settings.importing.promise
+        if (id === '@/features/chat/model/speech-text' && settings.importing)
+          return settings.importing.promise
         assert.ok(modules[id], id)
         return modules[id]
       },
@@ -191,7 +198,7 @@ function fixture(t, settings = {}) {
     })
     return module.exports
   }
-  modules['./speech-models'] = load(modelsCode)
+  modules['@/features/chat/model/speech-models'] = load(modelsCode)
   const { playLocalSpeech } = load(outputCode)
   t.after(async () => {
     controllers.forEach((controller) => controller.abort())

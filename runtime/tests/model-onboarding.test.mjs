@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   hasConfiguredChatProvider,
   shouldShowModelOnboarding,
-} from '../../src/features/config/model-onboarding.ts'
+} from '../../src/features/config/model/model-onboarding.ts'
 
 const provider = (overrides = {}) => ({
   configured: false,

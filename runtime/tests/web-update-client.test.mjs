@@ -6,8 +6,8 @@ import {
   DESKTOP_UPDATE_INTERVAL_MS,
   scheduleDesktopUpdateChecks,
   shouldAutomaticallyCheckForUpdates,
-} from '../../src/features/updates/auto-update.ts'
-import { checkWebUpdates } from '../../src/features/updates/update-client.ts'
+} from '../../src/features/updates/model/auto-update.ts'
+import { checkWebUpdates } from '../../src/features/updates/model/update-client.ts'
 
 test('web update versions normalize tags and compare semantic parts', () => {
   assert.equal(normalizedVersion('v1.2.3-beta.1'), '1.2.3')

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readRasterDimensions, assertRasterBounds } from '../../shared/raster-image.mjs'
+import { readRasterDimensions, assertRasterBounds } from '../../shared/image/raster-image.mjs'
 test('sprite header parser handles PNG/JPEG/WebP and rejects unsafe decoded dimensions', () => {
   const png = Buffer.alloc(24)
   png.set([137, 80, 78, 71, 13, 10, 26, 10])

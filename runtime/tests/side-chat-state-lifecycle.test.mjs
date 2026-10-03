@@ -3,13 +3,16 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import * as sessionState from '../../src/lib/session-state.ts'
-import { shouldPollLiveSession } from '../../src/features/chat/live-session-sync.ts'
+import * as sessionState from '../../src/lib/session/session-state.ts'
+import { shouldPollLiveSession } from '../../src/features/chat/model/live-session-sync.ts'
 
-const code = transformSync(await readFile('src/features/chat/use-session-catalog.ts', 'utf8'), {
-  loader: 'ts',
-  format: 'cjs',
-}).code
+const code = transformSync(
+  await readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
+  {
+    loader: 'ts',
+    format: 'cjs',
+  },
+).code
 const SIDE_ID = 'side-retired'
 function runningState() {
   return {
@@ -32,17 +35,21 @@ function fixture() {
     },
     '@/app/brand': { APP_NAME: 'Pisper' },
     '@/app/storage': { STORAGE_KEYS: { activeSession: 'test-active' } },
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/page-state-storage': {
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/storage/page-state-storage': {
       pageStateStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     },
-    '@/lib/session-state': sessionState,
-    '@/lib/plan-protocol': {},
-    './chat-api': {},
+    '@/lib/session/session-state': sessionState,
+    '@/lib/session/plan-protocol': {},
+    '@/features/chat/api/chat-api': {},
     './chat-errors': {},
+    '@/features/chat/model/chat-errors': {},
     './events': {},
     './session-list': { createSessionTitleReconciler: () => ({}) },
   }
+  modules['@/features/chat/model/events'] = modules['./events']
+  modules['@/features/chat/model/chat-errors'] = modules['./chat-errors']
+  modules['@/features/chat/model/session-list'] = modules['./session-list']
   const module = { exports: {} }
   runInNewContext(code, {
     module,

@@ -3,16 +3,16 @@ import { readFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { translateText } from '../../src/app/i18n.ts'
-import { DEFAULT_SESSION_STATE, applySessionUpdate } from '../../src/lib/session-state.ts'
+import { translateText } from '../../src/app/i18n/i18n.ts'
+import { DEFAULT_SESSION_STATE, applySessionUpdate } from '../../src/lib/session/session-state.ts'
 import {
   reconcileLiveSnapshot,
   reconcileMessagePage,
-} from '../../src/features/chat/use-live-session-sync.ts'
+} from '../../src/features/chat/hooks/use-live-session-sync.ts'
 import {
   createStreamEventDispatcher,
   reconcileTerminalStreamState,
-} from '../../src/features/chat/stream-event-dispatch.ts'
+} from '../../src/features/chat/model/stream-event-dispatch.ts'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -340,7 +340,10 @@ test('stream dispatcher applies Plan updates in place and clears them on done', 
 })
 
 test('Team task statuses are localized and optional roles remain omitted', async () => {
-  const activity = await readFile(resolve(root, 'src/features/chat/AgentRunActivity.tsx'), 'utf8')
+  const activity = await readFile(
+    resolve(root, 'src/features/chat/components/message/AgentRunActivity.tsx'),
+    'utf8',
+  )
   const labels = {
     queued: ['Queued', '排队中'],
     starting: ['Starting', '启动中'],
@@ -368,19 +371,19 @@ test('Team task statuses are localized and optional roles remain omitted', async
 })
 
 test('dock split handles stay contained below global overlays', async () => {
-  const dock = await readFile(resolve(root, 'src/features/chat/ChatPage.tsx'), 'utf8')
+  const dock = await readFile(resolve(root, 'src/features/chat/pages/ChatPage.tsx'), 'utf8')
   assert.match(dock, /chat-dock-workspace[^"\n]*isolate/)
 })
 
 test('chat orchestration keeps lifecycle owners independent from its page', async () => {
   const [chatPage, focusSession, transcript, dock, liveSync, promptCommands] = await Promise.all(
     [
-      'src/features/chat/ChatPage.tsx',
-      'src/features/chat/FocusSession.tsx',
-      'src/features/chat/FocusTranscript.tsx',
-      'src/features/chat/use-chat-dock.ts',
-      'src/features/chat/use-live-session-sync.ts',
-      'src/features/chat/use-prompt-commands.ts',
+      'src/features/chat/pages/ChatPage.tsx',
+      'src/features/chat/components/runtime/FocusSession.tsx',
+      'src/features/chat/components/message/FocusTranscript.tsx',
+      'src/features/chat/hooks/use-chat-dock.ts',
+      'src/features/chat/hooks/use-live-session-sync.ts',
+      'src/features/chat/hooks/use-prompt-commands.ts',
     ].map((path) => readFile(resolve(root, path), 'utf8')),
   )
   // 原行数门槛改由这里的编排约束和 frontend-boundaries 中的真实依赖检查保护。

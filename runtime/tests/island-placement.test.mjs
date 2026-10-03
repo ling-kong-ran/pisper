@@ -9,7 +9,7 @@ import {
   moveFloatingPlacement,
   restoreFloatingPlacements,
   saveFloatingPlacement,
-} from '../../src/features/custom-ui/floating-placement.ts'
+} from '../../src/features/custom-ui/model/floating-placement.ts'
 
 const bounds = { width: 1000, height: 700 }
 const widget = { width: 380, height: 88 }

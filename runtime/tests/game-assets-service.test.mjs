@@ -7,7 +7,10 @@ import test from 'node:test'
 import { PNG } from 'pngjs'
 import { GameAssetsService } from '../services/game-assets-service.mjs'
 import { WorkflowMediaService } from '../services/workflow-media-service.mjs'
-import { parseGameAssetProjectInput, parseGameAssetsCatalog } from '../../shared/game-assets.mjs'
+import {
+  parseGameAssetProjectInput,
+  parseGameAssetsCatalog,
+} from '../../shared/game/game-assets.mjs'
 
 function png() {
   const image = new PNG({ width: 16, height: 16 })

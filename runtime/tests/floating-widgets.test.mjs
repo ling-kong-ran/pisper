@@ -31,7 +31,7 @@ test('floating widget preferences preserve explicit choices and validate persist
   })
   try {
     const { useFloatingWidgetsStore: store, resolveFloatingWidgetIds } =
-      await import('../../src/features/custom-ui/floating-widgets-store.ts')
+      await import('../../src/features/custom-ui/model/floating-widgets-store.ts')
     const seed = async (state, version = 1) => {
       values.set(STORAGE_KEY, JSON.stringify({ state, version }))
       await store.persist.rehydrate()

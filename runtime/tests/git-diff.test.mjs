@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { parseUnifiedDiff } from '../../src/features/chat/git-diff.ts'
+import { parseUnifiedDiff } from '../../src/features/chat/model/git-diff.ts'
 
 const SAMPLE = `diff --git a/src/example.ts b/src/example.ts
 index 1111111..2222222 100644
@@ -64,8 +64,8 @@ test('deleted files keep red original rows and empty modified rows', () => {
 
 test('diff dialog navigates files separately and renders one side-by-side diff', async () => {
   const [viewer, approval] = await Promise.all([
-    readFile('src/features/chat/GitDiffViewer.tsx', 'utf8'),
-    readFile('src/features/chat/ToolApproval.tsx', 'utf8'),
+    readFile('src/features/chat/components/files/GitDiffViewer.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/ToolApproval.tsx', 'utf8'),
   ])
   assert.match(viewer, /className="git-diff-file-nav-list[^"\n]*"/)
   assert.match(viewer, /selectedEntry && \(/)

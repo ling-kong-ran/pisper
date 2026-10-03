@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import { speechSegments } from '../../src/features/chat/speech-text.ts'
-import { streamingSpeechSegments } from '../../src/features/chat/speech-stream-text.ts'
+import { speechSegments } from '../../src/features/chat/model/speech-text.ts'
+import { streamingSpeechSegments } from '../../src/features/chat/model/speech-stream-text.ts'
 
 const compact = (text) => text.replace(/\s+/g, '')
 const cost = (text) => Array.from(text).length

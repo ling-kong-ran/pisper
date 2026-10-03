@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { translateText } from '../../src/app/i18n.ts'
+import { translateText } from '../../src/app/i18n/i18n.ts'
 import {
   toolCapabilityLabel,
   toolCategoryLabel,
@@ -8,7 +8,7 @@ import {
   toolName,
   toolRiskLabel,
   toolScopeLabel,
-} from '../../src/features/plugins/tool-labels.ts'
+} from '../../src/features/plugins/model/tool-labels.ts'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 
 const CJK_PATTERN = /[\u3400-\u9fff]/

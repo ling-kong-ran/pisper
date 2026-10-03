@@ -23,9 +23,9 @@ import test from 'node:test'
 import { stageAndroidSpeechResources } from '../../scripts/stage-android-speech-model.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const catalogPath = 'speech-model-catalog.json'
+const catalogPath = 'speech/speech-model-catalog.json'
 const sourceCatalogPath = catalogPath
-const noticesPath = 'speech-resource-notices.json'
+const noticesPath = 'speech/speech-resource-notices.json'
 const bpePath = 'speech-resources/xasr-bpe.vocab'
 
 async function fixture(t) {
@@ -36,10 +36,13 @@ async function fixture(t) {
   await mkdir(join(sourceDir, 'speech-resources'), { recursive: true })
   await mkdir(join(targetDir, 'speech-model'), { recursive: true })
   for (const path of [sourceCatalogPath, noticesPath, bpePath]) {
+    await mkdir(dirname(join(sourceDir, path)), { recursive: true })
     await copyFile(join(root, 'shared', path), join(sourceDir, path))
   }
   await writeFile(join(targetDir, 'pisper-embedded-runtime.tgz'), 'existing-runtime')
+  await mkdir(dirname(join(targetDir, catalogPath)), { recursive: true })
   await writeFile(join(targetDir, catalogPath), 'existing-catalog')
+  await mkdir(dirname(join(targetDir, noticesPath)), { recursive: true })
   await writeFile(join(targetDir, noticesPath), 'existing-notices')
   await writeFile(join(targetDir, 'speech-model', 'encoder.int8.onnx'), 'old-weights')
   return { dir, sourceDir, targetDir }
@@ -95,7 +98,13 @@ test('stages only trusted small speech resources offline and preserves embedded 
   assert.deepEqual(calls, [])
   assert.deepEqual(
     (await readdir(input.targetDir)).sort(),
-    ['pisper-embedded-runtime.tgz', catalogPath, noticesPath, 'speech-resources'].sort(),
+    [
+      'pisper-embedded-runtime.tgz',
+      'speech',
+      'speech-model-catalog.json',
+      'speech-resource-notices.json',
+      'speech-resources',
+    ].sort(),
   )
   assert.deepEqual(await readdir(join(input.targetDir, 'speech-resources')), ['xasr-bpe.vocab'])
   assert.equal(
@@ -103,8 +112,8 @@ test('stages only trusted small speech resources offline and preserves embedded 
     'existing-runtime',
   )
   for (const [source, target] of [
-    [sourceCatalogPath, catalogPath],
-    [noticesPath, noticesPath],
+    [sourceCatalogPath, 'speech-model-catalog.json'],
+    [noticesPath, 'speech-resource-notices.json'],
     [bpePath, bpePath],
   ]) {
     assert.deepEqual(

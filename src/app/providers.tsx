@@ -3,9 +3,9 @@
 // 因为桌面端是常驻窗口，频繁 refetch 只会干扰正在进行的 Agent 会话。
 import { QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, type PropsWithChildren } from 'react'
-import { installStartupQueryEvents, queryClient } from '@/lib/startup-queries'
+import { installStartupQueryEvents, queryClient } from '@/lib/startup/startup-queries'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { LanguageProvider } from './i18n-provider'
+import { LanguageProvider } from '@/app/i18n/i18n-provider'
 
 export function AppProviders({ children }: PropsWithChildren) {
   useEffect(() => installStartupQueryEvents(window), [])

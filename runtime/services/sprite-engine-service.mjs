@@ -3,12 +3,15 @@ import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { SPRITE_ENGINE_CATALOG, SpriteEngineError } from '../../shared/sprite-engine-catalog.mjs'
+import {
+  SPRITE_ENGINE_CATALOG,
+  SpriteEngineError,
+} from '../../shared/game/sprite-engine-catalog.mjs'
 import { writeJsonAtomic } from '../storage/json-file.mjs'
 
-/** @typedef {import('../../shared/sprite-engine-catalog.mjs').SpriteEngineDefinition} EngineDefinition */
-/** @typedef {import('../../shared/sprite-engine-catalog.mjs').SpriteEngineFile} EngineFile */
-/** @typedef {import('../../shared/sprite-engine-catalog.mjs').SpriteEngineStatus} EngineStatus */
+/** @typedef {import('../../shared/game/sprite-engine-catalog.mjs').SpriteEngineDefinition} EngineDefinition */
+/** @typedef {import('../../shared/game/sprite-engine-catalog.mjs').SpriteEngineFile} EngineFile */
+/** @typedef {import('../../shared/game/sprite-engine-catalog.mjs').SpriteEngineStatus} EngineStatus */
 /** @typedef {{ directory: string, version: string }} Installation */
 /** @typedef {{ controller: AbortController, done: Promise<void> }} EngineJob */
 /** @typedef {{ dataDir: string, fetchFn?: typeof fetch, definitions?: readonly EngineDefinition[], timeoutMs?: number, sourceTimeoutMs?: number }} EngineDependencies */

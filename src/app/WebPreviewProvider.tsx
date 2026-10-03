@@ -2,9 +2,9 @@
 // 通过事件把链接交给预览面板打开；同源链接正常导航。
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { pagePath } from '@/app/routes'
-import { requestWebPreview } from '@/features/chat/web-preview-events'
-import { shouldOpenWebPreview } from '@/lib/web-preview'
+import { pagePath } from '@/app/routes/routes'
+import { requestWebPreview } from '@/features/chat/model/web-preview-events'
+import { shouldOpenWebPreview } from '@/lib/ui/web-preview'
 
 export function WebPreviewProvider() {
   const location = useLocation()

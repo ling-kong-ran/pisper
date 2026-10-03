@@ -9,7 +9,7 @@ import { PNG } from 'pngjs'
 import jpeg from 'jpeg-js'
 import { WorkflowImageProcessor } from '../services/workflow-image-processing.mjs'
 import { SpriteEngineService } from '../services/sprite-engine-service.mjs'
-import { normalizeWorkflowImageSettings } from '../../shared/workflow-image-nodes.mjs'
+import { normalizeWorkflowImageSettings } from '../../shared/workflow/workflow-image-nodes.mjs'
 import {
   computeOpaqueBounds,
   detectOpaqueComponents,

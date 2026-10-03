@@ -28,7 +28,7 @@ const fixture = await build({
     contents: `
       import React, { useState } from 'react'
       import { createRoot } from 'react-dom/client'
-      import { useI18n } from './src/app/use-i18n.ts'
+      import { useI18n } from './src/app/i18n/use-i18n.ts'
       import { QuickSetupWizard } from './src/features/config/QuickSetupWizard.tsx'
       import { ProviderConfigModal } from './src/features/config/ProviderDialogs.tsx'
       import { ConnectionList } from './src/features/config/ConnectionList.tsx'

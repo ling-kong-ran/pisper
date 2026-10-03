@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { SessionContextLayout } from '../../src/features/chat/SessionContextLayout.tsx'
+import { SessionContextLayout } from '../../src/features/chat/components/session/SessionContextLayout.tsx'
 
 function render(presentation, side = 'right') {
   return renderToStaticMarkup(

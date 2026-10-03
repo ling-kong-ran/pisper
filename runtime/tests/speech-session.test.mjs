@@ -6,13 +6,16 @@ import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import ts from '@ts-morph/common/dist/typescript.js'
-import * as abortSignal from '../../src/lib/abort-signal.ts'
-import { consumeEventStream } from '../../src/lib/api.ts'
-import { speechHotwords } from '../../shared/speech-terms.mjs'
+import * as abortSignal from '../../src/lib/http/abort-signal.ts'
+import { consumeEventStream } from '../../src/lib/http/api.ts'
+import { speechHotwords } from '../../shared/speech/speech-terms.mjs'
 
-const code = ts.transpileModule(await readFile('src/features/chat/speech-session.ts', 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText
+const code = ts.transpileModule(
+  await readFile('src/features/chat/model/speech-session.ts', 'utf8'),
+  {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  },
+).outputText
 function deferred() {
   let resolve, reject
   const promise = new Promise((yes, no) => {
@@ -31,7 +34,7 @@ function fixture(t, settings = {}) {
     controllers = [],
     scopes = []
   const modules = {
-    '@/lib/abort-signal': {
+    '@/lib/http/abort-signal': {
       ...abortSignal,
       createAbortScope(...args) {
         const scope = abortSignal.createAbortScope(...args)
@@ -39,17 +42,17 @@ function fixture(t, settings = {}) {
         return scope
       },
     },
-    '@/lib/api': {
+    '@/lib/http/api': {
       consumeEventStream,
       apiJson: async (path, options) => {
         calls.push({ path, options })
         return settings.terms ?? { terms: ['useEffect'] }
       },
     },
-    '@shared/speech-terms.mjs': { speechHotwords },
-    './speech-text': settings.modules?.promise ?? {},
-    './speech-stream-text': settings.modules?.promise ?? {},
-    './speech-models': {
+    '@shared/speech/speech-terms.mjs': { speechHotwords },
+    '@/features/chat/model/speech-text': settings.modules?.promise ?? {},
+    '@/features/chat/model/speech-stream-text': settings.modules?.promise ?? {},
+    '@/features/chat/model/speech-models': {
       invokeLocalSpeech: async (command, args) => {
         calls.push({ command, args })
         return settings.invoke?.(command, args) ?? { ready: true }
@@ -62,7 +65,11 @@ function fixture(t, settings = {}) {
     exports: module.exports,
     require: (id) => {
       assert.ok(modules[id], id)
-      if (id === './speech-text' || id === './speech-stream-text') calls.push({ module: id })
+      if (
+        id === '@/features/chat/model/speech-text' ||
+        id === '@/features/chat/model/speech-stream-text'
+      )
+        calls.push({ module: id })
       return modules[id]
     },
     window: {
@@ -227,7 +234,7 @@ test('TTS modules load alongside model preparation and readiness waits for both'
   assert.equal(f.calls.filter((call) => call.command === 'mobile_prepare_speech_session').length, 1)
   assert.deepEqual(
     f.calls.filter((call) => call.module).map((call) => call.module),
-    ['./speech-text', './speech-stream-text'],
+    ['@/features/chat/model/speech-text', '@/features/chat/model/speech-stream-text'],
   )
   modules.resolve({})
   await run.preparing

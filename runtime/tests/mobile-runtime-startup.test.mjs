@@ -6,8 +6,11 @@ import test from 'node:test'
 import { createPisperRuntime } from '../app-runtime.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { createAppTools } from '../tools/registry.mjs'
-import { mobileBaseInitialization, resolveRuntimeCapabilities } from '../runtime-capabilities.mjs'
-import { createStartupLogObserver, createStartupObserver } from '../startup-observer.mjs'
+import {
+  mobileBaseInitialization,
+  resolveRuntimeCapabilities,
+} from '../services/runtime-capabilities.mjs'
+import { createStartupLogObserver, createStartupObserver } from '../services/startup-observer.mjs'
 
 function deferred() {
   let resolve

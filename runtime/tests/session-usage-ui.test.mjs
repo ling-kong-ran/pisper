@@ -8,12 +8,12 @@ async function source(path) {
 
 test('session usage stays scoped to each dock panel and updates over SSE', async () => {
   const [dock, focus, dispatch, sync, stateTypes, defaults] = await Promise.all([
-    source('../../src/features/chat/ChatDock.tsx'),
-    source('../../src/features/chat/FocusSession.tsx'),
-    source('../../src/features/chat/stream-event-dispatch.ts'),
-    source('../../src/features/chat/use-live-session-sync.ts'),
+    source('../../src/features/chat/components/ChatDock.tsx'),
+    source('../../src/features/chat/components/runtime/FocusSession.tsx'),
+    source('../../src/features/chat/model/stream-event-dispatch.ts'),
+    source('../../src/features/chat/hooks/use-live-session-sync.ts'),
     source('../../src/types/chat.ts'),
-    source('../../src/lib/session-state.ts'),
+    source('../../src/lib/session/session-state.ts'),
   ])
 
   assert.match(stateTypes, /sessionUsage: EntityRecord \| null/)
@@ -33,8 +33,8 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
 
 test('composer renders unframed metrics in a collapsible row without unmounting voice controls', async () => {
   const [focus, controls, css] = await Promise.all([
-    source('../../src/features/chat/FocusSession.tsx'),
-    source('../../src/features/chat/FocusRuntimeControls.tsx'),
+    source('../../src/features/chat/components/runtime/FocusSession.tsx'),
+    source('../../src/features/chat/components/runtime/FocusRuntimeControls.tsx'),
     source('../../src/index.css'),
   ])
 

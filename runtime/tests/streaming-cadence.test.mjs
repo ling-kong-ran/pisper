@@ -3,19 +3,19 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import * as sessionState from '../../src/lib/session-state.ts'
+import * as sessionState from '../../src/lib/session/session-state.ts'
 import {
   createStreamingTextScheduler,
   createToolUpdateScheduler,
   createTypewriterDisplay,
-} from '../../src/lib/streaming-ui.ts'
+} from '../../src/lib/streaming/streaming-ui.ts'
 
 const promptCode = transformSync(
-  await readFile('src/features/chat/use-prompt-commands.ts', 'utf8'),
+  await readFile('src/features/chat/hooks/use-prompt-commands.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 const dispatcherCode = transformSync(
-  await readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
+  await readFile('src/features/chat/model/stream-event-dispatch.ts', 'utf8'),
   { loader: 'ts', format: 'cjs' },
 ).code
 
@@ -51,16 +51,16 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
   const modules = {
     react: { useCallback: (fn) => fn, useRef: (value) => ({ current: value }) },
     '@/app/brand': { APP_NAME: 'Pisper' },
-    '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/lib/api': {},
-    '@/lib/plan-protocol': {
+    '@/app/i18n/use-i18n': { useI18n: () => ({ t: (key) => key }) },
+    '@/lib/http/api': {},
+    '@/lib/session/plan-protocol': {
       isPlanUpdateEvent: (event) => event === 'plan_update',
       isPlanWriteTool: () => false,
       planFromPayload: (data) => data.plan,
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
-    '@/lib/session-state': sessionState,
-    '@/lib/streaming-ui': {
+    '@/lib/session/session-state': sessionState,
+    '@/lib/streaming/streaming-ui': {
       createStreamingTextScheduler(callback, options) {
         callbacks.thinking = callback
         const scheduler = createStreamingTextScheduler(callback, options)
@@ -91,9 +91,10 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
         return typewriter
       },
     },
-    '@/lib/streaming-debug': { recordStreamingDebug() {} },
+    '@/lib/streaming/streaming-debug': { recordStreamingDebug() {} },
     './voice-response-stream': { publishVoiceResponse: (event) => responseEvents.push(event) },
     './mobile-operations': {},
+    '@/features/chat/model/mobile-operations': {},
     './run-activity': {
       planChanges: () => [],
       pushCurrentActivity: (items = [], item) => [
@@ -105,6 +106,15 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
     './chat-errors': { chatErrorMessage: (error) => error.message },
     './chat-api': { chatApi: { openStream: (_input, dispatch) => onOpen?.(dispatch) } },
   }
+  // @/ 别名映射：编译后的模块使用 @/ 路径 require。
+  modules['@/features/chat/model/run-activity'] = modules['./run-activity']
+  modules['@/features/chat/model/mobile-operations'] = modules['./mobile-operations']
+  modules['@/features/chat/model/chat-errors'] = modules['./chat-errors']
+  modules['@/features/chat/api/chat-api'] = modules['./chat-api']
+  if (modules['./voice-response-stream'])
+    modules['@/features/chat/model/voice-response-stream'] = modules['./voice-response-stream']
+  if (modules['./session-context-layout'])
+    modules['@/features/chat/model/session-context-layout'] = modules['./session-context-layout']
   function load(code) {
     const module = { exports: {} }
     runInNewContext(code, {
@@ -121,6 +131,7 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
     return module.exports
   }
   modules['./stream-event-dispatch'] = load(dispatcherCode)
+  modules['@/features/chat/model/stream-event-dispatch'] = modules['./stream-event-dispatch']
   const commands = load(promptCode).usePromptCommands({
     ...shared,
     notify() {},

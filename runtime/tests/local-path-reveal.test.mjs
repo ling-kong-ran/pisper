@@ -4,7 +4,7 @@ import {
   LocalPathRevealError,
   LOCAL_PATH_REVEAL_TIMEOUT_MS,
   requestLocalPathReveal,
-} from '../../src/lib/local-path-reveal.ts'
+} from '../../src/lib/platform/local-path-reveal.ts'
 
 test('local reveal reports an unavailable Runtime instead of silently ignoring the click', async () => {
   await assert.rejects(requestLocalPathReveal('C:/report.txt', undefined), (error) => {

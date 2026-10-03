@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('labeled and icon controls hide the Radix overlay even while disabled', async () => {
-  const component = await readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8')
+  const component = await readFile(
+    'src/features/chat/components/runtime/FocusRuntimeControls.tsx',
+    'utf8',
+  )
 
   assert.match(component, /const ICON_SELECT_CLASSES =/)
   assert.match(component, /showLabel \? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES/)
@@ -27,12 +30,12 @@ test('labeled and icon controls hide the Radix overlay even while disabled', asy
 
 test('composer keeps shortcuts inline and overflows them by measured panel width', async () => {
   const [session, tray, layout, capacity, settings, store] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
-    readFile('src/features/chat/composer-toolbar-layout.ts', 'utf8'),
-    readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
-    readFile('src/features/chat/ComposerToolbarSettings.tsx', 'utf8'),
-    readFile('src/features/chat/composer-toolbar-store.ts', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/composer/ComposerToolTray.tsx', 'utf8'),
+    readFile('src/features/chat/model/composer-toolbar-layout.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-composer-toolbar-capacity.ts', 'utf8'),
+    readFile('src/features/chat/components/composer/ComposerToolbarSettings.tsx', 'utf8'),
+    readFile('src/features/chat/model/composer-toolbar-store.ts', 'utf8'),
   ])
 
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
@@ -83,7 +86,7 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
 })
 
 test('composer plain Enter submits, Shift+Enter inserts a newline, and IME composition never submits', async () => {
-  const session = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
+  const session = await readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8')
 
   // 默认仍为 Enter；自定义绑定统一经精确匹配，不能绕过组词与换行保护。
   const { DEFAULT_SHORTCUTS, matchesShortcut } = await import('../../shared/shortcuts.mjs')
@@ -123,9 +126,9 @@ test('composer plain Enter submits, Shift+Enter inserts a newline, and IME compo
 
 test('composer exposes a session thinking-level control wired to the shared API', async () => {
   const [controls, session, api] = await Promise.all([
-    readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusRuntimeControls.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/api/chat-api.ts', 'utf8'),
   ])
 
   assert.match(controls, /export function SessionThinkingSelect/)
@@ -150,8 +153,8 @@ test('composer exposes a session thinking-level control wired to the shared API'
 
 test('stored execution mode uses a portal and keeps its menu inside the interaction boundary', async () => {
   const [control, popup] = await Promise.all([
-    readFile('src/features/chat/GoalModeControl.tsx', 'utf8'),
-    readFile('src/features/chat/AnchoredPopupMenu.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/GoalModeControl.tsx', 'utf8'),
+    readFile('src/features/chat/components/AnchoredPopupMenu.tsx', 'utf8'),
   ])
 
   // 收纳区会滚动和裁切；二级菜单必须通过公共 portal 脱离该容器。
@@ -169,8 +172,8 @@ test('stored execution mode uses a portal and keeps its menu inside the interact
 
 test('Plan remains a labeled real execution control, distinct from approval mode', async () => {
   const [control, session] = await Promise.all([
-    readFile('src/features/chat/GoalModeControl.tsx', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/GoalModeControl.tsx', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
   ])
   assert.match(control, /<span[^>]*>\{current.label\}<\/span>/)
   assert.match(control, /value: 'plan'/)

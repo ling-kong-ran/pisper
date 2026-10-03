@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createScrollFollowController } from '@/lib/scroll-follow'
+import { createScrollFollowController } from '@/lib/ui/scroll-follow'
 
 export function useAutoScroll(
   contentVersion: unknown,

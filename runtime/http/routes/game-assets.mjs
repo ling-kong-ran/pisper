@@ -1,12 +1,18 @@
 // 独立工作台 HTTP 边界；不读取工作流能力、实体或 Agent 插件开关。
-import { GameAssetError, parseGameAssetProjectInput } from '../../../shared/game-assets.mjs'
-import { normalizeImageSettings, parseImageOutput } from '../../../shared/image-operations.mjs'
-import { normalizeImageFrameEdits } from '../../../shared/image-frame-edits.mjs'
-import { parseWorkflowMedia, WorkflowInputError } from '../../../shared/workflow-inputs.mjs'
+import { GameAssetError, parseGameAssetProjectInput } from '../../../shared/game/game-assets.mjs'
+import {
+  normalizeImageSettings,
+  parseImageOutput,
+} from '../../../shared/image/image-operations.mjs'
+import { normalizeImageFrameEdits } from '../../../shared/image/image-frame-edits.mjs'
+import {
+  parseWorkflowMedia,
+  WorkflowInputError,
+} from '../../../shared/workflow/workflow-inputs.mjs'
 import {
   parseSpriteEngineCatalog,
   SpriteEngineError,
-} from '../../../shared/sprite-engine-catalog.mjs'
+} from '../../../shared/game/sprite-engine-catalog.mjs'
 
 /** @typedef {{id:string,name:string,providerId:string,providerName?:string}} ImageModel */
 /** @typedef {{runtime:{gameAssets:Pick<import('../../services/game-assets-service.mjs').GameAssetsService,'catalog'|'save'|'remove'|'run'|'getJob'|'stop'|'edit'>,gameAssetMedia:Pick<import('../../services/workflow-media-service.mjs').WorkflowMediaService,'upload'|'read'>,gameAssetOperations:Pick<import('../../services/image-operation-service.mjs').ImageOperationService,'execute'>,spriteEngines:Pick<import('../../services/sprite-engine-service.mjs').SpriteEngineService,'catalog'|'download'|'cancel'>,visualGeneration:{getModelStatus(kind:'image'):Promise<{models:ImageModel[]}>}},req:import('node:http').IncomingMessage,res:import('node:http').ServerResponse,url:URL,params:Record<string,string>,bodyBuffer:(max:number)=>Promise<Buffer>,json:(status:number,value:unknown)=>void}} Context */

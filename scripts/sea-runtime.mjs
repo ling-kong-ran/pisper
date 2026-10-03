@@ -492,7 +492,7 @@ export function speechNativeEntries(target) {
 export function criticalRuntimeEntries(nativeSelection = {}) {
   const entries = [
     ['app', 'runtime/sidecar.mjs'],
-    ['app', 'runtime/mobile-embedded.mjs'],
+    ['app', 'runtime/services/mobile-embedded.mjs'],
     ['app', 'runtime/plugins/local-plugin-worker.mjs'],
     ['app', 'runtime/workers/team-workflow-worker.mjs'],
     ['app', 'runtime/workers/speech-inference-worker.mjs'],
@@ -508,8 +508,8 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
       'codec/LICENSE.codec.md',
     ].map((path) => ['image-codec', `node_modules/@jsquash/webp/${path}`]),
     ['speech', 'shared/speech-resources/xasr-bpe.vocab'],
-    ['speech', 'shared/speech-model-catalog.json'],
-    ['license', 'shared/speech-resource-notices.json'],
+    ['speech', 'shared/speech/speech-model-catalog.json'],
+    ['license', 'shared/speech/speech-resource-notices.json'],
     ['app', 'runtime-bundle-manifest.json'],
     ['license', 'THIRD_PARTY_LICENSES.txt'],
     ['skills', `${PI_CODING_AGENT}/dist/core/skills.js`],

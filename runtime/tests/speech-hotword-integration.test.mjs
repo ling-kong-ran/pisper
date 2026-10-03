@@ -7,7 +7,7 @@ import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { SpeechRecognitionService } from '../services/speech-recognition-service.mjs'
 import { BUILTIN_SPEECH_TERMS, SpeechTermsService } from '../services/speech-terms-service.mjs'
-import { formatSpeechTerms, speechHotwords, spokenTerm } from '../../shared/speech-terms.mjs'
+import { formatSpeechTerms, speechHotwords, spokenTerm } from '../../shared/speech/speech-terms.mjs'
 
 async function workspace(t) {
   const root = await mkdtemp(join(tmpdir(), 'pisper-speech-hotwords-'))

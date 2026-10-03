@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createScrollFollowController } from '../../src/lib/scroll-follow.ts'
+import { createScrollFollowController } from '../../src/lib/ui/scroll-follow.ts'
 
 function fixture(t, { reducedMotion, threshold, rounded = false } = {}) {
   let time = 0

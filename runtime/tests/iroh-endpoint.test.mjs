@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { readIrohTunnelStatus } from '../iroh-endpoint.mjs'
+import { readIrohTunnelStatus } from '../remote/iroh-endpoint.mjs'
 
 test('缺少状态文件时保持 Iroh 不可用且不影响 LAN', () => {
   const status = readIrohTunnelStatus(join(tmpdir(), `pisper-missing-${process.pid}.json`))

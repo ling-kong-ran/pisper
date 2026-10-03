@@ -58,13 +58,13 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     appStyles,
     bitsStyles,
   ] = await Promise.all([
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/WelcomeEffects.tsx', 'utf8'),
-    readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/components/WelcomeEffects.tsx', 'utf8'),
+    readFile('src/features/chat/components/message/AgentRunActivity.tsx', 'utf8'),
     readFile('src/components/ai-elements/confirmation.tsx', 'utf8'),
-    readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
-    readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
-    readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8'),
+    readFile('src/features/chat/pages/ChatHistoryPage.tsx', 'utf8'),
+    readFile('src/features/chat/components/WebPreviewDockPanel.tsx', 'utf8'),
+    readFile('src/features/chat/model/focus-session-composer-bits.tsx', 'utf8'),
     readFile('src/main.tsx', 'utf8'),
     readFile('src/components/react-bits/ShinyText.tsx', 'utf8'),
     readFile('src/components/react-bits/Aurora.tsx', 'utf8'),
@@ -73,7 +73,7 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   ])
   assert.match(focus, /<WorkbenchGreeting \/>/)
   assert.doesNotMatch(focus, /WelcomeEffects|WelcomeFallback|TargetCursor/)
-  const brand = await readFile('src/features/chat/WorkbenchGreeting.tsx', 'utf8')
+  const brand = await readFile('src/features/chat/components/WorkbenchGreeting.tsx', 'utf8')
   assert.match(brand, /data-testid="workbench-greeting"/)
   assert.match(brand, /aria-hidden="true"/)
   assert.match(brand, /pointer-events-none/)

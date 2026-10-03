@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, realpath, rm } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { parseImageOutput } from '../../shared/image-operations.mjs'
-import { assertRasterBounds, readRasterDimensions } from '../../shared/raster-image.mjs'
+import { parseImageOutput } from '../../shared/image/image-operations.mjs'
+import { assertRasterBounds, readRasterDimensions } from '../../shared/image/raster-image.mjs'
 
-/** @typedef {import('../../shared/workflow-inputs.mjs').WorkflowMedia} Media */
+/** @typedef {import('../../shared/workflow/workflow-inputs.mjs').WorkflowMedia} Media */
 /** @typedef {{path:string,info:import('node:fs').Stats}} DirectoryIdentity */
 const MAX_BYTES = 8 * 1024 * 1024
 

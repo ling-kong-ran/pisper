@@ -25,7 +25,7 @@ import {
   promptCacheRuntime,
 } from './prompt-cache-diagnostics.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
-import { cleanupRemovedLocalEmbeddingData } from '../data-dir-migration.mjs'
+import { cleanupRemovedLocalEmbeddingData } from '../services/data-dir-migration.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
 import { NotificationSettingsService } from '../services/notification-settings-service.mjs'
 import { McpService } from '../services/mcp-service.mjs'
@@ -140,7 +140,7 @@ import {
   normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
 import { ToolActivation } from './tool-activation.mjs'
-import { desktopRuntimeCapabilities } from '../runtime-capabilities.mjs'
+import { desktopRuntimeCapabilities } from '../services/runtime-capabilities.mjs'
 import { prepareRuntimeInitialization } from './mobile-initialization.mjs'
 import {
   bridgeAgentSessionEvent,

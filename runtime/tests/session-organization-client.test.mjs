@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseSessionOrganization } from '../../src/features/chat/session-organization-api.ts'
-import { applySessionOrganizationUpdate } from '../../src/features/chat/session-list.ts'
-import { parseSessionChangeSummary } from '../../src/features/chat/session-change-summary-api.ts'
+import { parseSessionOrganization } from '../../src/features/chat/api/session-organization-api.ts'
+import { applySessionOrganizationUpdate } from '../../src/features/chat/model/session-list.ts'
+import { parseSessionChangeSummary } from '../../src/features/chat/model/session-change-summary-api.ts'
 
 test('client applies only a confirmed organization response to its existing session', () => {
   const response = parseSessionOrganization({

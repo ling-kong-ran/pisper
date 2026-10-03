@@ -4,7 +4,7 @@ import {
   canSplitHistorySessions,
   HISTORY_BATCH_SIZE,
   selectHistorySessions,
-} from '../../src/features/chat/history-list.ts'
+} from '../../src/features/chat/model/history-list.ts'
 
 test('history split actions follow Dock capability on compact and native mobile layouts', () => {
   assert.equal(canSplitHistorySessions(false, false), true)

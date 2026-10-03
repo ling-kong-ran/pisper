@@ -4,7 +4,7 @@ import {
   clearComposerDraft,
   readComposerDraft,
   updateComposerDraft,
-} from '../../src/features/chat/composer-drafts.ts'
+} from '../../src/features/chat/model/composer-drafts.ts'
 
 test('composer drafts retain text and attachments independently per session', () => {
   const attachment = { id: 'attachment-1', kind: 'path', path: '/workspace/notes.md' }

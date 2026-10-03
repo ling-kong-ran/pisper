@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { apiJson } from '@/lib/api'
+import { apiJson } from '@/lib/http/api'
 import {
   LEGACY_RUNTIME_CAPABILITIES,
   type RuntimeCapabilities,

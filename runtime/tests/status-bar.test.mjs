@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { normalizeTokenUsage } from '../../src/lib/format.ts'
+import { normalizeTokenUsage } from '../../src/lib/format/format.ts'
 
 test('status bar usage normalization tolerates incomplete mobile runtime responses', () => {
   assert.deepEqual(normalizeTokenUsage(undefined), {

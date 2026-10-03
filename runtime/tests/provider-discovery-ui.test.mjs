@@ -5,7 +5,7 @@ import {
   providerDiscoveryImportableCount,
   providerDiscoveryShouldCollapse,
   providerDiscoveryShouldRender,
-} from '../../src/features/config/provider-discovery-state.ts'
+} from '../../src/features/config/model/provider-discovery-state.ts'
 
 function discovery(providers = [], errors = []) {
   return { providers, errors }
@@ -87,7 +87,10 @@ test('provider discovery remains visible for loading, importable, error, and con
 })
 
 test('provider import errors render in the discovery panel instead of the wizard', async () => {
-  const modelsSettings = await readFile('src/features/config/ModelsSettings.tsx', 'utf8')
+  const modelsSettings = await readFile(
+    'src/features/config/components/settings/ModelsSettings.tsx',
+    'utf8',
+  )
   assert.match(
     modelsSettings,
     /<ProviderDiscovery[\s\S]*?error=\{discovery\.error \|\| discovery\.operationError\}/,

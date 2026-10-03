@@ -2,14 +2,14 @@
 // 抽屉仍保留最近会话和完整导航，避免牺牲深层入口与会话切换能力。
 import { useEffect, useMemo, useRef } from 'react'
 import { Settings } from 'lucide-react'
-import { getNavigation } from '@/app/navigation'
+import { getNavigation } from '@/app/routes/navigation'
 import {
   getSettingsNavigation,
   SETTINGS_PAGES,
   settingsNavigationKey,
   type SettingsDestination,
-} from '@/app/settings-navigation'
-import { useI18n } from '@/app/use-i18n'
+} from '@/app/routes/settings-navigation'
+import { useI18n } from '@/app/i18n/use-i18n'
 import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 

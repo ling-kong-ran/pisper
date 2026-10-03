@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { browserLaunchSpec, openBrowser, shouldOpenBrowser } from '../open-browser.mjs'
+import { browserLaunchSpec, openBrowser, shouldOpenBrowser } from '../services/open-browser.mjs'
 
 test('local npm servers open a browser only when explicitly enabled', () => {
   assert.equal(shouldOpenBrowser({ host: '127.0.0.1', env: {} }), false)

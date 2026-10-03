@@ -1,5 +1,5 @@
 // UI 偏好统一写入根元素,保证 React 组件、第三方控件和纯 CSS 表面读取同一状态。
-import { customAccentStyleRules, normalizeHexColor } from '@/lib/custom-accent'
+import { customAccentStyleRules, normalizeHexColor } from '@/lib/format/custom-accent'
 import type {
   AccentPreset,
   DensityMode,

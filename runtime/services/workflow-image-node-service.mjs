@@ -4,8 +4,8 @@ import {
   normalizeWorkflowImageSettings,
   parseWorkflowImageOutput,
   workflowImageError,
-} from '../../shared/workflow-image-nodes.mjs'
-import { parseWorkflowMedia } from '../../shared/workflow-inputs.mjs'
+} from '../../shared/workflow/workflow-image-nodes.mjs'
+import { parseWorkflowMedia } from '../../shared/workflow/workflow-inputs.mjs'
 export class WorkflowImageNodeService {
   /** @param {{operations: Pick<import('./image-operation-service.mjs').ImageOperationService,'execute'>}} dependencies */
   constructor({ operations }) {

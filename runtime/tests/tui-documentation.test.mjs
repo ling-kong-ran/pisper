@@ -80,8 +80,8 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
 
 test('desktop CLI management lives under App updates', async () => {
   const [configPage, updateSettings] = await Promise.all([
-    readFile('src/features/config/ConfigPage.tsx', 'utf8'),
-    readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
+    readFile('src/features/config/pages/ConfigPage.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/UpdateSettings.tsx', 'utf8'),
   ])
 
   assert.doesNotMatch(configPage, /section === 'terminal'/)

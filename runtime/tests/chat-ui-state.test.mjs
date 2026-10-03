@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { createPrimaryActionRegistry } from '../../src/app/primary-action.ts'
+import { createPrimaryActionRegistry } from '../../src/app/routes/primary-action.ts'
 import {
   SESSIONS_UPDATED_EVENT,
   announceSessionsUpdated,
   subscribeSessionDeletionUpdates,
   subscribeSessionTitleUpdates,
-} from '../../src/features/chat/events.ts'
+} from '../../src/features/chat/model/events.ts'
 import {
   applySessionTitleUpdate,
   createSessionTitleReconciler,
@@ -17,7 +17,7 @@ import {
   shouldInheritRecentSessionCwd,
   removeTiledSession,
   toggleTiledSession,
-} from '../../src/features/chat/session-list.ts'
+} from '../../src/features/chat/model/session-list.ts'
 
 test('primary action remains callable until its page registration is disposed', () => {
   const registry = createPrimaryActionRegistry()
@@ -298,8 +298,8 @@ test('new sessions inherit the most recently listed workspace', async () => {
   assert.equal(sessionCwdForCreate('/mobile/explicit', sessions, false), '/mobile/explicit')
 
   const [catalog, api] = await Promise.all([
-    readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
-    readFile('src/features/chat/chat-api.ts', 'utf8'),
+    readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
+    readFile('src/features/chat/api/chat-api.ts', 'utf8'),
   ])
   assert.match(catalog, /sessionCwdForCreate\(cwd, sessionsRef\.current, inheritRecentCwd\)/)
   assert.match(api, /data: \{ name, \.\.\.\(cwd \? \{ cwd \} : \{\}\) \}/)
@@ -312,9 +312,9 @@ test('workspace groups create chats with their exact working directory', async (
     await Promise.all([
       readFile('src/components/layout/SidebarRecentSessions.tsx', 'utf8'),
       readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
-      readFile('src/features/chat/events.ts', 'utf8'),
-      readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-      readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
+      readFile('src/features/chat/model/events.ts', 'utf8'),
+      readFile('src/features/chat/pages/ChatPage.tsx', 'utf8'),
+      readFile('src/features/chat/hooks/use-session-catalog.ts', 'utf8'),
       readFile('src/app/storage.ts', 'utf8'),
       readFile('src/locales/en-US/navigation.json', 'utf8').then(JSON.parse),
       readFile('src/locales/zh-CN/navigation.json', 'utf8').then(JSON.parse),
@@ -350,8 +350,8 @@ test('a session can be added to and removed from the tiled set', () => {
 test('the chat composer exposes the global command palette shortcut', async () => {
   const [app, events, focus, english, chinese] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/features/chat/events.ts', 'utf8'),
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/model/events.ts', 'utf8'),
+    readFile('src/features/chat/components/runtime/FocusSession.tsx', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8').then(JSON.parse),
     readFile('src/locales/zh-CN/chat.json', 'utf8').then(JSON.parse),
   ])
@@ -370,6 +370,9 @@ test('the chat composer exposes the global command palette shortcut', async () =
 })
 
 test('the git changes badge uses the theme-aware contrasting text color', async () => {
-  const controls = await readFile('src/features/chat/GitChangesControl.tsx', 'utf8')
+  const controls = await readFile(
+    'src/features/chat/components/files/GitChangesControl.tsx',
+    'utf8',
+  )
   assert.match(controls, /git-changes-trigger[^"\n]*\[&_>_i\]:text-\[var\(--on-accent\)\]/)
 })

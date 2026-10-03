@@ -18,7 +18,12 @@ import { stageIosSpeechResources } from '../../scripts/stage-ios-speech-resource
 import { prepareIosSpeechTests } from '../../scripts/test-ios-speech.mjs'
 import { verifyIosSpeechBundle } from '../../scripts/verify-ios-speech-bundle.mjs'
 
-const resources = [
+const sourceResources = [
+  'speech/speech-model-catalog.json',
+  'speech/speech-resource-notices.json',
+  'speech-resources/xasr-bpe.vocab',
+]
+const targetResources = [
   'speech-model-catalog.json',
   'speech-resource-notices.json',
   'speech-resources/xasr-bpe.vocab',
@@ -27,7 +32,7 @@ const resources = [
 test('Android and iOS stage the same trusted catalog, notices and BPE without model weights', async (t) => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'pisper-speech-platforms-')))
   t.after(() => rm(root, { recursive: true, force: true }))
-  for (const resource of resources) {
+  for (const resource of sourceResources) {
     const target = join(root, 'shared', resource)
     await mkdir(dirname(target), { recursive: true })
     await copyFile(join('shared', resource), target)
@@ -45,10 +50,11 @@ test('Android and iOS stage the same trusted catalog, notices and BPE without mo
       'speech-resources',
     ])
     assert.deepEqual(await readdir(join(directory, 'speech-resources')), ['xasr-bpe.vocab'])
-    for (const resource of resources) {
+    for (const target of targetResources) {
+      const source = sourceResources[targetResources.indexOf(target)]
       assert.deepEqual(
-        await readFile(join(directory, resource)),
-        await readFile(join('shared', resource)),
+        await readFile(join(directory, target)),
+        await readFile(join('shared', source)),
       )
     }
   }
@@ -80,7 +86,7 @@ test('iOS bundle validation rejects changed resources, duplicate catalogs and bu
   const catalog = join(targetDir, 'speech-model-catalog.json')
   await writeFile(catalog, '{}')
   await assert.rejects(verifyIosSpeechBundle({ appRoot }), /differs from shared source/)
-  await copyFile('shared/speech-model-catalog.json', catalog)
+  await copyFile('shared/speech/speech-model-catalog.json', catalog)
   await writeFile(join(appRoot, 'model.onnx'), 'weights must remain downloadable')
   await assert.rejects(verifyIosSpeechBundle({ appRoot }), /bundles speech model weights/)
   await rm(join(appRoot, 'model.onnx'))
@@ -104,7 +110,7 @@ for (const newline of ['\n', '\r\n']) {
       'SpeechAudioService.swift',
     ]
     const paths = [
-      ...resources.map((name) => join('shared', name)),
+      ...sourceResources.map((name) => join('shared', name)),
       join(plugin, 'Package.swift'),
       ...sources.map((name) => join(plugin, 'Sources', name)),
       ...[
@@ -135,10 +141,10 @@ for (const newline of ['\n', '\r\n']) {
         await readFile(join(plugin, 'Sources', name)),
       )
     }
-    for (const name of resources) {
+    for (let index = 0; index < targetResources.length; index += 1) {
       assert.deepEqual(
-        await readFile(join(target, 'Sources/SpeechResources', name)),
-        await readFile(join('shared', name)),
+        await readFile(join(target, 'Sources/SpeechResources', targetResources[index])),
+        await readFile(join('shared', sourceResources[index])),
       )
     }
     for (const name of await readdir(join(target, 'Tests'))) {

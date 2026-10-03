@@ -30,9 +30,9 @@ test('business UI no longer depends on the legacy primitive barrel', async () =>
 test('app primitives compose shadcn controls and share project Tailwind tokens', async () => {
   const [primitives, settings, styles, schedules] = await Promise.all([
     readFile('src/components/ui/app-primitives.tsx', 'utf8'),
-    readFile('src/features/config/settings-primitives.tsx', 'utf8'),
+    readFile('src/features/config/components/settings/settings-primitives.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
-    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+    readFile('src/features/schedules/pages/SchedulesPage.tsx', 'utf8'),
   ])
 
   for (const primitive of ['badge', 'card', 'switch', 'tabs']) {
@@ -67,7 +67,7 @@ test('modal surfaces stay scrollable within low-height viewports', async () => {
     readFile('src/components/ui/dialog.tsx', 'utf8'),
     readFile('src/components/ui/alert-dialog.tsx', 'utf8'),
     readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
-    readFile('src/features/assets/AssetsPage.tsx', 'utf8'),
+    readFile('src/features/assets/pages/AssetsPage.tsx', 'utf8'),
   ])
 
   assert.match(assets, /modal-backdrop[^"\n]*overflow-y-auto/)

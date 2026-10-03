@@ -8,7 +8,7 @@ import { SpriteEngineService } from '../services/sprite-engine-service.mjs'
 import {
   parseSpriteEngineCatalog,
   SPRITE_ENGINE_CATALOG,
-} from '../../shared/sprite-engine-catalog.mjs'
+} from '../../shared/game/sprite-engine-catalog.mjs'
 
 const CONTENTS = {
   'runtime.js': Buffer.from('/* pinned test runtime */'),
