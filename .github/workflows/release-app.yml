@@ -46,7 +46,7 @@ jobs:
           node-version: 24
       - name: Stage app version, release notes, and latest-app manifest
         run: node scripts/prepare-app-release.mjs "$RELEASE_TAG" "$RELEASE_SOURCE_SHA"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: app-release-source
           if-no-files-found: error
@@ -100,7 +100,7 @@ jobs:
           npx tauri signer sign release/pisper-embedded-runtime.tar.gz
           mv release/pisper-embedded-runtime.tar.gz.sig \
             release/pisper-embedded-runtime.tar.gz.minisig
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: app-embedded-runtime
           if-no-files-found: error
@@ -257,7 +257,7 @@ jobs:
         run: |
           npx tauri signer sign app-universal-release-signed.apk
           mv app-universal-release-signed.apk.sig app-universal-release-signed.apk.minisig
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: app-android
           if-no-files-found: error
@@ -387,7 +387,7 @@ jobs:
           该 IPA 为未签名产物（不含 provisioning profile），已内置同源 Node/Pisper Runtime。
           安装到真机需自行重签名：AltStore / Sideloadly / 自有开发者账号。
           EOF
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: app-ios
           if-no-files-found: error

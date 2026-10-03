@@ -74,7 +74,7 @@ jobs:
             test "$(tar -xOzf release/pisper-embedded-runtime.tar.gz "./shared/$RESOURCE" | sha256sum | awk '{print $1}')" = \
               "$(sha256sum "shared/$RESOURCE" | awk '{print $1}')"
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: store-embedded-runtime
           if-no-files-found: error
@@ -233,7 +233,7 @@ jobs:
             -sigalg SHA256withRSA -digestalg SHA-256 \
             pisper-google-play.aab "$APP_ANDROID_KEY_ALIAS"
           jarsigner -verify -strict -certs pisper-google-play.aab
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pisper-google-play
           if-no-files-found: error
@@ -347,7 +347,7 @@ jobs:
           APP=$(find /tmp/pisper-store-ipa/Payload -maxdepth 1 -name '*.app' -type d | head -1)
           codesign --verify --deep --strict --verbose=2 "$APP"
           cp "$IPA" pisper-app-store.ipa
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pisper-app-store
           if-no-files-found: error
