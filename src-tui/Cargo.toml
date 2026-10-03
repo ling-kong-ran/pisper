@@ -20,7 +20,7 @@ futures-util = "0.3"
 getrandom = "0.2"
 humantime = "2"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"] }
-notify-rust = "=4.11.3"
+notify-rust = "=4.18.1"
 percent-encoding = "2"
 pisper-component-updater = { path = "../crates/component-updater" }
 ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29", "unstable-rendered-line-info"] }
