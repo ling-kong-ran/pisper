@@ -1,5 +1,9 @@
 // 工作流领域类型：节点种类（触发器/提示词/技能等）、节点/连线的 JSON 形状
 // 与运行时执行的快照结构。
+import { WORKFLOW_IMAGE_NODE_KINDS } from '@shared/workflow-image-nodes.mjs'
+import type { WorkflowImageSettings } from '@shared/workflow-image-nodes.mjs'
+import type { WorkflowInputDefinition } from '@shared/workflow-inputs.mjs'
+
 export const WORKFLOW_NODE_KINDS = [
   'trigger',
   'prompt',
@@ -10,22 +14,15 @@ export const WORKFLOW_NODE_KINDS = [
   'condition',
   'parallel',
   'approval',
+  ...WORKFLOW_IMAGE_NODE_KINDS,
 ] as const
 
 export type NodeKind = (typeof WORKFLOW_NODE_KINDS)[number]
 export type NotificationTarget = 'browser' | 'feishu' | 'weixin' | 'qq' | 'telegram'
-export type WorkflowInputType = 'string' | 'number' | 'boolean' | 'text'
+export type WorkflowInputType = WorkflowInputDefinition['type']
 export type WorkflowExecutionMode = 'workspace-write' | 'full-access'
 
-export type WorkflowInput = {
-  id: string
-  name: string
-  label: string
-  type: WorkflowInputType
-  required: boolean
-  defaultValue: unknown
-  description: string
-}
+export type WorkflowInput = WorkflowInputDefinition
 
 export type WorkflowNode = {
   id: string
@@ -52,6 +49,7 @@ export type WorkflowNode = {
   approval: { message: string; timeoutMinutes: number }
   notification: { title: string; content: string }
   notificationTargets: NotificationTarget[]
+  image?: WorkflowImageSettings
 }
 
 export type WorkflowEdge = {

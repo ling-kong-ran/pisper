@@ -1,7 +1,6 @@
 // 悬浮组件由应用壳持有；路由与会话切换只更新页面内容，不重建沙箱和计时器。
 import { useMemo, type RefObject } from 'react'
 import { useI18n } from '@/app/use-i18n'
-import { useFloatingWidgetDefaults } from '@/app/useFloatingWidgetDefaults'
 import { FloatingCustomUi } from '@/features/custom-ui/floating'
 import {
   resolveFloatingWidgetIds,
@@ -16,15 +15,14 @@ export function FloatingWidgets({
   notify: (message: string) => void
 }) {
   const { t } = useI18n()
-  const defaults = useFloatingWidgetDefaults()
   const prefs = useFloatingWidgetsStore((state) => state.prefs)
   const widgets = useMemo(
     () =>
-      resolveFloatingWidgetIds(defaults, prefs).map((componentId) => ({
+      resolveFloatingWidgetIds([], prefs).map((componentId) => ({
         id: componentId,
         componentId,
       })),
-    [defaults, prefs],
+    [prefs],
   )
   return (
     <FloatingCustomUi

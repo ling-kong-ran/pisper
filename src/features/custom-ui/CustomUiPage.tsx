@@ -1,14 +1,33 @@
 // 自定义组件页：加载 dataDir/custom-ui/ 下用户自写的静态 UI 组件，
 // 左侧组件列表 + 右侧沙箱 iframe 渲染。组件与应用的交互全部经过
 // component-bridge 的 postMessage 代理（权限按 manifest 声明过滤）。
-import { useState } from 'react'
-import { Blocks, FolderCode, PanelsTopLeft, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Blocks,
+  FolderCode,
+  FolderUp,
+  PanelsTopLeft,
+  RefreshCw,
+  ShieldCheck,
+  Upload,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppCard as Panel, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { ApiError } from '@/lib/http'
 import type { Notify } from '@/app/route-context'
 import { CustomUiFrame } from './CustomUiFrame'
+import { importCustomUiBundle } from './custom-ui-api'
 import { useCustomUiComponents } from './useCustomUiComponents'
 import { customUiComponentLabel, customUiComponentDescription } from './custom-ui-labels'
 import { resolveFloatingWidgetIds, useFloatingWidgetsStore } from './floating-widgets-store'
@@ -16,13 +35,16 @@ import type { CustomUiComponent } from './custom-ui-api'
 
 type CustomUiPageProps = {
   notify: Notify
-  floatingDefaults?: readonly string[]
 }
 
 function permissionLabel(permission: string, t: ReturnType<typeof useI18n>['t']) {
   if (permission === 'config.read') return t('custom-ui:customUiPage.permissionConfigRead')
   if (permission === 'sessions.read') return t('custom-ui:customUiPage.permissionSessionsRead')
   if (permission === 'notify') return t('custom-ui:customUiPage.permissionNotify')
+  if (permission === 'game-assets.read') return t('custom-ui:customUiPage.permissionGameAssetsRead')
+  if (permission === 'game-assets.write')
+    return t('custom-ui:customUiPage.permissionGameAssetsWrite')
+  if (permission === 'game-assets.run') return t('custom-ui:customUiPage.permissionGameAssetsRun')
   return permission
 }
 
@@ -56,6 +78,11 @@ function ComponentStage({
             v{component.version}
           </span>
         )}
+        <Button variant="outline" size="sm" asChild>
+          <Link to={`/tools/components/${encodeURIComponent(component.id)}`}>
+            {t('custom-ui:customUiPage.openComponent')}
+          </Link>
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -95,19 +122,24 @@ function ComponentStage({
   )
 }
 
-export function CustomUiPage({ notify, floatingDefaults = [] }: CustomUiPageProps) {
+export function CustomUiPage({ notify }: CustomUiPageProps) {
   const { t } = useI18n()
   const catalog = useCustomUiComponents()
   const components = catalog.data?.components || []
   const root = catalog.data?.root || ''
   const [selectedId, setSelectedId] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [importedName, setImportedName] = useState('')
+  const zipInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const loading = catalog.isPending
   const refreshing = catalog.isFetching
   const error = catalog.error ? t('custom-ui:widget.catalogFailed') : ''
   const selected = components.find((item) => item.id === selectedId) || components[0] || null
   const prefs = useFloatingWidgetsStore((state) => state.prefs)
   const storageError = useFloatingWidgetsStore((state) => state.storageError)
-  const floatingIds = resolveFloatingWidgetIds(floatingDefaults, prefs)
+  const floatingIds = resolveFloatingWidgetIds([], prefs)
   const toggleFloating = () => {
     if (!selected) return
     try {
@@ -116,6 +148,128 @@ export function CustomUiPage({ notify, floatingDefaults = [] }: CustomUiPageProp
       notify(t('custom-ui:floating.storageFailed'))
     }
   }
+
+  const install = async (bundle: Blob) => {
+    setImporting(true)
+    setImportError('')
+    try {
+      const result = await importCustomUiBundle(bundle)
+      await catalog.refetch()
+      setSelectedId(result.id)
+      setImportedName(result.name)
+    } catch (caught) {
+      const code = caught instanceof ApiError ? caught.data?.code : undefined
+      setImportError(
+        code === 'component_already_installed'
+          ? t('custom-ui:customUiPage.importExists')
+          : t('custom-ui:customUiPage.importFailed'),
+      )
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const importFolder = async (files: File[]) => {
+    setImporting(true)
+    setImportError('')
+    try {
+      const selected = files.filter((file) => !file.name.startsWith('.'))
+      if (!selected.length || selected.reduce((sum, file) => sum + file.size, 0) > 15 * 1024 * 1024)
+        throw new Error('Invalid component folder')
+      const entries: Record<string, Uint8Array> = {}
+      for (const file of selected) {
+        const path = file.webkitRelativePath || file.name
+        entries[path] = new Uint8Array(await file.arrayBuffer())
+      }
+      const { zipSync } = await import('fflate')
+      await install(new Blob([zipSync(entries, { level: 0 })], { type: 'application/zip' }))
+    } catch {
+      setImportError(t('custom-ui:customUiPage.importFailed'))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const importPanel = (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <input
+        ref={(node) => {
+          folderInputRef.current = node
+          node?.setAttribute('webkitdirectory', '')
+        }}
+        type="file"
+        multiple
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files || [])]
+          event.currentTarget.value = ''
+          if (files.length) void importFolder(files)
+        }}
+      />
+      <input
+        ref={zipInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0]
+          if (file) void install(file)
+          event.currentTarget.value = ''
+        }}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={importing}
+        onClick={() => folderInputRef.current?.click()}
+      >
+        <FolderUp size={14} />
+        {t('custom-ui:customUiPage.importFolder')}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={importing}
+        onClick={() => zipInputRef.current?.click()}
+      >
+        <Upload size={14} />
+        {t('custom-ui:customUiPage.importZip')}
+      </Button>
+      {importing && (
+        <span role="status" className="text-xs text-muted-foreground">
+          {t('custom-ui:customUiPage.importing')}
+        </span>
+      )}
+      {importError && (
+        <span role="alert" className="text-xs text-destructive">
+          {importError}
+        </span>
+      )}
+    </div>
+  )
+
+  const importNotice = (
+    <Dialog open={Boolean(importedName)} onOpenChange={(open) => !open && setImportedName('')}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('custom-ui:customUiPage.imported', { name: importedName })}</DialogTitle>
+          <DialogDescription>{t('custom-ui:customUiPage.restartHint')}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setImportedName('')}>
+            {t('custom-ui:customUiPage.restartLater')}
+          </Button>
+          <Button onClick={() => window.location.reload()}>
+            {t('custom-ui:customUiPage.reloadNow')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 
   if (loading) {
     return (
@@ -128,6 +282,8 @@ export function CustomUiPage({ notify, floatingDefaults = [] }: CustomUiPageProp
   if (!components.length && !error) {
     return (
       <div className="flex min-h-[100%] min-w-0 flex-col gap-[12px]">
+        {importPanel}
+        {importNotice}
         <AppEmptyState className="flex flex-1 flex-col items-center justify-center gap-[10px] p-[40px_24px] text-center">
           <Blocks size={28} className="text-[var(--text-muted)]" />
           <strong className="text-[14px]">{t('custom-ui:customUiPage.emptyTitle')}</strong>
@@ -158,6 +314,8 @@ export function CustomUiPage({ notify, floatingDefaults = [] }: CustomUiPageProp
 
   return (
     <div className="flex min-h-[100%] min-w-0 flex-col gap-[12px]">
+      {importPanel}
+      {importNotice}
       {error && (
         <AppNotice>
           <FolderCode size={14} />

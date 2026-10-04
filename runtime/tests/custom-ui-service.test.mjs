@@ -187,7 +187,14 @@ test('bridge script exposes the pisper global and permission names stay in sync'
   assert.match(script, /getConfig/)
   assert.match(script, /listSessions/)
   assert.match(script, /notify/)
-  assert.deepEqual([...CUSTOM_UI_PERMISSIONS].sort(), ['config.read', 'notify', 'sessions.read'])
+  assert.deepEqual([...CUSTOM_UI_PERMISSIONS].sort(), [
+    'config.read',
+    'game-assets.read',
+    'game-assets.run',
+    'game-assets.write',
+    'notify',
+    'sessions.read',
+  ])
 })
 
 test('serveAsset streams content with nosniff headers and 404 for unknown assets', async (t) => {

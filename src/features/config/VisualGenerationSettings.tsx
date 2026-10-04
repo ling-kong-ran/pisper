@@ -16,6 +16,7 @@ import {
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { ConnectionCardGrid } from './ConnectionList'
 import { SettingsBadge, SettingsCard } from './settings-primitives'
 import type { Notify } from '@/app/route-context'
@@ -43,7 +44,7 @@ const visualTestCache = {
 }
 
 function storedVisualConnectionsOpen(): boolean {
-  return window.localStorage.getItem(VISUAL_CONNECTIONS_STORAGE_KEY) === '1'
+  return pageStateStorage.getItem(VISUAL_CONNECTIONS_STORAGE_KEY) === '1'
 }
 
 type VisualGenerationSettingsProps = {
@@ -166,7 +167,7 @@ export function VisualGenerationSettings({
 
   const setConnectionsOpenPersisted = (next: boolean) => {
     setConnectionsOpen(next)
-    window.localStorage.setItem(VISUAL_CONNECTIONS_STORAGE_KEY, next ? '1' : '0')
+    pageStateStorage.setItem(VISUAL_CONNECTIONS_STORAGE_KEY, next ? '1' : '0')
   }
 
   const visualProviders = config.providers.filter((provider) => provider.type === 'visual')

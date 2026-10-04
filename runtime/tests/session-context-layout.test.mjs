@@ -53,22 +53,79 @@ test('invalid context width preferences fall back to the initial width', () => {
   }
 })
 
-test('finishing the active run reveals file context even after the panel was closed', () => {
-  const running = { sessionId: 'active', streaming: true, completed: false }
-  const finished = { sessionId: 'active', streaming: false, completed: true }
-  assert.equal(shouldRevealSessionContext(running, finished), true)
+const startedAt = '2026-09-27T00:00:00.000Z'
+const running = { sessionId: 'active', streaming: true, completed: false, runStartedAt: startedAt }
+const finished = { ...running, streaming: false, completed: true }
+const currentFile = {
+  path: 'example.txt',
+  status: 'modified',
+  changedAt: '2026-09-27T00:00:01.000Z',
+  added: 1,
+  removed: 0,
+  reverted: false,
+  pending: true,
+  snapshot: true,
+}
+
+test('finishing the active run reveals context only for file changes made in that run', () => {
+  assert.equal(shouldRevealSessionContext(running, finished, [currentFile]), true)
   assert.equal(presentation({ preference: 'open' }), 'aside')
   assert.equal(presentation({ preference: 'open', mobileLayout: true }), 'sheet')
-  assert.equal(shouldRevealSessionContext(finished, finished), false)
+  assert.equal(shouldRevealSessionContext(finished, finished, [currentFile]), false)
+  assert.equal(shouldRevealSessionContext(running, finished), false)
+  assert.equal(shouldRevealSessionContext(running, finished, []), false)
+  for (const file of [
+    { ...currentFile, changedAt: '2026-09-26T23:59:59.999Z' },
+    { ...currentFile, reverted: true },
+    { ...currentFile, added: 0, removed: 0 },
+    { ...currentFile, changedAt: 'invalid' },
+  ]) {
+    assert.equal(shouldRevealSessionContext(running, finished, [file]), false)
+  }
+  for (const file of [
+    { ...currentFile, added: 0, removed: 1 },
+    { ...currentFile, added: 0, status: 'created' },
+    { ...currentFile, added: 0, status: 'deleted' },
+    { ...currentFile, added: 0, snapshot: false },
+    { ...currentFile, pending: false },
+    { ...currentFile, changedAt: startedAt },
+  ]) {
+    assert.equal(shouldRevealSessionContext(running, finished, [file]), true)
+  }
+  for (const runStartedAt of [undefined, null, '', 'invalid']) {
+    assert.equal(
+      shouldRevealSessionContext(running, { ...finished, runStartedAt }, [currentFile]),
+      false,
+    )
+  }
 })
 
 test('loading history, switching sessions and unsuccessful runs do not reveal context', () => {
-  const running = { sessionId: 'active', streaming: true, completed: false }
-  const finished = { sessionId: 'active', streaming: false, completed: true }
-  assert.equal(shouldRevealSessionContext(null, finished), false)
-  assert.equal(shouldRevealSessionContext({ ...running, streaming: false }, finished), false)
-  assert.equal(shouldRevealSessionContext(running, { ...finished, sessionId: 'other' }), false)
-  assert.equal(shouldRevealSessionContext(running, { ...finished, sessionId: '' }), false)
-  assert.equal(shouldRevealSessionContext(running, { ...finished, completed: false }), false)
-  assert.equal(shouldRevealSessionContext(running, { ...finished, streaming: true }), false)
+  assert.equal(shouldRevealSessionContext(null, finished, [currentFile]), false)
+  assert.equal(
+    shouldRevealSessionContext({ ...running, runStartedAt: null }, finished, [currentFile]),
+    false,
+  )
+  assert.equal(
+    shouldRevealSessionContext(running, { ...finished, runStartedAt: '2026-09-27T00:01:00.000Z' }, [
+      currentFile,
+    ]),
+    false,
+  )
+  assert.equal(
+    shouldRevealSessionContext({ ...running, completed: true }, finished, [currentFile]),
+    false,
+  )
+  assert.equal(
+    shouldRevealSessionContext({ ...running, streaming: false }, finished, [currentFile]),
+    false,
+  )
+  for (const current of [
+    { ...finished, sessionId: 'other' },
+    { ...finished, sessionId: '' },
+    { ...finished, completed: false },
+    { ...finished, streaming: true },
+  ]) {
+    assert.equal(shouldRevealSessionContext(running, current, [currentFile]), false)
+  }
 })

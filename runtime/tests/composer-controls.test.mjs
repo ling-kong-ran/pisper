@@ -64,7 +64,8 @@ test('composer keeps shortcuts inline and overflows them by measured panel width
   assert.match(layout, /preferredInline\.slice\(0, count\)/)
   assert.match(capacity, /new ResizeObserver\(update\)/)
   assert.match(capacity, /getBoundingClientRect\(\)\.width/)
-  assert.match(store, /name: 'pisper-zcode-composer-toolbar'/)
+  assert.match(store, /name: 'pisper-composer-toolbar'/)
+  assert.match(store, /LEGACY_TOOLBAR_KEY/)
   assert.match(store, /normalizeComposerToolbarLayout/)
 
   assert.match(tray, /<AnchoredPopupMenu/)

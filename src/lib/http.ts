@@ -61,8 +61,14 @@ async function request<T>(
   const headers = new Headers(inputHeaders)
   let requestBody: BodyInit | undefined
   if (payload !== undefined) {
-    requestBody = typeof payload === 'string' ? payload : JSON.stringify(payload)
-    if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+    if (payload instanceof Blob) {
+      requestBody = payload
+      if (!headers.has('Content-Type'))
+        headers.set('Content-Type', payload.type || 'application/octet-stream')
+    } else {
+      requestBody = typeof payload === 'string' ? payload : JSON.stringify(payload)
+      if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+    }
   }
 
   const controller = new AbortController()
@@ -116,4 +122,9 @@ export function requestJson<T = unknown>(
 
 export function requestText(path: string, options: HttpRequestOptions = {}): Promise<string> {
   return request(path, options, (response) => response.text())
+}
+
+// 图片等二进制负载沿用同一套认证环境、超时和取消语义。
+export function requestBlob(path: string, options: HttpRequestOptions = {}): Promise<Blob> {
+  return request(path, options, (response) => response.blob())
 }

@@ -11,6 +11,8 @@ import {
 } from '../security/execution-mode.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
+import { isSideChatId } from '../services/side-chat-service.mjs'
+import { parseSessionModelRef } from './session-model-ref.mjs'
 import {
   applySessionOrganizationPatch,
   parseSessionOrganizationPatch,
@@ -337,7 +339,7 @@ export class SessionLifecycle {
   }
 
   // 会话列表：磁盘会话 + 活动运行时 + 待物化会话合并，附目标/计划/Agent/血缘信息。
-  async listSessions() {
+  async listSessions({ includeSideChats = false } = {}) {
     const sessions = await this.listStoredSessions()
     const settings = this.getSettingsManager().getGlobalSettings()
     const sessionMeta = this.getSessionMeta()
@@ -456,18 +458,28 @@ export class SessionLifecycle {
     result.sort(
       (left, right) => new Date(right.modified).getTime() - new Date(left.modified).getTime(),
     )
-    return result
+    return includeSideChats
+      ? result
+      : result.filter((session) => !isSideChatId(session.id) && !sessionMeta[session.id]?.sideChat)
   }
 
   // 创建会话：先写最小会话文件供重启与并发整理定位，真正的运行时等首次消息时才装配。
-  async createSession(name, cwd) {
+  async createSession(name, cwd, { id: requestedId, metadata = {} } = {}) {
     const resolvedName = this.cleanSessionTitle(name) || DEFAULT_SESSION_NAME
     const effectiveCwd = await this.resolveDirectory(cwd, this.cwd)
-    const manager = SessionManager.create(effectiveCwd, this.sessionDir)
+    const manager = SessionManager.create(
+      effectiveCwd,
+      this.sessionDir,
+      requestedId ? { id: requestedId } : undefined,
+    )
     const id = manager.getSessionId()
     const now = new Date().toISOString()
     manager.appendSessionInfo(resolvedName)
     await ensureSessionFilePersisted(manager, resolvedName, effectiveCwd)
+    // 最小文件落盘会重新载入 manager，因此继承项必须在它之后追加，避免首次恢复丢失思考等级。
+    const inheritedModel = parseSessionModelRef(metadata.model)
+    if (inheritedModel) manager.appendModelChange(inheritedModel.provider, inheritedModel.modelId)
+    if (metadata.thinkingLevel) manager.appendThinkingLevelChange(metadata.thinkingLevel)
     this.pendingSessions.set(id, {
       manager,
       name: resolvedName,
@@ -483,6 +495,7 @@ export class SessionLifecycle {
       cwd: effectiveCwd,
       executionMode: DEFAULT_EXECUTION_MODE,
       permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
+      ...metadata,
     }
     await this.saveSessionMeta()
     try {
@@ -515,14 +528,15 @@ export class SessionLifecycle {
       id,
       name: resolvedName,
       messageCount: 0,
-      model,
-      thinkingLevel: settings.defaultThinkingLevel || 'medium',
+      model: sessionMeta[id].model || model,
+      thinkingLevel: sessionMeta[id].thinkingLevel || settings.defaultThinkingLevel || 'medium',
       cwd: effectiveCwd,
       created: now,
       modified: now,
       permissionMode: sessionMeta[id].permissionMode,
       ...projectSessionOrganization(sessionMeta[id]),
       executionMode: this.getExecutionMode(id),
+      runMode: sessionMeta[id].runMode || DEFAULT_COMPOSER_RUN_MODE,
       goal: null,
       plan: this.getPlans().get(id),
       agents: [],

@@ -498,6 +498,14 @@ export class ProviderPreferences {
       configuredApiKeys,
       configuredProviderTypes,
       configuredModelOptions,
+      Object.fromEntries(
+        Object.entries(modelsJson.providers || {}).map(([id, overlay]) => [
+          id,
+          Array.isArray(overlay.excludedModels)
+            ? overlay.excludedModels.filter((modelId) => typeof modelId === 'string')
+            : [],
+        ]),
+      ),
     )
     // complete/completeSimple/fetchDeferred 委托对应 stream，统一覆盖会话、压缩和直接调用。
     for (const method of ['stream', 'streamSimple', 'streamDeferred', 'cancelDeferred']) {
@@ -979,7 +987,13 @@ export class ProviderPreferences {
           models,
         }
       })
-      .filter((provider) => provider.models.length > 0 || KNOWN_PROVIDERS.includes(provider.id))
+      // 删除最后一个模型后仍保留连接，用户可以继续添加模型或编辑凭据。
+      .filter(
+        (provider) =>
+          provider.models.length > 0 ||
+          KNOWN_PROVIDERS.includes(provider.id) ||
+          Object.hasOwn(modelsJson.providers || {}, provider.id),
+      )
 
     const hasChatModel = (provider) =>
       provider.type !== 'visual' && provider.models.some((model) => model.kind === 'chat')
@@ -1145,6 +1159,10 @@ export class ProviderPreferences {
     }
     const runtimeModel = model ? modelRuntime.getModel(provider, model) : null
     if (model && !runtimeModel) {
+      // 旧版配置接口也允许手动添加模型，与新版批量添加共用“显式恢复”语义。
+      if (Array.isArray(providerOverlay.excludedModels)) {
+        providerOverlay.excludedModels = providerOverlay.excludedModels.filter((id) => id !== model)
+      }
       providerOverlay.name ||= String(input.providerName || provider)
       providerOverlay.api ||= String(input.api || 'openai-responses')
       providerOverlay.models = Array.isArray(providerOverlay.models)
@@ -1594,7 +1612,10 @@ export class ProviderPreferences {
     const settingsManager = this.getSettingsManager()
     const settings = settingsManager.getGlobalSettings()
     const config = await this.getConfigFacade()
+    const selected = config.providers.find((provider) => provider.id === config.provider)
     if (
+      selected?.configured &&
+      selected.enabled &&
       config.provider &&
       config.model &&
       (settings.defaultProvider !== config.provider || settings.defaultModel !== config.model)
@@ -1927,6 +1948,10 @@ export class ProviderPreferences {
       addedModelIds.push(modelId)
     }
     if (!addedModelIds.length) throw new Error('所选模型均已添加。')
+    // 显式重新添加恢复用户删掉的型号；远程目录刷新不能清除此排除记录。
+    if (Array.isArray(overlay.excludedModels)) {
+      overlay.excludedModels = overlay.excludedModels.filter((id) => !addedModelIds.includes(id))
+    }
     modelsJson.providers[provider] = overlay
     await writeJsonAtomic(this.modelsPath, modelsJson)
     if (providerType === 'visual' && overlay.models.some((item) => item.kind === 'chat')) {
@@ -1946,7 +1971,80 @@ export class ProviderPreferences {
     }
     await this.reloadModelRuntime()
     this.invalidateSessionRuntimes()
+    const updated = await this.getConfigFacade()
+    const candidate = updated.providers.find((entry) => entry.id === provider)
+    if (candidate?.configured && candidate.enabled && candidate.type === 'chat') {
+      await this.bootstrapDefaultModel(provider, candidate.defaultModel)
+    }
     return { ...(await this.getConfigFacade()), addedModelIds }
+  }
+
+  // 删除模型保留供应商凭据；排除记录覆盖内置和远程目录，避免刷新后又出现。
+  async deleteProviderModel(providerId, modelId) {
+    if (
+      typeof providerId !== 'string' ||
+      !providerId.trim() ||
+      typeof modelId !== 'string' ||
+      !modelId.trim() ||
+      modelId.trim().length > 240
+    ) {
+      throw Object.assign(new Error('供应商或模型 ID 无效。'), {
+        code: 'INVALID_PROVIDER_MODEL',
+        statusCode: 400,
+      })
+    }
+    const provider = providerId.trim()
+    const id = modelId.trim()
+    const config = await this.getConfigFacade()
+    const target = config.providers.find((entry) => entry.id === provider)
+    if (!target) {
+      throw Object.assign(new Error('Provider 不存在。'), {
+        code: 'PROVIDER_NOT_FOUND',
+        statusCode: 404,
+      })
+    }
+    const modelsJson = await readJson(this.modelsPath, { providers: {} })
+    const overlay = { ...(modelsJson.providers?.[provider] || {}) }
+    const excluded = new Set(Array.isArray(overlay.excludedModels) ? overlay.excludedModels : [])
+    if (!target.models.some((model) => model.id === id)) {
+      if (excluded.has(id)) return config
+      throw Object.assign(new Error('模型不存在。'), {
+        code: 'PROVIDER_MODEL_NOT_FOUND',
+        statusCode: 404,
+      })
+    }
+    excluded.add(id)
+    overlay.excludedModels = [...excluded]
+    overlay.models = (overlay.models || []).filter((model) => model.id !== id)
+    // Pi 不认识 Pisper 的排除字段；空 headers 保证仅排除内置模型时仍是合法且无副作用的覆盖项。
+    overlay.headers ||= {}
+    modelsJson.providers ||= {}
+    modelsJson.providers[provider] = overlay
+    const appConfig = await readJson(this.appConfigPath, {})
+    if (appConfig.providerDefaultModels?.[provider] === id)
+      delete appConfig.providerDefaultModels[provider]
+    for (const [kind, reference] of Object.entries(appConfig.visualDefaultModels || {})) {
+      if (reference === `${provider}/${id}`) delete appConfig.visualDefaultModels[kind]
+    }
+    await writeJsonAtomic(this.modelsPath, modelsJson)
+    await writeJsonAtomic(this.appConfigPath, appConfig)
+    await this.reloadModelRuntime()
+    const settingsManager = this.getSettingsManager()
+    const settings = settingsManager.getGlobalSettings()
+    if (settings.defaultProvider === provider && settings.defaultModel === id) {
+      // 仅调整新会话的默认值，既有会话继续保留原绑定并按已有机制提示模型不可用。
+      const current = await this.getConfigFacade()
+      const candidates = current.providers.filter(
+        (entry) => entry.configured && entry.enabled && entry.type === 'chat' && entry.defaultModel,
+      )
+      const next = candidates.find((entry) => entry.id === provider) || candidates[0]
+      settingsManager.setDefaultModelAndProvider(next?.id || '', next?.defaultModel || '')
+      await settingsManager.flush()
+      const errors = settingsManager.drainErrors()
+      if (errors.length) throw errors[0].error
+    }
+    this.invalidateSessionRuntimes()
+    return this.getConfigFacade()
   }
 
   // 删除自定义 Provider：内置 Provider 不可删，同时清理密钥/配置/目录/默认设置。

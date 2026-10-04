@@ -25,6 +25,7 @@ import {
   SettingsSectionTitle as SectionTitle,
 } from './settings-primitives'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues, SupportedLanguage } from '@/app/i18n'
@@ -53,7 +54,7 @@ type SponsorResponse = {
 
 function storedSponsorDismissals() {
   try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEYS.sponsorDismissals) || '{}')
+    const value = JSON.parse(pageStateStorage.getItem(STORAGE_KEYS.sponsorDismissals) || '{}')
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
     return Object.fromEntries(
       Object.entries(value).filter((entry): entry is [string, number] => {
@@ -152,7 +153,7 @@ export function UpdateSettings({
     const next = { ...sponsorDismissals, [id]: Date.now() + SPONSOR_DISMISSAL_MS }
     setSponsorDismissals(next)
     try {
-      localStorage.setItem(STORAGE_KEYS.sponsorDismissals, JSON.stringify(next))
+      pageStateStorage.setItem(STORAGE_KEYS.sponsorDismissals, JSON.stringify(next))
     } catch {
       // The dismissal remains effective for this session when storage is unavailable.
     }

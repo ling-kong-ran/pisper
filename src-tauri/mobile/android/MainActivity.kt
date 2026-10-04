@@ -8,19 +8,77 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   private var rendererRecoveryScheduled = false
+  private var safeAreaWebView: WebView? = null
+  private var safeArea = SafeArea(0, 0, 0, 0)
+
+  private data class SafeArea(val top: Int, val right: Int, val bottom: Int, val left: Int)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     // WebView 必须随输入法可视区缩放，否则底部会话输入框会落在键盘后方。
     window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     super.onCreate(savedInstanceState)
+    // Android 15+ 的 edge-to-edge WebView 不一定把系统栏转换为 CSS env(safe-area-inset-*)。
+    // 保留系统默认分发，只把真实 WindowInsets 映射为当前页面的设计变量。
+    window.decorView.setOnApplyWindowInsetsListener { view, insets ->
+      val next = readSafeArea(insets)
+      if (next != safeArea) {
+        safeArea = next
+        safeAreaWebView?.let(::publishSafeArea)
+      }
+      view.onApplyWindowInsets(insets)
+    }
+    window.decorView.requestApplyInsets()
+  }
+
+  override fun onDestroy() {
+    safeAreaWebView = null
+    window.decorView.setOnApplyWindowInsetsListener(null)
+    super.onDestroy()
+  }
+
+  private fun readSafeArea(insets: WindowInsets): SafeArea {
+    val compatible = WindowInsetsCompat.toWindowInsetsCompat(insets, window.decorView)
+    val bars = compatible.getInsets(
+      WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+    )
+    // 输入法已缩放 WebView 可视区时，底部不能再叠加导航栏留白。
+    val bottom = if (compatible.isVisible(WindowInsetsCompat.Type.ime())) 0 else bars.bottom
+    return SafeArea(bars.top, bars.right, bottom, bars.left)
+  }
+
+  private fun attachSafeArea(webView: WebView) {
+    safeAreaWebView = webView
+    window.decorView.rootWindowInsets?.let { safeArea = readSafeArea(it) }
+    publishSafeArea(webView)
+  }
+
+  private fun publishSafeArea(webView: WebView) {
+    val currentUrl = webView.url ?: return
+    val uri = runCatching { Uri.parse(currentUrl) }.getOrNull()
+    if (!isTrustedProxyOrigin(uri)) return
+    val density = webView.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+    val top = safeArea.top / density
+    val right = safeArea.right / density
+    val bottom = safeArea.bottom / density
+    val left = safeArea.left / density
+    webView.evaluateJavascript(
+      """(() => { const root = document.documentElement; if (!root) return; const style = root.style;
+        style.setProperty('--pisper-safe-area-top', '${top}px');
+        style.setProperty('--pisper-safe-area-right', '${right}px');
+        style.setProperty('--pisper-safe-area-bottom', '${bottom}px');
+        style.setProperty('--pisper-safe-area-left', '${left}px'); })();""",
+      null,
+    )
   }
 
   @Keep
@@ -36,6 +94,7 @@ class MainActivity : TauriActivity() {
     val currentUrl = runCatching { webView.url }.getOrNull()
     recoverableUrl(currentUrl, lastKnownUrl)?.let { intent.putExtra(RENDERER_RECOVERY_URL, it) }
     Log.e(LOG_TAG, "WebView renderer 已退出，准备重建（didCrash=$didCrash）")
+    if (safeAreaWebView === webView) safeAreaWebView = null
 
     // renderer 已失效，Android 要求先从视图树移除并销毁所有关联 WebView。
     (webView.parent as? ViewGroup)?.removeView(webView)
@@ -66,6 +125,7 @@ class MainActivity : TauriActivity() {
     fun restoreRendererRoute(webView: WebView) {
       val activity = findActivity(webView.context) ?: return
       if (activity.isFinishing || activity.isDestroyed) return
+      activity.attachSafeArea(webView)
       val recoveryUrl = activity.intent.getStringExtra(RENDERER_RECOVERY_URL) ?: return
       activity.intent.removeExtra(RENDERER_RECOVERY_URL)
       val uri = runCatching { Uri.parse(recoveryUrl) }.getOrNull()

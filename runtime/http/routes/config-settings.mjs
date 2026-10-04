@@ -291,6 +291,24 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'DELETE',
+    path: '/api/providers/:providerId/models',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      try {
+        json(200, await runtime.deleteProviderModel(params.providerId, input?.modelId))
+      } catch (error) {
+        const status = {
+          INVALID_PROVIDER_MODEL: 400,
+          PROVIDER_NOT_FOUND: 404,
+          PROVIDER_MODEL_NOT_FOUND: 404,
+        }[error?.code]
+        if (!(error instanceof Error) || typeof status !== 'number') throw error
+        json(status, { error: error.message, code: error.code })
+      }
+    },
+  },
+  {
     method: 'POST',
     path: '/api/providers/:providerId/models/discover',
     async handler({ runtime, params, body, json }) {

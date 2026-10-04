@@ -2,7 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apiJson, consumeEventStream } from '../../src/lib/api.ts'
 import { invalidResponseError } from '../../src/lib/http-response.ts'
-import { ApiError, DEFAULT_HTTP_TIMEOUT_MS, requestJson, requestText } from '../../src/lib/http.ts'
+import {
+  ApiError,
+  DEFAULT_HTTP_TIMEOUT_MS,
+  requestBlob,
+  requestJson,
+  requestText,
+} from '../../src/lib/http.ts'
 
 async function withFetch(fetchImplementation, callback) {
   const originalFetch = globalThis.fetch
@@ -267,4 +273,39 @@ test('JSON and SSE normalize malformed error fields through the same contract', 
       },
     )
   }
+})
+
+test('binary workflow transfer preserves raw bytes and unified HTTP errors', async () => {
+  const payload = new Blob([Uint8Array.of(0x50, 0x4b, 0, 255)], { type: 'application/zip' })
+  await withFetch(
+    async (_path, options) => {
+      assert.equal(options.body, payload)
+      assert.equal(options.headers.get('Content-Type'), 'application/zip')
+      return new Response(payload, { headers: { 'Content-Type': 'application/zip' } })
+    },
+    async () => {
+      const result = await requestBlob('/bundle', { method: 'POST', data: payload })
+      assert.equal(result.type, 'application/zip')
+      assert.deepEqual(
+        new Uint8Array(await result.arrayBuffer()),
+        Uint8Array.of(0x50, 0x4b, 0, 255),
+      )
+    },
+  )
+  await withFetch(
+    async () =>
+      new Response(JSON.stringify({ error: 'Invalid package', code: 'workflow_bundle_invalid' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    async () => {
+      await assert.rejects(
+        requestBlob('/bundle'),
+        (error) =>
+          error instanceof ApiError &&
+          error.status === 400 &&
+          error.data?.code === 'workflow_bundle_invalid',
+      )
+    },
+  )
 })

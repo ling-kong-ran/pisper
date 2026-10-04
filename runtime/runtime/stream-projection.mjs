@@ -1162,11 +1162,15 @@ export class StreamProjection {
     const messages = active?.session?.messages || []
     return [
       active,
+      active?.runActive,
+      active?.abortedAt,
+      active?.session?.isStreaming,
       active?.session?.model,
       active?.blockedModel,
       sessionInputQueueRevision(active?.session),
       ...messageToken(messages),
       live,
+      live?.streaming,
       this.sessionMeta()[id],
       approvals,
       approvals.length,
@@ -1196,6 +1200,11 @@ export class StreamProjection {
     const streaming = Boolean(
       !active?.abortedAt && (active?.session.isStreaming || live?.streaming),
     )
+    // 停止请求会立即清除可见流，但 Pi 的异步 abort 仍可能尚未退出。
+    // 模型和思考等级写入应等待与运行时校验相同的空闲条件。
+    const configurationBusy = Boolean(
+      active?.runActive || active?.session?.isStreaming || live?.streaming,
+    )
     if (streaming && live) {
       const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
       const assistantIndex = messages.findIndex(
@@ -1222,6 +1231,7 @@ export class StreamProjection {
     const value = {
       id,
       streaming,
+      configurationBusy,
       messages,
       tools: live?.tools || [],
       error: live?.error || '',

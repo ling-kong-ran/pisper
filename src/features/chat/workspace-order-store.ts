@@ -1,6 +1,7 @@
 // @public 侧栏组合边界使用的目录顺序和显示名称偏好，不修改实际目录或服务端会话。
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   NO_WORKSPACE_KEY,
   normalizeWorkspaceOrder,
@@ -36,7 +37,7 @@ function normalizeWorkspaceNames(value: unknown): Record<string, string> {
   return names
 }
 
-const storage = createJSONStorage<WorkspacePreferences>(() => window.localStorage)
+const storage = createJSONStorage<WorkspacePreferences>(() => pageStateStorage)
 
 export const useWorkspaceOrderStore = create<WorkspaceOrderState>()(
   persist(

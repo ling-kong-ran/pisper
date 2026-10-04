@@ -1,10 +1,12 @@
+import { isWorkflowImageNodeKind } from '@shared/workflow-image-nodes.mjs'
+import { WorkflowImageNodeInspector } from './WorkflowImageNodeInspector'
+import { WorkflowImageResult } from './WorkflowImageResult'
 // 工作流节点检查器：选中节点后的属性编辑（提示词/技能/触发器等），
 // 校验必填字段并就地写回工作流。
-import { AlertTriangle, Bell, Bot, Copy, MessageCircle, Plus, Send, Trash2 } from 'lucide-react'
+import { AlertTriangle, Bell, Bot, Copy, MessageCircle, Play, Send, Trash2 } from 'lucide-react'
 import { AppSelect } from '@/components/AppSelect'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,7 +16,7 @@ import type {
   WorkflowEdge,
   WorkflowExecutionMode,
   WorkflowNode,
-  WorkflowInputType,
+  WorkflowInput,
   WorkflowRun,
   WorkflowsData,
 } from './types'
@@ -24,7 +26,8 @@ import type { WorkflowTranslate } from './workflow-templates'
 
 import { FieldLabel } from '@/components/ui/field'
 
-import { AppCardHeader } from '@/components/ui/app-primitives'
+import { WorkflowInputsEditor } from './WorkflowInputsEditor'
+import { useRef } from 'react'
 
 const NOTIFICATION_TARGETS = {
   browser: { Icon: Bell },
@@ -54,192 +57,104 @@ function notificationTargetLabel(target: NotificationTarget, t: WorkflowTranslat
   return t('workflows:workflowsPage.browserNotification')
 }
 
-function WorkflowSettings({
+export function WorkflowSettings({
   draft,
   catalog,
   t,
   onUpdateDraft,
+  onInputUploadBusy,
 }: {
   draft: Workflow
   catalog: WorkflowsData
   t: WorkflowTranslate
   onUpdateDraft: (patch: Partial<Workflow>) => void
+  onInputUploadBusy?: (id: string, busy: boolean) => void
 }) {
   return (
-    <Card
-      size="sm"
-      className="workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-0 py-0"
-    >
-      <CardContent className="p-3.5">
-        <CardTitle className="workflow-section-title [.selection-list_&]:mb-[8px] [.node-library_&]:mb-[8px] text-[var(--text-soft)] text-[13px] font-[700] leading-[1.4]">
-          {t('workflows:workflowsPage.workflowSettings')}
-        </CardTitle>
+    <div className="min-w-0 space-y-4">
+      <FieldLabel variant="control">
+        {t('workflows:workflowsPage.name')}
+        <Input
+          value={draft.name}
+          onChange={(event) => onUpdateDraft({ name: event.target.value })}
+        />
+      </FieldLabel>
+      <FieldLabel variant="control">
+        {t('workflows:workflowsPage.description')}
+        <Textarea
+          value={draft.description}
+          onChange={(event) => onUpdateDraft({ description: event.target.value })}
+        />
+      </FieldLabel>
+      <FieldLabel variant="control">
+        {t('workflows:workflowsPage.workingDirectory')}
+        <Input value={draft.cwd} onChange={(event) => onUpdateDraft({ cwd: event.target.value })} />
+      </FieldLabel>
+      <div className="grid gap-3 sm:grid-cols-3">
         <FieldLabel variant="control">
-          {t('workflows:workflowsPage.name')}
-          <Input
-            value={draft.name}
-            onChange={(event) => onUpdateDraft({ name: event.target.value })}
-          />
-        </FieldLabel>
-        <FieldLabel variant="control">
-          {t('workflows:workflowsPage.description')}
-          <Textarea
-            value={draft.description}
-            onChange={(event) => onUpdateDraft({ description: event.target.value })}
-          />
-        </FieldLabel>
-        <FieldLabel variant="control">
-          {t('workflows:workflowsPage.workingDirectory')}
-          <Input
-            value={draft.cwd}
-            onChange={(event) => onUpdateDraft({ cwd: event.target.value })}
-          />
-        </FieldLabel>
-        <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
-          <FieldLabel variant="control">
-            {t('workflows:workflowsPage.visibility')}
-            <AppSelect
-              value={draft.visibility}
-              onChange={(event) =>
-                onUpdateDraft({
-                  visibility: event.target.value === 'shared' ? 'shared' : 'private',
-                })
-              }
-            >
-              <option value="private">{t('workflows:workflowsPage.private')}</option>
-              <option value="shared">{t('workflows:workflowsPage.shared')}</option>
-            </AppSelect>
-          </FieldLabel>
-          <FieldLabel variant="control">
-            {t('workflows:workflowsPage.tags')}
-            <Input
-              value={draft.tags.join(', ')}
-              onChange={(event) =>
-                onUpdateDraft({
-                  tags: event.target.value
-                    .split(',')
-                    .map((value) => value.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
-          </FieldLabel>
-          <FieldLabel variant="control">
-            {t('workflows:workflowsPage.revision')}
-            <Input value={`v${draft.revision}`} disabled />
-          </FieldLabel>
-        </div>
-        <FieldLabel variant="control">
-          {t('workflows:workflowsPage.defaultModel')}
+          {t('workflows:workflowsPage.visibility')}
           <AppSelect
-            value={draft.model ? `${draft.model.provider}/${draft.model.model}` : ''}
-            onChange={(event) => {
-              const model = catalog.models.find(
-                (item) => `${item.provider}/${item.model}` === event.target.value,
-              )
+            value={draft.visibility}
+            onChange={(event) =>
               onUpdateDraft({
-                model: model ? { provider: model.provider, model: model.model } : null,
+                visibility: event.target.value === 'shared' ? 'shared' : 'private',
               })
-            }}
+            }
           >
-            <option value="">{t('workflows:workflowsPage.useSystemDefault')}</option>
-            {catalog.models.map((model) => (
-              <option
-                value={`${model.provider}/${model.model}`}
-                key={`${model.provider}/${model.model}`}
-              >
-                {model.label}
-              </option>
-            ))}
+            <option value="private">{t('workflows:workflowsPage.private')}</option>
+            <option value="shared">{t('workflows:workflowsPage.shared')}</option>
           </AppSelect>
         </FieldLabel>
-        <div className="workflow-inputs-editor">
-          <AppCardHeader>
-            <strong>{t('workflows:workflowsPage.inputParameters')}</strong>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              title={t('workflows:workflowsPage.addInput')}
-              onClick={() =>
-                onUpdateDraft({
-                  inputs: [
-                    ...draft.inputs,
-                    {
-                      id: crypto.randomUUID(),
-                      name: `input_${draft.inputs.length + 1}`,
-                      label: t('workflows:workflowsPage.newInput'),
-                      type: 'string',
-                      required: false,
-                      defaultValue: '',
-                      description: '',
-                    },
-                  ],
-                })
-              }
+        <FieldLabel variant="control">
+          {t('workflows:workflowsPage.tags')}
+          <Input
+            value={draft.tags.join(', ')}
+            onChange={(event) =>
+              onUpdateDraft({
+                tags: event.target.value
+                  .split(',')
+                  .map((value) => value.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </FieldLabel>
+        <FieldLabel variant="control">
+          {t('workflows:workflowsPage.revision')}
+          <Input value={`v${draft.revision}`} disabled />
+        </FieldLabel>
+      </div>
+      <FieldLabel variant="control">
+        {t('workflows:workflowsPage.defaultModel')}
+        <AppSelect
+          value={draft.model ? `${draft.model.provider}/${draft.model.model}` : ''}
+          onChange={(event) => {
+            const model = catalog.models.find(
+              (item) => `${item.provider}/${item.model}` === event.target.value,
+            )
+            onUpdateDraft({
+              model: model ? { provider: model.provider, model: model.model } : null,
+            })
+          }}
+        >
+          <option value="">{t('workflows:workflowsPage.useSystemDefault')}</option>
+          {catalog.models.map((model) => (
+            <option
+              value={`${model.provider}/${model.model}`}
+              key={`${model.provider}/${model.model}`}
             >
-              <Plus />
-            </Button>
-          </AppCardHeader>
-          {draft.inputs.map((input) => (
-            <div className="workflow-input-row" key={input.id}>
-              <Input
-                value={input.name}
-                aria-label={t('workflows:workflowsPage.parameterName')}
-                onChange={(event) =>
-                  onUpdateDraft({
-                    inputs: draft.inputs.map((item) =>
-                      item.id === input.id ? { ...item, name: event.target.value } : item,
-                    ),
-                  })
-                }
-              />
-              <AppSelect
-                value={input.type}
-                aria-label={t('workflows:workflowsPage.parameterType')}
-                onChange={(event) =>
-                  onUpdateDraft({
-                    inputs: draft.inputs.map((item) =>
-                      item.id === input.id
-                        ? { ...item, type: event.target.value as WorkflowInputType }
-                        : item,
-                    ),
-                  })
-                }
-              >
-                <option value="string">String</option>
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-                <option value="boolean">Boolean</option>
-              </AppSelect>
-              <label className="workflow-required-input">
-                <input
-                  type="checkbox"
-                  checked={input.required}
-                  onChange={(event) =>
-                    onUpdateDraft({
-                      inputs: draft.inputs.map((item) =>
-                        item.id === input.id ? { ...item, required: event.target.checked } : item,
-                      ),
-                    })
-                  }
-                />
-                {t('workflows:workflowsPage.required')}
-              </label>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                title={t('workflows:workflowsPage.delete')}
-                onClick={() =>
-                  onUpdateDraft({ inputs: draft.inputs.filter((item) => item.id !== input.id) })
-                }
-              >
-                <Trash2 />
-              </Button>
-            </div>
+              {model.label}
+            </option>
           ))}
-        </div>
-      </CardContent>
-    </Card>
+        </AppSelect>
+      </FieldLabel>
+      <WorkflowInputsEditor
+        inputs={draft.inputs}
+        t={t}
+        onUploadBusy={onInputUploadBusy}
+        onChange={(inputs) => onUpdateDraft({ inputs })}
+      />
+    </div>
   )
 }
 
@@ -383,37 +298,30 @@ function SelectedConnection({
 }) {
   const nodesById = new Map(nodes.map((node) => [node.id, node]))
   return (
-    <Card
-      size="sm"
-      className="workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-0 py-0"
-    >
-      <CardContent className="p-3.5">
-        <CardTitle className="workflow-section-title [.selection-list_&]:mb-[8px] [.node-library_&]:mb-[8px] text-[var(--text-soft)] text-[13px] font-[700] leading-[1.4]">
-          {t('workflows:workflowsPage.selectedConnection')}
-        </CardTitle>
-        <div className="workflow-edge-summary [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_span]:text-[var(--text-muted)] grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-[8px] [margin:10px_0]">
-          <strong>
-            {nodesById.get(edge.source)?.label || t('workflows:workflowsPage.unknownNode')}
-          </strong>
-          <span>→</span>
-          <strong>
-            {nodesById.get(edge.target)?.label || t('workflows:workflowsPage.unknownNode')}
-          </strong>
-        </div>
-        <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
-          {t('workflows:workflowsPage.pressDeleteOrBackspaceToRemoveThisConnection')}
-        </p>
-        <Button size="sm" variant="destructive" onClick={onDelete}>
-          <Trash2 data-icon="inline-start" />
-          {t('workflows:workflowsPage.deleteConnection')}
-        </Button>
-      </CardContent>
-    </Card>
+    <section className="min-w-0 space-y-3">
+      <div className="workflow-edge-summary [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_span]:text-[var(--text-muted)] grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-[8px] [margin:10px_0]">
+        <strong>
+          {nodesById.get(edge.source)?.label || t('workflows:workflowsPage.unknownNode')}
+        </strong>
+        <span>→</span>
+        <strong>
+          {nodesById.get(edge.target)?.label || t('workflows:workflowsPage.unknownNode')}
+        </strong>
+      </div>
+      <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+        {t('workflows:workflowsPage.pressDeleteOrBackspaceToRemoveThisConnection')}
+      </p>
+      <Button size="sm" variant="destructive" onClick={onDelete}>
+        <Trash2 data-icon="inline-start" />
+        {t('workflows:workflowsPage.deleteConnection')}
+      </Button>
+    </section>
   )
 }
 
 function SelectedNode({
   node,
+  inputs,
   selectedEdge,
   catalog,
   t,
@@ -426,6 +334,7 @@ function SelectedNode({
   onOpenSystemNotificationSettings,
 }: {
   node: WorkflowNode | null
+  inputs: WorkflowInput[]
   selectedEdge: WorkflowEdge | null
   catalog: WorkflowsData
   t: WorkflowTranslate
@@ -437,24 +346,19 @@ function SelectedNode({
   onOpenChannels: () => void
   onOpenSystemNotificationSettings: () => void
 }) {
+  const promptInput = useRef<HTMLTextAreaElement>(null)
   return (
-    <Card
-      size="sm"
-      className="workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-0 py-0"
-    >
-      <CardContent className="p-3.5">
-        <CardTitle className="workflow-section-title [.selection-list_&]:mb-[8px] [.node-library_&]:mb-[8px] text-[var(--text-soft)] text-[13px] font-[700] leading-[1.4]">
-          {t('workflows:workflowsPage.selectedNode')}
-        </CardTitle>
-        {node ? (
-          <>
-            <FieldLabel variant="control">
-              {t('workflows:workflowsPage.nodeName')}
-              <Input
-                value={node.label}
-                onChange={(event) => onUpdateNode({ label: event.target.value })}
-              />
-            </FieldLabel>
+    <section className="min-w-0 space-y-3">
+      {node ? (
+        <>
+          <FieldLabel variant="control">
+            {t('workflows:workflowsPage.nodeName')}
+            <Input
+              value={node.label}
+              onChange={(event) => onUpdateNode({ label: event.target.value })}
+            />
+          </FieldLabel>
+          {['prompt', 'skill', 'file', 'mcp'].includes(node.kind) && (
             <FieldLabel variant="control">
               {t('workflows:workflowsPage.nodeModel')}
               <AppSelect
@@ -479,231 +383,288 @@ function SelectedNode({
                 ))}
               </AppSelect>
             </FieldLabel>
-            <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
-              <FieldLabel variant="control">
-                {t('workflows:workflowsPage.retryCount')}
-                <Input
-                  type="number"
-                  min="0"
-                  max="3"
-                  value={node.retries}
-                  onChange={(event) => onUpdateNode({ retries: Number(event.target.value) })}
-                />
-              </FieldLabel>
-              <FieldLabel variant="control">
-                {t('workflows:workflowsPage.timeoutMinutes')}
-                <Input
-                  type="number"
-                  min="1"
-                  max="240"
-                  value={node.timeoutMinutes}
-                  onChange={(event) => onUpdateNode({ timeoutMinutes: Number(event.target.value) })}
-                />
-              </FieldLabel>
-              <FieldLabel variant="control">
-                {t('workflows:workflowsPage.failureHandling')}
-                <AppSelect
-                  value={node.failurePolicy}
-                  onChange={(event) =>
-                    onUpdateNode({
-                      failurePolicy: event.target.value === 'skip' ? 'skip' : 'stop',
-                    })
-                  }
-                >
-                  <option value="stop">{t('workflows:workflowsPage.stopImmediately')}</option>
-                  <option value="skip">{t('workflows:workflowsPage.skipThisNode')}</option>
-                </AppSelect>
-              </FieldLabel>
-            </div>
-            {['prompt', 'skill', 'file', 'mcp'].includes(node.kind) && (
-              <>
+          )}
+          {node.kind === 'trigger' && (
+            <p className="rounded-lg bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-muted-foreground">
+              {t('workflows:editor.manualTriggerHint')}
+            </p>
+          )}
+          {node.kind === 'parallel' && (
+            <p className="rounded-lg bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-muted-foreground">
+              {t('workflows:editor.parallelHint')}
+            </p>
+          )}
+          {!['trigger', 'parallel', 'condition', 'approval'].includes(node.kind) && (
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-xs font-medium">
+                {t('workflows:editor.executionSettings')}
+              </summary>
+              <div className="grid gap-3 pt-3">
                 <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.executionMode')}
-                  <AppSelect
-                    value={node.executionMode}
-                    onChange={(event) =>
-                      onUpdateNode({
-                        executionMode: event.target.value as WorkflowExecutionMode,
-                      })
-                    }
-                  >
-                    {WORKFLOW_EXECUTION_MODES.map((mode) => (
-                      <option value={mode} key={mode}>
-                        {executionModeLabel(mode, t)}
-                      </option>
-                    ))}
-                  </AppSelect>
-                  <small>{executionModeHelp(node.executionMode, t)}</small>
-                </FieldLabel>
-                {node.kind === 'skill' && (
-                  <FieldLabel variant="control">
-                    Skill
-                    <AppSelect
-                      value={node.skillName}
-                      onChange={(event) => onUpdateNode({ skillName: event.target.value })}
-                    >
-                      <option value="">{t('workflows:workflowsPage.chooseSkill')}</option>
-                      {catalog.skills.map((skill) => (
-                        <option value={skill.name} key={skill.id}>
-                          {skill.name}
-                        </option>
-                      ))}
-                    </AppSelect>
-                  </FieldLabel>
-                )}
-                {node.kind === 'mcp' && (
-                  <FieldLabel variant="control">
-                    {t('workflows:workflowsPage.mcpToolNames')}
-                    <Input
-                      value={node.requestedToolNames.join(', ')}
-                      onChange={(event) =>
-                        onUpdateNode({
-                          requestedToolNames: event.target.value
-                            .split(',')
-                            .map((value) => value.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder="server.tool_name"
-                    />
-                  </FieldLabel>
-                )}
-                <FieldLabel variant="control">
-                  Prompt
-                  <Textarea
-                    value={node.prompt}
-                    onChange={(event) => onUpdateNode({ prompt: event.target.value })}
-                    placeholder={t(
-                      'workflows:workflowsPage.describeTheWorkTheAgentShouldCompleteInThisNode',
-                    )}
-                  />
-                </FieldLabel>
-                <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.outputFormat')}
-                  <AppSelect
-                    value={node.outputFormat}
-                    onChange={(event) =>
-                      onUpdateNode({
-                        outputFormat: event.target.value === 'json' ? 'json' : 'text',
-                      })
-                    }
-                  >
-                    <option value="text">Text</option>
-                    <option value="json">JSON</option>
-                  </AppSelect>
-                </FieldLabel>
-              </>
-            )}
-            {node.kind === 'condition' && (
-              <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
-                <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.dataPath')}
+                  {t('workflows:workflowsPage.retryCount')}
                   <Input
-                    value={node.condition.source}
-                    onChange={(event) =>
-                      onUpdateNode({ condition: { ...node.condition, source: event.target.value } })
-                    }
-                    placeholder="inputs.approved"
+                    type="number"
+                    min="0"
+                    max="3"
+                    value={node.retries}
+                    onChange={(event) => onUpdateNode({ retries: Number(event.target.value) })}
                   />
                 </FieldLabel>
                 <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.operator')}
-                  <AppSelect
-                    value={node.condition.operator}
-                    onChange={(event) =>
-                      onUpdateNode({
-                        condition: {
-                          ...node.condition,
-                          operator: event.target.value as typeof node.condition.operator,
-                        },
-                      })
-                    }
-                  >
-                    {[
-                      'exists',
-                      'not_exists',
-                      'equals',
-                      'not_equals',
-                      'contains',
-                      'greater_than',
-                      'less_than',
-                    ].map((operator) => (
-                      <option value={operator} key={operator}>
-                        {operator}
-                      </option>
-                    ))}
-                  </AppSelect>
-                </FieldLabel>
-                <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.comparisonValue')}
-                  <Input
-                    value={String(node.condition.value ?? '')}
-                    onChange={(event) =>
-                      onUpdateNode({ condition: { ...node.condition, value: event.target.value } })
-                    }
-                  />
-                </FieldLabel>
-              </div>
-            )}
-            {node.kind === 'notification' && (
-              <NodeNotificationSettings
-                node={node}
-                catalog={catalog}
-                t={t}
-                systemNotificationPermission={systemNotificationPermission}
-                onUpdateNode={onUpdateNode}
-                onToggleNotification={onToggleNotification}
-                onOpenChannels={onOpenChannels}
-                onOpenSystemNotificationSettings={onOpenSystemNotificationSettings}
-              />
-            )}
-            {node.kind === 'approval' && (
-              <>
-                <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.approvalMessage')}
-                  <Textarea
-                    value={node.approval.message}
-                    onChange={(event) =>
-                      onUpdateNode({ approval: { ...node.approval, message: event.target.value } })
-                    }
-                  />
-                </FieldLabel>
-                <FieldLabel variant="control">
-                  {t('workflows:workflowsPage.approvalTimeout')}
+                  {t('workflows:workflowsPage.timeoutMinutes')}
                   <Input
                     type="number"
                     min="1"
-                    max="10080"
-                    value={node.approval.timeoutMinutes}
+                    max="240"
+                    value={node.timeoutMinutes}
                     onChange={(event) =>
-                      onUpdateNode({
-                        approval: { ...node.approval, timeoutMinutes: Number(event.target.value) },
-                      })
+                      onUpdateNode({ timeoutMinutes: Number(event.target.value) })
                     }
                   />
                 </FieldLabel>
-              </>
-            )}
-            <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
-              <Button size="sm" variant="secondary" onClick={onCopy}>
-                <Copy data-icon="inline-start" />
-                {t('workflows:workflowsPage.duplicateNode')}
-              </Button>
-              <Button size="sm" variant="destructive" onClick={onDelete}>
-                <Trash2 data-icon="inline-start" />
-                {t('workflows:workflowsPage.deleteNode')}
-              </Button>
+                <FieldLabel variant="control">
+                  {t('workflows:workflowsPage.failureHandling')}
+                  <AppSelect
+                    value={node.failurePolicy}
+                    onChange={(event) =>
+                      onUpdateNode({
+                        failurePolicy: event.target.value === 'skip' ? 'skip' : 'stop',
+                      })
+                    }
+                  >
+                    <option value="stop">{t('workflows:workflowsPage.stopImmediately')}</option>
+                    <option value="skip">{t('workflows:workflowsPage.skipThisNode')}</option>
+                  </AppSelect>
+                </FieldLabel>
+              </div>
+            </details>
+          )}
+          {isWorkflowImageNodeKind(node.kind) && (
+            <WorkflowImageNodeInspector node={node} inputs={inputs} t={t} onChange={onUpdateNode} />
+          )}
+          {['prompt', 'skill', 'file', 'mcp'].includes(node.kind) && (
+            <>
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.executionMode')}
+                <AppSelect
+                  value={node.executionMode}
+                  onChange={(event) =>
+                    onUpdateNode({
+                      executionMode: event.target.value as WorkflowExecutionMode,
+                    })
+                  }
+                >
+                  {WORKFLOW_EXECUTION_MODES.map((mode) => (
+                    <option value={mode} key={mode}>
+                      {executionModeLabel(mode, t)}
+                    </option>
+                  ))}
+                </AppSelect>
+                <small>{executionModeHelp(node.executionMode, t)}</small>
+              </FieldLabel>
+              {node.kind === 'skill' && (
+                <FieldLabel variant="control">
+                  Skill
+                  <AppSelect
+                    value={node.skillName}
+                    onChange={(event) => onUpdateNode({ skillName: event.target.value })}
+                  >
+                    <option value="">{t('workflows:workflowsPage.chooseSkill')}</option>
+                    {catalog.skills.map((skill) => (
+                      <option value={skill.name} key={skill.id}>
+                        {skill.name}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </FieldLabel>
+              )}
+              {node.kind === 'mcp' && (
+                <FieldLabel variant="control">
+                  {t('workflows:workflowsPage.mcpToolNames')}
+                  <Input
+                    value={node.requestedToolNames.join(', ')}
+                    onChange={(event) =>
+                      onUpdateNode({
+                        requestedToolNames: event.target.value
+                          .split(',')
+                          .map((value) => value.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                    placeholder="server.tool_name"
+                  />
+                </FieldLabel>
+              )}
+              <FieldLabel variant="control">
+                {t('workflows:inputs.nodeRules')}
+                <Textarea
+                  ref={promptInput}
+                  value={node.prompt}
+                  onChange={(event) => onUpdateNode({ prompt: event.target.value })}
+                  placeholder={t(
+                    'workflows:workflowsPage.describeTheWorkTheAgentShouldCompleteInThisNode',
+                  )}
+                />
+              </FieldLabel>
+              <div className="space-y-2 py-2">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('workflows:inputs.nodeRulesHint')}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {inputs.map((input) => (
+                    <Button
+                      type="button"
+                      key={input.id}
+                      variant="outline"
+                      size="xs"
+                      title={t('workflows:inputs.insertVariable', { name: input.label })}
+                      onClick={() => {
+                        const textarea = promptInput.current
+                        const start = textarea?.selectionStart ?? node.prompt.length
+                        const end = textarea?.selectionEnd ?? start
+                        const variable = '{{inputs.' + input.name + '}}'
+                        onUpdateNode({
+                          prompt: node.prompt.slice(0, start) + variable + node.prompt.slice(end),
+                        })
+                        requestAnimationFrame(() => {
+                          textarea?.focus()
+                          textarea?.setSelectionRange(
+                            start + variable.length,
+                            start + variable.length,
+                          )
+                        })
+                      }}
+                    >
+                      <code>{'{{inputs.' + input.name + '}}'}</code>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.outputFormat')}
+                <AppSelect
+                  value={node.outputFormat}
+                  onChange={(event) =>
+                    onUpdateNode({
+                      outputFormat: event.target.value === 'json' ? 'json' : 'text',
+                    })
+                  }
+                >
+                  <option value="text">Text</option>
+                  <option value="json">JSON</option>
+                </AppSelect>
+              </FieldLabel>
+            </>
+          )}
+          {node.kind === 'condition' && (
+            <div className="grid gap-3">
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.dataPath')}
+                <Input
+                  value={node.condition.source}
+                  onChange={(event) =>
+                    onUpdateNode({ condition: { ...node.condition, source: event.target.value } })
+                  }
+                  placeholder="inputs.approved"
+                />
+              </FieldLabel>
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.operator')}
+                <AppSelect
+                  value={node.condition.operator}
+                  onChange={(event) =>
+                    onUpdateNode({
+                      condition: {
+                        ...node.condition,
+                        operator: event.target.value as typeof node.condition.operator,
+                      },
+                    })
+                  }
+                >
+                  {[
+                    'exists',
+                    'not_exists',
+                    'equals',
+                    'not_equals',
+                    'contains',
+                    'greater_than',
+                    'less_than',
+                  ].map((operator) => (
+                    <option value={operator} key={operator}>
+                      {operator}
+                    </option>
+                  ))}
+                </AppSelect>
+              </FieldLabel>
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.comparisonValue')}
+                <Input
+                  value={String(node.condition.value ?? '')}
+                  onChange={(event) =>
+                    onUpdateNode({ condition: { ...node.condition, value: event.target.value } })
+                  }
+                />
+              </FieldLabel>
             </div>
-          </>
-        ) : (
-          <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
-            {selectedEdge
-              ? t('workflows:workflowsPage.aConnectionIsCurrentlySelected')
-              : t('workflows:workflowsPage.dragNodesFromTheLeftToStartBuildingTheWorkflow')}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          )}
+          {node.kind === 'notification' && (
+            <NodeNotificationSettings
+              node={node}
+              catalog={catalog}
+              t={t}
+              systemNotificationPermission={systemNotificationPermission}
+              onUpdateNode={onUpdateNode}
+              onToggleNotification={onToggleNotification}
+              onOpenChannels={onOpenChannels}
+              onOpenSystemNotificationSettings={onOpenSystemNotificationSettings}
+            />
+          )}
+          {node.kind === 'approval' && (
+            <>
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.approvalMessage')}
+                <Textarea
+                  value={node.approval.message}
+                  onChange={(event) =>
+                    onUpdateNode({ approval: { ...node.approval, message: event.target.value } })
+                  }
+                />
+              </FieldLabel>
+              <FieldLabel variant="control">
+                {t('workflows:workflowsPage.approvalTimeout')}
+                <Input
+                  type="number"
+                  min="1"
+                  max="10080"
+                  value={node.approval.timeoutMinutes}
+                  onChange={(event) =>
+                    onUpdateNode({
+                      approval: { ...node.approval, timeoutMinutes: Number(event.target.value) },
+                    })
+                  }
+                />
+              </FieldLabel>
+            </>
+          )}
+          <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+            <Button size="sm" variant="secondary" onClick={onCopy}>
+              <Copy data-icon="inline-start" />
+              {t('workflows:workflowsPage.duplicateNode')}
+            </Button>
+            <Button size="sm" variant="destructive" onClick={onDelete}>
+              <Trash2 data-icon="inline-start" />
+              {t('workflows:workflowsPage.deleteNode')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+          {selectedEdge
+            ? t('workflows:workflowsPage.aConnectionIsCurrentlySelected')
+            : t('workflows:workflowsPage.dragNodesFromTheLeftToStartBuildingTheWorkflow')}
+        </p>
+      )}
+    </section>
   )
 }
 
@@ -715,7 +676,6 @@ export function WorkflowNodeInspector({
   currentRun,
   language,
   t,
-  onUpdateDraft,
   onUpdateNode,
   systemNotificationPermission,
   onToggleNotification,
@@ -724,15 +684,18 @@ export function WorkflowNodeInspector({
   onDeleteNode,
   onOpenChannels,
   onOpenSystemNotificationSettings,
+  onRunImageNode,
+  imageRunBusy = false,
 }: {
   draft: Workflow
   catalog: WorkflowsData
   selectedNode: WorkflowNode | null
   selectedEdge: WorkflowEdge | null
   currentRun?: WorkflowRun
+  onRunImageNode?: (nodeId: string, sourceRunId: string) => void
+  imageRunBusy?: boolean
   language: string
   t: WorkflowTranslate
-  onUpdateDraft: (patch: Partial<Workflow>) => void
   onUpdateNode: (patch: Partial<WorkflowNode>) => void
   systemNotificationPermission: DesktopNotificationPermission
   onToggleNotification: (target: NotificationTarget) => void | Promise<void>
@@ -742,26 +705,81 @@ export function WorkflowNodeInspector({
   onOpenChannels: () => void
   onOpenSystemNotificationSettings: () => void
 }) {
+  const upstreamIds = draft.edges
+    .filter((edge) => edge.target === selectedNode?.id)
+    .map((edge) => edge.source)
+  const sourceRun = (currentRun ? [currentRun] : []).find(
+    (run) =>
+      run.workflowId === draft.id &&
+      (selectedNode?.kind === 'media-input'
+        ? Boolean(run.inputs)
+        : upstreamIds.length > 0 &&
+          upstreamIds.every((id) =>
+            run.nodes?.some((node) => node.id === id && node.status === 'completed' && node.output),
+          )),
+  )
+  const resultRun = currentRun
   return (
-    <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr] inspector !min-w-0 max-[1150px]:[.builder-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.builder-layout_>_&]:grid max-[1150px]:[.builder-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[900px]:[.builder-layout_>_&]:[grid-column:1/-1]">
-      <WorkflowSettings draft={draft} catalog={catalog} t={t} onUpdateDraft={onUpdateDraft} />
+    <div className="detail-stack min-w-0 space-y-5">
       {selectedEdge && (
         <SelectedConnection edge={selectedEdge} nodes={draft.nodes} t={t} onDelete={onDeleteEdge} />
       )}
-      <SelectedNode
-        node={selectedNode}
-        selectedEdge={selectedEdge}
-        catalog={catalog}
-        t={t}
-        onUpdateNode={onUpdateNode}
-        systemNotificationPermission={systemNotificationPermission}
-        onToggleNotification={onToggleNotification}
-        onCopy={onCopyNode}
-        onDelete={onDeleteNode}
-        onOpenChannels={onOpenChannels}
-        onOpenSystemNotificationSettings={onOpenSystemNotificationSettings}
-      />
-      {draft.id && <WorkflowLatestRun run={currentRun} language={language} t={t} />}
+      {!selectedEdge && (
+        <SelectedNode
+          node={selectedNode}
+          inputs={draft.inputs}
+          selectedEdge={selectedEdge}
+          catalog={catalog}
+          t={t}
+          onUpdateNode={onUpdateNode}
+          systemNotificationPermission={systemNotificationPermission}
+          onToggleNotification={onToggleNotification}
+          onCopy={onCopyNode}
+          onDelete={onDeleteNode}
+          onOpenChannels={onOpenChannels}
+          onOpenSystemNotificationSettings={onOpenSystemNotificationSettings}
+        />
+      )}
+      {selectedNode && isWorkflowImageNodeKind(selectedNode.kind) && onRunImageNode && (
+        <div className="space-y-2 rounded-lg border p-3">
+          <Button
+            className="w-full"
+            variant="outline"
+            disabled={!draft.id || !sourceRun || imageRunBusy}
+            onClick={() => {
+              if (sourceRun) onRunImageNode(selectedNode.id, sourceRun.id)
+            }}
+          >
+            <Play />
+            {t('workflows:imageNodes.runNode')}
+          </Button>
+          <p className="text-xs text-muted-foreground">{t('workflows:imageNodes.runNodeHint')}</p>
+        </div>
+      )}
+      {selectedNode && isWorkflowImageNodeKind(selectedNode.kind) && (
+        <WorkflowImageResult
+          key={selectedNode.id}
+          value={resultRun?.nodes?.find((node) => node.id === selectedNode.id)?.output}
+          previousValue={
+            sourceRun?.nodes?.find(
+              (node) =>
+                node.id === draft.edges.find((edge) => edge.target === selectedNode.id)?.source,
+            )?.output
+          }
+          error={resultRun?.nodes?.find((node) => node.id === selectedNode.id)?.error}
+          t={t}
+        />
+      )}
+      {draft.id && currentRun && (
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            {t('workflows:workflowsPage.latestRun')}
+          </summary>
+          <div className="mt-3">
+            <WorkflowLatestRun run={currentRun} language={language} t={t} />
+          </div>
+        </details>
+      )}
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { setImmediate as tick } from 'node:timers/promises'
+import { runInNewContext } from 'node:vm'
+import { transformSync } from 'esbuild'
 import { createRuntimeSelectionQueue } from '../../src/features/chat/runtime-selection-queue.ts'
 
 function deferred() {
@@ -11,6 +14,36 @@ function deferred() {
   })
   return { promise, resolve, reject }
 }
+
+test('session selections wait for runtime configuration readiness after visible streaming stops', async () => {
+  const code = transformSync(
+    await readFile('src/features/chat/session-runtime-selections.ts', 'utf8'),
+    { loader: 'ts', format: 'cjs' },
+  ).code
+  const snapshots = [
+    { streaming: false, configurationBusy: true },
+    { streaming: false, configurationBusy: false },
+    { streaming: true },
+    { streaming: false },
+  ]
+  let dependencies
+  const module = { exports: {} }
+  runInNewContext(code, {
+    module,
+    exports: module.exports,
+    require(id) {
+      if (id === './chat-api') return { chatApi: { getLiveSession: async () => snapshots.shift() } }
+      if (id === './runtime-selection-queue')
+        return { createRuntimeSelectionQueue: (options) => (dependencies = options) }
+      assert.fail(`Unexpected dependency: ${id}`)
+    },
+  })
+  const signal = new AbortController().signal
+  assert.equal(await dependencies.isStreaming('session', signal), true)
+  assert.equal(await dependencies.isStreaming('session', signal), false)
+  assert.equal(await dependencies.isStreaming('session', signal), true, 'old Runtime fallback')
+  assert.equal(await dependencies.isStreaming('session', signal), false, 'old Runtime fallback')
+})
 
 test('active runs are read-only; the latest selection applies exactly once after idle', async () => {
   const probes = [deferred(), deferred()]

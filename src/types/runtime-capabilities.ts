@@ -8,6 +8,7 @@ export type RuntimeFeature =
   | 'webSearch'
   | 'visualGeneration'
   | 'imageProcessing'
+  | 'imageAssets'
   | 'processes'
   | 'shell'
   | 'terminal'
@@ -52,6 +53,7 @@ const fullFeatures = {
   webSearch: true,
   visualGeneration: true,
   imageProcessing: true,
+  imageAssets: true,
   processes: true,
   shell: true,
   terminal: true,
@@ -99,6 +101,7 @@ const PAGE_FEATURES: Partial<Record<string, RuntimeFeature>> = {
   skills: 'skills',
   workflows: 'workflows',
   workflowCreate: 'workflows',
+  gameAssetWorkbench: 'imageAssets',
 }
 
 const CONFIG_FEATURES: Partial<Record<string, RuntimeFeature>> = {

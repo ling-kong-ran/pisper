@@ -1,6 +1,6 @@
 // 会话上下文只在用户打开时挂载；文件列表按当前标签请求，不复制聊天状态。
 import { useMemo, useRef, useState } from 'react'
-import { ExternalLink, Files, Globe2, ListTodo, Plus, X } from 'lucide-react'
+import { ExternalLink, Files, Globe2, ListTodo, MessageSquare, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +25,7 @@ import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
 import { SessionFilesPane } from './SessionFilesPane'
+import { SideChatPane } from './SideChatPane'
 
 export type { SessionContextTab } from './session-context-pages'
 
@@ -140,6 +141,7 @@ export function SessionContextPanel({
       ? [{ id: 'plan' as const, icon: ListTodo, label: t('chat:sessionContext.plan') }]
       : []),
     { id: 'browser' as const, icon: Globe2, label: t('common:webPreview.title') },
+    { id: 'side-chat' as const, icon: MessageSquare, label: t('chat:sideChat.title') },
   ]
   const initial = useMemo(() => createContextPages(tab), [tab])
   const stored = useContextPagesStore((store) =>
@@ -273,7 +275,9 @@ export function SessionContextPanel({
             className={active ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
             hidden={!active}
           >
-            {type.id === 'browser' ? (
+            {type.id === 'side-chat' ? (
+              <SideChatPane parentId={sessionId} active={active} />
+            ) : type.id === 'browser' ? (
               <BrowserPane
                 page={page}
                 onChange={(patch) => dispatch({ type: 'browser', id: page.id, ...patch })}
@@ -322,7 +326,15 @@ export function SessionContextPanel({
         side="right"
         showCloseButton={false}
         className="gap-0 overflow-hidden p-0"
-        style={{ width: 'min(100vw, 420px)', maxWidth: 'none' }}
+        style={{
+          top: 'var(--pisper-safe-area-top)',
+          right: 'var(--pisper-safe-area-right)',
+          bottom: 'var(--pisper-safe-area-bottom)',
+          height: 'auto',
+          width:
+            'min(calc(100vw - var(--pisper-safe-area-left) - var(--pisper-safe-area-right)), 420px)',
+          maxWidth: 'none',
+        }}
       >
         <SheetHeader className="sr-only">
           <SheetTitle>{t('chat:sessionContext.title')}</SheetTitle>

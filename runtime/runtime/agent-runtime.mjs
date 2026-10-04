@@ -40,12 +40,21 @@ import { WorkflowService } from '../services/workflow-service.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
 import { SessionPermissionService } from '../services/session-permission-service.mjs'
 import { MobileOperationService } from '../services/mobile-operation-service.mjs'
+import { SideChatService } from '../services/side-chat-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
 import { ConversationMemoryCapture, localDayKey } from './conversation-memory-capture.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
+import { WorkflowImageProcessor } from '../services/workflow-image-processing.mjs'
+import { ImageOperationService } from '../services/image-operation-service.mjs'
+import { ImageToolsPlugin } from '../services/image-tools-plugin.mjs'
+import { GameAssetsService } from '../services/game-assets-service.mjs'
+import { ImageAgentService } from '../services/image-agent-service.mjs'
+import { WorkflowImageNodeService } from '../services/workflow-image-node-service.mjs'
+import { SpriteEngineService } from '../services/sprite-engine-service.mjs'
+import { WorkflowMediaService } from '../services/workflow-media-service.mjs'
 import {
   MultiAgentService,
   MULTI_AGENT_TOOL_NAMES,
@@ -392,6 +401,49 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       appConfigPath: this.appConfigPath,
       getModelRuntime: () => this.modelRuntime,
     })
+    this.spriteEngines = new SpriteEngineService({ dataDir })
+    this.workflowMedia = new WorkflowMediaService({ dataDir })
+    this.workflowImageProcessor = new WorkflowImageProcessor({ engines: this.spriteEngines })
+    this.imageToolsPlugin = new ImageToolsPlugin({
+      isAgentEnabled: async () =>
+        (await this.toolPlugins.getState()).enabledTools.includes('image_assets'),
+    })
+    const createImageOperations = (directory, media) =>
+      new ImageOperationService({
+        dataDir: directory,
+        media,
+        processor: this.workflowImageProcessor,
+        generateImage: (request, options) => this.visualGeneration.generate(request, options),
+      })
+    const bindImageOperations = (service, consumer) =>
+      this.imageToolsPlugin.bind(
+        {
+          execute: (request, { signal } = {}) =>
+            service.execute({ ...request, signal: signal ?? request.signal }),
+        },
+        consumer,
+      )
+    this.workflowImageOperations = createImageOperations(dataDir, this.workflowMedia)
+    this.workflowImageNodes = new WorkflowImageNodeService({
+      operations: bindImageOperations(this.workflowImageOperations, 'workflow'),
+    })
+    const gameAssetDir = join(dataDir, 'game-assets')
+    this.gameAssetMedia = new WorkflowMediaService({ dataDir: gameAssetDir })
+    this.gameAssetImageOperations = createImageOperations(gameAssetDir, this.gameAssetMedia)
+    this.gameAssetOperations = bindImageOperations(this.gameAssetImageOperations, 'workbench')
+    this.gameAssets = new GameAssetsService({
+      dataDir: gameAssetDir,
+      media: this.gameAssetMedia,
+      operations: this.gameAssetOperations,
+    })
+    const agentImageDir = join(dataDir, 'image-tools-agent')
+    this.agentImageMedia = new WorkflowMediaService({ dataDir: agentImageDir })
+    this.agentImageOperations = createImageOperations(agentImageDir, this.agentImageMedia)
+    this.imageAssets = new ImageAgentService({
+      operations: this.agentImageOperations,
+      media: this.agentImageMedia,
+      plugin: this.imageToolsPlugin,
+    })
     this.sessionMetaPath = join(dataDir, 'pisper-sessions.json')
     this.usagePath = join(dataDir, 'pisper-usage.json')
     this.assetsDir = join(dataDir, 'pisper-assets')
@@ -464,6 +516,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         validateDirectory: (input) => resolveDirectory(input, this.cwd),
       },
       notifications: this.notificationSettings,
+      resolveMediaInputs: (inputs) => this.workflowMedia.resolveInputs(inputs),
+      executeImageNode: (request) => this.workflowImageNodes.execute(request),
     })
     this.schedules = new ScheduleService({
       path: join(dataDir, 'pisper-schedules.json'),
@@ -642,6 +696,26 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.sessionRuntimeVersion = version
       },
     })
+    this.sideChats = new SideChatService({
+      getMetadata: () => this.sessionMeta,
+      saveMetadata: () => this.saveSessionMeta(),
+      // 扫描侧聊寿命只读轻量元数据；不因后台清理加载全部会话正文。
+      hasSession: async (id) =>
+        Boolean(
+          this.sessionMeta[id] ||
+          this.sessions.has(id) ||
+          this.pendingSessions.has(id) ||
+          (await this.findSessionInfo(id)),
+        ),
+      getSummary: async (id) =>
+        (await this.sessionLifecycle.listSessions({ includeSideChats: true })).find(
+          (session) => session.id === id,
+        ) || null,
+      createSession: ({ id, cwd, metadata }) =>
+        this.sessionLifecycle.createSession('临时侧聊', cwd, { id, metadata }),
+      deleteSession: (id) => this.deleteSession(id),
+      isProtected: (id) => this.sessionRuntimeIsProtected(id, this.sessions.get(id)),
+    })
     this.providerPreferences = new ProviderPreferences({
       authPath: this.authPath,
       modelsPath: this.modelsPath,
@@ -682,6 +756,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 先建目录与清理旧数据，保证后续文件读写路径都存在。
     await mkdir(this.sessionDir, { recursive: true })
     await mkdir(this.assetsDir, { recursive: true })
+    await this.spriteEngines.init()
+    await this.workflowMedia.init()
     await cleanupRemovedLocalEmbeddingData(this.dataDir)
 
     stage('session-state')
@@ -735,6 +811,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.channels) await this.channels.init()
     if (this.capabilities.features.workflows) await this.workflows.init()
     if (this.capabilities.features.schedules) await this.schedules.init()
+    await this.sideChats.sweep()
     this.startSessionRuntimeSweeper()
     await startup.complete()
   }
@@ -795,6 +872,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   // Agent 状态更新：把多 Agent 摘要同步进实时状态，并推送给前端活动流。
   emitAgentUpdate(sessionId, agent, send = this.agentEmitters.get(sessionId)) {
+    if (
+      this.sideChats?.isSideChat(sessionId) &&
+      ['completed', 'failed', 'interrupted'].includes(agent?.status)
+    ) {
+      // 父轮次结束后，子 Agent 仍可能继续执行；最后一次完成也属于侧聊活动。
+      void this.sideChats.touch(sessionId).catch(() => {
+        console.warn('临时侧聊活动时间保存失败。')
+      })
+    }
     const allAgents = this.multiAgents.summaries(sessionId)
     const updatedAgent = allAgents.find((item) => item.id === agent?.id) || null
     const agents = allAgents.filter((item) =>
@@ -954,6 +1040,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       try {
         this.evictIdleSessionRuntimes()
       } catch {}
+      void this.sideChats.sweep().catch(() => {
+        // 后台清理失败可在下次扫描重试，不输出会话内容与个人路径。
+        console.warn('临时侧聊清理失败，将稍后重试。')
+      })
     }, intervalMs)
     this.sessionRuntimeSweepTimer.unref?.()
   }
@@ -1396,6 +1486,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   async getOrCreateSession(id) {
+    this.sideChats?.assertAvailable(id)
     return this.sessionLifecycle.getOrCreateSession(id)
   }
 
@@ -1598,6 +1689,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           browserAutomationService: this.browserAutomation,
           browserSessionId: runtimeSessionId,
           visualGenerationService: this.visualGeneration,
+          imageAssets: this.imageAssets,
           mobileOperationService: this.mobileOperations,
           mobileSessionId: runtimeSessionId,
           mobileCaptureDir: join(this.dataDir, 'mobile-captures'),
@@ -1857,7 +1949,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.streamProjection.invalidate(data?.sessionId || sessionId || '')
       send(event, data)
       try {
-        this.eventObserver?.({ event, data, sessionId: data?.sessionId || sessionId || '' })
+        const observedSessionId = data?.sessionId || sessionId || ''
+        if (!this.sideChats?.isSideChat(observedSessionId))
+          this.eventObserver?.({ event, data, sessionId: observedSessionId })
       } catch {
         // Desktop observers are best-effort and must never interrupt an Agent stream.
       }
@@ -2498,7 +2592,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         startedAt: live.startedAt,
         finishedAt,
       })
-      if (!value.isolatedContext && value.enabledTools?.includes('memory_remember')) {
+      if (
+        !value.isolatedContext &&
+        !this.sideChats?.isSideChat(session.sessionId) &&
+        value.enabledTools?.includes('memory_remember')
+      ) {
         // 非隔离上下文时，把本轮对话摘要写入长期记忆。
         void this.captureConversationMemory({
           sessionId: session.sessionId,

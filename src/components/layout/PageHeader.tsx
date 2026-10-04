@@ -3,15 +3,11 @@
 import type { ReactNode, RefObject } from 'react'
 import {
   Link2,
-  Clock,
-  MonitorCog,
-  Moon,
   Plus,
   Rocket,
   Save,
   Search,
   Square,
-  Sun,
   TerminalSquare,
   Play,
   type LucideIcon,
@@ -19,17 +15,11 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
+import { ThemeToggleButton } from './ThemeToggleButton'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
 
 import { Button } from '@/components/ui/button'
-
-const THEME_META: Record<ThemeMode, LucideIcon> = {
-  system: MonitorCog,
-  scheduled: Clock,
-  light: Sun,
-  dark: Moon,
-}
 
 type WorkflowActions = {
   busy: boolean
@@ -86,7 +76,7 @@ export function PageHeader({
     assets: [t('navigation:pageHeader.addLink'), Link2],
     channels: [t('navigation:pageHeader.connectChannel'), Plus],
     schedules: [t('navigation:pageHeader.newTask'), Plus],
-    config: [t('navigation:pageHeader.addProvider'), Plus],
+    config: [t('navigation:pageHeader.quickSetup'), Plus],
     plugins: [t('navigation:pageHeader.savePolicy'), Save],
     memory: [t('navigation:pageHeader.addMemory'), Plus],
     mcp: [t('navigation:pageHeader.addService'), Plus],
@@ -102,15 +92,6 @@ export function PageHeader({
           ? [t('navigation:pageHeader.newChat'), Plus]
           : null
         : primaryActions[page]
-  const ThemeIcon = THEME_META[theme]
-  const themeLabel =
-    theme === 'light'
-      ? t('navigation:pageHeader.light')
-      : theme === 'dark'
-        ? t('navigation:pageHeader.dark')
-        : theme === 'scheduled'
-          ? t('navigation:pageHeader.scheduled')
-          : t('navigation:pageHeader.system')
   const desktop = Boolean(desktopPlatform)
 
   return (
@@ -173,7 +154,9 @@ export function PageHeader({
                 : t('navigation:pageHeader.testRun')}
             </Button>
           </>
-        ) : page === 'chat' ? null : page === 'config' ? (
+        ) : page === 'chat' ||
+          page === 'gameAssetWorkbench' ||
+          page === 'customComponentTool' ? null : page === 'config' ? (
           searchSlot
         ) : (
           <label
@@ -200,6 +183,7 @@ export function PageHeader({
         {primary && (
           <Button
             size="lg"
+            variant={page === 'workflowCreate' ? 'outline' : 'default'}
             className={cn(
               'max-[650px]:col-start-2 max-[650px]:row-start-1',
               page === 'chat' && mobileApp && 'hidden',
@@ -213,6 +197,7 @@ export function PageHeader({
                 : primary[0]
             }
             onClick={onPrimary}
+            disabled={page === 'workflowCreate' && (!workflowActions || workflowActions.busy)}
           >
             {(() => {
               const PrimaryIcon = primary[1]
@@ -238,21 +223,14 @@ export function PageHeader({
             <TerminalSquare size={16} />
           </Button>
         )}
-        <Button
-          variant="outline"
-          size="icon"
+        <ThemeToggleButton
+          theme={theme}
+          onCycle={onCycleTheme}
           className={cn(
             'bg-[var(--solid)]',
             page !== 'chat' && 'max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4',
           )}
-          title={t('navigation:pageHeader.themeThemeClickToSwitch', { theme: themeLabel })}
-          aria-label={t('navigation:pageHeader.themeThemeClickToSwitchThemes', {
-            theme: themeLabel,
-          })}
-          onClick={onCycleTheme}
-        >
-          <ThemeIcon size={16} />
-        </Button>
+        />
       </div>
     </header>
   )

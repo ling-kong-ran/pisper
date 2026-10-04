@@ -55,11 +55,8 @@ test('composer renders unframed metrics in a collapsible row without unmounting 
   assert.match(controls, /session-usage-metrics[^"\n]*justify-start/)
   const metricsRow = focus.match(/composer-details flex min-h-9[^'\n]*/)?.[0] || ''
   assert.ok(metricsRow)
-  assert.match(
-    focus,
-    /hasConversation && appearance\.showUsage && !canvasUsage && <ChatCanvasSlot kind="usage"/,
-  )
-  assert.match(focus, /usage: usageBlock/)
+  assert.match(focus, /hasConversation && usageBlock/)
+  assert.doesNotMatch(focus, /ChatCanvasSlot/)
   assert.doesNotMatch(metricsRow, /border|bg-|shadow/)
   assert.match(focus, /detailsOpen, setDetailsOpen\] = useState\(false\)/)
   assert.match(focus, /!detailsOpen && '!hidden'/)

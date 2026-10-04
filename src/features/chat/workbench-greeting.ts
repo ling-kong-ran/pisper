@@ -1,4 +1,4 @@
-// 时段和字号与 ZCode 草稿页一致；纯函数便于验证边界和窄屏行为。
+// 按本地时段与可用宽度调整问候语；纯函数便于验证边界和窄屏行为。
 export function greetingPeriod(date: Date): number {
   const hour = date.getHours()
   if (hour >= 5 && hour < 9) return 0

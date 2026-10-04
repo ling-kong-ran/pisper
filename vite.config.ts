@@ -176,6 +176,9 @@ export default defineConfig({
     // 拖进入口静态图（+55 kB gzip，违反 route-only vendor 审计）；而 TLA 等 15.0 已原生支持，
     // safari16（16.0）只降级 static block。初始 chunk 的解析兼容性由 check-dist-compat.mjs 把关。
     target: 'safari16',
+    // Windows 上仍有 WebView2 104；CSS 单独降级静态颜色，不能继承 Safari 16 的颜色能力。
+    // 保留上面的 JS 目标，避免改变 iOS 的入口依赖与语法边界。
+    cssTarget: ['chrome104', 'safari16'],
     chunkSizeWarningLimit: 900,
     manifest: true,
     rolldownOptions: {

@@ -733,5 +733,14 @@
   "sessionContext.pageContent": "Choose page content",
   "sessionContext.pageLimit": "Up to 12 auxiliary pages",
   "focusSession.runtimeSelectionDeferred": "Changes apply after this response finishes.",
-  "focusSession.thinkingAfterModelSwitch": "Thinking levels appear once the new model is applied."
+  "focusSession.thinkingAfterModelSwitch": "Thinking levels appear once the new model is applied.",
+  "sideChat.title": "Temporary chat",
+  "sideChat.retention": "Uses this chat’s workspace and model settings with a separate history. Cleared after 24 idle hours; running tasks do not expire.",
+  "sideChat.empty": "Explore a side topic without interrupting your main chat.",
+  "sideChat.expired": "This temporary chat has expired. Your draft is kept; start a new side chat to continue.",
+  "sideChat.restart": "Start a new side chat",
+  "sideChat.message": "Temporary chat message",
+  "sideChat.placeholder": "Explore a side topic…",
+  "sideChat.send": "Send temporary message",
+  "sideChat.stop": "Stop temporary response"
 }

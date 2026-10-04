@@ -18,6 +18,12 @@ export type LocalProviderImportResult = {
   skipped: Array<{ id: string; source: string; reason: string }>
 }
 export const providerApi = {
+  deleteModel(providerId: string, modelId: string) {
+    return apiJson<ConfigData>('/api/providers/' + encodeURIComponent(providerId) + '/models', {
+      method: 'DELETE',
+      body: JSON.stringify({ modelId }),
+    })
+  },
   saveModel(providerId: string, draft: ModelOptionsDraft, create = false) {
     return apiJson<ConfigData>(
       '/api/providers/' + encodeURIComponent(providerId) + '/models' + (create ? '' : '/options'),

@@ -37,7 +37,8 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   // 空数组兑底用共享常量，避免每次渲染新建数组击穿 FocusSession 的 memo。
   assert.match(dock, /const EMPTY_LIST: never\[\] = \[\]/)
   assert.match(dock, /tools=\{state\.tools \|\| EMPTY_LIST\}/)
-  assert.match(dock, /Boolean\(state\.streaming \|\| session\?\.streaming\)/)
+  // 此处只保护渲染接线；旧 OR 会让陈旧摘要覆盖已完成状态，优先级由 session-streaming-state 行为测试覆盖。
+  assert.match(dock, /resolveSessionStreaming\(state, session\)/)
   assert.match(focusProps, /tools: EntityRecord\[\]/)
   assert.match(focus, /activityFeed,\s+tools,\s+thinkingText,/)
   assert.doesNotMatch(message, /streamPreamble|splitAssistantStreamText|has-stream-split/)

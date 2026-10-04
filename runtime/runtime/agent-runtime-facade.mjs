@@ -64,24 +64,22 @@ export function createScheduleWorkflowAdapter(workflows) {
 // 工作流通知目标过滤：剔除未启用的通知渠道，防止配置了但没连通的渠道在运行时静默失败。
 export function filterWorkflowNotificationTargets(input, enabledTargets) {
   if (!input || typeof input !== 'object') return input
-  return {
-    ...input,
-    notifications: Array.isArray(input.notifications)
-      ? input.notifications.filter((target) => enabledTargets.has(target))
-      : input.notifications,
-    nodes: Array.isArray(input.nodes)
-      ? input.nodes.map((node) =>
-          node && typeof node === 'object' && Array.isArray(node.notificationTargets)
-            ? {
-                ...node,
-                notificationTargets: node.notificationTargets.filter((target) =>
-                  enabledTargets.has(target),
-                ),
-              }
-            : node,
-        )
-      : input.nodes,
-  }
+  const filtered = { ...input }
+  // 部分 PATCH 未提供的字段保持缺席，不能用 undefined 覆盖已有图和通知配置。
+  if (Array.isArray(input.notifications))
+    filtered.notifications = input.notifications.filter((target) => enabledTargets.has(target))
+  if (Array.isArray(input.nodes))
+    filtered.nodes = input.nodes.map((node) =>
+      node && typeof node === 'object' && Array.isArray(node.notificationTargets)
+        ? {
+            ...node,
+            notificationTargets: node.notificationTargets.filter((target) =>
+              enabledTargets.has(target),
+            ),
+          }
+        : node,
+    )
+  return filtered
 }
 
 export class AgentRuntimeFacade {
@@ -213,9 +211,12 @@ export class AgentRuntimeFacade {
 
   async deleteSession(id) {
     // 仅在会话生命周期删除成功后清理快照，避免删除失败时丢失可恢复基线。
-    const result = await this.sessionLifecycle.deleteSession(id)
-    await this.getFileChangesService().clear(id)
-    return result
+    const remove = async () => {
+      const result = await this.sessionLifecycle.deleteSession(id)
+      await this.getFileChangesService().clear(id)
+      return result
+    }
+    return this.sideChats ? this.sideChats.deleteWithChildren(id, remove) : remove()
   }
 
   installWorkspaceAssetCapture(session, cwd, sessionId = session.sessionId) {
@@ -236,45 +237,50 @@ export class AgentRuntimeFacade {
 
   // 流式执行一次会话提示：拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。
   async streamPrompt(options) {
-    let value = await this.getOrCreateSession(options.sessionId)
-    let id = value.session.sessionId
-    if (value.forceDisposed && !value.runActive) {
-      this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
-      value = await this.getOrCreateSession(options.sessionId)
-      id = value.session.sessionId
-    }
-    if (this.sessionRunIsActive(id, value))
-      throw new Error('当前会话仍在运行，请等待完成或先停止。')
-    // 历史会话不允许自动切换模型：绑定模型不可用时拒绝执行并显式告知，
-    // 而不是静默用默认模型消耗额度、并把回退结果写回会话绑定。
-    if (value.blockedModel) {
-      const ref = `${value.blockedModel.provider}/${value.blockedModel.modelId}`
-      const reason =
-        value.blockedModel.reason === 'missing-auth'
-          ? 'Provider 缺少可用凭据'
-          : '模型不存在或 Provider 未配置'
-      throw new Error(`会话绑定的模型 ${ref} 当前不可用（${reason}），请重新选择模型后再发送。`)
-    }
-    // 中止标记只属于单次运行：留在常驻运行时上会让下一次 prompt 继承上次的截止时间。
-    delete value.abortedAt
-    delete value.forceDisposed
-    value.runActive = true
+    const finishSideChatRun = await this.sideChats?.beginRun(options.sessionId)
     try {
-      this.installWorkspaceAssetCapture(value.session, value.cwd)
-      return await this.runSessionPrompt(value, options)
-    } finally {
-      value.runActive = false
-      const forceDisposed = value.forceDisposed
+      let value = await this.getOrCreateSession(options.sessionId)
+      let id = value.session.sessionId
+      if (value.forceDisposed && !value.runActive) {
+        this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
+        value = await this.getOrCreateSession(options.sessionId)
+        id = value.session.sessionId
+      }
+      if (this.sessionRunIsActive(id, value))
+        throw new Error('当前会话仍在运行，请等待完成或先停止。')
+      // 历史会话不允许自动切换模型：绑定模型不可用时拒绝执行并显式告知，
+      // 而不是静默用默认模型消耗额度、并把回退结果写回会话绑定。
+      if (value.blockedModel) {
+        const ref = `${value.blockedModel.provider}/${value.blockedModel.modelId}`
+        const reason =
+          value.blockedModel.reason === 'missing-auth'
+            ? 'Provider 缺少可用凭据'
+            : '模型不存在或 Provider 未配置'
+        throw new Error(`会话绑定的模型 ${ref} 当前不可用（${reason}），请重新选择模型后再发送。`)
+      }
+      // 中止标记只属于单次运行：留在常驻运行时上会让下一次 prompt 继承上次的截止时间。
       delete value.abortedAt
       delete value.forceDisposed
-      if (forceDisposed) {
-        // 被强制 dispose 的 Agent 在其遗留 prompt 落定前可能仍报告 isStreaming，
-        // 但这个常驻运行时已不可复用，直接释放。
-        this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
-      } else {
-        this.touchSessionRuntime(value)
-        this.evictIdleSessionRuntimes(id)
+      value.runActive = true
+      try {
+        this.installWorkspaceAssetCapture(value.session, value.cwd)
+        return await this.runSessionPrompt(value, options)
+      } finally {
+        value.runActive = false
+        const forceDisposed = value.forceDisposed
+        delete value.abortedAt
+        delete value.forceDisposed
+        if (forceDisposed) {
+          // 被强制 dispose 的 Agent 在其遗留 prompt 落定前可能仍报告 isStreaming，
+          // 但这个常驻运行时已不可复用，直接释放。
+          this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
+        } else {
+          this.touchSessionRuntime(value)
+          this.evictIdleSessionRuntimes(id)
+        }
       }
+    } finally {
+      await finishSideChatRun?.()
     }
   }
 
@@ -785,6 +791,7 @@ export class AgentRuntimeFacade {
     await this.memoryCapture.dispose()
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null
+    await this.sideChats?.dispose()
     for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
     this.agentWakeupTimers.clear()
     this.providerModelDiscovery.abort?.()
@@ -792,6 +799,16 @@ export class AgentRuntimeFacade {
     await this.providerModelCatalog.dispose()
     await this.modelMetadata.dispose()
     await this.workflows.dispose()
+    await this.gameAssets?.dispose()
+    await this.imageAssets?.dispose()
+    await this.workflowImageOperations?.dispose()
+    await this.gameAssetImageOperations?.dispose()
+    await this.agentImageOperations?.dispose()
+    await this.workflowImageProcessor?.dispose()
+    await this.spriteEngines?.dispose()
+    await this.workflowMedia?.dispose()
+    await this.gameAssetMedia?.dispose()
+    await this.agentImageMedia?.dispose()
     await this.schedules.dispose()
     await this.channels.dispose()
     await this.goals.pauseAllActive()
@@ -1132,6 +1149,12 @@ export class AgentRuntimeFacade {
   async addProviderModel(providerId, input) {
     return this.providerPreferences.withConfigurationWrite(() =>
       this.providerPreferences.addProviderModels(providerId, [input], { skipExisting: false }),
+    )
+  }
+
+  async deleteProviderModel(providerId, modelId) {
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.deleteProviderModel(providerId, modelId),
     )
   }
 

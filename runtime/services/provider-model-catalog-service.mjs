@@ -268,6 +268,7 @@ export class ProviderModelCatalogService {
     _configuredApiKeys = {},
     configuredProviderTypes = {},
     configuredModelOptions = {},
+    configuredExcludedModels = {},
   ) {
     this.configuredBaseUrls = new Map(
       Object.entries(configuredBaseUrls || {}).map(([id, url]) => [id, normalizedBaseUrl(url)]),
@@ -371,18 +372,21 @@ export class ProviderModelCatalogService {
         }
       }
       // 目录刷新只发现模型，不能覆盖用户已经保存的名称、能力及思考等级。
-      const configuredModels = models.map((model) => {
-        const options = configuredModelOptions[providerId + ':' + model.id]
-        if (!options) return model
-        return {
-          ...model,
-          name: options.name || model.name,
-          pisperKind: modelCapabilities({ kind: model.pisperKind, ...options })[0],
-          capabilities: modelCapabilities({ kind: model.pisperKind, ...options }),
-          ...(options.thinkingLevelMap ? { thinkingLevelMap: options.thinkingLevelMap } : {}),
-          ...(Number(options.maxTokens) > 0 ? { maxTokens: options.maxTokens } : {}),
-        }
-      })
+      const excluded = new Set(configuredExcludedModels[providerId] || [])
+      const configuredModels = models
+        .filter((model) => !excluded.has(model.id))
+        .map((model) => {
+          const options = configuredModelOptions[providerId + ':' + model.id]
+          if (!options) return model
+          return {
+            ...model,
+            name: options.name || model.name,
+            pisperKind: modelCapabilities({ kind: model.pisperKind, ...options })[0],
+            capabilities: modelCapabilities({ kind: model.pisperKind, ...options }),
+            ...(options.thinkingLevelMap ? { thinkingLevelMap: options.thinkingLevelMap } : {}),
+            ...(Number(options.maxTokens) > 0 ? { maxTokens: options.maxTokens } : {}),
+          }
+        })
       const providerHeaders = this.configuredHeaders.get(providerId)
       if (!providerHeaders || Object.keys(providerHeaders).length === 0) return configuredModels
       return configuredModels.map((model) => ({
@@ -401,6 +405,7 @@ export class ProviderModelCatalogService {
       return [...providerIds].flatMap((id) => modelsForProvider(id))
     }
     runtime.getModel = (providerId, modelId) => {
+      if (configuredExcludedModels[providerId]?.includes(modelId)) return undefined
       const model = modelsForProvider(providerId).find((item) => item.id === modelId)
       if (model || catalogEntries(providerId).length) return model
       return rawGetModel(providerId, modelId)

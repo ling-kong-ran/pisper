@@ -127,6 +127,7 @@ test('live session snapshot restores partial assistant output and tool state', a
   })
   const live = await runtime.getSessionLive('session-live')
   assert.equal(live.streaming, true)
+  assert.equal(live.configurationBusy, true)
   assert.equal(live.messages.length, 2)
   assert.equal(live.messages.at(-1).role, 'agent')
   assert.equal(live.messages.at(-1).text, '正在处理剩余测试…')
@@ -148,6 +149,25 @@ test('live session snapshot restores partial assistant output and tool state', a
   assert.deepEqual(live.agents, [
     { id: 'agent-live', canonicalName: '/root/live_1', status: 'running' },
   ])
+  const active = runtime.sessions.get('session-live')
+  const liveState = runtime.liveSessions.get('session-live')
+  active.abortedAt = Date.now()
+  active.runActive = true
+  liveState.streaming = false
+  const stopping = await runtime.getSessionLive('session-live')
+  assert.equal(stopping.streaming, false, 'stopping still clears the visible spinner')
+  assert.equal(stopping.configurationBusy, true, 'the active run still rejects model changes')
+  active.runActive = false
+  const draining = await runtime.getSessionLive('session-live')
+  assert.equal(
+    draining.configurationBusy,
+    true,
+    'Pi can still be streaming after run cleanup starts',
+  )
+  active.session.isStreaming = false
+  const stopped = await runtime.getSessionLive('session-live')
+  assert.equal(stopped.streaming, false)
+  assert.equal(stopped.configurationBusy, false, 'teardown makes model changes available')
 })
 
 test('session catalog and runtime LRU treat a live tool run as active between Pi stream turns', async (t) => {

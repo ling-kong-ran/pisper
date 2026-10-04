@@ -12,6 +12,7 @@ import type {
   DiscoveredProvider,
   DiscoveryData,
   ProviderConfig,
+  ProviderModel,
   ProviderImportResult,
   Translate,
 } from './config-types'
@@ -34,6 +35,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
   const [toggling, setToggling] = useState('')
   const [settingDefault, setSettingDefault] = useState('')
   const [settingModel, setSettingModel] = useState('')
+  const [deletingModel, setDeletingModel] = useState('')
   const configRevision = useRef(0)
   const mounted = useRef(false)
 
@@ -149,6 +151,28 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     [applyConfig, notify, t],
   )
 
+  const deleteModel = useCallback(
+    async (provider: ProviderConfig, model: ProviderModel) => {
+      const approved = await requestConfirm({
+        title: t('providers:modelEditor.delete'),
+        message: t('providers:modelEditor.deleteConfirmation', { name: model.name || model.id }),
+        confirmLabel: t('config:configPage.delete'),
+      })
+      if (!approved) return
+      setDeletingModel(`${provider.id}/${model.id}`)
+      setError('')
+      try {
+        applyConfig(await providerApi.deleteModel(provider.id, model.id))
+        notify(t('providers:modelEditor.deleted'))
+      } catch (caught) {
+        setError(errorMessage(caught))
+      } finally {
+        setDeletingModel('')
+      }
+    },
+    [applyConfig, notify, requestConfirm, t],
+  )
+
   const deleteProvider = useCallback(
     async (provider: ProviderConfig) => {
       const approved = await requestConfirm({
@@ -182,12 +206,14 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     toggling,
     settingDefault,
     settingModel,
+    deletingModel,
     applyConfig,
     refreshConfig,
     setDefaultProvider,
     setProviderDefaultModel,
     toggleProvider,
     deleteProvider,
+    deleteModel,
   }
 }
 

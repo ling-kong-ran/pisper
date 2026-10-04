@@ -60,7 +60,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
   return (
     <div
       className={cn(
-        'flow-node [.workflow-mini-map_&.compact]:w-[100px] [.workflow-mini-map_&.compact]:min-h-[42px] [.workflow-mini-map_&.compact]:p-[5px_8px] [.workflow-mini-map_&.compact]:cursor-default [.workflow-mini-map_&.compact_small]:text-[11px] [.workflow-mini-map_&.compact_strong]:max-w-[100%] [.workflow-mini-map_&.compact_strong]:overflow-hidden [.workflow-mini-map_&.compact_strong]:text-[12px] [.workflow-mini-map_&.compact_strong]:text-ellipsis [.workflow-mini-map_&.compact_strong]:whitespace-nowrap [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:text-[13px] [&.active]:border-[var(--star)] [&.active]:[animation:star-node-pulse_2.4s_var(--ease-out)_infinite] [&.type-condition]:border-[var(--warning-border)] [&.type-condition]:bg-[var(--warning-subtle)] [&.type-parallel]:border-[var(--violet-border)] [&.type-parallel]:bg-[var(--violet-soft)] [&.type-approval]:border-[var(--approval-border)] [&.type-approval]:bg-[var(--success-subtle)] [&.type-notification]:border-[var(--notification-border)] [&.type-notification]:bg-[var(--notification-soft)] dark:[&.type-condition]:bg-[var(--warning-soft)] dark:[&.type-并行]:bg-[var(--violet-soft)] dark:[&.type-审批]:bg-[var(--success-subtle)] dark:[&.type-通知]:bg-[var(--notification-soft)] relative flex w-[120px] min-h-[49px] flex-col items-start justify-center gap-[3px] [border:1px_solid_var(--accent-border)] rounded-[var(--r-sm)] bg-[var(--accent-soft)] [padding:7px_10px] text-left shadow-[0_8px_18px_-14px_var(--node-shadow)] cursor-grab',
+        'flow-node relative flex w-40 min-h-16 cursor-grab flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm transition-shadow [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-muted-foreground [&_strong]:text-[13px] [&_strong]:font-medium [&.active]:border-primary [&.active]:ring-2 [&.active]:ring-[var(--brand-blue-border)] [&.type-condition]:border-amber-500/40 [&.type-parallel]:border-violet-500/40 [&.type-approval]:border-emerald-500/40 [&.compact]:w-28 [&.compact]:min-h-10 [&.compact]:px-2 [&.compact]:py-1',
         `type-${data.kind}`,
         selected && 'active',
         data.compact && 'compact',
@@ -299,8 +299,14 @@ function WorkflowCanvasInner({
         connectionMode={ConnectionMode.Strict}
         deleteKeyCode={['Backspace', 'Delete']}
         fitView
-        fitViewOptions={{ padding: 0.18, minZoom: 0.55, maxZoom: 1 }}
-        minZoom={0.35}
+        fitViewOptions={{
+          padding: 0.18,
+          minZoom: 0.6,
+          maxZoom: 1,
+          // 复杂模板先从输入端以可读比例进入；缩放控件仍可一键查看完整图。
+          nodes: flowNodes.length > 8 ? flowNodes.slice(0, 3).map(({ id }) => ({ id })) : undefined,
+        }}
+        minZoom={0.15}
         maxZoom={1.8}
         snapToGrid
         snapGrid={[20, 20]}
@@ -329,7 +335,7 @@ function WorkflowCanvasInner({
           color="var(--canvas-grid)"
         />
         <MiniMap
-          className="workflow-react-flow-minimap [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] !bg-[var(--surface-subtle)]"
+          className="workflow-react-flow-minimap !m-3 !h-24 !w-36 overflow-hidden rounded-lg border border-border !bg-card shadow-sm [&_svg]:h-full [&_svg]:w-full @max-[640px]/workflow:hidden"
           nodeColor={nodeColor}
           nodeStrokeWidth={3}
           pannable
@@ -337,7 +343,7 @@ function WorkflowCanvasInner({
         />
         <Controls position="top-left" showInteractive={false} />
       </ReactFlow>
-      <div className="absolute z-[5] [left:12px] [bottom:10px] text-[var(--text-muted)] text-[12px] pointer-events-none">
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[5] hidden max-w-[calc(100%-180px)] rounded-md bg-card px-2 py-1 text-[11px] leading-relaxed text-muted-foreground @min-[640px]/workflow:block">
         {hint}
       </div>
     </div>

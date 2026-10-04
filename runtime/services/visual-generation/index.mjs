@@ -140,6 +140,7 @@ export class VisualGenerationService {
       } catch (error) {
         const nextModel = models[index + 1]
         if (
+          options.allowFallback === false ||
           requestedModel ||
           !nextModel ||
           !canFallbackFrom(error, options.signal, nextModel, model)

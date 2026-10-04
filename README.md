@@ -247,6 +247,8 @@ Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；�
 
 Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立更新，失败自动回退到内置版本。桌面端提供统一组件检查入口；移动 App 使用独立发布清单。
 
+独立 UI 组件可在「设置 → 界面设置 → 独立组件」导入文件夹或 ZIP；重新加载界面后会出现在「更多工具」。游戏素材工作台不再内置，源码位于 [pisper-components](https://github.com/ling-kong-ran/pisper-components)。[自定义组件说明](./docs/custom-ui.md)
+
 ## 📚 文档
 
 **新手从这里开始** → **[使用教程](https://ling-kong-ran.github.io/pisper/guide.html)**：安装、模型配置、并行会话、分支、工作流、终端与移动端的完整说明。

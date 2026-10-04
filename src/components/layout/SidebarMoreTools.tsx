@@ -12,19 +12,27 @@ import {
 export default function SidebarMoreTools({
   items,
   buttonClassName,
+  compact = false,
   onNavigate,
 }: {
   items: Array<[string, string, LucideIcon]>
   buttonClassName: string
+  compact?: boolean
   onNavigate: (id: string) => void
 }) {
   const { t } = useI18n()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className={buttonClassName}>
+        <Button
+          variant="ghost"
+          className={buttonClassName}
+          title={compact ? t('navigation:workbench.moreTools') : undefined}
+        >
           <Ellipsis size={16} />
-          <span>{t('navigation:workbench.moreTools')}</span>
+          <span className={compact ? 'sr-only' : undefined}>
+            {t('navigation:workbench.moreTools')}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="start" className="w-48">

@@ -1,9 +1,9 @@
 {
-  "version": "0.1.51",
-  "tag": "app-v0.1.51",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.51",
+  "version": "0.1.54",
+  "tag": "app-v0.1.54",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.54",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "- test(ios): isolate symlink proof from async model install\n- chore(release-runtime): runtime-v0.5.58\n- test(mobile): assert update probe request data\n- fix(mobile): open settings links in system browser\n- fix(release): scope mobile runtime smoke to app\n- fix(custom-ui): keep Dynamic Island off by default\n- fix(mobile): restore chat, updates and external links",
-  "releaseDate": "2026-09-26"
+  "notes": "- fix: restore workflow and color rendering in WebView2 104",
+  "releaseDate": "2026-09-28"
 }

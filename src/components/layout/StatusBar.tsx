@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bot } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import { ACTIVE_SESSION_CHANGED_EVENT } from '@/features/chat/events'
 import { startupQueryOptions } from '@/lib/startup-queries'
@@ -140,7 +141,7 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
 
   // 模型标签只消费共享快照；查询未完成时不再另发一次请求。
   const refreshModel = useCallback(
-    (sessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || '') => {
+    (sessionId = pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '') => {
       const session = sessionData?.sessions?.find((item) => item.id === sessionId)
       const label =
         session?.model || (configData?.model ? `${configData.provider}/${configData.model}` : '')
@@ -152,7 +153,7 @@ export function StatusBar({ page, pluginStats }: StatusBarProps) {
   useEffect(() => {
     const syncModel = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string; model?: string }>).detail
-      const sessionId = detail?.id || localStorage.getItem(STORAGE_KEYS.activeSession) || ''
+      const sessionId = detail?.id || pageStateStorage.getItem(STORAGE_KEYS.activeSession) || ''
       if (detail?.model) {
         setModelLabel(/(^|\/)unknown$/i.test(detail.model) ? '' : detail.model)
       } else {

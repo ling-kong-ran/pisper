@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type UIEvent,
+  type ReactNode,
 } from 'react'
 import { ArrowDown, GitFork, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -33,6 +34,7 @@ export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
 type FocusTranscriptProps = {
   sessionId: string
+  emptyState?: ReactNode
   messages: ChatMessage[]
   layoutMeasurementKey?: string
   transcriptLoadState?: TranscriptLoadState
@@ -58,11 +60,11 @@ type FocusTranscriptProps = {
   lineage?: EntityRecord | null
   switchingCwd?: boolean
   onLoadOlder?: () => Promise<boolean> | boolean
-  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
-  onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
-  onPromptSelect: (prompt: string) => void
-  onWorkspace: () => void
+  onPromptSelect?: (prompt: string) => void
+  onWorkspace?: () => void
 }
 
 function TranscriptLoading({ label }: { label: string }) {
@@ -96,6 +98,7 @@ function TranscriptLoading({ label }: { label: string }) {
 
 export function FocusTranscript({
   sessionId,
+  emptyState,
   messages,
   layoutMeasurementKey,
   transcriptLoadState = 'ready',
@@ -290,11 +293,13 @@ export function FocusTranscript({
         {transcriptLoadState === 'loading' && (
           <TranscriptLoading label={t('chat:focusSession.loadingConversationHistory')} />
         )}
-        {transcriptLoadState === 'ready' && !messages.length && (
-          <div className="agent-welcome relative grid min-h-full place-content-center justify-items-center text-center text-muted-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none">
-            <WorkbenchGreeting />
-          </div>
-        )}
+        {transcriptLoadState === 'ready' &&
+          !messages.length &&
+          (emptyState ?? (
+            <div className="agent-welcome relative grid min-h-full place-content-center justify-items-center text-center text-muted-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none">
+              <WorkbenchGreeting />
+            </div>
+          ))}
         {transcriptLoadState === 'ready' && messages.length > 0 && (
           <div className="[animation:transcript-reveal-enter_.22s_var(--ease-out)_both]">
             <VirtualMessageTranscript

@@ -6,6 +6,16 @@ import {
   filterWorkflowNotificationTargets,
 } from '../runtime/agent-runtime-facade.mjs'
 
+test('partial workflow patches never introduce missing nodes or notification fields', () => {
+  const input = { inputs: [{ name: 'reference', type: 'image' }] }
+  assert.deepEqual(filterWorkflowNotificationTargets(input, new Set()), input)
+  assert.equal(Object.hasOwn(filterWorkflowNotificationTargets(input, new Set()), 'nodes'), false)
+  assert.equal(
+    Object.hasOwn(filterWorkflowNotificationTargets(input, new Set()), 'notifications'),
+    false,
+  )
+})
+
 test('workflow notifications retain only individually enabled targets', () => {
   const enabledTargets = enabledNotificationTargets({
     browser: { enabled: false },

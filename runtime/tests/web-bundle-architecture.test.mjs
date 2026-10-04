@@ -316,11 +316,9 @@ test('historical sessions transition through loading before resolving the welcom
   assert.match(session, /transcriptLoadState=\{transcriptLoadState\}/)
   assert.match(transcript, /data-pisper-transcript-state=\{transcriptLoadState\}/)
   assert.match(transcript, /transcriptLoadState === 'loading'/)
-  assert.match(transcript, /transcriptLoadState === 'ready' && !messages\.length/)
-  assert.ok(
-    transcript.indexOf("transcriptLoadState === 'loading'") <
-      transcript.indexOf("transcriptLoadState === 'ready' && !messages.length"),
-  )
+  const emptyReady = /transcriptLoadState === 'ready'\s*&&\s*!messages\.length/
+  assert.match(transcript, emptyReady)
+  assert.ok(transcript.indexOf("transcriptLoadState === 'loading'") < transcript.search(emptyReady))
   assert.match(catalog, /loaded: true/)
   assert.match(transcript, /session-history-loading[^"\n]*transcript-stage-enter/)
   assert.match(transcript, /transcript-reveal-enter/)
@@ -427,7 +425,7 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
   assert.match(app, /<MobilePrimaryNavigation[\s\S]*?page=\{page\}/)
   assert.match(sidebar, /settingsActive \? \(/)
-  assert.match(sidebar, /onClick=\{\(\) => runAndClose\(onExitSettings\)\}/)
+  assert.match(sidebar, /onClick=\{\(\) => runAndClose\(\(\) => navigate\('chat'\)\)\}/)
   assert.match(mobileNavigation, /getNavigation\(t, capabilities\)/)
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
@@ -458,8 +456,9 @@ test('mobile shell keeps navigation in the viewport and model settings retain re
   assert.doesNotMatch(models, /!grid-cols-/)
   assert.match(models, /<ProviderWorkbench/)
   const workbench = await readFile('src/features/config/ProviderWorkbench.tsx', 'utf8')
-  assert.match(workbench, /grid-cols-\[56px_minmax\(0,1fr\)\]/)
-  assert.match(workbench, /md:grid-cols-\[224px_minmax\(0,1fr\)\]/)
+  // 布局与窄屏可读性由 smoke-pisper-ui 行为验收；这里保护统一连接工作台的职责边界。
+  assert.match(workbench, /data-model-provider-split-panel/)
+  assert.match(workbench, /<nav[\s\S]*?aria-label=\{t\('config:configPage.connections'\)\}/)
   assert.match(workbench, /<ProviderConnectionEditor/)
   assert.match(workbench, /<ProviderModelEditor/)
   assert.doesNotMatch(workbench, /<Tabs|<ProviderConfigModal/)
@@ -508,7 +507,7 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   for (const [index, loader] of loaders.entries()) {
     const body = routeElements.slice(loader.index, loaders[index + 1]?.index)
     if (loader[1] === 'componentsRoute') {
-      assert.match(body, /<Navigate to="\/config\/interface\?view=layout" replace/)
+      assert.match(body, /<Navigate to="\/config\/interface\?view=widgets" replace/)
       assert.doesNotMatch(body, /@\/features\//)
     } else {
       assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
@@ -517,8 +516,9 @@ test('route code and route-specific vendor styles remain lazy', async () => {
     assert.match(router, new RegExp(`lazy: ${loader[1]}\\b`))
   }
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
+  assert.doesNotMatch(appearance, /ChatLayoutEditor|interface-chat-layout/)
+  assert.doesNotMatch(chat, /useChatLayoutStore|canvasHasKind/)
   assert.doesNotMatch(router, /from '@\/features\//)
-  assert.match(appearance, /import\('@\/features\/chat\/layout\/editor'\)/)
   assert.match(appearance, /import\('@\/features\/custom-ui\/public'\)/)
   assert.doesNotMatch(appearance, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)

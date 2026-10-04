@@ -1,4 +1,8 @@
 {
+  "toolLabels.imageAssets": "Image assets",
+  "toolLabels.imageAssetsDescription": "Expose action generation, local background removal, frame splitting, manual edits, and atlas export to agents. Off by default; workflows and the workbench remain available.",
+  "toolLabels.imageAssetsScope": "Imported workspace images and managed media",
+  "toolLabels.imageAssetsCapability": "Generate, edit, arrange, and export animation frames using the shared image-processing engine",
   "pluginsPage.all": "All",
   "toolLabels.read": "Read files",
   "toolLabels.list": "List directories",

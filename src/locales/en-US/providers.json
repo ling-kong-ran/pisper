@@ -14,5 +14,9 @@
   "modelEditor.contextWindow": "Context window (tokens)",
   "modelEditor.maxTokens": "Maximum output (tokens)",
   "modelEditor.editNamed": "Edit model {name}",
-  "modelEditor.optionsNamed": "Model capabilities: {name}"
+  "modelEditor.optionsNamed": "Model capabilities: {name}",
+  "modelEditor.delete": "Delete model",
+  "modelEditor.deleteNamed": "Delete model {name}",
+  "modelEditor.deleteConfirmation": "Delete “{name}”? The provider connection and credentials will remain. If this is the default model, another available model will be selected, or the default will be cleared if none is available. Existing conversations will keep their model bindings. You can add this model again later.",
+  "modelEditor.deleted": "Model deleted"
 }

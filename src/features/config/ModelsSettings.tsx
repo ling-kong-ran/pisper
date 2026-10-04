@@ -1,8 +1,9 @@
-// 模型设置：ZCode 式连接列表/详情分栏；保留本地导入、快速向导及运行策略。
+// 模型设置：连接列表/详情分栏；保留本地导入、快速向导及运行策略。
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronDown, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Button } from '@/components/ui/button'
 import { ProviderWorkbench } from './ProviderWorkbench'
@@ -25,7 +26,7 @@ import { AppError, AppEmptyState } from '@/components/ui/app-primitives'
 const MANAGE_CONNECTIONS_STORAGE_KEY = 'pisper.config.manageConnectionsOpen'
 
 function storedManageOpen(): boolean | null {
-  const stored = window.localStorage.getItem(MANAGE_CONNECTIONS_STORAGE_KEY)
+  const stored = pageStateStorage.getItem(MANAGE_CONNECTIONS_STORAGE_KEY)
   return stored === '1' ? true : stored === '0' ? false : null
 }
 
@@ -51,12 +52,7 @@ export function ModelsSettings({
   const importRequested = new URLSearchParams(location.search).get('import') === '1'
   const [selectedProviderId, setSelectedProviderId] = useState('')
   const [wizard, setWizard] = useState<WizardTarget | null>(null)
-  // 连接弹窗按需新建或编辑；视觉连接也必须能修改 Key、URL 和模型定义。
-  const [providerModal, setProviderModal] = useState<{
-    providerType: ProviderType
-    provider?: ProviderConfig
-    cloneProvider?: ProviderConfig
-  } | null>(null)
+  const [cloningProvider, setCloningProvider] = useState<ProviderConfig | null>(null)
   const [manageOpen, setManageOpen] = useState<boolean | null>(() =>
     importRequested ? true : storedManageOpen(),
   )
@@ -83,7 +79,7 @@ export function ModelsSettings({
     },
     t,
   })
-  // 页面主操作 = 快速配置向导（三步完成对话模型配置）。
+  // 新增连接统一进入快速设置，协议与模型选项按步骤呈现。
   usePagePrimaryAction(registerPrimaryAction, () => setWizard({ providerType: 'chat' }))
 
   if (!config) {
@@ -98,31 +94,32 @@ export function ModelsSettings({
   }
 
   const defaultProviderId = config.defaultProvider || config.provider
-  const defaultProvider = config.providers.find((item) => item.id === defaultProviderId)
+  const defaultProvider = config.providers.find(
+    (item) => item.id === defaultProviderId && item.configured,
+  )
+  const defaultModel = config.defaultModel || config.model
   // 扫描结果只提供轻提示，不覆盖用户的折叠偏好，也不自动展开管理区。
   const manageOpenEffective = manageOpen ?? false
   const importableCount = providerDiscoveryImportableCount(discovery.discovery)
   const setManageOpenPersisted = (open: boolean) => {
     setManageOpen(open)
-    window.localStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
+    pageStateStorage.setItem(MANAGE_CONNECTIONS_STORAGE_KEY, open ? '1' : '0')
   }
-  // 从列表进入连接编辑弹窗；摘要卡仍进入向导以便直接切换默认模型。
-  const openProviderClonerFor = (provider: ProviderConfig) =>
-    setProviderModal({ providerType: provider.type, cloneProvider: provider })
+  // 克隆需要保留来源连接的模型定义，继续复用完整连接弹窗。
+  const openProviderClonerFor = (provider: ProviderConfig) => setCloningProvider(provider)
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-        <p className="min-w-0 truncate text-muted-foreground">
-          {t('config:configPage.currentChatModel')} ·{' '}
-          <span className="text-foreground">
-            {defaultProvider?.name || '—'} / {config.defaultModel || config.model || '—'}
-          </span>
-        </p>
-        <Button variant="outline" size="sm" onClick={() => setWizard({ providerType: 'chat' })}>
-          {t('config:configPage.quickSetup')}
-        </Button>
-      </div>
+      {defaultProvider && defaultModel && (
+        <div className="mb-4 text-sm">
+          <p className="min-w-0 truncate text-muted-foreground">
+            {t('config:configPage.currentChatModel')} ·{' '}
+            <span className="text-foreground">
+              {defaultProvider.name} / {defaultModel}
+            </span>
+          </p>
+        </div>
+      )}
       <p className="mb-4 flex items-center gap-2 text-xs text-muted-foreground" role="status">
         {discovery.discovering && <RefreshCw size={12} className="animate-spin" />}
         {discovery.discovering
@@ -143,9 +140,10 @@ export function ModelsSettings({
           settings.applyConfig(data)
           notify(t('config:configPage.providerConnectionUpdated'))
         }}
-        onAdd={() => setProviderModal({ providerType: 'chat' })}
         onClone={openProviderClonerFor}
         onDelete={settings.deleteProvider}
+        deletingModel={settings.deletingModel}
+        onDeleteModel={settings.deleteModel}
         onToggle={settings.toggleProvider}
         onSetDefault={settings.setDefaultProvider}
         onSetDefaultModel={settings.setProviderDefaultModel}
@@ -231,26 +229,29 @@ export function ModelsSettings({
           config={config}
           providerType={wizard.providerType || 'chat'}
           initialProviderId={wizard.providerId}
+          onConfigChanged={(data) => {
+            settings.applyConfig(data)
+            if (data.createdProviderId) setSelectedProviderId(data.createdProviderId)
+          }}
           onClose={() => setWizard(null)}
           onCompleted={(data) => {
             settings.applyConfig(data)
+            if (data.createdProviderId) setSelectedProviderId(data.createdProviderId)
             notify(t('config:configPage.setupComplete'))
             setWizard(null)
           }}
         />
       )}
-      {providerModal && (
+      {cloningProvider && (
         <ProviderConfigModal
-          initialProviderType={providerModal.providerType}
-          initialProvider={providerModal.provider}
-          cloneProvider={providerModal.cloneProvider}
-          onConfigChanged={settings.applyConfig}
-          onClose={() => setProviderModal(null)}
+          initialProviderType={cloningProvider.type}
+          cloneProvider={cloningProvider}
+          onClose={() => setCloningProvider(null)}
           onCreated={(data) => {
             settings.applyConfig(data)
-            if (providerModal.provider) notify(t('config:configPage.providerConnectionUpdated'))
-            else notify(t('config:configPage.providerConnectionCreated'))
-            setProviderModal(null)
+            if (data.createdProviderId) setSelectedProviderId(data.createdProviderId)
+            notify(t('config:configPage.providerConnectionCreated'))
+            setCloningProvider(null)
           }}
         />
       )}

@@ -12,7 +12,7 @@ type ConfigSearchBoxProps = {
   query: string
   onQueryChange: (query: string) => void
   // 选中结果后跳转目标分区（高亮请求由组件内部发起）
-  onSelect: (section: string, view?: 'appearance' | 'layout' | 'widgets') => void
+  onSelect: (section: string, view?: 'appearance' | 'widgets') => void
   inputRef: RefObject<HTMLInputElement | null>
 }
 
@@ -49,12 +49,7 @@ export function ConfigSearchBox({
     // 同分区时由事件监听即时触发。
     requestConfigCardHighlight(match.entry.card, match.entry.section)
     if (match.entry.section === 'interface') {
-      const view =
-        match.entry.card === 'interface-chat-layout'
-          ? 'layout'
-          : match.entry.card === 'interface-custom-ui'
-            ? 'widgets'
-            : 'appearance'
+      const view = match.entry.card === 'interface-custom-ui' ? 'widgets' : 'appearance'
       // 同一分区内也需要切换标签，路由查询参数仍由应用壳统一生成。
       onSelect(match.entry.section, view)
     } else onSelect(match.entry.section)

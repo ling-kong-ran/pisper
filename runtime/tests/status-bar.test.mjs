@@ -44,7 +44,7 @@ test('status bar usage normalization accepts numeric strings and rejects invalid
   )
 })
 
-test('ZCode shell waits for client detection and retires the global status bar', async () => {
+test('Pisper shell waits for client detection and retires the global status bar', async () => {
   const [app, statusBar] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/StatusBar.tsx', 'utf8'),

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import type { DesktopPetStatus } from '@/types/update'
 
 type PetState = 'idle' | 'waving' | 'jumping' | 'failed' | 'waiting' | 'running' | 'review'
@@ -40,7 +41,7 @@ function clampPosition(position: PetPosition): PetPosition {
 
 function initialPosition(): PetPosition {
   try {
-    const saved = JSON.parse(localStorage.getItem(POSITION_KEY) || '{}')
+    const saved = JSON.parse(pageStateStorage.getItem(POSITION_KEY) || '{}')
     if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) return clampPosition(saved)
   } catch {
     // Invalid local positions fall back to the lower-right corner.
@@ -128,7 +129,7 @@ export function WebDesktopPet() {
     pointer.current = null
     event.currentTarget.releasePointerCapture(event.pointerId)
     if (active.moved) {
-      localStorage.setItem(POSITION_KEY, JSON.stringify(position))
+      pageStateStorage.setItem(POSITION_KEY, JSON.stringify(position))
       return
     }
     setInteractionState('jumping')

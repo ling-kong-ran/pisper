@@ -19,6 +19,7 @@ import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-ro
 import { createPrimaryActionRegistry } from '@/app/primary-action'
 import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 import { getNavigation, getPageMeta } from '@/app/navigation'
 import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
 import {
@@ -55,7 +56,7 @@ import {
 import { markStartupPhase } from '@/lib/startup-diagnostics'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
-import { useIsMobile, useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
@@ -172,17 +173,34 @@ function App() {
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
   const startupPageRef = useRef(page)
-  const lastAppPathRef = useRef(SETTINGS_PAGES.has(page) ? '/chat' : location.pathname)
   const [query, setQuery] = useState('')
+  const [installedTools, setInstalledTools] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => {
+    let mounted = true
+    void import('@/features/custom-ui/catalog')
+      .then(({ listCustomUiComponents }) => listCustomUiComponents())
+      .then(({ components }) => {
+        if (mounted)
+          setInstalledTools(
+            components
+              .filter((component) => !component.builtIn)
+              .map(({ id, name }) => ({ id, name })),
+          )
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [])
   const [activeSessionId, setActiveSessionId] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.activeSession) || '',
+    () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [mobileNav, setMobileNav] = useState(false)
-  const drawerSidebar = useIsMobile()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  const drawerSidebar = mobileLayout
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
@@ -267,7 +285,7 @@ function App() {
   }, [accent, density, fontScale, motion, radius, customAccent])
 
   useEffect(() => {
-    localStorage.setItem(
+    pageStateStorage.setItem(
       STORAGE_KEYS.terminalPanel,
       JSON.stringify({ open: terminalOpen, height: terminalHeight }),
     )
@@ -302,7 +320,7 @@ function App() {
   useEffect(() => {
     const syncActiveSession = (event: Event) => {
       const id = (event as CustomEvent<{ id?: string }>).detail?.id
-      setActiveSessionId(id ?? localStorage.getItem(STORAGE_KEYS.activeSession) ?? '')
+      setActiveSessionId(id ?? pageStateStorage.getItem(STORAGE_KEYS.activeSession) ?? '')
     }
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActiveSession)
     // Markdown 本地路径链接的 reveal 结果统一走全站 Toast：
@@ -432,7 +450,7 @@ function App() {
 
   // 切换配置分区：未知分区回退到 models，同步路由并清空搜索词。
   const setConfigSection = useCallback(
-    (section: string, view?: 'appearance' | 'layout' | 'widgets') => {
+    (section: string, view?: 'appearance' | 'widgets') => {
       const nextSection =
         CONFIG_SECTIONS.has(section) && runtimeConfigSectionAvailable(capabilities, section)
           ? section
@@ -447,7 +465,7 @@ function App() {
 
   const dismissModelOnboarding = useCallback(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.modelOnboardingDismissed, '1')
+      pageStateStorage.setItem(STORAGE_KEYS.modelOnboardingDismissed, '1')
     } catch {
       // 存储受限时仍允许关闭；本次应用会话内不会再次打开。
     }
@@ -456,7 +474,7 @@ function App() {
 
   const openModelSettingsFromOnboarding = useCallback(() => {
     dismissModelOnboarding()
-    // 用户主动选择设置时，把模型页主操作排队；页面挂载后直接打开快速配置向导。
+    // 用户主动选择设置时，把模型页主操作排队；页面挂载后直接打开快速设置。
     primaryActions.clear()
     primaryActions.invoke()
     setConfigSection('models')
@@ -485,16 +503,6 @@ function App() {
     [navigate, setConfigSection],
   )
 
-  useEffect(() => {
-    if (!SETTINGS_PAGES.has(page)) lastAppPathRef.current = location.pathname
-  }, [location.pathname, page])
-
-  // 退出设置页：回到进入设置前的最后一个应用页面。
-  const exitSettings = useCallback(() => {
-    routerNavigate(lastAppPathRef.current)
-    setQuery('')
-  }, [routerNavigate])
-
   // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
     if (!sessionId) return ''
@@ -508,7 +516,7 @@ function App() {
   // 若已存在活动会话则触发选中事件让输入框接收。
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
-      const targetSessionId = localStorage.getItem(STORAGE_KEYS.activeSession) || ''
+      const targetSessionId = pageStateStorage.getItem(STORAGE_KEYS.activeSession) || ''
       setPendingAsset({ asset, targetSessionId })
       if (targetSessionId) requestSessionSelection(targetSessionId)
       navigate('chat')
@@ -573,7 +581,7 @@ function App() {
     markStartupPhase('config-loaded')
     let dismissed = false
     try {
-      dismissed = localStorage.getItem(STORAGE_KEYS.modelOnboardingDismissed) === '1'
+      dismissed = pageStateStorage.getItem(STORAGE_KEYS.modelOnboardingDismissed) === '1'
     } catch {
       // 存储不可读时按未关闭处理，仍允许用户在界面上跳过。
     }
@@ -678,7 +686,7 @@ function App() {
     <ToastProvider duration={2800} swipeDirection="right">
       <div
         ref={appShellRef}
-        className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
+        className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
         data-mobile-app={mobileLayout || undefined}
         data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
       >
@@ -705,6 +713,7 @@ function App() {
           style={{ '--sidebar-width': '264px' } as CSSProperties}
           className="app-body flex min-h-0 flex-1 overflow-hidden"
           data-mobile-app={mobileLayout || undefined}
+          mobile={mobileLayout}
           open={!sidebarCollapsed}
           onOpenChange={(open) => setSidebarCollapsed(!open)}
           openMobile={mobileNav}
@@ -741,9 +750,10 @@ function App() {
             page={page}
             configSection={configSection}
             navigation={navigation}
+            installedTools={installedTools}
             navigate={navigate}
+            onOpenComponent={(id) => routerNavigate(`/tools/components/${encodeURIComponent(id)}`)}
             navigateSettings={navigateSettings}
-            onExitSettings={exitSettings}
             collapsed={sidebarCollapsed}
             onNewChat={startNewChat}
             onSearch={() => setPaletteOpen(true)}

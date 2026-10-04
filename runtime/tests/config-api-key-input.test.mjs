@@ -24,6 +24,11 @@ test('quick setup wizard saves provider config after fetching and selecting a mo
   assert.match(wizardSource, /providerType === 'visual'/)
   assert.match(wizardSource, /model\.kind === 'chat'/)
   assert.match(modelsSettingsSource, /<QuickSetupWizard/)
+  // 页头与新手引导共用主操作，新增连接只进入分步设置。
+  assert.match(
+    modelsSettingsSource,
+    /usePagePrimaryAction\(registerPrimaryAction, \(\) => setWizard\(\{ providerType: 'chat' \}\)\)/,
+  )
   assert.doesNotMatch(modelsSettingsSource, /detailTab|config-tabs/)
 })
 

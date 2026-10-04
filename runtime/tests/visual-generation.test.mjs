@@ -380,6 +380,14 @@ test('automatic visual selection falls back when the preferred model has no avai
         (message) => message.includes('当前不可用') && message.includes('grok-imagine-image'),
       ),
     )
+    requestedModels.length = 0
+    await assert.rejects(
+      value.service.generate(
+        { kind: 'image', prompt: 'explicit no retry', cwd: value.directory },
+        { allowFallback: false },
+      ),
+    )
+    assert.deepEqual(requestedModels, ['gpt-image-2'])
   } finally {
     server.close()
     await value.cleanup()

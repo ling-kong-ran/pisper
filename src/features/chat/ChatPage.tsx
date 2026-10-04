@@ -36,16 +36,14 @@ import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
 import { updateSessionOrganization } from './session-organization-api'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
-import {
-  resolveSessionContextPresentation,
-  shouldRevealSessionContext,
-  type SessionContextPreference,
-  type SessionContextRun,
-} from './session-context-layout'
+import { resolveSessionContextPresentation } from './session-context-layout'
+import { useSessionContextStore } from './session-context-store'
+import { useSessionContextAutoReveal } from './useSessionContextAutoReveal'
 import type { SessionContextTab } from './SessionContextPanel'
 import { SessionContextLayout } from './SessionContextLayout'
-import { useChatLayoutStore } from './layout/chat-layout-store'
-import { canvasHasKind } from './layout/chat-canvas'
+import { SideChatProvider } from './SideChatProvider'
+import type { SideChatRuntime } from './side-chat-context'
+import { resolveSessionStreaming } from './session-streaming-state'
 
 const LazySessionContextPanel = lazy(() =>
   import('./SessionContextPanel').then((module) => ({ default: module.SessionContextPanel })),
@@ -89,23 +87,12 @@ export function ChatPage({
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  const layoutTemplate = useChatLayoutStore((state) => state.active)
-  const layoutRevision = useChatLayoutStore((state) => state.revision)
-  const deviceLayout = mobileLayout ? layoutTemplate.mobile : layoutTemplate.desktop
-  const embeddedContext = canvasHasKind(deviceLayout.canvas, 'context')
-  const openContextOnCompletion = deviceLayout.openContextOnCompletion && !embeddedContext
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const chatLayoutRef = useRef<HTMLDivElement>(null)
   const [contextWidth, setContextWidth] = useState(0)
-  const [contextPreference, setContextPreference] = useState<SessionContextPreference>(
-    () => layoutTemplate.desktop.contextVisibility,
-  )
+  const contextOpen = useSessionContextStore((state) => state.open)
+  const setContextOpen = useSessionContextStore((state) => state.setOpen)
   const [contextTab, setContextTab] = useState<SessionContextTab>('files')
-  const contextRunRef = useRef<SessionContextRun | null>(null)
-  useEffect(() => {
-    // 模板只设定初始显示方式，之后仍允许用户手动打开和关闭上下文。
-    setContextPreference(mobileLayout ? 'auto' : layoutTemplate.desktop.contextVisibility)
-  }, [layoutTemplate.desktop.contextVisibility, layoutRevision, mobileLayout])
   useLayoutEffect(() => {
     const layout = chatLayoutRef.current
     if (!layout) return
@@ -166,45 +153,46 @@ export function ChatPage({
   })
   const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
   const activeSessionState = catalog.sessionStates[catalog.activeId]
-  const activeStreaming = Boolean(activeSessionState?.streaming || activeSession?.streaming)
+  const activeStreaming = resolveSessionStreaming(activeSessionState, activeSession)
   const activeCompleted = Boolean(
     activeSessionState?.lifecycle?.phase === 'completed' &&
     !activeSessionState.error &&
     !activeSessionState.runStopped,
   )
-  useEffect(() => {
-    const current = {
-      sessionId: catalog.activeId,
-      streaming: activeStreaming,
-      completed: activeCompleted,
-    }
-    if (openContextOnCompletion && shouldRevealSessionContext(contextRunRef.current, current)) {
-      setContextTab('files')
-      setContextPreference('open')
-    }
-    contextRunRef.current = current
-  }, [catalog.activeId, activeStreaming, activeCompleted, openContextOnCompletion])
   const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
   const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
   const contextPresentation = resolveSessionContextPresentation({
     availableWidth: contextWidth,
     mobileLayout,
-    hasSession: Boolean(activeSession) && !embeddedContext,
-    preference: contextPreference,
+    hasSession: Boolean(activeSession),
+    preference: contextOpen ? 'open' : 'closed',
   })
   const contextCompact = mobileLayout || contextWidth < 800
+  useSessionContextAutoReveal({
+    sessionId: catalog.activeId,
+    streaming: activeStreaming,
+    completed: activeCompleted,
+    runStartedAt:
+      typeof activeSessionState?.runStartedAt === 'string' ? activeSessionState.runStartedAt : null,
+    enabled: true,
+    open: contextPresentation !== 'closed',
+    onReveal: () => {
+      setContextTab('files')
+      setContextOpen(true)
+    },
+  })
   const setActiveId = catalog.setActiveId
   const toggleSessionContext = useCallback(
     (sessionId: string, open: boolean) => {
       if (!sessionId) return
       if (open) {
         setActiveId(sessionId)
-        setContextPreference('open')
+        setContextOpen(true)
       } else {
-        setContextPreference('closed')
+        setContextOpen(false)
       }
     },
-    [setActiveId],
+    [setActiveId, setContextOpen],
   )
 
   const createSessionRecord = catalog.createSessionRecord
@@ -252,7 +240,7 @@ export function ChatPage({
     refreshSessions: catalog.refreshSessions,
     syncLiveSession: liveSync.syncLiveSession,
   })
-  const { sendPrompt } = promptCommands
+  const { sendPrompt, retryLastTurn } = promptCommands
 
   // 处理会话创建请求（可携带自动发送的提示词，如视觉生成卡片的「试试示例」）：
   // 事件监听 + localStorage 持久化，跨页面跳转/重启后挂载时也会补建。
@@ -400,7 +388,6 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
-      requestConfirm,
       openModelSettings,
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
@@ -447,7 +434,6 @@ export function ChatPage({
       pendingAsset,
       onAssetConsumed,
       notify,
-      requestConfirm,
       openModelSettings,
       liveSync.loadSessionMessages,
       liveSync.loadOlderMessages,
@@ -471,6 +457,41 @@ export function ChatPage({
       branchFromEntry,
       createChildSession,
       reloadSessionBranch,
+    ],
+  )
+
+  const discardSessionState = catalog.discardSessionState
+  const sideChatRuntime: SideChatRuntime = useMemo(
+    () => ({
+      subscribeSessionState: catalog.subscribeSessionState,
+      getSessionState: catalog.getSessionState,
+      retainSessionState: catalog.retainSessionState,
+      discard: (id) => {
+        // 只在服务端确认旧临时 ID 已失效时废弃本地流，不向后台发送 abort。
+        streamGenerationRef.current.set(id, (streamGenerationRef.current.get(id) ?? 0) + 1)
+        localStreamSessionsRef.current.delete(id)
+        discardSessionState(id)
+      },
+      loadSessionMessages: liveSync.loadSessionMessages,
+      loadOlderMessages: liveSync.loadOlderMessages,
+      syncLiveSession: liveSync.syncLiveSession,
+      send: (id, text) => sendPrompt(text, id, [], false, false, null, null, { activate: false }),
+      retry: (id) => retryLastTurn(id, { activate: false }),
+      abort: promptCommands.abort,
+      approve: sessionCommands.resolveToolApproval,
+    }),
+    [
+      catalog.subscribeSessionState,
+      catalog.getSessionState,
+      catalog.retainSessionState,
+      discardSessionState,
+      liveSync.loadSessionMessages,
+      liveSync.loadOlderMessages,
+      liveSync.syncLiveSession,
+      sendPrompt,
+      retryLastTurn,
+      promptCommands.abort,
+      sessionCommands.resolveToolApproval,
     ],
   )
 
@@ -498,13 +519,13 @@ export function ChatPage({
         plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
         requestConfirm={requestConfirm}
         onTabChange={setContextTab}
-        onClose={() => setContextPreference('closed')}
+        onClose={() => setContextOpen(false)}
       />
     </Suspense>
   )
 
   return (
-    <>
+    <SideChatProvider runtime={sideChatRuntime}>
       <div
         ref={chatLayoutRef}
         className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1"
@@ -513,7 +534,7 @@ export function ChatPage({
           availableWidth={contextWidth}
           presentation={contextPresentation}
           context={contextPanel}
-          side={layoutTemplate.desktop.contextSide}
+          side="right"
         >
           {catalog.loading ? (
             <AppEmptyState>
@@ -543,6 +564,6 @@ export function ChatPage({
           }
         />
       )}
-    </>
+    </SideChatProvider>
   )
 }

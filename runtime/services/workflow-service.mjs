@@ -1,13 +1,27 @@
 // 工作流服务：有向无环图（DAG）工作流的定义、持久化、执行与审批。
 // 节点类型包括 agent（调用会话）/命令/消息/条件，支持重试、人工审批节点、
 // 通知（浏览器/飞书/微信/QQ/Telegram）与运行记录。
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import {
   analyzeWorkflowGraph,
   createLinearWorkflowEdges,
   normalizeWorkflowEdges,
 } from '../../shared/workflow-graph.mjs'
+import {
+  renderWorkflowTemplate,
+  validateWorkflowInputDefinitions,
+  validateWorkflowInputs,
+  validateWorkflowTemplate,
+  WorkflowInputError,
+} from '../../shared/workflow-inputs.mjs'
+import {
+  WORKFLOW_IMAGE_NODE_KINDS,
+  isWorkflowImageNodeKind,
+  normalizeWorkflowImageSettings,
+  parseWorkflowImageOutput,
+  workflowImageError,
+} from '../../shared/workflow-image-nodes.mjs'
 
 const STATE_VERSION = 2
 const NODE_KINDS = new Set([
@@ -20,6 +34,7 @@ const NODE_KINDS = new Set([
   'condition',
   'parallel',
   'approval',
+  ...WORKFLOW_IMAGE_NODE_KINDS,
 ])
 const AGENT_KINDS = new Set(['prompt', 'skill', 'file', 'mcp'])
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin', 'qq', 'telegram'])
@@ -42,6 +57,11 @@ function defaultState() {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
+}
+
+function nodeConfigurationHash(node) {
+  const { x: _x, y: _y, label: _label, ...configuration } = node
+  return createHash('sha256').update(JSON.stringify(configuration)).digest('hex')
 }
 
 function boundedString(value, max = 1200) {
@@ -68,13 +88,16 @@ function normalizeStringArray(value, max = 30) {
 }
 
 function normalizeInputs(value) {
+  // 存量定义仍按原格式加载；新写入和每次运行在共享边界执行严格校验。
   return (Array.isArray(value) ? value : []).slice(0, 30).map((input, index) => ({
     id: boundedString(input?.id || `input-${index + 1}`, 80),
     name: boundedString(input?.name || `input_${index + 1}`, 80),
     label: boundedString(input?.label || input?.name || `Input ${index + 1}`, 120),
-    type: ['string', 'number', 'boolean', 'text'].includes(input?.type) ? input.type : 'string',
+    type: ['string', 'number', 'boolean', 'text', 'image', 'video'].includes(input?.type)
+      ? input.type
+      : 'string',
     required: Boolean(input?.required),
-    defaultValue: input?.defaultValue ?? '',
+    defaultValue: input?.defaultValue ?? (['image', 'video'].includes(input?.type) ? null : ''),
     description: boundedString(input?.description, 300),
   }))
 }
@@ -121,6 +144,9 @@ function normalizeNode(node, index) {
     notificationTargets: normalizeStringArray(node?.notificationTargets).filter((target) =>
       NOTIFICATION_TARGETS.has(target),
     ),
+    ...(isWorkflowImageNodeKind(kind)
+      ? { image: normalizeWorkflowImageSettings(node?.image) }
+      : {}),
   }
 }
 
@@ -173,7 +199,21 @@ function serializeValue(value) {
   }
 }
 
-function nodeInstruction(workflow, node, previousOutputs, inputs) {
+function workflowTemplateContext(workflow, run, previousOutputs) {
+  return {
+    inputs: run.inputs,
+    previous: previousOutputs.at(-1) || null,
+    nodes: Object.fromEntries(
+      run.nodes.filter((item) => item.status === 'completed').map((item) => [item.id, item]),
+    ),
+    workflow: { id: workflow.id, name: workflow.name, description: workflow.description },
+    run: { id: run.id, startedAt: run.startedAt },
+  }
+}
+
+function nodeInstruction(workflow, node, previousOutputs, run, mediaContext = '') {
+  const inputs = run.inputs
+  const context = workflowTemplateContext(workflow, run, previousOutputs)
   const kindHints = {
     prompt: '完成这个 Agent 任务。',
     skill: node.skillName
@@ -191,8 +231,9 @@ function nodeInstruction(workflow, node, previousOutputs, inputs) {
   const instruction = [
     `你正在执行工作流「${workflow.name}」的节点「${node.label}」。`,
     kindHints[node.kind] || '',
-    node.prompt,
+    renderWorkflowTemplate(node.prompt, context),
     Object.keys(inputs).length ? `\n工作流输入：\n${serializeValue(inputs)}` : '',
+    mediaContext,
     previousOutputs.length
       ? `\n前序节点结果：\n${previousOutputs
           .map(
@@ -209,33 +250,13 @@ function nodeInstruction(workflow, node, previousOutputs, inputs) {
     : instruction
 }
 
-function validateInputs(workflow, supplied = {}) {
-  const values = {}
-  for (const input of workflow.inputs) {
-    const value = Object.hasOwn(supplied || {}, input.name)
-      ? supplied[input.name]
-      : input.defaultValue
-    if (input.required && (value == null || value === ''))
-      throw new Error(`工作流输入「${input.label}」不能为空。`)
-    if (input.type === 'number' && value !== '' && !Number.isFinite(Number(value)))
-      throw new Error(`工作流输入「${input.label}」必须是数字。`)
-    values[input.name] =
-      input.type === 'number' && value !== ''
-        ? Number(value)
-        : input.type === 'boolean'
-          ? value === true || value === 'true'
-          : value
-  }
-  for (const [key, value] of Object.entries(supplied || {})) {
-    if (!Object.hasOwn(values, key)) values[key] = value
-  }
-  return values
-}
-
 function validateRunnable(workflow) {
   const graph = analyzeWorkflowGraph(workflow.nodes, workflow.edges)
   const executable = graph.nodes.filter((node) => AGENT_KINDS.has(node.kind))
-  if (!executable.length && !graph.nodes.some((node) => node.kind === 'condition'))
+  if (
+    !executable.length &&
+    !graph.nodes.some((node) => node.kind === 'condition' || isWorkflowImageNodeKind(node.kind))
+  )
     throw new Error('工作流至少需要一个可执行节点。')
   const invalid = executable.find(
     (node) => !node.prompt && !(node.kind === 'skill' && node.skillName),
@@ -265,24 +286,17 @@ function getPathValue(source, context) {
   else if (segments[0] === 'previous') value = context.previous?.output
   else value = context.inputs
   const offset = ['inputs', 'previous'].includes(segments[0]) ? 1 : segments[0] === 'nodes' ? 2 : 0
-  for (const segment of segments.slice(offset)) value = value?.[segment]
+  for (const segment of segments.slice(offset)) {
+    if (
+      ['__proto__', 'constructor', 'prototype'].includes(segment) ||
+      !value ||
+      typeof value !== 'object' ||
+      !Object.hasOwn(value, segment)
+    )
+      return undefined
+    value = value[segment]
+  }
   return value
-}
-
-function renderWorkflowTemplate(template, context) {
-  return String(template || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_match, path) => {
-    const segments = path.split('.').filter(Boolean)
-    let value
-    if (segments[0] === 'inputs') value = context.inputs
-    else if (segments[0] === 'previous') value = context.previous
-    else if (segments[0] === 'nodes') value = context.nodes[segments[1]]
-    else if (segments[0] === 'workflow') value = context.workflow
-    else if (segments[0] === 'run') value = context.run
-    else return `{{${path}}}`
-    const offset = segments[0] === 'nodes' ? 2 : 1
-    for (const segment of segments.slice(offset)) value = value?.[segment]
-    return value == null ? `{{${path}}}` : serializeValue(value)
-  })
 }
 
 function evaluateCondition(condition, context) {
@@ -334,15 +348,34 @@ function normalizeStoredRun(run) {
 }
 
 export class WorkflowService {
-  constructor({ path, cwd, agent, notifications, maxConcurrent = 4 }) {
+  constructor({
+    path,
+    cwd,
+    agent,
+    notifications,
+    maxConcurrent = 4,
+    resolveMediaInputs,
+    executeImageNode,
+  }) {
     this.path = path
     this.cwd = cwd
     this.agent = agent
     this.notifications = notifications
     this.maxConcurrent = maxConcurrent
+    this.executeImageNode = executeImageNode
+    this.resolveMediaInputs =
+      resolveMediaInputs ||
+      (async (inputs) => {
+        if (Object.values(inputs).some((value) => value && typeof value === 'object'))
+          throw new WorkflowInputError('workflow_media_missing')
+        return { attachments: [], context: '' }
+      })
     this.state = defaultState()
     this.writeQueue = Promise.resolve()
     this.active = new Map()
+    this.starting = new Map()
+    this.creating = new Set()
+    this.closed = false
   }
 
   async init() {
@@ -371,11 +404,18 @@ export class WorkflowService {
     await this.save()
   }
 
-  save() {
-    const snapshot = clone(this.state)
+  save(createdWorkflowId = '') {
     this.writeQueue = this.writeQueue
       .catch(() => {})
-      .then(() => writeJsonAtomic(this.path, snapshot))
+      // 等前一笔提交及其回滚完成后再取权威状态，避免排队快照重新写入失败的新实体。
+      .then(() => {
+        const snapshot = clone(this.state)
+        // 本次提交只带上自己的新实体，不能替并发创建提前落盘。
+        snapshot.workflows = snapshot.workflows.filter(
+          ({ id }) => !this.creating.has(id) || id === createdWorkflowId,
+        )
+        return writeJsonAtomic(this.path, snapshot)
+      })
     return this.writeQueue
   }
 
@@ -396,6 +436,7 @@ export class WorkflowService {
   // 规范化工作流输入：校验字段/节点/边，生成唯一 ID。
   async normalizeInput(input, current = {}) {
     const merged = { ...current, ...input }
+    merged.inputs = validateWorkflowInputDefinitions(merged.inputs)
     const name = String(merged.name || '').trim()
     if (!name) throw new Error('工作流名称不能为空。')
     if (Object.hasOwn(input || {}, 'cwd'))
@@ -418,15 +459,27 @@ export class WorkflowService {
       revision: 1,
       createdAt: new Date().toISOString(),
     })
+    this.creating.add(workflow.id)
     this.state.workflows.unshift(workflow)
-    await this.save()
+    try {
+      await this.save(workflow.id)
+    } catch (error) {
+      // 只撤销本次新建，保留提交期间其他操作产生的状态。
+      this.state.workflows = this.state.workflows.filter((item) => item.id !== workflow.id)
+      throw error
+    } finally {
+      this.creating.delete(workflow.id)
+    }
     return clone(workflow)
   }
 
   async update(id, input) {
     const index = this.state.workflows.findIndex((workflow) => workflow.id === id)
     if (index < 0) return null
-    if ([...this.active.values()].some((record) => record.workflowId === id))
+    if (
+      this.starting.has(id) ||
+      [...this.active.values()].some((record) => record.workflowId === id)
+    )
       throw new Error('工作流正在运行，暂时不能修改。')
     const current = this.state.workflows[index]
     const workflow = await this.normalizeInput(input, current)
@@ -490,7 +543,10 @@ export class WorkflowService {
   }
 
   async remove(id) {
-    if ([...this.active.values()].some((record) => record.workflowId === id))
+    if (
+      this.starting.has(id) ||
+      [...this.active.values()].some((record) => record.workflowId === id)
+    )
       throw new Error('工作流正在运行，暂时不能删除。')
     const before = this.state.workflows.length
     this.state.workflows = this.state.workflows.filter((workflow) => workflow.id !== id)
@@ -501,7 +557,17 @@ export class WorkflowService {
   }
 
   // 立即运行工作流：校验发布状态、构建图并排队执行。
-  async runNow(id, options = {}) {
+  runNow(id, options = {}) {
+    if (this.closed) return Promise.reject(cancelledError())
+    if (this.starting.has(id)) return Promise.reject(new Error('工作流已经在运行。'))
+    if (this.active.size + this.starting.size >= this.maxConcurrent)
+      return Promise.reject(new Error(`工作流并发已达到上限（${this.maxConcurrent}）。`))
+    const pending = this.startRun(id, options)
+    this.starting.set(id, pending)
+    return pending.finally(() => this.starting.delete(id))
+  }
+
+  async startRun(id, options = {}) {
     const workflow = this.state.workflows.find((item) => item.id === id)
     if (!workflow) return null
     if ([...this.active.values()].some((record) => record.workflowId === id))
@@ -509,13 +575,101 @@ export class WorkflowService {
     if (this.active.size >= this.maxConcurrent)
       throw new Error(`工作流并发已达到上限（${this.maxConcurrent}）。`)
     const graph = validateRunnable(workflow)
-    const inputs = validateInputs(workflow, options.inputs)
+    const onlyNode = options.nodeId ? graph.nodes.find((node) => node.id === options.nodeId) : null
+    const sourceRun = options.nodeId
+      ? this.state.runs.find((run) => run.id === options.sourceRunId && run.workflowId === id)
+      : null
+    let reusedNodes = []
+    let imagePredecessors
+    let resumeOutput
+    if (options.nodeId) {
+      if (
+        !onlyNode ||
+        !isWorkflowImageNodeKind(onlyNode.kind) ||
+        !sourceRun ||
+        ['running', 'waiting_approval'].includes(sourceRun.status)
+      )
+        throw workflowImageError('workflow_image_source_stale')
+      const ancestors = new Set()
+      const collect = (nodeId) => {
+        for (const edge of graph.incoming.get(nodeId) || []) {
+          if (!ancestors.has(edge.source)) {
+            ancestors.add(edge.source)
+            collect(edge.source)
+          }
+        }
+      }
+      collect(onlyNode.id)
+      for (const ancestorId of ancestors) {
+        const current = graph.nodes.find((node) => node.id === ancestorId)
+        const cached = sourceRun.nodes.find((node) => node.id === ancestorId)
+        if (
+          !current ||
+          cached?.status !== 'completed' ||
+          cached.configurationHash !== nodeConfigurationHash(current)
+        )
+          throw workflowImageError('workflow_image_source_stale')
+      }
+      const descendants = new Set()
+      const invalidate = (nodeId) => {
+        for (const edge of graph.outgoing.get(nodeId) || []) {
+          if (!descendants.has(edge.target)) {
+            descendants.add(edge.target)
+            invalidate(edge.target)
+          }
+        }
+      }
+      invalidate(onlyNode.id)
+      const previousNode = sourceRun.nodes.find((node) => node.id === onlyNode.id)
+      if (
+        onlyNode.kind === 'media-generate' &&
+        previousNode?.status === 'failed' &&
+        previousNode.configurationHash === nodeConfigurationHash(onlyNode) &&
+        previousNode.output &&
+        typeof previousNode.output === 'object'
+      )
+        resumeOutput = parseWorkflowImageOutput(previousNode.output)
+      reusedNodes = sourceRun.nodes
+        .filter(
+          (node) =>
+            node.id !== onlyNode.id &&
+            !descendants.has(node.id) &&
+            node.status === 'completed' &&
+            graph.nodes.some((current) => current.id === node.id),
+        )
+        .map((node) => ({ ...clone(node), reused: true }))
+      imagePredecessors = {
+        [onlyNode.id]: (graph.incoming.get(onlyNode.id) || []).map((edge) =>
+          reusedNodes.find((node) => node.id === edge.source),
+        ),
+      }
+    }
+    const inputs = validateWorkflowInputs(workflow.inputs, options.inputs ?? sourceRun?.inputs)
+    const inputNames = workflow.inputs.length
+      ? workflow.inputs.map((input) => input.name)
+      : ['task']
+    for (const node of graph.nodes) {
+      for (const template of [
+        node.prompt,
+        node.approval.message,
+        node.notification.title,
+        node.notification.content,
+      ])
+        validateWorkflowTemplate(
+          template,
+          inputNames,
+          graph.nodes.map((item) => item.id),
+        )
+    }
+    await this.resolveMediaInputs(inputs)
+    if (this.closed) throw cancelledError()
     const run = {
       id: randomUUID(),
       workflowId: workflow.id,
       workflowName: workflow.name,
       workflowRevision: workflow.revision,
-      trigger: options.trigger || 'manual',
+      trigger: onlyNode ? 'node' : options.trigger || 'manual',
+      ...(onlyNode ? { sourceRunId: sourceRun.id, nodeId: onlyNode.id } : {}),
       sourceSessionId: String(options.sourceSessionId || ''),
       sourceMessage: boundedString(options.sourceMessage, 12_000),
       retryOf: String(options.retryOf || ''),
@@ -524,31 +678,35 @@ export class WorkflowService {
       startedAt: new Date().toISOString(),
       finishedAt: null,
       durationMs: 0,
-      completedNodes: 0,
-      totalNodes: graph.nodes.length,
+      completedNodes: reusedNodes.length,
+      totalNodes: onlyNode ? reusedNodes.length + 1 : graph.nodes.length,
       currentNodeId: '',
       currentNodeLabel: '',
       summary: '',
       error: '',
       sessionId: '',
       assets: [],
-      nodes: graph.order.map((node) => ({
-        id: node.id,
-        label: node.label,
-        kind: node.kind,
-        status: 'pending',
-        attempts: 0,
-        summary: '',
-        output: '',
-        error: '',
-        sessionId: '',
-        startedAt: null,
-        finishedAt: null,
-        durationMs: 0,
-        selectedPort: '',
-        approval: null,
-        skipReason: '',
-      })),
+      nodes: [
+        ...reusedNodes,
+        ...(onlyNode ? [onlyNode] : graph.order).map((node) => ({
+          id: node.id,
+          label: node.label,
+          kind: node.kind,
+          status: 'pending',
+          attempts: 0,
+          summary: '',
+          output: '',
+          error: '',
+          sessionId: '',
+          startedAt: null,
+          finishedAt: null,
+          durationMs: 0,
+          selectedPort: '',
+          approval: null,
+          skipReason: '',
+          configurationHash: nodeConfigurationHash(node),
+        })),
+      ],
     }
     this.state.runs.push(run)
     this.state.runs = this.state.runs.slice(-200)
@@ -561,10 +719,24 @@ export class WorkflowService {
       cancelled: false,
       sessionIds: new Set(),
       approvals: new Map(),
+      controller: new AbortController(),
+      done: null,
+      imagePredecessors,
+      resumeOutput,
     }
     this.active.set(run.id, record)
     await this.save()
-    void this.execute(workflow, run, graph, record)
+    const executionGraph = onlyNode
+      ? {
+          ...graph,
+          nodes: [onlyNode],
+          order: [onlyNode],
+          incoming: new Map([[onlyNode.id, []]]),
+          outgoing: new Map([[onlyNode.id, []]]),
+        }
+      : graph
+    record.done = this.execute(workflow, run, executionGraph, record)
+    void record.done.catch(() => {})
     return clone(run)
   }
 
@@ -593,6 +765,7 @@ export class WorkflowService {
     const record = this.active.get(runId)
     if (!record) return null
     record.cancelled = true
+    record.controller.abort(cancelledError())
     for (const pending of record.approvals.values()) pending.reject(cancelledError())
     record.approvals.clear()
     await Promise.all(
@@ -693,9 +866,11 @@ export class WorkflowService {
   async executeNode(workflow, run, graph, record, node, nodeRuns) {
     if (record.cancelled) throw cancelledError()
     const nodeRun = nodeRuns.get(node.id)
-    const predecessors = (graph.incoming.get(node.id) || [])
-      .map((edge) => nodeRuns.get(edge.source))
-      .filter((item) => item && !['skipped', 'failed', 'cancelled'].includes(item.status))
+    const predecessors =
+      record.imagePredecessors?.[node.id] ??
+      (graph.incoming.get(node.id) || [])
+        .map((edge) => nodeRuns.get(edge.source))
+        .filter((item) => item && !['skipped', 'failed', 'cancelled'].includes(item.status))
     nodeRun.status = 'running'
     nodeRun.startedAt = new Date().toISOString()
     run.currentNodeId = node.id
@@ -722,7 +897,21 @@ export class WorkflowService {
         nodeRun.output = predecessors.map((item) => item.output)
         nodeRun.summary = predecessors.length ? '并行分支已汇合。' : '并行分支已启动。'
       } else if (node.kind === 'approval') {
-        const decision = await this.waitForApproval(run, node, nodeRun, record)
+        const decision = await this.waitForApproval(
+          run,
+          {
+            ...node,
+            approval: {
+              ...node.approval,
+              message: renderWorkflowTemplate(
+                node.approval.message,
+                workflowTemplateContext(workflow, run, predecessors),
+              ),
+            },
+          },
+          nodeRun,
+          record,
+        )
         if (!decision.approved)
           throw new Error(decision.comment || `审批节点「${node.label}」已拒绝。`)
         nodeRun.output = { approved: true, comment: decision.comment }
@@ -734,13 +923,7 @@ export class WorkflowService {
             .map((item) => item.summary)
             .filter(Boolean)
             .join('\n') || '通知已发送。'
-        const templateContext = {
-          inputs: run.inputs,
-          previous: predecessors.at(-1) || null,
-          nodes: Object.fromEntries([...nodeRuns]),
-          workflow: { id: workflow.id, name: workflow.name, description: workflow.description },
-          run: { id: run.id, startedAt: run.startedAt },
-        }
+        const templateContext = workflowTemplateContext(workflow, run, predecessors)
         const content =
           renderWorkflowTemplate(node.notification.content, templateContext).trim() ||
           fallbackContent
@@ -759,6 +942,55 @@ export class WorkflowService {
             },
             { platforms: node.notificationTargets, title: title || undefined, content },
           )
+        }
+      } else if (isWorkflowImageNodeKind(node.kind)) {
+        if (!this.executeImageNode) throw workflowImageError('workflow_image_unavailable')
+        const controller = new AbortController()
+        const abort = () => controller.abort(record.controller.signal.reason)
+        record.controller.signal.addEventListener('abort', abort, { once: true })
+        if (record.cancelled) abort()
+        const timer = setTimeout(
+          () =>
+            controller.abort(
+              Object.assign(new Error('workflow_image_timeout'), { code: 'WORKFLOW_TIMEOUT' }),
+            ),
+          node.timeoutMinutes * 60000,
+        )
+        timer.unref?.()
+        try {
+          nodeRun.attempts = 1
+          const result = await this.executeImageNode({
+            node: {
+              ...node,
+              prompt: renderWorkflowTemplate(
+                node.prompt,
+                workflowTemplateContext(workflow, run, predecessors),
+              ),
+            },
+            inputs: run.inputs,
+            predecessors,
+            workflowId: workflow.id,
+            runId: run.id,
+            cwd: workflow.cwd,
+            signal: controller.signal,
+            ...(record.resumeOutput ? { resumeOutput: record.resumeOutput } : {}),
+          })
+          controller.signal.throwIfAborted()
+          nodeRun.output = parseWorkflowImageOutput(result.output)
+          nodeRun.summary = boundedString(result.summary, 1200)
+          run.assets.push(
+            ...(result.assets || []).filter(
+              (asset) => !run.assets.some((item) => item.id === asset.id),
+            ),
+          )
+        } catch (failure) {
+          if (failure?.partialOutput)
+            nodeRun.output = parseWorkflowImageOutput(failure.partialOutput)
+          if (controller.signal.aborted) throw controller.signal.reason
+          throw failure
+        } finally {
+          clearTimeout(timer)
+          record.controller.signal.removeEventListener('abort', abort)
         }
       } else if (AGENT_KINDS.has(node.kind)) {
         await this.executeAgentNode(workflow, run, record, node, nodeRun, predecessors)
@@ -807,9 +1039,12 @@ export class WorkflowService {
         const inheritedSessionId =
           predecessor && predecessorBranches === 1 ? predecessor.sessionId : ''
         let activeSessionId = inheritedSessionId
+        const media = await this.resolveMediaInputs(run.inputs)
+        if (record.cancelled) throw cancelledError()
         const prompt = this.agent.prompt({
           sessionId: inheritedSessionId,
-          message: nodeInstruction(workflow, node, predecessors, run.inputs),
+          message: nodeInstruction(workflow, node, predecessors, run, media.context),
+          attachments: media.attachments,
           cwd: workflow.cwd,
           title: `工作流 · ${workflow.name}`,
           model: node.model || workflow.model,
@@ -926,13 +1161,17 @@ export class WorkflowService {
   }
 
   async dispose() {
+    this.closed = true
+    await Promise.allSettled([...this.starting.values()])
     for (const record of this.active.values()) {
       record.cancelled = true
+      record.controller.abort(cancelledError())
       for (const pending of record.approvals.values()) pending.reject(cancelledError())
       await Promise.all(
         [...record.sessionIds].map((sessionId) => this.agent.abort(sessionId).catch(() => {})),
       )
     }
+    await Promise.allSettled([...this.active.values()].map((record) => record.done).filter(Boolean))
     await this.writeQueue.catch(() => {})
   }
 }

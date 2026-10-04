@@ -56,6 +56,10 @@ export const agentSessionMethods = {
     return this.sessionLifecycle.createSession(name, cwd)
   },
 
+  async getSideChat(parentId, options) {
+    return this.sideChats.get(parentId, options)
+  },
+
   async findSessionInfo(id) {
     return this.sessionLifecycle.findSessionInfo(id)
   },
@@ -309,7 +313,21 @@ export const agentSessionMethods = {
       settings,
       this.modelRuntime,
     )
-    if (!selected) throw new Error('当前会话没有可用模型。')
+    // 首次安装允许先关闭引导；读取空会话配置不应装配 AgentSession 或要求已有模型。
+    if (!selected) {
+      return {
+        id,
+        thinkingLevel: configuredSessionThinkingLevel(
+          target.manager,
+          this.sessionMeta[id],
+          settings,
+        ),
+        availableLevels: [],
+        status: 'unsupported',
+        message: 'No model is configured for this session.',
+        model: '',
+      }
+    }
     const model = await this.providerPreferences.resolveSessionModel(
       selected.provider,
       selected.modelId,

@@ -3,7 +3,7 @@ import test from 'node:test'
 
 const STORAGE_KEY = 'pisper-session-context-layout'
 
-test('context width preferences remain usable across reloads and storage failures', async (t) => {
+test('context visibility and width remain usable across reloads and storage failures', async (t) => {
   const values = new Map([[STORAGE_KEY, JSON.stringify({ state: { width: 515.6 }, version: 1 })]])
   let writes = 0
   let readFails = false
@@ -33,22 +33,28 @@ test('context width preferences remain usable across reloads and storage failure
     const { useSessionContextStore: store } =
       await import('../../src/features/chat/session-context-store.ts')
 
-    await t.test('restores the saved width without rewriting storage on mount', () => {
+    await t.test('migrates the saved width and defaults visibility to closed', () => {
       assert.equal(store.getState().width, 516)
-      assert.equal(writes, 0)
+      assert.equal(store.getState().open, false)
+      assert.equal(writes, 1)
     })
 
-    await t.test('saves only width and restores it after a reload', async () => {
+    await t.test('saves visibility and width and restores them after a reload', async () => {
       store.getState().setWidth(600)
+      store.getState().setOpen(true)
       const saved = values.get(STORAGE_KEY)
-      assert.deepEqual(JSON.parse(saved), { state: { width: 600 }, version: 1 })
+      assert.deepEqual(JSON.parse(saved), { state: { width: 600, open: true }, version: 2 })
       const writesBeforeRepeat = writes
       store.getState().setWidth(600.2)
+      store.getState().setOpen(true)
       assert.equal(writes, writesBeforeRepeat)
-      store.setState({ width: 360 })
+      store.setState({ width: 360, open: false })
       values.set(STORAGE_KEY, saved)
       await store.persist.rehydrate()
       assert.equal(store.getState().width, 600)
+      assert.equal(store.getState().open, true)
+      store.getState().setOpen(false)
+      assert.equal(JSON.parse(values.get(STORAGE_KEY)).state.open, false)
     })
 
     await t.test('normalizes malformed stored shapes and width values', async () => {
@@ -56,6 +62,7 @@ test('context width preferences remain usable across reloads and storage failure
         values.set(STORAGE_KEY, JSON.stringify({ state, version: 1 }))
         await store.persist.rehydrate()
         assert.equal(store.getState().width, 360)
+        assert.equal(store.getState().open, false)
         assert.equal(typeof store.getState().setWidth, 'function')
       }
       for (const [width, expected] of [

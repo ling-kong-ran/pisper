@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
+import { sessionRuntimeRoutes } from '../http/routes/sessions-runtime.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
   ProviderPreferences,
@@ -20,6 +24,92 @@ function preferencesFor(session) {
     invalidateProjection() {},
   }
 }
+
+async function emptyConfigurationFixture(t) {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-empty-thinking-'))
+  const runtimes = new Set()
+  const settings = Object.freeze({ defaultThinkingLevel: 'medium' })
+  const create = () => {
+    const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+    runtime.settingsManager = { getGlobalSettings: () => settings }
+    runtime.createSessionRuntime = async () => assert.fail('read must not materialize a session')
+    runtime.providerPreferences.resolveSessionModel = async () =>
+      assert.fail('empty model selection must not resolve a model')
+    runtimes.add(runtime)
+    return runtime
+  }
+  const close = async (runtime) => {
+    await runtime.dispose()
+    runtimes.delete(runtime)
+  }
+  t.after(async () => {
+    for (const runtime of runtimes) await close(runtime)
+    await rm(directory, { recursive: true, force: true })
+  })
+  return { directory, settings, create, close }
+}
+
+test('thinking reads for an unconfigured first-run session stay empty before and after restart', async (t) => {
+  const fixture = await emptyConfigurationFixture(t)
+  const runtime = fixture.create()
+  const session = await runtime.createSession('First conversation', fixture.directory)
+  const path = runtime.pendingSessions.get(session.id).manager.getSessionFile()
+  const persisted = await readFile(path, 'utf8')
+  const route = sessionRuntimeRoutes.find(
+    (item) => item.method === 'GET' && item.path === '/api/sessions/:sessionId/thinking-level',
+  )
+  assert.ok(route)
+  const expected = {
+    id: session.id,
+    thinkingLevel: 'medium',
+    availableLevels: [],
+    status: 'unsupported',
+    message: 'No model is configured for this session.',
+    model: '',
+  }
+  const read = async (instance) => {
+    let result
+    await route.handler({
+      runtime: instance,
+      params: { sessionId: session.id },
+      json: (status, data) => {
+        result = { status, data }
+      },
+    })
+    assert.deepEqual(result, { status: 200, data: expected })
+    assert.equal(instance.sessions.size, 0)
+    assert.deepEqual(instance.settingsManager.getGlobalSettings(), {
+      defaultThinkingLevel: 'medium',
+    })
+    assert.equal(await readFile(path, 'utf8'), persisted)
+  }
+  await read(runtime)
+  await assert.rejects(runtime.setSessionThinkingLevel(session.id, 'high'), /没有可用模型/)
+  await fixture.close(runtime)
+  const restarted = fixture.create()
+  assert.equal(restarted.pendingSessions.size, 0)
+  await read(restarted)
+  assert.equal(await restarted.getSessionThinkingState('missing-session'), null)
+})
+
+test('a bound but unavailable model keeps its configuration error instead of appearing unconfigured', async (t) => {
+  const fixture = await emptyConfigurationFixture(t)
+  const runtime = fixture.create()
+  const session = await runtime.createSession('Bound conversation', fixture.directory)
+  runtime.pendingSessions.get(session.id).manager.appendModelChange('fixture', 'removed-model')
+  const unavailable = new Error('The selected model is unavailable.')
+  runtime.providerPreferences.resolveSessionModel = async (provider, modelId, options) => {
+    assert.equal(provider, 'fixture')
+    assert.equal(modelId, 'removed-model')
+    assert.deepEqual(options, { requireEnabled: false })
+    throw unavailable
+  }
+  await assert.rejects(
+    runtime.getSessionThinkingState(session.id),
+    (error) => error === unavailable,
+  )
+  assert.equal(runtime.sessions.size, 0)
+})
 
 test('session thinking state exposes only the active model capabilities', async () => {
   const session = {

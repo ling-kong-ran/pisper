@@ -733,5 +733,14 @@
   "sessionContext.pageContent": "选择页面内容",
   "sessionContext.pageLimit": "最多打开 12 个辅助页面",
   "focusSession.runtimeSelectionDeferred": "生成时可预选，本轮结束后应用。",
-  "focusSession.thinkingAfterModelSwitch": "新模型生效后显示它支持的思考档位。"
+  "focusSession.thinkingAfterModelSwitch": "新模型生效后显示它支持的思考档位。",
+  "sideChat.title": "临时聊天",
+  "sideChat.retention": "继承当前会话的工作目录与模型设置，不共享聊天记录。闲置 24 小时后自动清理，任务运行中不会过期。",
+  "sideChat.empty": "在这里聊个支线话题，不打断主会话。",
+  "sideChat.expired": "临时聊天已过期。草稿仍保留，可以新开侧边聊天继续。",
+  "sideChat.restart": "新开侧边聊天",
+  "sideChat.message": "临时聊天消息",
+  "sideChat.placeholder": "聊点别的…",
+  "sideChat.send": "发送临时消息",
+  "sideChat.stop": "停止临时回复"
 }

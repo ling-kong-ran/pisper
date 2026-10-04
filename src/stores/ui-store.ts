@@ -1,8 +1,9 @@
 // 全局 UI 偏好持久化到 localStorage；迁移层保留旧版按时间自动主题的行为，
 // 避免升级后用户在相同环境下看到意外的明暗变化。
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'
@@ -64,7 +65,13 @@ type PersistedUiState = Pick<
   | 'motion'
 >
 
-const THEME_SEQUENCE: ThemeMode[] = ['system', 'scheduled', 'light', 'dark']
+// 快捷按钮只循环三种常用模式；旧的定时偏好仍可读取并在设置页使用。
+const THEME_SEQUENCE: readonly ThemeMode[] = ['system', 'dark', 'light']
+const STORED_THEME_MODES: readonly ThemeMode[] = ['system', 'scheduled', 'light', 'dark']
+
+export function nextThemeMode(theme: ThemeMode): ThemeMode {
+  return THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(theme) + 1) % THEME_SEQUENCE.length]
+}
 
 export const useUiStore = create<UiState>()(
   persist(
@@ -76,7 +83,7 @@ export const useUiStore = create<UiState>()(
       setTheme: (theme) => set({ theme }),
       cycleTheme: () =>
         set((state) => ({
-          theme: THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(state.theme) + 1) % THEME_SEQUENCE.length],
+          theme: nextThemeMode(state.theme),
         })),
       setDensity: (density) => set({ density }),
       setAccent: (accent) => set({ accent }),
@@ -88,6 +95,7 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: 'pisper-ui',
+      storage: createJSONStorage(() => pageStateStorage),
       version: 1,
       migrate: (persisted, version): PersistedUiState => {
         const stored = persisted as Partial<PersistedUiState>
@@ -130,7 +138,7 @@ export const useUiStore = create<UiState>()(
             stored?.theme ??
             (legacyTheme === 'system'
               ? 'scheduled'
-              : THEME_SEQUENCE.includes(legacyTheme as ThemeMode)
+              : STORED_THEME_MODES.includes(legacyTheme as ThemeMode)
                 ? (legacyTheme as ThemeMode)
                 : current.theme),
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',

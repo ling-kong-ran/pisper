@@ -25,7 +25,7 @@ type SessionCommandOptions = {
   ) => SessionSummary[]
   replaceSessionStates: (states: Record<string, SessionState>) => void
   setGlobalError: (error: string) => void
-  syncLiveSession: (id: string) => Promise<void>
+  syncLiveSession: (id: string, options?: { force?: boolean }) => Promise<void>
 }
 
 export function useSessionCommands({
@@ -470,20 +470,20 @@ export function useSessionCommands({
     [updateSessionState, updateSessionSummary],
   )
 
-  // 处理工具审批：先本地移除待审批项（快速反馈），再 POST 结果；
-  // 已在别处处理（404）时同步实时状态并提示。
+  // 审批卡片等 POST 成功后再移除；断网时仍保留重试入口。
+  // SSE 可以先行移除已解决的审批，错误恢复则强制用服务端快照接管。
   const resolveToolApproval = useCallback(
     async (sessionId: string, approvalId: string, approved: boolean) => {
-      updateSessionState(sessionId, (current) => ({
-        ...current,
-        approvals: (current.approvals || []).filter((item) => item.id !== approvalId),
-        error: '',
-      }))
+      updateSessionState(sessionId, { error: '' })
       try {
         const resolution = await chatApi.resolveApproval(sessionId, approvalId, approved)
-        if (resolution.alreadyResolved) void syncLiveSession(sessionId)
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          approvals: (current.approvals || []).filter((item) => item.id !== approvalId),
+        }))
+        if (resolution.alreadyResolved) void syncLiveSession(sessionId, { force: true })
       } catch (error) {
-        await syncLiveSession(sessionId)
+        await syncLiveSession(sessionId, { force: true })
         if (error instanceof ApiError && error.status === 404) {
           notify(t('chat:chatPage.approvalStatusUpdated'), 'info')
           return

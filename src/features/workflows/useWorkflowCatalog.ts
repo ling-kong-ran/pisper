@@ -1,11 +1,17 @@
 // 工作流目录 hook：拉取/搜索/保存/删除工作流，维护列表状态。
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useI18n } from '@/app/use-i18n'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useI18n, translateText } from '@/app/use-i18n'
+import { ApiError } from '@/lib/http'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { Workflow, WorkflowRun, WorkflowsData } from './types'
 import type { WorkflowFilter } from './workflow-templates'
+import {
+  exportWorkflowPackage,
+  importWorkflowPackage,
+  isWorkflowPackageTooLarge,
+} from './workflow-transfer-api'
 
 export const EMPTY_WORKFLOWS_DATA: WorkflowsData = {
   workflows: [],
@@ -25,6 +31,26 @@ export const EMPTY_WORKFLOWS_DATA: WorkflowsData = {
 
 // 工作流错误归一化为可展示文案。
 export function workflowErrorMessage(caught: unknown) {
+  const code =
+    caught instanceof ApiError
+      ? caught.data?.code
+      : typeof caught === 'string'
+        ? caught
+        : caught && typeof caught === 'object' && 'code' in caught
+          ? caught.code
+          : ''
+  if (code === 'workflow_image_source_stale')
+    return translateText('workflows:imageNodes.sourceStale')
+  if (code === 'workflow_image_source_required')
+    return translateText('workflows:imageNodes.sourceRequired')
+  if (code === 'workflow_image_engine_missing')
+    return translateText('workflows:imageNodes.engineMissing')
+  if (code === 'workflow_image_generation_failed')
+    return translateText('workflows:imageNodes.generationFailed')
+  if (code === 'workflow_image_too_large') return translateText('workflows:imageNodes.tooLarge')
+  if (code === 'workflow_image_timeout') return translateText('workflows:imageNodes.timeout')
+  if (typeof code === 'string' && code.startsWith('workflow_image_'))
+    return translateText('workflows:imageNodes.invalidOutput')
   return caught instanceof Error ? caught.message : String(caught)
 }
 
@@ -45,6 +71,8 @@ export function useWorkflowCatalog({
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState('')
   const [error, setError] = useState('')
+  const transfer = useRef<AbortController | null>(null)
+  useEffect(() => () => transfer.current?.abort(), [])
 
   const load = useCallback(async () => {
     try {
@@ -107,10 +135,12 @@ export function useWorkflowCatalog({
         })
         await load()
         notify(t('workflows:workflowsPage.workflowStarted'))
+        return true
       } catch (caught) {
         const message = workflowErrorMessage(caught)
         setError(message)
         notify(message, 'error')
+        return false
       } finally {
         setBusyId('')
       }
@@ -204,40 +234,51 @@ export function useWorkflowCatalog({
 
   const exportWorkflow = useCallback(
     async (workflow: Workflow) => {
+      if (transfer.current) return
+      const controller = new AbortController()
+      transfer.current = controller
+      setBusyId(workflow.id)
       try {
-        const exported = await apiJson<Record<string, unknown>>(
-          `/api/workflows/${encodeURIComponent(workflow.id)}/export`,
-        )
-        const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
+        const blob = await exportWorkflowPackage(workflow.id, controller.signal)
+        if (controller.signal.aborted) return
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
         anchor.href = url
-        anchor.download = `${workflow.name.replace(/[\\/:*?"<>|]/g, '-')}.pisper-workflow.json`
+        anchor.download = `${workflow.name.replace(/[\\/:*?"<>|]/g, '-')}.pisper-workflow.zip`
         anchor.click()
-        URL.revokeObjectURL(url)
-      } catch (caught) {
-        notify(workflowErrorMessage(caught), 'error')
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      } catch {
+        if (!controller.signal.aborted) notify(t('workflows:workflowsPage.packageFailed'), 'error')
+      } finally {
+        transfer.current = null
+        if (!controller.signal.aborted) setBusyId('')
       }
     },
-    [notify],
+    [notify, t],
   )
 
   const importWorkflow = useCallback(
-    async (value: unknown) => {
+    async (value: File) => {
+      if (transfer.current) return
+      const controller = new AbortController()
+      transfer.current = controller
       setBusyId('import')
       try {
-        await apiJson('/api/workflows/import', {
-          method: 'POST',
-          body: JSON.stringify(value),
-        })
+        await importWorkflowPackage(value, controller.signal)
+        if (controller.signal.aborted) return
         await load()
+        if (controller.signal.aborted) return
         notify(t('workflows:workflowsPage.workflowImported'))
       } catch (caught) {
-        const message = workflowErrorMessage(caught)
+        if (controller.signal.aborted) return
+        const message = isWorkflowPackageTooLarge(caught)
+          ? t('workflows:workflowsPage.packageTooLarge')
+          : t('workflows:workflowsPage.packageFailed')
         setError(message)
         notify(message, 'error')
       } finally {
-        setBusyId('')
+        transfer.current = null
+        if (!controller.signal.aborted) setBusyId('')
       }
     },
     [load, notify, t],

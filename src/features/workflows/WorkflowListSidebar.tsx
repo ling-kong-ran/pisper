@@ -1,3 +1,4 @@
+import { workflowErrorMessage } from './useWorkflowCatalog'
 // 工作流列表侧栏：按分组展示已保存的工作流，支持新建/重命名/删除。
 import { useRef, useState } from 'react'
 import {
@@ -88,7 +89,7 @@ export function WorkflowAssetList({
   onEdit: (workflowId: string) => void
   onDuplicate: (workflow: Workflow) => void
   onExport: (workflow: Workflow) => void
-  onImport: (value: unknown) => void
+  onImport: (value: File) => void
   onDelete: (workflow: Workflow) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -120,17 +121,12 @@ export function WorkflowAssetList({
             ref={fileRef}
             className="sr-only"
             type="file"
-            accept="application/json,.json"
-            onChange={async (event) => {
+            accept="application/zip,.zip"
+            onChange={(event) => {
               const file = event.target.files?.[0]
+              event.currentTarget.value = ''
               if (!file) return
-              try {
-                onImport(JSON.parse(await file.text()))
-              } catch {
-                onImport(null)
-              } finally {
-                event.currentTarget.value = ''
-              }
+              onImport(file)
             }}
           />
         </div>
@@ -288,7 +284,7 @@ export function WorkflowRunHistory({
                     <div
                       className={`workflow-run-result [&.failed]:border-[var(--danger)] [&.failed]:text-[var(--danger)] [border-left:2px_solid_var(--success)] [padding:4px_8px] text-[var(--text-secondary)] text-[12px] whitespace-pre-wrap ${run.error ? 'failed' : ''}`}
                     >
-                      {run.error || run.summary}
+                      {run.error ? workflowErrorMessage(run.error) : run.summary}
                     </div>
                   )}
                   <div className="flex flex-col">
@@ -319,7 +315,9 @@ export function WorkflowRunHistory({
                               count: node.attempts || 0,
                             })}
                           </small>
-                          {(node.error || node.summary) && <p>{node.error || node.summary}</p>}
+                          {(node.error || node.summary) && (
+                            <p>{node.error ? workflowErrorMessage(node.error) : node.summary}</p>
+                          )}
                         </span>
                         {node.status === 'waiting_approval' && (
                           <div className="workflow-approval-actions flex gap-[6px]">

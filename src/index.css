@@ -14,6 +14,11 @@
 
 :root {
   color-scheme: light;
+  /* Android edge-to-edge 由原生 WindowInsets 覆盖；iOS 和桌面沿用系统 CSS env。 */
+  --pisper-safe-area-top: env(safe-area-inset-top, 0px);
+  --pisper-safe-area-right: env(safe-area-inset-right, 0px);
+  --pisper-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --pisper-safe-area-left: env(safe-area-inset-left, 0px);
   /* 优先使用平台界面字体，让中英文、数字和标点采用系统匹配的字形。 */
   --app-font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   font-family: var(--app-font-family);
@@ -497,29 +502,33 @@
   --star: var(--brand-blue);
   --star-hover: var(--brand-blue-hover);
   --star-strong: var(--brand-blue-strong);
-  --star-soft: color-mix(in srgb, var(--brand-blue) 15%, transparent);
-  --star-border: color-mix(in srgb, var(--brand-blue) 38%, transparent);
+  --star-soft: rgba(var(--brand-blue-rgb), .15);
+  --star-border: rgba(var(--brand-blue-rgb), .38);
   --on-accent: #fff;
-  --brand-blue-soft: color-mix(in srgb, var(--brand-blue) 15%, transparent);
-  --brand-blue-border: color-mix(in srgb, var(--brand-blue) 34%, transparent);
+  --brand-blue-soft: rgba(var(--brand-blue-rgb), .15);
+  --brand-blue-border: rgba(var(--brand-blue-rgb), .34);
 }
 
 :root[data-theme='dark'][data-accent='blue'] {
+  --brand-blue-rgb: 98, 169, 242;
   --brand-blue: #62a9f2;
   --brand-blue-hover: #7bb8f5;
   --brand-blue-strong: #93c5fd;
 }
 :root[data-theme='dark'][data-accent='teal'] {
+  --brand-blue-rgb: 77, 201, 189;
   --brand-blue: #4dc9bd;
   --brand-blue-hover: #67d6cb;
   --brand-blue-strong: #86e1d8;
 }
 :root[data-theme='dark'][data-accent='violet'] {
+  --brand-blue-rgb: 169, 145, 234;
   --brand-blue: #a991ea;
   --brand-blue-hover: #b8a4ef;
   --brand-blue-strong: #c8b9f4;
 }
 :root[data-theme='dark'][data-accent='coral'] {
+  --brand-blue-rgb: 239, 137, 148;
   --brand-blue: #ef8994;
   --brand-blue-hover: #f19ca5;
   --brand-blue-strong: #f5b0b7;
@@ -777,3 +786,115 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .app-shell[data-custom-titlebar] { position: relative; }
 .app-shell[data-custom-titlebar] .auxiliary-page-header { padding-right: 136px; }
 .app-shell[data-custom-titlebar] .workbench-chat-header:not([data-context-aside]) { padding-right: 144px; }
+
+/* === 旧 WebView 透明度工具类降级 ===
+   Tailwind 对「var 色 + 透明度」工具类(如 bg-muted/50)生成的构建降级值是全强度基色,
+   Chromium < 111(无 color-mix,如 WebView2 104)会把 10%~50% 的浅底色渲染成实心灰/色块,
+   表现为整体灰蒙蒙、图标底色实心。此处统一降级到最接近的设计 token;支持 color-mix 的
+   现代内核不满足 @supports not 条件,继续走 Tailwind 原语义,此处零影响。 */
+@supports not (color: color-mix(in lab, red, red)) {
+  /* 强调色浅底 → 主题感知的强调软色 */
+  .bg-primary\/10,
+  .has-data-checked\:bg-primary\/5:has(:where([data-state=checked]), :where([data-checked]:not([data-checked=false]))),
+  .dark\:has-data-checked\:bg-primary\/10:is(.dark *):has(:where([data-state=checked]), :where([data-checked]:not([data-checked=false]))) {
+    background-color: var(--brand-blue-soft);
+  }
+  .hover\:bg-primary\/80:hover,
+  .hover\:bg-primary\/90:hover {
+    background-color: var(--star-hover);
+  }
+  .has-data-checked\:border-primary\/30:has(:where([data-state=checked]), :where([data-checked]:not([data-checked=false]))),
+  .dark\:has-data-checked\:border-primary\/20:is(.dark *):has(:where([data-state=checked]), :where([data-checked]:not([data-checked=false]))) {
+    border-color: var(--brand-blue-border);
+  }
+  /* 危险色浅底/焦点环 */
+  .bg-destructive\/10,
+  .dark\:bg-destructive\/20:is(.dark *) {
+    background-color: var(--danger-soft);
+  }
+  .aria-invalid\:ring-destructive\/20[aria-invalid='true'],
+  .focus-visible\:ring-destructive\/20:focus-visible,
+  .dark\:aria-invalid\:ring-destructive\/40:is(.dark *)[aria-invalid='true'],
+  .dark\:focus-visible\:ring-destructive\/40:is(.dark *):focus-visible {
+    --tw-ring-color: var(--danger-border);
+  }
+  .dark\:aria-invalid\:border-destructive\/50:is(.dark *)[aria-invalid='true'] {
+    border-color: var(--danger-border);
+  }
+  /* muted 浅灰底(50% 及以下)→ 次级表面;80% →  muted 表面 */
+  .bg-muted\/20,
+  .bg-muted\/40,
+  .bg-muted\/45,
+  .bg-muted\/50,
+  .data-active\:bg-muted\/50:where([data-state=active]),
+  .data-active\:bg-muted\/50:where([data-active]:not([data-active=false])),
+  .data-open\:bg-muted\/50:where([data-state=open]),
+  .data-open\:bg-muted\/50:where([data-open]:not([data-open=false])),
+  .data-popup-open\:bg-muted\/50[data-popup-open],
+  .has-aria-expanded\:bg-muted\/50:has([aria-expanded='true']) {
+    background-color: var(--surface-subtle);
+  }
+  .bg-muted\/80 {
+    background-color: var(--surface-muted);
+  }
+  .hover\:bg-muted\/40:hover,
+  .hover\:bg-muted\/50:hover,
+  .hover\:bg-muted\/60:hover {
+    background-color: var(--surface-hover);
+  }
+  /* 输入控件浅灰底(dark 为主的表单填充) */
+  .bg-input\/30,
+  .dark\:bg-input\/30:is(.dark *),
+  .disabled\:bg-input\/50:disabled,
+  .has-disabled\:bg-input\/50:has(:disabled),
+  .dark\:data-active\:bg-input\/30:is(.dark *):where([data-state=active]),
+  .dark\:data-active\:bg-input\/30:is(.dark *):where([data-active]:not([data-active=false])) {
+    background-color: var(--surface-subtle);
+  }
+  .dark\:disabled\:bg-input\/80:is(.dark *):disabled,
+  .dark\:has-disabled\:bg-input\/80:is(.dark *):has(:disabled),
+  .dark\:data-unchecked\:bg-input\/80:is(.dark *):where([data-state=unchecked]),
+  .dark\:data-unchecked\:bg-input\/80:is(.dark *):where([data-unchecked]:not([data-unchecked=false])) {
+    background-color: var(--surface-muted);
+  }
+  .dark\:hover\:bg-input\/50:is(.dark *):hover {
+    background-color: var(--surface-hover);
+  }
+  /* 前景色浅洗(hover/禁用等)→ 中性表面色,按浓度分级保证可辨识 */
+  .bg-foreground\/5,
+  .bg-muted-foreground\/10,
+  .hover\:bg-foreground\/5:hover {
+    background-color: var(--surface-subtle);
+  }
+  .bg-foreground\/10,
+  .bg-muted-foreground\/25,
+  .hover\:bg-foreground\/10:hover,
+  .hover\:bg-muted-foreground\/10:hover,
+  .hover\:bg-accent\/50:hover,
+  .dark\:hover\:bg-accent\/50:is(.dark *):hover {
+    background-color: var(--surface-hover);
+  }
+  .bg-foreground\/20,
+  .disabled\:bg-foreground\/20:disabled {
+    background-color: var(--surface-muted);
+  }
+  /* 反色文字配浅灰底(如禁用发送钮):页面色文字在灰底上不可读,降级为柔和正文色 */
+  .disabled\:text-background\/70:disabled {
+    color: var(--text-muted);
+  }
+  /* 1px 环与细边:全强度前景/文本色过重,降级到描边 token */
+  .ring-foreground\/10 {
+    --tw-ring-color: var(--stroke-soft);
+  }
+  .border-border\/50,
+  .border-border\/60,
+  .border-border\/70,
+  .border-muted-foreground\/20,
+  .border-muted-foreground\/30 {
+    border-color: var(--stroke-soft);
+  }
+  .border-foreground\/30,
+  .border-muted-foreground\/50 {
+    border-color: var(--stroke);
+  }
+}
