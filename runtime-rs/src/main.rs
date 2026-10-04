@@ -42,6 +42,9 @@ use pi_rust::coding_agent::{
     session_manager::{NewSessionOptions, SessionManager},
 };
 use pi_rust::agent_core::types::ThinkingLevel;
+use pi_rust::coding_agent::core::mcp_servers::McpExposure;
+use pi_rust::coding_agent::core::skills::{load_skills, LoadSkillsOptions};
+use pi_rust::coding_agent::extensions::mcp::config::{load_mcp_config, LoadedMcpConfigOptions};
 use pi_rust::config;
 
 /// API version handshake (see `runtime/http/routes/sessions-runtime.mjs`).
@@ -74,8 +77,8 @@ async fn health() -> Json<serde_json::Value> {
 fn capabilities() -> serde_json::Value {
     serde_json::json!({
         "sessions": true,
-        "mcp": false,
-        "skills": false,
+        "mcp": true,
+        "skills": true,
         "workflows": false,
         "schedules": false,
         "remote": false,
@@ -293,6 +296,110 @@ async fn post_session_thinking_level(
     session.set_thinking_level(level, None);
     Ok(Json(serde_json::json!({ "ok": true, "level": level })))
 }
+fn format_diagnostic(d: &pi_rust::coding_agent::core::diagnostics::ResourceDiagnostic) -> String {
+    format!(
+        "{}{}{}",
+        d.r#type.as_str(),
+        d.path.as_deref().map(|p| format!(" ({p})")).unwrap_or_default(),
+        format!(": {}", d.message)
+    )
+}
+
+
+fn exposure_label(e: McpExposure) -> &'static str {
+    match e {
+        McpExposure::Codemode => "codemode",
+        McpExposure::Deferred => "deferred",
+        McpExposure::Direct => "direct",
+        McpExposure::Hidden => "hidden",
+    }
+}
+
+async fn get_mcp_dashboard(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    // Tool cold/hot gateway policy: exposure per server (direct = always in
+    // prompt, deferred/codemode = discovered/called through the gateway,
+    // hidden = excluded) comes straight from the engine's validated config.
+    let loaded = load_mcp_config(LoadedMcpConfigOptions {
+        agent_dir: state.runtime.services().agent_dir.clone(),
+        cwd: state.cwd.clone(),
+        project_trusted: false,
+    });
+    let servers: Vec<serde_json::Value> = loaded
+        .servers
+        .iter()
+        .map(|entry| {
+            let enabled = entry
+                .config
+                .raw()
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            serde_json::json!({
+                "name": entry.name,
+                "source": entry.source,
+                "enabled": enabled,
+                "transport": entry
+                    .config
+                    .command()
+                    .map(|_| "stdio")
+                    .or_else(|| entry.config.url().map(|_| "http")),
+                "exposure": exposure_label(entry.config.exposure()),
+            })
+        })
+        .collect();
+    Json(serde_json::json!({
+        "servers": servers,
+        "autoEnableCodemode": loaded.auto_enable_codemode,
+        "errors": loaded.errors,
+        "gateway": { "tiers": ["direct", "deferred", "codemode", "hidden"] },
+    }))
+}
+
+async fn get_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let services = state.runtime.services();
+    let result = load_skills(LoadSkillsOptions {
+        cwd: state.cwd.clone(),
+        agent_dir: services.agent_dir.clone(),
+        skill_paths: vec![],
+        include_defaults: true,
+    });
+    let skills: Vec<serde_json::Value> = result
+        .skills
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "name": s.name,
+                "description": s.description,
+                "filePath": s.file_path,
+                "baseDir": s.base_dir,
+                "source": format!("{:?}", s.source_info.source),
+                "disableModelInvocation": s.disable_model_invocation,
+            })
+        })
+        .collect();
+    Json(serde_json::json!({
+        "skills": skills,
+        "diagnostics": result
+            .diagnostics
+            .iter()
+            .map(format_diagnostic)
+            .collect::<Vec<_>>(),
+    }))
+}
+
+async fn reload_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    // Skills load fresh on every request (no cache to invalidate yet), so
+    // reload re-runs the same discovery the dashboard uses.
+    get_skills(State(state)).await
+}
+
+async fn get_plugins() -> Json<serde_json::Value> {
+    // The plugin product layer (auto-generated local plugins with capability
+    // toggles) persists in the Pisper agent dir; its storage lands with slice
+    // 6. The engine's pi extensions surface through the MCP/extension
+    // registries above.
+    Json(serde_json::json!({ "plugins": [] }))
+}
 
 async fn session_live(
     State(state): State<Arc<AppState>>,
@@ -484,6 +591,9 @@ fn session_router() -> Router<Arc<AppState>> {
             "/api/sessions/{id}/thinking-level",
             get(get_session_thinking_level).post(post_session_thinking_level),
         )
+        .route("/api/mcp", get(get_mcp_dashboard))
+        .route("/api/skills", get(get_skills).post(reload_skills))
+        .route("/api/plugins", get(get_plugins))
 }
 
 /// Stateless base: handshake + unknown-route fallback.
