@@ -59,3 +59,4 @@ pisper-agents.json
 *.sw?
 dev.pid
 crates/computer-use-capture-win/Cargo.lock
+runtime-rs/target/

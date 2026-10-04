@@ -1,0 +1,27 @@
+[package]
+name = "pisper-server"
+version = "0.1.0"
+edition = "2021"
+description = "Pisper Rust backend: HTTP/SSE runtime server powered by the pi-rs engine (replaces the Node.js runtime/ layer)."
+license = "MIT"
+
+[dependencies]
+pi-rs = "0.2.2"
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+futures = "0.3"
+tokio-stream = "0.1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+tower = { version = "0.5", features = ["util"] }
+
+[[bin]]
+name = "pisper-server"
+path = "src/main.rs"
