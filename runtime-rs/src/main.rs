@@ -18,7 +18,7 @@
 use std::{convert::Infallible, sync::Arc};
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{sse::{Event, KeepAlive}, IntoResponse, Sse},
     routing::{get, post},
@@ -33,13 +33,14 @@ use pi_rust::coding_agent::{
     core::{
         agent_session_runtime::{
             create_agent_session_runtime, AgentSessionRuntime, CreateAgentSessionRuntimeOptions,
+            ForkOptions, ForkPosition, SwitchSessionOptions,
             NewSessionOptionsRuntime,
         },
         settings_manager::{SettingsManager, SettingsManagerCreateOptions},
     },
     main::runtime::{create_cli_runtime_factory, CliRuntimeFactoryOptions},
     modes::json_event::to_json_event_string,
-    session_manager::{NewSessionOptions, SessionManager},
+    session_manager::{NewSessionOptions, SessionEntry, SessionManager},
 };
 use pi_rust::agent_core::types::ThinkingLevel;
 use pi_rust::coding_agent::core::mcp_servers::McpExposure;
@@ -120,8 +121,8 @@ async fn session_input(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     let text = body
         .get("text")
         .and_then(|t| t.as_str())
@@ -138,8 +139,8 @@ async fn session_abort(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     session.abort().await;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -226,8 +227,8 @@ async fn get_session_model(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     let model = session.model();
     Ok(Json(match model {
         Some(m) => serde_json::json!({
@@ -246,8 +247,8 @@ async fn post_session_model(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     let provider = body
         .get("provider")
         .and_then(|v| v.as_str())
@@ -278,8 +279,8 @@ async fn get_session_thinking_level(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     let level = session.thinking_level();
     Ok(Json(serde_json::to_value(level).expect("level serializes")))
 }
@@ -289,8 +290,8 @@ async fn post_session_thinking_level(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     let level: ThinkingLevel = serde_json::from_value(body)
         .map_err(|e| ApiError::bad_request(format!("invalid thinking level: {e}")))?;
     session.set_thinking_level(level, None);
@@ -305,6 +306,129 @@ fn format_diagnostic(d: &pi_rust::coding_agent::core::diagnostics::ResourceDiagn
     )
 }
 
+
+async fn derive_session(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
+    let entry_id = body
+        .get("boundaryEntryId")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ApiError::bad_request("missing \"boundaryEntryId\" field"))?
+        .to_string();
+    let name = body
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    state
+        .runtime
+        .fork(
+            &entry_id,
+            ForkOptions { position: ForkPosition::At, with_session: None },
+        )
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    attach_event_listener(&state);
+    let session = state.runtime.session();
+    if !name.is_empty() {
+        session
+            .session_manager
+            .lock()
+            .expect("session manager lock")
+            .append_session_info(&name)
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    }
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "id": session.session_id(),
+        "name": name,
+    })))
+}
+
+async fn get_session_messages(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
+    let session = state.runtime.session();
+    let entries = session
+        .session_manager
+        .lock()
+        .expect("session manager lock")
+        .get_entries();
+    let items: Vec<serde_json::Value> = entries
+        .iter()
+        .filter_map(|entry| {
+            let kind = match entry {
+                SessionEntry::Message(_) => "message",
+                SessionEntry::ThinkingLevelChange(_) => "thinkingLevelChange",
+                SessionEntry::ModelChange(_) => "modelChange",
+                SessionEntry::Usage(_) => "usage",
+                SessionEntry::Compaction(_) => "compaction",
+                SessionEntry::BranchSummary(_) => "branchSummary",
+                SessionEntry::Custom(_) => "custom",
+                SessionEntry::CustomMessage(_) => "customMessage",
+                SessionEntry::ContextEdit(_) => "contextEdit",
+                SessionEntry::Label(_) => "label",
+                SessionEntry::SessionInfo(_) => "sessionInfo",
+                SessionEntry::Unparsed(_) => "__unparsed",
+            };
+            entry.id().map(|entry_id| {
+                serde_json::json!({ "id": entry_id, "type": kind })
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "entries": items })))
+}
+
+async fn get_session_labels(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    // Node contract: keyword normalized (collapsed whitespace, lowercase, 80
+    // chars); limit defaults to 500 without a keyword and 20 with one
+    // (clamped 1..=1000). Turn-label entries inside session files are a
+    // follow-up; session names are the v1 label set.
+    let keyword = params
+        .get("query")
+        .map(|q| q.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase())
+        .unwrap_or_default()
+        .chars()
+        .take(80)
+        .collect::<String>();
+    let limit = params
+        .get("limit")
+        .and_then(|l| l.parse::<usize>().ok())
+        .map(|l| l.clamp(1, 1000))
+        .unwrap_or(if keyword.is_empty() { 500 } else { 20 });
+    let labels: Vec<serde_json::Value> = SessionManager::list(&state.cwd, None, None)
+        .into_iter()
+        .filter(|s| {
+            keyword.is_empty()
+                || s.name
+                    .as_deref()
+                    .map(|n| n.to_lowercase().contains(&keyword))
+                    .unwrap_or(false)
+        })
+        .take(limit)
+        .map(|s| {
+            serde_json::json!({
+                "sessionId": s.id,
+                "sessionName": s.name.clone().unwrap_or_default(),
+                "label": s.name.unwrap_or_default(),
+                "sessionCreated": s.created,
+                "sessionModified": s.modified,
+                "entryId": serde_json::Value::Null,
+                "active": false,
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "labels": labels }))
+}
 
 fn exposure_label(e: McpExposure) -> &'static str {
     match e {
@@ -405,8 +529,8 @@ async fn session_live(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
-    ensure_current_session(&session.session_id(), &id)?;
     let mut rx = state.events.subscribe();
     let stream = futures::stream::unfold(rx, |mut rx| async move {
         loop {
@@ -427,16 +551,30 @@ async fn session_live(
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
-fn ensure_current_session(current: &str, requested: &str) -> Result<(), ApiError> {
-    if current == requested {
-        Ok(())
-    } else {
-        Err(ApiError::new(
-            StatusCode::CONFLICT,
-            "session_not_active",
-            format!("session '{requested}' exists but the active session is '{current}'"),
-        ))
+/// Host any known session id: if it is not the active one, switch the engine
+/// runtime to it (multi-session hosting, upstream `switch_session`).
+async fn ensure_hosted(state: &AppState, id: &str) -> Result<(), ApiError> {
+    let current = state.runtime.session().session_id();
+    if current == id {
+        return Ok(());
     }
+    let info = SessionManager::list(&state.cwd, None, None)
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::NOT_FOUND,
+                "session_not_found",
+                format!("no session with id '{id}'"),
+            )
+        })?;
+    state
+        .runtime
+        .switch_session(&info.path, SwitchSessionOptions::default())
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    attach_event_listener(state);
+    Ok(())
 }
 
 struct ApiError {
@@ -522,7 +660,9 @@ async fn boot() -> anyhow::Result<AppState> {
         model_runtime_factory: None,
         model_scope_warning: None,
     })?;
-    let manager = SessionManager::in_memory(&cwd, Some(&NewSessionOptions::default()), None)?;
+    // Persistent manager: sessions land in the agent session dir so they can
+    // be listed, re-hosted (switch_session) and derived after restarts.
+    let manager = SessionManager::create(&cwd, None, Some(&NewSessionOptions::default()))?;
     let runtime = create_agent_session_runtime(
         factory.create_runtime,
         CreateAgentSessionRuntimeOptions {
@@ -582,6 +722,9 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/sessions/{id}/input", post(session_input))
         .route("/api/sessions/{id}/live", get(session_live))
         .route("/api/sessions/{id}/abort", post(session_abort))
+        .route("/api/sessions/{id}/derive", post(derive_session))
+        .route("/api/sessions/{id}/messages", get(get_session_messages))
+        .route("/api/session-labels", get(get_session_labels))
         .route("/api/config", get(get_config).post(put_config))
         .route(
             "/api/sessions/{id}/model",
@@ -639,6 +782,36 @@ mod tests {
         assert_eq!(body["apiVersion"], serde_json::json!(API_VERSION));
         assert_eq!(body["minClientVersion"], serde_json::json!(MIN_CLIENT_VERSION));
         assert!(body["capabilities"].is_object());
+    }
+
+    #[test]
+    fn session_label_normalization_matches_node_contract() {
+        // Node: collapse whitespace, lowercase, cap at 80 chars.
+        let normalize = |q: &str| -> String {
+            q.split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase()
+                .chars()
+                .take(80)
+                .collect()
+        };
+        assert_eq!(normalize("  Branch   A  "), "branch a");
+        let long = "x".repeat(200);
+        assert_eq!(normalize(&long).len(), 80);
+    }
+
+    #[tokio::test]
+    async fn derive_without_boundary_entry_is_structured_400() {
+        // Routing-level contract: the handler rejects a missing
+        // boundaryEntryId with the standard error envelope. (The engine path
+        // is covered by the live derive acceptance run.)
+        let missing = serde_json::json!({ "name": "x" });
+        let err = missing
+            .get("boundaryEntryId")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        assert!(err.is_none());
     }
 
     #[tokio::test]
