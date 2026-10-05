@@ -21,7 +21,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{sse::{Event, KeepAlive}, IntoResponse, Sse},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use futures::stream::Stream;
@@ -59,9 +59,29 @@ struct AppState {
     runtime: Arc<AgentSessionRuntime>,
     cwd: String,
     events: broadcast::Sender<String>,
+    /// Pisper product-layer per-session metadata (Node sessionMeta store):
+    /// execution mode -> permission mode mapping and the goal tracker.
+    session_meta: std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>,
     /// Unsubscribe for the listener attached to the current session. Rebuilt
     /// on every `new_session` so events keep flowing across session switches.
     unsub: std::sync::Mutex<Option<pi_rust::coding_agent::agent_session::AgentSessionUnsubscribe>>,
+}
+
+/// Upstream `permissionModeForExecutionMode` (session-lifecycle.mjs): the
+/// permission preset implied by a Pisper execution mode.
+fn permission_mode_for_execution_mode(mode: &str) -> &'static str {
+    match mode {
+        "auto" | "yolo" => "full",
+        "supervised" => "ask",
+        _ => "ask",
+    }
+}
+
+#[derive(Default, Clone)]
+struct SessionMeta {
+    execution_mode: Option<String>,
+    permission_mode: Option<String>,
+    goal: Option<String>,
 }
 
 async fn health() -> Json<serde_json::Value> {
@@ -126,8 +146,9 @@ async fn session_input(
     let text = body
         .get("text")
         .and_then(|t| t.as_str())
+        .or_else(|| body.get("message").and_then(|t| t.as_str()))
         .or_else(|| body.as_str())
-        .ok_or_else(|| ApiError::bad_request("missing \"text\" field"))?;
+        .ok_or_else(|| ApiError::bad_request("missing \"text\"/\"message\" field"))?;
     session
         .prompt(text.to_string(), None)
         .await
@@ -439,6 +460,121 @@ fn exposure_label(e: McpExposure) -> &'static str {
     }
 }
 
+async fn session_compact(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    ensure_hosted(&state, &id).await?;
+    let session = state.runtime.session();
+    let result = session
+        .compact(None)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(result))
+}
+
+async fn set_session_cwd(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let cwd_input = body
+        .get("cwd")
+        .or_else(|| body.get("dir"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ApiError::bad_request("missing \"cwd\" field"))?
+        .to_string();
+    ensure_hosted(&state, &id).await?;
+    let file = state
+        .runtime
+        .session()
+        .session_file()
+        .ok_or_else(|| ApiError::internal("active session is not persisted yet"))?;
+    // Upstream re-hosts the same session file with a cwd override (the
+    // engine rebuilds the session against the new workspace).
+    state
+        .runtime
+        .switch_session(
+            &file,
+            SwitchSessionOptions { cwd_override: Some(cwd_input.clone()), ..Default::default() },
+        )
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    attach_event_listener(&state);
+    {
+        let mut meta = state.session_meta.lock().expect("session meta lock");
+        let entry = meta.entry(id.clone()).or_default();
+        entry.goal = entry.goal.take();
+    }
+    Ok(Json(serde_json::json!({ "id": id, "cwd": cwd_input })))
+}
+
+async fn set_session_execution_mode(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mode = body
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ApiError::bad_request("missing \"mode\" field"))?
+        .to_string();
+    {
+        let mut meta = state.session_meta.lock().expect("session meta lock");
+        let entry = meta.entry(id.clone()).or_default();
+        entry.execution_mode = Some(mode.clone());
+        entry.permission_mode = Some(permission_mode_for_execution_mode(&mode).to_string());
+    }
+    Ok(Json(serde_json::json!({
+        "id": id,
+        "executionMode": mode,
+        "permissionMode": permission_mode_for_execution_mode(&mode),
+    })))
+}
+
+async fn get_session_goal(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let meta = state.session_meta.lock().expect("session meta lock");
+    match meta.get(&id).and_then(|m| m.goal.clone()) {
+        Some(goal) => Ok(Json(serde_json::json!({ "id": id, "goal": goal }))),
+        None => Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "no_goal",
+            "当前会话没有 Goal。",
+        )),
+    }
+}
+
+async fn put_session_goal(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let goal = body
+        .get("goal")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ApiError::bad_request("missing \"goal\" field"))?
+        .to_string();
+    {
+        let mut meta = state.session_meta.lock().expect("session meta lock");
+        meta.entry(id.clone()).or_default().goal = Some(goal.clone());
+    }
+    Ok(Json(serde_json::json!({ "id": id, "goal": goal })))
+}
+
+async fn delete_session_goal(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    let mut meta = state.session_meta.lock().expect("session meta lock");
+    meta.entry(id.clone()).or_default().goal = None;
+    Json(serde_json::json!({ "id": id, "deleted": true }))
+}
+
 async fn get_mcp_dashboard(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Tool cold/hot gateway policy: exposure per server (direct = always in
     // prompt, deferred/codemode = discovered/called through the gateway,
@@ -692,6 +828,7 @@ async fn boot() -> anyhow::Result<AppState> {
         cwd,
         events,
         unsub: std::sync::Mutex::new(None),
+        session_meta: std::sync::Mutex::new(std::collections::HashMap::new()),
     };
     attach_event_listener(&state);
     Ok(state)
@@ -723,6 +860,15 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/sessions/{id}/live", get(session_live))
         .route("/api/sessions/{id}/abort", post(session_abort))
         .route("/api/sessions/{id}/derive", post(derive_session))
+        .route("/api/sessions/{id}/compact", post(session_compact))
+        .route("/api/sessions/{id}/cwd", put(set_session_cwd))
+        .route("/api/sessions/{id}/execution-mode", post(set_session_execution_mode))
+        .route(
+            "/api/sessions/{id}/goal",
+            get(get_session_goal)
+                .put(put_session_goal)
+                .delete(delete_session_goal),
+        )
         .route("/api/sessions/{id}/messages", get(get_session_messages))
         .route("/api/session-labels", get(get_session_labels))
         .route("/api/config", get(get_config).post(put_config))
