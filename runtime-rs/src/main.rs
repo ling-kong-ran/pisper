@@ -16,6 +16,7 @@
 //! slice 3; the engine already supports it via `switch_session`.
 
 mod product;
+mod security;
 
 use std::{convert::Infallible, sync::Arc};
 
@@ -76,6 +77,8 @@ pub(crate) struct AppState {
         std::sync::Mutex<std::collections::HashMap<String, product::ChatRun>>,
     /// Global SSE frame cursor (upstream runs.record cursor).
     pub(crate) frame_cursor: std::sync::atomic::AtomicU64,
+    /// Remote device pairing store (codes + paired devices).
+    pub(crate) pairing: security::PairingStore,
     /// Pisper product-layer per-session metadata (Node sessionMeta store):
     /// execution mode -> permission mode mapping and the goal tracker.
     session_meta: std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>,
@@ -803,10 +806,15 @@ impl ApiError {
 }
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
+        // Security seam: error text can carry provider/auth internals; the
+        // message is scrubbed through the secret-redaction layer first.
         (
             self.status,
             Json(serde_json::json!({
-                "error": { "code": self.code, "message": self.message }
+                "error": {
+                    "code": self.code,
+                    "message": security::redact_secret_text(&self.message),
+                }
             })),
         )
             .into_response()
@@ -919,12 +927,16 @@ async fn boot() -> anyhow::Result<AppState> {
         events,
         unsub: std::sync::Mutex::new(None),
         session_meta: std::sync::Mutex::new(std::collections::HashMap::new()),
-        data_dir,
+        data_dir: data_dir.clone(),
         runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         remote_enabled: std::sync::atomic::AtomicBool::new(false),
         fingerprint,
         chat_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         frame_cursor: std::sync::atomic::AtomicU64::new(0),
+        pairing: security::PairingStore {
+            pending: std::sync::Mutex::new(None),
+            devices: std::sync::Mutex::new(security::load_devices(&data_dir)),
+        },
     };
     attach_event_listener(&state);
     Ok(state)
@@ -1053,6 +1065,10 @@ fn session_router() -> Router<Arc<AppState>> {
             post(product::vcs_revert),
         )
         .route("/api/runtime/diagnostics", get(runtime_diagnostics))
+        .route("/api/remote/pairing-code", get(create_pairing_code).post(create_pairing_code))
+        .route("/api/remote/pair", post(pair_device))
+        .route("/api/remote/devices", get(list_devices))
+        .route("/api/remote/devices/{id}", delete(revoke_device))
         .route("/api/chat", post(chat))
         .route("/api/runs/{id}/events", get(run_events))
 }
@@ -1292,6 +1308,121 @@ async fn run_events(
         .keep_alive(axum::response::sse::KeepAlive::default())
         .into_response();
     Ok(response)
+}
+
+async fn create_pairing_code(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    use std::fmt::Write as _;
+    let code: u32 = (product::now_ms() % 1_000_000) as u32;
+    let mut code_str = String::new();
+    let _ = write!(code_str, "{code:06}");
+    let expires_at = product::now_ms() + 300_000;
+    *state.pairing.pending.lock().expect("pairing lock") =
+        Some((code_str.clone(), expires_at));
+    Json(serde_json::json!({ "code": code_str, "expiresAt": expires_at }))
+}
+
+async fn pair_device(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let code = body
+        .get("code")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ApiError::bad_request("missing \"code\" field"))?;
+    let device_name = body
+        .get("deviceName")
+        .and_then(|v| v.as_str())
+        .unwrap_or("device")
+        .to_string();
+    let now = product::now_ms();
+    let mut pending = state.pairing.pending.lock().expect("pairing lock");
+    match pending.as_ref() {
+        Some((pending_code, expires_at)) if *expires_at > now && pending_code == code => {}
+        Some((_, expires_at)) if *expires_at <= now => {
+            return Err(ApiError::new(
+                StatusCode::GONE,
+                "pairing_code_expired",
+                "配对码已过期。",
+            ));
+        }
+        _ => {
+            return Err(ApiError::new(
+                StatusCode::NOT_FOUND,
+                "pairing_code_invalid",
+                "配对码无效。",
+            ));
+        }
+    }
+    *pending = None;
+    drop(pending);
+    // Device bearer token: sha256 over time+name+process entropy.
+    let token = {
+        use sha2::Digest;
+        use std::fmt::Write as _;
+        let digest = sha2::Sha256::digest(
+            format!(
+                "{}:{}:{}:{}",
+                product::now_ms(),
+                device_name,
+                std::process::id(),
+                state.fingerprint
+            )
+            .as_bytes(),
+        );
+        let mut out = String::new();
+        for b in digest.iter() {
+            let _ = write!(out, "{b:02x}");
+        }
+        out
+    };
+    let device = security::PairedDevice {
+        id: product::new_id(),
+        name: device_name,
+        token: token.clone(),
+        paired_at: now,
+    };
+    let mut devices = state.pairing.devices.lock().expect("devices lock");
+    devices.push(device.clone());
+    security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
+    Ok(Json(serde_json::json!({
+        "deviceId": device.id,
+        "token": token,
+        "name": device.name,
+    })))
+}
+
+async fn list_devices(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let devices = state.pairing.devices.lock().expect("devices lock");
+    // Tokens are not exposed in listings.
+    let out: Vec<serde_json::Value> = devices
+        .iter()
+        .map(|d| {
+            serde_json::json!({
+                "id": d.id,
+                "name": d.name,
+                "pairedAt": d.paired_at,
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "devices": out }))
+}
+
+async fn revoke_device(
+    State(state): State<Arc<AppState>>,
+    Path(device_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let mut devices = state.pairing.devices.lock().expect("devices lock");
+    let before = devices.len();
+    devices.retain(|d| d.id != device_id);
+    if devices.len() == before {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "device_not_found",
+            "设备不存在。",
+        ));
+    }
+    security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
 async fn runtime_diagnostics(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
