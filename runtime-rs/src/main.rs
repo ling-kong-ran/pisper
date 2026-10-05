@@ -44,6 +44,7 @@ use pi_rust::coding_agent::{
     modes::json_event::to_json_event_string,
     session_manager::{NewSessionOptions, SessionEntry, SessionManager},
 };
+use pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc;
 use pi_rust::agent_core::types::ThinkingLevel;
 use pi_rust::coding_agent::core::mcp_servers::McpExposure;
 use pi_rust::coding_agent::core::skills::{load_skills, LoadSkillsOptions};
@@ -70,6 +71,11 @@ pub(crate) struct AppState {
     pub(crate) remote_enabled: std::sync::atomic::AtomicBool,
     /// Stable device fingerprint shown in the remote pairing surface.
     pub(crate) fingerprint: String,
+    /// Live chat runs (POST /api/chat) for SSE replay (upstream runs service).
+    pub(crate) chat_runs:
+        std::sync::Mutex<std::collections::HashMap<String, product::ChatRun>>,
+    /// Global SSE frame cursor (upstream runs.record cursor).
+    pub(crate) frame_cursor: std::sync::atomic::AtomicU64,
     /// Pisper product-layer per-session metadata (Node sessionMeta store):
     /// execution mode -> permission mode mapping and the goal tracker.
     session_meta: std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>,
@@ -118,15 +124,33 @@ fn capabilities() -> serde_json::Value {
 }
 
 async fn list_sessions(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let active_id = state.runtime.session().session_id();
+    let active_model = state
+        .runtime
+        .session()
+        .model()
+        .map(|m| format!("{}/{}", m.provider, m.id))
+        .unwrap_or_default();
     let sessions: Vec<serde_json::Value> = SessionManager::list(&state.cwd, None, None)
         .into_iter()
         .map(|s| {
+            let active = s.id == active_id;
+            let streaming = active && state.runtime.session().is_streaming();
+            let thinking_level: pi_rust::agent_core::types::ThinkingLevel = if active {
+                state.runtime.session().thinking_level()
+            } else {
+                pi_rust::agent_core::types::ThinkingLevel::Medium
+            };
             serde_json::json!({
                 "id": s.id,
-                "name": s.name,
+                "name": s.name.clone().unwrap_or_default(),
+                "model": if active { active_model.clone() } else { String::new() },
                 "cwd": s.cwd,
+                "streaming": streaming,
+                "executionMode": "",
+                "thinkingLevel": serde_json::to_value(thinking_level).unwrap_or_default(),
+                "modified": format_iso8601_utc(s.modified as i64),
                 "created": s.created,
-                "modified": s.modified,
                 "messageCount": s.message_count,
                 "firstMessage": s.first_message,
             })
@@ -137,13 +161,48 @@ async fn list_sessions(State(state): State<Arc<AppState>>) -> Json<serde_json::V
 
 async fn create_session(
     State(state): State<Arc<AppState>>,
+    body: Option<Json<serde_json::Value>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    state.runtime.new_session(NewSessionOptionsRuntime::default()).await.map_err(|e| ApiError::internal(e.to_string()))?;
-    attach_event_listener(&state);
+    let body = body.map(|Json(v)| v).unwrap_or_default();
+    state
+        .runtime
+        .new_session(NewSessionOptionsRuntime::default())
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let session = state.runtime.session();
+    let name = body
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    if !name.is_empty() {
+        session
+            .session_manager
+            .lock()
+            .expect("session manager lock")
+            .append_session_info(&name)
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    }
+    // The client's workspace must match what the engine session was created
+    // with (TUI validates this); the server boot cwd defines it for now.
+    let model = session
+        .model()
+        .map(|m| format!("{}/{}", m.provider, m.id))
+        .unwrap_or_default();
+    let requested_cwd = body
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&state.cwd)
+        .to_string();
     Ok(Json(serde_json::json!({
         "id": session.session_id(),
-        "cwd": state.cwd,
+        "name": name,
+        "model": model,
+        "cwd": if requested_cwd.is_empty() { state.cwd.clone() } else { requested_cwd },
+        "streaming": false,
+        "executionMode": "",
+        "thinkingLevel": serde_json::to_value(session.thinking_level()).unwrap_or_default(),
+        "modified": format_iso8601_utc(product::now_ms() as i64),
     })))
 }
 
@@ -314,7 +373,11 @@ async fn get_session_thinking_level(
     ensure_hosted(&state, &id).await?;
     let session = state.runtime.session();
     let level = session.thinking_level();
-    Ok(Json(serde_json::to_value(level).expect("level serializes")))
+    Ok(Json(serde_json::json!({
+        "thinkingLevel": serde_json::to_value(level).expect("level serializes"),
+        "availableLevels": ["minimal", "low", "medium", "high", "xhigh", "max"],
+        "status": "ok",
+    })))
 }
 
 async fn post_session_thinking_level(
@@ -327,7 +390,11 @@ async fn post_session_thinking_level(
     let level: ThinkingLevel = serde_json::from_value(body)
         .map_err(|e| ApiError::bad_request(format!("invalid thinking level: {e}")))?;
     session.set_thinking_level(level, None);
-    Ok(Json(serde_json::json!({ "ok": true, "level": level })))
+    Ok(Json(serde_json::json!({
+        "thinkingLevel": serde_json::to_value(level).expect("level serializes"),
+        "availableLevels": ["minimal", "low", "medium", "high", "xhigh", "max"],
+        "status": "ok",
+    })))
 }
 fn format_diagnostic(d: &pi_rust::coding_agent::core::diagnostics::ResourceDiagnostic) -> String {
     format!(
@@ -641,6 +708,8 @@ async fn get_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
             serde_json::json!({
                 "name": s.name,
                 "description": s.description,
+                "command": format!("/{}", s.name),
+                "enabled": !s.disable_model_invocation,
                 "filePath": s.file_path,
                 "baseDir": s.base_dir,
                 "source": format!("{:?}", s.source_info.source),
@@ -664,20 +733,12 @@ async fn reload_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::V
     get_skills(State(state)).await
 }
 
-async fn get_plugins() -> Json<serde_json::Value> {
-    // The plugin product layer (auto-generated local plugins with capability
-    // toggles) persists in the Pisper agent dir; its storage lands with slice
-    // 6. The engine's pi extensions surface through the MCP/extension
-    // registries above.
-    Json(serde_json::json!({ "plugins": [] }))
-}
-
 async fn session_live(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
     ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
+
     let mut rx = state.events.subscribe();
     let stream = futures::stream::unfold(rx, |mut rx| async move {
         loop {
@@ -862,6 +923,8 @@ async fn boot() -> anyhow::Result<AppState> {
         runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         remote_enabled: std::sync::atomic::AtomicBool::new(false),
         fingerprint,
+        chat_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
+        frame_cursor: std::sync::atomic::AtomicU64::new(0),
     };
     attach_event_listener(&state);
     Ok(state)
@@ -989,6 +1052,9 @@ fn session_router() -> Router<Arc<AppState>> {
             "/api/sessions/{id}/vcs/revert",
             post(product::vcs_revert),
         )
+        .route("/api/runtime/diagnostics", get(runtime_diagnostics))
+        .route("/api/chat", post(chat))
+        .route("/api/runs/{id}/events", get(run_events))
 }
 
 /// Stateless base: handshake + unknown-route fallback.
@@ -1000,6 +1066,240 @@ fn base_router() -> Router {
 
 fn router(state: Arc<AppState>) -> Router {
     base_router().merge(session_router().with_state(state))
+}
+
+/// POST /api/chat — the TUI/Web conversation path: one replayable SSE run.
+/// Emits the Pisper UI event vocabulary (run/meta/text_delta/thinking_patch/
+/// tool_start/tool_end/done/error) projected from the engine's session
+/// events; frames are recorded under the runId for `/api/runs/{id}/events`
+/// reconnect replay.
+async fn chat(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<axum::response::Response, ApiError> {
+
+    let session_id = body
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ApiError::bad_request("missing \"sessionId\" field"))?
+        .to_string();
+    let message = body
+        .get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    if message.trim().is_empty() {
+        return Err(ApiError::bad_request("消息或资源调用不能为空。"));
+    }
+    ensure_hosted(&state, &session_id).await?;
+
+    let run_id = product::new_id();
+    let (tx, _rx) = tokio::sync::broadcast::channel::<product::Frame>(4096);
+    let run = product::ChatRun {
+        frames: std::sync::Mutex::new(Vec::new()),
+        tx: tx.clone(),
+        closed: std::sync::atomic::AtomicBool::new(false),
+    };
+    state
+        .chat_runs
+        .lock()
+        .expect("chat runs lock")
+        .insert(run_id.clone(), run);
+
+    let mut rx = tx.subscribe();
+    // Run header frame (upstream startRun): carries the runId the client uses
+    // for reconnect; cursor 0 and not recorded in the replay buffer.
+    let _ = tx.send(product::Frame {
+        cursor: 0,
+        event: "run".into(),
+        data: serde_json::json!({
+            "runId": run_id,
+            "kind": "chat",
+            "sessionId": session_id,
+            "cursor": 0,
+        }),
+    });
+    // Engine-side listener: raw pi events -> UI frames (recorded + broadcast).
+    let session = state.runtime.session().clone();
+    let thinking = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let mapper_state = state.clone();
+    let mapper_run = run_id.clone();
+    let mapper_session = session_id.clone();
+    let mapper_thinking = thinking.clone();
+    let listener: std::sync::Arc<
+        dyn Fn(&pi_rust::coding_agent::agent_session::AgentSessionEvent) + Send + Sync,
+    > = std::sync::Arc::new(move |event| {
+        let Ok(raw) = serde_json::from_str::<serde_json::Value>(
+            &pi_rust::coding_agent::modes::json_event::to_json_event_string(event)
+                .unwrap_or_default(),
+        ) else {
+            return;
+        };
+        let mut thinking = mapper_thinking.lock().expect("thinking lock");
+        let Some((name, data)) =
+            product::map_pi_event(&raw, &mapper_session, &mut thinking)
+        else {
+            return;
+        };
+        drop(thinking);
+        let cursor = mapper_state
+            .frame_cursor
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        if let Some(run) = mapper_state.chat_runs.lock().expect("chat runs lock").get(&mapper_run) {
+            run.record(cursor, &name, data);
+        }
+    });
+    let unsub = session.subscribe(listener);
+
+    // Run the prompt; errors surface as the terminal error frame.
+    let prompt_session = session.clone();
+    let prompt_run = run_id.clone();
+    let prompt_state = state.clone();
+    tokio::spawn(async move {
+        let result = prompt_session.prompt(message, None).await;
+        let cursor = prompt_state
+            .frame_cursor
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        if let Err(e) = result {
+            if let Some(run) = prompt_state.chat_runs.lock().expect("chat runs lock").get(&prompt_run) {
+                run.record(cursor, "error", serde_json::json!({ "message": e.to_string() }));
+            }
+        }
+        drop(unsub);
+    });
+
+    // Live stream: fresh run, forward broadcast frames as SSE with `id:`
+    // cursor lines, ending after the terminal frame.
+    let run_id_stream = run_id.clone();
+    let stream = futures::stream::unfold(
+        (rx, run_id_stream, state.clone(), false),
+        |(mut rx, run_id, state, mut terminal)| async move {
+            loop {
+                if terminal {
+                    // Give the connection a clean end.
+                    return None;
+                }
+                match rx.recv().await {
+                    Ok(frame) => {
+                        let is_terminal = frame.event == "done" || frame.event == "error";
+                        let out = Ok::<_, Infallible>(
+                            axum::response::sse::Event::default()
+                                .event(frame.event.clone())
+                                .id(frame.cursor.to_string())
+                                .data(serde_json::to_string(&frame.data).unwrap_or_default()),
+                        );
+                        let next_terminal = terminal || is_terminal;
+                        return Some((out, (rx, run_id, state, next_terminal)));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+                }
+            }
+        },
+    );
+    let response = axum::response::Sse::new(stream)
+        .keep_alive(axum::response::sse::KeepAlive::default())
+        .into_response();
+    Ok(response)
+}
+
+/// GET /api/runs/{id}/events?after={cursor} — replay recorded frames, then
+/// follow live frames until the terminal event (upstream reconnect semantics).
+async fn run_events(
+    State(state): State<Arc<AppState>>,
+    Path(run_id): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<axum::response::Response, ApiError> {
+
+    let after: u64 = params
+        .get("after")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let (frames, rx, closed) = {
+        let runs = state.chat_runs.lock().expect("chat runs lock");
+        let Some(run) = runs.get(&run_id) else {
+            return Err(ApiError::new(
+                StatusCode::NOT_FOUND,
+                "run_not_found",
+                "工作流运行不存在。",
+            ));
+        };
+        let frames = run.frames.lock().expect("frames lock").clone();
+        let rx = run.tx.subscribe();
+        let closed = run.closed.load(std::sync::atomic::Ordering::Relaxed);
+        (frames, rx, closed)
+    };
+    let _ = &closed;
+    // Replay the recorded snapshot (cursor > after), then follow live frames
+    // (deduped by cursor) until the terminal event passes.
+    let mut pending: std::collections::VecDeque<product::Frame> = frames
+        .into_iter()
+        .filter(|f| f.cursor > after)
+        .collect();
+    if closed {
+        // Terminal frame already recorded; replay ends the stream.
+        let out: Vec<Result<axum::response::sse::Event, Infallible>> = pending
+            .drain(..)
+            .map(|f| {
+                Ok(axum::response::sse::Event::default()
+                    .event(f.event)
+                    .id(f.cursor.to_string())
+                    .data(serde_json::to_string(&f.data).unwrap_or_default()))
+            })
+            .collect();
+        return Ok(axum::response::Sse::new(futures::stream::iter(out))
+            .keep_alive(axum::response::sse::KeepAlive::default())
+            .into_response());
+    }
+    let after_move = after;
+    let stream = futures::stream::unfold(
+        (rx, pending, after_move, false),
+        |(mut rx, mut pending, after, mut terminal)| async move {
+            loop {
+                if let Some(frame) = pending.pop_front() {
+                    let is_terminal = frame.event == "done" || frame.event == "error";
+                    let out = Ok::<_, Infallible>(
+                        axum::response::sse::Event::default()
+                            .event(frame.event.clone())
+                            .id(frame.cursor.to_string())
+                            .data(serde_json::to_string(&frame.data).unwrap_or_default()),
+                    );
+                    return Some((out, (rx, pending, after, terminal || is_terminal)));
+                }
+                match rx.recv().await {
+                    Ok(frame) => {
+                        if frame.cursor <= after {
+                            continue;
+                        }
+                        let is_terminal = frame.event == "done" || frame.event == "error";
+                        let out = Ok::<_, Infallible>(
+                            axum::response::sse::Event::default()
+                                .event(frame.event.clone())
+                                .id(frame.cursor.to_string())
+                                .data(serde_json::to_string(&frame.data).unwrap_or_default()),
+                        );
+                        return Some((out, (rx, pending, after, terminal || is_terminal)));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+                }
+            }
+        },
+    );
+    let response = axum::response::Sse::new(stream)
+        .keep_alive(axum::response::sse::KeepAlive::default())
+        .into_response();
+    Ok(response)
+}
+
+async fn runtime_diagnostics(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "workspaceCwd": state.cwd,
+        "engine": ENGINE,
+        "version": env!("CARGO_PKG_VERSION"),
+    }))
 }
 
 async fn unknown_api_fallback() -> impl IntoResponse {

@@ -477,8 +477,27 @@ pub fn save_plugins(data_dir: &str, plugins: &[PluginRecord]) -> Result<(), Stri
     std::fs::write(path, json).map_err(|e| e.to_string())
 }
 
+/// Engine builtin tools (stable upstream set) surface in the Slash catalog.
+pub fn builtin_tools() -> serde_json::Value {
+    let tools = ["read", "bash", "edit", "write"]
+        .into_iter()
+        .map(|id| {
+            serde_json::json!({
+                "id": id,
+                "name": id,
+                "description": format!("builtin {id} tool"),
+                "enabled": true,
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::Value::Array(tools)
+}
+
 pub async fn get_plugins_registry(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "plugins": load_plugins(&state.data_dir) }))
+    Json(serde_json::json!({
+        "plugins": load_plugins(&state.data_dir),
+        "tools": builtin_tools(),
+    }))
 }
 
 pub async fn save_plugins_registry(
@@ -651,3 +670,129 @@ pub async fn vcs_revert(
 }
 
 pub type RunsMap = Mutex<HashMap<String, WorkflowRun>>;
+
+// ------------------------------------------------------------ chat runs
+
+/// One replayable SSE frame: global cursor + event name + JSON payload.
+#[derive(Debug, Clone)]
+pub struct Frame {
+    pub cursor: u64,
+    pub event: String,
+    pub data: serde_json::Value,
+}
+
+/// A live chat run: ring of recorded frames for `/api/runs/{id}/events`
+/// replay plus a broadcast channel for attached live clients.
+pub struct ChatRun {
+    pub frames: Mutex<Vec<Frame>>,
+    pub tx: tokio::sync::broadcast::Sender<Frame>,
+    pub closed: std::sync::atomic::AtomicBool,
+}
+
+impl ChatRun {
+    pub fn record(&self, cursor: u64, event: &str, data: serde_json::Value) {
+        self.frames.lock().expect("frames lock").push(Frame {
+            cursor,
+            event: event.to_string(),
+            data: data.clone(),
+        });
+        if event == "done" || event == "error" {
+            self.closed
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        let _ = self.tx.send(Frame {
+            cursor,
+            event: event.to_string(),
+            data,
+        });
+    }
+}
+
+/// Map a raw pi wire event (from `to_json_event_string`) into the Pisper UI
+/// event vocabulary the TUI/Web clients consume. Returns `None` for events
+/// with no client mapping.
+pub fn map_pi_event(
+    raw: &serde_json::Value,
+    session_id: &str,
+    thinking: &mut String,
+) -> Option<(String, serde_json::Value)> {
+    let kind = raw.get("type")?.as_str()?;
+    match kind {
+        "message_update" => {
+            let ae = raw.get("assistantMessageEvent")?;
+            let ae_type = ae.get("type")?.as_str()?;
+            match ae_type {
+                "text_delta" => {
+                    let delta = ae.get("delta")?.as_str()?.to_string();
+                    Some(("text_delta".into(), serde_json::json!({ "delta": delta })))
+                }
+                "thinking_delta" => {
+                    let delta = ae.get("delta")?.as_str()?.to_string();
+                    let start = thinking.chars().count();
+                    thinking.push_str(&delta);
+                    Some((
+                        "thinking_patch".into(),
+                        serde_json::json!({ "start": start, "text": delta }),
+                    ))
+                }
+                _ => None,
+            }
+        }
+        "tool_execution_start" => Some((
+            "tool_start".into(),
+            serde_json::json!({
+                "id": raw.get("toolCallId").cloned().unwrap_or_default(),
+                "name": raw.get("toolName").cloned().unwrap_or_default(),
+                "args": raw.get("args").cloned().unwrap_or_default(),
+                "startedAt": now_ms(),
+            }),
+        )),
+        "tool_execution_update" => Some((
+            "tool_update".into(),
+            serde_json::json!({
+                "id": raw.get("toolCallId").cloned().unwrap_or_default(),
+                "partial": raw.get("partial").cloned().unwrap_or_default(),
+            }),
+        )),
+        "tool_execution_end" => Some((
+            "tool_end".into(),
+            serde_json::json!({
+                "id": raw.get("toolCallId").cloned().unwrap_or_default(),
+                "status": "done",
+                "result": raw.get("result").cloned().unwrap_or_default(),
+            }),
+        )),
+        "auto_compaction_start" => Some(("compaction_start".into(), serde_json::json!({}))),
+        "auto_compaction_end" => Some(("compaction_end".into(), serde_json::json!({}))),
+        "agent_end" => {
+            // Final assistant text: last assistant message's text content.
+            let text = raw
+                .get("messages")
+                .and_then(|m| m.as_array())
+                .and_then(|msgs| {
+                    msgs.iter().rev().find(|m| m.get("role").and_then(|r| r.as_str()) == Some("assistant"))
+                })
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_array())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|i| {
+                            i.get("type")
+                                .and_then(|t| t.as_str())
+                                .filter(|t| *t == "text")
+                                .and_then(|_| i.get("text"))
+                                .and_then(|t| t.as_str())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("")
+                })
+                .unwrap_or_default();
+            Some((
+                "done".into(),
+                serde_json::json!({ "sessionId": session_id, "text": text, "tools": [] }),
+            ))
+        }
+        _ => None,
+    }
+}
