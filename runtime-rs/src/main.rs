@@ -16,6 +16,7 @@
 //! slice 3; the engine already supports it via `switch_session`.
 
 mod product;
+mod product2;
 mod security;
 
 use std::{convert::Infallible, sync::Arc};
@@ -1081,6 +1082,27 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/remote/pair", post(pair_device))
         .route("/api/remote/devices", get(list_devices))
         .route("/api/remote/devices/{id}", delete(revoke_device))
+        .route("/api/extensions/market", get(product2::extension_market))
+        .route("/api/extensions", get(product2::extension_dashboard).delete(product2::extension_remove))
+        .route("/api/extensions/install", post(product2::extension_install))
+        .route("/api/custom-ui/components", get(product2::custom_ui_components))
+        .route("/api/custom-ui/import", post(product2::custom_ui_import))
+        .route(
+            "/api/custom-ui/components/{id}/views",
+            get(product2::custom_ui_component_views),
+        )
+        .route("/api/custom-ui/bridge.js", get(product2::custom_ui_bridge_js))
+        .route("/api/decisions/status", get(product2::decisions_status))
+        .route("/api/decisions/config", put(product2::decisions_update_config))
+        .route("/api/decisions/test", post(product2::decisions_test))
+        .route("/api/decisions/decide", post(product2::decisions_decide))
+        .route("/api/speech/models", get(product2::speech_models))
+        .route("/api/speech/session", get(product2::speech_session))
+        .route("/api/directories", get(product2::list_directories))
+        .route("/api/workspace-entries", get(product2::list_workspace_entries))
+        .route("/api/assets", get(product2::list_assets).post(product2::create_asset))
+        .route("/api/assets/{id}", delete(product2::delete_asset))
+        .route("/api/memory", get(product2::list_memory).post(product2::add_memory_record))
         .route("/api/chat", post(chat))
         .route("/api/runs/{id}/events", get(run_events))
 }
