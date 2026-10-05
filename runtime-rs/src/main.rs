@@ -15,13 +15,15 @@
 //! Multi-session switching (hosting any {id}, not just the current one) is
 //! slice 3; the engine already supports it via `switch_session`.
 
+mod product;
+
 use std::{convert::Infallible, sync::Arc};
 
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{sse::{Event, KeepAlive}, IntoResponse, Sse},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use futures::stream::Stream;
@@ -55,10 +57,19 @@ const ENGINE: &str = "pi-rs";
 
 /// Shared server state: one pi-rs engine runtime hosting the current session,
 /// plus a broadcast fan-out of JSON-serialized session events for `/live`.
-struct AppState {
-    runtime: Arc<AgentSessionRuntime>,
-    cwd: String,
-    events: broadcast::Sender<String>,
+pub(crate) struct AppState {
+    pub(crate) runtime: Arc<AgentSessionRuntime>,
+    pub(crate) cwd: String,
+    pub(crate) events: broadcast::Sender<String>,
+    /// Pisper product data dir (PISPER_RS_DATA_DIR, default
+    /// ~/.pisper/agent-rs): schedules/workflows/plugins persistence.
+    pub(crate) data_dir: String,
+    /// Live workflow runs (in-memory; retry/stop operate on these).
+    pub(crate) runs: product::RunsMap,
+    /// Remote-control (LAN) toggle; P2P transport is not implemented yet.
+    pub(crate) remote_enabled: std::sync::atomic::AtomicBool,
+    /// Stable device fingerprint shown in the remote pairing surface.
+    pub(crate) fingerprint: String,
     /// Pisper product-layer per-session metadata (Node sessionMeta store):
     /// execution mode -> permission mode mapping and the goal tracker.
     session_meta: std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>,
@@ -100,9 +111,9 @@ fn capabilities() -> serde_json::Value {
         "sessions": true,
         "mcp": true,
         "skills": true,
-        "workflows": false,
-        "schedules": false,
-        "remote": false,
+        "workflows": true,
+        "schedules": true,
+        "remote": true,
     })
 }
 
@@ -689,7 +700,7 @@ async fn session_live(
 
 /// Host any known session id: if it is not the active one, switch the engine
 /// runtime to it (multi-session hosting, upstream `switch_session`).
-async fn ensure_hosted(state: &AppState, id: &str) -> Result<(), ApiError> {
+pub(crate) async fn ensure_hosted(state: &AppState, id: &str) -> Result<(), ApiError> {
     let current = state.runtime.session().session_id();
     if current == id {
         return Ok(());
@@ -713,19 +724,19 @@ async fn ensure_hosted(state: &AppState, id: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-struct ApiError {
+pub(crate) struct ApiError {
     status: StatusCode,
     code: &'static str,
     message: String,
 }
 impl ApiError {
-    fn bad_request(message: impl Into<String>) -> Self {
+    pub(crate) fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, "bad_request", message)
     }
-    fn internal(message: impl Into<String>) -> Self {
+    pub(crate) fn internal(message: impl Into<String>) -> Self {
         Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal", message)
     }
-    fn new(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
         Self { status, code, message: message.into() }
     }
 }
@@ -822,6 +833,24 @@ async fn boot() -> anyhow::Result<AppState> {
             .await
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     }
+    let data_dir = std::env::var("PISPER_RS_DATA_DIR").unwrap_or_else(|_| {
+        let home = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_else(|_| ".".into());
+        format!("{home}/.pisper/agent-rs")
+    });
+    let fingerprint = {
+        use sha2::Digest;
+        use std::fmt::Write as _;
+        let digest = sha2::Sha256::digest(
+            [data_dir.as_bytes(), std::env::var("COMPUTERNAME").unwrap_or_default().as_bytes()].concat(),
+        );
+        let digest = digest.as_slice();
+        digest[..8].iter().fold(String::new(), |mut out, b| {
+            let _ = write!(out, "{b:02x}");
+            out
+        })
+    };
     let (events, _) = broadcast::channel(1024);
     let state = AppState {
         runtime: Arc::new(runtime),
@@ -829,6 +858,10 @@ async fn boot() -> anyhow::Result<AppState> {
         events,
         unsub: std::sync::Mutex::new(None),
         session_meta: std::sync::Mutex::new(std::collections::HashMap::new()),
+        data_dir,
+        runs: std::sync::Mutex::new(std::collections::HashMap::new()),
+        remote_enabled: std::sync::atomic::AtomicBool::new(false),
+        fingerprint,
     };
     attach_event_listener(&state);
     Ok(state)
@@ -844,6 +877,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let state = Arc::new(boot().await?);
+    tokio::spawn(product::schedule_ticker(state.clone()));
     let addr = std::env::var("PISPER_RS_ADDR").unwrap_or_else(|_| "127.0.0.1:5174".into());
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!("pisper-server (Rust runtime) listening on http://{addr}");
@@ -882,7 +916,79 @@ fn session_router() -> Router<Arc<AppState>> {
         )
         .route("/api/mcp", get(get_mcp_dashboard))
         .route("/api/skills", get(get_skills).post(reload_skills))
-        .route("/api/plugins", get(get_plugins))
+        .route("/api/plugins", get(product::get_plugins_registry))
+        .route(
+            "/api/schedules",
+            get(product::get_schedules).post(product::create_schedule),
+        )
+        .route(
+            "/api/schedules/{id}/run",
+            post(product::run_schedule),
+        )
+        .route(
+            "/api/schedules/{id}",
+            axum::routing::patch(product::update_schedule).delete(product::delete_schedule),
+        )
+        .route(
+            "/api/workflows",
+            get(product::get_workflows).post(product::create_workflow),
+        )
+        .route(
+            "/api/workflows/{id}/run",
+            post(product::run_workflow),
+        )
+        .route(
+            "/api/workflows/{id}",
+            delete(product::delete_workflow),
+        )
+        .route(
+            "/api/workflow-runs/{id}",
+            get(product::get_workflow_run),
+        )
+        .route(
+            "/api/workflow-runs/{id}/stop",
+            post(product::stop_workflow_run),
+        )
+        .route(
+            "/api/plugins/install",
+            post(product::install_plugin),
+        )
+        .route(
+            "/api/plugins/{id}",
+            axum::routing::patch(product::set_plugin_enabled).delete(product::uninstall_plugin),
+        )
+        .route(
+            "/api/plugins/registry",
+            get(product::get_plugins_registry).put(product::save_plugins_registry),
+        )
+        .route(
+            "/api/remote/status",
+            get(product::remote_status),
+        )
+        .route(
+            "/api/remote/connection-info",
+            get(product::remote_connection_info),
+        )
+        .route(
+            "/api/remote/enabled",
+            put(product::remote_set_enabled),
+        )
+        .route(
+            "/api/sessions/{id}/vcs/changes",
+            get(product::vcs_changes),
+        )
+        .route(
+            "/api/sessions/{id}/vcs/commit",
+            post(product::vcs_commit),
+        )
+        .route(
+            "/api/sessions/{id}/vcs/push",
+            post(product::vcs_push),
+        )
+        .route(
+            "/api/sessions/{id}/vcs/revert",
+            post(product::vcs_revert),
+        )
 }
 
 /// Stateless base: handshake + unknown-route fallback.

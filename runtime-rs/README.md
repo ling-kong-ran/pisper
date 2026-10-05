@@ -11,9 +11,9 @@
 | 1 | 服务器骨架 + `/api/health` 契约 + 404 兜底 | `runtime/index.mjs`、`sessions-runtime.mjs`(health) | ✅ 本提交 |
 | 2 | 会话宿主:`/api/sessions` 列表/创建、`/{id}/input`、`/{id}/live`(SSE)、`/{id}/abort` | `runtime/runtime/agent-runtime.mjs` 等 | ✅ 本提交 |
 | 3 | 模型/Provider 配置:`/api/config`、`/api/providers/{p}/connection`、`/{id}/model`、`/{id}/thinking-level` | `provider-preferences.mjs`、`provider-model-catalog-service.mjs` | ✅ 本提交(列表) |
-| 4 | 工具冷热网关 + MCP 宿主(`/api/mcp`、`/api/skills`、`/api/plugins`) | `mcp-service.mjs`、`skills-service.mjs`、`tool-gateway-runtime.mjs` | ✅ dashboard/skills/gateway 策略面;插件产品层与 PATCH 持久化随切片 6 |
+| 4 | 工具冷热网关 + MCP 宿主(`/api/mcp`、`/api/skills`、`/api/plugins`) | `mcp-service.mjs`、`skills-service.mjs`、`tool-gateway-runtime.mjs` | ✅ dashboard/skills/gateway 策略面(插件持久化在切片 6 落地) |
 | 5 | 会话树/分叉(`/api/session-labels`、`/{id}/derive`) | `session-tree.mjs`、`session-derivation.mjs` | ✅ 本提交 + `/{id}/messages` + 多会话 hosting(switch_session) |
-| 6 | 工作流/计划任务/远程(`workflows-schedules`、`remote`) | 对应 services | 待办 |
+| 6 | 工作流/计划任务/远程(`workflows-schedules`、`remote`) | 对应 services | ✅ 本提交(schedule ticker + workflow run 引擎 + 插件注册表 + remote LAN 状态) |
 
 ## 契约来源
 
