@@ -72,6 +72,8 @@ pub(crate) struct AppState {
     pub(crate) remote_enabled: std::sync::atomic::AtomicBool,
     /// Stable device fingerprint shown in the remote pairing surface.
     pub(crate) fingerprint: String,
+    /// Built React frontend dir (vite `dist/`) served same-origin with /api.
+    pub(crate) dist_dir: std::path::PathBuf,
     /// Live chat runs (POST /api/chat) for SSE replay (upstream runs service).
     pub(crate) chat_runs:
         std::sync::Mutex<std::collections::HashMap<String, product::ChatRun>>,
@@ -920,6 +922,11 @@ async fn boot() -> anyhow::Result<AppState> {
             out
         })
     };
+    let dist_dir = std::env::current_dir()
+        .expect("cwd")
+        .join("../dist")
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::PathBuf::from("../dist"));
     let (events, _) = broadcast::channel(1024);
     let state = AppState {
         runtime: Arc::new(runtime),
@@ -933,6 +940,7 @@ async fn boot() -> anyhow::Result<AppState> {
         fingerprint,
         chat_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         frame_cursor: std::sync::atomic::AtomicU64::new(0),
+        dist_dir,
         pairing: security::PairingStore {
             pending: std::sync::Mutex::new(None),
             devices: std::sync::Mutex::new(security::load_devices(&data_dir)),
@@ -956,7 +964,7 @@ async fn main() -> anyhow::Result<()> {
     let addr = std::env::var("PISPER_RS_ADDR").unwrap_or_else(|_| "127.0.0.1:5174".into());
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!("pisper-server (Rust runtime) listening on http://{addr}");
-    axum::serve(listener, router(state)).await?;
+    axum::serve(listener, app_router(state)).await?;
     Ok(())
 }
 
@@ -1065,6 +1073,10 @@ fn session_router() -> Router<Arc<AppState>> {
             post(product::vcs_revert),
         )
         .route("/api/runtime/diagnostics", get(runtime_diagnostics))
+        .route(
+            "/api/settings/notifications",
+            get(product::notification_settings).put(product::save_notification_settings),
+        )
         .route("/api/remote/pairing-code", get(create_pairing_code).post(create_pairing_code))
         .route("/api/remote/pair", post(pair_device))
         .route("/api/remote/devices", get(list_devices))
@@ -1073,11 +1085,25 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/runs/{id}/events", get(run_events))
 }
 
-/// Stateless base: handshake + unknown-route fallback.
+/// Stateless base: handshake + unknown-route fallback + the built React
+/// frontend served same-origin (upstream: Vite middleware in runtime/index.mjs).
 fn base_router() -> Router {
     Router::new()
         .route("/api/health", get(health))
         .fallback(unknown_api_fallback)
+}
+
+/// Full router including the static SPA (dist/) with index.html fallback.
+pub fn app_router(state: Arc<AppState>) -> Router {
+    let dist = state.dist_dir.clone();
+    Router::new()
+        .merge(base_router())
+        .merge(session_router().with_state(state.clone()))
+        .fallback_service(
+            tower_http::services::ServeDir::new(&dist)
+                .append_index_html_on_directories(true)
+                .not_found_service(tower_http::services::ServeFile::new(dist.join("index.html"))),
+        )
 }
 
 fn router(state: Arc<AppState>) -> Router {

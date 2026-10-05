@@ -796,3 +796,45 @@ pub fn map_pi_event(
         _ => None,
     }
 }
+
+// ------------------------------------------------- notification settings
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSettings {
+    #[serde(default)]
+    pub chat_completed: Option<serde_json::Value>,
+    #[serde(default)]
+    pub chat_waiting: Option<serde_json::Value>,
+}
+
+pub fn load_notification_settings(data_dir: &str) -> NotificationSettings {
+    let path = std::path::Path::new(data_dir).join("notification-settings.json");
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_notification_settings_file(
+    data_dir: &str,
+    settings: &NotificationSettings,
+) -> Result<(), String> {
+    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
+    let path = std::path::Path::new(data_dir).join("notification-settings.json");
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())
+}
+
+pub async fn notification_settings(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let settings = load_notification_settings(&state.data_dir);
+    Json(serde_json::to_value(settings).unwrap())
+}
+
+pub async fn save_notification_settings(
+    State(state): State<Arc<AppState>>,
+    Json(settings): Json<NotificationSettings>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    save_notification_settings_file(&state.data_dir, &settings).map_err(ApiError::internal)?;
+    Ok(Json(serde_json::to_value(settings).unwrap()))
+}
