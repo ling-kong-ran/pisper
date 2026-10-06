@@ -1,0 +1,821 @@
+{
+  "schemaVersion": 1,
+  "referenceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "candidateBranch": "develop-rust",
+  "candidateCommit": "6521e0c86998ecff16ff75d69f4c3b67cdf888d2",
+  "sourceDirty": true,
+  "status": "in-progress",
+  "fullReleaseParity": false,
+  "candidateReadyForUpgrade": false,
+  "currentPhase": {
+    "status": "channels-local-build-and-upgrade-complete",
+    "result": "release/local-rust-build/current-channels-result.json",
+    "installerSha256": "a372cc76a92112a6298e0cdfef2d9834126a8579508e2725b6bb5aa084903c2f",
+    "backendSha256": "30fb0f52c3fd119cf559649409a310f4b76b95d42a8eee94e8c9e7727874f4f2",
+    "productionAcceptance": {
+      "checks": 115,
+      "failures": 0,
+      "report": "release/local-rust-build/usability/2026-10-06T02-30-40.524Z/report.json"
+    },
+    "fullReleaseParity": false,
+    "remainingScope": "Feishu SDK edges, channel cwd/cancellation fidelity, deep visual model/JSON coercion fidelity, primary Agent browser automation, complete plugin ABI, computer/mobile automation, remote access, desktop pets, remaining Goal/Plan/Team fidelity, cross-platform devices and full dependency redistribution audit."
+  },
+  "verificationBoundary": "Isolated synthetic agent/workspace, loopback model and MCP fixtures, pinned public CPU model downloads, real native worker processes and production React browser execution. No paid model request or personal configuration mutation.",
+  "implementedThisIntegration": [
+    "Independent public and private native sessions; per-session ownership across complete Goal runs.",
+    "Goal first-round images, continuation, explicit resume, budget-limited summary and Team projection.",
+    "Native queued notification resume, in-flight input deduplication, real JSONL delivery receipts and cancellation before starting a model call.",
+    "Workflow, schedule, media, image engine and native CPU service boot/attach/shutdown ownership.",
+    "Windows native speech packaging with pinned DLL hashes, shared catalog/BPE and redistribution notices.",
+    "Speech SSE UTF-8 content type and actual staged native CPU/HTTP lifecycle verification.",
+    "Cooperative workflow/schedule cancellation and timeout retain actual native futures until finally and asset capture complete.",
+    "Scheduled prompt interruption retains its observed native session for diagnostics; this is a native enhancement over the release error record.",
+    "Release notification settings stored in canonical pisper.json with a shared writer, durable UUID browser events and release cursor semantics.",
+    "Six notification templates, browser test previews, TUI HTTP 202 reports and actual workflow browser delivery across restart.",
+    "Native manual image frame edits: copy/delete/reorder, fixed-canvas transform, opacity and continuous erase/restore strokes, strict budgets and owned cancellation/storage.",
+    "Composed native asset capture and v2 file-change snapshots with original-byte diff/review/approve/revert, partial shell coverage, parent attribution, retention and restart.",
+    "Release host shell factory with credential/injection environment filtering, all 26 unconditional command guards, Windows fallback and actual timeout/abort process-tree cleanup across reload and cwd switch.",
+    "Independent game asset project/job/media HTTP lifecycle with real native image generation, two-job limit, cancellation, paid partial failure, original-based frame edits and durable atlas export.",
+    "Custom UI ZIP import, live component catalog, HTML5 bridge rewriting, scoped short-lived static views, opaque-origin sandbox and bridge-driven optional game workbench browser execution."
+  ],
+  "verification": {
+    "runtimeUnit": {
+      "passed": 335,
+      "failed": 0,
+      "ignored": 2,
+      "log": "release/local-rust-build/current-activation-full-native-tests.log"
+    },
+    "nativeMcpRegression": {
+      "passed": 7,
+      "failed": 0,
+      "log": "release/local-rust-build/current-activation-mcp-tests.log"
+    },
+    "tauriResourceContract": {
+      "passed": 4,
+      "failed": 0,
+      "log": "release/local-rust-build/current-activation-desktop-gates.log"
+    },
+    "speechStagingHelper": {
+      "passed": 7,
+      "failed": 0,
+      "scope": "Scoped temporary-directory file/hash/idempotence/link rejection fixtures; reported by owning agent."
+    },
+    "stagedSpeechCpuAndHttp": {
+      "passed": 1,
+      "failed": 0,
+      "elapsedSeconds": 116.81,
+      "log": "release/local-rust-build/current-staged-speech-cpu-http-test.log",
+      "coverage": [
+        "Actual catalog downloads and hashes",
+        "Native MeloTTS synthesis and XASR batch/streaming agreement",
+        "Staged DLL/BPE resources",
+        "Rust worker protocol",
+        "SSE lease release",
+        "HTTP WAV and raw PCM",
+        "Cancellation",
+        "Owned worker exit and reap"
+      ]
+    },
+    "initialHttpCore": {
+      "passed": 38,
+      "failed": 0,
+      "report": "release/local-rust-build/usability/2026-10-05T14-08-48.286Z/report.json"
+    },
+    "frontendCheck": {
+      "status": "passed",
+      "log": "release/local-rust-build/current-files-shell-game-frontend-check.log"
+    },
+    "nativeHttpAfterCancellationFix": {
+      "passed": 44,
+      "failed": 0,
+      "report": "release/local-rust-build/usability/2026-10-05T14-59-00.534Z/report.json",
+      "shutdown": "graceful-stdin",
+      "coverage": [
+        "Real held Workflow stream stop and subsequent public-session mutation",
+        "Approval and source-session run isolation",
+        "Held Child and Schedule shutdown persistence and restart without automatic model retry"
+      ]
+    },
+    "clippy": {
+      "status": "passed-with-warnings",
+      "log": "release/local-rust-build/current-files-shell-game-clippy.log"
+    },
+    "latestFullUi": {
+      "checks": 113,
+      "failures": 0,
+      "report": "release/local-rust-build/usability/2026-10-06T00-40-59.107Z/report.json",
+      "visual": {
+        "sessionId": "01a10eaa-c913-7078-9f12-1f5062f8f293",
+        "actualPiGateway": true,
+        "discovery": "generate_visual",
+        "images": [
+          {
+            "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\workspace\\visual-fixture-c9d946c3-71ce-43e1-88c7-6afbc624529b\\generated\\visuals\\2026-10-06T00-44-02-c9d946c3-71ce-43e1-88c7-6afbc624529b-generated.png",
+            "kind": "image",
+            "mimeType": "image/png",
+            "size": 114,
+            "provider": "rust-image-fixture",
+            "providerName": "Native Game Image Fixture",
+            "model": "gpt-image-fixture",
+            "modelName": "gpt-image-fixture",
+            "remoteId": null,
+            "operation": "generate",
+            "fallbackUsed": false,
+            "attemptedModels": [
+              "rust-image-fixture/gpt-image-fixture"
+            ],
+            "sha256": "8d494255c920a3499ca9e9bb889cdccf85c6ae10276316dd16e746738bac5739",
+            "assetId": "3bfffc44-b785-407d-b489-cdbd2a1f583f"
+          },
+          {
+            "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\workspace\\visual-fixture-c9d946c3-71ce-43e1-88c7-6afbc624529b\\generated\\visuals\\2026-10-06T00-44-02-c9d946c3-71ce-43e1-88c7-6afbc624529b-edited.png",
+            "kind": "image",
+            "mimeType": "image/png",
+            "size": 114,
+            "provider": "rust-image-fixture",
+            "providerName": "Native Game Image Fixture",
+            "model": "gpt-image-fixture",
+            "modelName": "gpt-image-fixture",
+            "remoteId": null,
+            "operation": "edit",
+            "fallbackUsed": false,
+            "attemptedModels": [
+              "rust-image-fixture/gpt-image-fixture"
+            ],
+            "sha256": "8d494255c920a3499ca9e9bb889cdccf85c6ae10276316dd16e746738bac5739",
+            "assetId": "5c6d5bb5-46a7-48a8-af88-758e9c877ccd"
+          }
+        ],
+        "video": {
+          "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\workspace\\visual-fixture-c9d946c3-71ce-43e1-88c7-6afbc624529b\\generated\\visuals\\2026-10-06T00-44-07-c9d946c3-71ce-43e1-88c7-6afbc624529b-video.mp4",
+          "kind": "video",
+          "mimeType": "video/mp4",
+          "size": 1250,
+          "provider": "native-visual-video-c9d946c3-71ce-43e1-88c7-6afbc624529b",
+          "providerName": "Native Visual Video c9d946c3-71ce-43e1-88c7-6afbc624529b",
+          "model": "sora-2-native-fixture",
+          "modelName": "sora-2-native-fixture",
+          "remoteId": "video-c9d946c3-71ce-43e1-88c7-6afbc624529b",
+          "operation": "generate",
+          "fallbackUsed": false,
+          "attemptedModels": [
+            "native-visual-video-c9d946c3-71ce-43e1-88c7-6afbc624529b/sora-2-native-fixture"
+          ],
+          "sha256": "083cc05cc3e9876c81c20986feace1c5f90f32946bd40d2d3650c2a16f230c4a",
+          "assetId": "e3e2572c-affd-418f-a475-fb4e445d7361",
+          "codec": "single-frame MJPEG",
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/v1/videos",
+              "query": "",
+              "authenticated": true,
+              "fields": {
+                "model": "sora-2-native-fixture",
+                "prompt": "native-visual-c9d946c3-71ce-43e1-88c7-6afbc624529b-video",
+                "seconds": "4",
+                "size": "1280x720"
+              }
+            },
+            {
+              "method": "GET",
+              "path": "/v1/videos/video-c9d946c3-71ce-43e1-88c7-6afbc624529b",
+              "query": "",
+              "authenticated": true
+            },
+            {
+              "method": "GET",
+              "path": "/v1/videos/video-c9d946c3-71ce-43e1-88c7-6afbc624529b/content",
+              "query": "?variant=video",
+              "authenticated": true
+            }
+          ]
+        },
+        "configTest": {
+          "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\agent\\visual-test\\generated\\visuals\\2026-10-06T00-43-56-config-test.png",
+          "sha256": "8d494255c920a3499ca9e9bb889cdccf85c6ae10276316dd16e746738bac5739",
+          "previewMatchesDisk": true
+        },
+        "preferencesPersistedAndReset": true,
+        "unknownAppFieldsPreserved": true,
+        "credentialsPreserved": true,
+        "ownedSessionProviderFilesAndVideoServerCleaned": true,
+        "generatedFiles": 3
+      }
+    },
+    "initialFullUiFailure": {
+      "checks": 59,
+      "failures": 5,
+      "report": "release/local-rust-build/usability/2026-10-05T14-33-46.859Z/report.json",
+      "resolvedFindings": [
+        "Session workflow-runs route now serves the release source-session filter",
+        "Workflow native prompts remain polled through cancellation/finally and the session can be mutated afterward",
+        "Graceful stdin shutdown joins the held child and scheduled native prompt before restart"
+      ]
+    },
+    "windowsPackaging": {
+      "status": "passed",
+      "log": "release/local-rust-build/current-files-shell-game-package.log",
+      "installerSha256": "a1b38d351e283f959c9ed110dd1871a77c027bb8d1a01f7373b0d40beb4401c1",
+      "installerBytes": 40613994
+    },
+    "installedDesktopUi": {
+      "status": "automation-unverified-cdp-not-listening",
+      "checks": 1,
+      "failures": 2,
+      "log": "release/local-rust-build/current-native-installed-desktop-ui.log",
+      "report": "release/local-rust-build/usability/2026-10-05T15-16-36.807Z/report.json",
+      "boundary": "Installed normal-profile GUI, owned native WebView process and sidecar listener are running. The isolated WebView also performed the frontend browser-preferences PUT, but no CDP listener became available, so actual WebView automation is not claimed. Owned isolated processes were cleaned without stopping the normal installation.",
+      "currentCandidate": "Historical CDP failure retained; current native WebView automation unverified. Exact packaged frontend tested in an external browser."
+    },
+    "nativePty": {
+      "passed": 7,
+      "failed": 0,
+      "log": "release/local-rust-build/current-activation-desktop-gates.log"
+    },
+    "isolatedPackagedNativeDom": {
+      "status": "passed",
+      "report": "release/local-rust-build/native-webview-terminal-2026-10-05T23-39-25.621Z/report.json",
+      "reportSha256": "2fde20bf63bcef3b48278174ab22632db2117f41a1b86141e5e2a346deda46df",
+      "scope": "isolated packaged WebView2 production React/xterm with actual native IPC/PTY; programmatic untrusted DOM input",
+      "desktopSha256": "7684f866bdbaca92abdca3ceb03f461111ee412627740fe5f6feb581c70cc873",
+      "backendSha256": "766d4cf4d47ac13f650fb249a674f0d7256b3e6114277ef8a4d38ebcb3d15326",
+      "controlledIpc": false,
+      "exitCode": 7,
+      "nativeShellPid": 5320,
+      "physicalKeyboardVerified": false,
+      "imeVerified": false,
+      "installedWebviewTested": false,
+      "installedGuiBytesMatchIsolatedProof": false,
+      "installedGuiEquivalentWithNsisMarker": true,
+      "remainingOwnedProcesses": []
+    },
+    "latestRuntimeUnit": {
+      "passed": 393,
+      "failed": 0,
+      "ignored": 2,
+      "log": "release/local-rust-build/current-visual-final-full-native-tests.log"
+    }
+  },
+  "installedArtifact": {
+    "status": "upgraded-and-runtime-verified",
+    "desktopVersion": "0.5.81",
+    "runtimeVersion": "0.5.62",
+    "backendSha256": "38f40bda8a27eaab0c15422543d5241bac2aa3d1bac302824f82e833f217dbaf",
+    "verification": "release/local-rust-build/current-upgrade-verification.json",
+    "note": "New installed GUI/sidecar, all 394 packaged frontend files, CLI and nine speech resources match the tested package. Four configs and 10 original histories/identities preserved. New APIs checked read-only in the personal profile.",
+    "installerSha256": "a1b38d351e283f959c9ed110dd1871a77c027bb8d1a01f7373b0d40beb4401c1",
+    "runningBackend": {
+      "pid": 32152,
+      "parent": 28412,
+      "backendCreatedAt": "2026-10-05T18:02:23.8202Z",
+      "guiCreatedAt": "2026-10-05T18:02:23.266262Z",
+      "tcpListenerOwnerVerified": true,
+      "descriptorPidMatches": true,
+      "installedPathsVerified": true
+    }
+  },
+  "remaining": [
+    "Actual external notification and messaging gateways; saved credentials alone do not imply live delivery.",
+    "Image bundle HTTP failure/recovery, engine status/timeouts and remaining media coercion boundaries.",
+    "Speech retry/range/timeout/error contracts and cross-platform native resources/device validation.",
+    "Verified PTY capability, terminal UI lifecycle and cross-platform host shell behavior.",
+    "Web search, plugins, computer use, browser automation, remote access and desktop pets.",
+    "Remote Custom UI ownership/device integration; the local opaque-origin sandbox and imported workbench are now verified.",
+    "Installed-WebView CDP availability; current production UI validation uses an external browser.",
+    "Remaining Goal/Plan/Team client contracts and complete release tool/route/storage parity.",
+    "Native compiled dependency license/source-delivery audit."
+  ],
+  "phaseHistory": [
+    {
+      "scope": "Release notification HTTP/storage/templates and native manual image frame editing",
+      "sourceFrozen": true,
+      "runtimeTests": {
+        "passed": 204,
+        "failed": 0,
+        "ignored": 2,
+        "log": "release/local-rust-build/current-notification-image-tests.log"
+      },
+      "clippy": {
+        "status": "passed-with-warnings",
+        "log": "release/local-rust-build/current-notification-image-clippy.log"
+      },
+      "packaging": "passed",
+      "boundary": "External notification gateways and complete game asset project/job HTTP lifecycle remain incomplete. Native manual image edits are tested, but the game workbench edit entry remains unwired. Actual installed-WebView automation is unverified; current UI checks used the exact packaged frontend in an external browser.",
+      "installed": "upgraded-and-runtime-verified",
+      "frontendCheck": {
+        "status": "passed",
+        "log": "release/local-rust-build/current-notifications-frontend-check.log"
+      },
+      "coreHttp": {
+        "passed": 49,
+        "failed": 0,
+        "report": "release/local-rust-build/usability/2026-10-05T15-55-35.674Z/report.json"
+      },
+      "productionFrontendAndApi": {
+        "passed": 64,
+        "failed": 0,
+        "report": "release/local-rust-build/usability/2026-10-05T16-00-36.493Z/report.json",
+        "backendSha256": "e79d90ddbd53f94678b0cc9dc65c32ccc88ef151a8a4a1698bea363c5cc627f2"
+      },
+      "installedNotificationHttp": {
+        "templates": 6,
+        "canonicalBrowserConfigVerified": true,
+        "readOnly": true
+      },
+      "verifiedAt": "2026-10-05T16:07:16.361Z"
+    },
+    {
+      "archivedAt": "2026-10-05T18:33:09.2729208Z",
+      "phase": {
+        "scope": "File snapshots, release host shell, game asset lifecycle and Custom UI sandbox",
+        "sourceFrozen": true,
+        "runtimeTests": {
+          "passed": 257,
+          "failed": 0,
+          "ignored": 2,
+          "log": "release/local-rust-build/current-files-shell-game-tests.log"
+        },
+        "frontendCheck": {
+          "status": "passed",
+          "log": "release/local-rust-build/current-files-shell-game-frontend-check.log"
+        },
+        "initialHttp": {
+          "passed": 74,
+          "failed": 1,
+          "report": "release/local-rust-build/usability/2026-10-05T17-06-19.445Z/report.json",
+          "failure": "Fixture used game error message contract for workflow media endpoint; corrected against release. HTML decoder fix requires fresh executable."
+        },
+        "packaging": "passed",
+        "installed": "upgraded-and-runtime-verified",
+        "boundary": "Actual installed-WebView automation remains unverified; production frontend checks will use the exact packaged frontend in an external browser. Imported game workbench is optional and is exercised only in the isolated test profile. Full release parity remains incomplete.",
+        "clippy": {
+          "status": "passed-with-warnings",
+          "log": "release/local-rust-build/current-files-shell-game-clippy.log"
+        },
+        "coreHttp": {
+          "passed": 75,
+          "failed": 0,
+          "report": "release/local-rust-build/usability/2026-10-05T17-18-57.896Z/report.json"
+        },
+        "initialProductionBrowser": {
+          "checks": 91,
+          "failures": 3,
+          "report": "release/local-rust-build/usability/2026-10-05T17-32-11.858Z/report.json",
+          "cause": "Harness touched opaque iframe storage and referenced a scoped-out request helper; corrected without product source changes."
+        },
+        "productionFrontendAndApi": {
+          "passed": 92,
+          "failed": 0,
+          "report": "release/local-rust-build/usability/2026-10-05T17-53-07.022Z/report.json",
+          "backendSha256": "38f40bda8a27eaab0c15422543d5241bac2aa3d1bac302824f82e833f217dbaf"
+        },
+        "focusedGameBrowser": {
+          "passedRuns": 2,
+          "failedRuns": 0,
+          "reports": [
+            "release/local-rust-build/game-ui-debug-20261006-process/report.json",
+            "release/local-rust-build/game-ui-debug-20261006-process/attempt-1791222541523/report.json"
+          ],
+          "boundary": "An earlier full-run process-response timeout was not reproduced; passive bridge/API diagnostics retained. Unchanged product code passed two focused runs and the complete production gate."
+        },
+        "installedPhaseReadOnlyHttp": {
+          "fileChangeSessions": 10,
+          "customUiComponents": 1,
+          "gameProjects": 0,
+          "gameJobs": 0,
+          "builtinIslandVerified": true,
+          "readOnly": true
+        },
+        "verifiedAt": "2026-10-05T18:02:54.392Z"
+      }
+    },
+    {
+      "archivedAt": "2026-10-05T19:38:00.3967769Z",
+      "phase": {
+        "scope": "Desktop PTY lifecycle, Bing RSS web search, native local plugin lifecycle/execution and non-mutating session projections",
+        "packaging": "complete: validated backend/front-end inputs retained and desktop stage resumed after fresh PTY validation",
+        "sourceFrozen": true,
+        "fullParityBoundary": "Plugins retain an explicit incomplete Node compatibility audit; no claim of complete release parity.",
+        "installed": "Current develop-rust working-tree candidate upgraded and verified in the normal personal profile",
+        "runtimeTests": {
+          "failed": 0,
+          "status": "passed",
+          "ignored": 2,
+          "passed": 257,
+          "nativePtyPassed": 7,
+          "nativeMcpPassed": 7
+        },
+        "frontendCheck": {
+          "startupRecheckPassed": 76,
+          "startupRecheckFailed": 0,
+          "note": "Original strict startup limits retained. Initial parallel-compile timing failures preserved in current-request-check.log; independent recheck passed.",
+          "status": "passed"
+        },
+        "deferredUnwiredSources": [
+          "native_web_search",
+          "web_search_api",
+          "native_plugins",
+          "plugins_api",
+          "tool-catalog resource"
+        ],
+        "productionAcceptance": {
+          "checks": 93,
+          "report": "usability/2026-10-05T19-08-48.368Z/report.json",
+          "failures": 0
+        },
+        "deferredParity": "Web search/plugins remain unwired; terminal UI activation and full release parity remain incomplete."
+      }
+    },
+    {
+      "archivedAt": "2026-10-05T22:30:33.072Z",
+      "phase": {
+        "scope": "Wire native search and local plugins, release tool gateway/loadout and desktop terminal UI validation",
+        "sourceFrozen": true,
+        "packaging": "complete: fresh full production acceptance and retained native gates verified before NSIS build",
+        "baseline": "release/local-rust-build/parity-wiring-20261006",
+        "fullParityBoundary": "Full release parity remains incomplete; private-child follow-up registry refresh, exact Goal/Team activation, full Node ABI and platform/device contracts remain pending.",
+        "previousGoalTurn": "progress: fresh installed backend identity/health and installer hash verification confirmed previous upgrade, selecting source wiring as next action",
+        "status": "requested-local-build-and-upgrade-complete",
+        "runtimeTests": {
+          "passed": 306,
+          "failed": 0,
+          "ignored": 2,
+          "testThreads": "default",
+          "log": "release/local-rust-build/current-wiring-package-attempt3.log"
+        },
+        "nativePty": {
+          "passed": 7,
+          "failed": 0,
+          "evidence": "release/rust-build/terminal-test-evidence.json"
+        },
+        "sourceManifest": "release/local-rust-build/parity-wiring-20261006/source-frozen.json",
+        "initialProductionAcceptance": {
+          "checks": 111,
+          "failures": 9,
+          "report": "release/local-rust-build/usability/2026-10-05T20-08-13.432Z/report.json",
+          "log": "release/local-rust-build/current-wiring-package-attempt2.log"
+        },
+        "nativeMcp": {
+          "passed": 7,
+          "failed": 0
+        },
+        "desktopStartup": {
+          "passed": 4,
+          "failed": 0
+        },
+        "focusedTerminal": {
+          "checks": 5,
+          "failures": 0,
+          "report": "release/local-rust-build/focused-terminal-2026-10-05T20-18-55.779Z/report.json",
+          "boundary": "controlled production bridge transport plus separate real native PTY evidence; backend terminal capability remains false"
+        },
+        "installed": "Current develop-rust working-tree package upgraded and verified in the normal personal profile",
+        "productionAcceptance": {
+          "checks": 111,
+          "failures": 0,
+          "report": "release/local-rust-build/usability/2026-10-05T20-45-58.603Z/report.json",
+          "backendSha256": "d822a268d6dab1e4afc29cb956ae8576847ca74f94852fc0485c69878bfd5f6c"
+        },
+        "packageCompletion": "release/local-rust-build/current-wiring-package-completion.json",
+        "result": "release/local-rust-build/current-wiring-result.json",
+        "acceptedFixtureChanges": [
+          "scripts/smoke-rust-game-assets.mjs",
+          "scripts/smoke-rust-terminal.mjs"
+        ],
+        "verifiedAt": "2026-10-05T20:53:33.127Z"
+      }
+    },
+    {
+      "archivedAt": "2026-10-05T23:47:18.670Z",
+      "phase": {
+        "status": "activation-source-and-integration-validation",
+        "scope": "Proven desktop terminal/image/search capability activation, native image_assets Agent lifecycle, exact initial Goal/Team context, search transport/config coercion and atomic plugin settings",
+        "baseline": "release/local-rust-build/parity-activation-20261006",
+        "previousGoalTurn": {
+          "classification": "progress",
+          "evidence": "release/local-rust-build/current-wiring-result.json",
+          "installerSha256": "c9eacd0053cf5071a3e463b6d11608aac599b216dd5c45cd50e74ce76d3ce79a"
+        },
+        "runtimeTests": {
+          "passed": 335,
+          "failed": 0,
+          "ignored": 2,
+          "testThreads": "default",
+          "log": "release/local-rust-build/current-activation-full-native-tests.log"
+        },
+        "focusedImageAgent": {
+          "passed": 16,
+          "failed": 0,
+          "log": "release/local-rust-build/current-image-agent-tests-final.log"
+        },
+        "focusedPlugins": {
+          "passed": 26,
+          "failed": 0,
+          "log": "release/local-rust-build/current-activation-plugin-tests.log"
+        },
+        "goalActivation": {
+          "oraclePassed": 4,
+          "nativePassed": 5,
+          "report": "release/local-rust-build/parity-activation-20261006/goal-activation-native.json"
+        },
+        "focusedSearch": {
+          "passed": 20,
+          "failed": 0,
+          "source": "runtime-rs/src/native_web_search/proof_tests.rs"
+        },
+        "actualNativeDesktopIpc": {
+          "status": "passed",
+          "controlledIpc": false,
+          "report": "release/local-rust-build/native-webview-terminal-2026-10-05T22-08-36.466Z/report.json",
+          "scope": "Actual packaged WebView2 bridge/Channels/native PowerShell UTF-8/cwd/resize/exit7 with standard DSR responses; old verified backend, not React UI click/keyboard or current-source installation"
+        },
+        "childRegistryAudit": {
+          "oracle": "release/local-rust-build/parity-activation-20261006/child-oracle-behavior.json",
+          "outcome": "Proposed private-child revision refresh withdrawn because release retains its original tool definitions; original owned source bytes restored. Existing Rust disabled-plugin freshness guard remains a documented difference."
+        },
+        "sourceCapabilities": [
+          "webSearch",
+          "imageProcessing",
+          "imageAssets",
+          "desktop terminal"
+        ],
+        "packaging": "Fresh backend compilation and full real-Pi/HTTP/browser integration remain in progress; latest normal installation is still the previous verified snapshot",
+        "fullParityBoundary": "General visual image/video API and tool, CPU inference hard interruption, full Node ABI/plugin contracts, channels/external notifications, remote/browser/computer/pets and supported-platform/device parity remain incomplete.",
+        "updatedAt": "2026-10-05T22:30:33.080Z"
+      }
+    },
+    {
+      "archivedAt": "2026-10-06T00:46:14.171Z",
+      "phase": {
+        "status": "requested-local-build-and-upgrade-complete",
+        "scope": "Proven desktop terminal/image/search capability activation, native image_assets Agent lifecycle, exact initial Goal/Team context, search transport/config coercion and atomic plugin settings",
+        "baseline": "release/local-rust-build/parity-activation-20261006",
+        "previousGoalTurn": {
+          "classification": "progress",
+          "evidence": "release/local-rust-build/current-wiring-result.json",
+          "installerSha256": "c9eacd0053cf5071a3e463b6d11608aac599b216dd5c45cd50e74ce76d3ce79a"
+        },
+        "runtimeTests": {
+          "passed": 335,
+          "failed": 0,
+          "ignored": 2,
+          "testThreads": "default",
+          "log": "release/local-rust-build/current-activation-full-native-tests.log"
+        },
+        "focusedImageAgent": {
+          "passed": 16,
+          "failed": 0,
+          "log": "release/local-rust-build/current-image-agent-tests-final.log"
+        },
+        "focusedPlugins": {
+          "passed": 26,
+          "failed": 0,
+          "log": "release/local-rust-build/current-activation-plugin-tests.log"
+        },
+        "goalActivation": {
+          "oraclePassed": 4,
+          "nativePassed": 5,
+          "report": "release/local-rust-build/parity-activation-20261006/goal-activation-native.json"
+        },
+        "focusedSearch": {
+          "passed": 20,
+          "failed": 0,
+          "source": "runtime-rs/src/native_web_search/proof_tests.rs"
+        },
+        "actualNativeDesktopIpc": {
+          "status": "passed",
+          "controlledIpc": false,
+          "report": "release/local-rust-build/native-webview-terminal-2026-10-05T22-08-36.466Z/report.json",
+          "scope": "Actual packaged WebView2 bridge/Channels/native PowerShell UTF-8/cwd/resize/exit7 with standard DSR responses; old verified backend, not React UI click/keyboard or current-source installation"
+        },
+        "childRegistryAudit": {
+          "oracle": "release/local-rust-build/parity-activation-20261006/child-oracle-behavior.json",
+          "outcome": "Proposed private-child revision refresh withdrawn because release retains its original tool definitions; original owned source bytes restored. Existing Rust disabled-plugin freshness guard remains a documented difference."
+        },
+        "sourceCapabilities": [
+          "webSearch",
+          "imageProcessing",
+          "imageAssets",
+          "desktop terminal"
+        ],
+        "packaging": "Fresh standardized source/artifact freeze and complete production/native gates verified before NSIS build; postbuild isolated packaged native DOM proof passed.",
+        "fullParityBoundary": "General visual image/video API and tool, CPU inference hard interruption, full Node ABI/plugin contracts, channels/external notifications, remote/browser/computer/pets and supported-platform/device parity remain incomplete.",
+        "updatedAt": "2026-10-05T22:30:33.080Z",
+        "installed": "Current develop-rust package upgraded and verified in the normal profile; isolated native DOM proof is recorded separately.",
+        "productionAcceptance": {
+          "checks": 112,
+          "failures": 0,
+          "report": "release/local-rust-build/usability/2026-10-05T23-18-27.415Z/report.json",
+          "backendSha256": "766d4cf4d47ac13f650fb249a674f0d7256b3e6114277ef8a4d38ebcb3d15326"
+        },
+        "packageCompletion": "release/local-rust-build/current-activation-package-completion.json",
+        "result": "release/local-rust-build/current-activation-result.json",
+        "installerSha256": "2ae588662e8ded29eb89102014b9bd34ddbba5b4077e102cc9a9523489006eb1",
+        "actualNativeDesktopDom": {
+          "status": "passed",
+          "report": "release/local-rust-build/native-webview-terminal-2026-10-05T23-39-25.621Z/report.json",
+          "reportSha256": "2fde20bf63bcef3b48278174ab22632db2117f41a1b86141e5e2a346deda46df",
+          "scope": "isolated packaged WebView2 production React/xterm with actual native IPC/PTY; programmatic untrusted DOM input",
+          "desktopSha256": "7684f866bdbaca92abdca3ceb03f461111ee412627740fe5f6feb581c70cc873",
+          "backendSha256": "766d4cf4d47ac13f650fb249a674f0d7256b3e6114277ef8a4d38ebcb3d15326",
+          "controlledIpc": false,
+          "exitCode": 7,
+          "nativeShellPid": 5320,
+          "physicalKeyboardVerified": false,
+          "imeVerified": false,
+          "installedWebviewTested": false,
+          "installedGuiBytesMatchIsolatedProof": false,
+          "installedGuiEquivalentWithNsisMarker": true,
+          "remainingOwnedProcesses": []
+        },
+        "verifiedAt": "2026-10-05T23:41:27.150Z",
+        "childImageAuthorization": {
+          "ordinaryChildDenied": true,
+          "privateOwnerExportVerified": false,
+          "oracle": "release/local-rust-build/parity-activation-20261006/child-image-sdk-oracle.json"
+        }
+      }
+    },
+    {
+      "archivedAt": "2026-10-06T01:36:33.016Z",
+      "phase": {
+        "status": "general-visual-source-and-production-acceptance-passed",
+        "scope": "General image/video/edit drivers, real Agent gateway/archive, visual configuration/preview, legacy discovered models, shared paid generation and shutdown",
+        "result": "release/local-rust-build/current-visual-result.json",
+        "previousGoalTurn": {
+          "classification": "progress",
+          "evidence": "release/local-rust-build/current-activation-result.json"
+        },
+        "runtimeTests": {
+          "passed": 393,
+          "failed": 0,
+          "ignored": 2,
+          "log": "release/local-rust-build/current-visual-final-full-native-tests.log"
+        },
+        "productionAcceptance": {
+          "checks": 113,
+          "failures": 0,
+          "report": "release/local-rust-build/usability/2026-10-06T00-40-59.107Z/report.json",
+          "visual": {
+            "sessionId": "01a10eaa-c913-7078-9f12-1f5062f8f293",
+            "actualPiGateway": true,
+            "discovery": "generate_visual",
+            "images": [
+              {
+                "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\workspace\\visual-fixture-c9d946c3-71ce-43e1-88c7-6afbc624529b\\generated\\visuals\\2026-10-06T00-44-02-c9d946c3-71ce-43e1-88c7-6afbc624529b-generated.png",
+                "kind": "image",
+                "mimeType": "image/png",
+                "size": 114,
+                "provider": "rust-image-fixture",
+                "providerName": "Native Game Image Fixture",
+                "model": "gpt-image-fixture",
+                "modelName": "gpt-image-fixture",
+                "remoteId": null,
+                "operation": "generate",
+                "fallbackUsed": false,
+                "attemptedModels": [
+                  "rust-image-fixture/gpt-image-fixture"
+                ],
+                "sha256": "8d494255c920a3499ca9e9bb889cdccf85c6ae10276316dd16e746738bac5739",
+                "assetId": "3bfffc44-b785-407d-b489-cdbd2a1f583f"
+              },
+              {
+                "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\workspace\\visual-fixture-c9d946c3-71ce-43e1-88c7-6afbc624529b\\generated\\visuals\\2026-10-06T00-44-02-c9d946c3-71ce-43e1-88c7-6afbc624529b-edited.png",
+                "kind": "image",
+                "mimeType": "image/png",
+                "size": 114,
+                "provider": "rust-image-fixture",
+                "providerName": "Native Game Image Fixture",
+                "model": "gpt-image-fixture",
+                "modelName": "gpt-image-fixture",
+                "remoteId": null,
+                "operation": "edit",
+                "fallbackUsed": false,
+                "attemptedModels": [
+                  "rust-image-fixture/gpt-image-fixture"
+                ],
+                "sha256": "8d494255c920a3499ca9e9bb889cdccf85c6ae10276316dd16e746738bac5739",
+                "assetId": "5c6d5bb5-46a7-48a8-af88-758e9c877ccd"
+              }
+            ],
+            "video": {
+              "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\workspace\\visual-fixture-c9d946c3-71ce-43e1-88c7-6afbc624529b\\generated\\visuals\\2026-10-06T00-44-07-c9d946c3-71ce-43e1-88c7-6afbc624529b-video.mp4",
+              "kind": "video",
+              "mimeType": "video/mp4",
+              "size": 1250,
+              "provider": "native-visual-video-c9d946c3-71ce-43e1-88c7-6afbc624529b",
+              "providerName": "Native Visual Video c9d946c3-71ce-43e1-88c7-6afbc624529b",
+              "model": "sora-2-native-fixture",
+              "modelName": "sora-2-native-fixture",
+              "remoteId": "video-c9d946c3-71ce-43e1-88c7-6afbc624529b",
+              "operation": "generate",
+              "fallbackUsed": false,
+              "attemptedModels": [
+                "native-visual-video-c9d946c3-71ce-43e1-88c7-6afbc624529b/sora-2-native-fixture"
+              ],
+              "sha256": "083cc05cc3e9876c81c20986feace1c5f90f32946bd40d2d3650c2a16f230c4a",
+              "assetId": "e3e2572c-affd-418f-a475-fb4e445d7361",
+              "codec": "single-frame MJPEG",
+              "requests": [
+                {
+                  "method": "POST",
+                  "path": "/v1/videos",
+                  "query": "",
+                  "authenticated": true,
+                  "fields": {
+                    "model": "sora-2-native-fixture",
+                    "prompt": "native-visual-c9d946c3-71ce-43e1-88c7-6afbc624529b-video",
+                    "seconds": "4",
+                    "size": "1280x720"
+                  }
+                },
+                {
+                  "method": "GET",
+                  "path": "/v1/videos/video-c9d946c3-71ce-43e1-88c7-6afbc624529b",
+                  "query": "",
+                  "authenticated": true
+                },
+                {
+                  "method": "GET",
+                  "path": "/v1/videos/video-c9d946c3-71ce-43e1-88c7-6afbc624529b/content",
+                  "query": "?variant=video",
+                  "authenticated": true
+                }
+              ]
+            },
+            "configTest": {
+              "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\usability\\2026-10-06T00-40-59.107Z\\agent\\visual-test\\generated\\visuals\\2026-10-06T00-43-56-config-test.png",
+              "sha256": "8d494255c920a3499ca9e9bb889cdccf85c6ae10276316dd16e746738bac5739",
+              "previewMatchesDisk": true
+            },
+            "preferencesPersistedAndReset": true,
+            "unknownAppFieldsPreserved": true,
+            "credentialsPreserved": true,
+            "ownedSessionProviderFilesAndVideoServerCleaned": true,
+            "generatedFiles": 3
+          }
+        },
+        "nextScope": [
+          "Channels/inbound sessions and outbound notification gateways",
+          "Primary Agent browser automation and computer/mobile automation",
+          "Full Node/plugin network, package/native-addon and worker ABI",
+          "Remote access, desktop pets and cross-platform build/device behavior",
+          "Remaining Goal/Plan/Team contracts, CPU hard cancellation and dependency redistribution audit",
+          "Exact V8 resource-dependent deep-array preference coercion and legacy UTF-16 surrogate spread persistence"
+        ],
+        "verifiedAt": "2026-10-06T00:46:14.171Z"
+      }
+    },
+    {
+      "archivedAt": "2026-10-06T02:48:11.092Z",
+      "phase": {
+        "status": "channels-source-assembly-and-ownership-validation",
+        "scope": "Four native gateways/onboarding, canonical shared notification writer, per-peer queues/approval bypass, actual Agent SSE/session/archive adapter, owned run cancellation and finalization",
+        "previousGoalTurn": {
+          "classification": "progress",
+          "evidence": "release/local-rust-build/current-visual-result.json"
+        },
+        "assemblyCheck": "release/local-rust-build/current-channels-owned-run-check-final.log",
+        "sharedWriterCheck": "release/local-rust-build/current-channels-shared-writer-tests.log",
+        "rootBoundaryCheck": "release/local-rust-build/current-channels-root-boundary-tests.log",
+        "pending": [
+          "Final Feishu/QQ SDK oracle and production freeze",
+          "Actual native Agent/API/gateway full acceptance and restart",
+          "Channels capability activation after successful full proof",
+          "Cross-platform/device contracts and existing full-goal remaining areas"
+        ],
+        "installedThisPhase": false,
+        "fullReleaseParity": false
+      }
+    }
+  ],
+  "latestVerifiedLocalRebuild": {
+    "result": "release/local-rust-build/current-channels-result.json",
+    "verifiedAt": "2026-10-06T02:48:11.092Z",
+    "installer": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\tauri-rust-artifacts\\windows-x86_64\\Pisper_0.5.81_windows_x86_64-setup.exe",
+    "installerSha256": "a372cc76a92112a6298e0cdfef2d9834126a8579508e2725b6bb5aa084903c2f",
+    "backendSha256": "30fb0f52c3fd119cf559649409a310f4b76b95d42a8eee94e8c9e7727874f4f2",
+    "nativeRuntimeTests": 429,
+    "productionChecks": 115,
+    "productionFailures": 0,
+    "fullReleaseParity": false
+  },
+  "localRebuildHistory": [
+    {
+      "result": "release/local-rust-build/current-wiring-result.json",
+      "verifiedAt": "2026-10-05T20:53:33.127Z",
+      "installer": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\tauri-rust-artifacts\\windows-x86_64\\Pisper_0.5.81_windows_x86_64-setup.exe",
+      "installerSha256": "c9eacd0053cf5071a3e463b6d11608aac599b216dd5c45cd50e74ce76d3ce79a",
+      "backendSha256": "d822a268d6dab1e4afc29cb956ae8576847ca74f94852fc0485c69878bfd5f6c",
+      "nativeRuntimeTests": 306,
+      "nativeMcpTests": 7,
+      "nativePtyTests": 7,
+      "desktopStartupTests": 4,
+      "productionChecks": 111,
+      "productionFailures": 0,
+      "originalHistoryBytesPreserved": true,
+      "appendedRuntimeSelectionRecords": 0
+    }
+  ]
+}
