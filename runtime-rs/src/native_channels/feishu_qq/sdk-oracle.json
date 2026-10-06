@@ -1,0 +1,1044 @@
+{
+  "sdkVersion": "1.72.0",
+  "qqConnectorVersion": "1.2.0",
+  "nodeVersion": "v24.19.0",
+  "crypto": {
+    "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "encrypted": "AQIDBAUGBwgJCgsMdpM0oYTxhO8vjxI2PXKaWG8whJ3lCCToR+pyzDEjeavLMAtlJN7dPLYJs88CcA==",
+    "plain": "synthetic-qq-app-secret-测试"
+  },
+  "frame": {
+    "value": {
+      "SeqID": 111,
+      "LogID": 222,
+      "service": 13,
+      "method": 1,
+      "headers": [
+        {
+          "key": "type",
+          "value": "event"
+        },
+        {
+          "key": "message_id",
+          "value": "fragment-test"
+        },
+        {
+          "key": "sum",
+          "value": "2"
+        },
+        {
+          "key": "seq",
+          "value": "1"
+        }
+      ],
+      "payloadEncoding": "utf8",
+      "payloadType": "application/json",
+      "payload": {
+        "type": "Buffer",
+        "data": [
+          123,
+          125
+        ]
+      },
+      "LogIDNew": "log"
+    },
+    "encoded": "CG8Q3gEYDSABKg0KBHR5cGUSBWV2ZW50KhsKCm1lc3NhZ2VfaWQSDWZyYWdtZW50LXRlc3QqCAoDc3VtEgEyKggKA3NlcRIBMTIEdXRmODoQYXBwbGljYXRpb24vanNvbkICe31KA2xvZw=="
+  },
+  "messages": [
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_text",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"hello @_user_1 there\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_text",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "hello there",
+        "rawContentType": "text",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_post",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "post",
+          "content": "{\"zh_cn\":{\"title\":\"Title\",\"content\":[[{\"tag\":\"text\",\"text\":\"bold\",\"style\":[\"bold\",\"italic\"]},{\"tag\":\"a\",\"text\":\"link\",\"href\":\"https://example.invalid/\"},{\"tag\":\"at\",\"user_id\":\"ou_bot\"},{\"tag\":\"img\",\"image_key\":\"img_fixture\"}]]}}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_post",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "**Title**\n\n***bold***[link](https://example.invalid/) ![image](img_fixture)",
+        "rawContentType": "post",
+        "resources": [
+          {
+            "type": "image",
+            "fileKey": "img_fixture"
+          }
+        ],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_image",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "image",
+          "content": "{\"image_key\":\"img_fixture\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_image",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "![image](img_fixture)",
+        "rawContentType": "image",
+        "resources": [
+          {
+            "type": "image",
+            "fileKey": "img_fixture"
+          }
+        ],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_file",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "file",
+          "content": "{\"file_key\":\"file_fixture\",\"file_name\":\"a\\\"b.pdf\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_file",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<file key=\"file_fixture\" name=\"a&quot;b.pdf\"/>",
+        "rawContentType": "file",
+        "resources": [
+          {
+            "type": "file",
+            "fileKey": "file_fixture",
+            "fileName": "a\"b.pdf"
+          }
+        ],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_audio",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "audio",
+          "content": "{\"file_key\":\"audio_fixture\",\"duration\":1200}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_audio",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<audio key=\"audio_fixture\" duration=\"1.2s\"/>",
+        "rawContentType": "audio",
+        "resources": [
+          {
+            "type": "audio",
+            "fileKey": "audio_fixture",
+            "durationMs": 1200
+          }
+        ],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_video",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "video",
+          "content": "{\"file_key\":\"video_fixture\",\"file_name\":\"video.mp4\",\"duration\":2000,\"image_key\":\"cover\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_video",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<video key=\"video_fixture\" name=\"video.mp4\" duration=\"2s\"/>",
+        "rawContentType": "video",
+        "resources": [
+          {
+            "type": "video",
+            "fileKey": "video_fixture",
+            "fileName": "video.mp4",
+            "durationMs": 2000,
+            "coverImageKey": "cover"
+          }
+        ],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_sticker",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "sticker",
+          "content": "{\"file_key\":\"sticker_fixture\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_sticker",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<sticker key=\"sticker_fixture\"/>",
+        "rawContentType": "sticker",
+        "resources": [
+          {
+            "type": "sticker",
+            "fileKey": "sticker_fixture"
+          }
+        ],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_share_chat",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "share_chat",
+          "content": "{\"chat_id\":\"oc_other\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_share_chat",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<group_card id=\"oc_other\"/>",
+        "rawContentType": "share_chat",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_share_user",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "share_user",
+          "content": "{\"user_id\":\"ou_other\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_share_user",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<contact_card id=\"ou_other\"/>",
+        "rawContentType": "share_user",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_location",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "location",
+          "content": "{\"name\":\"here\",\"latitude\":12.3,\"longitude\":45.6}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_location",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<location name=\"here\" coords=\"lat:12.3,lng:45.6\"/>",
+        "rawContentType": "location",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_interactive",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "interactive",
+          "content": "{\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"Title\"}},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"Body\"}}]}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_interactive",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "Title\nBody",
+        "rawContentType": "interactive",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_folder",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "folder",
+          "content": "{\"file_key\":\"folder_fixture\",\"file_name\":\"folder\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_folder",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<folder key=\"folder_fixture\" name=\"folder\"/>",
+        "rawContentType": "folder",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_hongbao",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "hongbao",
+          "content": "{\"text\":\"gift\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_hongbao",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<hongbao text=\"gift\"/>",
+        "rawContentType": "hongbao",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_calendar",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "calendar",
+          "content": "{\"summary\":\"Meeting\",\"start_time\":1700000000000,\"end_time\":1700003600000}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_calendar",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<calendar_invite>\n📅 Meeting\n🕙 2023-11-15 06:13 ~ 2023-11-15 07:13\n</calendar_invite>",
+        "rawContentType": "calendar",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_general_calendar",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "general_calendar",
+          "content": "{\"summary\":\"Meeting\",\"start_time\":1700000000000}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_general_calendar",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<calendar>\n📅 Meeting\n🕙 2023-11-15 06:13\n</calendar>",
+        "rawContentType": "general_calendar",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_share_calendar_event",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "share_calendar_event",
+          "content": "{\"summary\":\"Meeting\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_share_calendar_event",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<calendar_share>\n📅 Meeting\n</calendar_share>",
+        "rawContentType": "share_calendar_event",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_system",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "system",
+          "content": "{\"template\":\"{users} joined {room}\",\"users\":[\"one\",\"two\"],\"room\":\"room\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_system",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "one, two joined room",
+        "rawContentType": "system",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_vote",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "vote",
+          "content": "{\"topic\":\"Choose\",\"options\":[\"a\",\"b\"]}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_vote",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<vote>\nChoose\n• a\n• b\n</vote>",
+        "rawContentType": "vote",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_todo",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "todo",
+          "content": "{\"summary\":{\"title\":\"Task\",\"content\":[[{\"tag\":\"text\",\"text\":\"detail\"}]]},\"due_time\":1700000000000}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_todo",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "<todo>\nTask\ndetail\nDue: 2023-11-15 06:13\n</todo>",
+        "rawContentType": "todo",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    },
+    {
+      "event": {
+        "sender": {
+          "sender_id": {
+            "open_id": "ou_sender"
+          },
+          "sender_type": "user"
+        },
+        "message": {
+          "message_id": "om_unknown",
+          "chat_id": "oc_chat",
+          "chat_type": "p2p",
+          "message_type": "unknown",
+          "content": "{\"text\":\"fallback\"}",
+          "create_time": "0",
+          "mentions": [
+            {
+              "key": "@_user_1",
+              "name": "Bot",
+              "id": {
+                "open_id": "ou_bot"
+              }
+            }
+          ]
+        }
+      },
+      "value": {
+        "messageId": "om_unknown",
+        "chatId": "oc_chat",
+        "chatType": "p2p",
+        "senderId": "ou_sender",
+        "content": "fallback",
+        "rawContentType": "unknown",
+        "resources": [],
+        "mentions": [
+          {
+            "key": "@_user_1",
+            "openId": "ou_bot",
+            "name": "Bot",
+            "isBot": true
+          }
+        ],
+        "mentionAll": false,
+        "mentionedBot": true,
+        "createTime": 0,
+        "peerId": "oc_chat"
+      }
+    }
+  ]
+}

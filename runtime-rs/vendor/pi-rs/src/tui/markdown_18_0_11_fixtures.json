@@ -1,0 +1,528 @@
+{
+ "cases": [
+  {
+   "name": "v11_nested_link_outer_text",
+   "md": "[outer [inner](/inside)](/outside)",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "[outer \u001b[34m\u001b[4minner\u001b[24m\u001b[39m\u001b[2m (/inside)\u001b[22m](/outside)                           "
+   ]
+  },
+  {
+   "name": "v11_nested_link_hyperlinks",
+   "md": "[outer [inner](/inside)](/outside)",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": true,
+   "expected": [
+    "[outer \u001b]8;;/inside\u001b\\\u001b[34m\u001b[4minner\u001b[24m\u001b[39m\u001b]8;;\u001b\\](/outside)                                     "
+   ]
+  },
+  {
+   "name": "v11_nested_link_in_em",
+   "md": "[text **bold [in](/y)**][ref]\n\n[ref]: /t",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "[text \u001b[1mbold \u001b[34m\u001b[4min\u001b[24m\u001b[39m\u001b[2m (/y)\u001b[22m\u001b[1m\u001b[22m]\u001b[34m\u001b[4mref\u001b[24m\u001b[39m\u001b[2m (/t)\u001b[22m                                 ",
+    "                                                            "
+   ]
+  },
+  {
+   "name": "v11_nested_reflink_em_label",
+   "md": "[**b [x](/y)**][ref]\n\n[ref]: /t",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "[\u001b[1mb \u001b[34m\u001b[4mx\u001b[24m\u001b[39m\u001b[2m (/y)\u001b[22m\u001b[1m\u001b[22m]\u001b[34m\u001b[4mref\u001b[24m\u001b[39m\u001b[2m (/t)\u001b[22m                                          ",
+    "                                                            "
+   ]
+  },
+  {
+   "name": "v11_image_holding_link",
+   "md": "![alt [x](/y)](/z)",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "alt [x](/y)                                                 "
+   ]
+  },
+  {
+   "name": "v11_image_reflink_holding_link",
+   "md": "![![a](/i)](ref)\n\n[ref]: /t",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "![a](/i)                                                    ",
+    "                                                            "
+   ]
+  },
+  {
+   "name": "v11_mask_escape_pair_em",
+   "md": "*before \\😀\\* after* tail\n\n[id]: /target",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[3mbefore \\😀* after\u001b[23m tail                                      ",
+    "                                                            "
+   ]
+  },
+  {
+   "name": "v11_mask_escape_pair_strong",
+   "md": "**before \\😀\\* after** tail\n\n[id]: /target",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1mbefore \\😀* after\u001b[22m tail                                      ",
+    "                                                            "
+   ]
+  },
+  {
+   "name": "v11_mask_after_escape",
+   "md": "*a* \\😀 tail\n\n[id]: /target",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[3ma\u001b[23m \\😀 tail                                                  ",
+    "                                                            "
+   ]
+  },
+  {
+   "name": "v11_mask_em_high_link",
+   "md": "lead *[😀](/x)*😀 \\😀 \\😀 ",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": true,
+   "expected": [
+    "lead \u001b[3m\u001b]8;;/x\u001b\\\u001b[34m\u001b[4m😀\u001b[24m\u001b[39m\u001b]8;;\u001b\\\u001b[23m😀 \\😀 \\😀             "
+   ]
+  },
+  {
+   "name": "v11_mask_em_low",
+   "md": "lead *a*😀 \\😀",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "lead \u001b[3ma\u001b[23m😀 \\😀                  "
+   ]
+  },
+  {
+   "name": "v11_em_mid_run",
+   "md": "**a*b*c",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "**a\u001b[3mb\u001b[23mc                                   "
+   ]
+  },
+  {
+   "name": "v11_em_mid_run_long",
+   "md": "**a*b*c** d",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1ma\u001b[3mb\u001b[23mc\u001b[22m d                                   "
+   ]
+  },
+  {
+   "name": "v11_em_mid_run_underscore",
+   "md": "__a_b_c__ d",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1ma_b_c\u001b[22m d                                 "
+   ]
+  },
+  {
+   "name": "v11_quote_lazy_restated_marker",
+   "md": "> a\n> > b\nlazy\nlazy2\n> c\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3ma\u001b[23m\u001b[3m\u001b[23m                                                         ",
+    "\u001b[2m│ \u001b[22m                                                          ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mb\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mlazy\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                    ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mlazy2\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                   ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mc\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       "
+   ]
+  },
+  {
+   "name": "v11_quote_lazy_restated_deep",
+   "md": "> x\n> > y\nz\n> w\n> > v\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mx\u001b[23m\u001b[3m\u001b[23m                                                         ",
+    "\u001b[2m│ \u001b[22m                                                          ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3my\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mz\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mw\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mv\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       "
+   ]
+  },
+  {
+   "name": "v11_quote_setext_continuation",
+   "md": "> a\n> > b\ntext\n> ===\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3ma\u001b[23m\u001b[3m\u001b[23m                                                         ",
+    "\u001b[2m│ \u001b[22m                                                          ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mb\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                       ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mtext\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                    ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m\u001b[2m│ \u001b[22m\u001b[3m\u001b[3m    ===\u001b[23m\u001b[3m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[3m\u001b[23m\u001b[3m\u001b[23m                                                 "
+   ]
+  },
+  {
+   "name": "v11_task_then_loose",
+   "md": "- [ ] task\n- x\n  \n  y\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- [ ] \u001b[39mtask                                                  ",
+    "                                                            ",
+    "\u001b[36m- \u001b[39mx                                                         ",
+    "                                                            ",
+    "  y                                                         "
+   ]
+  },
+  {
+   "name": "v11_task_checked_then_loose",
+   "md": "- [x] done\n- x\n\n  y\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- [x] \u001b[39mdone                                                  ",
+    "                                                            ",
+    "\u001b[36m- \u001b[39mx                                                         ",
+    "                                                            ",
+    "  y                                                         "
+   ]
+  },
+  {
+   "name": "v11_task_loose_two_tasks",
+   "md": "- [ ] a\n- [x] b\n- c\n\n  d\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- [ ] \u001b[39ma                                                     ",
+    "                                                            ",
+    "\u001b[36m- [x] \u001b[39mb                                                     ",
+    "                                                            ",
+    "\u001b[36m- \u001b[39mc                                                         ",
+    "                                                            ",
+    "  d                                                         "
+   ]
+  },
+  {
+   "name": "v11_task_tight_unchanged",
+   "md": "- [ ] task\n- plain\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- [ ] \u001b[39mtask                                                  ",
+    "\u001b[36m- \u001b[39mplain                                                     "
+   ]
+  },
+  {
+   "name": "v11_lheading_hash_interrupt",
+   "md": "text\n#abc\n===\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1m\u001b[36m\u001b[1m\u001b[4mtext\u001b[24m\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                        ",
+    "\u001b[1m\u001b[36m\u001b[1m\u001b[4m#abc\u001b[24m\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                        "
+   ]
+  },
+  {
+   "name": "v11_lheading_hash_space_still_interrupts",
+   "md": "text\n# abc\n===\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "text                                                        ",
+    "                                                            ",
+    "\u001b[1m\u001b[36m\u001b[1m\u001b[4mabc\u001b[24m\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                         ",
+    "                                                            ",
+    "===                                                         "
+   ]
+  },
+  {
+   "name": "v11_paragraph_tab_blank_line",
+   "md": "text\n\t\nmore\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "text                                                        ",
+    "                                                            ",
+    "more                                                        "
+   ]
+  },
+  {
+   "name": "v11_fence_eof_interrupt",
+   "md": "para\n```js",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "para                                                        ",
+    "                                                            ",
+    "\u001b[2m```js\u001b[22m                                                       ",
+    "                                                            ",
+    "\u001b[2m```\u001b[22m                                                         "
+   ]
+  },
+  {
+   "name": "v11_fence_eof_tilde",
+   "md": "para\n~~~",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "para                                                        ",
+    "                                                            ",
+    "\u001b[2m```\u001b[22m                                                         ",
+    "                                                            ",
+    "\u001b[2m```\u001b[22m                                                         "
+   ]
+  },
+  {
+   "name": "v11_fence_backtick_info_eof",
+   "md": "para\n```a`b",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "para                                                        ",
+    "```a`b                                                      "
+   ]
+  },
+  {
+   "name": "v11_html_pi_tail",
+   "md": "<?x?>tail\n\nafter\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "<?x?>tail                                                   ",
+    "                                                            ",
+    "after                                                       "
+   ]
+  },
+  {
+   "name": "v11_html_decl_tail",
+   "md": "<!A X>tail\n\nafter\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "<!A X>tail                                                  ",
+    "                                                            ",
+    "after                                                       "
+   ]
+  },
+  {
+   "name": "v11_html_cdata_tail",
+   "md": "<![CDATA[x]]>tail\n\nafter\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "<![CDATA[x]]>tail                                           ",
+    "                                                            ",
+    "after                                                       "
+   ]
+  },
+  {
+   "name": "v11_html_script_tail",
+   "md": "<script>a</script>tail\n\nafter\n",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "<script>a</script>tail                                      ",
+    "                                                            ",
+    "after                                                       "
+   ]
+  }
+ ]
+}

@@ -1,0 +1,264 @@
+{
+  "provenance": {
+    "upstream": "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
+    "sourceSha256": "7d4bf1e4291a5320a1ce27504c488622c9a7307ce9e7c2d973f9d95f18a8b2bc",
+    "sliceSha256": "965476516a3ddf81507f405d3d991c0b280e82bd76bb53088d3d0f5f2d05769b",
+    "method": "Execute actual handleCommand source slice with deterministic session-boundary stubs; Rust consumers use real AgentSessionRuntime. Not a full runRpcMode process oracle."
+  },
+  "cases": [
+    {
+      "name": "abort",
+      "command": {
+        "type": "abort"
+      },
+      "wire": "{\"type\":\"response\",\"command\":\"abort\",\"success\":true}\n",
+      "calls": [
+        "abort"
+      ]
+    },
+    {
+      "name": "abort_retry",
+      "command": {
+        "type": "abort_retry",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"abort_retry\",\"success\":true}\n",
+      "calls": [
+        "abortRetry"
+      ]
+    },
+    {
+      "name": "abort_bash",
+      "command": {
+        "type": "abort_bash",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"abort_bash\",\"success\":true}\n",
+      "calls": [
+        "abortBash"
+      ]
+    },
+    {
+      "name": "clear_empty",
+      "command": {
+        "type": "clear_queue",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"clear_queue\",\"success\":true,\"data\":{\"steering\":[],\"followUp\":[]}}\n",
+      "calls": []
+    },
+    {
+      "name": "model_missing",
+      "command": {
+        "type": "set_model",
+        "provider": "not-there",
+        "modelId": "absent",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_model\",\"success\":false,\"error\":\"Model not found: not-there/absent\"}\n",
+      "calls": []
+    },
+    {
+      "name": "cycle_model_empty",
+      "command": {
+        "type": "cycle_model",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"cycle_model\",\"success\":true,\"data\":null}\n",
+      "calls": []
+    },
+    {
+      "name": "cycle_thinking_empty",
+      "command": {
+        "type": "cycle_thinking_level",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"cycle_thinking_level\",\"success\":true,\"data\":null}\n",
+      "calls": []
+    },
+    {
+      "name": "models_empty",
+      "command": {
+        "type": "get_available_models",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"get_available_models\",\"success\":true,\"data\":{\"models\":[]}}\n",
+      "calls": []
+    },
+    {
+      "name": "messages_empty",
+      "command": {
+        "type": "get_messages",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"get_messages\",\"success\":true,\"data\":{\"messages\":[]}}\n",
+      "calls": []
+    },
+    {
+      "name": "assistant_text_omitted",
+      "command": {
+        "type": "get_last_assistant_text",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"get_last_assistant_text\",\"success\":true,\"data\":{}}\n",
+      "calls": []
+    },
+    {
+      "name": "fork_messages_empty",
+      "command": {
+        "type": "get_fork_messages",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"get_fork_messages\",\"success\":true,\"data\":{\"messages\":[]}}\n",
+      "calls": []
+    },
+    {
+      "name": "entries_missing",
+      "command": {
+        "type": "get_entries",
+        "since": "missing",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"get_entries\",\"success\":false,\"error\":\"Entry not found: missing\"}\n",
+      "calls": []
+    },
+    {
+      "name": "name_empty",
+      "command": {
+        "type": "set_session_name",
+        "name": "",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_session_name\",\"success\":false,\"error\":\"Session name cannot be empty\"}\n",
+      "calls": []
+    },
+    {
+      "name": "name_ascii_empty",
+      "command": {
+        "type": "set_session_name",
+        "name": " \t\r\n",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_session_name\",\"success\":false,\"error\":\"Session name cannot be empty\"}\n",
+      "calls": []
+    },
+    {
+      "name": "name_bom_empty",
+      "command": {
+        "type": "set_session_name",
+        "name": "﻿  ",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_session_name\",\"success\":false,\"error\":\"Session name cannot be empty\"}\n",
+      "calls": []
+    },
+    {
+      "name": "name_bom_trim",
+      "command": {
+        "type": "set_session_name",
+        "name": "﻿ title ﻿",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_session_name\",\"success\":true}\n",
+      "sessionName": "title",
+      "calls": []
+    },
+    {
+      "name": "name_nel_not_trimmed",
+      "command": {
+        "type": "set_session_name",
+        "name": "",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_session_name\",\"success\":true}\n",
+      "sessionName": "",
+      "calls": []
+    },
+    {
+      "name": "name_control_not_trimmed",
+      "command": {
+        "type": "set_session_name",
+        "name": "\u001c title \u001c",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_session_name\",\"success\":true}\n",
+      "sessionName": "\u001c title \u001c",
+      "calls": []
+    },
+    {
+      "name": "auto_compaction",
+      "command": {
+        "type": "set_auto_compaction",
+        "enabled": false,
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_auto_compaction\",\"success\":true}\n",
+      "calls": [
+        [
+          "autoCompaction",
+          false
+        ]
+      ]
+    },
+    {
+      "name": "auto_retry",
+      "command": {
+        "type": "set_auto_retry",
+        "enabled": false,
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_auto_retry\",\"success\":true}\n",
+      "calls": [
+        [
+          "autoRetry",
+          false
+        ]
+      ]
+    },
+    {
+      "name": "steering_mode",
+      "command": {
+        "type": "set_steering_mode",
+        "mode": "all",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_steering_mode\",\"success\":true}\n",
+      "calls": [
+        [
+          "steering",
+          "all"
+        ]
+      ]
+    },
+    {
+      "name": "follow_up_mode",
+      "command": {
+        "type": "set_follow_up_mode",
+        "mode": "all",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_follow_up_mode\",\"success\":true}\n",
+      "calls": [
+        [
+          "followUp",
+          "all"
+        ]
+      ]
+    },
+    {
+      "name": "thinking_level",
+      "command": {
+        "type": "set_thinking_level",
+        "level": "high",
+        "id": "r"
+      },
+      "wire": "{\"id\":\"r\",\"type\":\"response\",\"command\":\"set_thinking_level\",\"success\":true}\n",
+      "calls": [
+        [
+          "thinking",
+          "high"
+        ]
+      ]
+    }
+  ]
+}

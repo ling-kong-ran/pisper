@@ -26,13 +26,9 @@ pub fn now_ms() -> u64 {
 }
 
 pub fn new_id() -> String {
-    // Time-ordered unique id (uuidv7-shaped enough for the API surface).
-    let ms = now_ms();
-    let rand: u64 = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.subsec_nanos() as u64)
-        .unwrap_or(0) ^ (std::process::id() as u64);
-    format!("{ms:012x}-{rand:012x}")
+    // Windows clock resolution can repeat between concurrent runs. Match
+    // release's cryptographically random IDs instead of deriving them from time.
+    uuid::Uuid::new_v4().to_string()
 }
 
 // ---------------------------------------------------------------- schedules
@@ -73,7 +69,11 @@ fn next_run_for(schedule: &str, from_ms: u64) -> Option<u64> {
         let minute: u64 = parts.next()?.trim().parse().ok()?;
         let day_start = from_ms - (from_ms % 86_400_000);
         let target = day_start + hour * 3_600_000 + minute * 60_000;
-        return Some(if target <= from_ms { target + 86_400_000 } else { target });
+        return Some(if target <= from_ms {
+            target + 86_400_000
+        } else {
+            target
+        });
     }
     None
 }
@@ -123,14 +123,20 @@ pub async fn create_schedule(
         name,
         schedule: schedule.clone(),
         prompt,
-        enabled: body.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+        enabled: body
+            .get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
         created_at: now_ms(),
         last_run: None,
         next_run: next_run_for(&schedule, now_ms()),
     };
     schedules.push(rec.clone());
     save_schedules(&state.data_dir, &schedules).map_err(ApiError::internal)?;
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(rec).unwrap())))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::to_value(rec).unwrap()),
+    ))
 }
 
 pub async fn run_schedule(
@@ -373,14 +379,20 @@ pub async fn run_workflow(
         for index in 0..step_count {
             let running = {
                 let mut runs = state.runs.lock().expect("runs lock");
-                let Some(r) = runs.get_mut(&run_id) else { return };
+                let Some(r) = runs.get_mut(&run_id) else {
+                    return;
+                };
                 if r.status != "running" {
                     return;
                 }
                 r.steps[index].status = "running".into();
                 r.steps[index].clone()
             };
-            let prompt = wf.steps.get(index).map(|s| s.prompt.clone()).unwrap_or_default();
+            let prompt = wf
+                .steps
+                .get(index)
+                .map(|s| s.prompt.clone())
+                .unwrap_or_default();
             match state.runtime.session().prompt(prompt, None).await {
                 Ok(()) => {
                     let mut runs = state.runs.lock().expect("runs lock");
@@ -407,7 +419,10 @@ pub async fn run_workflow(
             }
         }
     });
-    Ok((StatusCode::ACCEPTED, Json(serde_json::to_value(run).unwrap())))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::to_value(run).unwrap()),
+    ))
 }
 
 pub async fn get_workflow_run(
@@ -420,13 +435,7 @@ pub async fn get_workflow_run(
         .expect("runs lock")
         .get(&run_id)
         .map(|r| Json(serde_json::to_value(r).unwrap()))
-        .ok_or_else(|| {
-            ApiError::new(
-                StatusCode::NOT_FOUND,
-                "run_not_found",
-                "工作流运行不存在。",
-            )
-        })
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "run_not_found", "工作流运行不存在。"))
 }
 
 pub async fn stop_workflow_run(
@@ -437,9 +446,15 @@ pub async fn stop_workflow_run(
     match runs.get_mut(&run_id) {
         Some(r) if r.status == "running" => {
             r.status = "stopped".into();
-            Ok((StatusCode::ACCEPTED, Json(serde_json::json!({ "stopped": true }))))
+            Ok((
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!({ "stopped": true })),
+            ))
         }
-        Some(_) => Ok((StatusCode::ACCEPTED, Json(serde_json::json!({ "stopped": false })))),
+        Some(_) => Ok((
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({ "stopped": false })),
+        )),
         None => Err(ApiError::new(
             StatusCode::NOT_FOUND,
             "run_not_found",
@@ -521,7 +536,10 @@ pub async fn install_plugin(
     let mut plugins = load_plugins(&state.data_dir);
     plugins.push(rec.clone());
     save_plugins(&state.data_dir, &plugins).map_err(ApiError::internal)?;
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(rec).unwrap())))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::to_value(rec).unwrap()),
+    ))
 }
 
 pub async fn set_plugin_enabled(
@@ -568,7 +586,9 @@ pub async fn uninstall_plugin(
 // ------------------------------------------------------------------- remote
 
 pub async fn remote_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let enabled = state.remote_enabled.load(std::sync::atomic::Ordering::Relaxed);
+    let enabled = state
+        .remote_enabled
+        .load(std::sync::atomic::Ordering::Relaxed);
     Json(serde_json::json!({
         "enabled": enabled,
         "fingerprint": state.fingerprint,
@@ -591,7 +611,10 @@ pub async fn remote_set_enabled(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    let enabled = body.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+    let enabled = body
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     state
         .remote_enabled
         .store(enabled, std::sync::atomic::Ordering::Relaxed);
@@ -622,14 +645,7 @@ pub async fn vcs_changes(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ensure_hosted(&state, &id).await?;
-    let cwd = state.cwd.clone();
-    let status = git(&cwd, &["status", "--porcelain"])?;
-    let stat = git(&cwd, &["diff", "--stat"])?;
-    Ok(Json(serde_json::json!({
-        "status": status.lines().filter(|l| !l.trim().is_empty()).collect::<Vec<_>>(),
-        "diffStat": stat,
-        "clean": status.trim().is_empty(),
-    })))
+    Ok(Json(crate::vcs_ops::get_changes(&state.cwd).await))
 }
 
 pub async fn vcs_commit(
@@ -638,14 +654,11 @@ pub async fn vcs_commit(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ensure_hosted(&state, &id).await?;
-    let cwd = state.cwd.clone();
     let message = body
         .get("message")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| ApiError::bad_request("missing \"message\" field"))?;
-    git(&cwd, &["add", "-A"])?;
-    let out = git(&cwd, &["commit", "-m", message])?;
-    Ok(Json(serde_json::json!({ "committed": true, "output": out })))
+        .unwrap_or("");
+    Ok(Json(crate::vcs_ops::commit(&state.cwd, message).await?))
 }
 
 pub async fn vcs_push(
@@ -653,9 +666,7 @@ pub async fn vcs_push(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ensure_hosted(&state, &id).await?;
-    let cwd = state.cwd.clone();
-    let out = git(&cwd, &["push"])?;
-    Ok(Json(serde_json::json!({ "pushed": true, "output": out })))
+    Ok(Json(crate::vcs_ops::push(&state.cwd).await?))
 }
 
 pub async fn vcs_revert(
@@ -663,10 +674,7 @@ pub async fn vcs_revert(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ensure_hosted(&state, &id).await?;
-    let cwd = state.cwd.clone();
-    let _ = git(&cwd, &["checkout", "--", "."])?;
-    let _ = git(&cwd, &["clean", "-fd"])?;
-    Ok(Json(serde_json::json!({ "reverted": true })))
+    Ok(Json(crate::vcs_ops::revert(&state.cwd).await?))
 }
 
 pub type RunsMap = Mutex<HashMap<String, WorkflowRun>>;
@@ -687,6 +695,9 @@ pub struct ChatRun {
     pub frames: Mutex<Vec<Frame>>,
     pub tx: tokio::sync::broadcast::Sender<Frame>,
     pub closed: std::sync::atomic::AtomicBool,
+    pub cancel: tokio_util::sync::CancellationToken,
+    pub finished: Arc<std::sync::atomic::AtomicBool>,
+    pub settled: Arc<tokio::sync::Notify>,
 }
 
 impl ChatRun {
@@ -728,7 +739,7 @@ pub fn map_pi_event(
                 }
                 "thinking_delta" => {
                     let delta = ae.get("delta")?.as_str()?.to_string();
-                    let start = thinking.chars().count();
+                    let start = thinking.encode_utf16().count();
                     thinking.push_str(&delta);
                     Some((
                         "thinking_patch".into(),
@@ -770,7 +781,9 @@ pub fn map_pi_event(
                 .get("messages")
                 .and_then(|m| m.as_array())
                 .and_then(|msgs| {
-                    msgs.iter().rev().find(|m| m.get("role").and_then(|r| r.as_str()) == Some("assistant"))
+                    msgs.iter()
+                        .rev()
+                        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("assistant"))
                 })
                 .and_then(|m| m.get("content"))
                 .and_then(|c| c.as_array())

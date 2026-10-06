@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "upstream": "https://github.com/microsoft/playwright",
+  "package": "playwright-core",
+  "version": "1.62.1",
+  "source": "packages/playwright-core/src/generated/injectedScriptSource.ts",
+  "bundleSha256": "9393fa79e1c67c74edc26b610d65a4f7ed73d345a762465cc88340a33a2454ac",
+  "scriptSha256": "fc43c7ab27d27b4e2241190a6f7a990089328dc95ca29785eb54ed59159f6315",
+  "bytes": 316714,
+  "license": "Apache-2.0",
+  "runtime": "browser JavaScript only; no Node runtime",
+  "adaptedHelpers": {
+    "fontFamiliesSha256": "23d3a07334fbc286af08461c9c04717b06184a398c77dc690eb30a9367ad108c",
+    "launchSha256": "4b8e07b219c97da380174dbadfaee4a0bfab19d7524e8c576edaba6fd7e6ae3d",
+    "screenshotPrepareSha256": "7c8161f515c89221612f96a12e46f0942a616293000efa74c02b9993a50162d8"
+  }
+}

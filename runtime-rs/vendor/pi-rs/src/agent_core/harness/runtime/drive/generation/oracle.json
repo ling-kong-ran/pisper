@@ -1,0 +1,285 @@
+{
+  "schema": 1,
+  "authority": "unmodified upstream TypeScript business functions; import seams mocked",
+  "sources": {
+    "packages/agent/src/harness/session/types.ts": "5dd08a32b83dce0fd050662488dbd9b015a321eec4644671e51c901a3969fa42",
+    "packages/agent/src/harness/hooks.ts": "1f86b9da3ab1a80b6896bbc409eb020f947b296765e26aa8a3672f75bbbfe8a1",
+    "packages/agent/src/harness/runtime/drive/generation.ts": "c0d6a0c61bdf573fe56f9919111ffef40b6654cc9f38dac4d6d16a1deebd3cf1"
+  },
+  "preparation": [
+    {
+      "input": {
+        "name": "missing-model",
+        "modelId": "missing"
+      },
+      "output": {
+        "kind": "configuration_failure",
+        "error": {
+          "code": "model_unavailable",
+          "message": "The configured model is unavailable in this process",
+          "details": {
+            "provider": "faux",
+            "modelId": "missing"
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "missing-tools-duplicates",
+        "active": [
+          "b",
+          "a",
+          "b"
+        ]
+      },
+      "output": {
+        "kind": "configuration_failure",
+        "error": {
+          "code": "configured_tools_unavailable",
+          "message": "One or more configured tools are unavailable in this process",
+          "details": {
+            "tools": [
+              "b",
+              "a",
+              "b"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "partly-missing",
+        "active": [
+          "a",
+          "b",
+          "b"
+        ],
+        "tools": [
+          {
+            "name": "a",
+            "description": "exists",
+            "parameters": {
+              "type": "object"
+            }
+          }
+        ]
+      },
+      "output": {
+        "kind": "configuration_failure",
+        "error": {
+          "code": "configured_tools_unavailable",
+          "message": "One or more configured tools are unavailable in this process",
+          "details": {
+            "tools": [
+              "b",
+              "b"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "empty"
+      },
+      "output": {
+        "kind": "ready",
+        "tools": [],
+        "systemPrompt": "",
+        "streamOptions": {}
+      }
+    },
+    {
+      "input": {
+        "name": "duplicate-order",
+        "active": [
+          "b",
+          "a",
+          "b"
+        ],
+        "tools": [
+          {
+            "name": "a",
+            "description": "old",
+            "parameters": {
+              "type": "object"
+            }
+          },
+          {
+            "name": "b",
+            "description": "middle",
+            "parameters": {
+              "type": "object"
+            }
+          },
+          {
+            "name": "a",
+            "description": "last",
+            "parameters": {
+              "type": "object"
+            }
+          }
+        ]
+      },
+      "output": {
+        "kind": "ready",
+        "tools": [
+          {
+            "name": "b",
+            "description": "middle",
+            "parameters": {
+              "type": "object"
+            }
+          },
+          {
+            "name": "a",
+            "description": "last",
+            "parameters": {
+              "type": "object"
+            }
+          },
+          {
+            "name": "b",
+            "description": "middle",
+            "parameters": {
+              "type": "object"
+            }
+          }
+        ],
+        "systemPrompt": "",
+        "streamOptions": {}
+      }
+    },
+    {
+      "input": {
+        "name": "prompt",
+        "prompt": "system"
+      },
+      "output": {
+        "kind": "ready",
+        "tools": [],
+        "systemPrompt": "system",
+        "streamOptions": {}
+      }
+    },
+    {
+      "input": {
+        "name": "patch",
+        "prompt": "patched prompt",
+        "base": {
+          "timeoutMs": 123,
+          "headers": {
+            "keep": "yes"
+          },
+          "metadata": {
+            "base": 1
+          }
+        },
+        "patch": {
+          "maxRetries": 2,
+          "headers": {
+            "added": "value"
+          },
+          "metadata": {
+            "next": 2
+          }
+        }
+      },
+      "output": {
+        "kind": "ready",
+        "tools": [],
+        "systemPrompt": "patched prompt",
+        "streamOptions": {
+          "timeoutMs": 123,
+          "headers": {
+            "keep": "yes",
+            "added": "value"
+          },
+          "metadata": {
+            "base": 1,
+            "next": 2
+          },
+          "maxRetries": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "cancel",
+        "cancel": true,
+        "prompt": "never reached"
+      },
+      "output": {
+        "kind": "cancel_requested"
+      }
+    }
+  ],
+  "intent": [
+    {
+      "attempt": 1,
+      "output": {
+        "at": "assistant.effect_pending",
+        "attempt": 1,
+        "intendedOutputLimit": 1234,
+        "contextWindow": 45678,
+        "scopePreserved": true,
+        "distinctIds": true,
+        "sameTimestamp": true,
+        "events": [
+          {
+            "type": "turn_start",
+            "lane": "review",
+            "runIdMatches": true,
+            "turnIdMatches": true
+          }
+        ]
+      }
+    },
+    {
+      "attempt": 2,
+      "output": {
+        "at": "assistant.effect_pending",
+        "attempt": 2,
+        "intendedOutputLimit": 1234,
+        "contextWindow": 45678,
+        "scopePreserved": true,
+        "distinctIds": true,
+        "sameTimestamp": true,
+        "events": []
+      }
+    }
+  ],
+  "retry": [
+    {
+      "future": false,
+      "output": {
+        "kind": "continue",
+        "at": "assistant.ready",
+        "nextAttempt": 2,
+        "scopePreserved": true,
+        "events": [
+          {
+            "type": "retry_start",
+            "lane": "review",
+            "runIdMatches": true,
+            "stepMatches": true,
+            "attempt": 2
+          }
+        ]
+      }
+    },
+    {
+      "future": true,
+      "output": {
+        "kind": "waiting",
+        "reason": "retry",
+        "deadlinePreserved": true,
+        "runIdMatches": true,
+        "unchanged": true,
+        "events": 0
+      }
+    }
+  ]
+}

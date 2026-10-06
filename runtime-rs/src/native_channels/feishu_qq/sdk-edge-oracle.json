@@ -1,0 +1,1084 @@
+{
+  "sdkVersion": "1.72.0",
+  "nodeVersion": "v24.19.0",
+  "markdown": [
+    {
+      "name": "ordinary",
+      "input": "# title\n## two\n```rust\n# protected\n```",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n##### two\n```rust\n# protected\n```"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "unclosed",
+      "input": "# title\n```rust\n# exposed\n## exposed too\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n```rust\n#### exposed\n##### exposed too\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "four_fence",
+      "input": "# title\n````rust\n# protected\n````\n# after",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n````rust\n# protected\n````\n#### after"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "shorter_close",
+      "input": "# title\n````rust\n# protected\n```\n# after",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n````rust\n# protected\n```\n#### after"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "longer_close",
+      "input": "# title\n```rust\n# exposed\n````\n# after",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n```rust\n#### exposed\n````\n#### after"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "indented",
+      "input": "# title\n ```rust\n# exposed\n ```\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n ```rust\n#### exposed\n ```\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "language_space",
+      "input": "# title\n``` rust extra\n# protected\n```\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n``` rust extra\n# protected\n```\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tilde",
+      "input": "# title\n~~~rust\n# exposed\n~~~\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n~~~rust\n#### exposed\n~~~\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "empty_fence",
+      "input": "# title\n```\n```\n# after",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n```\n```\n#### after"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "closed_heading_only",
+      "input": "```rust\n# protected\n```\n#### demoted",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\n# protected\n```\n##### demoted"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "empty_heading",
+      "input": "# \n## \n### text\n###### text\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "# \n## \n##### text\n##### text\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "crlf",
+      "input": "# title\r\n```rust\r\n# exposed\r\n```\r\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\r\n```rust\r\n#### exposed\r\n```\r\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "line_separators",
+      "input": "# one\r## two ### three #### four\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### one\r##### two ##### three ##### four\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "literal_placeholder",
+      "input": "___CB_0___\n```rust\n# protected\n```\n# after",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\n# protected\n```\n___CB_0___\n#### after"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "blank_lines",
+      "input": "# title\n\n\n\n```rust\na\n\n\n\nb\n```\n\n\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n\n```rust\na\n\nb\n```\n\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "chunk_unclosed",
+      "input": "# title\n```rust\n12345678901234567890\n# heading\nend\n",
+      "limit": 24,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n```rust\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\n12345678901234567890\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\n# heading\nend\n\n```"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "chunk_unicode",
+      "input": "😀😀😀😀\n```c_1\n😀😀😀😀\n# heading\n```\nend\n",
+      "limit": 16,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "😀😀😀😀\n```c_1\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```c_1\n😀😀😀😀\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```c_1\n# heading\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```c_1\n```\nend\n"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "chunk_fence_cr",
+      "input": "```rust\r\n123456789012345\n# inside\n```\r\nend",
+      "limit": 16,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\r"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "123456789012345"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### inside\n```\r"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "end"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "oversized_line",
+      "input": "```rust\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nend\n```",
+      "limit": 16,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\nend\n```"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "production_chunk",
+      "input": "# title\n```rust\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n# inside\nend\n",
+      "limit": 3500,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### title\n```rust\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n```"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "```rust\n# inside\nend\n\n```"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "fractional_near_full",
+      "input": "1234567890123\n# heading\nend",
+      "limit": 17,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "1234567890123"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "#### heading\nend"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "nonascii_heading_space",
+      "input": "1234567890123\n# heading\nend",
+      "limit": 17,
+      "posts": [
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "1234567890123"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "zh_cn": {
+            "title": "",
+            "content": [
+              [
+                {
+                  "tag": "md",
+                  "text": "# heading\nend"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "malformed": [
+    {
+      "name": "absent",
+      "event": {
+        "message": {
+          "message_id": "om_absent",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        }
+      },
+      "error": {
+        "code": "unknown",
+        "message": "Cannot read properties of undefined (reading 'sender_id')"
+      },
+      "emitted": 0,
+      "ack": {
+        "code": 200
+      },
+      "value": null
+    },
+    {
+      "name": "null",
+      "event": {
+        "message": {
+          "message_id": "om_null",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        },
+        "sender": null
+      },
+      "error": {
+        "code": "unknown",
+        "message": "Cannot read properties of null (reading 'sender_id')"
+      },
+      "emitted": 0,
+      "ack": {
+        "code": 200
+      },
+      "value": null
+    },
+    {
+      "name": "empty",
+      "event": {
+        "message": {
+          "message_id": "om_empty",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        },
+        "sender": {}
+      },
+      "error": {
+        "code": "unknown",
+        "message": "Cannot read properties of undefined (reading 'open_id')"
+      },
+      "emitted": 0,
+      "ack": {
+        "code": 200
+      },
+      "value": null
+    },
+    {
+      "name": "sender_id_null",
+      "event": {
+        "message": {
+          "message_id": "om_sender_id_null",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        },
+        "sender": {
+          "sender_id": null
+        }
+      },
+      "error": {
+        "code": "unknown",
+        "message": "Cannot read properties of null (reading 'open_id')"
+      },
+      "emitted": 0,
+      "ack": {
+        "code": 200
+      },
+      "value": null
+    },
+    {
+      "name": "scalar_sender",
+      "event": {
+        "message": {
+          "message_id": "om_scalar_sender",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        },
+        "sender": true
+      },
+      "error": {
+        "code": "unknown",
+        "message": "Cannot read properties of undefined (reading 'open_id')"
+      },
+      "emitted": 0,
+      "ack": {
+        "code": 200
+      },
+      "value": null
+    },
+    {
+      "name": "scalar_sender_id",
+      "event": {
+        "message": {
+          "message_id": "om_scalar_sender_id",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        },
+        "sender": {
+          "sender_id": 7
+        }
+      },
+      "error": null,
+      "emitted": 1,
+      "ack": {
+        "code": 200
+      },
+      "value": {
+        "messageId": "om_scalar_sender_id",
+        "chatId": "oc_synthetic",
+        "chatType": "p2p",
+        "senderId": "",
+        "content": "synthetic",
+        "rawContentType": "text",
+        "resources": [],
+        "mentions": [],
+        "mentionAll": false,
+        "mentionedBot": false,
+        "createTime": 0,
+        "peerId": "oc_synthetic"
+      }
+    },
+    {
+      "name": "empty_sender_id",
+      "event": {
+        "message": {
+          "message_id": "om_empty_sender_id",
+          "chat_id": "oc_synthetic",
+          "chat_type": "p2p",
+          "message_type": "text",
+          "content": "{\"text\":\"synthetic\"}",
+          "create_time": "0"
+        },
+        "sender": {
+          "sender_id": {}
+        }
+      },
+      "error": null,
+      "emitted": 1,
+      "ack": {
+        "code": 200
+      },
+      "value": {
+        "messageId": "om_empty_sender_id",
+        "chatId": "oc_synthetic",
+        "chatType": "p2p",
+        "senderId": "",
+        "content": "synthetic",
+        "rawContentType": "text",
+        "resources": [],
+        "mentions": [],
+        "mentionAll": false,
+        "mentionedBot": false,
+        "createTime": 0,
+        "peerId": "oc_synthetic"
+      }
+    }
+  ],
+  "fragments": {
+    "intervalMs": 10000,
+    "operations": [
+      {
+        "at": 1000,
+        "action": "merge",
+        "id": "late",
+        "seq": 0,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 10000,
+        "action": "sweep",
+        "id": "late",
+        "seq": null,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 11001,
+        "action": "merge",
+        "id": "late",
+        "seq": 1,
+        "result": {
+          "ok": true
+        },
+        "cached": false
+      },
+      {
+        "at": 12000,
+        "action": "merge",
+        "id": "expired",
+        "seq": 0,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 20000,
+        "action": "sweep",
+        "id": "expired",
+        "seq": null,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 22001,
+        "action": "inspect",
+        "id": "expired",
+        "seq": null,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 30000,
+        "action": "sweep",
+        "id": "expired",
+        "seq": null,
+        "result": null,
+        "cached": false
+      },
+      {
+        "at": 30000,
+        "action": "merge",
+        "id": "boundary",
+        "seq": 0,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 40000,
+        "action": "sweep",
+        "id": "boundary",
+        "seq": null,
+        "result": null,
+        "cached": true
+      },
+      {
+        "at": 50000,
+        "action": "sweep",
+        "id": "boundary",
+        "seq": null,
+        "result": null,
+        "cached": false
+      }
+    ]
+  },
+  "redirects": [
+    {
+      "path": "/relative",
+      "body": "synthetic media body",
+      "error": null,
+      "requests": [
+        "/relative",
+        "/final"
+      ]
+    },
+    {
+      "path": "/absolute",
+      "body": "synthetic media body",
+      "error": null,
+      "requests": [
+        "/absolute",
+        "/final"
+      ]
+    },
+    {
+      "path": "/host-change",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "requests": [
+        "/host-change"
+      ]
+    },
+    {
+      "path": "/chain?n=21",
+      "body": "synthetic media body",
+      "error": null,
+      "requests": [
+        "/chain?n=21",
+        "/chain?n=20",
+        "/chain?n=19",
+        "/chain?n=18",
+        "/chain?n=17",
+        "/chain?n=16",
+        "/chain?n=15",
+        "/chain?n=14",
+        "/chain?n=13",
+        "/chain?n=12",
+        "/chain?n=11",
+        "/chain?n=10",
+        "/chain?n=9",
+        "/chain?n=8",
+        "/chain?n=7",
+        "/chain?n=6",
+        "/chain?n=5",
+        "/chain?n=4",
+        "/chain?n=3",
+        "/chain?n=2",
+        "/chain?n=1",
+        "/chain?n=0"
+      ]
+    },
+    {
+      "path": "/chain?n=22",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_FR_TOO_MANY_REDIRECTS",
+          "message": "Maximum number of redirects exceeded"
+        }
+      },
+      "requests": [
+        "/chain?n=22",
+        "/chain?n=21",
+        "/chain?n=20",
+        "/chain?n=19",
+        "/chain?n=18",
+        "/chain?n=17",
+        "/chain?n=16",
+        "/chain?n=15",
+        "/chain?n=14",
+        "/chain?n=13",
+        "/chain?n=12",
+        "/chain?n=11",
+        "/chain?n=10",
+        "/chain?n=9",
+        "/chain?n=8",
+        "/chain?n=7",
+        "/chain?n=6",
+        "/chain?n=5",
+        "/chain?n=4",
+        "/chain?n=3",
+        "/chain?n=2",
+        "/chain?n=1"
+      ]
+    },
+    {
+      "path": "/loop",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_FR_TOO_MANY_REDIRECTS",
+          "message": "Maximum number of redirects exceeded"
+        }
+      },
+      "requests": [
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop",
+        "/loop"
+      ]
+    },
+    {
+      "path": "/no-location",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_BAD_RESPONSE",
+          "message": "Request failed with status code 302"
+        }
+      },
+      "requests": [
+        "/no-location"
+      ]
+    },
+    {
+      "path": "/failed",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_BAD_REQUEST",
+          "message": "Request failed with status code 404"
+        }
+      },
+      "requests": [
+        "/failed"
+      ]
+    },
+    {
+      "path": "/cross-protocol",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_FR_REDIRECTION_FAILURE",
+          "message": "Redirected request failed: Protocol \"https:\" not supported. Expected \"http:\""
+        }
+      },
+      "requests": [
+        "/cross-protocol"
+      ]
+    },
+    {
+      "path": "/dns-source",
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "requests": []
+    }
+  ]
+}

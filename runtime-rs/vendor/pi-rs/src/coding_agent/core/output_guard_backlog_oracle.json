@@ -1,0 +1,35 @@
+{
+  "source": "packages/coding-agent/src/core/output-guard.ts",
+  "sourceHash": "68c0e9a7533f0cf7270bb50a7558185a9f9a0f71304c85bb438dd620161a4f04",
+  "node": "v25.8.2",
+  "libuv": "1.51.0",
+  "cases": [
+    {
+      "name": "success_backlog",
+      "count": 4096,
+      "writes": 4097,
+      "ordered": true,
+      "first": "0",
+      "last": "",
+      "failure": null,
+      "exits": 0,
+      "exitCodes": []
+    },
+    {
+      "name": "fatal_backlog",
+      "count": 4096,
+      "writes": 1,
+      "ordered": true,
+      "first": "0",
+      "last": "0",
+      "failure": {
+        "message": "backlog failure",
+        "code": "EPIPE"
+      },
+      "exits": 4096,
+      "exitCodes": [
+        1
+      ]
+    }
+  ]
+}

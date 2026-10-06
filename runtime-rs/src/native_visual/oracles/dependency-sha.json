@@ -1,0 +1,47 @@
+{
+  "ReferenceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "Sources": [
+    {
+      "File": "index.mjs",
+      "Sha256": "80b5241f65e539c597295c383b97a2caf09d9759911e9670b75c43bccc3b67fc"
+    },
+    {
+      "File": "model-selection.mjs",
+      "Sha256": "1a67aaa969b404c0ab1b4dcd4a84bac8bb4d4bef22e3e1dba7b28f22cdabdb3b"
+    },
+    {
+      "File": "source-images.mjs",
+      "Sha256": "5c46686218afea77b83884d55565a9011d0b13c54b9e8ab9b2721e856d922d4d"
+    },
+    {
+      "File": "driver-registry.mjs",
+      "Sha256": "837b1c5e1e13c495a8bc102f40a12c0b7b3fa22084d8182a6460932b0d68e3a5"
+    },
+    {
+      "File": "protocol-detection.mjs",
+      "Sha256": "1e7b259166301fb661809992fb773c33dda93e82bc5a0d2ce314e37c05f1896c"
+    },
+    {
+      "File": "openai-compatible.mjs",
+      "Sha256": "3356d27234439bd231aca7e4bf1ec4f0c676dd75300f87afcf7c9d58a4f1607d"
+    },
+    {
+      "File": "google.mjs",
+      "Sha256": "6274bee6c11d1a36fc5f55a97a7ea1401b168611cbb4b90a71c6184465ca0ac6"
+    },
+    {
+      "File": "xai.mjs",
+      "Sha256": "1211d4fd703e6742c45f397405da72d94e2022c163cf8618d2eb8514d8d54735"
+    },
+    {
+      "File": "new-api.mjs",
+      "Sha256": "14b88a02e362ca0d15b698425a553c503c64cc7171147ebda7399501d42f4b1e"
+    },
+    {
+      "File": "output.mjs",
+      "Sha256": "86ab924874e0d86b39cc20c1d386da642c4bb0c6140ed8b0b7584c2c74195af9"
+    }
+  ],
+  "CargoLockSha256": "79697214397e80bfbcda33ddfdc249503481bfcff2d9f07192c142938c631847",
+  "CargoManifestSha256": "4e8cc3b665d96926c93733c535cbd9d0c8df84aa127ad6254fe332750ebda8ed"
+}

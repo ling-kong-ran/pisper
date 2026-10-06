@@ -1,0 +1,2504 @@
+{
+  "sdkVersion": "1.72.0",
+  "axiosVersion": "1.19.0",
+  "proxyFromEnvVersion": "2.1.0",
+  "nodeVersion": "v24.19.0",
+  "cases": [
+    {
+      "name": "direct_http_ip",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {},
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "direct_http_dns",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {},
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": ""
+        }
+      ],
+      "records": []
+    },
+    {
+      "name": "direct_https_ip",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {},
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "direct_https_dns",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {},
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": ""
+        }
+      ],
+      "records": []
+    },
+    {
+      "name": "HTTP_PROXY_http_ip",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "HTTP_PROXY_http_dns",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "http_proxy_http_ip",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "http_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "http_proxy_http_dns",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "http_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "ALL_PROXY_http_ip",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "ALL_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "ALL_PROXY_http_dns",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "ALL_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "all_proxy_http_ip",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "all_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "all_proxy_http_dns",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "all_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "HTTPS_PROXY_https_ip",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "HTTPS_PROXY_https_dns",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_proxy_https_ip",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {
+        "https_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_proxy_https_dns",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "https_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "ALL_PROXY_https_ip",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {
+        "ALL_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "ALL_PROXY_https_dns",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "ALL_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "all_proxy_https_ip",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {
+        "all_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "all_proxy_https_dns",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "all_proxy": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "http_ignores_https_proxy",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_ignores_http_proxy",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "lowercase_http_precedence",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "http_proxy": "@HTTP_PROXY_2@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY_2@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY_2",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "scheme_over_all",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY_2@",
+        "ALL_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY_2@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY_2",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "http_proxy_dns_agent_defect",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY_DNS@"
+      },
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY_DNS@"
+        }
+      ],
+      "records": []
+    },
+    {
+      "name": "http_via_https_proxy_agent_defect",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_PROTOCOL",
+          "message": "Protocol \"https:\" not supported. Expected \"http:\""
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": []
+    },
+    {
+      "name": "https_via_dns_proxy",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY_DNS@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY_DNS@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_via_https_proxy",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTPS_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "http_schemeless_proxy",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY_AUTHORITY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "http_proxy_auth",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY_AUTH@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY_AUTH@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": "Basic c3ludGhldGljOnByb3h5LW9ubHk="
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_proxy_auth",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY_AUTH@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY_AUTH@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": "Basic c3ludGhldGljOnByb3h5LW9ubHk="
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_wildcard",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "*"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_exact_ip",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "127.0.0.1"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_loopback_equivalent",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "localhost"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_port_match",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "127.0.0.1:@HTTP_ORIGIN_PORT@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_port_mismatch",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "127.0.0.1:1"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_comma_and_spaces",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "other.invalid, localhost other2.invalid"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "lowercase_no_proxy_precedence",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "*",
+        "no_proxy": "other.invalid"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_dns_direct_defect",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "localhost"
+      },
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": ""
+        }
+      ],
+      "records": []
+    },
+    {
+      "name": "proxy_http_redirect_dns",
+      "source": "@HTTP_ORIGIN@/redirect?to=%40HTTP_REDIRECT_DNS%40%2Ffinal",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_REDIRECT_DNS@/final",
+          "host": "redirect.invalid:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "redirect.invalid:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "direct_then_proxy_dns",
+      "source": "@HTTP_ORIGIN@/redirect?to=%40HTTP_REDIRECT_DNS%40%2Ffinal",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "127.0.0.1"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "proxy": ""
+        },
+        {
+          "url": "@HTTP_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_REDIRECT_DNS@/final",
+          "host": "redirect.invalid:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "redirect.invalid:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_then_direct_dns_defect",
+      "source": "@HTTP_ORIGIN@/redirect?to=%40HTTP_REDIRECT_DNS%40%2Ffinal",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": ".invalid"
+      },
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_INVALID_IP_ADDRESS",
+          "message": "Invalid IP address: undefined"
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_REDIRECT_DNS@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_http_to_https",
+      "source": "@HTTP_ORIGIN@/redirect?to=%40HTTPS_ORIGIN%40%2Ffinal",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/redirect?to=@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/redirect?to=@HTTPS_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTPS_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_https_to_http_agent_defect",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Ffinal",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_FR_REDIRECTION_FAILURE",
+          "message": "Redirected request failed: Protocol \"http:\" not supported. Expected \"https:\""
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_https_redirect_dns",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTPS_REDIRECT_DNS%40%2Ffinal",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTPS_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTPS_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTPS_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "redirect.invalid:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "redirect.invalid:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_https_to_no_proxy_retains_tunnel",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTPS_REDIRECT_DNS%40%2Ffinal",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": ".invalid"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTPS_REDIRECT_DNS@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTPS_REDIRECT_DNS@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTPS_REDIRECT_DNS@/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "redirect.invalid:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "redirect.invalid:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "direct_http_to_https_proxy",
+      "source": "@HTTP_ORIGIN@/redirect?to=%40HTTPS_ORIGIN%40%2Ffinal",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/redirect?to=@HTTPS_ORIGIN@/final",
+          "proxy": ""
+        },
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTPS_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "direct_https_to_http_proxy_agent_defect",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Ffinal",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": null,
+      "error": {
+        "code": "upload_failed",
+        "message": "fetch source URL failed",
+        "cause": {
+          "code": "ERR_FR_REDIRECTION_FAILURE",
+          "message": "Redirected request failed: Protocol \"http:\" not supported. Expected \"https:\""
+        }
+      },
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/final",
+          "proxy": ""
+        },
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_redirect_http_through_https_proxy_retains_tunnel",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Ffinal",
+      "env": {
+        "HTTPS_PROXY": "@HTTPS_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/final",
+          "proxy": "@HTTPS_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTPS_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "https_redirect_http_changes_proxy_retains_tunnel",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Ffinal",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/final",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_ipv4_shorthand",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "127.1"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_ipv4_hex",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "127.0x1"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_ipv6_loopback",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "[::1]"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_mapped_ipv6",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "::ffff:127.0.0.1"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "no_proxy_trailing_dot",
+      "source": "@HTTP_ORIGIN@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@",
+        "NO_PROXY": "localhost."
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_gzip_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fgzip",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/gzip",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/gzip",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/gzip",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/gzip",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/gzip",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_deflate_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fdeflate",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/deflate",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/deflate",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/deflate",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/deflate",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/deflate",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_br_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fbr",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/br",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/br",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/br",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/br",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/br",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_chunked_gzip_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fgzip%3Fchunked%3D1",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/gzip?chunked=1",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/gzip?chunked=1",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/gzip?chunked=1",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/gzip?chunked=1",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/gzip?chunked=1",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_zstd_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fzstd",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/zstd",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/zstd",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/zstd",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/zstd",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/zstd",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_zstd_body",
+      "source": "@HTTP_ORIGIN_DNS@/body/zstd",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/body/zstd",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/body/zstd",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/zstd",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_x-gzip_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fx-gzip",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/x-gzip",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/x-gzip",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/x-gzip",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/x-gzip",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/x-gzip",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_x-gzip_body",
+      "source": "@HTTP_ORIGIN_DNS@/body/x-gzip",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/body/x-gzip",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/body/x-gzip",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/x-gzip",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_compress_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fcompress",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/compress",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/compress",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/compress",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/compress",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/compress",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_compress_body",
+      "source": "@HTTP_ORIGIN_DNS@/body/compress",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/body/compress",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/body/compress",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/compress",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_x-compress_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fx-compress",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/x-compress",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/x-compress",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/x-compress",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/x-compress",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/x-compress",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_x-compress_body",
+      "source": "@HTTP_ORIGIN_DNS@/body/x-compress",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/body/x-compress",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/body/x-compress",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/x-compress",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "nested_raw-deflate_body",
+      "source": "@HTTPS_ORIGIN@/redirect?to=%40HTTP_ORIGIN%40%2Fbody%2Fraw-deflate",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY@",
+        "HTTP_PROXY": "@HTTPS_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/redirect?to=@HTTP_ORIGIN@/body/raw-deflate",
+          "proxy": "@HTTP_PROXY@"
+        },
+        {
+          "url": "@HTTP_ORIGIN@/body/raw-deflate",
+          "proxy": "@HTTPS_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/redirect?to=@HTTP_ORIGIN@/body/raw-deflate",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "127.0.0.1:@HTTPS_PROXY_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTPS_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN@/body/raw-deflate",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/raw-deflate",
+          "host": "127.0.0.1:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "proxy_raw-deflate_body",
+      "source": "@HTTP_ORIGIN_DNS@/body/raw-deflate",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/body/raw-deflate",
+          "proxy": "@HTTP_PROXY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/body/raw-deflate",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/body/raw-deflate",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "extra_ca_environment",
+      "source": "@HTTPS_ORIGIN@/final",
+      "env": {
+        "NODE_EXTRA_CA_CERTS": "@OWNED_CA_CERT@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN@/final",
+          "proxy": ""
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "127.0.0.1:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "encoded_http_proxy_auth",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY_AUTH_ENCODED@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY_AUTH_ENCODED@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": "Basic c3ludGhldGljJTQwdXNlcjpwcm94eSUzQW9ubHk="
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "encoded_https_proxy_auth",
+      "source": "@HTTPS_ORIGIN_DNS@/final",
+      "env": {
+        "HTTPS_PROXY": "@HTTP_PROXY_AUTH_ENCODED@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTPS_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY_AUTH_ENCODED@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "CONNECT",
+          "target": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": "Basic c3ludGhldGljJTQwdXNlcjpwcm94eSUzQW9ubHk="
+        },
+        {
+          "server": "HTTPS_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTPS_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    },
+    {
+      "name": "password_only_proxy_has_no_auth",
+      "source": "@HTTP_ORIGIN_DNS@/final",
+      "env": {
+        "HTTP_PROXY": "@HTTP_PROXY_PASSWORD_ONLY@"
+      },
+      "body": "synthetic proxied media",
+      "error": null,
+      "candidates": [
+        {
+          "url": "@HTTP_ORIGIN_DNS@/final",
+          "proxy": "@HTTP_PROXY_PASSWORD_ONLY@"
+        }
+      ],
+      "records": [
+        {
+          "server": "HTTP_PROXY",
+          "method": "GET",
+          "target": "@HTTP_ORIGIN_DNS@/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        },
+        {
+          "server": "HTTP_ORIGIN",
+          "method": "GET",
+          "path": "/final",
+          "host": "localhost:@HTTP_ORIGIN_PORT@",
+          "proxyAuthorization": null
+        }
+      ]
+    }
+  ]
+}

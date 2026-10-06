@@ -5,6 +5,11 @@ edition = "2021"
 description = "Pisper Rust backend: HTTP/SSE runtime server powered by the pi-rs engine (replaces the Node.js runtime/ layer)."
 license = "MIT"
 
+[workspace]
+members = ["vendor/pi-rs"]
+default-members = ["."]
+resolver = "2"
+
 [dependencies]
 pi-rs = "0.2.2"
 axum = "0.8"
@@ -14,15 +19,61 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 futures = "0.3"
 tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["rt", "io"] }
 anyhow = "1"
+getrandom = "0.2"
+subtle = "2.6"
 sha2 = "0.11"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "multipart", "gzip", "brotli", "deflate"] }
+flate2 = "1"
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+unicode-normalization = "0.1"
+regex = "1"
+base64 = "0.22.1"
+aes = "=0.8.4"
+cipher = { version = "=0.4.4", features = ["alloc", "block-padding"] }
+ecb = { version = "=0.1.2", features = ["alloc"] }
+md-5 = "=0.10.6"
+aes-gcm = "=0.10.3"
+prost = "=0.14.4"
+tokio-tungstenite = { version = "=0.30.0", features = ["rustls-tls-native-roots"] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "=1.0.9"
+brotli = "=9.0.0"
+zstd = "=0.14.0"
+async-compression = { version = "=0.4.50", features = ["tokio", "gzip", "zlib", "deflate", "brotli", "zstd"] }
+qrcode = { version = "=0.14.1", default-features = false }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+rquickjs = { version = "=0.14.0", features = ["loader"] }
+jsonschema = { version = "=0.58.5", default-features = false }
+icu_collator = "=2.3.1"
+icu_locale_core = "=2.3.0"
+quick-xml = "=0.42.0"
+lol_html = "=2.7.0"
+html5ever = "=0.38.0"
+pdf-extract = "=0.12.0"
+libloading = "0.8"
+libc = "0.2"
+tar = "0.4"
+bzip2 = "0.6"
+toml = "1.0"
+tract = { version = "0.23.8", default-features = false, features = ["onnx"] }
 
 [dev-dependencies]
-reqwest = { version = "0.12", features = ["json"] }
 tower = { version = "0.5", features = ["util"] }
+tokio = { version = "1", features = ["test-util"] }
 
 [[bin]]
 name = "pisper-server"
 path = "src/main.rs"
+
+[patch.crates-io]
+# pi-rs 0.2.2 native MCP fixes documented in vendor/pi-rs/PISPER-PATCHES.md.
+pi-rs = { path = "vendor/pi-rs" }

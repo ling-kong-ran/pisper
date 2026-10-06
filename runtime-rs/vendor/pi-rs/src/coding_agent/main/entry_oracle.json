@@ -1,0 +1,443 @@
+{
+  "provenance": {
+    "sources": {
+      "main.ts": "f985c35a729c2234ddf634c490bf214b9cdc2670489fae1f5eea570e45d5a5ff",
+      "cli/args.ts": "f8ba813e8acb43d33b42dff087b05fa3784fc24e6428026d13abe007993bab73",
+      "cli/auth-command.ts": "c313c83c6a8981cad0872be8d753a2efa049c1fbb7c216fc01f2b0f0c262b9be",
+      "cli/initial-message.ts": "b9df15ffa8769bf419c411cd152c8b807dd0bc2997b6ed3638c2f02376a9b43f",
+      "core/session-manager.ts": "450d82c529933214e088b8422f00061815e617f352f6c834689787a314064bff"
+    },
+    "boundary": "Executes upstream main() and runAuthCommand() with real argument/auth parser, ID validator, initial-message builder and main helpers. Runtime/services/session discovery/theme/migrations and model/auth IO are explicit injected boundaries; dispatch/stdio/exit only, not evidence those dependencies execute in Rust. Real native runtime/session/IO integration is tested separately. Chalk disabled."
+  },
+  "main": [
+    {
+      "id": "version",
+      "argv": [
+        "--version"
+      ],
+      "stdout": "0.85.1\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "rpc-file",
+      "argv": [
+        "--mode",
+        "rpc",
+        "@missing"
+      ],
+      "stdout": "",
+      "stderr": "Error: @file arguments are not supported in RPC mode\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "fork-conflict",
+      "argv": [
+        "--fork",
+        "source",
+        "--no-session"
+      ],
+      "stdout": "",
+      "stderr": "Error: --fork cannot be combined with --no-session\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "invalid-session-id",
+      "argv": [
+        "--session-id",
+        "../bad"
+      ],
+      "stdout": "",
+      "stderr": "Error: Session id must be non-empty, contain only alphanumeric characters, '-', '_', and '.', and start and end with an alphanumeric character\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "help",
+      "argv": [
+        "--help"
+      ],
+      "stdout": "pi - AI coding assistant with read, bash, edit, write tools\n\nUsage:\n  pi [options] [--] [@files...] [messages...]\n\nCommands:\n  pi install <source> [-l]     Install extension source and add to settings\n  pi remove <source> [-l]      Remove extension source from settings\n  pi uninstall <source> [-l]   Alias for remove\n  pi update [source|self|pi]   Update pi, extensions, or model catalogs\n  pi list                      List installed extensions from settings\n  pi config [-l]               Open TUI to enable/disable package resources (Tab switches scope)\n  pi auth <command>            Print credentials or check provider readiness\n  pi <command> --help          Show help for install/remove/uninstall/update/list/config/auth\n\nOptions:\n  --provider <name>              Provider name (default: google)\n  --model <pattern>              Model pattern or ID (supports \"provider/id\" and optional \":<thinking>\")\n  --api-key <key>                API key (defaults to env vars)\n  --system-prompt <text>         System prompt (default: coding assistant prompt)\n  --append-system-prompt <text>  Append text or file contents to the system prompt (can be used multiple times)\n  --mode <mode>                  Output mode: text (default), json, or rpc\n  --print, -p                    Non-interactive mode: process prompt and exit\n  --continue, -c                 Continue previous session\n  --resume, -r                   Select a session to resume\n  --session <path|id>            Use specific session file or partial UUID\n  --session-id <id>              Use exact project session ID, creating it if missing\n  --fork <path|id>               Fork specific session file or partial UUID into a new session\n  --session-dir <dir>            Directory for session storage and lookup\n  --no-session                   Don't save session (ephemeral)\n  --name, -n <name>              Set session display name\n  --models <patterns>            Comma-separated model patterns for Ctrl+P cycling\n                                 Supports globs (anthropic/*, *sonnet*) and fuzzy matching\n  --no-tools, -nt                Disable all tools by default (built-in and extension)\n  --no-builtin-tools, -nbt       Disable built-in tools by default but keep extension/custom tools enabled\n  --tools, -t <tools>            Comma-separated allowlist of tool names to enable\n                                 Applies to built-in, extension, and custom tools\n  --exclude-tools, -xt <tools>   Comma-separated denylist of tool names to disable\n                                 Applies to built-in, extension, and custom tools\n  --thinking <level>             Set thinking level: off, minimal, low, medium, high, xhigh, max\n  --extension, -e <path>         Load an extension file (can be used multiple times)\n  --no-extensions, -ne           Disable extension discovery (explicit -e paths still work)\n  --skill <path>                 Load a skill file or directory (can be used multiple times)\n  --no-skills, -ns               Disable skills discovery and loading\n  --prompt-template <path>       Load a prompt template file or directory (can be used multiple times)\n  --no-prompt-templates, -np     Disable prompt template discovery and loading\n  --theme <path>                 Load a theme file or directory (can be used multiple times)\n  --use-theme <name[/name]>      Set the initial interactive theme for this run\n  --no-themes                    Disable theme discovery and loading\n  --no-context-files, -nc        Disable AGENTS.md and CLAUDE.md discovery and loading\n  --export <file>                Export session file to HTML and exit\n  --list-models [search]         List available models (with optional fuzzy search)\n  --verbose                      Force verbose startup (overrides quietStartup setting)\n  --tui-mode <mode>              TUI mode: regular (default) or fullscreen\n  --approve, -a                  Trust project-local files for this run\n  --no-approve, -na              Ignore project-local files for this run\n  --offline                      Disable startup network operations (same as PI_OFFLINE=1)\n  --                             End option parsing; treat remaining arguments as messages/files\n  --help, -h                     Show this help\n  --version, -v                  Show version number\n\nExtensions can register additional flags (e.g., --plan from plan-mode extension).\n\nExamples:\n  # Print a provider API key for an external client\n  pi auth print-api-key --provider openai\n\n  # Print an OAuth bearer token for an external client (refreshes if expired)\n  pi auth print-bearer-token --provider openai-codex\n\n  # Interactive mode\n  pi\n\n  # Interactive mode with initial prompt\n  pi \"List all .ts files in src/\"\n\n  # Include files in initial message\n  pi @prompt.md @image.png \"What color is the sky?\"\n\n  # Non-interactive mode (process and exit)\n  pi -p \"List all .ts files in src/\"\n\n  # Prompt beginning with a dash\n  pi -p -- \"- Summarize these points\"\n\n  # Multiple messages (interactive)\n  pi \"Read package.json\" \"What dependencies do we have?\"\n\n  # Continue previous session\n  pi --continue \"What did we discuss?\"\n\n  # Start a named session\n  pi --name \"Refactor auth module\"\n\n  # Use different model\n  pi --provider openai --model gpt-4o-mini \"Help me refactor this code\"\n\n  # Use model with provider prefix (no --provider needed)\n  pi --model openai/gpt-4o \"Help me refactor this code\"\n\n  # Use model with thinking level shorthand\n  pi --model sonnet:high \"Solve this complex problem\"\n\n  # Limit model cycling to specific models\n  pi --models claude-sonnet,claude-haiku,gpt-4o\n\n  # Limit to a specific provider with glob pattern\n  pi --models \"github-copilot/*\"\n\n  # Cycle models with fixed thinking levels\n  pi --models sonnet:high,haiku:low\n\n  # Start with a specific thinking level\n  pi --thinking high \"Solve this complex problem\"\n\n  # Read-only mode (no file modifications possible)\n  pi --tools read,grep,find,ls -p \"Review the code in src/\"\n\n  # Disable one tool while keeping the rest available\n  pi --exclude-tools ask_question\n\n  # Export a session file to HTML\n  pi --export ~/.pi/agent/sessions/--path--/session.jsonl\n  pi --export session.jsonl output.html\n\nEnvironment Variables:\n  ANTHROPIC_AUTH_TOKEN             - Anthropic bearer auth token\n  ANTHROPIC_API_KEY                - Anthropic Claude API key\n  ANTHROPIC_OAUTH_TOKEN            - Anthropic OAuth token (alternative to API key)\n  ANT_LING_API_KEY                 - Ant Ling API key\n  OPENAI_API_KEY                   - OpenAI GPT API key\n  AZURE_OPENAI_API_KEY             - Azure OpenAI API key\n  AZURE_OPENAI_BASE_URL            - Azure OpenAI/Cognitive Services base URL (e.g. https://{resource}.openai.azure.com)\n  AZURE_OPENAI_RESOURCE_NAME       - Azure OpenAI resource name (alternative to base URL)\n  AZURE_OPENAI_API_VERSION         - Azure OpenAI API version (default: v1)\n  AZURE_OPENAI_DEPLOYMENT_NAME_MAP - Azure OpenAI model=deployment map (comma-separated)\n  DEEPSEEK_API_KEY                 - DeepSeek API key\n  NVIDIA_API_KEY                   - NVIDIA NIM API key\n  GEMINI_API_KEY                   - Google Gemini API key\n  GROQ_API_KEY                     - Groq API key\n  CEREBRAS_API_KEY                 - Cerebras API key\n  XAI_API_KEY                      - xAI Grok API key\n  FIREWORKS_API_KEY                - Fireworks API key\n  TOGETHER_API_KEY                 - Together AI API key\n  BASETEN_API_KEY                  - Baseten API key\n  OPENROUTER_API_KEY               - OpenRouter API key\n  AI_GATEWAY_API_KEY               - Vercel AI Gateway API key\n  ZAI_API_KEY                      - ZAI Coding Plan API key (Global)\n  ZAI_CODING_CN_API_KEY            - ZAI Coding Plan API key (China)\n  MISTRAL_API_KEY                  - Mistral API key\n  MINIMAX_API_KEY                  - MiniMax API key\n  MOONSHOT_API_KEY                 - Moonshot AI API key\n  OPENCODE_API_KEY                 - OpenCode Zen/OpenCode Go API key\n  KIMI_API_KEY                     - Kimi For Coding API key\n  CLOUDFLARE_API_KEY               - Cloudflare API token (Workers AI and AI Gateway)\n  CLOUDFLARE_ACCOUNT_ID            - Cloudflare account id (required for both)\n  CLOUDFLARE_GATEWAY_ID            - Cloudflare AI Gateway slug (required for AI Gateway)\n  QWEN_TOKEN_PLAN_API_KEY          - Qwen Token Plan API key (international region)\n  QWEN_TOKEN_PLAN_CN_API_KEY       - Qwen Token Plan API key (China region)\n  XIAOMI_API_KEY                   - Xiaomi MiMo API key (api.xiaomimimo.com billing)\n  XIAOMI_TOKEN_PLAN_CN_API_KEY     - Xiaomi MiMo Token Plan API key (China region)\n  XIAOMI_TOKEN_PLAN_AMS_API_KEY    - Xiaomi MiMo Token Plan API key (Amsterdam region)\n  XIAOMI_TOKEN_PLAN_SGP_API_KEY    - Xiaomi MiMo Token Plan API key (Singapore region)\n  AWS_PROFILE                      - AWS profile for Amazon Bedrock\n  AWS_ACCESS_KEY_ID                - AWS access key for Amazon Bedrock\n  AWS_SECRET_ACCESS_KEY            - AWS secret key for Amazon Bedrock\n  AWS_BEARER_TOKEN_BEDROCK         - Bedrock API key (bearer token)\n  AWS_REGION                       - AWS region for Amazon Bedrock (e.g., us-east-1)\n  PI_CODING_AGENT_DIR              - Config directory (default: ~/.pi/agent)\n  PI_CODING_AGENT_SESSION_DIR      - Session storage directory (overridden by --session-dir)\n  PI_PACKAGE_DIR                   - Override package directory (for Nix/Guix store paths)\n  PI_OFFLINE                       - Disable startup network operations when set to 1/true/yes\n  PI_TELEMETRY                     - Override install telemetry when set to 1/true/yes or 0/false/no\n  PI_SHARE_VIEWER_URL              - Base URL for /share command (default: https://pi.dev/session/)\n\nBuilt-in Tool Names:\n  read       - Read file contents\n  bash       - Execute bash commands\n  powershell - Execute PowerShell commands on Windows\n  edit       - Edit files with find/replace\n  write      - Write files (creates/overwrites)\n  grep       - Search file contents (read-only, off by default)\n  find       - Find files by glob pattern (read-only, off by default)\n  ls         - List directory contents (read-only, off by default)\n\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "forced-help",
+      "argv": [
+        "--print",
+        "--help"
+      ],
+      "stdout": "",
+      "stderr": "pi - AI coding assistant with read, bash, edit, write tools\n\nUsage:\n  pi [options] [--] [@files...] [messages...]\n\nCommands:\n  pi install <source> [-l]     Install extension source and add to settings\n  pi remove <source> [-l]      Remove extension source from settings\n  pi uninstall <source> [-l]   Alias for remove\n  pi update [source|self|pi]   Update pi, extensions, or model catalogs\n  pi list                      List installed extensions from settings\n  pi config [-l]               Open TUI to enable/disable package resources (Tab switches scope)\n  pi auth <command>            Print credentials or check provider readiness\n  pi <command> --help          Show help for install/remove/uninstall/update/list/config/auth\n\nOptions:\n  --provider <name>              Provider name (default: google)\n  --model <pattern>              Model pattern or ID (supports \"provider/id\" and optional \":<thinking>\")\n  --api-key <key>                API key (defaults to env vars)\n  --system-prompt <text>         System prompt (default: coding assistant prompt)\n  --append-system-prompt <text>  Append text or file contents to the system prompt (can be used multiple times)\n  --mode <mode>                  Output mode: text (default), json, or rpc\n  --print, -p                    Non-interactive mode: process prompt and exit\n  --continue, -c                 Continue previous session\n  --resume, -r                   Select a session to resume\n  --session <path|id>            Use specific session file or partial UUID\n  --session-id <id>              Use exact project session ID, creating it if missing\n  --fork <path|id>               Fork specific session file or partial UUID into a new session\n  --session-dir <dir>            Directory for session storage and lookup\n  --no-session                   Don't save session (ephemeral)\n  --name, -n <name>              Set session display name\n  --models <patterns>            Comma-separated model patterns for Ctrl+P cycling\n                                 Supports globs (anthropic/*, *sonnet*) and fuzzy matching\n  --no-tools, -nt                Disable all tools by default (built-in and extension)\n  --no-builtin-tools, -nbt       Disable built-in tools by default but keep extension/custom tools enabled\n  --tools, -t <tools>            Comma-separated allowlist of tool names to enable\n                                 Applies to built-in, extension, and custom tools\n  --exclude-tools, -xt <tools>   Comma-separated denylist of tool names to disable\n                                 Applies to built-in, extension, and custom tools\n  --thinking <level>             Set thinking level: off, minimal, low, medium, high, xhigh, max\n  --extension, -e <path>         Load an extension file (can be used multiple times)\n  --no-extensions, -ne           Disable extension discovery (explicit -e paths still work)\n  --skill <path>                 Load a skill file or directory (can be used multiple times)\n  --no-skills, -ns               Disable skills discovery and loading\n  --prompt-template <path>       Load a prompt template file or directory (can be used multiple times)\n  --no-prompt-templates, -np     Disable prompt template discovery and loading\n  --theme <path>                 Load a theme file or directory (can be used multiple times)\n  --use-theme <name[/name]>      Set the initial interactive theme for this run\n  --no-themes                    Disable theme discovery and loading\n  --no-context-files, -nc        Disable AGENTS.md and CLAUDE.md discovery and loading\n  --export <file>                Export session file to HTML and exit\n  --list-models [search]         List available models (with optional fuzzy search)\n  --verbose                      Force verbose startup (overrides quietStartup setting)\n  --tui-mode <mode>              TUI mode: regular (default) or fullscreen\n  --approve, -a                  Trust project-local files for this run\n  --no-approve, -na              Ignore project-local files for this run\n  --offline                      Disable startup network operations (same as PI_OFFLINE=1)\n  --                             End option parsing; treat remaining arguments as messages/files\n  --help, -h                     Show this help\n  --version, -v                  Show version number\n\nExtensions can register additional flags (e.g., --plan from plan-mode extension).\n\nExamples:\n  # Print a provider API key for an external client\n  pi auth print-api-key --provider openai\n\n  # Print an OAuth bearer token for an external client (refreshes if expired)\n  pi auth print-bearer-token --provider openai-codex\n\n  # Interactive mode\n  pi\n\n  # Interactive mode with initial prompt\n  pi \"List all .ts files in src/\"\n\n  # Include files in initial message\n  pi @prompt.md @image.png \"What color is the sky?\"\n\n  # Non-interactive mode (process and exit)\n  pi -p \"List all .ts files in src/\"\n\n  # Prompt beginning with a dash\n  pi -p -- \"- Summarize these points\"\n\n  # Multiple messages (interactive)\n  pi \"Read package.json\" \"What dependencies do we have?\"\n\n  # Continue previous session\n  pi --continue \"What did we discuss?\"\n\n  # Start a named session\n  pi --name \"Refactor auth module\"\n\n  # Use different model\n  pi --provider openai --model gpt-4o-mini \"Help me refactor this code\"\n\n  # Use model with provider prefix (no --provider needed)\n  pi --model openai/gpt-4o \"Help me refactor this code\"\n\n  # Use model with thinking level shorthand\n  pi --model sonnet:high \"Solve this complex problem\"\n\n  # Limit model cycling to specific models\n  pi --models claude-sonnet,claude-haiku,gpt-4o\n\n  # Limit to a specific provider with glob pattern\n  pi --models \"github-copilot/*\"\n\n  # Cycle models with fixed thinking levels\n  pi --models sonnet:high,haiku:low\n\n  # Start with a specific thinking level\n  pi --thinking high \"Solve this complex problem\"\n\n  # Read-only mode (no file modifications possible)\n  pi --tools read,grep,find,ls -p \"Review the code in src/\"\n\n  # Disable one tool while keeping the rest available\n  pi --exclude-tools ask_question\n\n  # Export a session file to HTML\n  pi --export ~/.pi/agent/sessions/--path--/session.jsonl\n  pi --export session.jsonl output.html\n\nEnvironment Variables:\n  ANTHROPIC_AUTH_TOKEN             - Anthropic bearer auth token\n  ANTHROPIC_API_KEY                - Anthropic Claude API key\n  ANTHROPIC_OAUTH_TOKEN            - Anthropic OAuth token (alternative to API key)\n  ANT_LING_API_KEY                 - Ant Ling API key\n  OPENAI_API_KEY                   - OpenAI GPT API key\n  AZURE_OPENAI_API_KEY             - Azure OpenAI API key\n  AZURE_OPENAI_BASE_URL            - Azure OpenAI/Cognitive Services base URL (e.g. https://{resource}.openai.azure.com)\n  AZURE_OPENAI_RESOURCE_NAME       - Azure OpenAI resource name (alternative to base URL)\n  AZURE_OPENAI_API_VERSION         - Azure OpenAI API version (default: v1)\n  AZURE_OPENAI_DEPLOYMENT_NAME_MAP - Azure OpenAI model=deployment map (comma-separated)\n  DEEPSEEK_API_KEY                 - DeepSeek API key\n  NVIDIA_API_KEY                   - NVIDIA NIM API key\n  GEMINI_API_KEY                   - Google Gemini API key\n  GROQ_API_KEY                     - Groq API key\n  CEREBRAS_API_KEY                 - Cerebras API key\n  XAI_API_KEY                      - xAI Grok API key\n  FIREWORKS_API_KEY                - Fireworks API key\n  TOGETHER_API_KEY                 - Together AI API key\n  BASETEN_API_KEY                  - Baseten API key\n  OPENROUTER_API_KEY               - OpenRouter API key\n  AI_GATEWAY_API_KEY               - Vercel AI Gateway API key\n  ZAI_API_KEY                      - ZAI Coding Plan API key (Global)\n  ZAI_CODING_CN_API_KEY            - ZAI Coding Plan API key (China)\n  MISTRAL_API_KEY                  - Mistral API key\n  MINIMAX_API_KEY                  - MiniMax API key\n  MOONSHOT_API_KEY                 - Moonshot AI API key\n  OPENCODE_API_KEY                 - OpenCode Zen/OpenCode Go API key\n  KIMI_API_KEY                     - Kimi For Coding API key\n  CLOUDFLARE_API_KEY               - Cloudflare API token (Workers AI and AI Gateway)\n  CLOUDFLARE_ACCOUNT_ID            - Cloudflare account id (required for both)\n  CLOUDFLARE_GATEWAY_ID            - Cloudflare AI Gateway slug (required for AI Gateway)\n  QWEN_TOKEN_PLAN_API_KEY          - Qwen Token Plan API key (international region)\n  QWEN_TOKEN_PLAN_CN_API_KEY       - Qwen Token Plan API key (China region)\n  XIAOMI_API_KEY                   - Xiaomi MiMo API key (api.xiaomimimo.com billing)\n  XIAOMI_TOKEN_PLAN_CN_API_KEY     - Xiaomi MiMo Token Plan API key (China region)\n  XIAOMI_TOKEN_PLAN_AMS_API_KEY    - Xiaomi MiMo Token Plan API key (Amsterdam region)\n  XIAOMI_TOKEN_PLAN_SGP_API_KEY    - Xiaomi MiMo Token Plan API key (Singapore region)\n  AWS_PROFILE                      - AWS profile for Amazon Bedrock\n  AWS_ACCESS_KEY_ID                - AWS access key for Amazon Bedrock\n  AWS_SECRET_ACCESS_KEY            - AWS secret key for Amazon Bedrock\n  AWS_BEARER_TOKEN_BEDROCK         - Bedrock API key (bearer token)\n  AWS_REGION                       - AWS region for Amazon Bedrock (e.g., us-east-1)\n  PI_CODING_AGENT_DIR              - Config directory (default: ~/.pi/agent)\n  PI_CODING_AGENT_SESSION_DIR      - Session storage directory (overridden by --session-dir)\n  PI_PACKAGE_DIR                   - Override package directory (for Nix/Guix store paths)\n  PI_OFFLINE                       - Disable startup network operations when set to 1/true/yes\n  PI_TELEMETRY                     - Override install telemetry when set to 1/true/yes or 0/false/no\n  PI_SHARE_VIEWER_URL              - Base URL for /share command (default: https://pi.dev/session/)\n\nBuilt-in Tool Names:\n  read       - Read file contents\n  bash       - Execute bash commands\n  powershell - Execute PowerShell commands on Windows\n  edit       - Edit files with find/replace\n  write      - Write files (creates/overwrites)\n  grep       - Search file contents (read-only, off by default)\n  find       - Find files by glob pattern (read-only, off by default)\n  ls         - List directory contents (read-only, off by default)\n\n",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "list",
+      "argv": [
+        "--list-models"
+      ],
+      "stdout": "LIST\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "print-input",
+      "argv": [
+        "--print",
+        "first",
+        "second"
+      ],
+      "stdin": "piped",
+      "stdout": "",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [
+        {
+          "mode": "print",
+          "options": {
+            "mode": "text",
+            "messages": [
+              "second"
+            ],
+            "initialMessage": "pipedfirst"
+          }
+        }
+      ],
+      "stdinReads": 1
+    },
+    {
+      "id": "json",
+      "argv": [
+        "--mode",
+        "json",
+        "first"
+      ],
+      "tty": true,
+      "stdout": "",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [
+        {
+          "mode": "print",
+          "options": {
+            "mode": "json",
+            "messages": [],
+            "initialMessage": "first"
+          }
+        }
+      ],
+      "stdinReads": 1
+    },
+    {
+      "id": "rpc",
+      "argv": [
+        "--mode",
+        "rpc"
+      ],
+      "stdin": "never-read",
+      "stdout": "",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [
+        {
+          "mode": "rpc"
+        }
+      ],
+      "stdinReads": 0
+    },
+    {
+      "id": "runtime-error",
+      "argv": [
+        "--mode",
+        "json",
+        "hi"
+      ],
+      "diagnostics": [
+        {
+          "type": "error",
+          "message": "Failed to load extension /broken.ts"
+        }
+      ],
+      "stdout": "",
+      "stderr": "Error: Failed to load extension /broken.ts\nHint: Start without extensions using \"pi -ne\".\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 1
+    },
+    {
+      "id": "dedup",
+      "argv": [
+        "--print",
+        "hi"
+      ],
+      "startupDiagnostics": [
+        {
+          "type": "warning",
+          "message": "same"
+        }
+      ],
+      "diagnostics": [
+        {
+          "type": "warning",
+          "message": "same"
+        },
+        {
+          "type": "info",
+          "message": "notice"
+        }
+      ],
+      "stdout": "",
+      "stderr": "Warning: same\nnotice\n",
+      "exitCode": 0,
+      "dispatch": [
+        {
+          "mode": "print",
+          "options": {
+            "mode": "text",
+            "messages": [],
+            "initialMessage": "hi"
+          }
+        }
+      ],
+      "stdinReads": 1
+    },
+    {
+      "id": "no-model",
+      "argv": [
+        "--print",
+        "hi"
+      ],
+      "noModel": true,
+      "stdout": "",
+      "stderr": "NO_MODELS\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 1
+    },
+    {
+      "id": "benchmark",
+      "argv": [
+        "--print",
+        "hi"
+      ],
+      "benchmark": true,
+      "stdout": "",
+      "stderr": "Error: PI_STARTUP_BENCHMARK only supports interactive mode\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 1
+    },
+    {
+      "id": "empty-name",
+      "argv": [
+        "--print",
+        "--name",
+        "   "
+      ],
+      "stdout": "",
+      "stderr": "Error: --name requires a non-empty value\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "print-exit",
+      "argv": [
+        "--print",
+        "hi"
+      ],
+      "printExit": 7,
+      "stdout": "",
+      "stderr": "",
+      "exitCode": 7,
+      "dispatch": [
+        {
+          "mode": "print",
+          "options": {
+            "mode": "text",
+            "messages": [],
+            "initialMessage": "hi"
+          }
+        }
+      ],
+      "stdinReads": 1
+    }
+  ],
+  "auth": [
+    {
+      "id": "auth-help",
+      "argv": [
+        "auth",
+        "--help"
+      ],
+      "stdout": "Usage:\n  pi auth print-api-key [--provider <provider>] [--model <model>]\n  pi auth print-bearer-token [--provider <provider>] [--model <model>] [--min-expiry <duration>]\n  pi auth check [--provider <provider>] [--model <model>] [--json] [--credentials] [--no-refresh]\n\nAuth commands require at least one of --provider or --model. Checks refresh expired OAuth credentials by default; --no-refresh prevents this. --credentials emits the credential, or includes it in JSON output.\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-check-help",
+      "argv": [
+        "auth",
+        "check",
+        "--help"
+      ],
+      "stdout": "Usage:\n  pi auth print-api-key [--provider <provider>] [--model <model>]\n  pi auth print-bearer-token [--provider <provider>] [--model <model>] [--min-expiry <duration>]\n  pi auth check [--provider <provider>] [--model <model>] [--json] [--credentials] [--no-refresh]\n\nAuth commands require at least one of --provider or --model. Checks refresh expired OAuth credentials by default; --no-refresh prevents this. --credentials emits the credential, or includes it in JSON output.\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-unknown",
+      "argv": [
+        "auth",
+        "check",
+        "--nonesuch"
+      ],
+      "stdout": "",
+      "stderr": "Unknown option --nonesuch for \"auth check\".\nUse \"pi --help\" or \"pi auth check --provider <provider> [--json] [--credentials] [--no-refresh]\".\n",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-missing",
+      "argv": [
+        "auth",
+        "check"
+      ],
+      "stdout": "",
+      "stderr": "Error: Auth checks require --provider <provider> or --model <model>\n",
+      "exitCode": 2,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-status",
+      "argv": [
+        "auth",
+        "check",
+        "--provider",
+        "test"
+      ],
+      "stdout": "ready\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-json",
+      "argv": [
+        "auth",
+        "check",
+        "--provider",
+        "test",
+        "--json"
+      ],
+      "stdout": "{\"status\":\"ready\",\"provider\":\"test\",\"authType\":\"api_key\"}\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-key",
+      "argv": [
+        "auth",
+        "check",
+        "--provider",
+        "test",
+        "--credentials"
+      ],
+      "credential": "offline-test-only",
+      "stdout": "offline-test-only\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-missing-key",
+      "argv": [
+        "auth",
+        "check",
+        "--provider",
+        "test",
+        "--credentials",
+        "--json"
+      ],
+      "stdout": "{\"status\":\"not_ready\",\"provider\":\"test\",\"reason\":\"credential_not_available\"}\n",
+      "stderr": "",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-invalid",
+      "argv": [
+        "auth",
+        "check",
+        "--provider",
+        "test",
+        "--json"
+      ],
+      "authError": true,
+      "stdout": "{\"status\":\"invalid\",\"provider\":\"test\",\"reason\":\"invalid_state\"}\n",
+      "stderr": "",
+      "exitCode": 2,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-not-ready",
+      "argv": [
+        "auth",
+        "check",
+        "--provider",
+        "test",
+        "--json"
+      ],
+      "authResult": {
+        "status": "not_ready",
+        "provider": "test",
+        "reason": "provider_not_found"
+      },
+      "stdout": "{\"status\":\"not_ready\",\"provider\":\"test\",\"reason\":\"provider_not_found\"}\n",
+      "stderr": "",
+      "exitCode": 1,
+      "dispatch": [],
+      "stdinReads": 0
+    },
+    {
+      "id": "auth-print-key",
+      "argv": [
+        "auth",
+        "print-api-key",
+        "--provider",
+        "test"
+      ],
+      "credential": "offline-test-only",
+      "stdout": "offline-test-only\n",
+      "stderr": "",
+      "exitCode": 0,
+      "dispatch": [],
+      "stdinReads": 0
+    }
+  ]
+}

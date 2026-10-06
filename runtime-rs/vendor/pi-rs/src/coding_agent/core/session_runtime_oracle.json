@@ -1,0 +1,2927 @@
+{
+  "provenance": {
+    "sources": {
+      "agent-session-runtime.ts": "5b348a4db837a2564367dd93b343c67f3b0c28a2f753ff71adcb48d08b5644e7",
+      "session-cwd.ts": "581c849ce1ccb50da0ee9eabb3c34b80aed757aafcb79784349229e50df4d727"
+    },
+    "collaborators": [
+      "SessionManager lifecycle double",
+      "AgentSession + extension runner trace double",
+      "SDK/service exports fail-on-use",
+      "resolvePath: absolute paths only; node path.resolve",
+      "real node:fs/path",
+      "complete unchanged session-cwd.ts"
+    ]
+  },
+  "rows": [
+    {
+      "spec": {
+        "name": "new_memory",
+        "op": "new"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_memory/a",
+            "agentDir": "@ROOT/new_memory/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_memory/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_memory/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_persisted",
+        "op": "new",
+        "persist": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new",
+              "targetSessionFile": "@NEW"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_persisted/a",
+            "agentDir": "@ROOT/new_persisted/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new",
+              "previousSessionFile": "@ROOT/new_persisted/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_persisted/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_persisted/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_parent",
+        "op": "new",
+        "parent": "parent.jsonl"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_parent/a",
+            "agentDir": "@ROOT/new_parent/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_parent/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_parent/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": "parent.jsonl",
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_empty_parent",
+        "op": "new",
+        "parent": ""
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_empty_parent/a",
+            "agentDir": "@ROOT/new_empty_parent/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_empty_parent/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_empty_parent/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_cancel_true",
+        "op": "new",
+        "cancel": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          }
+        ],
+        "result": {
+          "cancelled": true
+        },
+        "error": null,
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/new_cancel_true/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_cancel_string",
+        "op": "new",
+        "cancel": "stop"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_cancel_string/a",
+            "agentDir": "@ROOT/new_cancel_string/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_cancel_string/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_cancel_string/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_cancel_number",
+        "op": "new",
+        "cancel": 1
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_cancel_number/a",
+            "agentDir": "@ROOT/new_cancel_number/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_cancel_number/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_cancel_number/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_cancel_false",
+        "op": "new",
+        "cancel": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_cancel_false/a",
+            "agentDir": "@ROOT/new_cancel_false/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_cancel_false/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_cancel_false/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_fail_factory",
+        "op": "new",
+        "fail": "factory"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_fail_factory/a",
+            "agentDir": "@ROOT/new_fail_factory/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          }
+        ],
+        "result": null,
+        "error": "factory rejected",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/new_fail_factory/a",
+          "active": false,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_fail_setup",
+        "op": "new",
+        "fail": "setup"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_fail_setup/a",
+            "agentDir": "@ROOT/new_fail_setup/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          }
+        ],
+        "result": null,
+        "error": "setup rejected",
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_fail_setup/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": []
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_fail_rebind",
+        "op": "new",
+        "fail": "rebind"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_fail_rebind/a",
+            "agentDir": "@ROOT/new_fail_rebind/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          }
+        ],
+        "result": null,
+        "error": "rebind rejected",
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_fail_rebind/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_fail_with",
+        "op": "new",
+        "fail": "with"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_fail_with/a",
+            "agentDir": "@ROOT/new_fail_with/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_fail_with/a"
+          }
+        ],
+        "result": null,
+        "error": "with rejected",
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/new_fail_with/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "setup"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_fail_invalidate",
+        "op": "new",
+        "fail": "invalidate"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          }
+        ],
+        "result": null,
+        "error": "invalidate rejected",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/new_fail_invalidate/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "new_setup_reentrant",
+        "op": "new",
+        "reenter": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_setup_reentrant/a",
+            "agentDir": "@ROOT/new_setup_reentrant/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "setup",
+            "id": 1
+          },
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "new"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/new_setup_reentrant/a",
+            "agentDir": "@ROOT/new_setup_reentrant/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "new"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 2
+          },
+          {
+            "phase": "rebind",
+            "id": 2
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/new_setup_reentrant/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 2,
+          "cwd": "@ROOT/new_setup_reentrant/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-2"
+            }
+          ],
+          "fallback": "fallback-2",
+          "parent": null,
+          "messages": []
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "switch",
+        "op": "switch",
+        "persist": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch/target/target.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch/target/target.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "trust",
+            "cwd": "@ROOT/switch/b",
+            "oldActive": false
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/switch/b",
+            "agentDir": "@ROOT/switch/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "resume",
+              "previousSessionFile": "@ROOT/switch/store/current.jsonl"
+            },
+            "trust": true,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/switch/b"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/switch/b",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "switch_cancel",
+        "op": "switch",
+        "persist": true,
+        "cancel": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch_cancel/target/target.jsonl"
+            }
+          }
+        ],
+        "result": {
+          "cancelled": true
+        },
+        "error": null,
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/switch_cancel/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "switch_missing_cwd",
+        "op": "switch",
+        "persist": true,
+        "missingCwd": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch_missing_cwd/target/target.jsonl"
+            }
+          }
+        ],
+        "result": null,
+        "error": "Stored session working directory does not exist: @ROOT/switch_missing_cwd/missing-cwd\nSession file: @ROOT/switch_missing_cwd/target/target.jsonl\nCurrent working directory: @ROOT/switch_missing_cwd/a",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/switch_missing_cwd/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "switch_override",
+        "op": "switch",
+        "persist": true,
+        "missingCwd": true,
+        "override": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch_override/target/target.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch_override/target/target.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "trust",
+            "cwd": "@ROOT/switch_override/a",
+            "oldActive": false
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/switch_override/a",
+            "agentDir": "@ROOT/switch_override/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "resume",
+              "previousSessionFile": "@ROOT/switch_override/store/current.jsonl"
+            },
+            "trust": true,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/switch_override/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/switch_override/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "switch_fail_trust",
+        "op": "switch",
+        "persist": true,
+        "fail": "trust"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch_fail_trust/target/target.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/switch_fail_trust/target/target.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "trust",
+            "cwd": "@ROOT/switch_fail_trust/b",
+            "oldActive": false
+          }
+        ],
+        "result": null,
+        "error": "trust rejected",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/switch_fail_trust/a",
+          "active": false,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_memory_root",
+        "op": "fork",
+        "persist": false,
+        "entry": "root",
+        "position": "before"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "root",
+              "position": "before"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "fork"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/fork_memory_root/a",
+            "agentDir": "@ROOT/fork_memory_root/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "fork"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/fork_memory_root/a"
+          }
+        ],
+        "result": {
+          "cancelled": false,
+          "selectedText": "first"
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/fork_memory_root/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": []
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_memory_second",
+        "op": "fork",
+        "persist": false,
+        "entry": "second",
+        "position": "before"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "second",
+              "position": "before"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "fork"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/fork_memory_second/a",
+            "agentDir": "@ROOT/fork_memory_second/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "fork"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/fork_memory_second/a"
+          }
+        ],
+        "result": {
+          "cancelled": false,
+          "selectedText": "AB"
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/fork_memory_second/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_memory_custom",
+        "op": "fork",
+        "persist": false,
+        "entry": "custom",
+        "position": "at"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "custom",
+              "position": "at"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "fork"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/fork_memory_custom/a",
+            "agentDir": "@ROOT/fork_memory_custom/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "fork"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/fork_memory_custom/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/fork_memory_custom/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_disk_root",
+        "op": "fork",
+        "persist": true,
+        "entry": "root",
+        "position": "before"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "root",
+              "position": "before"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "fork",
+              "targetSessionFile": "@NEW"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/fork_disk_root/a",
+            "agentDir": "@ROOT/fork_disk_root/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "fork",
+              "previousSessionFile": "@ROOT/fork_disk_root/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/fork_disk_root/a"
+          }
+        ],
+        "result": {
+          "cancelled": false,
+          "selectedText": "first"
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/fork_disk_root/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": "@ROOT/fork_disk_root/store/current.jsonl",
+          "messages": []
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_disk_second",
+        "op": "fork",
+        "persist": true,
+        "entry": "second",
+        "position": "before"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "second",
+              "position": "before"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "fork",
+              "targetSessionFile": "@NEW"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/fork_disk_second/a",
+            "agentDir": "@ROOT/fork_disk_second/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "fork",
+              "previousSessionFile": "@ROOT/fork_disk_second/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/fork_disk_second/a"
+          }
+        ],
+        "result": {
+          "cancelled": false,
+          "selectedText": "AB"
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/fork_disk_second/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": "@ROOT/fork_disk_second/store/current.jsonl",
+          "messages": [
+            "first"
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_disk_custom",
+        "op": "fork",
+        "persist": true,
+        "entry": "custom",
+        "position": "at"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "custom",
+              "position": "at"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "fork",
+              "targetSessionFile": "@NEW"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/fork_disk_custom/a",
+            "agentDir": "@ROOT/fork_disk_custom/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "fork",
+              "previousSessionFile": "@ROOT/fork_disk_custom/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          },
+          {
+            "phase": "with",
+            "cwd": "@ROOT/fork_disk_custom/a"
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/fork_disk_custom/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": "@ROOT/fork_disk_custom/store/current.jsonl",
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_invalid",
+        "op": "fork",
+        "entry": "missing"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "missing",
+              "position": "before"
+            }
+          }
+        ],
+        "result": null,
+        "error": "Invalid entry ID for forking",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/fork_invalid/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_non_user",
+        "op": "fork",
+        "entry": "custom"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "custom",
+              "position": "before"
+            }
+          }
+        ],
+        "result": null,
+        "error": "Invalid entry ID for forking",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/fork_non_user/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_cancel_invalid",
+        "op": "fork",
+        "entry": "missing",
+        "cancel": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "missing",
+              "position": "before"
+            }
+          }
+        ],
+        "result": {
+          "cancelled": true
+        },
+        "error": null,
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/fork_cancel_invalid/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "fork_unflushed",
+        "op": "fork",
+        "persist": true,
+        "entry": "second",
+        "unflushed": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_fork",
+              "entryId": "second",
+              "position": "before"
+            }
+          }
+        ],
+        "result": null,
+        "error": "This session has not been saved yet. Wait for the first assistant response before cloning or forking it.",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/fork_unflushed/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "import_normal",
+        "op": "import",
+        "persist": true,
+        "kind": "normal",
+        "missingCwd": false,
+        "override": false,
+        "race": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_normal/store/target.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_normal/store/target.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/import_normal/b",
+            "agentDir": "@ROOT/import_normal/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "resume",
+              "previousSessionFile": "@ROOT/import_normal/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/import_normal/b",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {
+          "target.jsonl": "session"
+        }
+      }
+    },
+    {
+      "spec": {
+        "name": "import_collision",
+        "op": "import",
+        "persist": true,
+        "kind": "collision",
+        "missingCwd": false,
+        "override": false,
+        "race": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_collision/store/target-2.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_collision/store/target-2.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/import_collision/b",
+            "agentDir": "@ROOT/import_collision/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "resume",
+              "previousSessionFile": "@ROOT/import_collision/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/import_collision/b",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {
+          "target-1.jsonl": "also-existing",
+          "target-2.jsonl": "session",
+          "target.jsonl": "existing"
+        }
+      }
+    },
+    {
+      "spec": {
+        "name": "import_stored",
+        "op": "import",
+        "persist": true,
+        "kind": "stored",
+        "missingCwd": false,
+        "override": false,
+        "race": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_stored/store/current.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_stored/store/current.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/import_stored/a",
+            "agentDir": "@ROOT/import_stored/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "resume",
+              "previousSessionFile": "@ROOT/import_stored/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/import_stored/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "import_missing",
+        "op": "import",
+        "persist": true,
+        "kind": "missing",
+        "missingCwd": false,
+        "override": false,
+        "race": false
+      },
+      "observed": {
+        "trace": [],
+        "result": null,
+        "error": "File not found: @ROOT/import_missing/missing.jsonl",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/import_missing/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "import_cancel",
+        "op": "import",
+        "persist": true,
+        "kind": "cancel",
+        "missingCwd": false,
+        "override": false,
+        "cancel": true,
+        "race": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_cancel/store/target.jsonl"
+            }
+          }
+        ],
+        "result": {
+          "cancelled": true
+        },
+        "error": null,
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/import_cancel/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "import_missing_cwd",
+        "op": "import",
+        "persist": true,
+        "kind": "missing_cwd",
+        "missingCwd": true,
+        "override": false,
+        "race": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_missing_cwd/store/target.jsonl"
+            }
+          }
+        ],
+        "result": null,
+        "error": "Stored session working directory does not exist: @ROOT/import_missing_cwd/missing-cwd\nSession file: @ROOT/import_missing_cwd/store/target.jsonl\nCurrent working directory: @ROOT/import_missing_cwd/a",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/import_missing_cwd/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {
+          "target.jsonl": "session"
+        }
+      }
+    },
+    {
+      "spec": {
+        "name": "import_override",
+        "op": "import",
+        "persist": true,
+        "kind": "override",
+        "missingCwd": true,
+        "override": true,
+        "race": false
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_override/store/target.jsonl"
+            }
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_override/store/target.jsonl"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "factory",
+            "cwd": "@ROOT/import_override/a",
+            "agentDir": "@ROOT/import_override/agent",
+            "start": {
+              "type": "session_start",
+              "reason": "resume",
+              "previousSessionFile": "@ROOT/import_override/store/current.jsonl"
+            },
+            "trust": false,
+            "oldActive": false
+          },
+          {
+            "phase": "rebind",
+            "id": 1
+          }
+        ],
+        "result": {
+          "cancelled": false
+        },
+        "error": null,
+        "slot": {
+          "id": 1,
+          "cwd": "@ROOT/import_override/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "warning",
+              "message": "runtime-1"
+            }
+          ],
+          "fallback": "fallback-1",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {
+          "target.jsonl": "session"
+        }
+      }
+    },
+    {
+      "spec": {
+        "name": "import_race",
+        "op": "import",
+        "persist": true,
+        "kind": "race",
+        "missingCwd": false,
+        "override": false,
+        "race": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "before",
+            "event": {
+              "type": "session_before_switch",
+              "reason": "resume",
+              "targetSessionFile": "@ROOT/import_race/store/target.jsonl"
+            }
+          }
+        ],
+        "result": null,
+        "error": "exclusive copy refused",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/import_race/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {
+          "target.jsonl": "competitor"
+        }
+      }
+    },
+    {
+      "spec": {
+        "name": "dispose",
+        "op": "dispose"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "quit"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          }
+        ],
+        "result": null,
+        "error": null,
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/dispose/a",
+          "active": false,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "dispose_twice",
+        "op": "dispose",
+        "twice": true
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "quit"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          },
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "quit"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": false
+          }
+        ],
+        "result": null,
+        "error": null,
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/dispose_twice/a",
+          "active": false,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "dispose_fail_invalidate",
+        "op": "dispose",
+        "fail": "invalidate"
+      },
+      "observed": {
+        "trace": [
+          {
+            "phase": "shutdown",
+            "event": {
+              "type": "session_shutdown",
+              "reason": "quit"
+            }
+          },
+          {
+            "phase": "invalidate",
+            "active": true
+          }
+        ],
+        "result": null,
+        "error": "invalidate rejected",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/dispose_fail_invalidate/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    },
+    {
+      "spec": {
+        "name": "initial_missing_cwd",
+        "op": "initial",
+        "persist": true,
+        "missingCwd": true
+      },
+      "observed": {
+        "trace": [],
+        "result": null,
+        "error": "Stored session working directory does not exist: @ROOT/initial_missing_cwd/missing-cwd\nSession file: @ROOT/initial_missing_cwd/store/current.jsonl\nCurrent working directory: @ROOT/initial_missing_cwd/a",
+        "slot": {
+          "id": 0,
+          "cwd": "@ROOT/initial_missing_cwd/a",
+          "active": true,
+          "diagnostics": [
+            {
+              "type": "info",
+              "message": "initial"
+            }
+          ],
+          "fallback": "initial-fallback",
+          "parent": null,
+          "messages": [
+            "first",
+            [
+              {
+                "type": "text",
+                "text": "A"
+              },
+              {
+                "type": "image",
+                "data": "",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "B"
+              }
+            ]
+          ]
+        },
+        "files": {}
+      }
+    }
+  ],
+  "cwdRows": [
+    {
+      "name": "memory",
+      "observed": {
+        "issue": null,
+        "error": null,
+        "prompt": null
+      }
+    },
+    {
+      "name": "empty_file",
+      "observed": {
+        "issue": null,
+        "error": null,
+        "prompt": null
+      }
+    },
+    {
+      "name": "empty_cwd",
+      "observed": {
+        "issue": null,
+        "error": null,
+        "prompt": null
+      }
+    },
+    {
+      "name": "present",
+      "observed": {
+        "issue": null,
+        "error": null,
+        "prompt": null
+      }
+    },
+    {
+      "name": "missing",
+      "observed": {
+        "issue": {
+          "sessionFile": "session.jsonl",
+          "sessionCwd": "@ROOT/absent",
+          "fallbackCwd": "fallback"
+        },
+        "error": "Stored session working directory does not exist: @ROOT/absent\nSession file: session.jsonl\nCurrent working directory: fallback",
+        "prompt": "cwd from session file does not exist\n@ROOT/absent\n\ncontinue in current cwd\nfallback"
+      }
+    }
+  ]
+}

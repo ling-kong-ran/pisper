@@ -1,0 +1,1661 @@
+{
+  "provenance": {
+    "node": "v25.8.2",
+    "sources": {
+      "main.ts": "f985c35a729c2234ddf634c490bf214b9cdc2670489fae1f5eea570e45d5a5ff",
+      "cli/args.ts": "f8ba813e8acb43d33b42dff087b05fa3784fc24e6428026d13abe007993bab73",
+      "core/model-resolver.ts": "75fead81206126dbdfbf559746b91400cd5b70a5358a4b133e2cc0de04f1cc57",
+      "core/session-manager.ts": "450d82c529933214e088b8422f00061815e617f352f6c834689787a314064bff",
+      "utils/paths.ts": "a687cdb54b82216673fea5be1210c48e64ffa8398d64cfabf2bd7dba5c9d4210"
+    },
+    "boundary": "Actual upstream main.ts helpers, parseArgs, model-resolver and paths. Model catalog/auth and session discovery lists are injected; no actual provider/session runtime in this oracle. Native filesystem, runtime and cancellation are verified separately in Rust integration tests. minimatch is existing cached 10.2.4 (upstream pins 10.2.6); selected cases do not depend on patch drift Resolution tie cases re-pinned for the v0.99.1 session-manager delta (discovery orders tie name-descending on equal activity time)."
+  },
+  "models": [
+    {
+      "id": "claude-test",
+      "name": "claude-test",
+      "provider": "anthropic",
+      "api": "anthropic-messages",
+      "baseUrl": "https://example.invalid",
+      "reasoning": true,
+      "input": [
+        "text"
+      ],
+      "cost": {
+        "input": 1,
+        "output": 2,
+        "cacheRead": 0.1,
+        "cacheWrite": 1
+      },
+      "contextWindow": 128000,
+      "maxTokens": 8192
+    },
+    {
+      "id": "gpt-test",
+      "name": "gpt-test",
+      "provider": "openai",
+      "api": "anthropic-messages",
+      "baseUrl": "https://example.invalid",
+      "reasoning": false,
+      "input": [
+        "text"
+      ],
+      "cost": {
+        "input": 1,
+        "output": 2,
+        "cacheRead": 0.1,
+        "cacheWrite": 1
+      },
+      "contextWindow": 128000,
+      "maxTokens": 8192
+    },
+    {
+      "id": "shared",
+      "name": "shared",
+      "provider": "custom",
+      "api": "anthropic-messages",
+      "baseUrl": "https://example.invalid",
+      "reasoning": true,
+      "input": [
+        "text"
+      ],
+      "cost": {
+        "input": 1,
+        "output": 2,
+        "cacheRead": 0.1,
+        "cacheWrite": 1
+      },
+      "contextWindow": 128000,
+      "maxTokens": 8192
+    },
+    {
+      "id": "shared",
+      "name": "shared",
+      "provider": "other",
+      "api": "anthropic-messages",
+      "baseUrl": "https://example.invalid",
+      "reasoning": false,
+      "input": [
+        "text"
+      ],
+      "cost": {
+        "input": 1,
+        "output": 2,
+        "cacheRead": 0.1,
+        "cacheWrite": 1
+      },
+      "contextWindow": 128000,
+      "maxTokens": 8192
+    },
+    {
+      "id": "name:exacto",
+      "name": "name:exacto",
+      "provider": "openrouter",
+      "api": "anthropic-messages",
+      "baseUrl": "https://example.invalid",
+      "reasoning": true,
+      "input": [
+        "text"
+      ],
+      "cost": {
+        "input": 1,
+        "output": 2,
+        "cacheRead": 0.1,
+        "cacheWrite": 1
+      },
+      "contextWindow": 128000,
+      "maxTokens": 8192
+    }
+  ],
+  "configured": [
+    "anthropic",
+    "openai"
+  ],
+  "options": [
+    {
+      "id": "empty",
+      "argv": [],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "provider-alone",
+      "argv": [
+        "--provider",
+        "openai"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": [
+          {
+            "type": "error",
+            "message": "--provider requires --model (for example: --provider openai --model <pattern>)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "explicit-model",
+      "argv": [
+        "--model",
+        "anthropic/claude-test"
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "model-thinking",
+      "argv": [
+        "--model",
+        "claude-test:high"
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": "high",
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": true,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "thinking-override",
+      "argv": [
+        "--model",
+        "claude-test:high",
+        "--thinking",
+        "off"
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": "off",
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "non-reasoning-thinking",
+      "argv": [
+        "--model",
+        "openai/gpt-test:high"
+      ],
+      "value": {
+        "model": "openai/gpt-test",
+        "thinkingLevel": "high",
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": true,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "model-invalid-thinking",
+      "argv": [
+        "--model",
+        "claude-test:nonsense"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": [
+          {
+            "type": "error",
+            "message": "Model \"claude-test:nonsense\" not found. Use --list-models to see available models."
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown-provider",
+      "argv": [
+        "--provider",
+        "missing",
+        "--model",
+        "claude-test"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": [
+          {
+            "type": "error",
+            "message": "Unknown provider \"missing\". Use --list-models to see available providers/models."
+          }
+        ]
+      }
+    },
+    {
+      "id": "model-missing",
+      "argv": [
+        "--model",
+        "absent"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": [
+          {
+            "type": "error",
+            "message": "Model \"absent\" not found. Use --list-models to see available models."
+          }
+        ]
+      }
+    },
+    {
+      "id": "ambiguous-id",
+      "argv": [
+        "--model",
+        "shared"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": [
+          {
+            "type": "error",
+            "message": "Model \"shared\" is ambiguous across providers: custom/shared, other/shared. No matching provider is authenticated. Use --provider or provider/model."
+          }
+        ]
+      }
+    },
+    {
+      "id": "colon-id",
+      "argv": [
+        "--model",
+        "openrouter/name:exacto:low"
+      ],
+      "value": {
+        "model": "openrouter/name:exacto",
+        "thinkingLevel": "low",
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": true,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "scope-first",
+      "argv": [],
+      "scope": [
+        [
+          0,
+          "high"
+        ],
+        [
+          1,
+          null
+        ]
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": "high",
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "high"
+          },
+          {
+            "model": "openai/gpt-test",
+            "thinkingLevel": null
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "scope-saved",
+      "argv": [],
+      "scope": [
+        [
+          0,
+          "high"
+        ],
+        [
+          1,
+          null
+        ]
+      ],
+      "saved": [
+        "openai",
+        "gpt-test"
+      ],
+      "value": {
+        "model": "openai/gpt-test",
+        "thinkingLevel": null,
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "high"
+          },
+          {
+            "model": "openai/gpt-test",
+            "thinkingLevel": null
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "scope-saved-missing",
+      "argv": [],
+      "scope": [
+        [
+          0,
+          "high"
+        ],
+        [
+          1,
+          null
+        ]
+      ],
+      "saved": [
+        "other",
+        "shared"
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": "high",
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "high"
+          },
+          {
+            "model": "openai/gpt-test",
+            "thinkingLevel": null
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "scope-think-override",
+      "argv": [
+        "--thinking",
+        "max"
+      ],
+      "scope": [
+        [
+          0,
+          "low"
+        ],
+        [
+          1,
+          null
+        ]
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": "max",
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "low"
+          },
+          {
+            "model": "openai/gpt-test",
+            "thinkingLevel": null
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "existing-scope-not-selected",
+      "argv": [],
+      "scope": [
+        [
+          0,
+          "high"
+        ],
+        [
+          1,
+          null
+        ]
+      ],
+      "existing": true,
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "high"
+          },
+          {
+            "model": "openai/gpt-test",
+            "thinkingLevel": null
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "existing-explicit",
+      "argv": [
+        "--model",
+        "gpt-test"
+      ],
+      "scope": [
+        [
+          0,
+          "high"
+        ]
+      ],
+      "existing": true,
+      "value": {
+        "model": "openai/gpt-test",
+        "thinkingLevel": null,
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "high"
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "invalid-cli-keeps-diagnostic-and-scope",
+      "argv": [
+        "--model",
+        "absent"
+      ],
+      "scope": [
+        [
+          0,
+          "low"
+        ]
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": "low",
+        "scopedModels": [
+          {
+            "model": "anthropic/claude-test",
+            "thinkingLevel": "low"
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": [
+          {
+            "type": "error",
+            "message": "Model \"absent\" not found. Use --list-models to see available models."
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-tools-wins",
+      "argv": [
+        "--no-tools",
+        "--no-builtin-tools",
+        "--tools",
+        "read,read",
+        "--exclude-tools",
+        "bash"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": "all",
+        "tools": [
+          "read",
+          "read"
+        ],
+        "excludeTools": [
+          "bash"
+        ],
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "no-builtins",
+      "argv": [
+        "--no-builtin-tools"
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": "builtin",
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "empty-tools",
+      "argv": [
+        "--tools",
+        ""
+      ],
+      "value": {
+        "model": null,
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": [],
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "empty-model-with-scope",
+      "argv": [
+        "--model",
+        ""
+      ],
+      "scope": [
+        [
+          1,
+          null
+        ]
+      ],
+      "value": {
+        "model": "openai/gpt-test",
+        "thinkingLevel": null,
+        "scopedModels": [
+          {
+            "model": "openai/gpt-test",
+            "thinkingLevel": null
+          }
+        ],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "provider-case-insensitive",
+      "argv": [
+        "--provider",
+        "ANTHROPIC",
+        "--model",
+        "CLAUDE-TEST"
+      ],
+      "value": {
+        "model": "anthropic/claude-test",
+        "thinkingLevel": null,
+        "scopedModels": [],
+        "noTools": null,
+        "tools": null,
+        "excludeTools": null,
+        "cliThinkingFromModel": false,
+        "diagnostics": []
+      }
+    }
+  ],
+  "modes": [
+    {
+      "argv": [],
+      "stdin": false,
+      "stdout": false,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [],
+      "stdin": false,
+      "stdout": true,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [],
+      "stdin": true,
+      "stdout": false,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [],
+      "stdin": true,
+      "stdout": true,
+      "mode": "interactive",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "text"
+      ],
+      "stdin": false,
+      "stdout": false,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "text"
+      ],
+      "stdin": false,
+      "stdout": true,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "text"
+      ],
+      "stdin": true,
+      "stdout": false,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "text"
+      ],
+      "stdin": true,
+      "stdout": true,
+      "mode": "interactive",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json"
+      ],
+      "stdin": false,
+      "stdout": false,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json"
+      ],
+      "stdin": false,
+      "stdout": true,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json"
+      ],
+      "stdin": true,
+      "stdout": false,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json"
+      ],
+      "stdin": true,
+      "stdout": true,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc"
+      ],
+      "stdin": false,
+      "stdout": false,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc"
+      ],
+      "stdin": false,
+      "stdout": true,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc"
+      ],
+      "stdin": true,
+      "stdout": false,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc"
+      ],
+      "stdin": true,
+      "stdout": true,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--print"
+      ],
+      "stdin": false,
+      "stdout": false,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--print"
+      ],
+      "stdin": false,
+      "stdout": true,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--print"
+      ],
+      "stdin": true,
+      "stdout": false,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--print"
+      ],
+      "stdin": true,
+      "stdout": true,
+      "mode": "print",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json",
+        "--print"
+      ],
+      "stdin": false,
+      "stdout": false,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json",
+        "--print"
+      ],
+      "stdin": false,
+      "stdout": true,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json",
+        "--print"
+      ],
+      "stdin": true,
+      "stdout": false,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "json",
+        "--print"
+      ],
+      "stdin": true,
+      "stdout": true,
+      "mode": "json",
+      "output": "json"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc",
+        "--print"
+      ],
+      "stdin": false,
+      "stdout": false,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc",
+        "--print"
+      ],
+      "stdin": false,
+      "stdout": true,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc",
+        "--print"
+      ],
+      "stdin": true,
+      "stdout": false,
+      "mode": "rpc",
+      "output": "text"
+    },
+    {
+      "argv": [
+        "--mode",
+        "rpc",
+        "--print"
+      ],
+      "stdin": true,
+      "stdout": true,
+      "mode": "rpc",
+      "output": "text"
+    }
+  ],
+  "metadata": [
+    {
+      "argv": [],
+      "value": false
+    },
+    {
+      "argv": [
+        "--help"
+      ],
+      "value": true
+    },
+    {
+      "argv": [
+        "--list-models"
+      ],
+      "value": true
+    },
+    {
+      "argv": [
+        "--list-models",
+        "x"
+      ],
+      "value": true
+    },
+    {
+      "argv": [
+        "--help",
+        "--print"
+      ],
+      "value": false
+    },
+    {
+      "argv": [
+        "--help",
+        "--mode",
+        "text"
+      ],
+      "value": false
+    },
+    {
+      "argv": [
+        "--list-models",
+        "--mode",
+        "json"
+      ],
+      "value": false
+    },
+    {
+      "argv": [
+        "--print"
+      ],
+      "value": false
+    }
+  ],
+  "truthy": [
+    {
+      "input": null,
+      "value": false
+    },
+    {
+      "input": "",
+      "value": false
+    },
+    {
+      "input": "0",
+      "value": false
+    },
+    {
+      "input": "1",
+      "value": true
+    },
+    {
+      "input": "true",
+      "value": true
+    },
+    {
+      "input": "TRUE",
+      "value": true
+    },
+    {
+      "input": "TrUe",
+      "value": true
+    },
+    {
+      "input": "yes",
+      "value": true
+    },
+    {
+      "input": "YES",
+      "value": true
+    },
+    {
+      "input": "on",
+      "value": false
+    },
+    {
+      "input": "false",
+      "value": false
+    },
+    {
+      "input": " true",
+      "value": false
+    },
+    {
+      "input": "1 ",
+      "value": false
+    },
+    {
+      "input": "truK",
+      "value": false
+    }
+  ],
+  "flags": [
+    {
+      "argv": [],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--fork",
+        "x"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--fork",
+        "x",
+        "--session",
+        "y",
+        "--continue",
+        "--resume",
+        "--no-session"
+      ],
+      "results": [
+        {
+          "exit": 1,
+          "effects": [
+            [
+              "error",
+              "Error: --fork cannot be combined with --session, --continue, --resume, --no-session"
+            ]
+          ]
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--fork",
+        "x",
+        "--session-id",
+        "ok"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--fork",
+        ""
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        ""
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": 1,
+          "effects": [
+            [
+              "error",
+              "Error: Session id must be non-empty, contain only alphanumeric characters, '-', '_', and '.', and start and end with an alphanumeric character"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        "-x"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": 1,
+          "effects": [
+            [
+              "error",
+              "Error: Session id must be non-empty, contain only alphanumeric characters, '-', '_', and '.', and start and end with an alphanumeric character"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        "a-b.c_d"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        "你好"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": 1,
+          "effects": [
+            [
+              "error",
+              "Error: Session id must be non-empty, contain only alphanumeric characters, '-', '_', and '.', and start and end with an alphanumeric character"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        "a",
+        "--session",
+        "x",
+        "--continue",
+        "--resume"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": 1,
+          "effects": [
+            [
+              "error",
+              "Error: --session-id cannot be combined with --session, --continue, --resume"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        "a",
+        "--no-session"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    },
+    {
+      "argv": [
+        "--session-id",
+        "a",
+        "--help"
+      ],
+      "results": [
+        {
+          "exit": null,
+          "effects": []
+        },
+        {
+          "exit": null,
+          "effects": []
+        }
+      ]
+    }
+  ],
+  "paths": [
+    {
+      "platform": "linux",
+      "entries": null,
+      "value": null
+    },
+    {
+      "platform": "linux",
+      "entries": [],
+      "value": []
+    },
+    {
+      "platform": "linux",
+      "entries": [
+        "./one",
+        "bare",
+        "../two",
+        "npm:thing",
+        "git:repo",
+        "github:owner/repo",
+        "https://example.invalid/p",
+        "ssh:repo"
+      ],
+      "value": [
+        "/root/work/one",
+        "/root/work/bare",
+        "/root/two",
+        "npm:thing",
+        "git:repo",
+        "github:owner/repo",
+        "https://example.invalid/p",
+        "ssh:repo"
+      ]
+    },
+    {
+      "platform": "linux",
+      "entries": [
+        "/root/absolute",
+        "/root/work/../skill"
+      ],
+      "value": [
+        "/root/absolute",
+        "/root/skill"
+      ]
+    },
+    {
+      "platform": "win32",
+      "entries": null,
+      "value": null
+    },
+    {
+      "platform": "win32",
+      "entries": [],
+      "value": []
+    },
+    {
+      "platform": "win32",
+      "entries": [
+        "./one",
+        "bare",
+        "../two",
+        "npm:thing",
+        "git:repo",
+        "github:owner/repo",
+        "https://example.invalid/p",
+        "ssh:repo"
+      ],
+      "value": [
+        "/root/work/one",
+        "/root/work/bare",
+        "/root/two",
+        "npm:thing",
+        "git:repo",
+        "github:owner/repo",
+        "https://example.invalid/p",
+        "ssh:repo"
+      ]
+    },
+    {
+      "platform": "win32",
+      "entries": [
+        "/root/absolute",
+        "/root/work/../skill"
+      ],
+      "value": [
+        "/root/absolute",
+        "/root/skill"
+      ]
+    }
+  ],
+  "resolution": [
+    {
+      "id": "relative-path",
+      "arg": "./session.jsonl",
+      "platform": "linux",
+      "value": {
+        "type": "path",
+        "path": "/root/work/session.jsonl"
+      }
+    },
+    {
+      "id": "bare-jsonl-path",
+      "arg": "demo.jsonl",
+      "platform": "linux",
+      "value": {
+        "type": "path",
+        "path": "/root/work/demo.jsonl"
+      }
+    },
+    {
+      "id": "absolute-path",
+      "arg": "/root/elsewhere/demo.jsonl",
+      "platform": "linux",
+      "value": {
+        "type": "path",
+        "path": "/root/elsewhere/demo.jsonl"
+      }
+    },
+    {
+      "id": "backslash-is-path",
+      "arg": "sub\\demo",
+      "platform": "linux",
+      "value": {
+        "type": "path",
+        "path": "/root/work/sub/demo"
+      }
+    },
+    {
+      "id": "local-exact-before-prefix",
+      "arg": "a",
+      "local": [
+        [
+          "abc",
+          "prefix",
+          "/root/work"
+        ],
+        [
+          "a",
+          "exact",
+          "/root/work"
+        ]
+      ],
+      "global": [
+        [
+          "a",
+          "global",
+          "/root/other"
+        ]
+      ],
+      "platform": "linux",
+      "value": {
+        "type": "local",
+        "path": "exact"
+      }
+    },
+    {
+      "id": "local-prefix-before-global-exact",
+      "arg": "a",
+      "local": [
+        [
+          "abc",
+          "local",
+          "/root/work"
+        ]
+      ],
+      "global": [
+        [
+          "a",
+          "global",
+          "/root/other"
+        ]
+      ],
+      "platform": "linux",
+      "value": {
+        "type": "local",
+        "path": "local"
+      }
+    },
+    {
+      "id": "global-exact-before-prefix",
+      "arg": "a",
+      "global": [
+        [
+          "abc",
+          "prefix",
+          "/root/other"
+        ],
+        [
+          "a",
+          "exact",
+          "/root/other"
+        ]
+      ],
+      "platform": "linux",
+      "value": {
+        "type": "global",
+        "path": "exact",
+        "cwd": "/root/other"
+      }
+    },
+    {
+      "id": "global-prefix",
+      "arg": "a",
+      "global": [
+        [
+          "abc",
+          "first",
+          "/root/other"
+        ],
+        [
+          "axy",
+          "second",
+          "/root/third"
+        ]
+      ],
+      "platform": "linux",
+      "value": {
+        "type": "global",
+        "path": "second",
+        "cwd": "/root/third"
+      }
+    },
+    {
+      "id": "missing",
+      "arg": "unknown",
+      "platform": "linux",
+      "value": {
+        "type": "not_found",
+        "arg": "unknown"
+      }
+    },
+    {
+      "id": "relative-path",
+      "arg": "./session.jsonl",
+      "platform": "win32",
+      "value": {
+        "type": "path",
+        "path": "/root/work/session.jsonl"
+      }
+    },
+    {
+      "id": "bare-jsonl-path",
+      "arg": "demo.jsonl",
+      "platform": "win32",
+      "value": {
+        "type": "path",
+        "path": "/root/work/demo.jsonl"
+      }
+    },
+    {
+      "id": "absolute-path",
+      "arg": "/root/elsewhere/demo.jsonl",
+      "platform": "win32",
+      "value": {
+        "type": "path",
+        "path": "/root/elsewhere/demo.jsonl"
+      }
+    },
+    {
+      "id": "backslash-is-path",
+      "arg": "sub\\demo",
+      "platform": "win32",
+      "value": {
+        "type": "path",
+        "path": "/root/work/sub/demo"
+      }
+    },
+    {
+      "id": "local-exact-before-prefix",
+      "arg": "a",
+      "local": [
+        [
+          "abc",
+          "prefix",
+          "/root/work"
+        ],
+        [
+          "a",
+          "exact",
+          "/root/work"
+        ]
+      ],
+      "global": [
+        [
+          "a",
+          "global",
+          "/root/other"
+        ]
+      ],
+      "platform": "win32",
+      "value": {
+        "type": "local",
+        "path": "exact"
+      }
+    },
+    {
+      "id": "local-prefix-before-global-exact",
+      "arg": "a",
+      "local": [
+        [
+          "abc",
+          "local",
+          "/root/work"
+        ]
+      ],
+      "global": [
+        [
+          "a",
+          "global",
+          "/root/other"
+        ]
+      ],
+      "platform": "win32",
+      "value": {
+        "type": "local",
+        "path": "local"
+      }
+    },
+    {
+      "id": "global-exact-before-prefix",
+      "arg": "a",
+      "global": [
+        [
+          "abc",
+          "prefix",
+          "/root/other"
+        ],
+        [
+          "a",
+          "exact",
+          "/root/other"
+        ]
+      ],
+      "platform": "win32",
+      "value": {
+        "type": "global",
+        "path": "exact",
+        "cwd": "/root/other"
+      }
+    },
+    {
+      "id": "global-prefix",
+      "arg": "a",
+      "global": [
+        [
+          "abc",
+          "first",
+          "/root/other"
+        ],
+        [
+          "axy",
+          "second",
+          "/root/third"
+        ]
+      ],
+      "platform": "win32",
+      "value": {
+        "type": "global",
+        "path": "second",
+        "cwd": "/root/third"
+      }
+    },
+    {
+      "id": "missing",
+      "arg": "unknown",
+      "platform": "win32",
+      "value": {
+        "type": "not_found",
+        "arg": "unknown"
+      }
+    }
+  ]
+}

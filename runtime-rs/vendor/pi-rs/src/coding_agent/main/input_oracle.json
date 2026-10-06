@@ -1,0 +1,235 @@
+{
+  "provenance": {
+    "mainSource": "f985c35a729c2234ddf634c490bf214b9cdc2670489fae1f5eea570e45d5a5ff",
+    "boundary": "Actual upstream helpers and real Node PassThrough UTF-8 decoder; chalk disabled as on non-TTY stderr."
+  },
+  "stdin": [
+    {
+      "id": "empty",
+      "bytes": [],
+      "tty": false,
+      "chunks": [],
+      "value": null
+    },
+    {
+      "id": "tty-unread",
+      "bytes": [
+        65,
+        66
+      ],
+      "tty": true,
+      "chunks": [
+        1,
+        1
+      ],
+      "value": null
+    },
+    {
+      "id": "whitespace",
+      "bytes": [
+        32,
+        9,
+        10,
+        13
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": null
+    },
+    {
+      "id": "unicode-0",
+      "bytes": [
+        239,
+        187,
+        191,
+        32,
+        9,
+        228,
+        189,
+        160,
+        229,
+        165,
+        189,
+        10,
+        239,
+        187,
+        191
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": "你好"
+    },
+    {
+      "id": "unicode-1",
+      "bytes": [
+        194,
+        133,
+        104,
+        101,
+        108,
+        108,
+        111,
+        194,
+        133
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": "hello"
+    },
+    {
+      "id": "unicode-2",
+      "bytes": [
+        28,
+        104,
+        101,
+        108,
+        108,
+        111,
+        28
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": "\u001chello\u001c"
+    },
+    {
+      "id": "unicode-3",
+      "bytes": [
+        226,
+        128,
+        168,
+        226,
+        128,
+        169,
+        97,
+        98,
+        99,
+        194,
+        160
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": "abc"
+    },
+    {
+      "id": "unicode-4",
+      "bytes": [
+        226,
+        128,
+        139,
+        104,
+        101,
+        108,
+        108,
+        111,
+        226,
+        128,
+        139
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": "​hello​"
+    },
+    {
+      "id": "malformed",
+      "bytes": [
+        32,
+        192,
+        175,
+        237,
+        160,
+        128,
+        226,
+        130
+      ],
+      "tty": false,
+      "chunks": [
+        1,
+        2,
+        1,
+        1,
+        2,
+        1
+      ],
+      "value": "������"
+    },
+    {
+      "id": "split-emoji",
+      "bytes": [
+        32,
+        97,
+        240,
+        159,
+        152,
+        128,
+        122,
+        32
+      ],
+      "tty": false,
+      "chunks": [
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "value": "a😀z"
+    }
+  ],
+  "diagnostics": {
+    "input": [
+      {
+        "type": "error",
+        "message": "bad\nnext"
+      },
+      {
+        "type": "warning",
+        "message": "careful"
+      },
+      {
+        "type": "info",
+        "message": "notice"
+      }
+    ],
+    "stderr": "Error: bad\nnext\nWarning: careful\nnotice\n"
+  }
+}

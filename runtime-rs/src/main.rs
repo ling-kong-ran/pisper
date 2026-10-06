@@ -1,67 +1,154 @@
-//! Pisper Rust backend — vertical slice 2: the pi-rs session host.
-//!
-//! This server replaces the Node.js `runtime/` layer: the same HTTP contract
-//! (`/api/*`) backed by the pi-rs engine (crates.io `pi-rs`) instead of the
-//! `@earendil-works/pi-coding-agent` npm package.
-//!
-//! Slice 1: process bootstrap, `/api/health` contract, JSON 404 fallback.
-//! Slice 2 (this file): an in-process `AgentSessionRuntime` from the pi-rs
-//! engine hosting ONE active session, exposed as
-//!   GET  /api/sessions                    (list from the session store)
-//!   POST /api/sessions                    (create + switch to a new session)
-//!   POST /api/sessions/{id}/input         (prompt the engine)
-//!   GET  /api/sessions/{id}/live          (SSE stream of JSON session events)
-//!   POST /api/sessions/{id}/abort         (abort streaming)
-//! Multi-session switching (hosting any {id}, not just the current one) is
-//! slice 3; the engine already supports it via `switch_session`.
+//! Pisper 的原生 Rust HTTP/SSE 后端，使用 Pi 引擎并保留 Web/TUI 协议。
+//! 配置、历史、引擎准入与界面偏好由各自领域模块维护。
+//! 尚未完成的产品功能通过 capabilities 及明确的 unsupported 错误公布。
 
+mod approval_api;
+mod asset_api;
+mod browser_integration;
+mod channel_integration;
+mod channel_transport;
+mod channels_api;
+mod chat_stream;
+mod custom_ui_api;
+mod execution_adapter;
+mod execution_modes;
+mod desktop_ops;
+mod file_changes_api;
+mod game_assets_api;
+mod goal_api;
+#[cfg(test)]
+mod host_factory_tests;
+mod mcp_api;
+mod mcp_host_ops;
+mod memory_api;
+mod memory_store;
+mod multi_agent_api;
+mod native_browser;
+mod native_channels;
+mod native_custom_ui;
+mod native_file_changes;
+mod native_game_assets;
+mod native_image_agent;
+mod native_image_runtime;
+mod native_notifications;
+mod native_plugins;
+mod native_shell;
+mod native_tool_catalog;
+mod native_tool_gateway;
+mod native_visual;
+mod native_web_search;
+mod native_workflow;
+mod notification_api;
+mod plan_api;
+mod plugin_integration;
+mod plugins_api;
 mod product;
 mod product2;
+mod provider_config;
+mod remote_ops;
+mod runtime_paths;
+mod schedule_api;
+mod scheduled_jobs;
 mod security;
+mod session_api;
+mod session_ops;
+mod session_runtime;
+mod session_workers;
+mod skills_ops;
+mod speech_api;
+mod tool_policy;
+mod ui_contract;
+mod vcs_ops;
+mod visual_api;
+mod visual_catalog_cache;
+mod visual_integration;
+mod visual_request_json;
+mod web_search_api;
+mod workflow_api;
+mod workflow_engine;
+mod workflow_executor;
 
-use std::{convert::Infallible, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{sse::{Event, KeepAlive}, IntoResponse, Sse},
+    response::IntoResponse,
     routing::{delete, get, post, put},
     Json, Router,
 };
-use futures::stream::Stream;
 use tokio::sync::broadcast;
 
+use pi_rust::agent_core::types::ThinkingLevel;
+use pi_rust::coding_agent::core::resource_loader::InlineExtension;
+use pi_rust::coding_agent::core::skills::{load_skills, LoadSkillsOptions};
+use pi_rust::coding_agent::extensions::mcp::{create_mcp_extension, McpExtensionOptions};
 use pi_rust::coding_agent::{
-    agent_session::AgentSessionEvent,
+    agent_session::{AgentSessionEvent, ExtensionBindings},
     cli::{args::Args, project_trust::AppMode},
     core::{
         agent_session_runtime::{
             create_agent_session_runtime, AgentSessionRuntime, CreateAgentSessionRuntimeOptions,
             ForkOptions, ForkPosition, SwitchSessionOptions,
-            NewSessionOptionsRuntime,
         },
         settings_manager::{SettingsManager, SettingsManagerCreateOptions},
     },
     main::runtime::{create_cli_runtime_factory, CliRuntimeFactoryOptions},
     modes::json_event::to_json_event_string,
-    session_manager::{NewSessionOptions, SessionEntry, SessionManager},
+    session_manager::{NewSessionOptions, SessionManager},
 };
-use pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc;
-use pi_rust::agent_core::types::ThinkingLevel;
-use pi_rust::coding_agent::core::mcp_servers::McpExposure;
-use pi_rust::coding_agent::core::skills::{load_skills, LoadSkillsOptions};
-use pi_rust::coding_agent::extensions::mcp::config::{load_mcp_config, LoadedMcpConfigOptions};
-use pi_rust::config;
 
 /// API version handshake (see `runtime/http/routes/sessions-runtime.mjs`).
 const API_VERSION: u32 = 1;
 const MIN_CLIENT_VERSION: u32 = 1;
 const ENGINE: &str = "pi-rs";
 
-/// Shared server state: one pi-rs engine runtime hosting the current session,
-/// plus a broadcast fan-out of JSON-serialized session events for `/live`.
+fn extension_bindings() -> ExtensionBindings {
+    ExtensionBindings {
+        // Pi reload 通过持久化 mode binding 判定是否重新发送 session_start。
+        on_error: Some(Arc::new(|_| {
+            tracing::warn!("Pi extension reported an error; see runtime diagnostics.")
+        })),
+        ..Default::default()
+    }
+}
+
+/// The configuration runtime owns the shared model/tool catalog. Conversations
+/// have independent resident runtimes and never replace the catalog session.
 pub(crate) struct AppState {
     pub(crate) runtime: Arc<AgentSessionRuntime>,
+    pub(crate) sessions: session_runtime::SessionRuntimeRegistry,
+    pub(crate) agent_dir: String,
+    pub(crate) providers: Arc<provider_config::ProviderConfigStore>,
+    pub(crate) plugins: Arc<native_plugins::ToolPluginService>,
+    pub(crate) web_search: Arc<native_web_search::WebSearchService>,
+    pub(crate) visual: Arc<native_visual::VisualGenerationService>,
+    pub(crate) browser: Arc<native_browser::BrowserAutomationService>,
+    pub(crate) plugin_integration: Arc<plugin_integration::PluginIntegration>,
+    pub(crate) engine_mutation: Arc<tokio::sync::RwLock<()>>,
+    pub(crate) ui: ui_contract::UiState,
+    pub(crate) notifications: Arc<native_notifications::NotificationService>,
+    pub(crate) channels: Arc<native_channels::ChannelService>,
+    pub(crate) file_changes: Arc<native_file_changes::FileChangesService>,
+    pub(crate) custom_ui: Arc<native_custom_ui::CustomUiService>,
+    pub(crate) image_agent: Arc<native_image_agent::ImageAgentService>,
+    pub(crate) memory: Arc<std::sync::Mutex<memory_store::MemoryStore>>,
+    pub(crate) memory_tasks: Arc<memory_store::runtime::MemoryRuntime>,
+    pub(crate) usage: Arc<memory_store::usage_ledger::UsageLedger>,
+    pub(crate) executor: Arc<execution_adapter::PiExecutor>,
+    pub(crate) plans: Arc<plan_api::PlanService>,
+    pub(crate) goals: Arc<goal_api::GoalRunner>,
+    pub(crate) agents: Arc<multi_agent_api::AgentService>,
+    pub(crate) team: Arc<multi_agent_api::TeamService>,
+    pub(crate) speech: Arc<speech_api::SpeechService>,
+    workflows: WorkflowServices,
+    game_assets: GameServices,
+    closing: std::sync::atomic::AtomicBool,
+    pub(crate) shutdown: tokio_util::sync::CancellationToken,
+    pub(crate) assets: Arc<std::sync::Mutex<asset_api::store::AssetStore>>,
+    pub(crate) asset_tracker: Arc<asset_api::tracker::WorkspaceAssetTracker>,
+    pub(crate) approvals: Arc<approval_api::ApprovalService>,
+    _approval_events: approval_api::ApprovalSubscription,
     pub(crate) cwd: String,
     pub(crate) events: broadcast::Sender<String>,
     /// Pisper product data dir (PISPER_RS_DATA_DIR, default
@@ -76,35 +163,161 @@ pub(crate) struct AppState {
     /// Built React frontend dir (vite `dist/`) served same-origin with /api.
     pub(crate) dist_dir: std::path::PathBuf,
     /// Live chat runs (POST /api/chat) for SSE replay (upstream runs service).
-    pub(crate) chat_runs:
-        std::sync::Mutex<std::collections::HashMap<String, product::ChatRun>>,
+    pub(crate) chat_runs: std::sync::Mutex<std::collections::HashMap<String, product::ChatRun>>,
     /// Global SSE frame cursor (upstream runs.record cursor).
     pub(crate) frame_cursor: std::sync::atomic::AtomicU64,
+    /// Sidecar access token (PISPER_DESKTOP_TOKEN): when set, every request
+    /// must carry the `__pisper_desktop=<token>` cookie (TUI/desktop auth).
+    pub(crate) desktop_token: Option<String>,
     /// Remote device pairing store (codes + paired devices).
     pub(crate) pairing: security::PairingStore,
+    /// release remoteAccess 的配对审批流（pairing-requests）。
+    pub(crate) pairing_requests: std::sync::Mutex<Vec<security::PairingApproval>>,
     /// Pisper product-layer per-session metadata (Node sessionMeta store):
     /// execution mode -> permission mode mapping and the goal tracker.
-    session_meta: std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>,
+    session_meta: Arc<std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>>,
     /// Unsubscribe for the listener attached to the current session. Rebuilt
     /// on every `new_session` so events keep flowing across session switches.
     unsub: std::sync::Mutex<Option<pi_rust::coding_agent::agent_session::AgentSessionUnsubscribe>>,
 }
 
-/// Upstream `permissionModeForExecutionMode` (session-lifecycle.mjs): the
-/// permission preset implied by a Pisper execution mode.
-fn permission_mode_for_execution_mode(mode: &str) -> &'static str {
-    match mode {
-        "auto" | "yolo" => "full",
-        "supervised" => "ask",
-        _ => "ask",
+/// Owns the workflow domain from boot through cancellation and resource joins.
+/// The executor holds Weak bindings back to AppState and the image service.
+struct WorkflowServices {
+    media: Arc<native_workflow::media::MediaService>,
+    cache: Arc<native_workflow::engine_cache::EngineCache>,
+    engines: Arc<native_image_runtime::engines::EngineService>,
+    processor: Arc<native_workflow::image_processing::ImageProcessor>,
+    executor: Arc<workflow_executor::WorkflowRuntimeExecutor>,
+    images: Arc<native_workflow::image_nodes::ImageNodeService>,
+    workflows: Arc<workflow_engine::WorkflowService>,
+    schedules: std::sync::OnceLock<Arc<schedule_api::ScheduleService>>,
+}
+
+impl WorkflowServices {
+    async fn open(data_dir: &str, cwd: &str) -> anyhow::Result<Self> {
+        let directory = std::path::Path::new(data_dir);
+        let media = native_workflow::media::MediaService::open(directory)?;
+        let cache = native_workflow::engine_cache::EngineCache::open(
+            directory,
+            native_workflow::engine_cache::release_definitions(),
+        )?;
+        let engines = native_image_runtime::engines::EngineService::open(cache.clone())?;
+        let algorithms = native_image_runtime::cpu::CpuImageAlgorithms::new(cache.clone());
+        let processor = native_workflow::image_processing::ImageProcessor::new(Some(algorithms));
+        let executor = workflow_executor::WorkflowRuntimeExecutor::new(media.clone());
+        let images = native_workflow::image_nodes::ImageNodeService::open(
+            directory,
+            media.clone(),
+            processor.clone(),
+            executor.clone(),
+        )?;
+        let workflows = workflow_engine::WorkflowService::open(
+            directory.join("pisper-workflows.json"),
+            cwd.into(),
+            executor.clone(),
+            4,
+        )
+        .await?;
+        Ok(Self {
+            media,
+            cache,
+            engines,
+            processor,
+            executor,
+            images,
+            workflows,
+            schedules: std::sync::OnceLock::new(),
+        })
+    }
+
+    async fn attach(&self, state: &Arc<AppState>) -> anyhow::Result<()> {
+        self.executor.attach(state, &self.images)?;
+        // ScheduleService starts its due-task timer immediately. All Weak
+        // executor bindings must exist before opening persisted schedules.
+        let schedules = schedule_api::ScheduleService::open(
+            std::path::Path::new(&state.data_dir).join("pisper-schedules.json"),
+            state.cwd.clone(),
+            self.workflows.clone(),
+            std::time::Duration::from_secs(15),
+        )
+        .await?;
+        self.schedules
+            .set(schedules)
+            .map_err(|_| anyhow::anyhow!("Schedule service already initialized"))
+    }
+
+    async fn shutdown(&self) {
+        if let Some(schedules) = self.schedules.get() {
+            if let Err(error) = schedules.dispose().await {
+                tracing::warn!(code=%error.code, "Schedule shutdown failed");
+            }
+        }
+        if let Err(error) = self.workflows.dispose().await {
+            tracing::warn!(code=%error.code, "Workflow shutdown failed");
+        }
+        self.images.dispose().await;
+        self.processor.dispose().await;
+        self.engines.dispose().await;
+        self.media.dispose().await;
     }
 }
 
-#[derive(Default, Clone)]
+/// Game projects own their media, jobs and image runs. CPU engines and the
+/// provider generator are shared with workflows and outlive this bundle.
+struct GameServices {
+    media: Arc<native_workflow::media::MediaService>,
+    images: Arc<native_workflow::image_nodes::ImageNodeService>,
+    projects: Arc<native_game_assets::GameAssetsService>,
+}
+impl GameServices {
+    fn open(data_dir: &str, workflows: &WorkflowServices) -> anyhow::Result<Self> {
+        let directory = std::path::Path::new(data_dir).join("game-assets");
+        let media = native_workflow::media::MediaService::open(&directory)?;
+        let images = native_workflow::image_nodes::ImageNodeService::open(
+            &directory,
+            media.clone(),
+            workflows.processor.clone(),
+            workflows.executor.clone(),
+        )?;
+        let projects =
+            native_game_assets::GameAssetsService::open(&directory, media.clone(), images.clone())?;
+        Ok(Self {
+            media,
+            images,
+            projects,
+        })
+    }
+    async fn shutdown(&self) {
+        if let Err(error) = self.projects.dispose().await {
+            tracing::warn!(code=%error.code, "Game asset shutdown failed");
+        }
+        self.images.dispose().await;
+        self.media.dispose().await;
+    }
+}
+
+/// Upstream `permissionModeForExecutionMode` (session-lifecycle.mjs): the
+/// permission preset implied by a Pisper execution mode.
+fn permission_mode_for_execution_mode(mode: &str) -> &'static str {
+    execution_modes::permission_mode(
+        execution_modes::normalize(mode).unwrap_or("approval-required"),
+    )
+}
+
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 struct SessionMeta {
     execution_mode: Option<String>,
     permission_mode: Option<String>,
     goal: Option<String>,
+    name: Option<String>,
+    pinned: bool,
+    archived: bool,
+    unread: bool,
+    run_mode: Option<String>,
+    /// release SideChatMetadata；有值即临时侧聊会话。
+    side_chat: Option<session_ops::SideChatMeta>,
 }
 
 async fn health() -> Json<serde_json::Value> {
@@ -119,97 +332,7 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 fn capabilities() -> serde_json::Value {
-    serde_json::json!({
-        "sessions": true,
-        "mcp": true,
-        "skills": true,
-        "workflows": true,
-        "schedules": true,
-        "remote": true,
-    })
-}
-
-async fn list_sessions(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let active_id = state.runtime.session().session_id();
-    let active_model = state
-        .runtime
-        .session()
-        .model()
-        .map(|m| format!("{}/{}", m.provider, m.id))
-        .unwrap_or_default();
-    let sessions: Vec<serde_json::Value> = SessionManager::list(&state.cwd, None, None)
-        .into_iter()
-        .map(|s| {
-            let active = s.id == active_id;
-            let streaming = active && state.runtime.session().is_streaming();
-            let thinking_level: pi_rust::agent_core::types::ThinkingLevel = if active {
-                state.runtime.session().thinking_level()
-            } else {
-                pi_rust::agent_core::types::ThinkingLevel::Medium
-            };
-            serde_json::json!({
-                "id": s.id,
-                "name": s.name.clone().unwrap_or_default(),
-                "model": if active { active_model.clone() } else { String::new() },
-                "cwd": s.cwd,
-                "streaming": streaming,
-                "executionMode": "",
-                "thinkingLevel": serde_json::to_value(thinking_level).unwrap_or_default(),
-                "modified": format_iso8601_utc(s.modified as i64),
-                "created": s.created,
-                "messageCount": s.message_count,
-                "firstMessage": s.first_message,
-            })
-        })
-        .collect();
-    Json(serde_json::json!({ "sessions": sessions }))
-}
-
-async fn create_session(
-    State(state): State<Arc<AppState>>,
-    body: Option<Json<serde_json::Value>>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let body = body.map(|Json(v)| v).unwrap_or_default();
-    state
-        .runtime
-        .new_session(NewSessionOptionsRuntime::default())
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    let session = state.runtime.session();
-    let name = body
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    if !name.is_empty() {
-        session
-            .session_manager
-            .lock()
-            .expect("session manager lock")
-            .append_session_info(&name)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-    }
-    // The client's workspace must match what the engine session was created
-    // with (TUI validates this); the server boot cwd defines it for now.
-    let model = session
-        .model()
-        .map(|m| format!("{}/{}", m.provider, m.id))
-        .unwrap_or_default();
-    let requested_cwd = body
-        .get("cwd")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&state.cwd)
-        .to_string();
-    Ok(Json(serde_json::json!({
-        "id": session.session_id(),
-        "name": name,
-        "model": model,
-        "cwd": if requested_cwd.is_empty() { state.cwd.clone() } else { requested_cwd },
-        "streaming": false,
-        "executionMode": "",
-        "thinkingLevel": serde_json::to_value(session.thinking_level()).unwrap_or_default(),
-        "modified": format_iso8601_utc(product::now_ms() as i64),
-    })))
+    ui_contract::capabilities()
 }
 
 async fn session_input(
@@ -217,14 +340,31 @@ async fn session_input(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
     let text = body
         .get("text")
         .and_then(|t| t.as_str())
         .or_else(|| body.get("message").and_then(|t| t.as_str()))
         .or_else(|| body.as_str())
         .ok_or_else(|| ApiError::bad_request("missing \"text\"/\"message\" field"))?;
+    if text.trim().is_empty() {
+        return Err(ApiError::bad_request("消息不能为空。"));
+    }
+    let hosted = session_runtime::hosted(&state, &id).await?;
+    let active = hosted.session();
+    if active.is_streaming() {
+        if body["behavior"].as_str() == Some("followUp") {
+            active.follow_up(text, None, None).await
+        } else {
+            active.steer(text, None, None).await
+        }
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+        let queued = session_api::queued_inputs(&state, &id);
+        return Ok(Json(
+            serde_json::json!({"ok":true,"queuedInputs":queued,"pendingMessageCount":active.pending_message_count()}),
+        ));
+    }
+    let mutation = session_runtime::mutation(&state, &id).await?;
+    let session = mutation.hosted.session();
     session
         .prompt(text.to_string(), None)
         .await
@@ -236,107 +376,31 @@ async fn session_abort(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
-    session.abort().await;
-    Ok(Json(serde_json::json!({ "ok": true })))
-}
-
-async fn get_config() -> Json<serde_json::Value> {
-    let cfg = config::load_config().unwrap_or_default();
-    Json(serde_json::json!({
-        "provider": cfg.provider,
-        "model": cfg.model,
-        "baseUrl": cfg.base_url,
-        "maxTokens": cfg.max_tokens,
-        "contextWindow": cfg.context_window,
-        "hasCredential": config::resolve_api_key(&cfg.provider, None).is_some(),
-    }))
-}
-
-async fn put_config(
-    State(state): State<Arc<AppState>>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut cfg = config::load_config().unwrap_or_default();
-    if let Some(v) = body.get("provider").and_then(|v| v.as_str()) {
-        cfg.provider = v.to_string();
-    }
-    if let Some(v) = body.get("model").and_then(|v| v.as_str()) {
-        cfg.model = v.to_string();
-    }
-    if let Some(v) = body.get("baseUrl").and_then(|v| v.as_str()) {
-        cfg.base_url = Some(v.to_string());
-    }
-    if let Some(v) = body.get("maxTokens").and_then(|v| v.as_u64()) {
-        cfg.max_tokens = v;
-    }
-    if let Some(v) = body.get("contextWindow").and_then(|v| v.as_u64()) {
-        cfg.context_window = v;
-    }
-    // Persist in the engine's config format (pi_rust::config::parse_config
-    // reads this TOML shape back on the next boot).
-    let mut toml = format!("provider = {:?}\nmodel = {:?}\n", cfg.provider, cfg.model);
-    if let Some(base) = &cfg.base_url {
-        toml.push_str(&format!("base_url = {base:?}\n"));
-    }
-    toml.push_str(&format!(
-        "max_tokens = {}\ncontext_window = {}\n",
-        cfg.max_tokens, cfg.context_window
-    ));
-    let path = config::config_path()
-        .ok_or_else(|| ApiError::internal("no user config directory available"))?;
-    std::fs::create_dir_all(path.parent().expect("config parent"))
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    std::fs::write(&path, &toml).map_err(|e| ApiError::internal(e.to_string()))?;
-    apply_config_model(&state, &cfg).await?;
-    Ok(Json(serde_json::json!({
-        "ok": true,
-        "provider": cfg.provider,
-        "model": cfg.model,
-    })))
-}
-
-/// Resolve the configured model against the engine's available snapshot and
-/// apply it to the active session. Config-file models absent from the catalog
-/// (hand-declared endpoints like internal vLLM deployments) are built via
-/// `config::build_model`.
-async fn apply_config_model(
-    state: &AppState,
-    cfg: &config::Config,
-) -> Result<(), ApiError> {
-    let session = state.runtime.session();
-    let model = session
-        .model_runtime()
-        .get_available_snapshot()
-        .into_iter()
-        .find(|m| m.provider == cfg.provider && m.id == cfg.model)
-        .unwrap_or_else(|| {
-            config::build_model(cfg).expect("config model builds for known providers")
-        });
-    session
-        .set_model(model, None)
+    state.approvals.cancel_session(&id);
+    session_api::find_session_path(&state, &id)?;
+    state.asset_tracker.cancel_session(&id);
+    state
+        .goals
+        .cancel(&id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    state
+        .agents
+        .abort_parent(&id, "父会话已停止。")
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    if let Some(hosted) = state.sessions.get(&id) {
+        hosted.abort().await?;
+    }
+    state.asset_tracker.wait_session(&id).await;
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 async fn get_session_model(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
-    let model = session.model();
-    Ok(Json(match model {
-        Some(m) => serde_json::json!({
-            "provider": m.provider,
-            "id": m.id,
-            "name": m.name,
-            "baseUrl": m.base_url,
-            "reasoning": m.reasoning,
-        }),
-        None => serde_json::Value::Null,
-    }))
+    Ok(Json(session_api::model_state(&state, &id)?))
 }
 
 async fn post_session_model(
@@ -344,8 +408,8 @@ async fn post_session_model(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
+    let mutation = session_runtime::mutation(&state, &id).await?;
+    let session = mutation.hosted.session();
     let provider = body
         .get("provider")
         .and_then(|v| v.as_str())
@@ -354,7 +418,7 @@ async fn post_session_model(
         .get("model")
         .and_then(|v| v.as_str())
         .ok_or_else(|| ApiError::bad_request("missing \"model\" field"))?;
-    let snapshot = session.model_runtime().get_available_snapshot();
+    let snapshot = provider_config::available_models(&state).await?;
     let model = snapshot
         .into_iter()
         .find(|m| m.provider == provider && m.id == model_id)
@@ -376,14 +440,7 @@ async fn get_session_thinking_level(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
-    let level = session.thinking_level();
-    Ok(Json(serde_json::json!({
-        "thinkingLevel": serde_json::to_value(level).expect("level serializes"),
-        "availableLevels": ["minimal", "low", "medium", "high", "xhigh", "max"],
-        "status": "ok",
-    })))
+    Ok(Json(session_api::thinking_state(&state, &id)?))
 }
 
 async fn post_session_thinking_level(
@@ -391,33 +448,36 @@ async fn post_session_thinking_level(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
-    let level: ThinkingLevel = serde_json::from_value(body)
-        .map_err(|e| ApiError::bad_request(format!("invalid thinking level: {e}")))?;
+    let mutation = session_runtime::mutation(&state, &id).await?;
+    let session = mutation.hosted.session();
+    let level: ThinkingLevel =
+        serde_json::from_value(body.get("level").cloned().unwrap_or(body))
+            .map_err(|e| ApiError::bad_request(format!("invalid thinking level: {e}")))?;
     session.set_thinking_level(level, None);
     Ok(Json(serde_json::json!({
         "thinkingLevel": serde_json::to_value(level).expect("level serializes"),
-        "availableLevels": ["minimal", "low", "medium", "high", "xhigh", "max"],
+        "availableLevels": session.get_available_thinking_levels(),
         "status": "ok",
     })))
 }
 fn format_diagnostic(d: &pi_rust::coding_agent::core::diagnostics::ResourceDiagnostic) -> String {
     format!(
-        "{}{}{}",
+        "{}{}: {}",
         d.r#type.as_str(),
-        d.path.as_deref().map(|p| format!(" ({p})")).unwrap_or_default(),
-        format!(": {}", d.message)
+        d.path
+            .as_deref()
+            .map(|p| format!(" ({p})"))
+            .unwrap_or_default(),
+        d.message
     )
 }
-
 
 async fn derive_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
+    let source = session_runtime::mutation(&state, &id).await?;
     let entry_id = body
         .get("boundaryEntryId")
         .and_then(|v| v.as_str())
@@ -429,16 +489,27 @@ async fn derive_session(
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
-    state
-        .runtime
+    let manager = SessionManager::open(&session_api::find_session_path(&state, &id)?, None, None)
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let derived = state.sessions.build_runtime(&state, manager).await?;
+    derived
         .fork(
             &entry_id,
-            ForkOptions { position: ForkPosition::At, with_session: None },
+            ForkOptions {
+                position: ForkPosition::At,
+                with_session: None,
+            },
         )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    attach_event_listener(&state);
-    let session = state.runtime.session();
+    derived
+        .session()
+        .bind_extensions(extension_bindings())
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let hosted = state.sessions.insert(&state, derived)?;
+    let session = hosted.session();
+    drop(source);
     if !name.is_empty() {
         session
             .session_manager
@@ -454,102 +525,12 @@ async fn derive_session(
     })))
 }
 
-async fn get_session_messages(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
-    let entries = session
-        .session_manager
-        .lock()
-        .expect("session manager lock")
-        .get_entries();
-    let items: Vec<serde_json::Value> = entries
-        .iter()
-        .filter_map(|entry| {
-            let kind = match entry {
-                SessionEntry::Message(_) => "message",
-                SessionEntry::ThinkingLevelChange(_) => "thinkingLevelChange",
-                SessionEntry::ModelChange(_) => "modelChange",
-                SessionEntry::Usage(_) => "usage",
-                SessionEntry::Compaction(_) => "compaction",
-                SessionEntry::BranchSummary(_) => "branchSummary",
-                SessionEntry::Custom(_) => "custom",
-                SessionEntry::CustomMessage(_) => "customMessage",
-                SessionEntry::ContextEdit(_) => "contextEdit",
-                SessionEntry::Label(_) => "label",
-                SessionEntry::SessionInfo(_) => "sessionInfo",
-                SessionEntry::Unparsed(_) => "__unparsed",
-            };
-            entry.id().map(|entry_id| {
-                serde_json::json!({ "id": entry_id, "type": kind })
-            })
-        })
-        .collect();
-    Ok(Json(serde_json::json!({ "entries": items })))
-}
-
-async fn get_session_labels(
-    State(state): State<Arc<AppState>>,
-    Query(params): Query<std::collections::HashMap<String, String>>,
-) -> Json<serde_json::Value> {
-    // Node contract: keyword normalized (collapsed whitespace, lowercase, 80
-    // chars); limit defaults to 500 without a keyword and 20 with one
-    // (clamped 1..=1000). Turn-label entries inside session files are a
-    // follow-up; session names are the v1 label set.
-    let keyword = params
-        .get("query")
-        .map(|q| q.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase())
-        .unwrap_or_default()
-        .chars()
-        .take(80)
-        .collect::<String>();
-    let limit = params
-        .get("limit")
-        .and_then(|l| l.parse::<usize>().ok())
-        .map(|l| l.clamp(1, 1000))
-        .unwrap_or(if keyword.is_empty() { 500 } else { 20 });
-    let labels: Vec<serde_json::Value> = SessionManager::list(&state.cwd, None, None)
-        .into_iter()
-        .filter(|s| {
-            keyword.is_empty()
-                || s.name
-                    .as_deref()
-                    .map(|n| n.to_lowercase().contains(&keyword))
-                    .unwrap_or(false)
-        })
-        .take(limit)
-        .map(|s| {
-            serde_json::json!({
-                "sessionId": s.id,
-                "sessionName": s.name.clone().unwrap_or_default(),
-                "label": s.name.unwrap_or_default(),
-                "sessionCreated": s.created,
-                "sessionModified": s.modified,
-                "entryId": serde_json::Value::Null,
-                "active": false,
-            })
-        })
-        .collect();
-    Json(serde_json::json!({ "labels": labels }))
-}
-
-fn exposure_label(e: McpExposure) -> &'static str {
-    match e {
-        McpExposure::Codemode => "codemode",
-        McpExposure::Deferred => "deferred",
-        McpExposure::Direct => "direct",
-        McpExposure::Hidden => "hidden",
-    }
-}
-
 async fn session_compact(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-    let session = state.runtime.session();
+    let mutation = session_runtime::mutation(&state, &id).await?;
+    let session = mutation.hosted.session();
     let result = session
         .compact(None)
         .await
@@ -569,28 +550,44 @@ async fn set_session_cwd(
         .filter(|s| !s.is_empty())
         .ok_or_else(|| ApiError::bad_request("missing \"cwd\" field"))?
         .to_string();
-    ensure_hosted(&state, &id).await?;
-    let file = state
-        .runtime
+    let cwd =
+        std::fs::canonicalize(&cwd_input).map_err(|_| ApiError::bad_request("工作目录不存在。"))?;
+    if !cwd.is_dir() {
+        return Err(ApiError::bad_request("工作目录必须是文件夹。"));
+    }
+    let cwd_input = cwd
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_string();
+    let mutation = session_runtime::mutation(&state, &id).await?;
+    let file = mutation
+        .hosted
         .session()
         .session_file()
         .ok_or_else(|| ApiError::internal("active session is not persisted yet"))?;
     // Upstream re-hosts the same session file with a cwd override (the
     // engine rebuilds the session against the new workspace).
-    state
+    mutation
+        .hosted
         .runtime
         .switch_session(
             &file,
-            SwitchSessionOptions { cwd_override: Some(cwd_input.clone()), ..Default::default() },
+            SwitchSessionOptions {
+                cwd_override: Some(cwd_input.clone()),
+                ..Default::default()
+            },
         )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    attach_event_listener(&state);
-    {
-        let mut meta = state.session_meta.lock().expect("session meta lock");
-        let entry = meta.entry(id.clone()).or_default();
-        entry.goal = entry.goal.take();
-    }
+    session_api::persist_session_cwd(&file, &cwd_input)?;
+    mutation
+        .hosted
+        .runtime
+        .session()
+        .bind_extensions(extension_bindings())
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    mutation.hosted.rebind(&state);
     Ok(Json(serde_json::json!({ "id": id, "cwd": cwd_input })))
 }
 
@@ -605,11 +602,22 @@ async fn set_session_execution_mode(
         .filter(|s| !s.is_empty())
         .ok_or_else(|| ApiError::bad_request("missing \"mode\" field"))?
         .to_string();
+    session_api::find_session_path(&state, &id)?;
+    let mode = execution_modes::normalize(&mode)
+        .unwrap_or(execution_modes::DEFAULT_EXECUTION_MODE)
+        .to_owned();
     {
         let mut meta = state.session_meta.lock().expect("session meta lock");
         let entry = meta.entry(id.clone()).or_default();
         entry.execution_mode = Some(mode.clone());
         entry.permission_mode = Some(permission_mode_for_execution_mode(&mode).to_string());
+    }
+    session_api::save_metadata(&state)?;
+    if let Some(host) = state.sessions.get(&id) {
+        state
+            .plugin_integration
+            .apply_loadout(host.session())
+            .map_err(|error| ApiError::internal(error.message))?;
     }
     Ok(Json(serde_json::json!({
         "id": id,
@@ -618,85 +626,27 @@ async fn set_session_execution_mode(
     })))
 }
 
-async fn get_session_goal(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let meta = state.session_meta.lock().expect("session meta lock");
-    match meta.get(&id).and_then(|m| m.goal.clone()) {
-        Some(goal) => Ok(Json(serde_json::json!({ "id": id, "goal": goal }))),
-        None => Err(ApiError::new(
-            StatusCode::NOT_FOUND,
-            "no_goal",
-            "当前会话没有 Goal。",
-        )),
-    }
-}
-
-async fn put_session_goal(
+async fn set_session_run_mode(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let goal = body
-        .get("goal")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ApiError::bad_request("missing \"goal\" field"))?
-        .to_string();
-    {
-        let mut meta = state.session_meta.lock().expect("session meta lock");
-        meta.entry(id.clone()).or_default().goal = Some(goal.clone());
+    session_api::find_session_path(&state, &id)?;
+    let mode = body["mode"]
+        .as_str()
+        .ok_or_else(|| ApiError::bad_request("missing mode"))?;
+    if !matches!(mode, "plan" | "goal" | "team") {
+        return Err(ApiError::bad_request("运行模式必须为 plan、goal 或 team。"));
     }
-    Ok(Json(serde_json::json!({ "id": id, "goal": goal })))
-}
-
-async fn delete_session_goal(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    let mut meta = state.session_meta.lock().expect("session meta lock");
-    meta.entry(id.clone()).or_default().goal = None;
-    Json(serde_json::json!({ "id": id, "deleted": true }))
-}
-
-async fn get_mcp_dashboard(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    // Tool cold/hot gateway policy: exposure per server (direct = always in
-    // prompt, deferred/codemode = discovered/called through the gateway,
-    // hidden = excluded) comes straight from the engine's validated config.
-    let loaded = load_mcp_config(LoadedMcpConfigOptions {
-        agent_dir: state.runtime.services().agent_dir.clone(),
-        cwd: state.cwd.clone(),
-        project_trusted: false,
-    });
-    let servers: Vec<serde_json::Value> = loaded
-        .servers
-        .iter()
-        .map(|entry| {
-            let enabled = entry
-                .config
-                .raw()
-                .get("enabled")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
-            serde_json::json!({
-                "name": entry.name,
-                "source": entry.source,
-                "enabled": enabled,
-                "transport": entry
-                    .config
-                    .command()
-                    .map(|_| "stdio")
-                    .or_else(|| entry.config.url().map(|_| "http")),
-                "exposure": exposure_label(entry.config.exposure()),
-            })
-        })
-        .collect();
-    Json(serde_json::json!({
-        "servers": servers,
-        "autoEnableCodemode": loaded.auto_enable_codemode,
-        "errors": loaded.errors,
-        "gateway": { "tiers": ["direct", "deferred", "codemode", "hidden"] },
-    }))
+    state
+        .session_meta
+        .lock()
+        .map_err(|_| ApiError::internal("session metadata lock"))?
+        .entry(id.clone())
+        .or_default()
+        .run_mode = Some(mode.to_string());
+    session_api::save_metadata(&state)?;
+    Ok(Json(serde_json::json!({"id": id, "runMode": mode})))
 }
 
 async fn get_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
@@ -739,58 +689,14 @@ async fn reload_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::V
     get_skills(State(state)).await
 }
 
-async fn session_live(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
-    ensure_hosted(&state, &id).await?;
-
-    let mut rx = state.events.subscribe();
-    let stream = futures::stream::unfold(rx, |mut rx| async move {
-        loop {
-            match rx.recv().await {
-                Ok(json) => {
-                    return Some((
-                        Ok::<_, Infallible>(
-                            axum::response::sse::Event::default().data(json),
-                        ),
-                        rx,
-                    ));
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => return None,
-            }
-        }
-    });
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
-}
-
 /// Host any known session id: if it is not the active one, switch the engine
 /// runtime to it (multi-session hosting, upstream `switch_session`).
 pub(crate) async fn ensure_hosted(state: &AppState, id: &str) -> Result<(), ApiError> {
-    let current = state.runtime.session().session_id();
-    if current == id {
-        return Ok(());
-    }
-    let info = SessionManager::list(&state.cwd, None, None)
-        .into_iter()
-        .find(|s| s.id == id)
-        .ok_or_else(|| {
-            ApiError::new(
-                StatusCode::NOT_FOUND,
-                "session_not_found",
-                format!("no session with id '{id}'"),
-            )
-        })?;
-    state
-        .runtime
-        .switch_session(&info.path, SwitchSessionOptions::default())
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    attach_event_listener(state);
+    session_runtime::hosted(state, id).await?;
     Ok(())
 }
 
+#[derive(Debug)]
 pub(crate) struct ApiError {
     status: StatusCode,
     code: &'static str,
@@ -804,7 +710,11 @@ impl ApiError {
         Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal", message)
     }
     pub(crate) fn new(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
-        Self { status, code, message: message.into() }
+        Self {
+            status,
+            code,
+            message: message.into(),
+        }
     }
 }
 impl IntoResponse for ApiError {
@@ -814,10 +724,8 @@ impl IntoResponse for ApiError {
         (
             self.status,
             Json(serde_json::json!({
-                "error": {
-                    "code": self.code,
-                    "message": security::redact_secret_text(&self.message),
-                }
+                "error": security::redact_secret_text(&self.message),
+                "code": self.code,
             })),
         )
             .into_response()
@@ -825,6 +733,11 @@ impl IntoResponse for ApiError {
 }
 
 fn attach_event_listener(state: &AppState) {
+    tool_policy::install(
+        state.runtime.session(),
+        state.session_meta.clone(),
+        state.approvals.clone(),
+    );
     let tx = state.events.clone();
     let listener: Arc<dyn Fn(&AgentSessionEvent) + Send + Sync> =
         Arc::new(move |event: &AgentSessionEvent| {
@@ -832,15 +745,211 @@ fn attach_event_listener(state: &AppState) {
                 let _ = tx.send(json);
             }
         });
-    *state.unsub.lock().expect("unsub lock") =
-        Some(state.runtime.session().subscribe(listener));
+    if let Some(previous) = state
+        .unsub
+        .lock()
+        .expect("unsub lock")
+        .replace(state.runtime.session().subscribe(listener))
+    {
+        previous.unsubscribe();
+    }
 }
 
-async fn boot() -> anyhow::Result<AppState> {
-    let cwd = std::env::current_dir()?
-        .to_string_lossy()
-        .to_string();
-    let agent_dir = pi_rust::coding_agent::core::get_agent_dir();
+async fn boot() -> anyhow::Result<Arc<AppState>> {
+    let cwd = std::env::var("PISPER_WORKSPACE_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .expect("cwd")
+                .to_string_lossy()
+                .to_string()
+        });
+    let paths = runtime_paths::RuntimePaths::from_environment()?;
+    let agent_dir = paths.agent_dir;
+    let data_dir = paths.data_dir;
+    let providers = Arc::new(provider_config::ProviderConfigStore::new(&agent_dir));
+    let catalog = native_tool_catalog::release_catalog()?;
+    let web_search = native_web_search::WebSearchService::new(
+        std::path::Path::new(&agent_dir).join("pisper.json"),
+    )?;
+    let plugins = native_plugins::ToolPluginService::open(
+        std::path::Path::new(&data_dir),
+        plugin_integration::config_port(providers.clone()),
+        catalog.clone(),
+    )?;
+    plugin_integration::migrate_defaults(&plugins).await?;
+    let plugin_integration =
+        plugin_integration::PluginIntegration::new(catalog, providers.clone(), plugins.clone());
+    let app_root = std::env::var_os("PISPER_APP_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."));
+    let mut speech_native = app_root.join("speech-native");
+    let development_native = app_root.join("node_modules/sherpa-onnx-win-x64");
+    if !speech_native.is_dir() && development_native.is_dir() {
+        speech_native = development_native;
+    }
+    let speech = speech_api::SpeechService::new(
+        std::path::Path::new(&agent_dir),
+        &app_root.join("shared"),
+        &speech_native,
+    )?;
+    let workflows = WorkflowServices::open(&data_dir, &cwd).await?;
+    let game_assets = GameServices::open(&data_dir, &workflows)?;
+    let custom_ui = native_custom_ui::CustomUiService::new(&data_dir);
+    let file_changes =
+        native_file_changes::FileChangesService::open(std::path::Path::new(&data_dir))
+            .map_err(|error| anyhow::anyhow!("{}: {}", error.code, error.message))?;
+    let channel_transport = channel_transport::ChannelTransport::new();
+    let notifications = Arc::new(
+        native_notifications::NotificationService::open(std::path::Path::new(&agent_dir))
+            .map_err(|error| anyhow::anyhow!("{}: {}", error.code, error.message))?
+            .with_transport(channel_transport.clone()),
+    );
+    let channel_integration = channel_integration::ChannelIntegration::new();
+    let gateway_factories: std::collections::HashMap<String, native_channels::GatewayFactory> = [
+        (
+            "feishu".into(),
+            Arc::new(native_channels::feishu::new) as native_channels::GatewayFactory,
+        ),
+        (
+            "qq".into(),
+            Arc::new(native_channels::qq::new) as native_channels::GatewayFactory,
+        ),
+        (
+            "telegram".into(),
+            Arc::new(|callbacks| {
+                native_channels::telegram::TelegramGateway::new(callbacks)
+                    as Arc<dyn native_channels::Gateway>
+            }) as native_channels::GatewayFactory,
+        ),
+        (
+            "weixin".into(),
+            Arc::new(|callbacks| {
+                native_channels::weixin::WeixinGateway::new(callbacks)
+                    as Arc<dyn native_channels::Gateway>
+            }) as native_channels::GatewayFactory,
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let onboarding_factories: std::collections::HashMap<
+        String,
+        native_channels::OnboardingFactory,
+    > = [
+        (
+            "feishu".into(),
+            Arc::new(native_channels::feishu_onboarding::new) as native_channels::OnboardingFactory,
+        ),
+        (
+            "qq".into(),
+            Arc::new(native_channels::qq_onboarding::new) as native_channels::OnboardingFactory,
+        ),
+        (
+            "telegram".into(),
+            Arc::new(|_| native_channels::manual_onboarding::telegram())
+                as native_channels::OnboardingFactory,
+        ),
+        (
+            "weixin".into(),
+            Arc::new(|completed| {
+                native_channels::weixin_onboarding::WeixinOnboardingService::new(completed)
+                    as Arc<dyn native_channels::Onboarding>
+            }) as native_channels::OnboardingFactory,
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let channels = native_channels::ChannelService::new(
+        cwd.clone(),
+        channel_integration.agent_port(),
+        notifications.channel_state_port(),
+        gateway_factories,
+        onboarding_factories,
+    );
+    channel_transport
+        .attach(&channels)
+        .map_err(|error| anyhow::anyhow!(error.message))?;
+    let memory = Arc::new(std::sync::Mutex::new(memory_store::MemoryStore::open(
+        &std::path::Path::new(&agent_dir).join("pisper-memory.sqlite"),
+        &cwd,
+    )?));
+    let memory_tasks = memory_store::runtime::MemoryRuntime::new(
+        memory.clone(),
+        std::path::PathBuf::from(&agent_dir),
+    )?;
+    let usage = memory_store::usage_ledger::UsageLedger::new(std::path::Path::new(&agent_dir));
+    memory_tasks.set_usage_recorder(usage.recorder());
+    let executor = execution_adapter::PiExecutor::new();
+    let plans = plan_api::PlanService::new(
+        std::path::Path::new(&data_dir).join("pisper-plans.json"),
+        Some(std::path::Path::new(&data_dir).join("pisper-task-lists.json")),
+    )?;
+    let goal_store = goal_api::GoalService::new(
+        std::path::Path::new(&data_dir).join("pisper-goals.json"),
+        true,
+    )?;
+    goal_store.set_events(executor.event_sink());
+    let session_executor: Arc<dyn session_workers::SessionExecutor> = Arc::new(executor.clone());
+    let goals = goal_api::GoalRunner::new(goal_store.clone(), session_executor.clone());
+    let agents = multi_agent_api::AgentService::new(
+        std::path::Path::new(&data_dir).join("pisper-agents.json"),
+        session_executor.clone(),
+        goal_store.clone(),
+        executor.event_sink(),
+    )?;
+    let team = multi_agent_api::TeamService::new(
+        std::path::Path::new(&data_dir).join("pisper-teams.json"),
+        goal_store,
+        executor.event_sink(),
+        true,
+    )?;
+    team.attach_agents(Arc::downgrade(&agents));
+    agents.set_graph(team.clone());
+    agents.set_workflow(multi_agent_api::TeamWorkflowService::new(
+        team.clone(),
+        Arc::downgrade(&agents),
+        session_executor,
+    ));
+    goals.set_team(Arc::new(multi_agent_api::TeamCoordinatorAdapter(
+        team.clone(),
+    )));
+    let tools_agents = Arc::downgrade(&agents);
+    executor.register_tools(Arc::new(move |id, parent, _| {
+        let Some(agents) = tools_agents.upgrade() else {
+            return Vec::new();
+        };
+        if id == "catalog" {
+            multi_agent_api::templates(agents)
+        } else if let Some(parent) = parent {
+            multi_agent_api::member_tools(agents, parent, id)
+        } else {
+            multi_agent_api::tools(agents, id)
+        }
+    }));
+    let tools_plans = plans.clone();
+    let tools_goals = Arc::downgrade(&goals);
+    executor.register_tools(Arc::new(move |id, parent, events| {
+        let mut tools = plan_api::tools(
+            tools_plans.clone(),
+            parent.clone().unwrap_or_else(|| id.clone()),
+            parent.is_none(),
+            events,
+        );
+        if parent.is_none() {
+            if let Some(goals) = tools_goals.upgrade() {
+                tools.extend(goal_api::tools(goals, id));
+            }
+        }
+        tools
+    }));
+    // Pi 的 SessionManager 也按此变量解析目录，必须与应用配置和显式测试隔离一致。
+    std::env::set_var("PI_CODING_AGENT_DIR", &agent_dir);
+    // Pi 0.2.2 的目录刷新只检查此变量是否存在；值 0 不禁用模型请求或工具安装。
+    // 本地连接由显式 discovery API 查询，启动不应额外联网枚举目录。
+    if std::env::var_os("PI_OFFLINE").is_none() {
+        std::env::set_var("PI_OFFLINE", "0");
+    }
     let mut args = Args::default();
     // CLI-parity startup overrides: mirror `pirs --provider/--model/--api-key`
     // via environment so the acceptance run can select a model without
@@ -862,38 +971,207 @@ async fn boot() -> anyhow::Result<AppState> {
     }
     let boot_provider = args.provider.clone();
     let boot_api_key = args.api_key.clone();
-    let settings = SettingsManager::create_with(
-        &cwd,
-        &agent_dir,
-        SettingsManagerCreateOptions::default(),
+    // Persistent manager: sessions land in the agent session dir so they can
+    // be listed, re-hosted (switch_session) and derived after restarts.
+    let latest = session_api::session_infos(&agent_dir).into_iter().next();
+    let new_public_session = latest.is_none();
+    let mut manager = if let Some(latest) = latest {
+        SessionManager::open(&latest.path, None, None)?
+    } else {
+        SessionManager::create(&cwd, None, Some(&NewSessionOptions::default()))?
+    };
+    // Pi 延迟保存空会话；桌面目录从启动起就必须能找到当前会话，
+    // 否则客户端会另行创建默认会话并与用户的新任务操作竞争。
+    session_api::persist_empty_session(&mut manager)
+        .map_err(|error| anyhow::Error::msg(error.message))?;
+    if new_public_session {
+        file_changes
+            .mark_session_tracked(
+                manager.get_session_id(),
+                std::path::Path::new(manager.get_cwd()),
+            )
+            .await
+            .map_err(|error| anyhow::anyhow!("{}: {}", error.code, error.message))?;
+    }
+    // Model settings must not append entries to or replace an existing conversation.
+    let manager = SessionManager::in_memory(&cwd, None, None)?;
+    let session_cwd = cwd.clone();
+    let settings =
+        SettingsManager::create_with(&cwd, &agent_dir, SettingsManagerCreateOptions::default())?;
+    let tool_web_search = web_search.clone();
+    let image_plugins = plugins.clone();
+    let image_agent = native_image_agent::ImageAgentService::open(
+        std::path::Path::new(&data_dir),
+        workflows.processor.clone(),
+        workflows.executor.clone(),
+        Arc::new(move || {
+            let plugins = image_plugins.clone();
+            Box::pin(async move {
+                let state = plugins
+                    .get_state()
+                    .await
+                    .map_err(native_workflow::WorkflowError::io)?;
+                Ok(state["enabledTools"].as_array().is_some_and(|tools| {
+                    tools
+                        .iter()
+                        .any(|tool| tool.as_str() == Some("image_assets"))
+                }))
+            })
+        }),
     )?;
+    let assets = Arc::new(std::sync::Mutex::new(asset_api::store::AssetStore::open(
+        &agent_dir,
+    )?));
+    let visual_integration = visual_integration::VisualIntegration::new(
+        providers.clone(),
+        &executor,
+        assets.clone(),
+        agent_dir.clone(),
+    );
+    let visual = native_visual::VisualGenerationService::new(visual_integration.config_port());
+    let tool_visual = visual.clone();
+    let tool_visual_context = visual_integration.context_port();
+    let tool_visual_generated = visual_integration.generated_file_port();
+    let browser_integration = browser_integration::BrowserIntegration::new();
+    let browser = native_browser::BrowserAutomationService::new(native_browser::cdp::factory(
+        std::path::PathBuf::from(&data_dir).join("browser-automation-profiles"),
+    ));
+    let tool_browser = browser.clone();
+    let tool_browser_context = browser_integration.context_port();
+    let tool_browser_generated = browser_integration.generated_file_port();
+    let generated_image_assets = assets.clone();
+    let generated_image_executor = Arc::downgrade(&executor);
+    let generated_image_agent_dir = agent_dir.clone();
+    let generated_image_port: native_image_agent::GeneratedFilePort =
+        Arc::new(move |file, context| {
+            let assets = generated_image_assets.clone();
+            let executor = generated_image_executor.clone();
+            let agent_dir = generated_image_agent_dir.clone();
+            Box::pin(async move {
+                let owner = executor
+                    .upgrade()
+                    .ok_or_else(|| {
+                        native_workflow::WorkflowError::coded(
+                            "image_tools_owner_unavailable",
+                            "Image asset owner is unavailable.",
+                        )
+                    })?
+                    .tool_owner(&context.session_id);
+                tokio::task::spawn_blocking(move || {
+                    let name = session_api::session_infos(&agent_dir)
+                        .into_iter()
+                        .find(|session| session.id == owner)
+                        .and_then(|session| session.name)
+                        .unwrap_or_default();
+                    assets
+                        .lock()
+                        .map_err(native_workflow::WorkflowError::io)?
+                        .archive_generated(&file.path, &owner, &name)
+                        .map_err(native_workflow::WorkflowError::io)?;
+                    Ok(())
+                })
+                .await
+                .map_err(native_workflow::WorkflowError::io)?
+            })
+        });
     let factory = create_cli_runtime_factory(CliRuntimeFactoryOptions {
         parsed: args,
         startup_cwd: cwd.clone(),
-        initial_session_cwd: cwd.clone(),
+        initial_session_cwd: session_cwd.clone(),
         agent_dir: agent_dir.clone(),
         startup_settings_manager: settings,
         app_mode: AppMode::Rpc,
-        extension_factories: vec![],
+        extension_factories: {
+            let mut factories: Vec<_> = pi_rust::coding_agent::extensions::built_in_extensions()
+                .into_iter()
+                .map(|extension| InlineExtension::Factory(extension.factory))
+                .collect();
+            factories.push(InlineExtension::Factory(create_mcp_extension(
+                McpExtensionOptions::default(),
+            )));
+            factories.push(memory_tasks.create_extension());
+            factories.push(executor.extension());
+            factories.push(native_image_agent::create_extension(
+                image_agent.clone(),
+                generated_image_port,
+            ));
+            factories.push(native_plugins::create_extension(
+                plugins.clone(),
+                plugin_integration.scope_port(),
+                plugin_integration.changed_port(),
+            ));
+            factories.push(native_tool_gateway::create_extension(
+                plugin_integration.gateway_port(),
+            ));
+            factories
+        },
         extension_module_loader: None,
         model_runtime_factory: None,
+        custom_tool_factory: Some(Arc::new(move |cwd, _settings| {
+            let web_search = tool_web_search.clone();
+            let visual = tool_visual.clone();
+            let context = tool_visual_context.clone();
+            let generated = tool_visual_generated.clone();
+            let browser = tool_browser.clone();
+            let browser_context = tool_browser_context.clone();
+            let browser_generated = tool_browser_generated.clone();
+            Box::pin(async move {
+                // Release's createPisperBashTool(cwd) uses the host defaults.
+                let mut tools = native_shell::tools(
+                    &cwd,
+                    pi_rust::coding_agent::core::tools::bash::BashToolOptions::default(),
+                )
+                .await;
+                let mut search = (*native_web_search::create_tool(web_search)).clone();
+                if let Some(guidelines) = search.prompt_guidelines.take() {
+                    for guideline in guidelines {
+                        search.description.push_str(&format!("\n{guideline}"));
+                    }
+                }
+                search.prompt_snippet = None;
+                search.default_active = Some(false);
+                tools.push(Arc::new(search));
+                let mut visual = (*native_visual::create_tool(visual, context, generated)).clone();
+                if let Some(guidelines) = visual.prompt_guidelines.take() {
+                    for guideline in guidelines {
+                        visual.description.push_str(&format!("\n{guideline}"));
+                    }
+                }
+                visual.prompt_snippet = None;
+                visual.default_active = Some(false);
+                tools.push(Arc::new(visual));
+                let mut browser =
+                    (*native_browser::create_tool(browser, browser_context, browser_generated))
+                        .clone();
+                if let Some(guidelines) = browser.prompt_guidelines.take() {
+                    for guideline in guidelines {
+                        browser.description.push_str(&format!("\n{guideline}"));
+                    }
+                }
+                browser.prompt_snippet = None;
+                browser.default_active = Some(false);
+                tools.push(Arc::new(browser));
+                Ok(tools)
+            })
+        })),
         model_scope_warning: None,
     })?;
-    // Persistent manager: sessions land in the agent session dir so they can
-    // be listed, re-hosted (switch_session) and derived after restarts.
-    let manager = SessionManager::create(&cwd, None, Some(&NewSessionOptions::default()))?;
+    let runtime_factory = factory.create_runtime.clone();
     let runtime = create_agent_session_runtime(
         factory.create_runtime,
         CreateAgentSessionRuntimeOptions {
-            cwd: cwd.clone(),
-            agent_dir,
+            cwd: session_cwd,
+            agent_dir: agent_dir.clone(),
             session_manager: Arc::new(std::sync::Mutex::new(manager)),
             session_start_event: None,
             project_trust_context: None,
         },
     )
     .await?;
-    runtime.new_session(NewSessionOptionsRuntime::default()).await?;
+    runtime
+        .session()
+        .bind_extensions(extension_bindings())
+        .await?;
     // CLI-parity runtime credential: the factory only installs --api-key when
     // Args resolve to a catalog model; hand-declared compat models skip that
     // path, so install the key for the explicit provider here.
@@ -905,17 +1183,25 @@ async fn boot() -> anyhow::Result<AppState> {
             .await
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     }
-    let data_dir = std::env::var("PISPER_RS_DATA_DIR").unwrap_or_else(|_| {
-        let home = std::env::var("USERPROFILE")
-            .or_else(|_| std::env::var("HOME"))
-            .unwrap_or_else(|_| ".".into());
-        format!("{home}/.pisper/agent-rs")
-    });
+    providers
+        .restore(&runtime)
+        .await
+        .map_err(anyhow::Error::msg)?;
+    memory_tasks.set_semantic_model(runtime.session().model().map(|model| {
+        Arc::new(memory_store::runtime::PiMemoryModel::new(
+            runtime.session().model_runtime().clone(),
+            model,
+        )) as Arc<dyn memory_store::runtime::MemoryModel>
+    }));
     let fingerprint = {
         use sha2::Digest;
         use std::fmt::Write as _;
         let digest = sha2::Sha256::digest(
-            [data_dir.as_bytes(), std::env::var("COMPUTERNAME").unwrap_or_default().as_bytes()].concat(),
+            [
+                data_dir.as_bytes(),
+                std::env::var("COMPUTERNAME").unwrap_or_default().as_bytes(),
+            ]
+            .concat(),
         );
         let digest = digest.as_slice();
         digest[..8].iter().fold(String::new(), |mut out, b| {
@@ -923,18 +1209,94 @@ async fn boot() -> anyhow::Result<AppState> {
             out
         })
     };
-    let dist_dir = std::env::current_dir()
-        .expect("cwd")
-        .join("../dist")
-        .canonicalize()
-        .unwrap_or_else(|_| std::path::PathBuf::from("../dist"));
+    // 桌面安装后工作目录并非源码目录，优先使用桌面壳明确传入的资源路径。
+    let dist_dir = std::env::var_os("PISPER_FRONTEND_ROOT")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("PISPER_APP_ROOT")
+                .map(|root| std::path::PathBuf::from(root).join("dist"))
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist"));
+    let desktop_token = match std::env::var("PISPER_DESKTOP_TOKEN")
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
+        Some(token) => Some(token),
+        None if std::env::var_os("PISPER_PARENT_PID").is_some()
+            || std::env::var("PISPER_EXIT_ON_STDIN_CLOSE").as_deref() == Ok("1") =>
+        {
+            // Tauri 不提供令牌时仍须使用系统随机源，不能以 PID 或时间生成访问凭据。
+            let mut bytes = [0_u8; 32];
+            getrandom::getrandom(&mut bytes)
+                .map_err(|error| anyhow::anyhow!("sidecar token: {error}"))?;
+            Some(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+        }
+        None => None,
+    };
+    if desktop_token.as_ref().is_some_and(|token| {
+        !token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+    }) {
+        anyhow::bail!("PISPER_DESKTOP_TOKEN must contain only URL-safe characters");
+    }
     let (events, _) = broadcast::channel(1024);
-    let state = AppState {
+    // 沿用 release 的 SQLite 文件与迁移 schema，避免另起记忆库丢失现有数据。
+    let asset_tracker = asset_api::tracker::WorkspaceAssetTracker::new(
+        std::path::Path::new(&agent_dir),
+        assets.clone(),
+    )?;
+    let approvals = approval_api::ApprovalService::new(
+        std::path::Path::new(&data_dir).join("pisper-approvals.json"),
+    )?;
+    let approval_tx = events.clone();
+    let approval_events = approvals.subscribe(
+        None,
+        Arc::new(move |session_id, event, data| {
+            let _ = approval_tx.send(
+                serde_json::json!({"pisperEvent":event,"sessionId":session_id,"data":data})
+                    .to_string(),
+            );
+        }),
+    );
+    let state = Arc::new(AppState {
         runtime: Arc::new(runtime),
+        sessions: session_runtime::SessionRuntimeRegistry::new(runtime_factory),
+        agent_dir,
+        providers,
+        plugins,
+        web_search,
+        visual,
+        browser,
+        plugin_integration,
+        engine_mutation: Arc::new(tokio::sync::RwLock::new(())),
         cwd,
+        ui: ui_contract::UiState::default(),
+        notifications,
+        channels,
+        file_changes,
+        custom_ui,
+        image_agent,
+        memory,
+        memory_tasks,
+        usage,
+        executor,
+        plans,
+        goals,
+        agents,
+        team,
+        speech,
+        workflows,
+        game_assets,
+        closing: std::sync::atomic::AtomicBool::new(false),
+        shutdown: tokio_util::sync::CancellationToken::new(),
+        assets,
+        asset_tracker,
+        approvals,
+        _approval_events: approval_events,
         events,
         unsub: std::sync::Mutex::new(None),
-        session_meta: std::sync::Mutex::new(std::collections::HashMap::new()),
+        session_meta: Arc::new(std::sync::Mutex::new(session_api::load_metadata(&data_dir))),
         data_dir: data_dir.clone(),
         runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         remote_enabled: std::sync::atomic::AtomicBool::new(false),
@@ -942,17 +1304,37 @@ async fn boot() -> anyhow::Result<AppState> {
         chat_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         frame_cursor: std::sync::atomic::AtomicU64::new(0),
         dist_dir,
+        desktop_token,
         pairing: security::PairingStore {
             pending: std::sync::Mutex::new(None),
             devices: std::sync::Mutex::new(security::load_devices(&data_dir)),
         },
-    };
+        pairing_requests: std::sync::Mutex::new(security::load_pairing_requests(&data_dir)),
+    });
+    state.executor.attach(&state);
+    state.plugin_integration.attach(&state)?;
+    visual_integration.attach(&state)?;
+    browser_integration
+        .attach(&state)
+        .map_err(anyhow::Error::msg)?;
+    channel_integration.attach(&state)?;
+    state
+        .plugin_integration
+        .apply_loadout(state.runtime.session())?;
+    state.workflows.attach(&state).await?;
+    state.channels.init().await?;
     attach_event_listener(&state);
     Ok(state)
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if std::env::args().any(|arg| arg == "--pisper-plugin-worker") {
+        return native_plugins::worker_main().map_err(anyhow::Error::from);
+    }
+    if std::env::args().any(|arg| arg == "--pisper-speech-worker") {
+        std::process::exit(speech_api::worker_main());
+    }
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -960,12 +1342,114 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let state = Arc::new(boot().await?);
-    tokio::spawn(product::schedule_ticker(state.clone()));
-    let addr = std::env::var("PISPER_RS_ADDR").unwrap_or_else(|_| "127.0.0.1:5174".into());
+    let state = boot().await?;
+    state.executor.attach(&state);
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let addr = if state.desktop_token.is_some() {
+        // Sidecar mode: ephemeral local port; the URL is announced via the
+        // PISPER_SIDECAR_READY stdout handshake.
+        "127.0.0.1:0".to_string()
+    } else {
+        std::env::var("PISPER_RS_ADDR").unwrap_or_else(|_| "127.0.0.1:5174".into())
+    };
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    tracing::info!("pisper-server (Rust runtime) listening on http://{addr}");
-    axum::serve(listener, app_router(state)).await?;
+    let bound = listener.local_addr()?.to_string();
+    tracing::info!("pisper-server (Rust runtime) listening on http://{bound}");
+    if let Some(token) = &state.desktop_token {
+        // Sidecar readiness handshake with the TUI (sidecar.rs READY_PREFIX).
+        let url = format!("http://{bound}");
+        println!(
+            "PISPER_SIDECAR_READY {}",
+            serde_json::json!({
+                "url": url,
+                "bootstrapUrl": format!("{url}/_pisper/desktop/bootstrap?token={token}"),
+                "pid": std::process::id(),
+                "desktopPetRunning": false,
+                "remoteEnabled": false,
+            })
+        );
+        use std::io::Write as _;
+        let _ = std::io::stdout().flush();
+        // Graceful shutdown: the TUI writes `shutdown` to stdin; stdin close
+        // (PISPER_EXIT_ON_STDIN_CLOSE) also ends the process.
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let stdin = std::io::stdin();
+            for line in stdin.lock().lines().map_while(Result::ok) {
+                if line.trim() == "shutdown" {
+                    let _ = shutdown_tx.send(());
+                    return;
+                }
+            }
+            if std::env::var("PISPER_EXIT_ON_STDIN_CLOSE").as_deref() == Ok("1") {
+                let _ = shutdown_tx.send(());
+            }
+        });
+    }
+    let shutdown_state = state.clone();
+    let cache_stop = state.shutdown.clone();
+    let cache_cancel = cache_stop.clone();
+    let cache_state = Arc::downgrade(&state);
+    let cache_worker = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        interval.tick().await;
+        loop {
+            tokio::select! {
+                _ = cache_cancel.cancelled() => break,
+                _ = interval.tick() => {
+                    let Some(state) = cache_state.upgrade() else { break; };
+                    if let Err(error) = state.sessions.sweep(&state, "").await {
+                        tracing::warn!(code=error.code, "Resident session cleanup failed");
+                    }
+                }
+            }
+        }
+    });
+    axum::serve(
+        listener,
+        app_router(state.clone())?.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+        .with_graceful_shutdown(async move {
+            tokio::select! { _ = shutdown_rx => {}, _ = tokio::signal::ctrl_c() => {} }
+            shutdown_state.closing.store(true, std::sync::atomic::Ordering::Release);
+            if let Err(error) = shutdown_state.channels.dispose().await {
+                tracing::warn!(error=%security::redact_secret_text(&error.message), "Channel shutdown failed");
+            }
+            // Reject new HTTP work before draining domains. Their abort methods
+            // still need the runtime while joining existing owned sessions.
+            shutdown_state.game_assets.shutdown().await;
+            shutdown_state.image_agent.close().await;
+            shutdown_state.web_search.dispose();
+            if let Err(error) = shutdown_state.plugins.close().await {
+                tracing::warn!(error=%security::redact_secret_text(&error.to_string()), "Plugin shutdown failed");
+            }
+            shutdown_state.custom_ui.dispose();
+            shutdown_state.workflows.shutdown().await;
+            shutdown_state.visual.dispose().await;
+            shutdown_state.browser.dispose().await;
+            shutdown_state.shutdown.cancel();
+            tracing::info!("Closing Agent services");
+            shutdown_state.approvals.shutdown();
+            if let Err(error) = shutdown_state.agents.shutdown().await { tracing::warn!(error=%security::redact_secret_text(&error.to_string()), "Agent shutdown failed"); }
+            if let Err(error) = shutdown_state.goals.shutdown().await { tracing::warn!(error=%security::redact_secret_text(&error.to_string()), "Goal shutdown failed"); }
+            shutdown_state.speech.shutdown().await;
+            if let Err(error) = shutdown_state.executor.shutdown().await { tracing::warn!(error=%security::redact_secret_text(&error.to_string()), "Child session shutdown failed"); }
+            shutdown_state.memory_tasks.shutdown().await;
+            tracing::info!("Closing resident sessions");
+            if let Err(error) = shutdown_state.sessions.shutdown(&shutdown_state).await {
+                tracing::warn!(code = error.code, "Session shutdown failed");
+            }
+            shutdown_state.runtime.session().abort().await;
+            if let Err(error) = shutdown_state.file_changes.close().await {
+                tracing::warn!(code=%error.code, "File change shutdown failed");
+            }
+        })
+        .await?;
+    cache_stop.cancel();
+    cache_worker.await?;
+    mcp_api::shutdown(&state).await;
+    tracing::info!("Closing configuration runtime");
+    state.runtime.dispose().await?;
     Ok(())
 }
 
@@ -973,138 +1457,152 @@ async fn main() -> anyhow::Result<()> {
 /// selection (slice 3).
 fn session_router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/api/sessions", get(list_sessions).post(create_session))
+        .route("/api/usage/today", get(session_api::today_usage))
+        .route(
+            "/api/sessions",
+            get(session_api::list_sessions).post(session_api::create_session),
+        )
+        .route(
+            "/api/sessions/{id}",
+            axum::routing::patch(session_api::rename).delete(session_api::delete_session),
+        )
+        .route(
+            "/api/sessions/{id}/organization",
+            axum::routing::patch(session_api::organization),
+        )
         .route("/api/sessions/{id}/input", post(session_input))
-        .route("/api/sessions/{id}/live", get(session_live))
+        .route("/api/sessions/{id}/live", get(session_api::live))
+        .route("/api/sessions/{id}/tree", get(session_api::tree))
         .route("/api/sessions/{id}/abort", post(session_abort))
         .route("/api/sessions/{id}/derive", post(derive_session))
         .route("/api/sessions/{id}/compact", post(session_compact))
         .route("/api/sessions/{id}/cwd", put(set_session_cwd))
-        .route("/api/sessions/{id}/execution-mode", post(set_session_execution_mode))
+        .route("/api/sessions/{id}/run-mode", put(set_session_run_mode))
         .route(
-            "/api/sessions/{id}/goal",
-            get(get_session_goal)
-                .put(put_session_goal)
-                .delete(delete_session_goal),
+            "/api/sessions/{id}/messages",
+            get(session_api::get_messages),
         )
-        .route("/api/sessions/{id}/messages", get(get_session_messages))
-        .route("/api/session-labels", get(get_session_labels))
-        .route("/api/config", get(get_config).post(put_config))
+        .route("/api/session-labels", get(session_api::labels))
         .route(
             "/api/sessions/{id}/model",
-            get(get_session_model).post(post_session_model),
+            get(get_session_model)
+                .put(post_session_model)
+                .post(post_session_model),
         )
         .route(
             "/api/sessions/{id}/thinking-level",
-            get(get_session_thinking_level).post(post_session_thinking_level),
+            get(get_session_thinking_level)
+                .put(post_session_thinking_level)
+                .post(post_session_thinking_level),
         )
-        .route("/api/mcp", get(get_mcp_dashboard))
-        .route("/api/skills", get(get_skills).post(reload_skills))
-        .route("/api/plugins", get(product::get_plugins_registry))
+        .route("/api/skills", get(skills_ops::dashboard))
+        .route("/api/skills/install", post(skills_ops::install))
+        .route("/api/skills/reload", post(skills_ops::reload))
         .route(
-            "/api/schedules",
-            get(product::get_schedules).post(product::create_schedule),
+            "/api/skills/{skillName}",
+            axum::routing::patch(skills_ops::update).delete(skills_ops::remove),
         )
-        .route(
-            "/api/schedules/{id}/run",
-            post(product::run_schedule),
-        )
-        .route(
-            "/api/schedules/{id}",
-            axum::routing::patch(product::update_schedule).delete(product::delete_schedule),
-        )
-        .route(
-            "/api/workflows",
-            get(product::get_workflows).post(product::create_workflow),
-        )
-        .route(
-            "/api/workflows/{id}/run",
-            post(product::run_workflow),
-        )
-        .route(
-            "/api/workflows/{id}",
-            delete(product::delete_workflow),
-        )
-        .route(
-            "/api/workflow-runs/{id}",
-            get(product::get_workflow_run),
-        )
-        .route(
-            "/api/workflow-runs/{id}/stop",
-            post(product::stop_workflow_run),
-        )
-        .route(
-            "/api/plugins/install",
-            post(product::install_plugin),
-        )
-        .route(
-            "/api/plugins/{id}",
-            axum::routing::patch(product::set_plugin_enabled).delete(product::uninstall_plugin),
-        )
-        .route(
-            "/api/plugins/registry",
-            get(product::get_plugins_registry).put(product::save_plugins_registry),
-        )
-        .route(
-            "/api/remote/status",
-            get(product::remote_status),
-        )
+        .route("/api/remote/status", get(product::remote_status))
         .route(
             "/api/remote/connection-info",
             get(product::remote_connection_info),
         )
+        .route("/api/remote/enabled", put(product::remote_set_enabled))
+        .route("/api/sessions/{id}/vcs/changes", get(product::vcs_changes))
+        .route("/api/sessions/{id}/vcs/commit", post(product::vcs_commit))
+        .route("/api/sessions/{id}/vcs/push", post(product::vcs_push))
+        .route("/api/sessions/{id}/vcs/revert", post(product::vcs_revert))
+        // release 的 git/* 路由组是 vcs/* 的完整别名。
+        .route("/api/sessions/{id}/git/changes", get(session_ops::git_changes))
+        .route("/api/sessions/{id}/git/commit", post(session_ops::git_commit))
+        .route("/api/sessions/{id}/git/push", post(session_ops::git_push))
+        .route("/api/sessions/{id}/git/revert", post(session_ops::git_revert))
         .route(
-            "/api/remote/enabled",
-            put(product::remote_set_enabled),
+            "/api/sessions/{id}/vcs/file-diff",
+            get(session_ops::vcs_file_diff),
+        )
+        .route("/api/sessions/{id}/input/{inputId}", delete(session_ops::withdraw_input))
+        .route(
+            "/api/sessions/{id}/mobile-operations/{operationId}",
+            post(session_ops::mobile_operation),
+        )
+        .route("/api/sessions/{id}/retry", post(session_ops::retry_session))
+        .route("/api/sessions/{id}/commands", get(session_ops::session_commands))
+        .route(
+            "/api/sessions/{id}/tree/navigate",
+            post(session_ops::tree_navigate),
         )
         .route(
-            "/api/sessions/{id}/vcs/changes",
-            get(product::vcs_changes),
+            "/api/sessions/{id}/tree/labels/{entryId}",
+            put(session_ops::tree_label_set),
         )
         .route(
-            "/api/sessions/{id}/vcs/commit",
-            post(product::vcs_commit),
-        )
-        .route(
-            "/api/sessions/{id}/vcs/push",
-            post(product::vcs_push),
-        )
-        .route(
-            "/api/sessions/{id}/vcs/revert",
-            post(product::vcs_revert),
+            "/api/sessions/{id}/side-chat",
+            get(session_ops::side_chat_get).post(session_ops::side_chat_create),
         )
         .route("/api/runtime/diagnostics", get(runtime_diagnostics))
         .route(
-            "/api/settings/notifications",
-            get(product::notification_settings).put(product::save_notification_settings),
+            "/api/remote/pairing-code",
+            get(create_pairing_code).post(create_pairing_code),
         )
-        .route("/api/remote/pairing-code", get(create_pairing_code).post(create_pairing_code))
         .route("/api/remote/pair", post(pair_device))
         .route("/api/remote/devices", get(list_devices))
         .route("/api/remote/devices/{id}", delete(revoke_device))
-        .route("/api/extensions/market", get(product2::extension_market))
-        .route("/api/extensions", get(product2::extension_dashboard).delete(product2::extension_remove))
-        .route("/api/extensions/install", post(product2::extension_install))
-        .route("/api/custom-ui/components", get(product2::custom_ui_components))
-        .route("/api/custom-ui/import", post(product2::custom_ui_import))
+        .route("/api/remote/devices/{id}/revoke", post(remote_ops::revoke_device_post))
+        .route("/api/remote/firewall", get(remote_ops::firewall_status))
+        .route("/api/remote/firewall/retry", post(remote_ops::firewall_retry))
         .route(
-            "/api/custom-ui/components/{id}/views",
-            get(product2::custom_ui_component_views),
+            "/api/remote/pairing-requests",
+            get(remote_ops::list_requests).post(remote_ops::create_request),
         )
-        .route("/api/custom-ui/bridge.js", get(product2::custom_ui_bridge_js))
+        .route(
+            "/api/remote/pairing-requests/{requestId}",
+            get(remote_ops::request_status).delete(remote_ops::cancel_request),
+        )
+        .route(
+            "/api/remote/pairing-requests/{requestId}/decision",
+            post(remote_ops::decide_request),
+        )
+        .route("/api/extensions/market", get(product2::extension_market))
+        .route(
+            "/api/extensions",
+            get(product2::extension_dashboard).delete(product2::extension_remove),
+        )
+        .route("/api/extensions/install", post(product2::extension_install))
         .route("/api/decisions/status", get(product2::decisions_status))
-        .route("/api/decisions/config", put(product2::decisions_update_config))
+        .route(
+            "/api/decisions/config",
+            put(product2::decisions_update_config),
+        )
         .route("/api/decisions/test", post(product2::decisions_test))
         .route("/api/decisions/decide", post(product2::decisions_decide))
-        .route("/api/speech/models", get(product2::speech_models))
-        .route("/api/speech/session", get(product2::speech_session))
         .route("/api/directories", get(product2::list_directories))
-        .route("/api/workspace-entries", get(product2::list_workspace_entries))
-        .route("/api/assets", get(product2::list_assets).post(product2::create_asset))
-        .route("/api/assets/{id}", delete(product2::delete_asset))
-        .route("/api/memory", get(product2::list_memory).post(product2::add_memory_record))
-        .route("/api/chat", post(chat))
-        .route("/api/runs/{id}/events", get(run_events))
+        .route(
+            "/api/workspace-entries",
+            get(product2::list_workspace_entries),
+        )
+        .route("/api/chat", post(chat_stream::chat))
+        .route("/api/runs/{id}/events", get(chat_stream::run_events))
+        .merge(provider_config::router())
+        .merge(ui_contract::router())
+        .route("/api/mcp-host", get(mcp_host_ops::status).patch(mcp_host_ops::set_enabled))
+        .route("/api/mcp-host/credentials", post(mcp_host_ops::credentials))
+        .route("/api/mcp-host/rotate-token", post(mcp_host_ops::rotate_token))
+        .route("/api/desktop-pet", get(desktop_ops::pet_status_handler))
+        .route("/api/desktop-pet/catalog", get(desktop_ops::pet_catalog))
+        .route("/api/desktop-pet/sprite", get(desktop_ops::pet_sprite))
+        .route("/api/desktop-pet/install", post(desktop_ops::pet_install))
+        .route("/api/desktop-pet/enabled", post(desktop_ops::pet_set_enabled))
+        .route("/api/desktop-pet/opacity", post(desktop_ops::pet_set_opacity))
+        .route("/api/desktop-pet/select", post(desktop_ops::pet_select))
+        .route("/api/desktop-pet/{slug}", delete(desktop_ops::pet_remove))
+        .route("/api/desktop/reveal-path", post(desktop_ops::reveal_path))
+        .route("/api/app-update", get(desktop_ops::app_update))
+        .route("/api/sponsors/{placement}", get(desktop_ops::sponsor_placement))
+        .merge(mcp_api::router())
+        .merge(memory_api::router())
+        .merge(asset_api::router())
+        .merge(approval_api::router())
 }
 
 /// Stateless base: handshake + unknown-route fallback + the built React
@@ -1112,250 +1610,261 @@ fn session_router() -> Router<Arc<AppState>> {
 fn base_router() -> Router {
     Router::new()
         .route("/api/health", get(health))
+        .route("/api/{*path}", axum::routing::any(unknown_api_fallback))
         .fallback(unknown_api_fallback)
 }
 
+/// Sidecar auth: when spawned by the TUI/desktop (PISPER_DESKTOP_TOKEN set),
+/// every request must present the matching `__pisper_desktop=<token>` cookie.
+async fn desktop_auth_middleware(
+    axum::extract::State((token, custom_ui)): axum::extract::State<(
+        Option<String>,
+        Arc<native_custom_ui::CustomUiService>,
+    )>,
+    request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if let Some(response) = custom_ui_api::render_request(
+        custom_ui,
+        request.method().clone(),
+        request.uri().clone(),
+        false,
+        None,
+    )
+    .await
+    {
+        return response;
+    }
+    let Some(expected) = token else {
+        return next.run(request).await;
+    };
+    use subtle::ConstantTimeEq;
+    // 引导请求只允许同一个令牌植入 HttpOnly Cookie；跳转目标必须留在本机应用。
+    if request.uri().path() == "/_pisper/desktop/bootstrap" {
+        let query = Query::<std::collections::HashMap<String, String>>::try_from_uri(request.uri());
+        if let Ok(Query(params)) = query {
+            if request.method() == axum::http::Method::GET
+                && params
+                    .get("token")
+                    .is_some_and(|token| bool::from(token.as_bytes().ct_eq(expected.as_bytes())))
+            {
+                let target = params
+                    .get("next")
+                    .filter(|path| {
+                        path.starts_with('/')
+                            && !path.starts_with("//")
+                            && !path.contains('\\')
+                            && !path.chars().any(char::is_control)
+                    })
+                    .map(String::as_str)
+                    .unwrap_or("/");
+                let cookie =
+                    format!("__pisper_desktop={expected}; HttpOnly; SameSite=Strict; Path=/");
+                if let Ok(cookie) = axum::http::HeaderValue::from_str(&cookie) {
+                    let mut response = axum::response::Redirect::to(target).into_response();
+                    *response.status_mut() = StatusCode::FOUND;
+                    response
+                        .headers_mut()
+                        .insert(axum::http::header::SET_COOKIE, cookie);
+                    response.headers_mut().insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::HeaderValue::from_static("no-store"),
+                    );
+                    response.headers_mut().insert(
+                        axum::http::header::REFERRER_POLICY,
+                        axum::http::HeaderValue::from_static("no-referrer"),
+                    );
+                    return response;
+                }
+            }
+        }
+        return ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "invalid desktop token",
+        )
+        .into_response();
+    }
+    // 浏览器写请求须来自当前服务；命令行客户端可以没有 Origin。
+    if !matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    ) {
+        if let Some(origin) = request.headers().get(axum::http::header::ORIGIN) {
+            let host = request
+                .headers()
+                .get(axum::http::header::HOST)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("");
+            if origin.to_str().ok() != Some(format!("http://{host}").as_str()) {
+                return ApiError::new(
+                    StatusCode::FORBIDDEN,
+                    "forbidden_origin",
+                    "invalid desktop origin",
+                )
+                .into_response();
+            }
+        }
+    }
+    let cookie = request
+        .headers()
+        .get(axum::http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let presented = cookie
+        .split(';')
+        .map(|pair| pair.trim())
+        .filter_map(|pair| pair.strip_prefix("__pisper_desktop="))
+        .any(|token| bool::from(token.as_bytes().ct_eq(expected.as_bytes())));
+    if presented {
+        next.run(request).await
+    } else {
+        ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "missing desktop token",
+        )
+        .into_response()
+    }
+}
+
 /// Full router including the static SPA (dist/) with index.html fallback.
-pub fn app_router(state: Arc<AppState>) -> Router {
+pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
+    state.executor.attach(&state);
     let dist = state.dist_dir.clone();
-    Router::new()
+    let token = state.desktop_token.clone();
+    let speech_state = Arc::downgrade(&state);
+    let channel_state = Arc::downgrade(&state);
+    let channel_models: channels_api::Models = Arc::new(move || {
+        let state = channel_state.clone();
+        Box::pin(async move {
+            let state = state
+                .upgrade()
+                .ok_or_else(|| native_channels::ChannelError::new("运行时正在关闭。"))?;
+            let Json(config) = provider_config::get_config(State(state))
+                .await
+                .map_err(|error| native_channels::ChannelError::new(error.message))?;
+            let models=config["providers"].as_array().into_iter().flatten()
+                .filter(|provider|provider["type"]!="visual"&&provider["enabled"]==true&&provider["configured"]==true)
+                .flat_map(|provider|provider["models"].as_array().into_iter().flatten().filter(|model|model["kind"]=="chat")
+                    .map(move |model|serde_json::json!({"provider":provider["id"],"model":model["id"],
+                        "label":format!("{} / {}",provider["name"].as_str().unwrap_or(""),model["name"].as_str().unwrap_or(""))})))
+                .collect::<Vec<_>>();
+            Ok(serde_json::json!(models))
+        })
+    });
+    let game_state = Arc::downgrade(&state);
+    let game_models: game_assets_api::ModelCatalog = Arc::new(move || {
+        let state = game_state.clone();
+        Box::pin(async move {
+            let state = state
+                .upgrade()
+                .ok_or_else(|| native_workflow::WorkflowError::io("运行时正在关闭。"))?;
+            native_image_runtime::visual::models(&state).await
+        })
+    });
+    let speech_resolver: speech_api::SpeechSessionResolver = Arc::new(move |id| {
+        let state = speech_state.clone();
+        Box::pin(async move {
+            let state = state
+                .upgrade()
+                .ok_or_else(|| ApiError::internal("Runtime has shut down"))?;
+            let path = match session_api::find_session_path(&state, &id) {
+                Ok(path) => path,
+                Err(error) if error.status == StatusCode::NOT_FOUND => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            let manager = SessionManager::open(&path, None, None)
+                .map_err(|error| ApiError::internal(error.to_string()))?;
+            Ok(Some(std::path::PathBuf::from(manager.get_cwd())))
+        })
+    });
+    let schedules = state
+        .workflows
+        .schedules
+        .get()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Schedule service was not initialized"))?;
+    Ok(Router::new()
         .merge(base_router())
+        .merge(plugins_api::router(
+            state.plugins.clone(),
+            state.plugin_integration.http_hooks(),
+        ))
+        .merge(web_search_api::router(state.web_search.clone()))
+        .merge(visual_api::router(
+            state.visual.clone(),
+            std::path::PathBuf::from(&state.data_dir),
+        ))
+        .merge(notification_api::router().with_state(state.clone()))
+        .merge(channels_api::router(state.channels.clone(), channel_models))
+        .merge(file_changes_api::router().with_state(state.clone()))
+        .merge(custom_ui_api::router(state.custom_ui.clone(), None))
+        .merge(game_assets_api::routes(
+            state.game_assets.projects.clone(),
+            state.game_assets.media.clone(),
+            state.game_assets.images.clone(),
+            state.workflows.engines.clone(),
+            game_models,
+        ))
         .merge(session_router().with_state(state.clone()))
+        .merge(plan_api::routes(
+            state.plans.clone(),
+            Arc::new(state.executor.clone()),
+            state.executor.event_sink(),
+        ))
+        .merge(multi_agent_api::routes(
+            state.agents.clone(),
+            Arc::new(state.executor.clone()),
+        ))
+        .merge(goal_api::routes(
+            state.goals.clone(),
+            Arc::new(state.executor.clone()),
+        ))
+        .merge(multi_agent_api::team_routes(
+            state.team.clone(),
+            Arc::new(state.executor.clone()),
+        ))
+        .merge(speech_api::router(state.speech.clone(), speech_resolver))
+        .merge(workflow_api::routes(state.workflows.workflows.clone()))
+        .merge(workflow_api::media_routes(
+            state.workflows.workflows.clone(),
+            state.workflows.media.clone(),
+            state.workflows.images.clone(),
+            Some(state.workflows.cache.clone()),
+        ))
+        .merge(schedule_api::routes(schedules))
+        .merge(native_image_runtime::engines::routes(
+            state.workflows.engines.clone(),
+        ))
         .fallback_service(
             tower_http::services::ServeDir::new(&dist)
                 .append_index_html_on_directories(true)
-                .not_found_service(tower_http::services::ServeFile::new(dist.join("index.html"))),
+                .not_found_service(tower_http::services::ServeFile::new(
+                    dist.join("index.html"),
+                )),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            (token, state.custom_ui.clone()),
+            desktop_auth_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(state, reject_shutdown)))
 }
 
-fn router(state: Arc<AppState>) -> Router {
-    base_router().merge(session_router().with_state(state))
-}
-
-/// POST /api/chat — the TUI/Web conversation path: one replayable SSE run.
-/// Emits the Pisper UI event vocabulary (run/meta/text_delta/thinking_patch/
-/// tool_start/tool_end/done/error) projected from the engine's session
-/// events; frames are recorded under the runId for `/api/runs/{id}/events`
-/// reconnect replay.
-async fn chat(
+async fn reject_shutdown(
     State(state): State<Arc<AppState>>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<axum::response::Response, ApiError> {
-
-    let session_id = body
-        .get("sessionId")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ApiError::bad_request("missing \"sessionId\" field"))?
-        .to_string();
-    let message = body
-        .get("message")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    if message.trim().is_empty() {
-        return Err(ApiError::bad_request("消息或资源调用不能为空。"));
-    }
-    ensure_hosted(&state, &session_id).await?;
-
-    let run_id = product::new_id();
-    let (tx, _rx) = tokio::sync::broadcast::channel::<product::Frame>(4096);
-    let run = product::ChatRun {
-        frames: std::sync::Mutex::new(Vec::new()),
-        tx: tx.clone(),
-        closed: std::sync::atomic::AtomicBool::new(false),
-    };
-    state
-        .chat_runs
-        .lock()
-        .expect("chat runs lock")
-        .insert(run_id.clone(), run);
-
-    let mut rx = tx.subscribe();
-    // Run header frame (upstream startRun): carries the runId the client uses
-    // for reconnect; cursor 0 and not recorded in the replay buffer.
-    let _ = tx.send(product::Frame {
-        cursor: 0,
-        event: "run".into(),
-        data: serde_json::json!({
-            "runId": run_id,
-            "kind": "chat",
-            "sessionId": session_id,
-            "cursor": 0,
-        }),
-    });
-    // Engine-side listener: raw pi events -> UI frames (recorded + broadcast).
-    let session = state.runtime.session().clone();
-    let thinking = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let mapper_state = state.clone();
-    let mapper_run = run_id.clone();
-    let mapper_session = session_id.clone();
-    let mapper_thinking = thinking.clone();
-    let listener: std::sync::Arc<
-        dyn Fn(&pi_rust::coding_agent::agent_session::AgentSessionEvent) + Send + Sync,
-    > = std::sync::Arc::new(move |event| {
-        let Ok(raw) = serde_json::from_str::<serde_json::Value>(
-            &pi_rust::coding_agent::modes::json_event::to_json_event_string(event)
-                .unwrap_or_default(),
-        ) else {
-            return;
-        };
-        let mut thinking = mapper_thinking.lock().expect("thinking lock");
-        let Some((name, data)) =
-            product::map_pi_event(&raw, &mapper_session, &mut thinking)
-        else {
-            return;
-        };
-        drop(thinking);
-        let cursor = mapper_state
-            .frame_cursor
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
-        if let Some(run) = mapper_state.chat_runs.lock().expect("chat runs lock").get(&mapper_run) {
-            run.record(cursor, &name, data);
-        }
-    });
-    let unsub = session.subscribe(listener);
-
-    // Run the prompt; errors surface as the terminal error frame.
-    let prompt_session = session.clone();
-    let prompt_run = run_id.clone();
-    let prompt_state = state.clone();
-    tokio::spawn(async move {
-        let result = prompt_session.prompt(message, None).await;
-        let cursor = prompt_state
-            .frame_cursor
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
-        if let Err(e) = result {
-            if let Some(run) = prompt_state.chat_runs.lock().expect("chat runs lock").get(&prompt_run) {
-                run.record(cursor, "error", serde_json::json!({ "message": e.to_string() }));
-            }
-        }
-        drop(unsub);
-    });
-
-    // Live stream: fresh run, forward broadcast frames as SSE with `id:`
-    // cursor lines, ending after the terminal frame.
-    let run_id_stream = run_id.clone();
-    let stream = futures::stream::unfold(
-        (rx, run_id_stream, state.clone(), false),
-        |(mut rx, run_id, state, mut terminal)| async move {
-            loop {
-                if terminal {
-                    // Give the connection a clean end.
-                    return None;
-                }
-                match rx.recv().await {
-                    Ok(frame) => {
-                        let is_terminal = frame.event == "done" || frame.event == "error";
-                        let out = Ok::<_, Infallible>(
-                            axum::response::sse::Event::default()
-                                .event(frame.event.clone())
-                                .id(frame.cursor.to_string())
-                                .data(serde_json::to_string(&frame.data).unwrap_or_default()),
-                        );
-                        let next_terminal = terminal || is_terminal;
-                        return Some((out, (rx, run_id, state, next_terminal)));
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
-                }
-            }
-        },
-    );
-    let response = axum::response::Sse::new(stream)
-        .keep_alive(axum::response::sse::KeepAlive::default())
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if state.closing.load(std::sync::atomic::Ordering::Acquire) || state.shutdown.is_cancelled() {
+        return ApiError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "runtime_shutdown",
+            "运行时正在关闭。",
+        )
         .into_response();
-    Ok(response)
-}
-
-/// GET /api/runs/{id}/events?after={cursor} — replay recorded frames, then
-/// follow live frames until the terminal event (upstream reconnect semantics).
-async fn run_events(
-    State(state): State<Arc<AppState>>,
-    Path(run_id): Path<String>,
-    Query(params): Query<std::collections::HashMap<String, String>>,
-) -> Result<axum::response::Response, ApiError> {
-
-    let after: u64 = params
-        .get("after")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
-    let (frames, rx, closed) = {
-        let runs = state.chat_runs.lock().expect("chat runs lock");
-        let Some(run) = runs.get(&run_id) else {
-            return Err(ApiError::new(
-                StatusCode::NOT_FOUND,
-                "run_not_found",
-                "工作流运行不存在。",
-            ));
-        };
-        let frames = run.frames.lock().expect("frames lock").clone();
-        let rx = run.tx.subscribe();
-        let closed = run.closed.load(std::sync::atomic::Ordering::Relaxed);
-        (frames, rx, closed)
-    };
-    let _ = &closed;
-    // Replay the recorded snapshot (cursor > after), then follow live frames
-    // (deduped by cursor) until the terminal event passes.
-    let mut pending: std::collections::VecDeque<product::Frame> = frames
-        .into_iter()
-        .filter(|f| f.cursor > after)
-        .collect();
-    if closed {
-        // Terminal frame already recorded; replay ends the stream.
-        let out: Vec<Result<axum::response::sse::Event, Infallible>> = pending
-            .drain(..)
-            .map(|f| {
-                Ok(axum::response::sse::Event::default()
-                    .event(f.event)
-                    .id(f.cursor.to_string())
-                    .data(serde_json::to_string(&f.data).unwrap_or_default()))
-            })
-            .collect();
-        return Ok(axum::response::Sse::new(futures::stream::iter(out))
-            .keep_alive(axum::response::sse::KeepAlive::default())
-            .into_response());
     }
-    let after_move = after;
-    let stream = futures::stream::unfold(
-        (rx, pending, after_move, false),
-        |(mut rx, mut pending, after, mut terminal)| async move {
-            loop {
-                if let Some(frame) = pending.pop_front() {
-                    let is_terminal = frame.event == "done" || frame.event == "error";
-                    let out = Ok::<_, Infallible>(
-                        axum::response::sse::Event::default()
-                            .event(frame.event.clone())
-                            .id(frame.cursor.to_string())
-                            .data(serde_json::to_string(&frame.data).unwrap_or_default()),
-                    );
-                    return Some((out, (rx, pending, after, terminal || is_terminal)));
-                }
-                match rx.recv().await {
-                    Ok(frame) => {
-                        if frame.cursor <= after {
-                            continue;
-                        }
-                        let is_terminal = frame.event == "done" || frame.event == "error";
-                        let out = Ok::<_, Infallible>(
-                            axum::response::sse::Event::default()
-                                .event(frame.event.clone())
-                                .id(frame.cursor.to_string())
-                                .data(serde_json::to_string(&frame.data).unwrap_or_default()),
-                        );
-                        return Some((out, (rx, pending, after, terminal || is_terminal)));
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
-                }
-            }
-        },
-    );
-    let response = axum::response::Sse::new(stream)
-        .keep_alive(axum::response::sse::KeepAlive::default())
-        .into_response();
-    Ok(response)
+    next.run(request).await
 }
 
 async fn create_pairing_code(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
@@ -1364,8 +1873,7 @@ async fn create_pairing_code(State(state): State<Arc<AppState>>) -> Json<serde_j
     let mut code_str = String::new();
     let _ = write!(code_str, "{code:06}");
     let expires_at = product::now_ms() + 300_000;
-    *state.pairing.pending.lock().expect("pairing lock") =
-        Some((code_str.clone(), expires_at));
+    *state.pairing.pending.lock().expect("pairing lock") = Some((code_str.clone(), expires_at));
     Json(serde_json::json!({ "code": code_str, "expiresAt": expires_at }))
 }
 
@@ -1482,12 +1990,7 @@ async fn runtime_diagnostics(State(state): State<Arc<AppState>>) -> Json<serde_j
 }
 
 async fn unknown_api_fallback() -> impl IntoResponse {
-    (
-        StatusCode::NOT_FOUND,
-        Json(serde_json::json!({
-            "error": { "code": "not_found", "message": "unknown API route" }
-        })),
-    )
+    ApiError::new(StatusCode::NOT_FOUND, "not_found", "unknown API route")
 }
 
 #[cfg(test)]
@@ -1497,6 +2000,108 @@ mod tests {
     use axum::http::Request;
     use tower::ServiceExt;
 
+    fn authenticated_probe() -> Router {
+        Router::new()
+            .route("/api/probe", get(|| async { "ok" }).post(|| async { "ok" }))
+            .layer(axum::middleware::from_fn_with_state(
+                (
+                    Some("test-token".to_string()),
+                    native_custom_ui::CustomUiService::new(
+                        std::env::temp_dir()
+                            .join(format!("pisper-http-auth-{}", uuid::Uuid::new_v4())),
+                    ),
+                ),
+                desktop_auth_middleware,
+            ))
+    }
+
+    #[tokio::test]
+    async fn desktop_bootstrap_sets_cookie_and_allows_repeated_window_startup() {
+        for _ in 0..2 {
+            let response = authenticated_probe()
+                .oneshot(
+                    Request::get("/_pisper/desktop/bootstrap?token=test-token&next=/pets")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::FOUND);
+            assert_eq!(response.headers()["location"], "/pets");
+            assert_eq!(
+                response.headers()["set-cookie"],
+                "__pisper_desktop=test-token; HttpOnly; SameSite=Strict; Path=/"
+            );
+            assert_eq!(response.headers()["cache-control"], "no-store");
+            assert_eq!(response.headers()["referrer-policy"], "no-referrer");
+        }
+        for next in ["//foreign.example", "/%5Cforeign.example", "/%0Abad"] {
+            let response = authenticated_probe()
+                .oneshot(
+                    Request::get(format!(
+                        "/_pisper/desktop/bootstrap?token=test-token&next={next}"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.headers()["location"], "/");
+        }
+    }
+
+    #[tokio::test]
+    async fn desktop_access_requires_matching_token() {
+        for uri in ["/api/probe", "/_pisper/desktop/bootstrap?token=wrong"] {
+            let response = authenticated_probe()
+                .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+        let response = authenticated_probe()
+            .oneshot(
+                Request::get("/api/probe")
+                    .header("cookie", "other=value; __pisper_desktop=test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn desktop_write_rejects_foreign_origin_and_accepts_local_origin() {
+        for (origin, expected) in [
+            ("http://foreign.example", StatusCode::FORBIDDEN),
+            ("http://127.0.0.1:12345", StatusCode::OK),
+        ] {
+            let response = authenticated_probe()
+                .oneshot(
+                    Request::post("/api/probe")
+                        .header("cookie", "__pisper_desktop=test-token")
+                        .header("host", "127.0.0.1:12345")
+                        .header("origin", origin)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected);
+        }
+        let response = authenticated_probe()
+            .oneshot(
+                Request::post("/api/probe")
+                    .header("cookie", "__pisper_desktop=test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
     #[tokio::test]
     async fn health_matches_client_handshake_contract() {
         let res = base_router()
@@ -1505,13 +2110,18 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let body: serde_json::Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(body["ok"], serde_json::json!(true));
         assert_eq!(body["engine"], serde_json::json!(ENGINE));
         assert_eq!(body["apiVersion"], serde_json::json!(API_VERSION));
-        assert_eq!(body["minClientVersion"], serde_json::json!(MIN_CLIENT_VERSION));
+        assert_eq!(
+            body["minClientVersion"],
+            serde_json::json!(MIN_CLIENT_VERSION)
+        );
         assert!(body["capabilities"].is_object());
     }
 
@@ -1557,9 +2167,11 @@ mod tests {
             .unwrap();
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
         let body: serde_json::Value = serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap(),
+            &axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .unwrap(),
         )
         .unwrap();
-        assert_eq!(body["error"]["code"], serde_json::json!("not_found"));
+        assert_eq!(body["code"], serde_json::json!("not_found"));
     }
 }

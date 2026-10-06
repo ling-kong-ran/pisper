@@ -1,0 +1,450 @@
+{
+  "source": "packages/coding-agent/src/core/agent-session.ts",
+  "sourceHash": "26e76e13456757b0419df26b1f4d9bce9faa28c2588ad66af3e4cc3e9b179e0a",
+  "node": "v25.8.2",
+  "seams": [
+    "all imported collaborators fail if called",
+    "whole AgentSession prototype methods; mock command registry/context/error sink; no constructor/provider/storage",
+    "native JS Error messages; arbitrary thrown values/stack not asserted"
+  ],
+  "cases": [
+    {
+      "name": "dispatch_sync",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_resolved",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_reject",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "async failure"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "async failure"
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_sync_throw",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "sync failure"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "sync failure"
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_empty_reject",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": ""
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": ""
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_pending_resolve",
+      "text": "/cmd args",
+      "pending": true,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_pending_reject",
+      "text": "/cmd args",
+      "pending": true,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "async failure"
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_unknown",
+      "text": "/missing",
+      "pending": false,
+      "before": [],
+      "trace": [],
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "name": "dispatch_spacing",
+      "text": "/cmd   β  ",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "  β  "
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "  β  "
+        }
+      ],
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "name": "dispatch_tab_name",
+      "text": "/cmd\targs",
+      "pending": false,
+      "before": [],
+      "trace": [],
+      "result": {
+        "ok": false
+      }
+    },
+    {
+      "name": "prompt_sync",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "prompt_resolved",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "prompt_reject",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "async failure"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "async failure"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "prompt_sync_throw",
+      "text": "/cmd args",
+      "pending": false,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "sync failure"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "sync failure"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "prompt_pending_resolve",
+      "text": "/cmd args",
+      "pending": true,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "prompt_pending_reject",
+      "text": "/cmd args",
+      "pending": true,
+      "before": [
+        {
+          "phase": "handler",
+          "args": "args"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "handler",
+          "args": "args"
+        },
+        {
+          "phase": "error",
+          "extensionPath": "command:cmd",
+          "event": "command",
+          "error": "async failure"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "prompt_input_handled",
+      "text": "input",
+      "pending": false,
+      "before": [
+        {
+          "phase": "input"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "trace": [
+        {
+          "phase": "input"
+        },
+        {
+          "phase": "preflight",
+          "value": "handled"
+        }
+      ],
+      "result": {
+        "ok": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,11659 @@
+{
+ "cases": [
+  {
+   "name": "tok_000",
+   "source": "[outer [inner](/inside)](/outside)",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      91,
+      111,
+      117,
+      116,
+      101,
+      114,
+      32,
+      91,
+      105,
+      110,
+      110,
+      101,
+      114,
+      93,
+      40,
+      47,
+      105,
+      110,
+      115,
+      105,
+      100,
+      101,
+      41,
+      93,
+      40,
+      47,
+      111,
+      117,
+      116,
+      115,
+      105,
+      100,
+      101,
+      41
+     ],
+     "text": [
+      91,
+      111,
+      117,
+      116,
+      101,
+      114,
+      32,
+      91,
+      105,
+      110,
+      110,
+      101,
+      114,
+      93,
+      40,
+      47,
+      105,
+      110,
+      115,
+      105,
+      100,
+      101,
+      41,
+      93,
+      40,
+      47,
+      111,
+      117,
+      116,
+      115,
+      105,
+      100,
+      101,
+      41
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        91,
+        111,
+        117,
+        116,
+        101,
+        114,
+        32
+       ],
+       "text": [
+        91,
+        111,
+        117,
+        116,
+        101,
+        114,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        105,
+        110,
+        110,
+        101,
+        114,
+        93,
+        40,
+        47,
+        105,
+        110,
+        115,
+        105,
+        100,
+        101,
+        41
+       ],
+       "text": [
+        105,
+        110,
+        110,
+        101,
+        114
+       ],
+       "href": [
+        47,
+        105,
+        110,
+        115,
+        105,
+        100,
+        101
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          105,
+          110,
+          110,
+          101,
+          114
+         ],
+         "text": [
+          105,
+          110,
+          110,
+          101,
+          114
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        93,
+        40,
+        47,
+        111,
+        117,
+        116,
+        115,
+        105,
+        100,
+        101,
+        41
+       ],
+       "text": [
+        93,
+        40,
+        47,
+        111,
+        117,
+        116,
+        115,
+        105,
+        100,
+        101,
+        41
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_001",
+   "source": "[text **bold [in](/y)**][ref]\n\n[ref]: /t",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      91,
+      116,
+      101,
+      120,
+      116,
+      32,
+      42,
+      42,
+      98,
+      111,
+      108,
+      100,
+      32,
+      91,
+      105,
+      110,
+      93,
+      40,
+      47,
+      121,
+      41,
+      42,
+      42,
+      93,
+      91,
+      114,
+      101,
+      102,
+      93
+     ],
+     "text": [
+      91,
+      116,
+      101,
+      120,
+      116,
+      32,
+      42,
+      42,
+      98,
+      111,
+      108,
+      100,
+      32,
+      91,
+      105,
+      110,
+      93,
+      40,
+      47,
+      121,
+      41,
+      42,
+      42,
+      93,
+      91,
+      114,
+      101,
+      102,
+      93
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        91,
+        116,
+        101,
+        120,
+        116,
+        32
+       ],
+       "text": [
+        91,
+        116,
+        101,
+        120,
+        116,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "strong",
+       "raw": [
+        42,
+        42,
+        98,
+        111,
+        108,
+        100,
+        32,
+        91,
+        105,
+        110,
+        93,
+        40,
+        47,
+        121,
+        41,
+        42,
+        42
+       ],
+       "text": [
+        98,
+        111,
+        108,
+        100,
+        32,
+        91,
+        105,
+        110,
+        93,
+        40,
+        47,
+        121,
+        41
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98,
+          111,
+          108,
+          100,
+          32
+         ],
+         "text": [
+          98,
+          111,
+          108,
+          100,
+          32
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "link",
+         "raw": [
+          91,
+          105,
+          110,
+          93,
+          40,
+          47,
+          121,
+          41
+         ],
+         "text": [
+          105,
+          110
+         ],
+         "href": [
+          47,
+          121
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            105,
+            110
+           ],
+           "text": [
+            105,
+            110
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        93
+       ],
+       "text": [
+        93
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        114,
+        101,
+        102,
+        93
+       ],
+       "text": [
+        114,
+        101,
+        102
+       ],
+       "href": [
+        47,
+        116
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          114,
+          101,
+          102
+         ],
+         "text": [
+          114,
+          101,
+          102
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      58,
+      32,
+      47,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_002",
+   "source": "[**b [x](/y)**][ref]\n\n[ref]: /t",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      91,
+      42,
+      42,
+      98,
+      32,
+      91,
+      120,
+      93,
+      40,
+      47,
+      121,
+      41,
+      42,
+      42,
+      93,
+      91,
+      114,
+      101,
+      102,
+      93
+     ],
+     "text": [
+      91,
+      42,
+      42,
+      98,
+      32,
+      91,
+      120,
+      93,
+      40,
+      47,
+      121,
+      41,
+      42,
+      42,
+      93,
+      91,
+      114,
+      101,
+      102,
+      93
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        91
+       ],
+       "text": [
+        91
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "strong",
+       "raw": [
+        42,
+        42,
+        98,
+        32,
+        91,
+        120,
+        93,
+        40,
+        47,
+        121,
+        41,
+        42,
+        42
+       ],
+       "text": [
+        98,
+        32,
+        91,
+        120,
+        93,
+        40,
+        47,
+        121,
+        41
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98,
+          32
+         ],
+         "text": [
+          98,
+          32
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "link",
+         "raw": [
+          91,
+          120,
+          93,
+          40,
+          47,
+          121,
+          41
+         ],
+         "text": [
+          120
+         ],
+         "href": [
+          47,
+          121
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            120
+           ],
+           "text": [
+            120
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        93
+       ],
+       "text": [
+        93
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        114,
+        101,
+        102,
+        93
+       ],
+       "text": [
+        114,
+        101,
+        102
+       ],
+       "href": [
+        47,
+        116
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          114,
+          101,
+          102
+         ],
+         "text": [
+          114,
+          101,
+          102
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      58,
+      32,
+      47,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_003",
+   "source": "![alt [x](/y)](/z)",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      33,
+      91,
+      97,
+      108,
+      116,
+      32,
+      91,
+      120,
+      93,
+      40,
+      47,
+      121,
+      41,
+      93,
+      40,
+      47,
+      122,
+      41
+     ],
+     "text": [
+      33,
+      91,
+      97,
+      108,
+      116,
+      32,
+      91,
+      120,
+      93,
+      40,
+      47,
+      121,
+      41,
+      93,
+      40,
+      47,
+      122,
+      41
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "image",
+       "raw": [
+        33,
+        91,
+        97,
+        108,
+        116,
+        32,
+        91,
+        120,
+        93,
+        40,
+        47,
+        121,
+        41,
+        93,
+        40,
+        47,
+        122,
+        41
+       ],
+       "text": [
+        97,
+        108,
+        116,
+        32,
+        91,
+        120,
+        93,
+        40,
+        47,
+        121,
+        41
+       ],
+       "href": [
+        47,
+        122
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97,
+          108,
+          116,
+          32
+         ],
+         "text": [
+          97,
+          108,
+          116,
+          32
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "link",
+         "raw": [
+          91,
+          120,
+          93,
+          40,
+          47,
+          121,
+          41
+         ],
+         "text": [
+          120
+         ],
+         "href": [
+          47,
+          121
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            120
+           ],
+           "text": [
+            120
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_004",
+   "source": "![![a](/i)](ref)\n\n[ref]: /t",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      33,
+      91,
+      33,
+      91,
+      97,
+      93,
+      40,
+      47,
+      105,
+      41,
+      93,
+      40,
+      114,
+      101,
+      102,
+      41
+     ],
+     "text": [
+      33,
+      91,
+      33,
+      91,
+      97,
+      93,
+      40,
+      47,
+      105,
+      41,
+      93,
+      40,
+      114,
+      101,
+      102,
+      41
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "image",
+       "raw": [
+        33,
+        91,
+        33,
+        91,
+        97,
+        93,
+        40,
+        47,
+        105,
+        41,
+        93,
+        40,
+        114,
+        101,
+        102,
+        41
+       ],
+       "text": [
+        33,
+        91,
+        97,
+        93,
+        40,
+        47,
+        105,
+        41
+       ],
+       "href": [
+        114,
+        101,
+        102
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "image",
+         "raw": [
+          33,
+          91,
+          97,
+          93,
+          40,
+          47,
+          105,
+          41
+         ],
+         "text": [
+          97
+         ],
+         "href": [
+          47,
+          105
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            97
+           ],
+           "text": [
+            97
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      58,
+      32,
+      47,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_005",
+   "source": "[![alt](/i)][ref]\n\n[ref]: /t",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      91,
+      33,
+      91,
+      97,
+      108,
+      116,
+      93,
+      40,
+      47,
+      105,
+      41,
+      93,
+      91,
+      114,
+      101,
+      102,
+      93
+     ],
+     "text": [
+      91,
+      33,
+      91,
+      97,
+      108,
+      116,
+      93,
+      40,
+      47,
+      105,
+      41,
+      93,
+      91,
+      114,
+      101,
+      102,
+      93
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        33,
+        91,
+        97,
+        108,
+        116,
+        93,
+        40,
+        47,
+        105,
+        41,
+        93,
+        91,
+        114,
+        101,
+        102,
+        93
+       ],
+       "text": [
+        33,
+        91,
+        97,
+        108,
+        116,
+        93,
+        40,
+        47,
+        105,
+        41
+       ],
+       "href": [
+        47,
+        116
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "image",
+         "raw": [
+          33,
+          91,
+          97,
+          108,
+          116,
+          93,
+          40,
+          47,
+          105,
+          41
+         ],
+         "text": [
+          97,
+          108,
+          116
+         ],
+         "href": [
+          47,
+          105
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            97,
+            108,
+            116
+           ],
+           "text": [
+            97,
+            108,
+            116
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      58,
+      32,
+      47,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_006",
+   "source": "a [x [y](/b)](/c) z",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      32,
+      91,
+      120,
+      32,
+      91,
+      121,
+      93,
+      40,
+      47,
+      98,
+      41,
+      93,
+      40,
+      47,
+      99,
+      41,
+      32,
+      122
+     ],
+     "text": [
+      97,
+      32,
+      91,
+      120,
+      32,
+      91,
+      121,
+      93,
+      40,
+      47,
+      98,
+      41,
+      93,
+      40,
+      47,
+      99,
+      41,
+      32,
+      122
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        32,
+        91,
+        120,
+        32
+       ],
+       "text": [
+        97,
+        32,
+        91,
+        120,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        121,
+        93,
+        40,
+        47,
+        98,
+        41
+       ],
+       "text": [
+        121
+       ],
+       "href": [
+        47,
+        98
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          121
+         ],
+         "text": [
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        93,
+        40,
+        47,
+        99,
+        41,
+        32,
+        122
+       ],
+       "text": [
+        93,
+        40,
+        47,
+        99,
+        41,
+        32,
+        122
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_007",
+   "source": "*before \\😀\\* after* tail\n\n[id]: /target",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      98,
+      101,
+      102,
+      111,
+      114,
+      101,
+      32,
+      92,
+      55357,
+      56832,
+      92,
+      42,
+      32,
+      97,
+      102,
+      116,
+      101,
+      114,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      42,
+      98,
+      101,
+      102,
+      111,
+      114,
+      101,
+      32,
+      92,
+      55357,
+      56832,
+      92,
+      42,
+      32,
+      97,
+      102,
+      116,
+      101,
+      114,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        98,
+        101,
+        102,
+        111,
+        114,
+        101,
+        32,
+        92,
+        55357,
+        56832,
+        92,
+        42,
+        32,
+        97,
+        102,
+        116,
+        101,
+        114,
+        42
+       ],
+       "text": [
+        98,
+        101,
+        102,
+        111,
+        114,
+        101,
+        32,
+        92,
+        55357,
+        56832,
+        92,
+        42,
+        32,
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98,
+          101,
+          102,
+          111,
+          114,
+          101,
+          32,
+          92,
+          55357,
+          56832
+         ],
+         "text": [
+          98,
+          101,
+          102,
+          111,
+          114,
+          101,
+          32,
+          92,
+          55357,
+          56832
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "escape",
+         "raw": [
+          92,
+          42
+         ],
+         "text": [
+          42
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          32,
+          97,
+          102,
+          116,
+          101,
+          114
+         ],
+         "text": [
+          32,
+          97,
+          102,
+          116,
+          101,
+          114
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "text": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      105,
+      100,
+      93,
+      58,
+      32,
+      47,
+      116,
+      97,
+      114,
+      103,
+      101,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_008",
+   "source": "**before \\😀\\* after** tail\n\n[id]: /target",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      42,
+      98,
+      101,
+      102,
+      111,
+      114,
+      101,
+      32,
+      92,
+      55357,
+      56832,
+      92,
+      42,
+      32,
+      97,
+      102,
+      116,
+      101,
+      114,
+      42,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      42,
+      42,
+      98,
+      101,
+      102,
+      111,
+      114,
+      101,
+      32,
+      92,
+      55357,
+      56832,
+      92,
+      42,
+      32,
+      97,
+      102,
+      116,
+      101,
+      114,
+      42,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "strong",
+       "raw": [
+        42,
+        42,
+        98,
+        101,
+        102,
+        111,
+        114,
+        101,
+        32,
+        92,
+        55357,
+        56832,
+        92,
+        42,
+        32,
+        97,
+        102,
+        116,
+        101,
+        114,
+        42,
+        42
+       ],
+       "text": [
+        98,
+        101,
+        102,
+        111,
+        114,
+        101,
+        32,
+        92,
+        55357,
+        56832,
+        92,
+        42,
+        32,
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98,
+          101,
+          102,
+          111,
+          114,
+          101,
+          32,
+          92,
+          55357,
+          56832
+         ],
+         "text": [
+          98,
+          101,
+          102,
+          111,
+          114,
+          101,
+          32,
+          92,
+          55357,
+          56832
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "escape",
+         "raw": [
+          92,
+          42
+         ],
+         "text": [
+          42
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          32,
+          97,
+          102,
+          116,
+          101,
+          114
+         ],
+         "text": [
+          32,
+          97,
+          102,
+          116,
+          101,
+          114
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "text": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      105,
+      100,
+      93,
+      58,
+      32,
+      47,
+      116,
+      97,
+      114,
+      103,
+      101,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_009",
+   "source": "*a* \\😀 tail\n\n[id]: /target",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      97,
+      42,
+      32,
+      92,
+      55357,
+      56832,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      42,
+      97,
+      42,
+      32,
+      92,
+      55357,
+      56832,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        97,
+        42
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        92,
+        55357,
+        56832,
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "text": [
+        32,
+        92,
+        55357,
+        56832,
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      105,
+      100,
+      93,
+      58,
+      32,
+      47,
+      116,
+      97,
+      114,
+      103,
+      101,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_010",
+   "source": "lead *[😀](/x)*😀 \\😀 \\😀 ",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      108,
+      101,
+      97,
+      100,
+      32,
+      42,
+      91,
+      55357,
+      56832,
+      93,
+      40,
+      47,
+      120,
+      41,
+      42,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832,
+      32
+     ],
+     "text": [
+      108,
+      101,
+      97,
+      100,
+      32,
+      42,
+      91,
+      55357,
+      56832,
+      93,
+      40,
+      47,
+      120,
+      41,
+      42,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832,
+      32
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        108,
+        101,
+        97,
+        100,
+        32
+       ],
+       "text": [
+        108,
+        101,
+        97,
+        100,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        91,
+        55357,
+        56832,
+        93,
+        40,
+        47,
+        120,
+        41,
+        42
+       ],
+       "text": [
+        91,
+        55357,
+        56832,
+        93,
+        40,
+        47,
+        120,
+        41
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "link",
+         "raw": [
+          91,
+          55357,
+          56832,
+          93,
+          40,
+          47,
+          120,
+          41
+         ],
+         "text": [
+          55357,
+          56832
+         ],
+         "href": [
+          47,
+          120
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            55357,
+            56832
+           ],
+           "text": [
+            55357,
+            56832
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832,
+        32
+       ],
+       "text": [
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_011",
+   "source": "lead *a*😀 \\😀",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      108,
+      101,
+      97,
+      100,
+      32,
+      42,
+      97,
+      42,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832
+     ],
+     "text": [
+      108,
+      101,
+      97,
+      100,
+      32,
+      42,
+      97,
+      42,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        108,
+        101,
+        97,
+        100,
+        32
+       ],
+       "text": [
+        108,
+        101,
+        97,
+        100,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        97,
+        42
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832
+       ],
+       "text": [
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_012",
+   "source": "lead _a_😀 \\😀",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      108,
+      101,
+      97,
+      100,
+      32,
+      95,
+      97,
+      95,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832
+     ],
+     "text": [
+      108,
+      101,
+      97,
+      100,
+      32,
+      95,
+      97,
+      95,
+      55357,
+      56832,
+      32,
+      92,
+      55357,
+      56832
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        108,
+        101,
+        97,
+        100,
+        32
+       ],
+       "text": [
+        108,
+        101,
+        97,
+        100,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        95,
+        97,
+        95
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832
+       ],
+       "text": [
+        55357,
+        56832,
+        32,
+        92,
+        55357,
+        56832
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_013",
+   "source": "*a* \\😀\\😀\\* *b* tail\n\n[id]: /target",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      97,
+      42,
+      32,
+      92,
+      55357,
+      56832,
+      92,
+      55357,
+      56832,
+      92,
+      42,
+      32,
+      42,
+      98,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      42,
+      97,
+      42,
+      32,
+      92,
+      55357,
+      56832,
+      92,
+      55357,
+      56832,
+      92,
+      42,
+      32,
+      42,
+      98,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        97,
+        42
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        92,
+        55357,
+        56832,
+        92,
+        55357,
+        56832
+       ],
+       "text": [
+        32,
+        92,
+        55357,
+        56832,
+        92,
+        55357,
+        56832
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "escape",
+       "raw": [
+        92,
+        42
+       ],
+       "text": [
+        42
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32
+       ],
+       "text": [
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        98,
+        42
+       ],
+       "text": [
+        98
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "text": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      105,
+      100,
+      93,
+      58,
+      32,
+      47,
+      116,
+      97,
+      114,
+      103,
+      101,
+      116
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_014",
+   "source": "**a*b*c",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      42,
+      97,
+      42,
+      98,
+      42,
+      99
+     ],
+     "text": [
+      42,
+      42,
+      97,
+      42,
+      98,
+      42,
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        42,
+        42,
+        97
+       ],
+       "text": [
+        42,
+        42,
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        98,
+        42
+       ],
+       "text": [
+        98
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        99
+       ],
+       "text": [
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_015",
+   "source": "**a*b*c** d",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      42,
+      97,
+      42,
+      98,
+      42,
+      99,
+      42,
+      42,
+      32,
+      100
+     ],
+     "text": [
+      42,
+      42,
+      97,
+      42,
+      98,
+      42,
+      99,
+      42,
+      42,
+      32,
+      100
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "strong",
+       "raw": [
+        42,
+        42,
+        97,
+        42,
+        98,
+        42,
+        99,
+        42,
+        42
+       ],
+       "text": [
+        97,
+        42,
+        98,
+        42,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "em",
+         "raw": [
+          42,
+          98,
+          42
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98
+           ],
+           "text": [
+            98
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          99
+         ],
+         "text": [
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        100
+       ],
+       "text": [
+        32,
+        100
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_016",
+   "source": "__a_b_c__ d",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      95,
+      95,
+      97,
+      95,
+      98,
+      95,
+      99,
+      95,
+      95,
+      32,
+      100
+     ],
+     "text": [
+      95,
+      95,
+      97,
+      95,
+      98,
+      95,
+      99,
+      95,
+      95,
+      32,
+      100
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "strong",
+       "raw": [
+        95,
+        95,
+        97,
+        95,
+        98,
+        95,
+        99,
+        95,
+        95
+       ],
+       "text": [
+        97,
+        95,
+        98,
+        95,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97,
+          95,
+          98,
+          95,
+          99
+         ],
+         "text": [
+          97,
+          95,
+          98,
+          95,
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        100
+       ],
+       "text": [
+        32,
+        100
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_017",
+   "source": "*a **b** c*",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      97,
+      32,
+      42,
+      42,
+      98,
+      42,
+      42,
+      32,
+      99,
+      42
+     ],
+     "text": [
+      42,
+      97,
+      32,
+      42,
+      42,
+      98,
+      42,
+      42,
+      32,
+      99,
+      42
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        97,
+        32,
+        42,
+        42,
+        98,
+        42,
+        42,
+        32,
+        99,
+        42
+       ],
+       "text": [
+        97,
+        32,
+        42,
+        42,
+        98,
+        42,
+        42,
+        32,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97,
+          32
+         ],
+         "text": [
+          97,
+          32
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "strong",
+         "raw": [
+          42,
+          42,
+          98,
+          42,
+          42
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98
+           ],
+           "text": [
+            98
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          32,
+          99
+         ],
+         "text": [
+          32,
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_018",
+   "source": "***a**b*",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      42,
+      42,
+      97,
+      42,
+      42,
+      98,
+      42
+     ],
+     "text": [
+      42,
+      42,
+      42,
+      97,
+      42,
+      42,
+      98,
+      42
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        42,
+        42,
+        97,
+        42,
+        42,
+        98,
+        42
+       ],
+       "text": [
+        42,
+        42,
+        97,
+        42,
+        42,
+        98
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "strong",
+         "raw": [
+          42,
+          42,
+          97,
+          42,
+          42
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            97
+           ],
+           "text": [
+            97
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          98
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_019",
+   "source": "> a\n> > b\nlazy\nlazy2\n> c\n",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      97,
+      10,
+      62,
+      32,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121,
+      10,
+      108,
+      97,
+      122,
+      121,
+      50,
+      10,
+      62,
+      32,
+      99,
+      10
+     ],
+     "text": [
+      97,
+      10,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121,
+      10,
+      108,
+      97,
+      122,
+      121,
+      50,
+      10,
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        97,
+        10
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "blockquote",
+       "raw": [
+        62,
+        32,
+        98,
+        10,
+        108,
+        97,
+        122,
+        121,
+        10,
+        108,
+        97,
+        122,
+        121,
+        50,
+        10,
+        99
+       ],
+       "text": [
+        98,
+        10,
+        108,
+        97,
+        122,
+        121,
+        10,
+        108,
+        97,
+        122,
+        121,
+        50,
+        10,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121,
+          10,
+          108,
+          97,
+          122,
+          121,
+          50,
+          10,
+          99
+         ],
+         "text": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121,
+          10,
+          108,
+          97,
+          122,
+          121,
+          50,
+          10,
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121,
+            10,
+            108,
+            97,
+            122,
+            121,
+            50,
+            10,
+            99
+           ],
+           "text": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121,
+            10,
+            108,
+            97,
+            122,
+            121,
+            50,
+            10,
+            99
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_020",
+   "source": "> a\n> > b\nlazy\n\n> c\n",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      97,
+      10,
+      62,
+      32,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121
+     ],
+     "text": [
+      97,
+      10,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        97,
+        10
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "blockquote",
+       "raw": [
+        62,
+        32,
+        98,
+        10,
+        108,
+        97,
+        122,
+        121
+       ],
+       "text": [
+        98,
+        10,
+        108,
+        97,
+        122,
+        121
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121
+         ],
+         "text": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121
+           ],
+           "text": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      99,
+      10
+     ],
+     "text": [
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        99
+       ],
+       "text": [
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          99
+         ],
+         "text": [
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_021",
+   "source": "> > b\nlazy\n> c\n",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121,
+      10,
+      62,
+      32,
+      99,
+      10
+     ],
+     "text": [
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121,
+      10,
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "blockquote",
+       "raw": [
+        62,
+        32,
+        98,
+        10,
+        108,
+        97,
+        122,
+        121,
+        10,
+        99
+       ],
+       "text": [
+        98,
+        10,
+        108,
+        97,
+        122,
+        121,
+        10,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121,
+          10,
+          99
+         ],
+         "text": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121,
+          10,
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121,
+            10,
+            99
+           ],
+           "text": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121,
+            10,
+            99
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_022",
+   "source": "> x\n> > y\nz\n> w\n",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      120,
+      10,
+      62,
+      32,
+      62,
+      32,
+      121,
+      10,
+      122,
+      10,
+      62,
+      32,
+      119,
+      10
+     ],
+     "text": [
+      120,
+      10,
+      62,
+      32,
+      121,
+      10,
+      122,
+      10,
+      119
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        120,
+        10
+       ],
+       "text": [
+        120
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          120
+         ],
+         "text": [
+          120
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "blockquote",
+       "raw": [
+        62,
+        32,
+        121,
+        10,
+        122,
+        10,
+        119
+       ],
+       "text": [
+        121,
+        10,
+        122,
+        10,
+        119
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          121,
+          10,
+          122,
+          10,
+          119
+         ],
+         "text": [
+          121,
+          10,
+          122,
+          10,
+          119
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            121,
+            10,
+            122,
+            10,
+            119
+           ],
+           "text": [
+            121,
+            10,
+            122,
+            10,
+            119
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_023",
+   "source": "> a\n>  > b\nlazy\n> c\n",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      97,
+      10,
+      62,
+      32,
+      32,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121,
+      10,
+      62,
+      32,
+      99,
+      10
+     ],
+     "text": [
+      97,
+      10,
+      32,
+      62,
+      32,
+      98,
+      10,
+      108,
+      97,
+      122,
+      121,
+      10,
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        97,
+        10
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "blockquote",
+       "raw": [
+        32,
+        62,
+        32,
+        98,
+        10,
+        108,
+        97,
+        122,
+        121,
+        10,
+        99
+       ],
+       "text": [
+        98,
+        10,
+        108,
+        97,
+        122,
+        121,
+        10,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121,
+          10,
+          99
+         ],
+         "text": [
+          98,
+          10,
+          108,
+          97,
+          122,
+          121,
+          10,
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121,
+            10,
+            99
+           ],
+           "text": [
+            98,
+            10,
+            108,
+            97,
+            122,
+            121,
+            10,
+            99
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_024",
+   "source": "> a\n> > b\ntext\n> ===\n",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      97,
+      10,
+      62,
+      32,
+      62,
+      32,
+      98,
+      10,
+      116,
+      101,
+      120,
+      116,
+      10,
+      62,
+      32,
+      61,
+      61,
+      61,
+      10
+     ],
+     "text": [
+      97,
+      10,
+      62,
+      32,
+      98,
+      10,
+      116,
+      101,
+      120,
+      116,
+      10,
+      32,
+      32,
+      32,
+      32,
+      61,
+      61,
+      61
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        97,
+        10
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "blockquote",
+       "raw": [
+        62,
+        32,
+        98,
+        10,
+        116,
+        101,
+        120,
+        116,
+        10,
+        61,
+        61,
+        61
+       ],
+       "text": [
+        98,
+        10,
+        116,
+        101,
+        120,
+        116,
+        10,
+        32,
+        32,
+        32,
+        32,
+        61,
+        61,
+        61
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          98,
+          10,
+          116,
+          101,
+          120,
+          116,
+          10,
+          32,
+          32,
+          32,
+          32,
+          61,
+          61,
+          61
+         ],
+         "text": [
+          98,
+          10,
+          116,
+          101,
+          120,
+          116,
+          10,
+          32,
+          32,
+          32,
+          32,
+          61,
+          61,
+          61
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98,
+            10,
+            116,
+            101,
+            120,
+            116,
+            10,
+            32,
+            32,
+            32,
+            32,
+            61,
+            61,
+            61
+           ],
+           "text": [
+            98,
+            10,
+            116,
+            101,
+            120,
+            116,
+            10,
+            32,
+            32,
+            32,
+            32,
+            61,
+            61,
+            61
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_025",
+   "source": "- [ ] task\n- x\n  \n  y\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      45,
+      32,
+      91,
+      32,
+      93,
+      32,
+      116,
+      97,
+      115,
+      107,
+      10,
+      45,
+      32,
+      120,
+      10,
+      32,
+      32,
+      10,
+      32,
+      32,
+      121,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": true,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        91,
+        32,
+        93,
+        32,
+        116,
+        97,
+        115,
+        107,
+        10
+       ],
+       "text": [
+        116,
+        97,
+        115,
+        107
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": true,
+       "checked": false,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          91,
+          32,
+          93,
+          32,
+          116,
+          97,
+          115,
+          107
+         ],
+         "text": [
+          91,
+          32,
+          93,
+          32,
+          116,
+          97,
+          115,
+          107
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "checkbox",
+           "raw": [
+            91,
+            32,
+            93,
+            32
+           ],
+           "text": [],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": false,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          },
+          {
+           "kind": "text",
+           "raw": [
+            116,
+            97,
+            115,
+            107
+           ],
+           "text": [
+            116,
+            97,
+            115,
+            107
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        120,
+        10,
+        32,
+        32,
+        10,
+        32,
+        32,
+        121
+       ],
+       "text": [
+        120,
+        10,
+        10,
+        121
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          120
+         ],
+         "text": [
+          120
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            120
+           ],
+           "text": [
+            120
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "space",
+         "raw": [
+          10,
+          10
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "paragraph",
+         "raw": [
+          121
+         ],
+         "text": [
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            121
+           ],
+           "text": [
+            121
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_026",
+   "source": "- [x] done\n- x\n\n  y\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      45,
+      32,
+      91,
+      120,
+      93,
+      32,
+      100,
+      111,
+      110,
+      101,
+      10,
+      45,
+      32,
+      120,
+      10,
+      10,
+      32,
+      32,
+      121,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": true,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        91,
+        120,
+        93,
+        32,
+        100,
+        111,
+        110,
+        101,
+        10
+       ],
+       "text": [
+        100,
+        111,
+        110,
+        101
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": true,
+       "checked": true,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          91,
+          120,
+          93,
+          32,
+          100,
+          111,
+          110,
+          101
+         ],
+         "text": [
+          91,
+          120,
+          93,
+          32,
+          100,
+          111,
+          110,
+          101
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "checkbox",
+           "raw": [
+            91,
+            120,
+            93,
+            32
+           ],
+           "text": [],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": true,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          },
+          {
+           "kind": "text",
+           "raw": [
+            100,
+            111,
+            110,
+            101
+           ],
+           "text": [
+            100,
+            111,
+            110,
+            101
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        120,
+        10,
+        10,
+        32,
+        32,
+        121
+       ],
+       "text": [
+        120,
+        10,
+        10,
+        121
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          120
+         ],
+         "text": [
+          120
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            120
+           ],
+           "text": [
+            120
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "space",
+         "raw": [
+          10,
+          10
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "paragraph",
+         "raw": [
+          121
+         ],
+         "text": [
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            121
+           ],
+           "text": [
+            121
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_027",
+   "source": "- [ ] a\n- [x] b\n- c\n\n  d\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      45,
+      32,
+      91,
+      32,
+      93,
+      32,
+      97,
+      10,
+      45,
+      32,
+      91,
+      120,
+      93,
+      32,
+      98,
+      10,
+      45,
+      32,
+      99,
+      10,
+      10,
+      32,
+      32,
+      100,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": true,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        91,
+        32,
+        93,
+        32,
+        97,
+        10
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": true,
+       "checked": false,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          91,
+          32,
+          93,
+          32,
+          97
+         ],
+         "text": [
+          91,
+          32,
+          93,
+          32,
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "checkbox",
+           "raw": [
+            91,
+            32,
+            93,
+            32
+           ],
+           "text": [],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": false,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          },
+          {
+           "kind": "text",
+           "raw": [
+            97
+           ],
+           "text": [
+            97
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        91,
+        120,
+        93,
+        32,
+        98,
+        10
+       ],
+       "text": [
+        98
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": true,
+       "checked": true,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          91,
+          120,
+          93,
+          32,
+          98
+         ],
+         "text": [
+          91,
+          120,
+          93,
+          32,
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "checkbox",
+           "raw": [
+            91,
+            120,
+            93,
+            32
+           ],
+           "text": [],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": true,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          },
+          {
+           "kind": "text",
+           "raw": [
+            98
+           ],
+           "text": [
+            98
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        99,
+        10,
+        10,
+        32,
+        32,
+        100
+       ],
+       "text": [
+        99,
+        10,
+        10,
+        100
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          99
+         ],
+         "text": [
+          99
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            99
+           ],
+           "text": [
+            99
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "space",
+         "raw": [
+          10,
+          10
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "paragraph",
+         "raw": [
+          100
+         ],
+         "text": [
+          100
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            100
+           ],
+           "text": [
+            100
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_028",
+   "source": "1. [ ] task\n2. x\n   \n   y\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      49,
+      46,
+      32,
+      91,
+      32,
+      93,
+      32,
+      116,
+      97,
+      115,
+      107,
+      10,
+      50,
+      46,
+      32,
+      120,
+      10,
+      32,
+      32,
+      32,
+      10,
+      32,
+      32,
+      32,
+      121,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": true,
+     "start": 1,
+     "loose": true,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        49,
+        46,
+        32,
+        91,
+        32,
+        93,
+        32,
+        116,
+        97,
+        115,
+        107,
+        10
+       ],
+       "text": [
+        116,
+        97,
+        115,
+        107
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": true,
+       "checked": false,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          91,
+          32,
+          93,
+          32,
+          116,
+          97,
+          115,
+          107
+         ],
+         "text": [
+          91,
+          32,
+          93,
+          32,
+          116,
+          97,
+          115,
+          107
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "checkbox",
+           "raw": [
+            91,
+            32,
+            93,
+            32
+           ],
+           "text": [],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": false,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          },
+          {
+           "kind": "text",
+           "raw": [
+            116,
+            97,
+            115,
+            107
+           ],
+           "text": [
+            116,
+            97,
+            115,
+            107
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        50,
+        46,
+        32,
+        120,
+        10,
+        32,
+        32,
+        32,
+        10,
+        32,
+        32,
+        32,
+        121
+       ],
+       "text": [
+        120,
+        10,
+        10,
+        121
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          120
+         ],
+         "text": [
+          120
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            120
+           ],
+           "text": [
+            120
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "space",
+         "raw": [
+          10,
+          10
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "paragraph",
+         "raw": [
+          121
+         ],
+         "text": [
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            121
+           ],
+           "text": [
+            121
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_029",
+   "source": "- x\n\n  y\n- [ ] task\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      45,
+      32,
+      120,
+      10,
+      10,
+      32,
+      32,
+      121,
+      10,
+      45,
+      32,
+      91,
+      32,
+      93,
+      32,
+      116,
+      97,
+      115,
+      107,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": true,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        120,
+        10,
+        10,
+        32,
+        32,
+        121,
+        10
+       ],
+       "text": [
+        120,
+        10,
+        10,
+        121
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          120
+         ],
+         "text": [
+          120
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            120
+           ],
+           "text": [
+            120
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "space",
+         "raw": [
+          10,
+          10
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "paragraph",
+         "raw": [
+          121
+         ],
+         "text": [
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            121
+           ],
+           "text": [
+            121
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        91,
+        32,
+        93,
+        32,
+        116,
+        97,
+        115,
+        107
+       ],
+       "text": [
+        116,
+        97,
+        115,
+        107
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": true,
+       "checked": false,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          91,
+          32,
+          93,
+          32,
+          116,
+          97,
+          115,
+          107
+         ],
+         "text": [
+          91,
+          32,
+          93,
+          32,
+          116,
+          97,
+          115,
+          107
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "checkbox",
+           "raw": [
+            91,
+            32,
+            93,
+            32
+           ],
+           "text": [],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": false,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          },
+          {
+           "kind": "text",
+           "raw": [
+            116,
+            97,
+            115,
+            107
+           ],
+           "text": [
+            116,
+            97,
+            115,
+            107
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_030",
+   "source": "- [ ] tight\n- plain\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      45,
+      32,
+      91,
+      32,
+      93,
+      32,
+      116,
+      105,
+      103,
+      104,
+      116,
+      10,
+      45,
+      32,
+      112,
+      108,
+      97,
+      105,
+      110,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        91,
+        32,
+        93,
+        32,
+        116,
+        105,
+        103,
+        104,
+        116,
+        10
+       ],
+       "text": [
+        116,
+        105,
+        103,
+        104,
+        116
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": true,
+       "checked": false,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "checkbox",
+         "raw": [
+          91,
+          32,
+          93,
+          32
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": false,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          116,
+          105,
+          103,
+          104,
+          116
+         ],
+         "text": [
+          116,
+          105,
+          103,
+          104,
+          116
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            116,
+            105,
+            103,
+            104,
+            116
+           ],
+           "text": [
+            116,
+            105,
+            103,
+            104,
+            116
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        112,
+        108,
+        97,
+        105,
+        110
+       ],
+       "text": [
+        112,
+        108,
+        97,
+        105,
+        110
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          112,
+          108,
+          97,
+          105,
+          110
+         ],
+         "text": [
+          112,
+          108,
+          97,
+          105,
+          110
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            112,
+            108,
+            97,
+            105,
+            110
+           ],
+           "text": [
+            112,
+            108,
+            97,
+            105,
+            110
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_031",
+   "source": "text\n#abc\n===\n",
+   "expected": [
+    {
+     "kind": "heading",
+     "raw": [
+      116,
+      101,
+      120,
+      116,
+      10,
+      35,
+      97,
+      98,
+      99,
+      10,
+      61,
+      61,
+      61,
+      10
+     ],
+     "text": [
+      116,
+      101,
+      120,
+      116,
+      10,
+      35,
+      97,
+      98,
+      99
+     ],
+     "href": [],
+     "depth": 1,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        116,
+        101,
+        120,
+        116,
+        10,
+        35,
+        97,
+        98,
+        99
+       ],
+       "text": [
+        116,
+        101,
+        120,
+        116,
+        10,
+        35,
+        97,
+        98,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_032",
+   "source": "text\n# abc\n===\n",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      116,
+      101,
+      120,
+      116,
+      10
+     ],
+     "text": [
+      116,
+      101,
+      120,
+      116
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        116,
+        101,
+        120,
+        116
+       ],
+       "text": [
+        116,
+        101,
+        120,
+        116
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "heading",
+     "raw": [
+      35,
+      32,
+      97,
+      98,
+      99,
+      10
+     ],
+     "text": [
+      97,
+      98,
+      99
+     ],
+     "href": [],
+     "depth": 1,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        98,
+        99
+       ],
+       "text": [
+        97,
+        98,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      61,
+      61,
+      61,
+      10
+     ],
+     "text": [
+      61,
+      61,
+      61
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        61,
+        61,
+        61
+       ],
+       "text": [
+        61,
+        61,
+        61
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_033",
+   "source": "a\n####### x\n===\n",
+   "expected": [
+    {
+     "kind": "heading",
+     "raw": [
+      97,
+      10,
+      35,
+      35,
+      35,
+      35,
+      35,
+      35,
+      35,
+      32,
+      120,
+      10,
+      61,
+      61,
+      61,
+      10
+     ],
+     "text": [
+      97,
+      10,
+      35,
+      35,
+      35,
+      35,
+      35,
+      35,
+      35,
+      32,
+      120
+     ],
+     "href": [],
+     "depth": 1,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        10,
+        35,
+        35,
+        35,
+        35,
+        35,
+        35,
+        35,
+        32,
+        120
+       ],
+       "text": [
+        97,
+        10,
+        35,
+        35,
+        35,
+        35,
+        35,
+        35,
+        35,
+        32,
+        120
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_034",
+   "source": "text\n\t\nmore\n",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      116,
+      101,
+      120,
+      116
+     ],
+     "text": [
+      116,
+      101,
+      120,
+      116
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        116,
+        101,
+        120,
+        116
+       ],
+       "text": [
+        116,
+        101,
+        120,
+        116
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      9,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      109,
+      111,
+      114,
+      101,
+      10
+     ],
+     "text": [
+      109,
+      111,
+      114,
+      101
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        109,
+        111,
+        114,
+        101
+       ],
+       "text": [
+        109,
+        111,
+        114,
+        101
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_035",
+   "source": "text\n \nmore\n",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      116,
+      101,
+      120,
+      116
+     ],
+     "text": [
+      116,
+      101,
+      120,
+      116
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        116,
+        101,
+        120,
+        116
+       ],
+       "text": [
+        116,
+        101,
+        120,
+        116
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      32,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      109,
+      111,
+      114,
+      101,
+      10
+     ],
+     "text": [
+      109,
+      111,
+      114,
+      101
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        109,
+        111,
+        114,
+        101
+       ],
+       "text": [
+        109,
+        111,
+        114,
+        101
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_036",
+   "source": "para\n```js",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      112,
+      97,
+      114,
+      97,
+      10
+     ],
+     "text": [
+      112,
+      97,
+      114,
+      97
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        112,
+        97,
+        114,
+        97
+       ],
+       "text": [
+        112,
+        97,
+        114,
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "code",
+     "raw": [
+      96,
+      96,
+      96,
+      106,
+      115
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": "js",
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_037",
+   "source": "para\n~~~",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      112,
+      97,
+      114,
+      97,
+      10
+     ],
+     "text": [
+      112,
+      97,
+      114,
+      97
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        112,
+        97,
+        114,
+        97
+       ],
+       "text": [
+        112,
+        97,
+        114,
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "code",
+     "raw": [
+      126,
+      126,
+      126
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_038",
+   "source": "para\n```a`b",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      112,
+      97,
+      114,
+      97,
+      10,
+      96,
+      96,
+      96,
+      97,
+      96,
+      98
+     ],
+     "text": [
+      112,
+      97,
+      114,
+      97,
+      10,
+      96,
+      96,
+      96,
+      97,
+      96,
+      98
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        112,
+        97,
+        114,
+        97,
+        10,
+        96,
+        96,
+        96,
+        97,
+        96,
+        98
+       ],
+       "text": [
+        112,
+        97,
+        114,
+        97,
+        10,
+        96,
+        96,
+        96,
+        97,
+        96,
+        98
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_039",
+   "source": "para\n```\nx\n",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      112,
+      97,
+      114,
+      97,
+      10
+     ],
+     "text": [
+      112,
+      97,
+      114,
+      97
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        112,
+        97,
+        114,
+        97
+       ],
+       "text": [
+        112,
+        97,
+        114,
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "code",
+     "raw": [
+      96,
+      96,
+      96,
+      10,
+      120,
+      10
+     ],
+     "text": [
+      120
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_040",
+   "source": "<?x?>tail\n\nafter\n",
+   "expected": [
+    {
+     "kind": "html",
+     "raw": [
+      60,
+      63,
+      120,
+      63,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      60,
+      63,
+      120,
+      63,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      102,
+      116,
+      101,
+      114,
+      10
+     ],
+     "text": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "text": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_041",
+   "source": "<!A X>tail\n\nafter\n",
+   "expected": [
+    {
+     "kind": "html",
+     "raw": [
+      60,
+      33,
+      65,
+      32,
+      88,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      60,
+      33,
+      65,
+      32,
+      88,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      102,
+      116,
+      101,
+      114,
+      10
+     ],
+     "text": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "text": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_042",
+   "source": "<![CDATA[x]]>tail\n\nafter\n",
+   "expected": [
+    {
+     "kind": "html",
+     "raw": [
+      60,
+      33,
+      91,
+      67,
+      68,
+      65,
+      84,
+      65,
+      91,
+      120,
+      93,
+      93,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      60,
+      33,
+      91,
+      67,
+      68,
+      65,
+      84,
+      65,
+      91,
+      120,
+      93,
+      93,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      102,
+      116,
+      101,
+      114,
+      10
+     ],
+     "text": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "text": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_043",
+   "source": "<script>a</script>tail\n\nafter\n",
+   "expected": [
+    {
+     "kind": "html",
+     "raw": [
+      60,
+      115,
+      99,
+      114,
+      105,
+      112,
+      116,
+      62,
+      97,
+      60,
+      47,
+      115,
+      99,
+      114,
+      105,
+      112,
+      116,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      60,
+      115,
+      99,
+      114,
+      105,
+      112,
+      116,
+      62,
+      97,
+      60,
+      47,
+      115,
+      99,
+      114,
+      105,
+      112,
+      116,
+      62,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      102,
+      116,
+      101,
+      114,
+      10
+     ],
+     "text": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "text": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_044",
+   "source": "| a | b |\n| --- | ---: |\n| 1 | 2 |\n",
+   "expected": [
+    {
+     "kind": "table",
+     "raw": [
+      124,
+      32,
+      97,
+      32,
+      124,
+      32,
+      98,
+      32,
+      124,
+      10,
+      124,
+      32,
+      45,
+      45,
+      45,
+      32,
+      124,
+      32,
+      45,
+      45,
+      45,
+      58,
+      32,
+      124,
+      10,
+      124,
+      32,
+      49,
+      32,
+      124,
+      32,
+      50,
+      32,
+      124,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [
+      {
+       "kind": "tablecell",
+       "raw": [
+        97
+       ],
+       "text": [
+        97
+       ],
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          97
+         ],
+         "text": [
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ]
+      },
+      {
+       "kind": "tablecell",
+       "raw": [
+        98
+       ],
+       "text": [
+        98
+       ],
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ]
+      }
+     ],
+     "rows": [
+      [
+       {
+        "kind": "tablecell",
+        "raw": [
+         49
+        ],
+        "text": [
+         49
+        ],
+        "tokens": [
+         {
+          "kind": "text",
+          "raw": [
+           49
+          ],
+          "text": [
+           49
+          ],
+          "href": [],
+          "depth": 0,
+          "ordered": false,
+          "start": 0,
+          "loose": false,
+          "task": false,
+          "checked": null,
+          "lang": null,
+          "tokens": [],
+          "items": [],
+          "header": [],
+          "rows": [],
+          "align": []
+         }
+        ]
+       },
+       {
+        "kind": "tablecell",
+        "raw": [
+         50
+        ],
+        "text": [
+         50
+        ],
+        "tokens": [
+         {
+          "kind": "text",
+          "raw": [
+           50
+          ],
+          "text": [
+           50
+          ],
+          "href": [],
+          "depth": 0,
+          "ordered": false,
+          "start": 0,
+          "loose": false,
+          "task": false,
+          "checked": null,
+          "lang": null,
+          "tokens": [],
+          "items": [],
+          "header": [],
+          "rows": [],
+          "align": []
+         }
+        ]
+       }
+      ]
+     ],
+     "align": [
+      null,
+      "r"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "tok_045",
+   "source": "- item\n\n  second para\n",
+   "expected": [
+    {
+     "kind": "list",
+     "raw": [
+      45,
+      32,
+      105,
+      116,
+      101,
+      109,
+      10,
+      10,
+      32,
+      32,
+      115,
+      101,
+      99,
+      111,
+      110,
+      100,
+      32,
+      112,
+      97,
+      114,
+      97,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": true,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [
+      {
+       "kind": "list_item",
+       "raw": [
+        45,
+        32,
+        105,
+        116,
+        101,
+        109,
+        10,
+        10,
+        32,
+        32,
+        115,
+        101,
+        99,
+        111,
+        110,
+        100,
+        32,
+        112,
+        97,
+        114,
+        97
+       ],
+       "text": [
+        105,
+        116,
+        101,
+        109,
+        10,
+        10,
+        115,
+        101,
+        99,
+        111,
+        110,
+        100,
+        32,
+        112,
+        97,
+        114,
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": true,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "paragraph",
+         "raw": [
+          105,
+          116,
+          101,
+          109
+         ],
+         "text": [
+          105,
+          116,
+          101,
+          109
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            105,
+            116,
+            101,
+            109
+           ],
+           "text": [
+            105,
+            116,
+            101,
+            109
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "space",
+         "raw": [
+          10,
+          10
+         ],
+         "text": [],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "paragraph",
+         "raw": [
+          115,
+          101,
+          99,
+          111,
+          110,
+          100,
+          32,
+          112,
+          97,
+          114,
+          97
+         ],
+         "text": [
+          115,
+          101,
+          99,
+          111,
+          110,
+          100,
+          32,
+          112,
+          97,
+          114,
+          97
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            115,
+            101,
+            99,
+            111,
+            110,
+            100,
+            32,
+            112,
+            97,
+            114,
+            97
+           ],
+           "text": [
+            115,
+            101,
+            99,
+            111,
+            110,
+            100,
+            32,
+            112,
+            97,
+            114,
+            97
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_046",
+   "source": "> quote\n> lazy\n\nafter",
+   "expected": [
+    {
+     "kind": "blockquote",
+     "raw": [
+      62,
+      32,
+      113,
+      117,
+      111,
+      116,
+      101,
+      10,
+      62,
+      32,
+      108,
+      97,
+      122,
+      121
+     ],
+     "text": [
+      113,
+      117,
+      111,
+      116,
+      101,
+      10,
+      108,
+      97,
+      122,
+      121
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "paragraph",
+       "raw": [
+        113,
+        117,
+        111,
+        116,
+        101,
+        10,
+        108,
+        97,
+        122,
+        121
+       ],
+       "text": [
+        113,
+        117,
+        111,
+        116,
+        101,
+        10,
+        108,
+        97,
+        122,
+        121
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          113,
+          117,
+          111,
+          116,
+          101,
+          10,
+          108,
+          97,
+          122,
+          121
+         ],
+         "text": [
+          113,
+          117,
+          111,
+          116,
+          101,
+          10,
+          108,
+          97,
+          122,
+          121
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "text": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "text": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_047",
+   "source": "    code\n\nafter",
+   "expected": [
+    {
+     "kind": "code",
+     "raw": [
+      32,
+      32,
+      32,
+      32,
+      99,
+      111,
+      100,
+      101
+     ],
+     "text": [
+      99,
+      111,
+      100,
+      101
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "text": [
+      97,
+      102,
+      116,
+      101,
+      114
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "text": [
+        97,
+        102,
+        116,
+        101,
+        114
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_048",
+   "source": "a***b***c",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      42,
+      42,
+      42,
+      98,
+      42,
+      42,
+      42,
+      99
+     ],
+     "text": [
+      97,
+      42,
+      42,
+      42,
+      98,
+      42,
+      42,
+      42,
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97
+       ],
+       "text": [
+        97
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        42,
+        42,
+        98,
+        42,
+        42,
+        42
+       ],
+       "text": [
+        42,
+        42,
+        98,
+        42,
+        42
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "strong",
+         "raw": [
+          42,
+          42,
+          98,
+          42,
+          42
+         ],
+         "text": [
+          98
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            98
+           ],
+           "text": [
+            98
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        99
+       ],
+       "text": [
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_049",
+   "source": "a_ b _c",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      97,
+      95,
+      32,
+      98,
+      32,
+      95,
+      99
+     ],
+     "text": [
+      97,
+      95,
+      32,
+      98,
+      32,
+      95,
+      99
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        97,
+        95,
+        32,
+        98,
+        32,
+        95,
+        99
+       ],
+       "text": [
+        97,
+        95,
+        32,
+        98,
+        32,
+        95,
+        99
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_050",
+   "source": "**bold* tail",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      42,
+      98,
+      111,
+      108,
+      100,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      42,
+      42,
+      98,
+      111,
+      108,
+      100,
+      42,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "text",
+       "raw": [
+        42
+       ],
+       "text": [
+        42
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        98,
+        111,
+        108,
+        100,
+        42
+       ],
+       "text": [
+        98,
+        111,
+        108,
+        100
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          98,
+          111,
+          108,
+          100
+         ],
+         "text": [
+          98,
+          111,
+          108,
+          100
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "text": [
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_051",
+   "source": "[ref] [ref2]\n\n[ref]: /r 'ti'\n[ref2]: (/two)",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      32,
+      91,
+      114,
+      101,
+      102,
+      50,
+      93
+     ],
+     "text": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      32,
+      91,
+      114,
+      101,
+      102,
+      50,
+      93
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        114,
+        101,
+        102,
+        93
+       ],
+       "text": [
+        114,
+        101,
+        102
+       ],
+       "href": [
+        47,
+        114
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          114,
+          101,
+          102
+         ],
+         "text": [
+          114,
+          101,
+          102
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32
+       ],
+       "text": [
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "link",
+       "raw": [
+        91,
+        114,
+        101,
+        102,
+        50,
+        93
+       ],
+       "text": [
+        114,
+        101,
+        102,
+        50
+       ],
+       "href": [
+        40,
+        47,
+        116,
+        119,
+        111,
+        41
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          114,
+          101,
+          102,
+          50
+         ],
+         "text": [
+          114,
+          101,
+          102,
+          50
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "space",
+     "raw": [
+      10,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      93,
+      58,
+      32,
+      47,
+      114,
+      32,
+      39,
+      116,
+      105,
+      39,
+      10
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    },
+    {
+     "kind": "def",
+     "raw": [
+      91,
+      114,
+      101,
+      102,
+      50,
+      93,
+      58,
+      32,
+      40,
+      47,
+      116,
+      119,
+      111,
+      41
+     ],
+     "text": [],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_052",
+   "source": "\\*not em\\* and \\\\\\` weird",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      92,
+      42,
+      110,
+      111,
+      116,
+      32,
+      101,
+      109,
+      92,
+      42,
+      32,
+      97,
+      110,
+      100,
+      32,
+      92,
+      92,
+      92,
+      96,
+      32,
+      119,
+      101,
+      105,
+      114,
+      100
+     ],
+     "text": [
+      92,
+      42,
+      110,
+      111,
+      116,
+      32,
+      101,
+      109,
+      92,
+      42,
+      32,
+      97,
+      110,
+      100,
+      32,
+      92,
+      92,
+      92,
+      96,
+      32,
+      119,
+      101,
+      105,
+      114,
+      100
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "escape",
+       "raw": [
+        92,
+        42
+       ],
+       "text": [
+        42
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        110,
+        111,
+        116,
+        32,
+        101,
+        109
+       ],
+       "text": [
+        110,
+        111,
+        116,
+        32,
+        101,
+        109
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "escape",
+       "raw": [
+        92,
+        42
+       ],
+       "text": [
+        42
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        97,
+        110,
+        100,
+        32
+       ],
+       "text": [
+        32,
+        97,
+        110,
+        100,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "escape",
+       "raw": [
+        92,
+        92
+       ],
+       "text": [
+        92
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "escape",
+       "raw": [
+        92,
+        96
+       ],
+       "text": [
+        96
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        119,
+        101,
+        105,
+        114,
+        100
+       ],
+       "text": [
+        32,
+        119,
+        101,
+        105,
+        114,
+        100
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_053",
+   "source": "<https://auto.link> and www.plain.example",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      60,
+      104,
+      116,
+      116,
+      112,
+      115,
+      58,
+      47,
+      47,
+      97,
+      117,
+      116,
+      111,
+      46,
+      108,
+      105,
+      110,
+      107,
+      62,
+      32,
+      97,
+      110,
+      100,
+      32,
+      119,
+      119,
+      119,
+      46,
+      112,
+      108,
+      97,
+      105,
+      110,
+      46,
+      101,
+      120,
+      97,
+      109,
+      112,
+      108,
+      101
+     ],
+     "text": [
+      60,
+      104,
+      116,
+      116,
+      112,
+      115,
+      58,
+      47,
+      47,
+      97,
+      117,
+      116,
+      111,
+      46,
+      108,
+      105,
+      110,
+      107,
+      62,
+      32,
+      97,
+      110,
+      100,
+      32,
+      119,
+      119,
+      119,
+      46,
+      112,
+      108,
+      97,
+      105,
+      110,
+      46,
+      101,
+      120,
+      97,
+      109,
+      112,
+      108,
+      101
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "link",
+       "raw": [
+        60,
+        104,
+        116,
+        116,
+        112,
+        115,
+        58,
+        47,
+        47,
+        97,
+        117,
+        116,
+        111,
+        46,
+        108,
+        105,
+        110,
+        107,
+        62
+       ],
+       "text": [
+        104,
+        116,
+        116,
+        112,
+        115,
+        58,
+        47,
+        47,
+        97,
+        117,
+        116,
+        111,
+        46,
+        108,
+        105,
+        110,
+        107
+       ],
+       "href": [
+        104,
+        116,
+        116,
+        112,
+        115,
+        58,
+        47,
+        47,
+        97,
+        117,
+        116,
+        111,
+        46,
+        108,
+        105,
+        110,
+        107
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          104,
+          116,
+          116,
+          112,
+          115,
+          58,
+          47,
+          47,
+          97,
+          117,
+          116,
+          111,
+          46,
+          108,
+          105,
+          110,
+          107
+         ],
+         "text": [
+          104,
+          116,
+          116,
+          112,
+          115,
+          58,
+          47,
+          47,
+          97,
+          117,
+          116,
+          111,
+          46,
+          108,
+          105,
+          110,
+          107
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        97,
+        110,
+        100,
+        32
+       ],
+       "text": [
+        32,
+        97,
+        110,
+        100,
+        32
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "link",
+       "raw": [
+        119,
+        119,
+        119,
+        46,
+        112,
+        108,
+        97,
+        105,
+        110,
+        46,
+        101,
+        120,
+        97,
+        109,
+        112,
+        108,
+        101
+       ],
+       "text": [
+        119,
+        119,
+        119,
+        46,
+        112,
+        108,
+        97,
+        105,
+        110,
+        46,
+        101,
+        120,
+        97,
+        109,
+        112,
+        108,
+        101
+       ],
+       "href": [
+        104,
+        116,
+        116,
+        112,
+        58,
+        47,
+        47,
+        119,
+        119,
+        119,
+        46,
+        112,
+        108,
+        97,
+        105,
+        110,
+        46,
+        101,
+        120,
+        97,
+        109,
+        112,
+        108,
+        101
+       ],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          119,
+          119,
+          119,
+          46,
+          112,
+          108,
+          97,
+          105,
+          110,
+          46,
+          101,
+          120,
+          97,
+          109,
+          112,
+          108,
+          101
+         ],
+         "text": [
+          119,
+          119,
+          119,
+          46,
+          112,
+          108,
+          97,
+          105,
+          110,
+          46,
+          101,
+          120,
+          97,
+          109,
+          112,
+          108,
+          101
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  },
+  {
+   "name": "tok_054",
+   "source": "*em [link](/x) em* and tail",
+   "expected": [
+    {
+     "kind": "paragraph",
+     "raw": [
+      42,
+      101,
+      109,
+      32,
+      91,
+      108,
+      105,
+      110,
+      107,
+      93,
+      40,
+      47,
+      120,
+      41,
+      32,
+      101,
+      109,
+      42,
+      32,
+      97,
+      110,
+      100,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "text": [
+      42,
+      101,
+      109,
+      32,
+      91,
+      108,
+      105,
+      110,
+      107,
+      93,
+      40,
+      47,
+      120,
+      41,
+      32,
+      101,
+      109,
+      42,
+      32,
+      97,
+      110,
+      100,
+      32,
+      116,
+      97,
+      105,
+      108
+     ],
+     "href": [],
+     "depth": 0,
+     "ordered": false,
+     "start": 0,
+     "loose": false,
+     "task": false,
+     "checked": null,
+     "lang": null,
+     "tokens": [
+      {
+       "kind": "em",
+       "raw": [
+        42,
+        101,
+        109,
+        32,
+        91,
+        108,
+        105,
+        110,
+        107,
+        93,
+        40,
+        47,
+        120,
+        41,
+        32,
+        101,
+        109,
+        42
+       ],
+       "text": [
+        101,
+        109,
+        32,
+        91,
+        108,
+        105,
+        110,
+        107,
+        93,
+        40,
+        47,
+        120,
+        41,
+        32,
+        101,
+        109
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [
+        {
+         "kind": "text",
+         "raw": [
+          101,
+          109,
+          32
+         ],
+         "text": [
+          101,
+          109,
+          32
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "link",
+         "raw": [
+          91,
+          108,
+          105,
+          110,
+          107,
+          93,
+          40,
+          47,
+          120,
+          41
+         ],
+         "text": [
+          108,
+          105,
+          110,
+          107
+         ],
+         "href": [
+          47,
+          120
+         ],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [
+          {
+           "kind": "text",
+           "raw": [
+            108,
+            105,
+            110,
+            107
+           ],
+           "text": [
+            108,
+            105,
+            110,
+            107
+           ],
+           "href": [],
+           "depth": 0,
+           "ordered": false,
+           "start": 0,
+           "loose": false,
+           "task": false,
+           "checked": null,
+           "lang": null,
+           "tokens": [],
+           "items": [],
+           "header": [],
+           "rows": [],
+           "align": []
+          }
+         ],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        },
+        {
+         "kind": "text",
+         "raw": [
+          32,
+          101,
+          109
+         ],
+         "text": [
+          32,
+          101,
+          109
+         ],
+         "href": [],
+         "depth": 0,
+         "ordered": false,
+         "start": 0,
+         "loose": false,
+         "task": false,
+         "checked": null,
+         "lang": null,
+         "tokens": [],
+         "items": [],
+         "header": [],
+         "rows": [],
+         "align": []
+        }
+       ],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      },
+      {
+       "kind": "text",
+       "raw": [
+        32,
+        97,
+        110,
+        100,
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "text": [
+        32,
+        97,
+        110,
+        100,
+        32,
+        116,
+        97,
+        105,
+        108
+       ],
+       "href": [],
+       "depth": 0,
+       "ordered": false,
+       "start": 0,
+       "loose": false,
+       "task": false,
+       "checked": null,
+       "lang": null,
+       "tokens": [],
+       "items": [],
+       "header": [],
+       "rows": [],
+       "align": []
+      }
+     ],
+     "items": [],
+     "header": [],
+     "rows": [],
+     "align": []
+    }
+   ]
+  }
+ ]
+}

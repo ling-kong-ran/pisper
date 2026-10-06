@@ -1,0 +1,1221 @@
+{
+  "sources": {
+    "packages/ai/src/utils/transcript.ts": "cad0c126cdfadc1b4f430cc5a95b1c9285ecd1ee9957642d7773b1357bbc9ac5",
+    "packages/ai/src/utils/text.ts": "d37c1825855c7fc71669a545b5b266810242c1c7e58d57228c0c143f29c1c544",
+    "packages/ai/src/utils/event-stream.ts": "147084657f76665ff7d6c8dcd6eb0745149e3aaee3e7b9c272b315a1b5679386",
+    "packages/agent/src/agent.ts": "a586b3b5488ce3018a89dcd30350689942e72cd9fe1cc2a3d8bb1360e355476c",
+    "packages/agent/src/agent-loop.ts": "2f4e228055729f684e01349813a6ab903b0f646f6320d5f892ef77303561b82e",
+    "packages/agent/src/stream-fn.ts": "1f9dee101a5ce1052558458d9ce47e53e05187224e879217899059a80d90bc45"
+  },
+  "collaborators": [
+    "synthetic AI barrel re-exports actual upstream transcript/text/EventStream",
+    "fail-on-use validateToolArguments; no executed tools",
+    "offline stream/key callback doubles; not Models or SDK/services",
+    "trace intentionally projects away timestamps, JS object identity and stack"
+  ],
+  "cases": [
+    {
+      "spec": {
+        "name": "agent_default"
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": null,
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "agent_default_stream_fallback",
+        "omit": true
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": null,
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "agent_configured",
+        "options": {
+          "transport": "websocket",
+          "sessionId": "r14-session",
+          "reasoning": "high",
+          "thinkingBudgets": {
+            "high": 99
+          },
+          "maxRetryDelayMs": 456
+        },
+        "callbacks": true,
+        "keys": [
+          "offline-key"
+        ]
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "offline-key",
+            "transport": "websocket",
+            "sessionId": "r14-session",
+            "reasoning": "high",
+            "thinkingBudgets": {
+              "high": 99
+            },
+            "maxRetryDelayMs": 456
+          },
+          "signal": true,
+          "payload": true,
+          "response": true
+        },
+        {
+          "phase": "payload",
+          "model": "r14-model",
+          "payload": {
+            "original": true
+          }
+        },
+        {
+          "phase": "payload_result",
+          "result": {
+            "changed": true
+          }
+        },
+        {
+          "phase": "response",
+          "model": "r14-model",
+          "response": {
+            "status": 201,
+            "headers": {
+              "x-test": "yes"
+            }
+          }
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": null,
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "agent_transform_convert",
+        "transform": true,
+        "keys": [
+          null
+        ]
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "transform"
+        },
+        {
+          "phase": "convert"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello",
+            "converted"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": null,
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "agent_refresh_each_turn",
+        "followup": true,
+        "keys": [
+          "first",
+          "second"
+        ]
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "first",
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user",
+            "assistant",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello",
+            "ok",
+            "follow"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "second",
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 4
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": null,
+        "roles": [
+          "system",
+          "user",
+          "assistant",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "raw_inherited_options",
+        "raw": true,
+        "options": {
+          "apiKey": "explicit",
+          "transport": "sse",
+          "sessionId": "raw-session",
+          "reasoning": "low",
+          "thinkingBudgets": {
+            "low": 12
+          },
+          "maxRetryDelayMs": 432,
+          "headers": {
+            "x-test": "yes",
+            "x-hide": null
+          },
+          "timeoutMs": 123,
+          "maxRetries": 2,
+          "temperature": 0.2,
+          "maxTokens": 321,
+          "cacheRetention": "long",
+          "websocketConnectTimeoutMs": 765,
+          "metadata": {
+            "source": "r14"
+          },
+          "env": {
+            "R14": "not-real"
+          },
+          "toolChoice": "auto",
+          "deferred": false,
+          "samplingParams": {
+            "top_k": 4
+          }
+        }
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "user"
+          ],
+          "texts": [
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "explicit",
+            "transport": "sse",
+            "sessionId": "raw-session",
+            "reasoning": "low",
+            "thinkingBudgets": {
+              "low": 12
+            },
+            "maxRetryDelayMs": 432,
+            "headers": {
+              "x-test": "yes",
+              "x-hide": null
+            },
+            "timeoutMs": 123,
+            "maxRetries": 2,
+            "temperature": 0.2,
+            "maxTokens": 321,
+            "cacheRetention": "long",
+            "websocketConnectTimeoutMs": 765,
+            "metadata": {
+              "source": "r14"
+            },
+            "env": {
+              "R14": "not-real"
+            },
+            "toolChoice": "auto",
+            "deferred": false,
+            "samplingParams": {
+              "top_k": 4
+            }
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null
+    },
+    {
+      "spec": {
+        "name": "raw_key_missing",
+        "raw": true,
+        "options": {
+          "apiKey": "explicit"
+        },
+        "keys": [
+          null
+        ]
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "user"
+          ],
+          "texts": [
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "explicit"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null
+    },
+    {
+      "spec": {
+        "name": "raw_key_empty",
+        "raw": true,
+        "options": {
+          "apiKey": "explicit"
+        },
+        "keys": [
+          ""
+        ]
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "user"
+          ],
+          "texts": [
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "explicit"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null
+    },
+    {
+      "spec": {
+        "name": "raw_key_override",
+        "raw": true,
+        "options": {
+          "apiKey": "explicit"
+        },
+        "keys": [
+          "resolved"
+        ]
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "user"
+          ],
+          "texts": [
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "apiKey": "resolved"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "turn_end",
+          "reason": "stop",
+          "error": null
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null
+    },
+    {
+      "spec": {
+        "name": "agent_factory_reject",
+        "reject": "factory failed"
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "error",
+          "error": "factory failed"
+        },
+        {
+          "type": "turn_end",
+          "reason": "error",
+          "error": "factory failed"
+        },
+        {
+          "type": "agent_end",
+          "count": 1
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": "factory failed",
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "raw_factory_reject",
+        "raw": true,
+        "reject": "factory failed"
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "user"
+          ],
+          "texts": [
+            "hello"
+          ],
+          "normalized": true,
+          "options": {},
+          "signal": true,
+          "payload": false,
+          "response": false
+        }
+      ],
+      "error": "factory failed"
+    },
+    {
+      "spec": {
+        "name": "agent_key_reject",
+        "keyReject": true
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "error",
+          "error": "key failed"
+        },
+        {
+          "type": "turn_end",
+          "reason": "error",
+          "error": "key failed"
+        },
+        {
+          "type": "agent_end",
+          "count": 1
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": "key failed",
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "raw_key_reject",
+        "raw": true,
+        "keyReject": true
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "key",
+          "provider": "r14-provider"
+        }
+      ],
+      "error": "key failed"
+    },
+    {
+      "spec": {
+        "name": "agent_terminal_error",
+        "terminal": "error"
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "error",
+          "error": "terminal failure"
+        },
+        {
+          "type": "turn_end",
+          "reason": "error",
+          "error": "terminal failure"
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": "terminal failure",
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "agent_terminal_error_before_start",
+        "terminal": "error",
+        "noStart": true
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "error",
+          "error": "terminal failure"
+        },
+        {
+          "type": "turn_end",
+          "reason": "error",
+          "error": "terminal failure"
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": "terminal failure",
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    },
+    {
+      "spec": {
+        "name": "agent_terminal_aborted",
+        "terminal": "aborted"
+      },
+      "trace": [
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "role": "user"
+        },
+        {
+          "type": "message_end",
+          "role": "user"
+        },
+        {
+          "phase": "stream",
+          "model": "r14-model",
+          "roles": [
+            "system",
+            "user"
+          ],
+          "texts": [
+            "system",
+            "hello"
+          ],
+          "normalized": true,
+          "options": {
+            "transport": "auto"
+          },
+          "signal": true,
+          "payload": false,
+          "response": false
+        },
+        {
+          "type": "message_start",
+          "role": "assistant"
+        },
+        {
+          "type": "message_end",
+          "role": "assistant",
+          "reason": "aborted",
+          "error": "terminal failure"
+        },
+        {
+          "type": "turn_end",
+          "reason": "aborted",
+          "error": "terminal failure"
+        },
+        {
+          "type": "agent_end",
+          "count": 2
+        }
+      ],
+      "error": null,
+      "state": {
+        "streaming": false,
+        "error": "terminal failure",
+        "roles": [
+          "system",
+          "user",
+          "assistant"
+        ]
+      }
+    }
+  ]
+}

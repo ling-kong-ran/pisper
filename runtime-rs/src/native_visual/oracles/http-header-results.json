@@ -1,0 +1,83 @@
+{
+  "passed": 13,
+  "failed": 0,
+  "paidRequests": 0,
+  "personalProfileRead": false,
+  "oracleCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "sdkVersion": "6.49.0",
+  "sources": {
+    "openai-compatible.mjs": "3356d27234439bd231aca7e4bf1ec4f0c676dd75300f87afcf7c9d58a4f1607d",
+    "google.mjs": "6274bee6c11d1a36fc5f55a97a7ea1401b168611cbb4b90a71c6184465ca0ac6",
+    "xai.mjs": "1211d4fd703e6742c45f397405da72d94e2022c163cf8618d2eb8514d8d54735"
+  },
+  "cases": [
+    {
+      "name": "sdk",
+      "method": "POST",
+      "path": "/v1/images/generations",
+      "authorization": null,
+      "test": "a, b",
+      "contentType": "application/json"
+    },
+    {
+      "name": "google",
+      "method": "POST",
+      "path": "/v1/models/gpt-image-fixture:generateContent",
+      "authorization": "null",
+      "test": "a,b",
+      "contentType": "null"
+    },
+    {
+      "name": "xai",
+      "method": "POST",
+      "path": "/v1/images/generations",
+      "authorization": "null",
+      "test": "a,b",
+      "contentType": "application/json"
+    },
+    {
+      "name": "fetch-case-spread",
+      "authorization": "Bearer synthetic-visual-key, override"
+    },
+    {
+      "name": "sdk-multipart",
+      "contentType": "ignored-custom"
+    },
+    {
+      "name": "sdk-video-content-error",
+      "status": 429
+    },
+    {
+      "name": "raw-null-appConfigPath",
+      "error": "Cannot read properties of null (reading 'disabledProviders')"
+    },
+    {
+      "name": "raw-null-modelsPath",
+      "error": "Cannot read properties of null (reading 'providers')"
+    },
+    {
+      "name": "raw-null-authPath",
+      "error": "Cannot read properties of null (reading 'fixture')"
+    },
+    {
+      "name": "raw-primitive-app",
+      "value": false,
+      "model": "gpt-image-fixture"
+    },
+    {
+      "name": "raw-primitive-app",
+      "value": 0,
+      "model": "gpt-image-fixture"
+    },
+    {
+      "name": "raw-primitive-app",
+      "value": "raw document",
+      "model": "gpt-image-fixture"
+    },
+    {
+      "name": "raw-primitive-app",
+      "value": [],
+      "model": "gpt-image-fixture"
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+[package]
+name = "pi-rs"
+version = "0.2.2"
+edition = "2021"
+description = "Rust port of the pi coding agent (earendil-works/pi): CLI/TUI agent with multi-provider LLM support, tools, MCP, sessions, and oracle-verified behavioral parity with upstream."
+license = "MIT"
+repository = "https://github.com/xiaotubaobiu/pi-rust"
+readme = "README.md"
+keywords = ["ai", "agent", "cli", "llm", "coding-assistant"]
+categories = ["command-line-utilities", "development-tools"]
+# crates.io ships source archives, not the dev tree: the oracle fixtures
+# (tests/fixtures, ~69 MB) and the internal migration docs (docs/migration,
+# ~87 MB) dwarf the 10 MB package limit and are only needed for the
+# fixture-verification workflow, not for installing the binaries.
+exclude = [
+    "tests/fixtures/**",
+    "docs/migration/**",
+    "docs/superpowers/**",
+    ".github/**",
+]
+
+# The lib keeps its historical name while the package publishes to crates.io
+# as `pi-rs`: bins (`pirs`, `pi-rust`, `generate-models`) and the integration
+# test link against `pi_rust`, and no source churn is wanted in a release.
+[lib]
+name = "pi_rust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pirs"
+path = "src/main.rs"
+
+[[bin]]
+name = "pi-rust"
+path = "src/bin/pi-rust.rs"
+
+# Port of upstream `scripts/generate-models.ts --data-only` (see the module
+# docs for the disclosed scope cuts vs the upstream script).
+[[bin]]
+name = "generate-models"
+path = "src/bin/generate-models/main.rs"
+
+[dependencies]
+libm = "=0.2.16"
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+dirs = "7.0.0"
+eventsource-stream = "0.2.3"
+futures = "0.3.34"
+reqwest = { version = "0.13.5", features = ["json", "stream"] }
+rustyline = "18.0.1"
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+tokio = { version = "1.53.1", features = ["full"] }
+# Cancellation tokens for the auth surface (`AuthOperationOptions.signal`,
+# upstream `AbortSignal`); the `sync` module needs no tokio-util feature.
+tokio-util = "0.7.19"
+toml = "1.1.6"
+# Pinned exact, disclosed in the openai_codex_responses module docs: the codex
+# websocket transport (tokio-tungstenite with rustls + native roots to match
+# reqwest 0.13's rustls TLS stack) and the zstd request-body compression the
+# codex SSE endpoint expects (upstream compresses with node:zlib
+# zstdCompressSync, level 3).
+tokio-tungstenite = { version = "=0.30.0", features = ["rustls-tls-native-roots"] }
+zstd = "=0.14.0"
+# Pinned exact, disclosed in the bedrock module docs: the SigV4 request signer
+# for the Bedrock ConverseStream endpoint (upstream delegates to the full AWS
+# SDK client; the port signs the raw reqwest request instead).
+aws-sigv4 = "=1.5.3"
+# Direct pins for the SigV4 call surface (both already in the aws-sigv4
+# dependency tree): `Credentials` and the `Identity` it converts into are the
+# signer's identity inputs; see the bedrock module docs.
+aws-credential-types = "=1.3.0"
+aws-smithy-runtime-api = "=1.16.2"
+# OAuth flow support (auth/oauth module), pinned exact. All three are already
+# in the dependency tree, so no new upstream code is pulled: `sha2` (via
+# aws-sigv4) hashes the PKCE S256 challenge, `rand` (via aws-lc-rs consumers)
+# supplies the code_verifier entropy, and `url` (via reqwest) ports the
+# upstream WHATWG `URL` parsing of pasted redirect URLs.
+sha2 = "=0.11.0"
+rand = "=0.10.2"
+url = "=2.5.8"
+# Pinned exact, disclosed in the auth/google_adc module docs: the RS256
+# signer for the Vertex ADC service-account JWT (upstream delegates to
+# google-auth-library's gtoken + jws). The 0.10 release-candidate line is
+# the only one sharing the tree's sha2 0.11 / rand 0.10 (the stable 0.9
+# line would duplicate both).
+rsa = "=0.10.0-rc.18"
+# Harness resource loaders (M3b Task 3), pinned exact. `yaml-rust2` parses
+# SKILL.md / prompt-template frontmatter (upstream uses the npm `yaml`
+# package's `parse`); the `encoding` default feature is dropped because the
+# port only parses `&str`. `ignore` provides the in-memory gitignore-style
+# matcher for skill-directory ignore files (upstream uses the npm `ignore`
+# package's `ignore().add(...).ignores(...)`); only its `gitignore` module is
+# used, no directory walking. `regex` (already in the dependency tree) ports
+# the global-replace argument substitution for prompt templates.
+yaml-rust2 = { version = "=0.13.0", default-features = false }
+ignore = "=0.4.33"
+regex = "=1.13.1"
+
+# Codemode sandbox engine (codemode slice): embedded quickjs-ng via rquickjs,
+# pinned exact. Replaces upstream's `quickjs-wasi` 3.6.2 (the same quickjs-ng
+# core compiled to WASM and driven from a Node worker); the engine port keeps
+# the upstream worker/bridge/settle architecture (see the
+# `src/codemode::runtime::engine` module docs for the disclosed divergences).
+rquickjs = "=0.14.0"
+
+# Harness tool path NFD / edit NFKC; already transitive through idna.
+icu_normalizer = { version = "=2.3.0", default-features = false, features = ["compiled_data"] }
+
+# pi-tui port (M4): JS Intl.Segmenter grapheme segmentation (UAX #29); pinned
+# exact to the version already resolved in Cargo.lock so no new cache entries
+# are needed offline.
+unicode-segmentation = "=1.13.3"
+# pi-tui port (M4): the Unicode properties behind the upstream v-flag regexes
+# (\p{Mark}, \p{Control}, \p{Format}, \p{Spacing_Mark},
+# \p{Default_Ignorable_Code_Point}) plus Script_Extensions for the CJK break
+# set; pinned exact with compiled_data, mirroring icu_normalizer above.
+icu_properties = { version = "=2.3.0", default-features = false, features = ["compiled_data"] }
+
+# Native coding-agent image processing; all codecs are available offline.
+image_native = { package = "image", version = "=0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+
+# Bug-report archive writer (vendored utils/zip.ts): raw deflate (zlib
+# default level 6) + CRC-32. Already in the dependency tree via the `png`
+# codec, so no new lock entries; pinned exact like the other in-tree reuse.
+flate2 = "=1.1.9"
+rusqlite = { version = "=0.32.1", features = ["bundled"] }
+
+# Native output-guard errno codes on Unix; already cached transitively.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "=1.1.5", features = ["process"] }
+libc = "=0.2.189"
+
+# Native Intl-style filename sorting; pinned CLDR 48/Unicode 17 collation data.
+# No Node subprocess is used for directory listing or locale comparison.
+[dependencies.icu_collator]
+version = "=2.3.1"
+default-features = false
+features = ["compiled_data"]
+
+[dependencies.icu_locale_core]
+version = "=2.3.0"
+
+[target.'cfg(windows)'.dependencies]
+# Safe, read-only access to the user's regional locale (not UI language).
+windows-registry = "=0.6.1"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+# Spill drain/writer deadlock regression test (M3b Task 6): fails the spill
+# writer deterministically via a mandatory byte-range lock (Windows
+# LockFileEx; advisory flock on unix).
+fs2 = "0.4.3"
+# `start_paused` for the OAuth refresh timeout test: tokio auto-advances the
+# paused clock when all tasks are parked, so the 15s refresh timeout fires
+# instantly and deterministically.
+tokio = { version = "1.53.1", features = ["test-util"] }
+wiremock = "0.6.5"
+
+# CI runners (2-core, 7 GB) OOM'd LLVM codegen for the test binary of this
+# crate (~880k lines) even with line tables; the test profile strips debug
+# info entirely and raises codegen parallelism (smaller peak per unit).
+# Behavior of the tests themselves is unchanged. Local release builds and
+# `cargo run` are unaffected ([profile.release] keeps its own settings).
+[profile.test]
+debug = 0
+codegen-units = 256

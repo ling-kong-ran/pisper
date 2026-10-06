@@ -54,7 +54,16 @@ const KV_KEYS: [&str; 24] = [
 ];
 
 const VENDOR_KEY_PREFIXES: [&str; 11] = [
-    "sk-", "rk-", "pk-", "pcl-", "ghp_", "github_pat-", "xoxb-", "xoxa-", "xoxp-", "xoxr-",
+    "sk-",
+    "rk-",
+    "pk-",
+    "pcl-",
+    "ghp_",
+    "github_pat-",
+    "xoxb-",
+    "xoxa-",
+    "xoxp-",
+    "xoxr-",
     "xoxs-",
 ];
 
@@ -76,9 +85,11 @@ pub fn looks_like_secret(value: &str) -> bool {
     let parts: Vec<&str> = text.split('.').collect();
     if parts.len() == 3
         && lower.starts_with("eyj")
-        && parts
-            .iter()
-            .all(|p| p.len() >= 8 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+        && parts.iter().all(|p| {
+            p.len() >= 8
+                && p.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        })
     {
         return true;
     }
@@ -96,7 +107,9 @@ pub fn looks_like_secret(value: &str) -> bool {
     text.len() >= 20
         && !text.contains(' ')
         && text.chars().any(|c| c.is_ascii_alphabetic())
-        && text.chars().any(|c| c.is_ascii_digit() || !c.is_ascii_alphanumeric())
+        && text
+            .chars()
+            .any(|c| c.is_ascii_digit() || !c.is_ascii_alphanumeric())
 }
 
 /// Normalized-key sensitive check: the always-sensitive set, a sensitive
@@ -111,9 +124,19 @@ pub fn sensitive_key(key: &str, content: Option<&str>) -> bool {
         return content.map(looks_like_secret).unwrap_or(false);
     }
     ALWAYS_SENSITIVE_KEYS.contains(&normalized.as_str())
-        || ["apikey", "secret", "password", "passwd", "authorization", "credential", "accesstoken", "refreshtoken", "authtoken"]
-            .iter()
-            .any(|suffix| normalized.ends_with(suffix))
+        || [
+            "apikey",
+            "secret",
+            "password",
+            "passwd",
+            "authorization",
+            "credential",
+            "accesstoken",
+            "refreshtoken",
+            "authtoken",
+        ]
+        .iter()
+        .any(|suffix| normalized.ends_with(suffix))
 }
 
 fn redact_pem_blocks(text: &str) -> String {
@@ -155,7 +178,12 @@ fn redact_header_lines(text: &str) -> String {
     text.split_inclusive('\n')
         .map(|line| {
             let trimmed = line.trim();
-            let name = trimmed.split(':').next().unwrap_or("").trim().to_lowercase();
+            let name = trimmed
+                .split(':')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
             if trimmed.contains(':')
                 && is_secret_header(&name)
                 && !trimmed.ends_with(REDACTED_SECRET)
@@ -266,9 +294,15 @@ fn redact_kv_pairs(text: &str) -> String {
                 continue;
             }
             let quoted = value.starts_with('"') || value.starts_with('\'');
-            let quote = if quoted { value.chars().next().unwrap() } else { ' ' };
+            let quote = if quoted {
+                value.chars().next().unwrap()
+            } else {
+                ' '
+            };
             let inner_len = if quoted {
-                value[1..].find(quote).unwrap_or(value.len().saturating_sub(2))
+                value[1..]
+                    .find(quote)
+                    .unwrap_or(value.len().saturating_sub(2))
             } else {
                 value_end(value)
             };
@@ -348,9 +382,11 @@ fn redact_bare_secrets(text: &str) -> String {
         let parts: Vec<&str> = word.split('.').collect();
         let is_jwt = lower.starts_with("eyj")
             && parts.len() == 3
-            && parts
-                .iter()
-                .all(|p| p.len() >= 8 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
+            && parts.iter().all(|p| {
+                p.len() >= 8
+                    && p.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            });
         let is_vendor_key = VENDOR_KEY_PREFIXES
             .iter()
             .any(|prefix| lower.starts_with(prefix) && word.len() >= prefix.len() + 12);
@@ -404,7 +440,10 @@ pub fn redact_secret_value(value: &serde_json::Value) -> serde_json::Value {
             map.iter()
                 .map(|(key, val)| {
                     if sensitive_key(key, val.as_str()) {
-                        (key.clone(), serde_json::Value::String(REDACTED_SECRET.into()))
+                        (
+                            key.clone(),
+                            serde_json::Value::String(REDACTED_SECRET.into()),
+                        )
                     } else {
                         (key.clone(), redact_secret_value(val))
                     }
@@ -445,6 +484,42 @@ pub fn save_devices(data_dir: &str, devices: &[PairedDevice]) -> Result<(), Stri
     std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
     let path = std::path::Path::new(data_dir).join("devices.json");
     let json = serde_json::to_string_pretty(devices).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())
+}
+
+/// release remote-access-service 的配对申请（桌面端审批流）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingApproval {
+    pub request_id: String,
+    /// 申请方出示的 X-Pisper-Pairing-Secret，审批状态轮询凭它防枚举。
+    pub secret: String,
+    pub device_name: String,
+    pub ip: String,
+    pub created_at: u64,
+    pub expires_at: u64,
+    /// pending | approved | denied
+    pub status: String,
+    /// 批准时签发的设备凭据（请求方通过 GET 领取）。
+    pub device_id: Option<String>,
+    pub token: Option<String>,
+}
+
+pub fn load_pairing_requests(data_dir: &str) -> Vec<PairingApproval> {
+    let path = std::path::Path::new(data_dir).join("pairing-requests.json");
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_pairing_requests(
+    data_dir: &str,
+    requests: &[PairingApproval],
+) -> Result<(), String> {
+    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
+    let path = std::path::Path::new(data_dir).join("pairing-requests.json");
+    let json = serde_json::to_string_pretty(requests).map_err(|e| e.to_string())?;
     std::fs::write(path, json).map_err(|e| e.to_string())
 }
 

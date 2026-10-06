@@ -1,0 +1,5661 @@
+{
+  "upstream": "packages/coding-agent/src/utils/tools-manager.ts",
+  "sha256": "cfd082080d10a6209d7994ac7829c29dbb39694bdf3fe549e907c28cfc506a17",
+  "cases": [
+    {
+      "id": "asset-fd-linux-x64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-x86_64-unknown-linux-musl.tar.gz"
+      }
+    },
+    {
+      "id": "asset-fd-linux-arm64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "linux",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-aarch64-unknown-linux-musl.tar.gz"
+      }
+    },
+    {
+      "id": "asset-fd-linux-ia32",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "linux",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-x86_64-unknown-linux-musl.tar.gz"
+      }
+    },
+    {
+      "id": "asset-fd-darwin-x64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "darwin",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-x86_64-apple-darwin.tar.gz"
+      }
+    },
+    {
+      "id": "asset-fd-darwin-arm64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "darwin",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-aarch64-apple-darwin.tar.gz"
+      }
+    },
+    {
+      "id": "asset-fd-darwin-ia32",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "darwin",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-x86_64-apple-darwin.tar.gz"
+      }
+    },
+    {
+      "id": "asset-fd-win32-x64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "win32",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-x86_64-pc-windows-msvc.zip"
+      }
+    },
+    {
+      "id": "asset-fd-win32-arm64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "win32",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-aarch64-pc-windows-msvc.zip"
+      }
+    },
+    {
+      "id": "asset-fd-win32-ia32",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "win32",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd-v1.2.3-x86_64-pc-windows-msvc.zip"
+      }
+    },
+    {
+      "id": "asset-fd-android-x64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "android",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-fd-android-arm64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "android",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-fd-android-ia32",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "android",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-fd-freebsd-x64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "freebsd",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-fd-freebsd-arm64",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "freebsd",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-fd-freebsd-ia32",
+      "op": "asset",
+      "tool": "fd",
+      "platform": "freebsd",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-rg-linux-x64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-x86_64-unknown-linux-musl.tar.gz"
+      }
+    },
+    {
+      "id": "asset-rg-linux-arm64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "linux",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-aarch64-unknown-linux-musl.tar.gz"
+      }
+    },
+    {
+      "id": "asset-rg-linux-ia32",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "linux",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-x86_64-unknown-linux-musl.tar.gz"
+      }
+    },
+    {
+      "id": "asset-rg-darwin-x64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "darwin",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-x86_64-apple-darwin.tar.gz"
+      }
+    },
+    {
+      "id": "asset-rg-darwin-arm64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "darwin",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-aarch64-apple-darwin.tar.gz"
+      }
+    },
+    {
+      "id": "asset-rg-darwin-ia32",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "darwin",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-x86_64-apple-darwin.tar.gz"
+      }
+    },
+    {
+      "id": "asset-rg-win32-x64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "win32",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-x86_64-pc-windows-msvc.zip"
+      }
+    },
+    {
+      "id": "asset-rg-win32-arm64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "win32",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-aarch64-pc-windows-msvc.zip"
+      }
+    },
+    {
+      "id": "asset-rg-win32-ia32",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "win32",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "ripgrep-1.2.3-x86_64-pc-windows-msvc.zip"
+      }
+    },
+    {
+      "id": "asset-rg-android-x64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "android",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-rg-android-arm64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "android",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-rg-android-ia32",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "android",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-rg-freebsd-x64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "freebsd",
+      "arch": "x64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-rg-freebsd-arm64",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "freebsd",
+      "arch": "arm64",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "asset-rg-freebsd-ia32",
+      "op": "asset",
+      "tool": "rg",
+      "platform": "freebsd",
+      "arch": "ia32",
+      "trace": [],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "local-linux-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "linux",
+      "local": true,
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "system-linux-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "linux",
+      "commands": {
+        "fd": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd"
+      }
+    },
+    {
+      "id": "nonzero-linux-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "linux",
+      "commands": {
+        "fd": {
+          "status": 9
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd"
+      }
+    },
+    {
+      "id": "missing-linux-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "local-linux-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "linux",
+      "local": true,
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "system-linux-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "linux",
+      "commands": {
+        "rg": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "rg"
+      }
+    },
+    {
+      "id": "nonzero-linux-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "linux",
+      "commands": {
+        "rg": {
+          "status": 9
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "rg"
+      }
+    },
+    {
+      "id": "missing-linux-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "local-win32-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "win32",
+      "local": true,
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "C:\\tools\\fd.exe"
+      }
+    },
+    {
+      "id": "system-win32-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "win32",
+      "commands": {
+        "fd": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd"
+      }
+    },
+    {
+      "id": "nonzero-win32-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "win32",
+      "commands": {
+        "fd": {
+          "status": 9
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fd"
+      }
+    },
+    {
+      "id": "missing-win32-fd",
+      "op": "discover",
+      "tool": "fd",
+      "platform": "win32",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "local-win32-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "win32",
+      "local": true,
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "C:\\tools\\rg.exe"
+      }
+    },
+    {
+      "id": "system-win32-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "win32",
+      "commands": {
+        "rg": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "rg"
+      }
+    },
+    {
+      "id": "nonzero-win32-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "win32",
+      "commands": {
+        "rg": {
+          "status": 9
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "rg"
+      }
+    },
+    {
+      "id": "missing-win32-rg",
+      "op": "discover",
+      "tool": "rg",
+      "platform": "win32",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "fdfind-fallback",
+      "op": "discover",
+      "tool": "fd",
+      "commands": {
+        "fdfind": {
+          "status": 0
+        }
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "fdfind"
+      }
+    },
+    {
+      "id": "offline-1",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": "1"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "warning",
+          "message": "ripgrep not found. Offline mode enabled, skipping download."
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline-true",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": "true"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "warning",
+          "message": "ripgrep not found. Offline mode enabled, skipping download."
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline-TRUE",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": "TRUE"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "warning",
+          "message": "ripgrep not found. Offline mode enabled, skipping download."
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline-YeS",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": "YeS"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "warning",
+          "message": "ripgrep not found. Offline mode enabled, skipping download."
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline- true",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": " true"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: fetch failed: same: DNS failure: root"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline-0",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": "0"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: fetch failed: same: DNS failure: root"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline-false",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": "false"
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: fetch failed: same: DNS failure: root"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "offline-",
+      "op": "ensure",
+      "tool": "rg",
+      "env": {
+        "PI_OFFLINE": ""
+      },
+      "failure": {
+        "message": "fetch failed",
+        "causes": [
+          "same",
+          "same",
+          "DNS failure",
+          "root",
+          "beyond depth"
+        ]
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: fetch failed: same: DNS failure: root"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "android-fd",
+      "op": "ensure",
+      "tool": "fd",
+      "platform": "android",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "warning",
+          "message": "fd not found. Install with: pkg install fd"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "android-rg",
+      "op": "ensure",
+      "tool": "rg",
+      "platform": "android",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "warning",
+          "message": "ripgrep not found. Install with: pkg install ripgrep"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "latest-absolute",
+      "op": "latest",
+      "status": 302,
+      "location": "https://github.com/sharkdp/fd/releases/tag/v10.4.2",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "10.4.2"
+      }
+    },
+    {
+      "id": "latest-relative",
+      "op": "latest",
+      "status": 301,
+      "location": "/sharkdp/fd/releases/tag/v10.4.2",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "10.4.2"
+      }
+    },
+    {
+      "id": "latest-no-v",
+      "op": "latest",
+      "status": 307,
+      "location": "/a/releases/tag/15.0.0",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "15.0.0"
+      }
+    },
+    {
+      "id": "latest-encoded",
+      "op": "latest",
+      "status": 302,
+      "location": "/a/releases/tag/v1%2Fbeta%20x",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "1/beta x"
+      }
+    },
+    {
+      "id": "latest-double-v",
+      "op": "latest",
+      "status": 303,
+      "location": "/a/releases/tag/vv1",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "v1"
+      }
+    },
+    {
+      "id": "latest-fragment",
+      "op": "latest",
+      "status": 308,
+      "location": "/a/releases/tag/v10?x=1#frag",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "10"
+      }
+    },
+    {
+      "id": "latest-external",
+      "op": "latest",
+      "status": 302,
+      "location": "https://example.invalid/a/releases/tag/v2",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "2"
+      }
+    },
+    {
+      "id": "latest-no-redirect",
+      "op": "latest",
+      "status": 200,
+      "location": "/a/releases/tag/v1",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "Error",
+          "message": "Failed to resolve latest sharkdp/fd release: HTTP 200 without redirect"
+        }
+      }
+    },
+    {
+      "id": "latest-no-location",
+      "op": "latest",
+      "status": 404,
+      "location": null,
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "Error",
+          "message": "Failed to resolve latest sharkdp/fd release: HTTP 404 without redirect"
+        }
+      }
+    },
+    {
+      "id": "latest-empty",
+      "op": "latest",
+      "status": 302,
+      "location": "",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "Error",
+          "message": "Failed to resolve latest sharkdp/fd release: HTTP 302 without redirect"
+        }
+      }
+    },
+    {
+      "id": "latest-wrong-path",
+      "op": "latest",
+      "status": 302,
+      "location": "https://github.com/login",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "Error",
+          "message": "Failed to resolve latest sharkdp/fd release: unexpected redirect to https://github.com/login"
+        }
+      }
+    },
+    {
+      "id": "latest-trailing",
+      "op": "latest",
+      "status": 302,
+      "location": "/a/releases/tag/",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "Error",
+          "message": "Failed to resolve latest sharkdp/fd release: unexpected redirect to /a/releases/tag/"
+        }
+      }
+    },
+    {
+      "id": "latest-malformed",
+      "op": "latest",
+      "status": 302,
+      "location": "/a/releases/tag/v%ZZ",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "URIError",
+          "message": "URI malformed"
+        }
+      }
+    },
+    {
+      "id": "latest-invalid-url",
+      "op": "latest",
+      "status": 302,
+      "location": "https://[bad/releases/tag/v1",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "Invalid URL"
+        }
+      }
+    },
+    {
+      "id": "latest-lowercase-v-only",
+      "op": "latest",
+      "status": 302,
+      "location": "/a/releases/tag/V1",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "V1"
+      }
+    },
+    {
+      "id": "latest-empty-version",
+      "op": "latest",
+      "status": 302,
+      "location": "/a/releases/tag/v",
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": ""
+      }
+    },
+    {
+      "id": "cancel-error-ignored",
+      "op": "latest",
+      "status": 302,
+      "location": "/a/releases/tag/v1",
+      "cancelError": true,
+      "platform": "linux",
+      "arch": "x64",
+      "tool": "fd",
+      "trace": [
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [],
+      "files": {},
+      "outcome": {
+        "value": "1"
+      }
+    },
+    {
+      "id": "install-linux-fd-nested",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "fd",
+      "layout": "nested",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v12.3.4-x86_64-unknown-linux-musl/fd"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v12.3.4-x86_64-unknown-linux-musl/fd",
+          "/tools/fd"
+        ],
+        [
+          "chmod",
+          "/tools/fd",
+          493
+        ],
+        [
+          "remove",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to /tools/fd"
+        }
+      ],
+      "files": {
+        "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "install-linux-fd-root",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "fd",
+      "layout": "root",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v12.3.4-x86_64-unknown-linux-musl/fd"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_fd_7_1000_i/fd",
+          "/tools/fd"
+        ],
+        [
+          "chmod",
+          "/tools/fd",
+          493
+        ],
+        [
+          "remove",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to /tools/fd"
+        }
+      ],
+      "files": {
+        "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "install-linux-fd-recursive",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "fd",
+      "layout": "recursive",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v12.3.4-x86_64-unknown-linux-musl/fd"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_fd_7_1000_i/z"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_fd_7_1000_i/z/fd",
+          "/tools/fd"
+        ],
+        [
+          "chmod",
+          "/tools/fd",
+          493
+        ],
+        [
+          "remove",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to /tools/fd"
+        }
+      ],
+      "files": {
+        "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "install-linux-fd-missing",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "fd",
+      "layout": "missing",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v12.3.4-x86_64-unknown-linux-musl/fd"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "remove",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Binary not found in archive: expected fd under /tools/extract_tmp_fd_7_1000_i"
+        }
+      ],
+      "files": {
+        "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "install-linux-rg-nested",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "rg",
+      "layout": "nested",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-unknown-linux-musl/rg"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-unknown-linux-musl/rg",
+          "/tools/rg"
+        ],
+        [
+          "chmod",
+          "/tools/rg",
+          493
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to /tools/rg"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "install-linux-rg-root",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "rg",
+      "layout": "root",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-unknown-linux-musl/rg"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/rg"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_rg_7_1000_i/rg",
+          "/tools/rg"
+        ],
+        [
+          "chmod",
+          "/tools/rg",
+          493
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to /tools/rg"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "install-linux-rg-recursive",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "rg",
+      "layout": "recursive",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-unknown-linux-musl/rg"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/rg"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_rg_7_1000_i/z"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_rg_7_1000_i/z/rg",
+          "/tools/rg"
+        ],
+        [
+          "chmod",
+          "/tools/rg",
+          493
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to /tools/rg"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "install-linux-rg-missing",
+      "op": "ensure",
+      "platform": "linux",
+      "tool": "rg",
+      "layout": "missing",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-unknown-linux-musl/rg"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/rg"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: Binary not found in archive: expected rg under /tools/extract_tmp_rg_7_1000_i"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "install-darwin-fd-nested",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "fd",
+      "layout": "nested",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v10.3.0/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v10.3.0-x86_64-apple-darwin/fd"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v10.3.0-x86_64-apple-darwin/fd",
+          "/tools/fd"
+        ],
+        [
+          "chmod",
+          "/tools/fd",
+          493
+        ],
+        [
+          "remove",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to /tools/fd"
+        }
+      ],
+      "files": {
+        "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "install-darwin-fd-root",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "fd",
+      "layout": "root",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v10.3.0/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v10.3.0-x86_64-apple-darwin/fd"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_fd_7_1000_i/fd",
+          "/tools/fd"
+        ],
+        [
+          "chmod",
+          "/tools/fd",
+          493
+        ],
+        [
+          "remove",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to /tools/fd"
+        }
+      ],
+      "files": {
+        "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "install-darwin-fd-recursive",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "fd",
+      "layout": "recursive",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v10.3.0/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v10.3.0-x86_64-apple-darwin/fd"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_fd_7_1000_i/z"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_fd_7_1000_i/z/fd",
+          "/tools/fd"
+        ],
+        [
+          "chmod",
+          "/tools/fd",
+          493
+        ],
+        [
+          "remove",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to /tools/fd"
+        }
+      ],
+      "files": {
+        "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/fd"
+      }
+    },
+    {
+      "id": "install-darwin-fd-missing",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "fd",
+      "layout": "missing",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v10.3.0/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd-v10.3.0-x86_64-apple-darwin/fd"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_fd_7_1000_i/fd"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "remove",
+          "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Binary not found in archive: expected fd under /tools/extract_tmp_fd_7_1000_i"
+        }
+      ],
+      "files": {
+        "/tools/fd-v10.3.0-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "install-darwin-rg-nested",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "rg",
+      "layout": "nested",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-apple-darwin/rg"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-apple-darwin/rg",
+          "/tools/rg"
+        ],
+        [
+          "chmod",
+          "/tools/rg",
+          493
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to /tools/rg"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "install-darwin-rg-root",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "rg",
+      "layout": "root",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-apple-darwin/rg"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/rg"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_rg_7_1000_i/rg",
+          "/tools/rg"
+        ],
+        [
+          "chmod",
+          "/tools/rg",
+          493
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to /tools/rg"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "install-darwin-rg-recursive",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "rg",
+      "layout": "recursive",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-apple-darwin/rg"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/rg"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_rg_7_1000_i/z"
+        ],
+        [
+          "rename",
+          "/tools/extract_tmp_rg_7_1000_i/z/rg",
+          "/tools/rg"
+        ],
+        [
+          "chmod",
+          "/tools/rg",
+          493
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to /tools/rg"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": "/tools/rg"
+      }
+    },
+    {
+      "id": "install-darwin-rg-missing",
+      "op": "ensure",
+      "platform": "darwin",
+      "tool": "rg",
+      "layout": "missing",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/ripgrep-12.3.4-x86_64-apple-darwin/rg"
+        ],
+        [
+          "exists",
+          "/tools/extract_tmp_rg_7_1000_i/rg"
+        ],
+        [
+          "readdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: Binary not found in archive: expected rg under /tools/extract_tmp_rg_7_1000_i"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-apple-darwin.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "install-win32-fd-nested",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "fd",
+      "layout": "nested",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd-v12.3.4-x86_64-pc-windows-msvc\\fd.exe"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd-v12.3.4-x86_64-pc-windows-msvc\\fd.exe",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to C:\\tools\\fd.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\fd.exe"
+      }
+    },
+    {
+      "id": "install-win32-fd-root",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "fd",
+      "layout": "root",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd-v12.3.4-x86_64-pc-windows-msvc\\fd.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd.exe"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd.exe",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to C:\\tools\\fd.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\fd.exe"
+      }
+    },
+    {
+      "id": "install-win32-fd-recursive",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "fd",
+      "layout": "recursive",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd-v12.3.4-x86_64-pc-windows-msvc\\fd.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd.exe"
+        ],
+        [
+          "readdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "readdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\z"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\z\\fd.exe",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to C:\\tools\\fd.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\fd.exe"
+      }
+    },
+    {
+      "id": "install-win32-fd-missing",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "fd",
+      "layout": "missing",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd-v12.3.4-x86_64-pc-windows-msvc\\fd.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd.exe"
+        ],
+        [
+          "readdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "remove",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Binary not found in archive: expected fd.exe under C:\\tools\\extract_tmp_fd_7_1000_i"
+        }
+      ],
+      "files": {
+        "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "install-win32-rg-nested",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "rg",
+      "layout": "nested",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\ripgrep-12.3.4-x86_64-pc-windows-msvc\\rg.exe"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\ripgrep-12.3.4-x86_64-pc-windows-msvc\\rg.exe",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to C:\\tools\\rg.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\rg.exe"
+      }
+    },
+    {
+      "id": "install-win32-rg-root",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "rg",
+      "layout": "root",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\ripgrep-12.3.4-x86_64-pc-windows-msvc\\rg.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\rg.exe"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\rg.exe",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to C:\\tools\\rg.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\rg.exe"
+      }
+    },
+    {
+      "id": "install-win32-rg-recursive",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "rg",
+      "layout": "recursive",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\ripgrep-12.3.4-x86_64-pc-windows-msvc\\rg.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\rg.exe"
+        ],
+        [
+          "readdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "readdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\z"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\z\\rg.exe",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to C:\\tools\\rg.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\rg.exe"
+      }
+    },
+    {
+      "id": "install-win32-rg-missing",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "rg",
+      "layout": "missing",
+      "commands": {
+        "tar": {
+          "status": 0
+        },
+        "tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\ripgrep-12.3.4-x86_64-pc-windows-msvc\\rg.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\rg.exe"
+        ],
+        [
+          "readdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "remove",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: Binary not found in archive: expected rg.exe under C:\\tools\\extract_tmp_rg_7_1000_i"
+        }
+      ],
+      "files": {
+        "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "win-prefer-system-tar",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "rg",
+      "layout": "root",
+      "env": {
+        "SYSTEMROOT": "C:\\Windows"
+      },
+      "systemTar": true,
+      "commands": {
+        "C:\\Windows\\System32\\tar.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "exists",
+          "C:\\Windows\\System32\\tar.exe"
+        ],
+        [
+          "spawn",
+          "C:\\Windows\\System32\\tar.exe",
+          [
+            "xf",
+            "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\ripgrep-12.3.4-x86_64-pc-windows-msvc\\rg.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\rg.exe"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_rg_7_1000_i\\rg.exe",
+          "C:\\tools\\rg.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "ripgrep installed to C:\\tools\\rg.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\ripgrep-12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\rg.exe"
+      }
+    },
+    {
+      "id": "win-powershell-fallback",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "fd",
+      "layout": "root",
+      "commands": {
+        "tar.exe": {
+          "status": 1,
+          "stderr": " bad zip \n"
+        },
+        "powershell.exe": {
+          "status": 0
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "spawn",
+          "powershell.exe",
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "& { param($archive, $destination) $ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath $archive -DestinationPath $destination -Force }",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd-v12.3.4-x86_64-pc-windows-msvc\\fd.exe"
+        ],
+        [
+          "exists",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd.exe"
+        ],
+        [
+          "rename",
+          "C:\\tools\\extract_tmp_fd_7_1000_i\\fd.exe",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "remove",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "info",
+          "message": "fd installed to C:\\tools\\fd.exe"
+        }
+      ],
+      "files": {
+        "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": "C:\\tools\\fd.exe"
+      }
+    },
+    {
+      "id": "win-extract-failure",
+      "op": "ensure",
+      "platform": "win32",
+      "tool": "fd",
+      "layout": "root",
+      "commands": {
+        "tar.exe": {
+          "status": 1,
+          "stderr": " bad zip \n"
+        },
+        "powershell.exe": {
+          "status": 2,
+          "stdout": " failed ﻿"
+        }
+      },
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "C:\\tools\\fd.exe"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "C:\\tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip"
+        ],
+        [
+          "mkdir",
+          "C:\\tools\\extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar.exe",
+          [
+            "xf",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "-C",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "spawn",
+          "powershell.exe",
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "& { param($archive, $destination) $ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath $archive -DestinationPath $destination -Force }",
+            "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+            "C:\\tools\\extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "remove",
+          "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "C:\\tools\\extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Failed to extract fd-v12.3.4-x86_64-pc-windows-msvc.zip: tar.exe: bad zip; powershell.exe: failed"
+        }
+      ],
+      "files": {
+        "C:\\tools\\fd-v12.3.4-x86_64-pc-windows-msvc.zip": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "tar-error-precedence",
+      "op": "ensure",
+      "tool": "rg",
+      "commands": {
+        "tar": {
+          "error": "cannot spawn",
+          "status": 1,
+          "stderr": "not used"
+        }
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_rg_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_rg_7_1000_i"
+          ]
+        ],
+        [
+          "remove",
+          "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_rg_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: Failed to extract ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz: tar: cannot spawn"
+        }
+      ],
+      "files": {
+        "/tools/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "tar-null-status",
+      "op": "ensure",
+      "tool": "fd",
+      "commands": {
+        "tar": {
+          "status": null
+        }
+      },
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ],
+        [
+          "create",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        ],
+        [
+          "mkdir",
+          "/tools/extract_tmp_fd_7_1000_i"
+        ],
+        [
+          "spawn",
+          "tar",
+          [
+            "xzf",
+            "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+            "-C",
+            "/tools/extract_tmp_fd_7_1000_i"
+          ]
+        ],
+        [
+          "remove",
+          "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          {
+            "force": true
+          }
+        ],
+        [
+          "remove",
+          "/tools/extract_tmp_fd_7_1000_i",
+          {
+            "recursive": true,
+            "force": true
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Failed to extract fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz: tar: exit status unknown"
+        }
+      ],
+      "files": {
+        "/tools/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz": "archive"
+      },
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "download-error",
+      "op": "ensure",
+      "tool": "fd",
+      "downloadStatus": 403,
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Download failed with HTTP 403: https://github.com/sharkdp/fd/releases/download/v12.3.4/fd-v12.3.4-x86_64-unknown-linux-musl.tar.gz"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "download-no-body",
+      "op": "ensure",
+      "tool": "rg",
+      "noBody": true,
+      "platform": "linux",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/rg"
+        ],
+        [
+          "spawn",
+          "rg",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "mkdir",
+          "/tools"
+        ],
+        [
+          "fetch",
+          "https://github.com/BurntSushi/ripgrep/releases/download/12.3.4/ripgrep-12.3.4-x86_64-unknown-linux-musl.tar.gz",
+          null,
+          {
+            "timeoutMs": 120000
+          }
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "ripgrep not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download ripgrep: No response body"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "unsupported-platform-after-version",
+      "op": "ensure",
+      "tool": "fd",
+      "platform": "freebsd",
+      "arch": "x64",
+      "trace": [
+        [
+          "exists",
+          "/tools/fd"
+        ],
+        [
+          "spawn",
+          "fd",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "spawn",
+          "fdfind",
+          [
+            "--version"
+          ]
+        ],
+        [
+          "fetch",
+          "https://github.com/sharkdp/fd/releases/latest",
+          {
+            "headers": {
+              "User-Agent": "pi-coding-agent"
+            },
+            "redirect": "manual"
+          },
+          {
+            "timeoutMs": 10000
+          }
+        ],
+        [
+          "cancel"
+        ]
+      ],
+      "statuses": [
+        {
+          "type": "info",
+          "message": "fd not found. Downloading..."
+        },
+        {
+          "type": "warning",
+          "message": "Failed to download fd: Unsupported platform: freebsd/x64"
+        }
+      ],
+      "files": {},
+      "outcome": {
+        "value": null
+      }
+    }
+  ]
+}

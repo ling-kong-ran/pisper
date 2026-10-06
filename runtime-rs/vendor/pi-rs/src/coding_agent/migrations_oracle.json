@@ -1,0 +1,1121 @@
+{
+  "provenance": {
+    "platform": "win32",
+    "sources": {
+      "migrations": "59fc18cedfcbecd993918bb335e5e76a9f9c899c61ecf9eab110f86d976af1bc",
+      "keybindings": "e140384fc16be1bc8306648b657af8b14d2625bb73c5e4dd3fe5409d1381f7aa",
+      "tui": "eea5e3fe258ad50337595bb5320955a6d97bac0c8f6c0a838f988d75079bcf38"
+    },
+    "boundary": "Real upstream migrations and real filesystem, real TUI/app keybinding definition/migration code. Config paths/chalk are injected. Windows paths run natively; POSIX joins use forward-slash paths on Windows (not a Linux OS validation). Records the Windows source filename split/join quirk."
+  },
+  "cases": [
+    {
+      "platform": "win32",
+      "id": "empty",
+      "files": {},
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {},
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {}
+    },
+    {
+      "platform": "win32",
+      "id": "existing-auth-skips-all-auth-migration",
+      "files": {
+        "agent/auth.json": "{ existing invalid auth }",
+        "agent/oauth.json": "{\"a\":{\"token\":\"old\"}}",
+        "agent/settings.json": "{\"apiKeys\":{\"b\":\"new\"}}"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{ existing invalid auth }",
+        "agent/oauth.json": "{\"a\":{\"token\":\"old\"}}",
+        "agent/settings.json": "{\"apiKeys\":{\"b\":\"new\"}}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{ existing invalid auth }",
+        "agent/oauth.json": "{\"a\":{\"token\":\"old\"}}",
+        "agent/settings.json": "{\"apiKeys\":{\"b\":\"new\"}}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "oauth-key-precedence-bom-and-numeric-keys",
+      "files": {
+        "agent/oauth.json": "﻿{\"z\":{\"access\":\"offline\",\"type\":\"custom\"},\"10\":{\"expires\":1.0},\"2\":{\"refresh\":\"fixture\"}}",
+        "agent/settings.json": "﻿{\"apiKeys\":{\"z\":\"ignored\",\"b\":\"key-only\",\"n\":42,\"empty\":\"\"},\"x\":1.0}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "2",
+          "10",
+          "z",
+          "b",
+          "empty"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"2\": {\n    \"type\": \"oauth\",\n    \"refresh\": \"fixture\"\n  },\n  \"10\": {\n    \"type\": \"oauth\",\n    \"expires\": 1\n  },\n  \"z\": {\n    \"type\": \"custom\",\n    \"access\": \"offline\"\n  },\n  \"b\": {\n    \"type\": \"api_key\",\n    \"key\": \"key-only\"\n  },\n  \"empty\": {\n    \"type\": \"api_key\",\n    \"key\": \"\"\n  }\n}",
+        "agent/oauth.json.migrated": "﻿{\"z\":{\"access\":\"offline\",\"type\":\"custom\"},\"10\":{\"expires\":1.0},\"2\":{\"refresh\":\"fixture\"}}",
+        "agent/settings.json": "{\n  \"x\": 1\n}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"2\": {\n    \"type\": \"oauth\",\n    \"refresh\": \"fixture\"\n  },\n  \"10\": {\n    \"type\": \"oauth\",\n    \"expires\": 1\n  },\n  \"z\": {\n    \"type\": \"custom\",\n    \"access\": \"offline\"\n  },\n  \"b\": {\n    \"type\": \"api_key\",\n    \"key\": \"key-only\"\n  },\n  \"empty\": {\n    \"type\": \"api_key\",\n    \"key\": \"\"\n  }\n}",
+        "agent/oauth.json.migrated": "﻿{\"z\":{\"access\":\"offline\",\"type\":\"custom\"},\"10\":{\"expires\":1.0},\"2\":{\"refresh\":\"fixture\"}}",
+        "agent/settings.json": "{\n  \"x\": 1\n}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "malformed-oauth-valid-settings",
+      "files": {
+        "agent/oauth.json": "{ malformed",
+        "agent/settings.json": "{\"apiKeys\":{\"test\":\"fake\"},\"array\":[1e21,1e-7,-0,1.5]}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "test"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"test\": {\n    \"type\": \"api_key\",\n    \"key\": \"fake\"\n  }\n}",
+        "agent/oauth.json": "{ malformed",
+        "agent/settings.json": "{\n  \"array\": [\n    1e+21,\n    1e-7,\n    0,\n    1.5\n  ]\n}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"test\": {\n    \"type\": \"api_key\",\n    \"key\": \"fake\"\n  }\n}",
+        "agent/oauth.json": "{ malformed",
+        "agent/settings.json": "{\n  \"array\": [\n    1e+21,\n    1e-7,\n    0,\n    1.5\n  ]\n}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "null-oauth-unchanged-and-array-keys",
+      "files": {
+        "agent/oauth.json": "null",
+        "agent/settings.json": "{\"apiKeys\":[\"zero\",null,\"two\"]}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "0",
+          "2"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"type\": \"api_key\",\n    \"key\": \"zero\"\n  },\n  \"2\": {\n    \"type\": \"api_key\",\n    \"key\": \"two\"\n  }\n}",
+        "agent/oauth.json": "null",
+        "agent/settings.json": "{}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"type\": \"api_key\",\n    \"key\": \"zero\"\n  },\n  \"2\": {\n    \"type\": \"api_key\",\n    \"key\": \"two\"\n  }\n}",
+        "agent/oauth.json": "null",
+        "agent/settings.json": "{}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "oauth-spread-scalars",
+      "files": {
+        "agent/oauth.json": "{\"a\":null,\"b\":true,\"c\":\"abc\",\"d\":[1,2]}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"a\": {\n    \"type\": \"oauth\"\n  },\n  \"b\": {\n    \"type\": \"oauth\"\n  },\n  \"c\": {\n    \"0\": \"a\",\n    \"1\": \"b\",\n    \"2\": \"c\",\n    \"type\": \"oauth\"\n  },\n  \"d\": {\n    \"0\": 1,\n    \"1\": 2,\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"a\":null,\"b\":true,\"c\":\"abc\",\"d\":[1,2]}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"a\": {\n    \"type\": \"oauth\"\n  },\n  \"b\": {\n    \"type\": \"oauth\"\n  },\n  \"c\": {\n    \"0\": \"a\",\n    \"1\": \"b\",\n    \"2\": \"c\",\n    \"type\": \"oauth\"\n  },\n  \"d\": {\n    \"0\": 1,\n    \"1\": 2,\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"a\":null,\"b\":true,\"c\":\"abc\",\"d\":[1,2]}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "oauth-astral-string-spread",
+      "files": {
+        "agent/oauth.json": "{\"emoji\":\"x🙂\",\"nested\":{\"access\":\"🙂\",\"10\":2,\"3\":1}}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "emoji",
+          "nested"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"emoji\": {\n    \"0\": \"x\",\n    \"1\": \"\\ud83d\",\n    \"2\": \"\\ude42\",\n    \"type\": \"oauth\"\n  },\n  \"nested\": {\n    \"3\": 1,\n    \"10\": 2,\n    \"type\": \"oauth\",\n    \"access\": \"🙂\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"emoji\":\"x🙂\",\"nested\":{\"access\":\"🙂\",\"10\":2,\"3\":1}}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"emoji\": {\n    \"0\": \"x\",\n    \"1\": \"\\ud83d\",\n    \"2\": \"\\ude42\",\n    \"type\": \"oauth\"\n  },\n  \"nested\": {\n    \"3\": 1,\n    \"10\": 2,\n    \"type\": \"oauth\",\n    \"access\": \"🙂\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"emoji\":\"x🙂\",\"nested\":{\"access\":\"🙂\",\"10\":2,\"3\":1}}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "oauth-top-level-astral-string",
+      "files": {
+        "agent/oauth.json": "\"🙂\""
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "0",
+          "1"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"0\": \"\\ud83d\",\n    \"type\": \"oauth\"\n  },\n  \"1\": {\n    \"0\": \"\\ude42\",\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "\"🙂\""
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"0\": \"\\ud83d\",\n    \"type\": \"oauth\"\n  },\n  \"1\": {\n    \"0\": \"\\ude42\",\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "\"🙂\""
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "prototype-inherited-api-keys",
+      "files": {
+        "agent/oauth.json": "{\"__proto__\":{\"inherited\":\"value\",\"falsey\":false}}",
+        "agent/settings.json": "{\"apiKeys\":{\"toString\":\"skip\",\"constructor\":\"skip\",\"inherited\":\"skip\",\"falsey\":\"keep\",\"normal\":\"key\"}}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "__proto__",
+          "falsey",
+          "normal"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"falsey\": {\n    \"type\": \"api_key\",\n    \"key\": \"keep\"\n  },\n  \"normal\": {\n    \"type\": \"api_key\",\n    \"key\": \"key\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"__proto__\":{\"inherited\":\"value\",\"falsey\":false}}",
+        "agent/settings.json": "{}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"falsey\": {\n    \"type\": \"api_key\",\n    \"key\": \"keep\"\n  },\n  \"normal\": {\n    \"type\": \"api_key\",\n    \"key\": \"key\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"__proto__\":{\"inherited\":\"value\",\"falsey\":false}}",
+        "agent/settings.json": "{}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "empty-keys-removed-but-no-auth-file",
+      "files": {
+        "agent/settings.json": "{\"apiKeys\":{},\"x\":true}"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/settings.json": "{\n  \"x\": true\n}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/settings.json": "{\n  \"x\": true\n}"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "keybindings-upgrade-collision-and-extra-order",
+      "files": {
+        "agent/keybindings.json": "﻿{\"interrupt\":\"ctrl+c\",\"app.interrupt\":\"escape\",\"undo\":[\"ctrl+z\"],\"zzz\":null,\"2\":1,\"a\":{\"9\":1,\"2\":2}}"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/keybindings.json": "{\n  \"2\": 1,\n  \"tui.editor.undo\": [\n    \"ctrl+z\"\n  ],\n  \"app.interrupt\": \"escape\",\n  \"a\": {\n    \"2\": 2,\n    \"9\": 1\n  },\n  \"zzz\": null\n}\n"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/keybindings.json": "{\n  \"2\": 1,\n  \"tui.editor.undo\": [\n    \"ctrl+z\"\n  ],\n  \"app.interrupt\": \"escape\",\n  \"a\": {\n    \"2\": 2,\n    \"9\": 1\n  },\n  \"zzz\": null\n}\n"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "keybindings-non-object-ignored",
+      "files": {
+        "agent/keybindings.json": "[\"interrupt\"]"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/keybindings.json": "[\"interrupt\"]"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/keybindings.json": "[\"interrupt\"]"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "keybindings-no-legacy-is-byte-preserved",
+      "files": {
+        "agent/keybindings.json": " { \"app.interrupt\" : \"escape\" } \r\n"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/keybindings.json": " { \"app.interrupt\" : \"escape\" } \r\n"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/keybindings.json": " { \"app.interrupt\" : \"escape\" } \r\n"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "commands-tools-and-deprecations",
+      "files": {
+        "agent/commands/a.md": "global",
+        "project/.pi/commands/b.md": "project",
+        "agent/tools/rg": "old",
+        "agent/tools/fd.exe": "move",
+        "agent/bin/rg": "keep",
+        "agent/tools/custom.ts": "custom",
+        "project/.pi/tools/RG.exe": "ignored",
+        "project/.pi/tools/.hidden": "ignored",
+        "project/.pi/tools/a.ts": "warn"
+      },
+      "dirs": [
+        "agent/hooks",
+        "project/.pi/hooks"
+      ],
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": [
+          "Global hooks/ directory found. Hooks have been renamed to extensions.",
+          "Global tools/ directory contains custom tools. Custom tools have been merged into extensions.",
+          "Project hooks/ directory found. Hooks have been renamed to extensions.",
+          "Project tools/ directory contains custom tools. Custom tools have been merged into extensions."
+        ]
+      },
+      "messages": [
+        "Migrated managed binaries tools/ → bin/",
+        "Migrated Global commands/ → prompts/",
+        "Migrated Project commands/ → prompts/"
+      ],
+      "after": {
+        "agent/bin/fd.exe": "move",
+        "agent/bin/rg": "keep",
+        "agent/prompts/a.md": "global",
+        "agent/tools/custom.ts": "custom",
+        "project/.pi/prompts/b.md": "project",
+        "project/.pi/tools/.hidden": "ignored",
+        "project/.pi/tools/a.ts": "warn",
+        "project/.pi/tools/RG.exe": "ignored"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": [
+          "Global hooks/ directory found. Hooks have been renamed to extensions.",
+          "Global tools/ directory contains custom tools. Custom tools have been merged into extensions.",
+          "Project hooks/ directory found. Hooks have been renamed to extensions.",
+          "Project tools/ directory contains custom tools. Custom tools have been merged into extensions."
+        ]
+      },
+      "afterSecond": {
+        "agent/bin/fd.exe": "move",
+        "agent/bin/rg": "keep",
+        "agent/prompts/a.md": "global",
+        "agent/tools/custom.ts": "custom",
+        "project/.pi/prompts/b.md": "project",
+        "project/.pi/tools/.hidden": "ignored",
+        "project/.pi/tools/a.ts": "warn",
+        "project/.pi/tools/RG.exe": "ignored"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "commands-existing-prompts-preserved",
+      "files": {
+        "agent/commands/a.md": "old",
+        "agent/prompts/b.md": "new",
+        "project/.pi/tools/.hidden": "hidden",
+        "project/.pi/tools/FD": "recognized"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/commands/a.md": "old",
+        "agent/prompts/b.md": "new",
+        "project/.pi/tools/.hidden": "hidden",
+        "project/.pi/tools/FD": "recognized"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/commands/a.md": "old",
+        "agent/prompts/b.md": "new",
+        "project/.pi/tools/.hidden": "hidden",
+        "project/.pi/tools/FD": "recognized"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "session-root-migration",
+      "files": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work/foo:bar\"}\n{\"keep\":\"exact\"}\n",
+        "agent/invalid.jsonl": "bad\n",
+        "agent/empty.jsonl": "\nbody",
+        "agent/wrong.jsonl": "{\"type\":\"message\",\"cwd\":\"/tmp\"}\n",
+        "agent/non-string.jsonl": "{\"type\":\"session\",\"cwd\":42}\n",
+        "agent/bom.jsonl": "﻿{\"type\":\"session\",\"cwd\":\"/work\"}\n"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/bom.jsonl": "﻿{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/empty.jsonl": "\nbody",
+        "agent/invalid.jsonl": "bad\n",
+        "agent/non-string.jsonl": "{\"type\":\"session\",\"cwd\":42}\n",
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work/foo:bar\"}\n{\"keep\":\"exact\"}\n",
+        "agent/wrong.jsonl": "{\"type\":\"message\",\"cwd\":\"/tmp\"}\n"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/bom.jsonl": "﻿{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/empty.jsonl": "\nbody",
+        "agent/invalid.jsonl": "bad\n",
+        "agent/non-string.jsonl": "{\"type\":\"session\",\"cwd\":42}\n",
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work/foo:bar\"}\n{\"keep\":\"exact\"}\n",
+        "agent/wrong.jsonl": "{\"type\":\"message\",\"cwd\":\"/tmp\"}\n"
+      }
+    },
+    {
+      "platform": "win32",
+      "id": "session-destination-conflict",
+      "files": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/sessions/--work--/old.jsonl": "existing"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/sessions/--work--/old.jsonl": "existing"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/sessions/--work--/old.jsonl": "existing"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "empty",
+      "files": {},
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {},
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {}
+    },
+    {
+      "platform": "posix",
+      "id": "existing-auth-skips-all-auth-migration",
+      "files": {
+        "agent/auth.json": "{ existing invalid auth }",
+        "agent/oauth.json": "{\"a\":{\"token\":\"old\"}}",
+        "agent/settings.json": "{\"apiKeys\":{\"b\":\"new\"}}"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{ existing invalid auth }",
+        "agent/oauth.json": "{\"a\":{\"token\":\"old\"}}",
+        "agent/settings.json": "{\"apiKeys\":{\"b\":\"new\"}}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{ existing invalid auth }",
+        "agent/oauth.json": "{\"a\":{\"token\":\"old\"}}",
+        "agent/settings.json": "{\"apiKeys\":{\"b\":\"new\"}}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "oauth-key-precedence-bom-and-numeric-keys",
+      "files": {
+        "agent/oauth.json": "﻿{\"z\":{\"access\":\"offline\",\"type\":\"custom\"},\"10\":{\"expires\":1.0},\"2\":{\"refresh\":\"fixture\"}}",
+        "agent/settings.json": "﻿{\"apiKeys\":{\"z\":\"ignored\",\"b\":\"key-only\",\"n\":42,\"empty\":\"\"},\"x\":1.0}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "2",
+          "10",
+          "z",
+          "b",
+          "empty"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"2\": {\n    \"type\": \"oauth\",\n    \"refresh\": \"fixture\"\n  },\n  \"10\": {\n    \"type\": \"oauth\",\n    \"expires\": 1\n  },\n  \"z\": {\n    \"type\": \"custom\",\n    \"access\": \"offline\"\n  },\n  \"b\": {\n    \"type\": \"api_key\",\n    \"key\": \"key-only\"\n  },\n  \"empty\": {\n    \"type\": \"api_key\",\n    \"key\": \"\"\n  }\n}",
+        "agent/oauth.json.migrated": "﻿{\"z\":{\"access\":\"offline\",\"type\":\"custom\"},\"10\":{\"expires\":1.0},\"2\":{\"refresh\":\"fixture\"}}",
+        "agent/settings.json": "{\n  \"x\": 1\n}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"2\": {\n    \"type\": \"oauth\",\n    \"refresh\": \"fixture\"\n  },\n  \"10\": {\n    \"type\": \"oauth\",\n    \"expires\": 1\n  },\n  \"z\": {\n    \"type\": \"custom\",\n    \"access\": \"offline\"\n  },\n  \"b\": {\n    \"type\": \"api_key\",\n    \"key\": \"key-only\"\n  },\n  \"empty\": {\n    \"type\": \"api_key\",\n    \"key\": \"\"\n  }\n}",
+        "agent/oauth.json.migrated": "﻿{\"z\":{\"access\":\"offline\",\"type\":\"custom\"},\"10\":{\"expires\":1.0},\"2\":{\"refresh\":\"fixture\"}}",
+        "agent/settings.json": "{\n  \"x\": 1\n}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "malformed-oauth-valid-settings",
+      "files": {
+        "agent/oauth.json": "{ malformed",
+        "agent/settings.json": "{\"apiKeys\":{\"test\":\"fake\"},\"array\":[1e21,1e-7,-0,1.5]}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "test"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"test\": {\n    \"type\": \"api_key\",\n    \"key\": \"fake\"\n  }\n}",
+        "agent/oauth.json": "{ malformed",
+        "agent/settings.json": "{\n  \"array\": [\n    1e+21,\n    1e-7,\n    0,\n    1.5\n  ]\n}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"test\": {\n    \"type\": \"api_key\",\n    \"key\": \"fake\"\n  }\n}",
+        "agent/oauth.json": "{ malformed",
+        "agent/settings.json": "{\n  \"array\": [\n    1e+21,\n    1e-7,\n    0,\n    1.5\n  ]\n}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "null-oauth-unchanged-and-array-keys",
+      "files": {
+        "agent/oauth.json": "null",
+        "agent/settings.json": "{\"apiKeys\":[\"zero\",null,\"two\"]}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "0",
+          "2"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"type\": \"api_key\",\n    \"key\": \"zero\"\n  },\n  \"2\": {\n    \"type\": \"api_key\",\n    \"key\": \"two\"\n  }\n}",
+        "agent/oauth.json": "null",
+        "agent/settings.json": "{}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"type\": \"api_key\",\n    \"key\": \"zero\"\n  },\n  \"2\": {\n    \"type\": \"api_key\",\n    \"key\": \"two\"\n  }\n}",
+        "agent/oauth.json": "null",
+        "agent/settings.json": "{}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "oauth-spread-scalars",
+      "files": {
+        "agent/oauth.json": "{\"a\":null,\"b\":true,\"c\":\"abc\",\"d\":[1,2]}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"a\": {\n    \"type\": \"oauth\"\n  },\n  \"b\": {\n    \"type\": \"oauth\"\n  },\n  \"c\": {\n    \"0\": \"a\",\n    \"1\": \"b\",\n    \"2\": \"c\",\n    \"type\": \"oauth\"\n  },\n  \"d\": {\n    \"0\": 1,\n    \"1\": 2,\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"a\":null,\"b\":true,\"c\":\"abc\",\"d\":[1,2]}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"a\": {\n    \"type\": \"oauth\"\n  },\n  \"b\": {\n    \"type\": \"oauth\"\n  },\n  \"c\": {\n    \"0\": \"a\",\n    \"1\": \"b\",\n    \"2\": \"c\",\n    \"type\": \"oauth\"\n  },\n  \"d\": {\n    \"0\": 1,\n    \"1\": 2,\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"a\":null,\"b\":true,\"c\":\"abc\",\"d\":[1,2]}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "oauth-astral-string-spread",
+      "files": {
+        "agent/oauth.json": "{\"emoji\":\"x🙂\",\"nested\":{\"access\":\"🙂\",\"10\":2,\"3\":1}}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "emoji",
+          "nested"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"emoji\": {\n    \"0\": \"x\",\n    \"1\": \"\\ud83d\",\n    \"2\": \"\\ude42\",\n    \"type\": \"oauth\"\n  },\n  \"nested\": {\n    \"3\": 1,\n    \"10\": 2,\n    \"type\": \"oauth\",\n    \"access\": \"🙂\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"emoji\":\"x🙂\",\"nested\":{\"access\":\"🙂\",\"10\":2,\"3\":1}}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"emoji\": {\n    \"0\": \"x\",\n    \"1\": \"\\ud83d\",\n    \"2\": \"\\ude42\",\n    \"type\": \"oauth\"\n  },\n  \"nested\": {\n    \"3\": 1,\n    \"10\": 2,\n    \"type\": \"oauth\",\n    \"access\": \"🙂\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"emoji\":\"x🙂\",\"nested\":{\"access\":\"🙂\",\"10\":2,\"3\":1}}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "oauth-top-level-astral-string",
+      "files": {
+        "agent/oauth.json": "\"🙂\""
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "0",
+          "1"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"0\": \"\\ud83d\",\n    \"type\": \"oauth\"\n  },\n  \"1\": {\n    \"0\": \"\\ude42\",\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "\"🙂\""
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"0\": {\n    \"0\": \"\\ud83d\",\n    \"type\": \"oauth\"\n  },\n  \"1\": {\n    \"0\": \"\\ude42\",\n    \"type\": \"oauth\"\n  }\n}",
+        "agent/oauth.json.migrated": "\"🙂\""
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "prototype-inherited-api-keys",
+      "files": {
+        "agent/oauth.json": "{\"__proto__\":{\"inherited\":\"value\",\"falsey\":false}}",
+        "agent/settings.json": "{\"apiKeys\":{\"toString\":\"skip\",\"constructor\":\"skip\",\"inherited\":\"skip\",\"falsey\":\"keep\",\"normal\":\"key\"}}"
+      },
+      "result": {
+        "migratedAuthProviders": [
+          "__proto__",
+          "falsey",
+          "normal"
+        ],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/auth.json": "{\n  \"falsey\": {\n    \"type\": \"api_key\",\n    \"key\": \"keep\"\n  },\n  \"normal\": {\n    \"type\": \"api_key\",\n    \"key\": \"key\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"__proto__\":{\"inherited\":\"value\",\"falsey\":false}}",
+        "agent/settings.json": "{}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/auth.json": "{\n  \"falsey\": {\n    \"type\": \"api_key\",\n    \"key\": \"keep\"\n  },\n  \"normal\": {\n    \"type\": \"api_key\",\n    \"key\": \"key\"\n  }\n}",
+        "agent/oauth.json.migrated": "{\"__proto__\":{\"inherited\":\"value\",\"falsey\":false}}",
+        "agent/settings.json": "{}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "empty-keys-removed-but-no-auth-file",
+      "files": {
+        "agent/settings.json": "{\"apiKeys\":{},\"x\":true}"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/settings.json": "{\n  \"x\": true\n}"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/settings.json": "{\n  \"x\": true\n}"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "keybindings-upgrade-collision-and-extra-order",
+      "files": {
+        "agent/keybindings.json": "﻿{\"interrupt\":\"ctrl+c\",\"app.interrupt\":\"escape\",\"undo\":[\"ctrl+z\"],\"zzz\":null,\"2\":1,\"a\":{\"9\":1,\"2\":2}}"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/keybindings.json": "{\n  \"2\": 1,\n  \"tui.editor.undo\": [\n    \"ctrl+z\"\n  ],\n  \"app.interrupt\": \"escape\",\n  \"a\": {\n    \"2\": 2,\n    \"9\": 1\n  },\n  \"zzz\": null\n}\n"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/keybindings.json": "{\n  \"2\": 1,\n  \"tui.editor.undo\": [\n    \"ctrl+z\"\n  ],\n  \"app.interrupt\": \"escape\",\n  \"a\": {\n    \"2\": 2,\n    \"9\": 1\n  },\n  \"zzz\": null\n}\n"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "keybindings-non-object-ignored",
+      "files": {
+        "agent/keybindings.json": "[\"interrupt\"]"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/keybindings.json": "[\"interrupt\"]"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/keybindings.json": "[\"interrupt\"]"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "keybindings-no-legacy-is-byte-preserved",
+      "files": {
+        "agent/keybindings.json": " { \"app.interrupt\" : \"escape\" } \r\n"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/keybindings.json": " { \"app.interrupt\" : \"escape\" } \r\n"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/keybindings.json": " { \"app.interrupt\" : \"escape\" } \r\n"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "commands-tools-and-deprecations",
+      "files": {
+        "agent/commands/a.md": "global",
+        "project/.pi/commands/b.md": "project",
+        "agent/tools/rg": "old",
+        "agent/tools/fd.exe": "move",
+        "agent/bin/rg": "keep",
+        "agent/tools/custom.ts": "custom",
+        "project/.pi/tools/RG.exe": "ignored",
+        "project/.pi/tools/.hidden": "ignored",
+        "project/.pi/tools/a.ts": "warn"
+      },
+      "dirs": [
+        "agent/hooks",
+        "project/.pi/hooks"
+      ],
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": [
+          "Global hooks/ directory found. Hooks have been renamed to extensions.",
+          "Global tools/ directory contains custom tools. Custom tools have been merged into extensions.",
+          "Project hooks/ directory found. Hooks have been renamed to extensions.",
+          "Project tools/ directory contains custom tools. Custom tools have been merged into extensions."
+        ]
+      },
+      "messages": [
+        "Migrated managed binaries tools/ → bin/",
+        "Migrated Global commands/ → prompts/",
+        "Migrated Project commands/ → prompts/"
+      ],
+      "after": {
+        "agent/bin/fd.exe": "move",
+        "agent/bin/rg": "keep",
+        "agent/prompts/a.md": "global",
+        "agent/tools/custom.ts": "custom",
+        "project/.pi/prompts/b.md": "project",
+        "project/.pi/tools/.hidden": "ignored",
+        "project/.pi/tools/a.ts": "warn",
+        "project/.pi/tools/RG.exe": "ignored"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": [
+          "Global hooks/ directory found. Hooks have been renamed to extensions.",
+          "Global tools/ directory contains custom tools. Custom tools have been merged into extensions.",
+          "Project hooks/ directory found. Hooks have been renamed to extensions.",
+          "Project tools/ directory contains custom tools. Custom tools have been merged into extensions."
+        ]
+      },
+      "afterSecond": {
+        "agent/bin/fd.exe": "move",
+        "agent/bin/rg": "keep",
+        "agent/prompts/a.md": "global",
+        "agent/tools/custom.ts": "custom",
+        "project/.pi/prompts/b.md": "project",
+        "project/.pi/tools/.hidden": "ignored",
+        "project/.pi/tools/a.ts": "warn",
+        "project/.pi/tools/RG.exe": "ignored"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "commands-existing-prompts-preserved",
+      "files": {
+        "agent/commands/a.md": "old",
+        "agent/prompts/b.md": "new",
+        "project/.pi/tools/.hidden": "hidden",
+        "project/.pi/tools/FD": "recognized"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/commands/a.md": "old",
+        "agent/prompts/b.md": "new",
+        "project/.pi/tools/.hidden": "hidden",
+        "project/.pi/tools/FD": "recognized"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/commands/a.md": "old",
+        "agent/prompts/b.md": "new",
+        "project/.pi/tools/.hidden": "hidden",
+        "project/.pi/tools/FD": "recognized"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "session-root-migration",
+      "files": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work/foo:bar\"}\n{\"keep\":\"exact\"}\n",
+        "agent/invalid.jsonl": "bad\n",
+        "agent/empty.jsonl": "\nbody",
+        "agent/wrong.jsonl": "{\"type\":\"message\",\"cwd\":\"/tmp\"}\n",
+        "agent/non-string.jsonl": "{\"type\":\"session\",\"cwd\":42}\n",
+        "agent/bom.jsonl": "﻿{\"type\":\"session\",\"cwd\":\"/work\"}\n"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/bom.jsonl": "﻿{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/empty.jsonl": "\nbody",
+        "agent/invalid.jsonl": "bad\n",
+        "agent/non-string.jsonl": "{\"type\":\"session\",\"cwd\":42}\n",
+        "agent/sessions/--work-foo-bar--/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work/foo:bar\"}\n{\"keep\":\"exact\"}\n",
+        "agent/wrong.jsonl": "{\"type\":\"message\",\"cwd\":\"/tmp\"}\n"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/bom.jsonl": "﻿{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/empty.jsonl": "\nbody",
+        "agent/invalid.jsonl": "bad\n",
+        "agent/non-string.jsonl": "{\"type\":\"session\",\"cwd\":42}\n",
+        "agent/sessions/--work-foo-bar--/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work/foo:bar\"}\n{\"keep\":\"exact\"}\n",
+        "agent/wrong.jsonl": "{\"type\":\"message\",\"cwd\":\"/tmp\"}\n"
+      }
+    },
+    {
+      "platform": "posix",
+      "id": "session-destination-conflict",
+      "files": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/sessions/--work--/old.jsonl": "existing"
+      },
+      "result": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "messages": [],
+      "after": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/sessions/--work--/old.jsonl": "existing"
+      },
+      "second": {
+        "migratedAuthProviders": [],
+        "deprecationWarnings": []
+      },
+      "afterSecond": {
+        "agent/old.jsonl": "{\"type\":\"session\",\"cwd\":\"/work\"}\n",
+        "agent/sessions/--work--/old.jsonl": "existing"
+      }
+    }
+  ],
+  "warningCases": [
+    {
+      "warnings": [],
+      "trace": []
+    },
+    {
+      "warnings": [
+        "one"
+      ],
+      "trace": [
+        [
+          "log",
+          "warning",
+          "Warning: one"
+        ],
+        [
+          "log",
+          "warning",
+          "\nMove your extensions to the extensions/ directory."
+        ],
+        [
+          "log",
+          "warning",
+          "Migration guide: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/CHANGELOG.md#extensions-migration"
+        ],
+        [
+          "log",
+          "warning",
+          "Documentation: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md"
+        ],
+        [
+          "log",
+          "dim",
+          "\nPress any key to continue..."
+        ],
+        [
+          "raw",
+          true
+        ],
+        [
+          "resume"
+        ],
+        [
+          "once",
+          "data"
+        ],
+        [
+          "raw",
+          false
+        ],
+        [
+          "pause"
+        ],
+        [
+          "log",
+          "plain",
+          ""
+        ]
+      ]
+    },
+    {
+      "warnings": [
+        "first",
+        "second"
+      ],
+      "trace": [
+        [
+          "log",
+          "warning",
+          "Warning: first"
+        ],
+        [
+          "log",
+          "warning",
+          "Warning: second"
+        ],
+        [
+          "log",
+          "warning",
+          "\nMove your extensions to the extensions/ directory."
+        ],
+        [
+          "log",
+          "warning",
+          "Migration guide: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/CHANGELOG.md#extensions-migration"
+        ],
+        [
+          "log",
+          "warning",
+          "Documentation: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md"
+        ],
+        [
+          "log",
+          "dim",
+          "\nPress any key to continue..."
+        ],
+        [
+          "raw",
+          true
+        ],
+        [
+          "resume"
+        ],
+        [
+          "once",
+          "data"
+        ],
+        [
+          "raw",
+          false
+        ],
+        [
+          "pause"
+        ],
+        [
+          "log",
+          "plain",
+          ""
+        ]
+      ]
+    }
+  ]
+}

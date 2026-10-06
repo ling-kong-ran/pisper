@@ -25,7 +25,8 @@ fn read_store<T: serde::de::DeserializeOwned + Default>(data_dir: &str, file: &s
 
 fn write_store(data_dir: &str, file: &str, value: &impl Serialize) -> Result<(), ApiError> {
     std::fs::create_dir_all(data_dir).map_err(|e| ApiError::internal(e.to_string()))?;
-    let json = serde_json::to_string_pretty(value).map_err(|e| ApiError::internal(e.to_string()))?;
+    let json =
+        serde_json::to_string_pretty(value).map_err(|e| ApiError::internal(e.to_string()))?;
     std::fs::write(std::path::Path::new(data_dir).join(file), json)
         .map_err(|e| ApiError::internal(e.to_string()))
 }
@@ -64,7 +65,12 @@ pub async fn extension_install(
     let obj = package
         .as_object_mut()
         .ok_or_else(|| ApiError::bad_request("package body must be an object"))?;
-    if obj.get("id").and_then(|v| v.as_str()).map(|s| s.is_empty()).unwrap_or(true) {
+    if obj
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.is_empty())
+        .unwrap_or(true)
+    {
         obj.insert("id".into(), Value::String(product::new_id()));
     }
     obj.insert("installedAt".into(), Value::from(product::now_ms()));
@@ -116,9 +122,7 @@ fn custom_ui_state(data_dir: &str) -> CustomUiState {
     read_store(data_dir, "custom-ui.json")
 }
 
-pub async fn custom_ui_components(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+pub async fn custom_ui_components(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ui = custom_ui_state(&state.data_dir);
     Json(serde_json::json!({ "components": ui.components }))
 }
@@ -130,7 +134,8 @@ pub async fn custom_ui_import(
     let mut ui = custom_ui_state(&state.data_dir);
     let mut component = component;
     if let Some(obj) = component.as_object_mut() {
-        obj.entry("id").or_insert_with(|| Value::String(product::new_id()));
+        obj.entry("id")
+            .or_insert_with(|| Value::String(product::new_id()));
     }
     ui.components.push(component.clone());
     write_store(&state.data_dir, "custom-ui.json", &ui)?;
@@ -155,7 +160,10 @@ pub async fn custom_ui_bridge_js() -> impl IntoResponse {
     // Rust backend exposes the same fetch/fetchSSE surface names.
     let script = "window.__PISPER_CUSTOM_UI_BRIDGE__ = { version: 1, transport: 'http-sse' };\n";
     (
-        [(axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/javascript; charset=utf-8",
+        )],
         script.to_string(),
     )
 }
@@ -170,9 +178,7 @@ pub struct DecisionsConfig {
     pub delegate: Option<Value>,
 }
 
-pub async fn decisions_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+pub async fn decisions_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let config: DecisionsConfig = read_store(&state.data_dir, "decisions.json");
     Json(serde_json::json!({ "config": config }))
 }
@@ -199,7 +205,9 @@ pub async fn decisions_test(State(state): State<Arc<AppState>>) -> Json<serde_js
             let base = remote.get("baseUrl").and_then(|v| v.as_str()).unwrap_or("");
             Json(serde_json::json!({ "ok": !base.is_empty(), "baseUrl": base }))
         }
-        None => Json(serde_json::json!({ "ok": false, "reason": "decision backend not configured" })),
+        None => {
+            Json(serde_json::json!({ "ok": false, "reason": "decision backend not configured" }))
+        }
     }
 }
 
@@ -308,17 +316,20 @@ pub async fn list_assets(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
     let store: AssetStore = read_store(&state.data_dir, "assets.json");
-    let query = params.get("query").cloned().unwrap_or_default().to_lowercase();
+    let query = params
+        .get("query")
+        .cloned()
+        .unwrap_or_default()
+        .to_lowercase();
     let kind = params.get("kind").cloned().unwrap_or_default();
     let session = params.get("sessionId").cloned().unwrap_or_default();
     let assets: Vec<&Value> = store
         .assets
         .iter()
         .filter(|a| {
-            let matches_query = query.is_empty()
-                || a.to_string().to_lowercase().contains(&query);
-            let matches_kind = kind.is_empty()
-                || a.get("kind").and_then(|k| k.as_str()) == Some(kind.as_str());
+            let matches_query = query.is_empty() || a.to_string().to_lowercase().contains(&query);
+            let matches_kind =
+                kind.is_empty() || a.get("kind").and_then(|k| k.as_str()) == Some(kind.as_str());
             let matches_session = session.is_empty()
                 || a.get("sessionId").and_then(|s| s.as_str()) == Some(session.as_str());
             matches_query && matches_kind && matches_session
@@ -332,8 +343,10 @@ pub async fn create_asset(
     Json(mut record): Json<Value>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     if let Some(obj) = record.as_object_mut() {
-        obj.entry("id").or_insert_with(|| Value::String(product::new_id()));
-        obj.entry("createdAt").or_insert_with(|| Value::from(product::now_ms()));
+        obj.entry("id")
+            .or_insert_with(|| Value::String(product::new_id()));
+        obj.entry("createdAt")
+            .or_insert_with(|| Value::from(product::now_ms()));
     }
     let mut store: AssetStore = read_store(&state.data_dir, "assets.json");
     store.assets.push(record.clone());
@@ -347,7 +360,9 @@ pub async fn delete_asset(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let mut store: AssetStore = read_store(&state.data_dir, "assets.json");
     let before = store.assets.len();
-    store.assets.retain(|a| a.get("id").and_then(|v| v.as_str()) != Some(asset_id.as_str()));
+    store
+        .assets
+        .retain(|a| a.get("id").and_then(|v| v.as_str()) != Some(asset_id.as_str()));
     if store.assets.len() == before {
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
@@ -377,10 +392,13 @@ pub async fn add_memory_record(
     Json(mut record): Json<Value>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     if let Some(obj) = record.as_object_mut() {
-        obj.entry("id").or_insert_with(|| Value::String(product::new_id()));
+        obj.entry("id")
+            .or_insert_with(|| Value::String(product::new_id()));
         // Review-first: new memory records always start pending.
-        obj.entry("status").or_insert_with(|| Value::String("pending".into()));
-        obj.entry("createdAt").or_insert_with(|| Value::from(product::now_ms()));
+        obj.entry("status")
+            .or_insert_with(|| Value::String("pending".into()));
+        obj.entry("createdAt")
+            .or_insert_with(|| Value::from(product::now_ms()));
     }
     let mut records: Vec<Value> = read_store(&state.data_dir, "memory.json");
     records.push(record.clone());

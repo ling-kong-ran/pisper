@@ -1,0 +1,564 @@
+{
+  "source": "packages/coding-agent/src/core/output-guard.ts",
+  "sourceHash": "68c0e9a7533f0cf7270bb50a7558185a9f9a0f71304c85bb438dd620161a4f04",
+  "node": "v25.8.2",
+  "libuv": "1.51.0",
+  "cases": [
+    {
+      "name": "empty_and_flush",
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "retry_ENOBUFS",
+      "waited": {
+        "ok": true
+      },
+      "flushed": {
+        "ok": true
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "B",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "",
+          "encoding": null
+        }
+      ],
+      "sleeps": [
+        10,
+        10
+      ],
+      "exits": []
+    },
+    {
+      "name": "retry_EAGAIN",
+      "waited": {
+        "ok": true
+      },
+      "flushed": {
+        "ok": true
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "B",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "",
+          "encoding": null
+        }
+      ],
+      "sleeps": [
+        10,
+        10
+      ],
+      "exits": []
+    },
+    {
+      "name": "retry_EWOULDBLOCK",
+      "waited": {
+        "ok": true
+      },
+      "flushed": {
+        "ok": true
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "B",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "",
+          "encoding": null
+        }
+      ],
+      "sleeps": [
+        10,
+        10
+      ],
+      "exits": []
+    },
+    {
+      "name": "fatal_EINTR",
+      "waited": {
+        "ok": false,
+        "message": "fatal",
+        "code": "EINTR"
+      },
+      "flushed": {
+        "ok": false,
+        "message": "fatal",
+        "code": "EINTR"
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "fatal_EPIPE",
+      "waited": {
+        "ok": false,
+        "message": "fatal",
+        "code": "EPIPE"
+      },
+      "flushed": {
+        "ok": false,
+        "message": "fatal",
+        "code": "EPIPE"
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "fatal_enobufs",
+      "waited": {
+        "ok": false,
+        "message": "fatal",
+        "code": "enobufs"
+      },
+      "flushed": {
+        "ok": false,
+        "message": "fatal",
+        "code": "enobufs"
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "fatal_null",
+      "waited": {
+        "ok": false,
+        "message": "fatal",
+        "code": null
+      },
+      "flushed": {
+        "ok": false,
+        "message": "fatal",
+        "code": null
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "fatal_123",
+      "waited": {
+        "ok": false,
+        "message": "fatal",
+        "code": 123
+      },
+      "flushed": {
+        "ok": false,
+        "message": "fatal",
+        "code": 123
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "fatal_missing",
+      "waited": {
+        "ok": false,
+        "message": "fatal"
+      },
+      "flushed": {
+        "ok": false,
+        "message": "fatal"
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "callback_then_throw_false",
+      "waited": {
+        "ok": true
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "callback_then_throw_true",
+      "waited": {
+        "ok": false,
+        "message": "callback error",
+        "code": "EPIPE"
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": [
+        1
+      ]
+    },
+    {
+      "name": "flush_error_does_not_poison_tail",
+      "flushed": {
+        "ok": false,
+        "message": "flush only",
+        "code": "EPIPE"
+      },
+      "waited": {
+        "ok": true
+      },
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "after",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "backpressure_rechecks_tail",
+      "checks": [
+        {
+          "done": false,
+          "writes": 1
+        },
+        {
+          "done": false,
+          "writes": 2
+        },
+        {
+          "done": true,
+          "writes": 2
+        }
+      ],
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "B",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "flush_waits_for_empty_callback",
+      "checks": [
+        {
+          "done": false,
+          "writes": 1
+        },
+        {
+          "done": false,
+          "writes": 2
+        },
+        {
+          "done": true,
+          "writes": 2
+        }
+      ],
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "takeover_routes_and_restores",
+      "states": [
+        false,
+        true,
+        false
+      ],
+      "returns": [
+        false,
+        false,
+        false
+      ],
+      "callbacks": [
+        null,
+        null,
+        null
+      ],
+      "writes": [
+        {
+          "sink": "stderr",
+          "kind": "text",
+          "value": "log",
+          "encoding": null
+        },
+        {
+          "sink": "stderr",
+          "kind": "text",
+          "value": "A�",
+          "encoding": null
+        },
+        {
+          "sink": "stderr",
+          "kind": "text",
+          "value": "65,255",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "protocol",
+          "encoding": null
+        },
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "normal",
+          "encoding": "utf8"
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "takeover_captures_writer_identity",
+      "writes": [
+        {
+          "sink": "err2",
+          "kind": "text",
+          "value": "log",
+          "encoding": null
+        },
+        {
+          "sink": "out3",
+          "kind": "text",
+          "value": "overridden",
+          "encoding": null
+        },
+        {
+          "sink": "out2",
+          "kind": "text",
+          "value": "raw saved",
+          "encoding": null
+        },
+        {
+          "sink": "out2",
+          "kind": "text",
+          "value": "restored",
+          "encoding": null
+        },
+        {
+          "sink": "err3",
+          "kind": "text",
+          "value": "new takeover",
+          "encoding": null
+        },
+        {
+          "sink": "out2",
+          "kind": "text",
+          "value": "raw again",
+          "encoding": null
+        }
+      ],
+      "sleeps": [],
+      "exits": []
+    },
+    {
+      "name": "retry_rereads_current_writer",
+      "writes": [
+        {
+          "sink": "stdout",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        },
+        {
+          "sink": "replacement",
+          "kind": "text",
+          "value": "A",
+          "encoding": null
+        }
+      ],
+      "sleeps": [
+        10
+      ],
+      "exits": []
+    }
+  ]
+}

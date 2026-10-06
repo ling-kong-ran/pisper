@@ -1,0 +1,30 @@
+# The embedded model catalog snapshot is verified byte-for-byte against its
+# manifest at build time (src/ai/models/catalog.rs); checkout must not convert
+# the data files' line endings.
+assets/model-data/*.json text eol=lf
+
+# Byte-for-byte oracle fixtures verified against checked-in SHA256 manifests
+# (tui::latex / tui::markdown / evals::report tests) or compared byte-for-byte
+# against a capture (report_formatted.txt). The manifests pin the LF bytes as
+# committed; a CRLF checkout (core.autocrlf=true) breaks the hashes.
+# environment-anchored: checkout line endings normalized to the captured form.
+src/tui/latex/fixtures.json text eol=lf
+src/tui/latex/tables.rs text eol=lf
+src/tui/latex/utf16-fixtures.json text eol=lf
+src/tui/markdown_fixtures.json text eol=lf
+src/tui/markdown_inline_tail_fixtures.json text eol=lf
+src/tui/markdown_source_fixtures.json text eol=lf
+src/tui/markdown_source_utf16_fixtures.json text eol=lf
+src/tui/markdown_utf16_fixtures.json text eol=lf
+src/tui/utils/utf16/wrap-fixtures.json text eol=lf
+docs/migration/reference/latex/source-manifest.json text eol=lf
+docs/migration/reference/latex/utf16-domain.json text eol=lf
+docs/migration/reference/markdown/source-manifest.json text eol=lf
+
+# The whole fixture tree is byte-pinned: oracle captures embed SHA-256 of
+# upstream sources (system_theme_oracle_tests), include_str! compares bytes,
+# and runtime-fs fixtures (evals report_formatted.txt, r20 oracle paths) are
+# compared verbatim. No checkout may convert anything under here — the
+# per-file `text eol=lf` line that used to guard evals_m6 from the scratch/
+# era is subsumed by this rule.
+tests/fixtures/** -text
