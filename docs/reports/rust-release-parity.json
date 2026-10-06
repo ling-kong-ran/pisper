@@ -1,7 +1,7 @@
 {
   "objective": "Rust development branch must match release functionality, UI, contracts, storage, tools, lifecycle, and supported platforms.",
   "status": "incomplete",
-  "generatedAt": "2026-10-05T14:49:27.820Z",
+  "generatedAt": "2026-10-06T05:59:03.743Z",
   "reference": {
     "branch": "release",
     "commit": "582160235671903d9f1c7034b457557b1df74b68"
@@ -17,9 +17,9 @@
   "verificationBoundary": "Static declarations are inventory evidence only. No route or feature is marked equivalent without executable behavioral and integration evidence.",
   "totals": {
     "releaseRoutes": 219,
-    "declarationPresent": 77,
-    "declarationMissing": 142,
-    "behaviorVerified": 0
+    "declarationPresent": 219,
+    "declarationMissing": 0,
+    "behaviorVerified": 31
   },
   "requirements": [
     {
@@ -75,7 +75,7 @@
           "method": "GET",
           "path": "/api/config",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1446
+          "line": 1622
         }
       ],
       "wiredRuntimeVerified": false,
@@ -95,7 +95,7 @@
           "method": "PUT",
           "path": "/api/config",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1446
+          "line": 1622
         }
       ],
       "wiredRuntimeVerified": false,
@@ -110,10 +110,18 @@
       "line": 43,
       "sourceContractSha256": "3fd62e69fcb25f85393d9d2535e034bed124b35882b8a35a8c6df4fc694598e3",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/providers/export",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1647
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "version:1 + providers/credentials/toolMode/disabledProviders/settings snapshot"
     },
     {
       "method": "POST",
@@ -123,10 +131,18 @@
       "line": 50,
       "sourceContractSha256": "b079f5b50aaf17e26a791fc7b642bb62e2d3ae514196e45cda8781150658bf01",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/import",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1648
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "export→import roundtrip; imported lists all provider ids; config reloaded"
     },
     {
       "method": "GET",
@@ -141,7 +157,7 @@
           "method": "GET",
           "path": "/api/settings/chat-dock-layout",
           "source": "runtime-rs/src/ui_contract.rs",
-          "line": 102
+          "line": 114
         }
       ],
       "wiredRuntimeVerified": false,
@@ -161,7 +177,7 @@
           "method": "PUT",
           "path": "/api/settings/chat-dock-layout",
           "source": "runtime-rs/src/ui_contract.rs",
-          "line": 102
+          "line": 114
         }
       ],
       "wiredRuntimeVerified": false,
@@ -176,10 +192,18 @@
       "line": 71,
       "sourceContractSha256": "936d44fa377ac95fb2a83849afb1d95b52f72922659618f43aafe9ffb5f3743c",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/compaction",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 118
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{thresholdPercent,minPercent:10,maxPercent:95}; persisted threshold honored"
     },
     {
       "method": "PATCH",
@@ -189,10 +213,18 @@
       "line": 78,
       "sourceContractSha256": "5b65250f7c9caed171f63d1eb1422fc60a591c91dbdebf98adea83b172311b3f",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/settings/compaction",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 118
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "PATCH 60 → GET returns 60; invalid-range rejected"
     },
     {
       "method": "GET",
@@ -246,8 +278,8 @@
         {
           "method": "GET",
           "path": "/api/settings/notifications",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 106
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 15
         }
       ],
       "wiredRuntimeVerified": false,
@@ -266,8 +298,8 @@
         {
           "method": "PATCH",
           "path": "/api/settings/notifications/browser",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 110
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 16
         }
       ],
       "wiredRuntimeVerified": false,
@@ -286,8 +318,8 @@
         {
           "method": "GET",
           "path": "/api/settings/notifications/browser/events",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 114
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 20
         }
       ],
       "wiredRuntimeVerified": false,
@@ -302,7 +334,14 @@
       "line": 120,
       "sourceContractSha256": "af720cc8408754e82c2fff2214175e40c743dbf2625b2219b250cdc20785db97",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/settings/notifications/chat-completed",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 29
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -315,7 +354,14 @@
       "line": 149,
       "sourceContractSha256": "86ef41c1a893689213a27c9f87de778175d0bb6b53b667047d80fe6ae118edb4",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/settings/notifications/chat-waiting",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 33
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -328,7 +374,14 @@
       "line": 180,
       "sourceContractSha256": "ef494cec3287e80b345ef640947d3af3d1aec6cdb757cd3b4e9b2558a327d6d4",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/settings/notifications/templates/{event}/{platform}/test",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 25
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -341,7 +394,14 @@
       "line": 188,
       "sourceContractSha256": "0c756a1d1f4becd295670d8628f5a63f22650b3b9ebb4c6b4f414e94fa8d62cc",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/settings/notifications/templates/{event}/{platform}",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 21
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -359,7 +419,7 @@
           "method": "GET",
           "path": "/api/providers/discovery",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1473
+          "line": 1651
         }
       ],
       "wiredRuntimeVerified": false,
@@ -374,7 +434,14 @@
       "line": 206,
       "sourceContractSha256": "889f0de20d13fd7e8e753ea851dac768b354ffd7857b4ad136c381d6083a6bd2",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/import",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1650
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -387,7 +454,14 @@
       "line": 213,
       "sourceContractSha256": "de4f75a5ec46a58319c4661e6bccfadf01d0ffa201eec3d252938c20a3891e26",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/visual/models",
+          "source": "runtime-rs/src/visual_api.rs",
+          "line": 57
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -400,7 +474,14 @@
       "line": 220,
       "sourceContractSha256": "c464471537d161cd2a6326509f852526cbe3a849fbf81709063337459af72eaa",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/visual/models/{kind}",
+          "source": "runtime-rs/src/visual_api.rs",
+          "line": 61
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -413,7 +494,14 @@
       "line": 229,
       "sourceContractSha256": "1a7c9c1862ead0a960e2ea4653a3168daa00092812a8ecc5601e699ff31ff1a2",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/visual/test",
+          "source": "runtime-rs/src/visual_api.rs",
+          "line": 65
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -431,7 +519,7 @@
           "method": "POST",
           "path": "/api/providers",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1450
+          "line": 1626
         }
       ],
       "wiredRuntimeVerified": false,
@@ -446,7 +534,14 @@
       "line": 243,
       "sourceContractSha256": "6493d0da3e47bb2cc868a24d74baea89a4b939e3c6dea2d5b74fb3f8e27e4ffd",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/clone",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1628
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -464,7 +559,7 @@
           "method": "POST",
           "path": "/api/providers/models/refresh",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1470
+          "line": 1646
         }
       ],
       "wiredRuntimeVerified": false,
@@ -479,7 +574,14 @@
       "line": 257,
       "sourceContractSha256": "cff076084bea01aa69b0d415b8b9e6b97d2c3f6c8092a9864847649b6e49dacd",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/connection",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1629
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -492,7 +594,14 @@
       "line": 264,
       "sourceContractSha256": "3b3a9c29a80ef5f5f3e9657871e785201bcb5f51fd0c7c899585f8907f888218",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/api-key",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1630
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -505,7 +614,14 @@
       "line": 271,
       "sourceContractSha256": "8d514ad24ef522d7522803d8a181baa643f4d0d2caff8cdda8b099ada1adffae",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/enabled",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1631
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -518,7 +634,14 @@
       "line": 279,
       "sourceContractSha256": "0e3c0e204f6e7d14525869637c22ee3f322c4638f356808185e369abac1ba488",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/models/options",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1636
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -531,7 +654,14 @@
       "line": 286,
       "sourceContractSha256": "abdc13c1f889ed603f41cc3bb50192d251dd6cb62fc457f39b42aed1b9e1e080",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/models",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1632
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -544,7 +674,14 @@
       "line": 293,
       "sourceContractSha256": "7e0dafc68c8cc18354ca780b38d633fde4a432d3d8cbc2f6a6b1be6611fe564d",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/providers/{id}/models",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1632
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -557,7 +694,14 @@
       "line": 311,
       "sourceContractSha256": "5b4fbb211ca2c7f3f174fe0bcd63c3aa072a56fc627c6aeab9a4ccdcebed635e",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/models/discover",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1638
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -575,7 +719,7 @@
           "method": "POST",
           "path": "/api/providers/models/discover-connection",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1466
+          "line": 1642
         }
       ],
       "wiredRuntimeVerified": false,
@@ -595,7 +739,7 @@
           "method": "POST",
           "path": "/api/providers/import-local",
           "source": "runtime-rs/src/provider_config.rs",
-          "line": 1471
+          "line": 1649
         }
       ],
       "wiredRuntimeVerified": false,
@@ -610,7 +754,14 @@
       "line": 332,
       "sourceContractSha256": "dcc7634e05da4bac00d3ed328c460cfadaa4c697d9801165c6e8552e2b73b627",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/models/batch",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1637
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -623,7 +774,14 @@
       "line": 339,
       "sourceContractSha256": "592cb19b6f4c037d7e7ac29e922999317681bbea118ab9fbbe699106e42d9d3f",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/providers/{id}",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1627
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -636,7 +794,14 @@
       "line": 17,
       "sourceContractSha256": "b959f8d35cf96384efece09d6c39b6c50501fa2d208baa3a9ab5a31858680c21",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/custom-ui/import",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 41
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -649,7 +814,14 @@
       "line": 30,
       "sourceContractSha256": "96a70760736ebb322e10598249210b15a9f126d3094b8b0e55481e8ddc8628fb",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/custom-ui/components/{id}/views",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 43
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -662,7 +834,14 @@
       "line": 52,
       "sourceContractSha256": "73fecd3a85a424335f76d769fcb337770386a938a4d8f10d2017bde89d63fc22",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/custom-ui/views/{id}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 44
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -675,7 +854,14 @@
       "line": 60,
       "sourceContractSha256": "0d9ae745a8d8663964a3d11dabc9d7caf88366092be89f2c600d15924974d18b",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/custom-ui/views/{id}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 44
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -692,8 +878,8 @@
         {
           "method": "GET",
           "path": "/api/custom-ui/components",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 128
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 42
         }
       ],
       "wiredRuntimeVerified": false,
@@ -708,7 +894,14 @@
       "line": 75,
       "sourceContractSha256": "801791b452687b2c6d4afb190e8c2c386db8aa678f0b948ea49b6bbecc237ba3",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/bridge.js",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 45
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -721,7 +914,14 @@
       "line": 89,
       "sourceContractSha256": "f6155684a6cacd0f23299b24da2de4fdcb3288a5111965214956b65bf6da9df9",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components/{id}/assets/{*path}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 46
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -734,7 +934,14 @@
       "line": 96,
       "sourceContractSha256": "ca742f7c1fbf502ad03eb7026cff0689df2b4cf05b36dfa4d7c19cb858aac4c3",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components/{id}/assets/{*path}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 46
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -747,7 +954,14 @@
       "line": 103,
       "sourceContractSha256": "c20ef2eff7a30af616e47662f74cee76b35d1a1400a2d098bcabbc5e63032a6b",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components/{id}/assets/{*path}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 46
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -765,7 +979,7 @@
           "method": "GET",
           "path": "/api/decisions/status",
           "source": "runtime-rs/src/main.rs",
-          "line": 1169
+          "line": 1572
         }
       ],
       "wiredRuntimeVerified": false,
@@ -785,7 +999,7 @@
           "method": "PUT",
           "path": "/api/decisions/config",
           "source": "runtime-rs/src/main.rs",
-          "line": 1170
+          "line": 1573
         }
       ],
       "wiredRuntimeVerified": false,
@@ -805,7 +1019,7 @@
           "method": "POST",
           "path": "/api/decisions/test",
           "source": "runtime-rs/src/main.rs",
-          "line": 1174
+          "line": 1577
         }
       ],
       "wiredRuntimeVerified": false,
@@ -825,7 +1039,7 @@
           "method": "POST",
           "path": "/api/decisions/decide",
           "source": "runtime-rs/src/main.rs",
-          "line": 1175
+          "line": 1578
         }
       ],
       "wiredRuntimeVerified": false,
@@ -840,7 +1054,14 @@
       "line": 8,
       "sourceContractSha256": "e05ac1fb6c2e5dca10ad777e71bc2fb73f0df21405cb0323bbd78e1c4201ecf7",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop/reveal-path",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1599
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -853,7 +1074,14 @@
       "line": 20,
       "sourceContractSha256": "cc20c2ed9254c5fb1065ef0d2ee52c7e16df21b6cdbb349c3876ca4124be0fa5",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/app-update",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1600
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -866,7 +1094,14 @@
       "line": 35,
       "sourceContractSha256": "283d491544175ef669833a848e1d937d124d7ecd1e84fb34673002c2d27bed28",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sponsors/{placement}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1601
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -883,13 +1118,14 @@
         {
           "method": "GET",
           "path": "/api/desktop-pet",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 122
+          "source": "runtime-rs/src/main.rs",
+          "line": 1591
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "supported:true status with installed/opacity/spriteUrl fields"
     },
     {
       "method": "GET",
@@ -899,10 +1135,18 @@
       "line": 56,
       "sourceContractSha256": "ae68fd1e983e887f79f745e8c151bc49fe623fe08655c145552153ee401bd45a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/desktop-pet/catalog",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1592
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "live petdex.dev manifest query returned real slugs"
     },
     {
       "method": "POST",
@@ -912,7 +1156,14 @@
       "line": 63,
       "sourceContractSha256": "50c3736e1630ac1fa0c9dd0a33908b016d89be18a4a7861b63e62803874e2915",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/enabled",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1595
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -925,7 +1176,14 @@
       "line": 71,
       "sourceContractSha256": "f9433066b9fe91d4fa1dd128493df16dd0a42e03de88ea7731a559220f9c1e6e",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/opacity",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1596
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -938,7 +1196,14 @@
       "line": 79,
       "sourceContractSha256": "f5f88c60c6ead003884ccc8e88f862517b9b0bf68276e3559be6e0c656c6c7ca",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/install",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1594
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -951,7 +1216,14 @@
       "line": 87,
       "sourceContractSha256": "33c7a9955fc38acd961cdb6e9a62d8574491cee32c48aa3b29a09bbfcabd6a65",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/select",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1597
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -964,7 +1236,14 @@
       "line": 95,
       "sourceContractSha256": "08d40169456672dd8b1b4625d9d6dd6da449d27024c9d4c0efccf5606a0c9af7",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/desktop-pet/{slug}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1598
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -977,7 +1256,14 @@
       "line": 102,
       "sourceContractSha256": "16a9f12b920bd721db9df34d3cb3b1f3929f0eec695cef33588658318865c22a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/desktop-pet/sprite",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1593
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -990,7 +1276,14 @@
       "line": 178,
       "sourceContractSha256": "0da235b8e1484dd0b9f28ee2697239bfe078df7d861fe522cd3d5217b1c79084",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/game-assets/media/{mediaId}/content",
+          "source": "runtime-rs/src/game_assets_api.rs",
+          "line": 94
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1003,7 +1296,14 @@
       "line": 5,
       "sourceContractSha256": "70a3e54284bdcc10a115b86f538773fedcd2b6afeb7c44bcc58b3a800fe41f59",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/channels",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 43
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1016,7 +1316,14 @@
       "line": 12,
       "sourceContractSha256": "2a7e061563da963b99b0c079d641d203bb455f5b65b176572a268f19d422ceef",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/channels/{platform}/onboarding",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 47
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1029,7 +1336,14 @@
       "line": 27,
       "sourceContractSha256": "d25d60c8e98e7947ce35fde7d927bf6b4357727687cc2b4862ea0112c38d1c09",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/channels/{platform}/onboarding/{id}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 51
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1042,7 +1356,14 @@
       "line": 37,
       "sourceContractSha256": "4fa5da3c8d86bcc289ef4fb4d538fab0a7e70b4724fb94ba566652a06053cb65",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/channels/{platform}/onboarding/{id}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 51
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1055,7 +1376,14 @@
       "line": 47,
       "sourceContractSha256": "c89d04b108fdd9439b1bb31681ad0c939d7a25588ab6bc18810ac0b6ac9b1932",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/channels/{platform}/onboarding/{id}/verify",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 58
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1068,7 +1396,14 @@
       "line": 61,
       "sourceContractSha256": "7ee37c13e833e72297f20d80243e1d3cabe9d40254d3b0d269459e631e764fad",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/channels/{platform}/reconnect",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 62
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1081,7 +1416,14 @@
       "line": 69,
       "sourceContractSha256": "aac2c981fb0bf9b410184d65dbb24a2e50441ff5ade91e80f6c632e465a18a39",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/channels/{platform}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 70
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1094,7 +1436,14 @@
       "line": 77,
       "sourceContractSha256": "af64880b753aae3a2c12fd5961c0ca910594d563fe562f1afe172346659ec6cc",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/channels/{platform}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 70
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1107,7 +1456,14 @@
       "line": 86,
       "sourceContractSha256": "f1d6202a09894b66bec0bddeeeddb378240f032de381c566ea51bfa6eb6e4910",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/channels/scopes/{id}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 66
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1124,8 +1480,8 @@
         {
           "method": "GET",
           "path": "/api/plugins",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 126
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 33
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1140,7 +1496,14 @@
       "line": 102,
       "sourceContractSha256": "34901ff9215eaa61e9f206e662fe6edd8f01d828e68a23c715c451d3093629be",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/plugins/inspect",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 34
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1153,7 +1516,14 @@
       "line": 109,
       "sourceContractSha256": "a20ed2e88251419990e5b62c3f046a244589a73d19e28ffc5636336459a2df1a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/plugins/install",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 35
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1166,7 +1536,14 @@
       "line": 116,
       "sourceContractSha256": "6b806582dfa9fec244829bec129a271152c02a885373597a48afb4f01cbbb405",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/plugins/{id}",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 36
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1179,7 +1556,14 @@
       "line": 125,
       "sourceContractSha256": "040f77bffbecdbc2806a38adb4e0a121102c827c1320ef3fd9c2c1e1e23842f2",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/plugins/{id}/capabilities/{name}",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 37
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1192,7 +1576,14 @@
       "line": 141,
       "sourceContractSha256": "edcd7e374ac7ddd614df7bfd26202cbdb91f1d1abd17cf984ca5b7973ae9901c",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/plugins/{id}",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 36
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1205,7 +1596,14 @@
       "line": 148,
       "sourceContractSha256": "daa4c6649290d6051667d84ef5adbfcda2c8f38268ac740fef05d6b40272d3f2",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/plugins/web-search/test",
+          "source": "runtime-rs/src/web_search_api.rs",
+          "line": 16
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1222,8 +1620,8 @@
         {
           "method": "PUT",
           "path": "/api/plugins",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 126
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 33
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1278,7 +1676,14 @@
       "line": 177,
       "sourceContractSha256": "98be5287736cf6c5073ce6a4cc00b3edcbf72fa20397ba29f773ee30bf687c9a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp/{id}/test",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 63
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1291,7 +1696,14 @@
       "line": 184,
       "sourceContractSha256": "7a78cfca2ed804852c18d9bba4c720c1494b044acaf9dd76fc10d46404e53f34",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/mcp/{id}/tools/{tool}",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 62
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1304,7 +1716,14 @@
       "line": 199,
       "sourceContractSha256": "f4013e8dd01de7519107c83d57bf49d0b52c4dfc6b6ff2bd998438b6108dfe90",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/mcp/{id}",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 61
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1317,7 +1736,14 @@
       "line": 212,
       "sourceContractSha256": "116ff8ade16a249eb4e8af43a0dfa17bdc1b6f4bcde7bcd1084594b4ed5fcc06",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/mcp/{id}",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 61
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1335,7 +1761,7 @@
           "method": "GET",
           "path": "/api/extensions/market",
           "source": "runtime-rs/src/main.rs",
-          "line": 1163
+          "line": 1566
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1355,7 +1781,7 @@
           "method": "GET",
           "path": "/api/extensions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1164
+          "line": 1567
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1375,7 +1801,7 @@
           "method": "POST",
           "path": "/api/extensions/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1168
+          "line": 1571
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1395,7 +1821,7 @@
           "method": "DELETE",
           "path": "/api/extensions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1164
+          "line": 1567
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1415,12 +1841,13 @@
           "method": "GET",
           "path": "/api/skills",
           "source": "runtime-rs/src/main.rs",
-          "line": 1144
+          "line": 1498
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "release dashboard shape: cwd/locations/skills/packages/counts"
     },
     {
       "method": "POST",
@@ -1430,7 +1857,14 @@
       "line": 272,
       "sourceContractSha256": "2470c4ff14c15f896e6ddc7d076b96211f7657d72dc08581846ecaff832fc26a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/skills/install",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1499
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1443,7 +1877,14 @@
       "line": 279,
       "sourceContractSha256": "d8b4115eb0a3ba00503c3ac02574d67cb568f5547a3e133c245264d89f50de1f",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/skills/reload",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1500
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1456,7 +1897,14 @@
       "line": 286,
       "sourceContractSha256": "d1a130501a9ffd01fd896c389f690f0c21b01c9dd789a83279b38bfafd5bbbe2",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/skills/{skillName}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1501
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1469,7 +1917,14 @@
       "line": 306,
       "sourceContractSha256": "f157a9892046e800e9d399f5f77be9e9022420f5e942fdaf90faa0aac1140184",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/skills/{skillName}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1501
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1486,13 +1941,14 @@
         {
           "method": "GET",
           "path": "/api/mcp-host",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 124
+          "source": "runtime-rs/src/main.rs",
+          "line": 1588
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "status shape {enabled,listening,host,port,url,error}"
     },
     {
       "method": "PATCH",
@@ -1506,13 +1962,14 @@
         {
           "method": "PATCH",
           "path": "/api/mcp-host",
-          "source": "runtime-rs/src/ui_contract.rs",
-          "line": 124
+          "source": "runtime-rs/src/main.rs",
+          "line": 1588
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "enabled:true persisted; listening:false seam reported honestly"
     },
     {
       "method": "POST",
@@ -1522,10 +1979,18 @@
       "line": 38,
       "sourceContractSha256": "79f5606c5e5fccc5c586bec8ee08e9b83b5c4bf4a55f22f8601106ff419bb9fe",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp-host/credentials",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1589
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "409 mcp_host_not_listening (release not-listening branch)"
     },
     {
       "method": "POST",
@@ -1535,7 +2000,14 @@
       "line": 51,
       "sourceContractSha256": "1952ea4873c3a68b91c335da02ba07f06dd05eb6c82ff6d3ec05bc22c38427e0",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp-host/rotate-token",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1590
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1553,7 +2025,7 @@
           "method": "GET",
           "path": "/api/directories",
           "source": "runtime-rs/src/main.rs",
-          "line": 1176
+          "line": 1579
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1573,7 +2045,7 @@
           "method": "GET",
           "path": "/api/workspace-entries",
           "source": "runtime-rs/src/main.rs",
-          "line": 1177
+          "line": 1580
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1628,7 +2100,14 @@
       "line": 57,
       "sourceContractSha256": "9a1355fcd385077c254de4da64ae3cd2edf010d3b51550a9375bd363d721bbf0",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/assets/{id}/content",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 26
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1641,7 +2120,14 @@
       "line": 68,
       "sourceContractSha256": "50abe16fed7e4afc92a65f23db60c87601dcfa809364b5985a825eb12e013c3a",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/assets/{id}/download",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 27
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1654,7 +2140,14 @@
       "line": 97,
       "sourceContractSha256": "81d63f6ed83db8e7f92edd9fe25d4d72339270c52e75749755a31fd9907ad062",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/assets/{id}",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 28
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1727,7 +2220,14 @@
       "line": 133,
       "sourceContractSha256": "384eb276b9e3e62049f98a358adc6b3567584e892a534b250be752df6a1940ca",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/memory/spaces/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 22
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1740,7 +2240,14 @@
       "line": 142,
       "sourceContractSha256": "319395c92bc0e4f5dcaa27135842d8dc953aa7fb38e0cfe0dfa74f384b0ea9ba",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/memory/spaces/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 22
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1773,7 +2280,14 @@
       "line": 158,
       "sourceContractSha256": "405c8210594626695799937e13f8ff523425f0d1ea2a95df6327edb05edc05b0",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/memory/nodes/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 27
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1786,7 +2300,14 @@
       "line": 167,
       "sourceContractSha256": "f67331d06e1dac1956f4f56ede40d621165ac12e79d1de47a6294afa6987f3bf",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/memory/nodes/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 27
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1819,7 +2340,14 @@
       "line": 183,
       "sourceContractSha256": "4d95768baae938b360e14a5015ef08b97aa42ceb18554c369f6e707587223e26",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/memory/candidates/{id}/{action}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 32
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1837,7 +2365,7 @@
           "method": "GET",
           "path": "/api/remote/connection-info",
           "source": "runtime-rs/src/main.rs",
-          "line": 1146
+          "line": 1506
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1857,7 +2385,7 @@
           "method": "GET",
           "path": "/api/remote/status",
           "source": "runtime-rs/src/main.rs",
-          "line": 1145
+          "line": 1505
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1877,7 +2405,7 @@
           "method": "PUT",
           "path": "/api/remote/enabled",
           "source": "runtime-rs/src/main.rs",
-          "line": 1150
+          "line": 1510
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1892,10 +2420,18 @@
       "line": 130,
       "sourceContractSha256": "f80219232183fd0a0770f8afb04819988b28b541dab38215c76c08dfc301d8b8",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/firewall",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1552
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "status shape {state,reason,port,scope,checkedAt,busy,lanReachability}"
     },
     {
       "method": "POST",
@@ -1905,7 +2441,14 @@
       "line": 138,
       "sourceContractSha256": "466939ad8763952a8847f45863eb8eb67350a74690e05317f13e0d19c1ca7962",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/firewall/retry",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1553
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1923,7 +2466,7 @@
           "method": "POST",
           "path": "/api/remote/pairing-code",
           "source": "runtime-rs/src/main.rs",
-          "line": 1156
+          "line": 1544
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1943,7 +2486,7 @@
           "method": "POST",
           "path": "/api/remote/pair",
           "source": "runtime-rs/src/main.rs",
-          "line": 1160
+          "line": 1548
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1958,10 +2501,18 @@
       "line": 203,
       "sourceContractSha256": "fd648016673304d76104110f78a29f6439558f709fa35e8993cf7f3659e9d942",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/pairing-requests",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1554
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "202 {requestId,requestSecret,expiresAt,serverName,endpoints,fingerprint,apiVersion}"
     },
     {
       "method": "GET",
@@ -1971,10 +2522,18 @@
       "line": 228,
       "sourceContractSha256": "e7bbe357117501c6f969e4285c7d7d6dd2b85e3f29e0b4ceb355468037799e1e",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/pairing-requests/{requestId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1558
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "secret-gated pending → approved token retrieval"
     },
     {
       "method": "DELETE",
@@ -1984,7 +2543,14 @@
       "line": 248,
       "sourceContractSha256": "b1d6fd46fec67639e6a4459a1a89ac657946391d0f9a1304cc3289d30ce9ea22",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/remote/pairing-requests/{requestId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1558
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -1997,10 +2563,18 @@
       "line": 264,
       "sourceContractSha256": "55a482cd6e1b5dfe4c72b0a1aa886fa64103397437f183a995a50bdf6ed6d34c",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/pairing-requests",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1554
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "desktop list without secrets"
     },
     {
       "method": "POST",
@@ -2010,10 +2584,18 @@
       "line": 272,
       "sourceContractSha256": "ee6d644431d37bc2d2a8676c4acbf11767ab6e3003c0aa5552c73be5a7ea8fbe",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/pairing-requests/{requestId}/decision",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1562
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "approve created device + token; persisted"
     },
     {
       "method": "GET",
@@ -2028,7 +2610,7 @@
           "method": "GET",
           "path": "/api/remote/devices",
           "source": "runtime-rs/src/main.rs",
-          "line": 1161
+          "line": 1549
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2043,10 +2625,18 @@
       "line": 300,
       "sourceContractSha256": "8116d1a6d857c634b00b70ce59d27648b3a7c5378f7273c1c7e7b9e62d92f1ea",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/devices/{id}/revoke",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1551
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "204 empty; device removed"
     },
     {
       "method": "GET",
@@ -2056,7 +2646,14 @@
       "line": 7,
       "sourceContractSha256": "6b1e32d70f1f520dbddb6b726d1ba46deda0b8b834eec5874260c54ba868265a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/runs/{id}/events",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1585
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2094,12 +2691,13 @@
           "method": "GET",
           "path": "/api/health",
           "source": "runtime-rs/src/main.rs",
-          "line": 1195
+          "line": 1612
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "ok:true + capabilities payload; engine pi-rs"
     },
     {
       "method": "GET",
@@ -2114,7 +2712,7 @@
           "method": "GET",
           "path": "/api/runtime/capabilities",
           "source": "runtime-rs/src/ui_contract.rs",
-          "line": 92
+          "line": 104
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2234,7 +2832,7 @@
           "method": "GET",
           "path": "/api/client-info",
           "source": "runtime-rs/src/ui_contract.rs",
-          "line": 88
+          "line": 100
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2254,7 +2852,7 @@
           "method": "GET",
           "path": "/api/runtime/diagnostics",
           "source": "runtime-rs/src/main.rs",
-          "line": 1155
+          "line": 1543
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2274,7 +2872,7 @@
           "method": "GET",
           "path": "/api/usage/today",
           "source": "runtime-rs/src/main.rs",
-          "line": 1106
+          "line": 1460
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2294,7 +2892,7 @@
           "method": "GET",
           "path": "/api/sessions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1107
+          "line": 1461
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2314,7 +2912,7 @@
           "method": "GET",
           "path": "/api/session-labels",
           "source": "runtime-rs/src/main.rs",
-          "line": 1131
+          "line": 1485
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2334,12 +2932,13 @@
           "method": "POST",
           "path": "/api/sessions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1107
+          "line": 1461
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 full session row (flat shape, model inherited)"
     },
     {
       "method": "GET",
@@ -2349,10 +2948,18 @@
       "line": 171,
       "sourceContractSha256": "de5b46a2881c34433693a914a3d07c6bdd90308ac70d761a1a78bfa90b57b90c",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/side-chat",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1539
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "empty: {session:null,expiresAt:null,created:false}"
     },
     {
       "method": "POST",
@@ -2362,10 +2969,18 @@
       "line": 178,
       "sourceContractSha256": "255206a0954fbe7fef7f6bbb33d48375784fc24b2d28135bb5b40a33d557be5b",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/side-chat",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1539
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "created side-<uuid> session, 24h expiresAt, metadata.sideChat persisted; GET returns existing row"
     },
     {
       "method": "POST",
@@ -2375,7 +2990,14 @@
       "line": 185,
       "sourceContractSha256": "22655062dea07ed8b2d9aad49c5c6f967e2a4ba458bd259ed85313d23bb92fca",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/derive",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1477
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2388,10 +3010,18 @@
       "line": 200,
       "sourceContractSha256": "1ed549784289e32d04af569dd10a6aa1294fcf0b52bdc0f5761e19af97f0ce1c",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/tree",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1475
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "projected nodes (kind/role/status/label/leaf/branchPoint) after real chat turn"
     },
     {
       "method": "POST",
@@ -2401,10 +3031,18 @@
       "line": 207,
       "sourceContractSha256": "bed263fa94c6d7eeef43ebbe337edc242ca81b0ae163aee3d542ea2954fd4ec9",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/tree/navigate",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1531
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "includeTree:false → {cancelled:false,editorText:null}; leaf moved"
     },
     {
       "method": "PUT",
@@ -2414,10 +3052,18 @@
       "line": 230,
       "sourceContractSha256": "70774ced3c4aa451777b9e1b9e71dbe411bd18b4f8bdeb5b0cea7703e522cf4a",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/tree/labels/{entryId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1535
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "label set via appendLabelChange; returned tree shows label"
     },
     {
       "method": "GET",
@@ -2427,10 +3073,18 @@
       "line": 239,
       "sourceContractSha256": "fe119c7ff2daefbe9f8383f76990f0c7290cb9f2d0389443cb18a161c6eb762b",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/commands",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1530
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{sessionId,commands,counts{total,prompts,skills,diagnostics}}"
     },
     {
       "method": "PUT",
@@ -2440,7 +3094,14 @@
       "line": 246,
       "sourceContractSha256": "9c535fbb63bca4dc1155b608231d9eb91fd1aaf39d421bae9b40c4550bf89d42",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/model",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1486
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2453,7 +3114,14 @@
       "line": 260,
       "sourceContractSha256": "0edfaf76a3ace7786cd23839a9bd1d5b11494024bd9dcc5a650e5e46cd4e7bf7",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/thinking-level",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1492
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2466,7 +3134,14 @@
       "line": 269,
       "sourceContractSha256": "ac84d5f68c1792f31f077379258ebbfc13d892669dd397df9ba2f7dc57004806",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/thinking-level",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1492
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2479,7 +3154,14 @@
       "line": 282,
       "sourceContractSha256": "5b470b3eed4d354339a9cf3452765b9395dd7eaf151a2d8946fe70257c32cfd7",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/cwd",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1479
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2492,7 +3174,14 @@
       "line": 291,
       "sourceContractSha256": "fe0628d3180156b478f1df6d69a541187ed7ee35bae8ed31c4706077772b040f",
       "owner": "execution-goals-agents",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/goal",
+          "source": "runtime-rs/src/goal_api.rs",
+          "line": 32
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2505,7 +3194,14 @@
       "line": 300,
       "sourceContractSha256": "577db8d8be4a871c5f2e77879ffe4c7273d50c04152ae4643722b4b1a7e11516",
       "owner": "execution-goals-agents",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/team",
+          "source": "runtime-rs/src/multi_agent_api.rs",
+          "line": 64
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2518,7 +3214,14 @@
       "line": 309,
       "sourceContractSha256": "5d8b8a270913a0d2b38a9e57e6d2c8c1b3bb6611013cf7c53b492741430a566b",
       "owner": "execution-goals-agents",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/sessions/{id}/goal",
+          "source": "runtime-rs/src/goal_api.rs",
+          "line": 32
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2531,7 +3234,14 @@
       "line": 326,
       "sourceContractSha256": "65893d829220f98bb0350bc24011262ce651b3b5ae1b1bfbeb71b170edd8d2df",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/git/changes",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1516
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2544,10 +3254,18 @@
       "line": 333,
       "sourceContractSha256": "ec5cdc5534426049595c52ea850389098fa42f188310ac84ffc6d02ab7079be4",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/git/commit",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1517
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "git/* alias committed and returned updated changes"
     },
     {
       "method": "POST",
@@ -2557,7 +3275,14 @@
       "line": 340,
       "sourceContractSha256": "ef0002dc71c4189e15e3d751de849931c4e6501dc59464b8b65643120fa0a02f",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/git/push",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1518
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2570,7 +3295,14 @@
       "line": 347,
       "sourceContractSha256": "e778d34056cb733db2d10217140d8d5ad7031298924d0e019faa8500f2b8199f",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/git/revert",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1519
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2583,10 +3315,18 @@
       "line": 354,
       "sourceContractSha256": "ae6d3bfba2e34b88e2f63cfc3abd05afe437ad34710ef548f21d7a0c012510cd",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/vcs/changes",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1511
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "real git repo: isRepo/branch/hasHead/files/ahead/vcs shapes"
     },
     {
       "method": "GET",
@@ -2596,10 +3336,18 @@
       "line": 361,
       "sourceContractSha256": "11aeeb4bc36e1e7f5211278ad6e4587f640f000e765fc81d6be72a35924fc038",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/vcs/file-diff",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1520
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "real tracked-file diff with source:'vcs',canRevert:false"
     },
     {
       "method": "GET",
@@ -2609,7 +3357,14 @@
       "line": 368,
       "sourceContractSha256": "f845be1d202f6c2f7389bc8c1cca7849e659f0ef7e78933a49f6aadc53f9997c",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/file-changes",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 15
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2622,7 +3377,14 @@
       "line": 375,
       "sourceContractSha256": "4c065a7e00702996f0e4f6fbed5e91fb67226fff8c61f55b6a4fee1da9c58bc6",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/change-summary",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 16
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2635,7 +3397,14 @@
       "line": 382,
       "sourceContractSha256": "3bc35666c3a9d20b6adcd6a4e53a3e2b1732382db02254bdd501d059853ddfa5",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/file-changes/diff",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 17
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2648,7 +3417,14 @@
       "line": 392,
       "sourceContractSha256": "4441eedb917799ee4dbee052ff0d9c482f750303937e40d3903e785a04174f07",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/file-changes/revert",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 18
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2661,7 +3437,14 @@
       "line": 402,
       "sourceContractSha256": "1f29bdcb8cdd5f3158a76a4e5f7129617586bb8bc96c17ad4808bfb02fce9c23",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/file-changes/approve",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 19
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2674,7 +3457,14 @@
       "line": 412,
       "sourceContractSha256": "0ec044de285202e7454c52b09b7999bbabbc5a97624a226973e01db3adbdc868",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/vcs/commit",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1512
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2687,7 +3477,14 @@
       "line": 419,
       "sourceContractSha256": "3039b82498f5ea0edab2001b0229cd759209bfa23e00bd6094df2f584743eea2",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/vcs/push",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1513
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2700,7 +3497,14 @@
       "line": 426,
       "sourceContractSha256": "4b93ad2ef2a72c03b8867a5165c7bc98d2c0cf6b2b2f2c361e7d396cf5949bab",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/vcs/revert",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1514
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2713,7 +3517,14 @@
       "line": 433,
       "sourceContractSha256": "a0658c2e5d7ea8da09d884e65f908215f35f4ee0896532b838c26936aa61475f",
       "owner": "execution-goals-agents",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/execution-mode",
+          "source": "runtime-rs/src/approval_api.rs",
+          "line": 719
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2726,7 +3537,14 @@
       "line": 442,
       "sourceContractSha256": "afa0f5b7386e1f7caf433a29cac0879e246c7a0614a06106262b77f536438180",
       "owner": "execution-goals-agents",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/permission",
+          "source": "runtime-rs/src/approval_api.rs",
+          "line": 723
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2739,7 +3557,14 @@
       "line": 451,
       "sourceContractSha256": "b8f62da7332f2368e7a75d2953b15b15d35f853d6454aa07c4bfedd8f179ec6d",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/run-mode",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1480
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2752,7 +3577,14 @@
       "line": 460,
       "sourceContractSha256": "2061ca2cc9c5d664ecf801c6c18914d1a63970db4fb21185531e08e3bc97bfee",
       "owner": "execution-goals-agents",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/approvals/{approval}",
+          "source": "runtime-rs/src/approval_api.rs",
+          "line": 718
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2765,7 +3597,14 @@
       "line": 473,
       "sourceContractSha256": "e20b8a9764a9caeaa214717c2d886c068c91a0193e0ea14e9d1860f3d29a12da",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/sessions/{id}/organization",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1469
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2778,7 +3617,14 @@
       "line": 489,
       "sourceContractSha256": "166e75114f080998ad42f33f669e143c1ce676798b41d6a70c4e47e638fcfc55",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/sessions/{id}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1465
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2791,7 +3637,14 @@
       "line": 500,
       "sourceContractSha256": "9a47597e5b9baf6208c7b766279846fbe9df9154713be805ee0e2cd40da49cf6",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/sessions/{id}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1465
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2804,7 +3657,14 @@
       "line": 509,
       "sourceContractSha256": "41a9e61f65705867cb065dc05b48312490133ce2b119db69bc27cc2f76d319f4",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/messages",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1481
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2817,7 +3677,14 @@
       "line": 522,
       "sourceContractSha256": "6c83e166f1fac0dfb0bf834063711df9e6088ffba22fca20e07e773d033f855e",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/live",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1474
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2830,7 +3697,14 @@
       "line": 529,
       "sourceContractSha256": "3cb9fc0caf69dd9594340b8e5662a1e47edea98515076b80537a4f30136e96bc",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/compact",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1478
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2843,7 +3717,14 @@
       "line": 536,
       "sourceContractSha256": "100fb9e3e1898739e4fdf067ea0e2f616cab13cadd9fa2d7d509b19f14ab9bb9",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/input",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1473
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2856,10 +3737,18 @@
       "line": 551,
       "sourceContractSha256": "b00b4c00a7744045d7996f7934a3ff4fdd8fb95ed490c45f0f765b883efe4def",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/sessions/{id}/input/{inputId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1524
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{removed:false,inputId,pendingMessageCount,queuedInputs}"
     },
     {
       "method": "POST",
@@ -2869,10 +3758,18 @@
       "line": 558,
       "sourceContractSha256": "a594650e8195bdd169531b856f2142e94c61116294d6892c3c1464ed191b8a02",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/mobile-operations/{operationId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1525
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{accepted:false} (release unknown-opId branch; mobile channel seam)"
     },
     {
       "method": "POST",
@@ -2882,7 +3779,14 @@
       "line": 574,
       "sourceContractSha256": "0c9bcf8e3b26523ec6d8cad303a299b37f4170906fa570784818642faf7a26f8",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/abort",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1476
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2895,7 +3799,14 @@
       "line": 590,
       "sourceContractSha256": "e2d420b4b8b314a4d4aca6417c46f742e0ee0a3d2d2a80f5a586c28128a14c61",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/workflow-runs",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 209
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -2908,10 +3819,18 @@
       "line": 597,
       "sourceContractSha256": "8fd18822f8cd83909b8462479a1044543cb5a368fb5fcd92b959eef7c9a8df32",
       "owner": "integration-runtime-platform",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/retry",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1529
+        }
+      ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "SSE re-ran last turn after tree navigation (real model response)"
     },
     {
       "method": "POST",
@@ -2926,12 +3845,13 @@
           "method": "POST",
           "path": "/api/chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1181
+          "line": 1584
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "full run protocol SSE with real model reply"
     },
     {
       "method": "GET",
@@ -3061,7 +3981,14 @@
       "line": 47,
       "sourceContractSha256": "5c4089eade74fc8be2e53306d28bec8df64f78022be440ff9c3b705ca0d62543",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sprite-engines/{id}/files/{name}",
+          "source": "runtime-rs/src/native_image_runtime/engines.rs",
+          "line": 380
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3094,7 +4021,14 @@
       "line": 39,
       "sourceContractSha256": "27ce5b854575a1b8acf17133e5c4f2067f8d23ef81c6cf0ad2287a7b7da4bdd0",
       "owner": "memory-assets-media",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflow-media/{id}/content",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 36
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3127,7 +4061,14 @@
       "line": 57,
       "sourceContractSha256": "7c32aadcdf1689a043cd52a8b65f852d8fb216d28ec3a6cb6a28659654dd3eba",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/{id}/nodes/{node}/run",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 205
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3160,7 +4101,14 @@
       "line": 90,
       "sourceContractSha256": "e56f8d7fc4ea023b79f893d16ed24c7a22fd1286390237b40b3c47d46ba6f3e3",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflows/{id}/bundle",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 39
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3198,7 +4146,7 @@
           "method": "GET",
           "path": "/api/schedules",
           "source": "runtime-rs/src/schedule_api.rs",
-          "line": 656
+          "line": 695
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3218,7 +4166,7 @@
           "method": "POST",
           "path": "/api/schedules",
           "source": "runtime-rs/src/schedule_api.rs",
-          "line": 656
+          "line": 695
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3233,7 +4181,14 @@
       "line": 143,
       "sourceContractSha256": "fc908012746e71d7e3d60a339f167de5e13601406a3231f427110a3d9ae273bb",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/schedules/{id}/run",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 700
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3246,7 +4201,14 @@
       "line": 152,
       "sourceContractSha256": "a3fc3a0f5cd67b2b3a0c7a647f54b9fb8c53e0ebabaf1c63f34e3df352212374",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/schedules/{id}",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 696
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3259,7 +4221,14 @@
       "line": 161,
       "sourceContractSha256": "43418b5f044555f74c255bb9c10da7c3e84b61ab0c57c328da18fb258e1cc908",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/schedules/{id}",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 696
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3312,7 +4281,14 @@
       "line": 184,
       "sourceContractSha256": "14d5dec3d21ac8990ab85654903ffb32b5f7d336bfcebb625cd7322df196f9b8",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflow-runs/{id}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 206
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3325,7 +4301,14 @@
       "line": 193,
       "sourceContractSha256": "8ed20745c84a2310536a85415a5926aed8f5538933278bbc303621fab121e7ab",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-runs/{id}/retry",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 207
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3338,7 +4321,14 @@
       "line": 202,
       "sourceContractSha256": "87d9d944562907d037db8fc179174c68966b53da3b575c1421f5b52cbc96bc92",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-runs/{id}/approvals/{node}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 210
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3351,7 +4341,14 @@
       "line": 215,
       "sourceContractSha256": "3b6ea16a665d8118edd10c2e008fff9a7fcf9b29b69bd8d93b818c1ce04ec3ba",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-runs/{id}/stop",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 208
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3364,7 +4361,14 @@
       "line": 224,
       "sourceContractSha256": "e6e904f0a9acaaf98902c97b97989f464c9730c912fcdbc4949496ad19843d04",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/{id}/run",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 204
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3377,7 +4381,14 @@
       "line": 233,
       "sourceContractSha256": "5885f9c9eadddd0cc733419f265ad9e1e17d76a9fc89eb6366c28e1acb7a0518",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/{id}/duplicate",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 203
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3390,7 +4401,14 @@
       "line": 242,
       "sourceContractSha256": "e81fed317ffac5fefb129dd0a21dcf930bfc5baab8423b8793af17dc2e60cdab",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/workflows/{id}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 199
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"
@@ -3403,7 +4421,14 @@
       "line": 251,
       "sourceContractSha256": "d0ce6465f5b520ecbbee3683f4b49dfc456fe394a9038f92801a84cf364b8a1f",
       "owner": "workflows-schedules",
-      "declarations": [],
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/workflows/{id}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 199
+        }
+      ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": false,
       "verificationStatus": "pending-reference-contract-tests"

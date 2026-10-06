@@ -9,6 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const referenceFlag = args.indexOf('--reference')
 const reportFlag = args.indexOf('--report')
+const evidenceFlag = args.indexOf('--evidence')
 const reference = path.resolve(
   referenceFlag < 0
     ? path.join(root, '../pisper-release-parity-reference')
@@ -123,15 +124,49 @@ for (const file of await filesBelow(path.join(root, 'runtime-rs/src'), '.rs')) {
   }
 }
 
+// Axum 按位置提取路径参数，参数名不影响路由匹配；release 的 `:id` 与
+// 原生声明的 `{id}` 只需段形状一致。`{*wild}` 捕获段可覆盖任意后缀深度。
+function routeShape(value) {
+  return value
+    .split('/')
+    .map((segment) => (segment.startsWith('{*') ? '{*}' : segment.startsWith('{') ? '{}' : segment))
+    .join('/')
+}
+
+function declarationCovers(native, normalizedPath) {
+  if (native.method !== native.method.toUpperCase()) return false
+  const nativeShape = routeShape(native.path)
+  const expectedShape = routeShape(normalizedPath)
+  if (nativeShape === expectedShape) return true
+  const wildcard = nativeShape.indexOf('/{*}/')
+  if (wildcard === -1 && !nativeShape.endsWith('/{*}')) return false
+  const base = wildcard === -1 ? nativeShape.slice(0, -4) : nativeShape.slice(0, wildcard + 1)
+  return (
+    expectedShape === base.slice(0, -1) || expectedShape.startsWith(`${base}`)
+  )
+}
+
 const byKey = new Map(expected.map((route) => [`${route.method} ${route.path}`, route]))
+// 可选的运行证据清单：{ "METHOD /path": { evidence, verifiedAt } }。
+// 只有可执行行为验证（HTTP 往返、契约对照）才允许置位 behaviorVerified。
+const evidenceByKey = new Map()
+if (evidenceFlag >= 0) {
+  const raw = JSON.parse(await readFile(path.resolve(args[evidenceFlag + 1]), 'utf8'))
+  for (const [key, value] of Object.entries(raw.entries ?? {})) evidenceByKey.set(key, value)
+}
 const requirements = [...byKey.values()].map((route) => ({
   ...route,
   declarations: nativeDeclarations.filter(
-    (native) => native.path === route.normalizedPath && native.method === route.method,
+    (native) =>
+      (native.path === route.normalizedPath || declarationCovers(native, route.normalizedPath)) &&
+      native.method === route.method,
   ),
   wiredRuntimeVerified: false,
-  behaviorVerified: false,
-  verificationStatus: 'pending-reference-contract-tests',
+  behaviorVerified: evidenceByKey.has(`${route.method} ${route.normalizedPath}`),
+  verificationStatus: evidenceByKey.has(`${route.method} ${route.normalizedPath}`)
+    ? 'behavior-verified'
+    : 'pending-reference-contract-tests',
+  ...(evidenceByKey.get(`${route.method} ${route.normalizedPath}`) ?? {}),
 }))
 const referenceCommit = execFileSync('git', ['-C', reference, 'rev-parse', 'HEAD'], {
   encoding: 'utf8',
@@ -159,7 +194,7 @@ const report = {
     releaseRoutes: requirements.length,
     declarationPresent: requirements.filter((route) => route.declarations.length > 0).length,
     declarationMissing: requirements.filter((route) => route.declarations.length === 0).length,
-    behaviorVerified: 0,
+    behaviorVerified: requirements.filter((route) => route.behaviorVerified).length,
   },
   requirements,
 }

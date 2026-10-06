@@ -1,0 +1,107 @@
+{
+  "description": "Live HTTP round-trips against runtime-rs (cargo debug build, 127.0.0.1:5199, isolated data dir + workspace, real qwen3.8-27b vLLM provider) on 2026-10-06. Each entry marks an endpoint whose response contract was exercised and matched the release shape.",
+  "verifiedAt": "2026-10-06T05:20:00Z",
+  "environment": {
+    "build": "cargo build --bin pisper-server (debug)",
+    "transport": "HTTP/JSON + SSE",
+    "provider": "openai-compat qwen3.8-27b (internal vLLM)"
+  },
+  "entries": {
+    "GET /api/health": {
+      "evidence": "ok:true + capabilities payload; engine pi-rs"
+    },
+    "GET /api/settings/compaction": {
+      "evidence": "{thresholdPercent,minPercent:10,maxPercent:95}; persisted threshold honored"
+    },
+    "PATCH /api/settings/compaction": {
+      "evidence": "PATCH 60 → GET returns 60; invalid-range rejected"
+    },
+    "GET /api/skills": {
+      "evidence": "release dashboard shape: cwd/locations/skills/packages/counts"
+    },
+    "GET /api/providers/export": {
+      "evidence": "version:1 + providers/credentials/toolMode/disabledProviders/settings snapshot"
+    },
+    "POST /api/providers/import": {
+      "evidence": "export→import roundtrip; imported lists all provider ids; config reloaded"
+    },
+    "GET /api/desktop-pet": {
+      "evidence": "supported:true status with installed/opacity/spriteUrl fields"
+    },
+    "GET /api/desktop-pet/catalog": {
+      "evidence": "live petdex.dev manifest query returned real slugs"
+    },
+    "GET /api/mcp-host": {
+      "evidence": "status shape {enabled,listening,host,port,url,error}"
+    },
+    "PATCH /api/mcp-host": {
+      "evidence": "enabled:true persisted; listening:false seam reported honestly"
+    },
+    "POST /api/mcp-host/credentials": {
+      "evidence": "409 mcp_host_not_listening (release not-listening branch)"
+    },
+    "GET /api/remote/firewall": {
+      "evidence": "status shape {state,reason,port,scope,checkedAt,busy,lanReachability}"
+    },
+    "GET /api/sponsors/test-placement": {
+      "evidence": "{placement,campaigns,checkedAt,source} shape; cache honored"
+    },
+    "POST /api/sessions": {
+      "evidence": "201 full session row (flat shape, model inherited)"
+    },
+    "GET /api/sessions/{sessionId}/commands": {
+      "evidence": "{sessionId,commands,counts{total,prompts,skills,diagnostics}}"
+    },
+    "GET /api/sessions/{sessionId}/side-chat": {
+      "evidence": "empty: {session:null,expiresAt:null,created:false}"
+    },
+    "POST /api/sessions/{sessionId}/side-chat": {
+      "evidence": "created side-<uuid> session, 24h expiresAt, metadata.sideChat persisted; GET returns existing row"
+    },
+    "GET /api/sessions/{sessionId}/tree": {
+      "evidence": "projected nodes (kind/role/status/label/leaf/branchPoint) after real chat turn"
+    },
+    "PUT /api/sessions/{sessionId}/tree/labels/{entryId}": {
+      "evidence": "label set via appendLabelChange; returned tree shows label"
+    },
+    "POST /api/sessions/{sessionId}/tree/navigate": {
+      "evidence": "includeTree:false → {cancelled:false,editorText:null}; leaf moved"
+    },
+    "POST /api/sessions/{sessionId}/retry": {
+      "evidence": "SSE re-ran last turn after tree navigation (real model response)"
+    },
+    "POST /api/chat": {
+      "evidence": "full run protocol SSE with real model reply"
+    },
+    "GET /api/sessions/{sessionId}/vcs/changes": {
+      "evidence": "real git repo: isRepo/branch/hasHead/files/ahead/vcs shapes"
+    },
+    "GET /api/sessions/{sessionId}/vcs/file-diff": {
+      "evidence": "real tracked-file diff with source:'vcs',canRevert:false"
+    },
+    "POST /api/sessions/{sessionId}/git/commit": {
+      "evidence": "git/* alias committed and returned updated changes"
+    },
+    "DELETE /api/sessions/{sessionId}/input/{inputId}": {
+      "evidence": "{removed:false,inputId,pendingMessageCount,queuedInputs}"
+    },
+    "POST /api/sessions/{sessionId}/mobile-operations/{operationId}": {
+      "evidence": "{accepted:false} (release unknown-opId branch; mobile channel seam)"
+    },
+    "POST /api/remote/pairing-requests": {
+      "evidence": "202 {requestId,requestSecret,expiresAt,serverName,endpoints,fingerprint,apiVersion}"
+    },
+    "GET /api/remote/pairing-requests": {
+      "evidence": "desktop list without secrets"
+    },
+    "GET /api/remote/pairing-requests/{requestId}": {
+      "evidence": "secret-gated pending → approved token retrieval"
+    },
+    "POST /api/remote/pairing-requests/{requestId}/decision": {
+      "evidence": "approve created device + token; persisted"
+    },
+    "POST /api/remote/devices/{deviceId}/revoke": {
+      "evidence": "204 empty; device removed"
+    }
+  }
+}
