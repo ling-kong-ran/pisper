@@ -60,3 +60,8 @@ pisper-agents.json
 dev.pid
 crates/computer-use-capture-win/Cargo.lock
 runtime-rs/target/
+
+runtime-rs/vendor/pi-rs/target/
+
+# scoped test/build dirs produced by native domain verification
+runtime-rs/target-*/
