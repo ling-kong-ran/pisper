@@ -2,7 +2,7 @@
 // runtime 经 /api/client-info 回显。移动端下设置页只提供「服务器」切换，
 // 桌面端才显示「远程访问」管理面（发码/吊销）。
 import { create } from 'zustand'
-import { apiJson } from '@/lib/api'
+import { apiJson } from '@/lib/http/api'
 
 export type ClientKind = 'web' | 'mobile-app'
 

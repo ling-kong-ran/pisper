@@ -4024,6 +4024,7 @@ dependencies = [
  "image",
  "iroh",
  "jni 0.21.1",
+ "libc",
  "objc2",
  "objc2-core-foundation",
  "objc2-core-media",

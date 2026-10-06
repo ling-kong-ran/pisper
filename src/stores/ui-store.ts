@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'
-import { pageStateStorage } from '@/lib/page-state-storage'
+import { pageStateStorage } from '@/lib/storage/page-state-storage'
 
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'

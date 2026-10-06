@@ -12,12 +12,12 @@ import {
   Play,
   type LucideIcon,
 } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+import { useI18n } from '@/app/i18n/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { ThemeToggleButton } from './ThemeToggleButton'
 import { cn } from '@/lib/utils'
-import { useShortcutLabel } from '@/lib/shortcuts'
+import { useShortcutLabel } from '@/lib/ui/shortcuts'
 
 import { Button } from '@/components/ui/button'
 

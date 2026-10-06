@@ -3,7 +3,12 @@
   "plugins": ["react", "import", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ]
   },
   "overrides": [
     {
@@ -36,5 +41,6 @@
         "react/only-export-components": "off"
       }
     }
-  ]
+  ],
+  "ignorePatterns": ["runtime-rs/vendor/**"]
 }

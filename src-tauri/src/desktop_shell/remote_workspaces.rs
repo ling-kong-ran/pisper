@@ -29,11 +29,14 @@ pub(crate) struct DesktopRemoteState {
 
 impl DesktopRemoteState {
     pub(crate) fn new(app: &tauri::AppHandle, bootstrap_url: String) -> Result<Self, String> {
-        let path = app
-            .path()
-            .app_data_dir()
-            .map_err(|error| error.to_string())?
-            .join("desktop-remote-servers.json");
+        let directory = if super::desktop_data_dir_override()?.is_some() {
+            super::desktop_data_dir(app)?
+        } else {
+            app.path()
+                .app_data_dir()
+                .map_err(|error| error.to_string())?
+        };
+        let path = directory.join("desktop-remote-servers.json");
         Ok(Self {
             store: Mutex::new(ProfileStore::load(&path)),
             connections: Mutex::new(HashMap::new()),

@@ -1,0 +1,953 @@
+// Agent 运行活动面板：在消息下方展示当前运行的 Agent 状态——思考文本、
+// 工具调用列表、计划预览与停止按钮，实时跟随 SSE 流更新。
+import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import { AlertTriangle, Check, ChevronRight, Clock3, Code2, Square } from 'lucide-react'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { Plan } from '@/components/ai-elements/plan'
+import { Task } from '@/components/ai-elements/task'
+import MarkdownMessage from '@/components/common/MarkdownMessage'
+import { planFromActivity } from '@/lib/session/plan-protocol'
+import { terminalDisplayOutput } from '@/lib/ui/terminal-output'
+import type { EntityRecord, TeamCommunication, TeamState, TeamTask } from '@/types/chat'
+import { ComputerUseLiveMirror } from '@/features/chat/components/ComputerUseLiveMirror'
+import { ChatRequestNotice } from '@/features/chat/components/ChatRequestNotice'
+import { latestComputerUseTarget } from '@/features/chat/model/computer-use-live-support'
+import {
+  agentActivityTitle,
+  compactionText,
+  planChangeText,
+  planProgress,
+  toolActivityLabel,
+  toolCompletedLabel,
+  type Translate,
+} from '@/features/chat/model/run-activity-presentation'
+import {
+  activityRenderKey,
+  activityScrollVersion,
+  agentActivityState,
+  formatRunDuration,
+  primaryRunActivity,
+  runDurationMs,
+} from '@/features/chat/model/run-activity'
+
+const EMPTY_LIST: EntityRecord[] = []
+// 运行状态图标的着色/尺寸规则在 summary 与 overview 两种容器、
+// 以及实时/历史多处视图中一字不差地重复，收敛为单一来源。
+const AGENT_RUN_STATUS_ICON_CLASS =
+  'agent-run-status-icon [.agent-thinking-window.running_&]:text-[var(--brand-blue-strong)] [.agent-run-summary.completed_&]:text-[var(--success)] [.agent-run-summary.plan_&]:text-[var(--success)] [.agent-run-overview.completed_&]:text-[var(--success)] [.agent-run-overview.plan_&]:text-[var(--success)] [.agent-run-summary.compacting_&]:text-[var(--star-strong)] [.agent-run-overview.compacting_&]:text-[var(--star-strong)] [.agent-run-summary.failed_&]:text-[var(--text-muted)] [.agent-run-overview.failed_&]:text-[var(--text-muted)] [.agent-run-summary.stopped_&]:text-[var(--text-muted)] [.agent-run-overview.stopped_&]:text-[var(--text-muted)] [.agent-run-activity.compact_&]:w-[24px] [.agent-run-activity.compact_&]:h-[24px] grid w-[28px] h-[28px] place-items-center text-[var(--brand-blue-strong)]'
+const AnimatedList = lazy(() =>
+  import('@/components/react-bits/AnimatedList').then((module) => ({
+    default: module.AnimatedList,
+  })),
+)
+
+function teamTaskStatusLabel(status: unknown, t: Translate) {
+  if (status === 'queued') return t('chat:agentRunActivity.teamTaskQueued')
+  if (status === 'starting') return t('chat:agentRunActivity.teamTaskStarting')
+  if (status === 'running') return t('chat:agentRunActivity.teamTaskRunning')
+  if (status === 'completed') return t('chat:agentRunActivity.teamTaskCompleted')
+  if (status === 'failed') return t('chat:agentRunActivity.teamTaskFailed')
+  if (status === 'interrupted') return t('chat:agentRunActivity.teamTaskInterrupted')
+  if (status === 'blocked') return t('chat:agentRunActivity.teamTaskBlocked')
+  return t('chat:agentRunActivity.teamTaskStatusUpdated')
+}
+
+export type AgentRunActivityProps = {
+  streaming?: boolean
+  text?: string
+  thinkingText?: string
+  currentActivity?: EntityRecord | null
+  team?: TeamState | null
+  activityFeed?: EntityRecord[]
+  compaction?: EntityRecord | null
+  error?: string
+  stopped?: boolean
+  notice?: string
+  startedAt?: string | null
+  lastActivityAt?: string | null
+  finishedAt?: string | null
+  compact?: boolean
+  tools?: EntityRecord[]
+}
+
+type ActivityPresentationContext = {
+  t: Translate
+  streaming?: boolean
+  text?: string
+  thinkingText?: string
+  compaction?: EntityRecord | null
+  error?: string
+  stopped?: boolean
+  notice?: string
+  lastActivityAt?: string | null
+  now: number
+}
+
+type ActivityPresentation = {
+  tone: string
+  title: string
+  detail: string
+  output: string
+  command: boolean
+  startedAt: unknown
+  changes: EntityRecord[]
+}
+
+function useRunActivityClock(streaming?: boolean) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    setNow(Date.now())
+    if (!streaming) return undefined
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [streaming])
+  return now
+}
+
+function RunDurationLabel({
+  startedAt,
+  finishedAt,
+  streaming,
+  language,
+}: {
+  startedAt?: string | null
+  finishedAt?: string | null
+  streaming?: boolean
+  language: string
+}) {
+  // 每秒变化只留在这一小块文本中，避免整棵 SSE 活动树随计时器重复渲染。
+  const now = useRunActivityClock(streaming)
+  const duration = formatRunDuration(runDurationMs(startedAt, finishedAt, now), language)
+  return (
+    <span className="agent-run-duration inline-flex items-center gap-[4px] pt-[3px] text-[var(--text-muted)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] text-[11px] whitespace-nowrap [.agent-run-activity.compact_&]:text-[10px]">
+      <Clock3 size={12} />
+      {duration}
+    </span>
+  )
+}
+
+function cleanInline(value: unknown) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function toolDetail(tool?: EntityRecord | null) {
+  const args = tool?.args || {}
+  if (tool?.name === 'bash') return { text: String(args.command || '').trim(), command: true }
+  if (['read', 'edit', 'write', 'ls'].includes(tool?.name)) return { text: cleanInline(args.path) }
+  if (tool?.name === 'grep')
+    return {
+      text: [args.pattern ? `“${cleanInline(args.pattern)}”` : '', cleanInline(args.path)]
+        .filter(Boolean)
+        .join(' · '),
+    }
+  if (tool?.name === 'find')
+    return { text: [cleanInline(args.pattern), cleanInline(args.path)].filter(Boolean).join(' · ') }
+  if (tool?.name === 'browser_automation')
+    return {
+      text: [cleanInline(args.action), cleanInline(args.url || args.selector)]
+        .filter(Boolean)
+        .join(' · '),
+    }
+  // computer use 工具：显示观察模式或动作摘要，帮助用户辨认当前在哪个窗口干什么。
+  if (tool?.name === 'observe_ui') return { text: cleanInline(args.root || args.mode) }
+  if (tool?.name === 'act_ui')
+    return {
+      text: Array.isArray(args.actions)
+        ? args.actions
+            .slice(0, 3)
+            .map((action: EntityRecord) => cleanInline(action?.action))
+            .filter(Boolean)
+            .join(' · ')
+        : '',
+    }
+  if (tool?.name === 'search_ui') return { text: cleanInline(args.text || args.role) }
+  if (tool?.name === 'find_roots') return { text: cleanInline(args.app || args.text) }
+  if (tool?.name === 'ocr_ui') return { text: cleanInline(args.language) }
+  if (tool?.name === 'spawn_agent') return { text: cleanInline(args.taskName) }
+  if (['send_message', 'followup_task', 'wait_agent', 'interrupt_agent'].includes(tool?.name))
+    return { text: cleanInline(args.target) }
+  if (tool?.name === 'generate_visual') return { text: cleanInline(args.outputName || args.kind) }
+  if (tool?.name === 'discover_tools') return { text: cleanInline(args.query) }
+  return { text: '' }
+}
+
+function activityPresentation(
+  activity: EntityRecord,
+  {
+    t,
+    streaming,
+    text,
+    thinkingText,
+    compaction,
+    error,
+    stopped,
+    notice,
+    lastActivityAt,
+    now,
+  }: ActivityPresentationContext,
+): ActivityPresentation {
+  let tone = 'running'
+  let title = t('chat:agentRunActivity.understandingTheTask')
+  let detail = notice || ''
+  let output = ''
+  let command = false
+  let startedAt = activity.startedAt
+  let changes = EMPTY_LIST
+
+  if (activity.type === 'tool') {
+    const failed = activity.status === 'error'
+    const completed = activity.status === 'done'
+    tone = failed ? 'failed' : completed ? 'completed' : 'running'
+    title = failed
+      ? t('chat:agentRunActivity.toolFailed', {
+          tool: toolActivityLabel(activity.name, t),
+        })
+      : completed
+        ? toolCompletedLabel(activity.name, t)
+        : toolActivityLabel(activity.name, t)
+    const toolInfo = toolDetail(activity)
+    detail = toolInfo.text
+    command = Boolean(toolInfo.command)
+    output = cleanInline(activity.message)
+  } else if (activity.type === 'plan') {
+    tone = 'plan'
+    const activityPlan = planFromActivity(activity)
+    title = activityPlan?.items?.length
+      ? t('chat:agentRunActivity.planUpdated')
+      : t('chat:agentRunActivity.planCleared')
+    changes = activity.changes || EMPTY_LIST
+    detail = changes.length
+      ? t('chat:agentRunActivity.countPlanChanges', { count: changes.length })
+      : planProgress(activityPlan, t)
+  } else if (activity.type === 'agent') {
+    const agent = activity.agent || {}
+    const name = cleanInline(agent.taskName) || t('chat:agentRunActivity.subagent')
+    const state = agentActivityState(agent.status)
+    title = agentActivityTitle(agent.status, name, t)
+    tone = state.tone
+    const nestedTool =
+      agent.currentActivity?.type === 'tool'
+        ? toolDetail(agent.currentActivity).text || agent.currentActivity.name
+        : ''
+    detail = nestedTool || cleanInline(agent.error || agent.message)
+    output = agent.status === 'running' ? cleanInline(agent.output) : ''
+    startedAt = agent.startedAt || startedAt
+  } else if (activity.type === 'communication') {
+    const communication = activity.communication || {}
+    tone = 'running'
+    title = t('chat:agentRunActivity.teamMessageActivity')
+    detail = t('chat:agentRunActivity.teamMessageDetail', {
+      from: communication.fromTaskName || communication.fromAgentId || 'lead',
+      to: communication.toTaskName || communication.toAgentId || '',
+    })
+    output = cleanInline(communication.message)
+  } else if (activity.type === 'compaction') {
+    tone = 'compacting'
+    title = t('chat:agentRunActivity.compactingContext')
+    detail = compactionText(activity.compaction || compaction, t)
+  } else if (activity.type === 'retry') {
+    tone = 'waiting'
+    title = t('chat:agentRunActivity.retryingRequest')
+    detail = activity.summary || notice || ''
+  } else {
+    const inactiveMs = Math.max(0, now - new Date(lastActivityAt || now).getTime())
+    if (error) {
+      tone = 'failed'
+      title = t('chat:agentRunActivity.thisRunFailed')
+      detail = error
+    } else if (stopped) {
+      tone = 'stopped'
+      title = t('chat:agentRunActivity.runStopped')
+    } else if (!streaming) {
+      tone = 'completed'
+      title = t('chat:agentRunActivity.reasoningCompleted')
+      detail = cleanInline(thinkingText)
+    } else if (inactiveMs >= 10_000) {
+      tone = 'waiting'
+      title = t('chat:agentRunActivity.waitingForTheModel')
+      detail = t('chat:agentRunActivity.noNewProgressForCountS', {
+        count: Math.floor(inactiveMs / 1000),
+      })
+    } else if (activity.stage === 'starting') title = t('chat:agentRunActivity.startingTheModel')
+    else if (activity.stage === 'responding')
+      title = t('chat:agentRunActivity.preparingTheResponse')
+    else if (activity.stage === 'processing_result')
+      title = t('chat:agentRunActivity.processingToolResult')
+    else if (activity.stage === 'waiting_retry') title = t('chat:agentRunActivity.waitingToRetry')
+    else if (activity.stage === 'finalizing') title = t('chat:agentRunActivity.finalizingTheRun')
+    else if (activity.stage === 'working') title = t('chat:agentRunActivity.advancingTheTask')
+    else
+      title = String(thinkingText || '').trim()
+        ? t('chat:agentRunActivity.reasoningAboutTheNextStep')
+        : String(text || '').trim()
+          ? t('chat:agentRunActivity.preparingTheResponse')
+          : t('chat:agentRunActivity.understandingTheTask')
+    if (String(thinkingText || '').trim()) detail = cleanInline(thinkingText)
+  }
+
+  return { tone, title, detail, output, command, startedAt, changes }
+}
+
+// 输入框状态胶囊与转录区活动行共用同一份状态推导，避免两处文案漂移。
+// oxlint-disable-next-line react/only-export-components
+export function runActivityStatusLabel(
+  {
+    streaming,
+    text,
+    currentActivity,
+    thinkingText,
+    compaction,
+    error,
+    stopped,
+    notice,
+    lastActivityAt,
+  }: Omit<ActivityPresentationContext, 't' | 'now'> & {
+    currentActivity?: EntityRecord | null
+  },
+  t: Translate,
+): string {
+  if (!streaming) return ''
+  const activity = primaryRunActivity({
+    currentActivity,
+    compaction,
+    text,
+    thinkingText,
+    lastActivityAt,
+  })
+  return activityPresentation(activity, {
+    t,
+    streaming,
+    text,
+    thinkingText,
+    compaction,
+    error,
+    stopped,
+    notice,
+    lastActivityAt,
+    now: Date.now(),
+  }).title
+}
+
+function ActivityIcon({ tone }: { tone: string }) {
+  if (tone === 'failed') return <AlertTriangle size={14} />
+  if (tone === 'stopped') return <Square size={12} />
+  if (['completed', 'plan'].includes(tone)) return <Check size={14} />
+  return <i className="agent-activity-dot" aria-hidden="true" />
+}
+
+function ActivityElement({
+  activity,
+  className,
+  children,
+}: {
+  activity: EntityRecord
+  className: string
+  children: ReactNode
+}) {
+  if (activity.type === 'tool') {
+    return (
+      <div className={className} data-pisper-activity-type="tool">
+        {children}
+      </div>
+    )
+  }
+  if (activity.type === 'plan') {
+    return (
+      <Plan
+        className={`${className} !gap-0 !rounded-none !border-0 !bg-transparent !p-0 !shadow-none`}
+        data-pisper-activity-type="plan"
+      >
+        {children}
+      </Plan>
+    )
+  }
+  if (activity.type === 'agent') {
+    return (
+      <Task className={className} data-pisper-activity-type="agent">
+        {children}
+      </Task>
+    )
+  }
+  return (
+    <div className={className} data-pisper-activity-type={activity.type}>
+      {children}
+    </div>
+  )
+}
+
+function CommandOutput({
+  output,
+  streaming,
+  t,
+}: {
+  output: unknown
+  streaming: boolean
+  t: Translate
+}) {
+  const display = terminalDisplayOutput(output)
+  const outputRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    if (!streaming) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const node = outputRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [display.text, streaming])
+
+  if (!display.text.trim()) return null
+
+  return (
+    <details
+      className="agent-run-command-output [.agent-run-feed:has(&[open])]:max-h-[320px] [&_>_summary]:grid [&_>_summary]:min-h-[30px] [&_>_summary]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_summary]:items-center [&_>_summary]:gap-[7px] [&_>_summary]:[list-style:none] [&_>_summary]:p-[5px_8px] [&_>_summary]:text-[var(--text-muted)] [&_>_summary]:text-[12px] [&_>_summary]:font-medium [&_>_summary]:cursor-pointer [&_>_summary::-webkit-details-marker]:hidden [&_>_summary:hover]:bg-[var(--surface-hover)] [&_>_summary:hover]:text-[var(--text-secondary)] [&_>_summary:focus-visible]:[outline:2px_solid_var(--accent-border)] [&_>_summary:focus-visible]:[outline-offset:-2px] [&_>_summary_>_svg:first-child]:text-[var(--brand-blue-strong)] [&_>_pre]:max-h-[112px] [&_>_pre]:overflow-auto [&_>_pre]:m-0 [&_>_pre]:[border-top:1px_solid_var(--stroke-soft)] [&_>_pre]:bg-[var(--surface-subtle)] [&_>_pre]:p-[9px_10px] [&_>_pre]:text-[var(--text-secondary)] [&_>_pre]:font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] [&_>_pre]:text-[11px] [&_>_pre]:leading-[1.55] [&_>_pre]:whitespace-pre-wrap [&_>_pre]:[overflow-wrap:anywhere] [.agent-run-activity.compact_&]:[grid-column:1/-1] min-w-0 [grid-column:1/-1] overflow-hidden [margin:2px_0_1px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--solid)]"
+      data-truncated={display.truncated || undefined}
+      open={streaming || undefined}
+    >
+      <summary>
+        <Code2 size={13} />
+        <span>
+          {streaming
+            ? t('chat:agentRunActivity.liveCommandOutput')
+            : t('chat:agentRunActivity.commandOutput')}
+        </span>
+        <ChevronRight
+          className="agent-run-disclosure [details[open]_>_summary_&]:[transform:rotate(90deg)] [transition:transform_var(--d1)_var(--ease-out)]"
+          size={13}
+        />
+      </summary>
+      <pre ref={outputRef}>{display.text}</pre>
+    </details>
+  )
+}
+
+// 工具活动预览图：computer use / 浏览器截图等工具的“实时窗口”画面。
+// 每次观察/操作后由运行时补发 previewImage，随活动卡片就地更新；
+// 点击可在新标签页查看原图（内联下载响应本身就是图像）。
+function PreviewImage({ image, t }: { image: EntityRecord; t: Translate }) {
+  const url = String(image.url || '')
+  if (!url) return null
+  return (
+    <a
+      className="agent-run-tool-preview block w-full overflow-hidden rounded-[var(--r-sm)] [border:1px_solid_var(--stroke-soft)] bg-[var(--surface-subtle)] [grid-column:1/-1] [margin:2px_0_1px]"
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title={String(image.name || '')}
+    >
+      <img
+        alt={String(image.name || t('chat:agentRunActivity.toolPreviewAlt'))}
+        className="block max-h-[168px] w-full object-contain object-top"
+        loading="lazy"
+        src={url}
+      />
+    </a>
+  )
+}
+
+type ActivityCardProps = {
+  activity: EntityRecord
+  latest: boolean
+  t: Translate
+  streaming?: boolean
+  text?: string
+  thinkingText?: string
+  compaction?: EntityRecord | null
+  error?: string
+  stopped?: boolean
+  notice?: string
+  lastActivityAt?: string | null
+}
+
+function activityCardPropsEqual(prev: ActivityCardProps, next: ActivityCardProps) {
+  if (
+    prev.activity !== next.activity ||
+    prev.latest !== next.latest ||
+    prev.t !== next.t ||
+    prev.streaming !== next.streaming
+  )
+    return false
+  if (['tool', 'plan', 'agent'].includes(next.activity.type)) return true
+  return (
+    prev.text === next.text &&
+    prev.thinkingText === next.thinkingText &&
+    prev.compaction === next.compaction &&
+    prev.error === next.error &&
+    prev.stopped === next.stopped &&
+    prev.notice === next.notice &&
+    prev.lastActivityAt === next.lastActivityAt
+  )
+}
+
+const ActivityCard = memo(function ActivityCard({
+  activity,
+  latest,
+  t,
+  streaming,
+  text,
+  thinkingText,
+  compaction,
+  error,
+  stopped,
+  notice,
+  lastActivityAt,
+}: ActivityCardProps) {
+  const presentation = activityPresentation(activity, {
+    t,
+    streaming,
+    text,
+    thinkingText,
+    compaction,
+    error,
+    stopped,
+    notice,
+    lastActivityAt,
+    now: Date.now(),
+  })
+  const showCommandOutput = activity.name === 'bash' && latest && Boolean(activity.output)
+  if (activity.type === 'retry') {
+    return (
+      <ChatRequestNotice
+        title={activity.summary || t('chat:agentRunActivity.retryingRequest')}
+        error={String(activity.message || '')}
+        pending={Boolean(streaming && latest)}
+        className="my-1"
+      />
+    )
+  }
+  return (
+    <ActivityElement
+      activity={activity}
+      className={`agent-run-summary grid w-full min-h-[42px] grid-cols-[28px_minmax(0,1fr)] [align-items:start] gap-[9px] p-[6px_0] hover:bg-[var(--surface-hover)] [.agent-run-activity.compact_&]:min-h-[34px] [.agent-run-activity.compact_&]:grid-cols-[24px_minmax(0,1fr)] [.agent-run-activity.compact_&]:gap-[7px] [.agent-run-activity.compact_&]:p-[4px_5px] @max-[700px]:grid-cols-[28px_minmax(0,1fr)] @max-[700px]:[&_>_svg]:hidden flex-none [transition:background_var(--d1)_var(--ease-out)] ${presentation.tone}    ${latest ? 'current [.agent-run-summary&]:bg-[var(--surface-subtle)]' : ''}`}
+    >
+      <span className={AGENT_RUN_STATUS_ICON_CLASS}>
+        <ActivityIcon tone={presentation.tone} />
+      </span>
+      <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
+        <strong>{presentation.title}</strong>
+        {presentation.detail &&
+          (presentation.command ? (
+            <code
+              className="agent-run-command overflow-hidden text-[var(--text-muted)] text-[12px] leading-[1.45] text-ellipsis whitespace-nowrap block max-h-[2.9em] p-[3px_7px] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] whitespace-pre-wrap [overflow-wrap:anywhere] [.agent-run-activity.compact_&]:text-[11px]"
+              title={presentation.detail}
+            >
+              $ {presentation.detail}
+            </code>
+          ) : (
+            <small title={presentation.detail}>{presentation.detail}</small>
+          ))}
+        {presentation.changes.length > 0 && (
+          <span className="agent-run-plan-changes [&_small]:text-[var(--text-secondary)] flex min-w-0 flex-col gap-[1px] [padding:1px_0_0_7px] [border-left:1px_solid_var(--stroke-soft)]">
+            {presentation.changes.slice(0, 4).map((change) => (
+              <small key={`${change.id}-${change.kind}-${change.status}`}>
+                {planChangeText(change, t)}
+              </small>
+            ))}
+            {presentation.changes.length > 4 && (
+              <small>
+                {t('chat:agentRunActivity.countMoreChanges', {
+                  count: presentation.changes.length - 4,
+                })}
+              </small>
+            )}
+          </span>
+        )}
+        {!showCommandOutput &&
+          presentation.output &&
+          presentation.output !== presentation.detail && (
+            <small className="text-[var(--text-tertiary)]" title={presentation.output}>
+              {presentation.output}
+            </small>
+          )}
+      </span>
+      {activity.previewImage && activity.previewImage.url ? (
+        <PreviewImage image={activity.previewImage} t={t} />
+      ) : null}
+      {showCommandOutput && (
+        <CommandOutput
+          output={activity.output}
+          streaming={Boolean(streaming && activity.status === 'running')}
+          t={t}
+        />
+      )}
+    </ActivityElement>
+  )
+}, activityCardPropsEqual)
+
+function AgentRunActivity({
+  streaming,
+  text,
+  thinkingText,
+  team,
+  activityFeed = EMPTY_LIST,
+  tools = EMPTY_LIST,
+  compaction,
+  error,
+  stopped,
+  notice,
+  startedAt,
+  lastActivityAt,
+  finishedAt,
+  compact = false,
+}: AgentRunActivityProps) {
+  const { t, language } = useI18n()
+  const thinking = String(thinkingText || '').trim()
+  const thinkingScrollRef = useRef<HTMLDivElement>(null)
+  const liveFeedRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!thinking) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const node = thinkingScrollRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [thinking])
+
+  const activities = activityFeed.length ? activityFeed : tools
+  // computer use 实时镜像跟随 agent 当前操作的目标窗口；仅流式期间激活，
+  // 且镜像回退到同一活动的静态预览图。
+  const computerUseTarget = streaming && !compact ? latestComputerUseTarget(activities) : null
+  const activityVersion = activityScrollVersion(activities)
+  const teamTasks: TeamTask[] = Array.isArray(team?.tasks) ? team.tasks : []
+  const teamCompleted = Number(team?.completedTaskCount ?? 0)
+  const teamTotal = Number(team?.taskCount ?? teamTasks.length)
+  const teamUsed = Number(team?.tokenUsed ?? team?.tokensUsed ?? 0)
+  const teamBudget = Number(team?.tokenBudget ?? team?.teamTokenBudget ?? 0)
+  const teamCommunications: TeamCommunication[] = Array.isArray(team?.communications)
+    ? team.communications
+    : []
+  const teamProgress =
+    teamTotal > 0 ? Math.min(100, Math.round((teamCompleted / teamTotal) * 100)) : 0
+
+  useEffect(() => {
+    if (!streaming || !activities.length) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const node = liveFeedRef.current
+      if (node) node.scrollTop = node.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [activityVersion, activities.length, streaming])
+  // 没有任何可见内容时不占位：运行状态由输入框的呼吸灯胶囊承载。
+  if (!thinking && !activities.length && !team) return null
+
+  const completedActivityCount = !streaming ? activities.length : 0
+  const renderActivityCards = (items: EntityRecord[]) =>
+    items.map((activity, index) => (
+      <ActivityCard
+        activity={activity}
+        compaction={compaction}
+        error={error}
+        key={activityRenderKey(activity, index)}
+        lastActivityAt={lastActivityAt}
+        latest={index === items.length - 1}
+        notice={notice}
+        stopped={stopped}
+        streaming={streaming}
+        t={t}
+        text={text}
+        thinkingText={thinking ? '' : thinkingText}
+      />
+    ))
+  const activityCards = renderActivityCards(activities)
+  const liveActivityCards = renderActivityCards(activities.slice(-1))
+
+  return (
+    <section
+      className={`agent-run-activity [&.compact]:m-[4px_0_0_40px] w-full overflow-hidden [margin:1px_0_9px] text-[var(--text)] ${compact ? 'compact' : ''}`}
+      aria-live="polite"
+    >
+      {thinking && (
+        <details
+          className={`agent-thinking-window [&[open]]:border-[transparent] [&.completed]:border-[transparent] [&.completed[open]]:border-[transparent] overflow-hidden [margin:1px_0_8px] [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-transparent [transition:border-color_var(--d1)_var(--ease-out)] ${streaming ? 'running' : 'completed'}`}
+          data-pisper-activity-type="reasoning"
+        >
+          <summary
+            className="agent-thinking-head [summary&]:[list-style:none] [summary&]:cursor-pointer [summary&::-webkit-details-marker]:hidden [summary&:hover]:bg-[var(--surface-hover)] [summary&:focus-visible]:[outline:2px_solid_var(--accent-border)] [summary&:focus-visible]:[outline-offset:-2px] grid min-h-[40px] grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-[9px] [padding:6px_0]"
+            aria-label={t('chat:agentRunActivity.toggleReasoning')}
+          >
+            <span className={AGENT_RUN_STATUS_ICON_CLASS}>
+              <ChevronRight
+                className="agent-run-disclosure [details[open]_>_summary_&]:[transform:rotate(90deg)] [transition:transform_var(--d1)_var(--ease-out)]"
+                size={14}
+              />
+            </span>
+            <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
+              <strong>
+                {streaming
+                  ? t('chat:agentRunActivity.reasoningInProgress')
+                  : t('chat:agentRunActivity.reasoningCompleted')}
+                {streaming ? (
+                  <span
+                    className="agent-thinking-dots [&_i]:w-[3px] [&_i]:h-[3px] [&_i]:rounded-[50%] [&_i]:bg-[currentColor] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-end gap-[2px] [margin-left:5px]"
+                    aria-hidden="true"
+                  >
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                ) : null}
+              </strong>
+            </span>
+            <RunDurationLabel
+              startedAt={startedAt}
+              finishedAt={finishedAt}
+              streaming={streaming}
+              language={language}
+            />
+          </summary>
+          <div
+            ref={thinkingScrollRef}
+            className="agent-thinking-scroll max-h-[190px] overflow-auto [border-top:1px_solid_var(--stroke-soft)] [padding:9px_0_9px_37px] [scroll-behavior:smooth]"
+          >
+            <MarkdownMessage streaming={streaming}>{thinking}</MarkdownMessage>
+          </div>
+        </details>
+      )}
+      {team &&
+        (teamTasks.length > 0 ||
+          teamCommunications.length > 0 ||
+          (team.blockers?.length ?? 0) > 0 ||
+          (team.conflicts?.length ?? 0) > 0 ||
+          Boolean(team.scriptPath) ||
+          Boolean(team.summary?.text)) && (
+          <details
+            className="agent-team-panel overflow-hidden rounded-[var(--r-sm)] [border:1px_solid_var(--stroke-soft)] [margin:5px_0_2px]"
+            key={String(team.id || team.scriptPath || 'team')}
+          >
+            <summary className="flex min-h-[38px] cursor-pointer items-center justify-between gap-[8px] [list-style:none] [padding:6px_8px] [&::-webkit-details-marker]:hidden hover:bg-[var(--surface-hover)]">
+              <span className="flex min-w-0 items-center gap-[6px]">
+                <span
+                  aria-hidden="true"
+                  className={`team-status-dot h-[6px] w-[6px] shrink-0 rounded-full ${
+                    team.status === 'complete'
+                      ? 'bg-[var(--success)]'
+                      : team.status === 'stalled' || team.status === 'budget_limited'
+                        ? 'bg-[var(--warning)]'
+                        : team.status === 'paused'
+                          ? 'bg-[var(--text-muted)]'
+                          : 'bg-[var(--accent-strong)] [animation:agent-status-pulse_1.6s_ease-in-out_infinite]'
+                  }`}
+                />
+                <span className="min-w-0 truncate text-[12px] font-medium">
+                  {team.status === 'complete'
+                    ? t('chat:agentRunActivity.teamComplete')
+                    : team.status === 'budget_limited'
+                      ? t('chat:agentRunActivity.teamBudgetLimited')
+                      : team.status === 'paused'
+                        ? t('chat:agentRunActivity.teamPaused')
+                        : team.status === 'stalled'
+                          ? t('chat:agentRunActivity.teamStalled')
+                          : t('chat:agentRunActivity.teamActive')}
+                </span>
+                {teamTotal > 0 && (
+                  <small className="shrink-0 text-[11px] font-normal text-[var(--text-muted)]">
+                    {teamCompleted}/{teamTotal} · {teamProgress}%
+                  </small>
+                )}
+              </span>
+              <span className="flex shrink-0 items-center gap-[8px]">
+                {teamBudget > 0 && (
+                  <small className="whitespace-nowrap text-[11px] text-[var(--text-muted)]">
+                    {t('chat:agentRunActivity.teamBudget', { used: teamUsed, budget: teamBudget })}
+                  </small>
+                )}
+                <ChevronRight
+                  size={14}
+                  className="text-[var(--text-muted)] [details[open]_>_summary_&]:[transform:rotate(90deg)] [transition:transform_var(--d1)_var(--ease-out)]"
+                  aria-hidden="true"
+                />
+              </span>
+            </summary>
+            {teamTotal > 0 && (
+              <div
+                aria-hidden="true"
+                className="team-progress-track mx-[8px] mb-[3px] h-[3px] overflow-hidden rounded-full bg-[var(--stroke-soft)]"
+              >
+                <div
+                  className="team-progress-fill h-full rounded-full bg-[var(--accent-strong)] [transition:width_var(--d2)_var(--ease-out)]"
+                  style={{
+                    width: `${teamProgress}%`,
+                  }}
+                />
+              </div>
+            )}
+            <div className="grid max-h-[min(42vh,360px)] grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-[6px] overflow-y-auto overscroll-contain [border-top:1px_solid_var(--stroke-soft)] [padding:7px_8px]">
+              {teamTasks.map((task: TeamTask) => {
+                const role = typeof task.role === 'string' ? task.role.trim() : ''
+                const status = teamTaskStatusLabel(task.status, t)
+                return (
+                  <div
+                    key={task.id || task.taskName}
+                    className="grid min-w-0 gap-[4px] rounded-[var(--r-xs)] bg-[var(--surface-muted)] [border:1px_solid_var(--stroke-soft)] [padding:7px] text-[11px]"
+                  >
+                    <div className="flex min-w-0 items-start gap-[6px]">
+                      <span
+                        aria-hidden="true"
+                        className={`team-task-dot h-[6px] w-[6px] shrink-0 rounded-full ${
+                          task.status === 'running'
+                            ? 'bg-[var(--accent-strong)] [animation:agent-status-pulse_1.6s_ease-in-out_infinite]'
+                            : task.status === 'completed'
+                              ? 'bg-[var(--success)]'
+                              : task.status === 'failed' || task.status === 'interrupted'
+                                ? 'bg-[var(--danger)]'
+                                : task.status === 'blocked'
+                                  ? 'bg-[var(--warning)]'
+                                  : 'bg-[var(--stroke-default)]'
+                        }`}
+                      />
+                      <span className="grid min-w-0 gap-[1px]">
+                        <strong className="break-words font-medium">
+                          {role
+                            ? t('chat:agentRunActivity.teamTaskStatus', {
+                                name: task.taskName,
+                                role,
+                                status,
+                              })
+                            : t('chat:agentRunActivity.teamTaskStatusWithoutRole', {
+                                name: task.taskName,
+                                status,
+                              })}
+                        </strong>
+                        <small className="text-[var(--text-muted)]">{status}</small>
+                      </span>
+                    </div>
+                    {task.error && (
+                      <small className="break-words text-[var(--danger)]">{task.error}</small>
+                    )}
+                    {task.output && (
+                      <small className="break-words text-[var(--text-muted)]">{task.output}</small>
+                    )}
+                  </div>
+                )
+              })}
+              {(team.blockers?.length ?? 0) > 0 && (
+                <small className="text-[var(--warning)]">
+                  {t('chat:agentRunActivity.teamBlocked', { count: team.blockers?.length ?? 0 })}
+                </small>
+              )}
+              {(team.conflicts?.length ?? 0) > 0 && (
+                <small className="text-[var(--danger)]">
+                  {t('chat:agentRunActivity.teamConflicts', { count: team.conflicts?.length ?? 0 })}
+                </small>
+              )}
+              {team.scriptPath && (
+                <small className="break-all text-[var(--text-muted)]">
+                  {t('chat:agentRunActivity.teamScript', { path: team.scriptPath })}
+                </small>
+              )}
+              {teamCommunications.length > 0 && (
+                <div className="grid gap-[3px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:5px]">
+                  <small className="text-[var(--text-muted)]">
+                    {t('chat:agentRunActivity.teamCommunicationCount', {
+                      count: teamCommunications.length,
+                    })}
+                  </small>
+                  {teamCommunications.slice(-6).map((communication: TeamCommunication) => (
+                    <div
+                      key={communication.id}
+                      className="grid min-w-0 gap-[1px] rounded-[var(--r-xs)] bg-[var(--surface-muted)] [border-left:2px_solid_var(--accent-border)] [padding:4px_6px]"
+                    >
+                      <strong className="break-all text-[12px] font-medium">
+                        {communication.fromTaskName || communication.fromAgentId || 'lead'} -&gt;{' '}
+                        {communication.toTaskName || communication.toAgentId}
+                      </strong>
+                      <small className="break-words text-[var(--text-secondary)]">
+                        {communication.message}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {team.summary?.text && (
+                <>
+                  <small className="text-[var(--text-muted)]">
+                    {t('chat:agentRunActivity.teamSummary')}
+                  </small>
+                  {team.summary.text && (
+                    <p className="m-0 line-clamp-4 text-[11px] leading-[1.45] text-[var(--text-secondary)]">
+                      {team.summary.text}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </details>
+        )}
+      {streaming && !compact && computerUseTarget ? (
+        <ComputerUseLiveMirror
+          fallbackImage={computerUseTarget.previewImage}
+          streaming={streaming}
+          target={computerUseTarget}
+        />
+      ) : null}
+      {streaming && activities.length > 0 && (
+        <div
+          ref={liveFeedRef}
+          className="agent-run-feed focus-visible:[outline:2px_solid_var(--accent-border)] focus-visible:[outline-offset:2px] [.agent-run-history_&.completed]:mt-[3px] flex max-h-[184px] flex-col gap-[4px] overflow-y-auto [overscroll-behavior:contain] [margin:5px_0_2px] [padding:2px_0] live"
+          aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
+        >
+          <Suspense fallback={liveActivityCards}>
+            <AnimatedList>{liveActivityCards}</AnimatedList>
+          </Suspense>
+        </div>
+      )}
+      {completedActivityCount > 0 && (
+        <details className="agent-run-history [&_>_summary]:grid [&_>_summary]:min-h-[38px] [&_>_summary]:grid-cols-[28px_minmax(0,1fr)_auto] [&_>_summary]:items-center [&_>_summary]:gap-[9px] [&_>_summary]:[list-style:none] [&_>_summary]:rounded-[var(--r-sm)] [&_>_summary]:p-[5px_8px] [&_>_summary]:text-[var(--text-muted)] [&_>_summary]:cursor-pointer [&_>_summary::-webkit-details-marker]:hidden [&_>_summary:hover]:bg-[var(--surface-hover)] [&_>_summary:hover]:text-[var(--text)] [&_>_summary:focus-visible]:[outline:2px_solid_var(--accent-border)] [&_>_summary:focus-visible]:[outline-offset:-2px] w-full">
+          <summary>
+            <span className={AGENT_RUN_STATUS_ICON_CLASS}>
+              <ChevronRight
+                className="agent-run-disclosure [details[open]_>_summary_&]:[transform:rotate(90deg)] [transition:transform_var(--d1)_var(--ease-out)]"
+                size={14}
+              />
+            </span>
+            <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
+              <strong>
+                {t('chat:agentRunActivity.countCompletedOperations', {
+                  count: completedActivityCount,
+                })}
+              </strong>
+            </span>
+            <RunDurationLabel
+              startedAt={startedAt}
+              finishedAt={finishedAt}
+              streaming={streaming}
+              language={language}
+            />
+          </summary>
+          <div
+            className="agent-run-feed focus-visible:[outline:2px_solid_var(--accent-border)] focus-visible:[outline-offset:2px] [.agent-run-history_&.completed]:mt-[3px] flex max-h-[184px] flex-col gap-[4px] overflow-y-auto [overscroll-behavior:contain] [margin:5px_0_2px] [padding:2px_0] completed"
+            aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
+            tabIndex={activities.length > 3 ? 0 : undefined}
+          >
+            <Suspense fallback={activityCards}>{activityCards}</Suspense>
+          </div>
+        </details>
+      )}
+    </section>
+  )
+}
+
+function agentRunActivityPropsEqual(prev: AgentRunActivityProps, next: AgentRunActivityProps) {
+  return (
+    prev.streaming === next.streaming &&
+    prev.text === next.text &&
+    prev.thinkingText === next.thinkingText &&
+    prev.currentActivity === next.currentActivity &&
+    prev.team === next.team &&
+    prev.activityFeed === next.activityFeed &&
+    prev.compaction === next.compaction &&
+    prev.error === next.error &&
+    prev.stopped === next.stopped &&
+    prev.notice === next.notice &&
+    prev.startedAt === next.startedAt &&
+    prev.lastActivityAt === next.lastActivityAt &&
+    prev.finishedAt === next.finishedAt &&
+    prev.compact === next.compact &&
+    prev.tools === next.tools
+  )
+}
+
+export default memo(AgentRunActivity, agentRunActivityPropsEqual)

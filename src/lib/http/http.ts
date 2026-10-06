@@ -1,0 +1,130 @@
+import { ApiError } from '@/lib/http/api-error'
+import { readHttpError, readJsonResponse } from '@/lib/http/http-response'
+import { createAbortScope, waitWithAbort } from '@/lib/http/abort-signal'
+
+export { ApiError, type ApiErrorKind } from '@/lib/http/api-error'
+
+// 移动恢复实现按需加载，避免桌面/Web 的首屏入口携带原生恢复代码。
+export async function waitForMobileRuntimeReady(signal?: AbortSignal) {
+  if (typeof window === 'undefined' || !window.__PISPER_MOBILE_APP__) return
+  const scope = createAbortScope(signal, DEFAULT_HTTP_TIMEOUT_MS)
+  try {
+    // 模块下载本身也可能在 WebView 冻结后挂起，必须与原生恢复一起受取消和超时约束。
+    await waitWithAbort(
+      import('@/lib/mobile/mobile-runtime-recovery').then(async (recovery) => {
+        recovery.installMobileRuntimeForegroundRecovery()
+        await recovery.waitForMobileRuntimeReady()
+      }),
+      scope.signal,
+    )
+  } finally {
+    scope.dispose()
+  }
+}
+
+// 统一的 JSON API 请求层：
+// - body/data 二选一作为负载，自动 JSON 序列化并补 Content-Type；
+// - 支持外部 AbortSignal 与内置超时（默认 30s），超时/取消/网络错误统一
+//   归一为 ApiError，便于调用方用 instanceof 统一处理；
+// - JSON、文本使用显式解析入口；旧调用的 204/空响应仍返回 undefined。
+export type HttpRequestOptions = Omit<RequestInit, 'body' | 'signal'> & {
+  body?: unknown
+  data?: unknown
+  signal?: AbortSignal
+  timeout?: number
+}
+
+export const DEFAULT_HTTP_TIMEOUT_MS = 30_000
+
+// 归一化任意异常为可展示文案：优先取 Error.message，否则字符串本身，
+// 兜底用传入的 fallback（避免把 undefined/对象直接拼进用户界面）。
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error) return error
+  return fallback
+}
+
+async function request<T>(
+  path: string,
+  options: HttpRequestOptions,
+  readResponse: (response: Response) => Promise<T>,
+): Promise<T> {
+  const {
+    body,
+    data,
+    headers: inputHeaders,
+    signal: externalSignal,
+    timeout = DEFAULT_HTTP_TIMEOUT_MS,
+    ...requestOptions
+  } = options
+  const payload = data !== undefined ? data : body
+  const headers = new Headers(inputHeaders)
+  let requestBody: BodyInit | undefined
+  if (payload !== undefined) {
+    if (payload instanceof Blob) {
+      requestBody = payload
+      if (!headers.has('Content-Type'))
+        headers.set('Content-Type', payload.type || 'application/octet-stream')
+    } else {
+      requestBody = typeof payload === 'string' ? payload : JSON.stringify(payload)
+      if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+    }
+  }
+
+  const controller = new AbortController()
+  let timedOut = false
+  const abortFromCaller = () => controller.abort(externalSignal?.reason)
+  if (externalSignal?.aborted) abortFromCaller()
+  else externalSignal?.addEventListener('abort', abortFromCaller, { once: true })
+  const timeoutId =
+    timeout > 0
+      ? setTimeout(() => {
+          timedOut = true
+          controller.abort(new DOMException('Request timed out', 'TimeoutError'))
+        }, timeout)
+      : undefined
+
+  try {
+    // iOS 从后台恢复时先等本机 Runtime 与回环代理通过健康检查，避免业务请求抢跑。
+    await waitForMobileRuntimeReady(controller.signal)
+    if (controller.signal.aborted) throw controller.signal.reason
+    const response = await fetch(path, {
+      ...requestOptions,
+      body: requestBody,
+      headers,
+      signal: controller.signal,
+    })
+    if (!response.ok) throw await readHttpError(response)
+    return await readResponse(response)
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    if (timedOut) throw new ApiError(`请求超时 (${timeout}ms)`, { kind: 'timeout' })
+    if (externalSignal?.aborted)
+      throw new ApiError(errorMessage(externalSignal.reason, '请求已取消'), { kind: 'cancelled' })
+    throw new ApiError(errorMessage(error, '请求失败 (network)'), { kind: 'network' })
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+    externalSignal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
+// 兼容已有泛型调用；新领域 API 必须提供 parse，将 unknown 校验后再交给页面。
+export function requestJson<T = unknown>(
+  path: string,
+  options: HttpRequestOptions & { parse?: (value: unknown) => T } = {},
+): Promise<T> {
+  const { parse, ...requestOptions } = options
+  return request(path, requestOptions, async (response) => {
+    const value = await readJsonResponse(response)
+    return parse ? parse(value) : (value as T)
+  })
+}
+
+export function requestText(path: string, options: HttpRequestOptions = {}): Promise<string> {
+  return request(path, options, (response) => response.text())
+}
+
+// 图片等二进制负载沿用同一套认证环境、超时和取消语义。
+export function requestBlob(path: string, options: HttpRequestOptions = {}): Promise<Blob> {
+  return request(path, options, (response) => response.blob())
+}

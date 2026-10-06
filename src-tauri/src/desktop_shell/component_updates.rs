@@ -3,13 +3,37 @@ use pisper_component_updater::{
 };
 use semver::Version;
 use serde::Serialize;
-use std::{collections::HashMap, path::PathBuf, sync::Mutex};
-use tauri::{AppHandle, Manager, State};
+use std::{collections::HashMap, io::Write, path::PathBuf, sync::Mutex};
+use tauri::{AppHandle, State};
 
 use crate::desktop_shell::{
     cli_manager,
-    desktop_bridge::{log_component_update, UPDATER_PUBLIC_KEY},
+    desktop_bridge::{log_component_update as log_default_component_update, UPDATER_PUBLIC_KEY},
 };
+
+fn log_component_update(app: &AppHandle, message: &str) {
+    match super::desktop_data_dir_override() {
+        Ok(Some(directory)) => {
+            let directory = directory.join("logs");
+            if std::fs::create_dir_all(&directory).is_err() {
+                return;
+            }
+            if let Ok(mut file) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(directory.join("component-updater.log"))
+            {
+                let _ = writeln!(
+                    file,
+                    "{} [component-update] {message}",
+                    time::OffsetDateTime::now_utc()
+                );
+            }
+        }
+        Ok(None) => log_default_component_update(app, message),
+        Err(_) => {}
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,10 +75,7 @@ pub struct ComponentUpdateState {
 }
 
 pub fn components_root(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_local_data_dir()
-        .map(|directory| directory.join("components"))
-        .map_err(|error| error.to_string())
+    super::desktop_data_dir(app).map(|directory| directory.join("components"))
 }
 
 fn bundled_version(component: Component) -> &'static str {
@@ -329,7 +350,7 @@ pub async fn desktop_install_component_updates(
             }
         };
 
-        if component == Component::Tui {
+        if component == Component::Tui && super::desktop_data_dir_override()?.is_none() {
             let _ = cli_manager::refresh_managed_cli(&app);
         }
         log_component_update(

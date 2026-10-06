@@ -2,22 +2,22 @@
 import { lazy, Suspense, useMemo } from 'react'
 import { Blocks, Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
-import { useI18n } from '@/app/use-i18n'
-import type { Notify } from '@/app/route-context'
+import { useI18n } from '@/app/i18n/use-i18n'
+import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   getSettingsNavigation,
   settingsNavigationKey,
   SETTINGS_PAGES,
   type SettingsDestination,
-} from '@/app/settings-navigation'
+} from '@/app/routes/settings-navigation'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { BrandLogo } from '@/components/BrandLogo'
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
-import { useShortcutLabel } from '@/lib/shortcuts'
+import { useShortcutLabel } from '@/lib/ui/shortcuts'
 import { cn } from '@/lib/utils'
 
 const SidebarSettingsButton = lazy(() =>

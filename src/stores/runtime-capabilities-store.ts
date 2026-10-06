@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { apiJson } from '@/lib/api'
+import { apiJson } from '@/lib/http/api'
 import {
   LEGACY_RUNTIME_CAPABILITIES,
   type RuntimeCapabilities,
@@ -24,7 +24,7 @@ function normalizeCapabilities(value: Partial<RuntimeCapabilities>): RuntimeCapa
   return {
     version: Number(value.version) || 0,
     profile,
-    engine: 'node',
+    engine: value.engine === 'pi-rs' ? 'pi-rs' : 'node',
     degraded: value.degraded === true,
     modules: {
       childProcess: value.modules?.childProcess !== false,

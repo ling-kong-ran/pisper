@@ -1,0 +1,507 @@
+// @public 聊天领域对应用壳和其他 Feature 提供的会话 API；不加载聊天页面。
+// 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
+// consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
+import { streamEventsWithResume } from '@/lib/http/api'
+import {
+  requestJson as requestHttpJson,
+  waitForMobileRuntimeReady,
+  type HttpRequestOptions,
+} from '@/lib/http/http'
+import { fetchStartupQuery, invalidateStartupQuery } from '@/lib/startup/startup-queries'
+import type {
+  ChatAttachment,
+  ChatMessage,
+  EntityRecord,
+  ResourceInvocation,
+  SessionSummary,
+} from '@/types/chat'
+
+export type ApiRecord = EntityRecord
+export type QueuedInputResponse = ApiRecord & {
+  inputId?: string | null
+  queueRevision?: number
+  queuedInputs?: EntityRecord[]
+}
+export type WithdrawnInput = { text: string; attachments: ChatAttachment[] }
+export type WithdrawQueuedInputResponse = QueuedInputResponse & {
+  removed: boolean
+  inputId: string
+  pendingMessageCount: number
+  withdrawnInput?: WithdrawnInput
+}
+type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void
+
+type SessionListResponse = { sessions: SessionSummary[] }
+type MessagePageResponse = EntityRecord & {
+  messages: ChatMessage[]
+  pageInfo: {
+    start: number
+    hasMore: boolean
+    nextCursor: string | null
+  }
+}
+type LiveSessionResponse = MessagePageResponse & { configurationBusy?: boolean }
+
+type CompactionPreferenceResponse = {
+  thresholdPercent: number
+  minPercent: number
+  maxPercent: number
+}
+
+export type SessionTreeNode = {
+  id: string
+  parentId: string | null
+  type: string
+  kind: string
+  role: string
+  text: string
+  status: string
+  label: string
+  timestamp: string
+  active: boolean
+  leaf: boolean
+  branchPoint: boolean
+}
+
+export type SessionTreeLineage = {
+  parentSessionId: string
+  sourceEntryId: string
+  sourceSessionName: string
+  derivedAt: string | null
+  childSessionIds: string[]
+}
+
+export type SessionTreeResponse = {
+  sessionId: string
+  leafId: string | null
+  nodeCount: number
+  branchCount: number
+  streaming: boolean
+  nodes: SessionTreeNode[]
+  lineage: SessionTreeLineage | null
+}
+
+export type SessionTreeNavigationResult = {
+  cancelled: boolean
+  editorText: string | null
+}
+
+export type SessionTreeNavigationResponse = SessionTreeResponse & SessionTreeNavigationResult
+
+export type SessionTreeLabelMatch = {
+  sessionId: string
+  sessionName: string
+  sessionCreated: string
+  sessionModified: string
+  entryId: string
+  label: string
+  summary: string
+  nodeTimestamp: string
+  active: boolean
+}
+
+export type SessionCommand = {
+  name: string
+  invocation: string
+  description: string
+  argumentHint: string
+  source: 'prompt' | 'skill'
+  scope: 'user' | 'project' | 'package' | 'custom'
+}
+
+export type SessionCommandsResponse = {
+  sessionId: string
+  commands: SessionCommand[]
+  counts: {
+    total: number
+    prompts: number
+    skills: number
+    diagnostics: number
+  }
+}
+
+type ChatConfigResponse = EntityRecord & {
+  provider?: string
+  model?: string
+  providers: Array<
+    EntityRecord & {
+      id: string
+      name?: string
+      configured?: boolean
+      enabled?: boolean
+      models: Array<EntityRecord & { id: string; name?: string; kind?: string }>
+    }
+  >
+}
+
+export type GitChangesResponse = EntityRecord & {
+  vcs?: string
+  isRepo: boolean
+  gitAvailable?: boolean
+  svnAvailable?: boolean
+  cwd?: string
+  branch?: string
+  hasHead?: boolean
+  files: Array<{ path: string; status: string }>
+  diff: string
+  diffTruncated?: boolean
+  ahead?: number | null
+  error?: string
+}
+
+// 会话文件变更审批：edit/write 的修改前快照对比结果，无 VCS 也可用。
+export type SessionFileChangeFile = {
+  path: string
+  status: 'modified' | 'created' | 'deleted'
+  added: number
+  removed: number
+  changeCount: number
+  snapshot: boolean
+  canRevert: boolean
+  approved: boolean
+  reverted: boolean
+  pending: boolean
+  changedAt: string
+}
+
+export type SessionFileChangesResponse = EntityRecord & {
+  files: SessionFileChangeFile[]
+  summary: { files: number; pending: number; added: number; removed: number }
+  reverted?: number
+}
+
+const sessionPath = (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`
+
+async function requestJson<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
+  const result = await requestHttpJson<T>(path, options)
+  // 会话摘要发生变更后立即失效；调用方随后显式刷新也会复用这次在途查询。
+  if (options.method && options.method !== 'GET') {
+    if (
+      /^\/api\/sessions(?:$|\/[^/]+(?:\/(?:derive|model|cwd|execution-mode|run-mode|thinking-level|goal|tree\/navigate))?$)/.test(
+        path,
+      )
+    ) {
+      void invalidateStartupQuery('sessions')
+    }
+    if (path === '/api/settings/compaction') void invalidateStartupQuery('config')
+  }
+  return result
+}
+
+// 聊天 API 客户端：按领域分组封装所有会话/树/审批/目标模式/Git/工作流运行
+// 等 HTTP 调用。全部走 requestJson（自动超时与错误归一化），
+// 流式接口 openStream 单独用 fetch + streamEventsWithResume 消费 SSE（含断流重挂）。
+export const chatApi = {
+  // —— 会话目录与消息 ——
+  listSessions: ({ refresh = true } = {}) =>
+    fetchStartupQuery<SessionListResponse>('sessions', refresh),
+
+  // 搜索会话树标签（供命令面板/跳转）。
+  searchSessionTreeLabels: (query: string, limit = 20) => {
+    const params = new URLSearchParams({ query, limit: String(limit) })
+    return requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?${params}`)
+  },
+
+  listSessionTreeLabels: (limit = 500) =>
+    requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?limit=${limit}`),
+
+  createSession: (name: string, cwd = '') =>
+    requestJson<SessionSummary>('/api/sessions', {
+      method: 'POST',
+      data: { name, ...(cwd ? { cwd } : {}) },
+    }),
+
+  deriveSession: (sessionId: string, boundaryEntryId: string, name: string) =>
+    requestJson<SessionSummary>(`${sessionPath(sessionId)}/derive`, {
+      method: 'POST',
+      data: { boundaryEntryId, name },
+    }),
+
+  // —— 会话树（分支/标签/导航）——
+  getSessionTree: (sessionId: string) =>
+    requestJson<SessionTreeResponse>(`${sessionPath(sessionId)}/tree`),
+
+  navigateSessionTree: (sessionId: string, targetEntryId: string, summarize: boolean) =>
+    requestJson<SessionTreeNavigationResponse>(`${sessionPath(sessionId)}/tree/navigate`, {
+      method: 'POST',
+      data: { targetEntryId, summarize },
+      timeout: 180_000,
+    }),
+
+  navigateSessionTreeTarget: (sessionId: string, targetEntryId: string) =>
+    requestJson<SessionTreeNavigationResult>(`${sessionPath(sessionId)}/tree/navigate`, {
+      method: 'POST',
+      data: { targetEntryId, summarize: false, includeTree: false },
+      timeout: 180_000,
+    }),
+
+  setSessionTreeLabel: (sessionId: string, entryId: string, label: string) =>
+    requestJson<SessionTreeResponse>(
+      `${sessionPath(sessionId)}/tree/labels/${encodeURIComponent(entryId)}`,
+      { method: 'PUT', data: { label } },
+    ),
+
+  getSessionCommands: (sessionId: string) =>
+    requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`),
+
+  getConfig: ({ refresh = false } = {}) => fetchStartupQuery<ChatConfigResponse>('config', refresh),
+
+  updateCompactionPreference: (thresholdPercent: number) =>
+    requestJson<CompactionPreferenceResponse>('/api/settings/compaction', {
+      method: 'PATCH',
+      data: { thresholdPercent },
+    }),
+
+  getLiveSession: (sessionId: string, options: HttpRequestOptions = {}) =>
+    requestJson<LiveSessionResponse>(`${sessionPath(sessionId)}/live`, options),
+
+  getMessages: (sessionId: string, options: { limit: number; before?: string }) => {
+    const params = new URLSearchParams({ limit: String(options.limit) })
+    if (options.before) params.set('before', options.before)
+    return requestJson<MessagePageResponse>(`${sessionPath(sessionId)}/messages?${params}`)
+  },
+
+  // —— 流式对话与排队 ——
+  // 断流自动重挂：run 帧携带 runId，后续帧带游标；连接中断后凭
+  // /api/runs/:id/events?after= 续传补发，缓冲溢出由 resync_required 上报。
+  openStream: async (
+    input: {
+      sessionId: string
+      message: string
+      attachments: unknown[]
+      goalMode: boolean
+      teamMode: boolean
+      goalTokenBudget?: number | null
+      invocation?: ResourceInvocation | null
+    },
+    onEvent: StreamEventHandler,
+  ) => {
+    await streamEventsWithResume({
+      open: async () => {
+        await waitForMobileRuntimeReady()
+        return fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        })
+      },
+      resume: async (runId, cursor) => {
+        await waitForMobileRuntimeReady()
+        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`)
+      },
+      onEvent,
+    })
+  },
+
+  // 重试最后一轮：服务端先把活跃叶子撤回上一轮边界，再复用同一 SSE 管道原地重跑。
+  retryLastTurn: async (sessionId: string, onEvent: StreamEventHandler) => {
+    await streamEventsWithResume({
+      open: async () => {
+        await waitForMobileRuntimeReady()
+        return fetch(`${sessionPath(sessionId)}/retry`, { method: 'POST' })
+      },
+      resume: async (runId, cursor) => {
+        await waitForMobileRuntimeReady()
+        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`)
+      },
+      onEvent,
+    })
+  },
+
+  queueInput: (
+    sessionId: string,
+    message: string,
+    attachments: ChatAttachment[],
+    behavior: string,
+  ) =>
+    requestJson<QueuedInputResponse>(`${sessionPath(sessionId)}/input`, {
+      method: 'POST',
+      data: { message, attachments, behavior },
+    }),
+
+  withdrawQueuedInput: (sessionId: string, inputId: string) =>
+    requestJson<WithdrawQueuedInputResponse>(
+      `${sessionPath(sessionId)}/input/${encodeURIComponent(inputId)}`,
+      { method: 'DELETE' },
+    ),
+
+  compactSession: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/compact`, {
+      method: 'POST',
+      data: {},
+      timeout: 180_000,
+    }),
+
+  getSessionWorkflowRuns: (sessionId: string) =>
+    requestJson<{ runs: EntityRecord[] }>(`${sessionPath(sessionId)}/workflow-runs`),
+
+  resolveWorkflowApproval: (runId: string, nodeId: string, approved: boolean) =>
+    requestJson<ApiRecord>(
+      `/api/workflow-runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(nodeId)}`,
+      { method: 'POST', data: { approved } },
+    ),
+
+  stopWorkflowRun: (runId: string) =>
+    requestJson<ApiRecord>(`/api/workflow-runs/${encodeURIComponent(runId)}/stop`, {
+      method: 'POST',
+      data: {},
+    }),
+
+  abort: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/abort`, {
+      method: 'POST',
+      data: {},
+    }),
+
+  resolveMobileOperation: (
+    sessionId: string,
+    operationId: string,
+    result: { ok: boolean; result?: ApiRecord; error?: string },
+  ) =>
+    requestJson<ApiRecord>(
+      `${sessionPath(sessionId)}/mobile-operations/${encodeURIComponent(operationId)}`,
+      { method: 'POST', data: result },
+    ),
+
+  pauseGoal: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/goal`, {
+      method: 'PATCH',
+      data: { action: 'pause' },
+    }),
+
+  setGoalBudget: (sessionId: string, tokenBudget: number | null) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/goal`, {
+      method: 'PATCH',
+      data: { action: 'set-budget', tokenBudget },
+    }),
+
+  // —— Git / VCS 变更 ——
+  getGitChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/changes`),
+
+  commitGitChanges: (sessionId: string, message: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/commit`, {
+      method: 'POST',
+      data: { message },
+      timeout: 60_000,
+    }),
+
+  pushGitChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/push`, {
+      method: 'POST',
+      data: {},
+      timeout: 150_000,
+    }),
+
+  revertGitChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/git/revert`, {
+      method: 'POST',
+      data: {},
+      timeout: 60_000,
+    }),
+
+  getVcsChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`),
+
+  // 单文件差异：消息文件 chip「查看改动」；非版本控制工作区回退到修改前快照。
+  getFileDiff: (sessionId: string, path: string) =>
+    requestJson<{
+      isRepo: boolean
+      diff: string
+      diffTruncated?: boolean
+      source?: string
+      canRevert?: boolean
+    }>(`${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`),
+
+  commitVcsChanges: (sessionId: string, message: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/commit`, {
+      method: 'POST',
+      data: { message },
+      timeout: 150_000,
+    }),
+
+  pushVcsChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/push`, {
+      method: 'POST',
+      data: {},
+      timeout: 150_000,
+    }),
+
+  revertVcsChanges: (sessionId: string) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/revert`, {
+      method: 'POST',
+      data: {},
+      timeout: 60_000,
+    }),
+
+  // —— 会话文件变更审批（无 Git/SVN 时的快照 diff / 撤销 / 批准）——
+  getSessionFileChanges: (sessionId: string, options: { signal?: AbortSignal } = {}) =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes`, options),
+
+  getSessionFileChangeDiff: (sessionId: string, path: string) =>
+    requestJson<{ diff: string; diffTruncated?: boolean; found?: boolean }>(
+      `${sessionPath(sessionId)}/file-changes/diff?path=${encodeURIComponent(path)}`,
+    ),
+
+  revertSessionFileChanges: (sessionId: string, path = '') =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes/revert`, {
+      method: 'POST',
+      data: { path },
+      timeout: 60_000,
+    }),
+
+  approveSessionFileChanges: (sessionId: string, path = '') =>
+    requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes/approve`, {
+      method: 'POST',
+      data: { path },
+    }),
+
+  // —— 会话运行控制（模型/思考/执行模式/审批/目录）——
+  updateModel: (sessionId: string, provider: string, model: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/model`, {
+      method: 'PUT',
+      data: { provider, model },
+    }),
+
+  getThinkingLevel: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/thinking-level`),
+
+  setThinkingLevel: (sessionId: string, level: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/thinking-level`, {
+      method: 'PUT',
+      data: { level },
+    }),
+
+  updateExecutionMode: (sessionId: string, mode: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/execution-mode`, {
+      method: 'PUT',
+      data: { mode },
+    }),
+
+  updateRunMode: (sessionId: string, mode: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/run-mode`, {
+      method: 'PUT',
+      data: { mode },
+    }),
+
+  resolveApproval: (sessionId: string, approvalId: string, approved: boolean) =>
+    requestJson<ApiRecord>(
+      `${sessionPath(sessionId)}/approvals/${encodeURIComponent(approvalId)}`,
+      {
+        method: 'POST',
+        data: { approved },
+      },
+    ),
+
+  updateCwd: (sessionId: string, cwd: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/cwd`, {
+      method: 'PUT',
+      data: { cwd },
+    }),
+
+  renameSession: (sessionId: string, name: string) =>
+    requestJson<ApiRecord>(sessionPath(sessionId), {
+      method: 'PATCH',
+      data: { name },
+    }),
+}

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { STORAGE_KEYS } from '@/app/storage'
-import { pageStateStorage } from '@/lib/page-state-storage'
+import { pageStateStorage } from '@/lib/storage/page-state-storage'
 import {
   DEFAULT_SHORTCUTS,
   normalizeShortcutBindings,

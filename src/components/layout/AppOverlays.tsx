@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { LoaderCircle, MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
-import { startupQueryOptions } from '@/lib/startup-queries'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { startupQueryOptions } from '@/lib/startup/startup-queries'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/ui/field'
-import { relativeTime } from '@/lib/format'
-import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
+import { relativeTime } from '@/lib/format/format'
+import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/api/chat-api'
 
 import { AppCardHeader } from '@/components/ui/app-primitives'
 

@@ -1,6 +1,6 @@
 // Lazy utility navigation keeps menu primitives out of the startup dependency graph.
 import { Ellipsis, type LucideIcon } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
