@@ -344,7 +344,7 @@ pub(crate) async fn install(
     State(state): State<ArcAppState>,
     Query(params): Query<HashMap<String, String>>,
     Json(body): Json<Value>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<(axum::http::StatusCode, Json<Value>), ApiError> {
     let session_id = params.get("sessionId").cloned().unwrap_or_default();
     let cwd = if session_id.is_empty() {
         state.cwd.clone()
@@ -364,11 +364,21 @@ pub(crate) async fn install(
             "该来源没有发现符合 Agent Skills 标准的技能。",
         ));
     }
+    // release resolveInstallSkills 接受三种来源形状：技能根目录、单技能目录
+    // （内含 SKILL.md）、SKILL.md 文件。pi-rs 的 load_skills 对目录按根扫描、
+    // 对 .md 文件单载 —— 含 SKILL.md 的目录必须转成其 SKILL.md 文件路径。
+    let source_path = if local.is_file() {
+        local.clone()
+    } else if local.join("SKILL.md").is_file() {
+        local.join("SKILL.md")
+    } else {
+        local.clone()
+    };
     let services = state.runtime.services();
     let loaded = load_skills(LoadSkillsOptions {
         cwd: cwd.clone(),
         agent_dir: services.agent_dir.clone(),
-        skill_paths: vec![local.to_string_lossy().to_string()],
+        skill_paths: vec![source_path.to_string_lossy().to_string()],
         include_defaults: false,
     });
     if loaded.skills.is_empty() {
@@ -467,7 +477,8 @@ pub(crate) async fn install(
         .collect();
     dashboard_value["installed"] = Value::Array(installed);
     dashboard_value["source"] = json!(source);
-    Ok(Json(dashboard_value))
+    // release: json(201, await runtime.installSkill(...))
+    Ok((axum::http::StatusCode::CREATED, Json(dashboard_value)))
 }
 
 fn copy_skill_source(source: &StdPath, destination: &StdPath, directory: bool) -> Result<(), ApiError> {

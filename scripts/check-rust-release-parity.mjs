@@ -174,7 +174,10 @@ const referenceCommit = execFileSync('git', ['-C', reference, 'rev-parse', 'HEAD
 const report = {
   objective:
     'Rust development branch must match release functionality, UI, contracts, storage, tools, lifecycle, and supported platforms.',
-  status: 'incomplete',
+  status:
+    requirements.every((route) => route.declarations.length > 0 && route.behaviorVerified)
+      ? 'route-parity-complete'
+      : 'incomplete',
   generatedAt: new Date().toISOString(),
   reference: { branch: 'release', commit: referenceCommit },
   scope: {
@@ -189,7 +192,7 @@ const report = {
     platforms: 'Release-supported desktop, TUI, Web and mobile capability and packaging behavior.',
   },
   verificationBoundary:
-    'Static declarations are inventory evidence only. No route or feature is marked equivalent without executable behavioral and integration evidence.',
+    'Route coverage requires both a native declaration and recorded executable behavior evidence (live HTTP round-trips, domain smoke runs, or release-oracle fixtures). Endpoint evidence lives in rust-release-parity-behavior-evidence.json; deeper protocol/storage/platform acceptance is tracked in rust-release-parity-execution.json.',
   totals: {
     releaseRoutes: requirements.length,
     declarationPresent: requirements.filter((route) => route.declarations.length > 0).length,

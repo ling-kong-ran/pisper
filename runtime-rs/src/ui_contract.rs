@@ -336,14 +336,9 @@ async fn update_browser_preferences(
 }
 
 fn validate_dock_layout(value: &Value) -> Result<(), ApiError> {
-    if !value.is_object()
-        || value["version"] != 1
-        || value["engine"] != "dockview"
-        || !value["activePanelId"].is_string()
-        || !value["layout"]["grid"].is_object()
-        || !value["layout"]["panels"].is_object()
-    {
-        return Err(ApiError::bad_request("Dock 布局版本或结构无效。"));
+    // release saveChatDockLayout：只要求是 JSON 对象（不能是数组）。
+    if !value.is_object() {
+        return Err(ApiError::bad_request("Dock 布局必须是 JSON 对象。"));
     }
     Ok(())
 }
@@ -531,7 +526,11 @@ mod tests {
 
     #[test]
     fn dock_layout_requires_an_actual_dockview_envelope() {
+        // release saveChatDockLayout 只要求 JSON 对象（任意结构，不能是数组）。
         assert!(validate_dock_layout(&json!({"version":1,"engine":"dockview","activePanelId":"session:a","layout":{"grid":{},"panels":{}}})).is_ok());
-        assert!(validate_dock_layout(&json!({"panels":{}})).is_err());
+        assert!(validate_dock_layout(&json!({"panels":{}})).is_ok());
+        assert!(validate_dock_layout(&json!(["not","an","object"])).is_err());
+        assert!(validate_dock_layout(&json!("string")).is_err());
+        assert!(validate_dock_layout(&json!(null)).is_err());
     }
 }

@@ -607,24 +607,39 @@ async fn current_git_commit(state: &AppState) -> String {
             return sha;
         }
     }
-    let output = tokio::process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(&state.cwd)
-        .output()
-        .await;
-    match output {
-        Ok(output) if output.status.success() => {
-            valid_commit(&String::from_utf8_lossy(&output.stdout))
+    // release 在 Web 源码根目录跑 git rev-parse；工作区不是仓库时依次
+    // 回退到可执行文件所在目录的祖先（源码 checkout 运行场景）。
+    let mut candidates = vec![state.cwd.clone()];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.to_string_lossy().to_string());
         }
-        _ => String::new(),
     }
+    for cwd in candidates {
+        let output = tokio::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&cwd)
+            .output()
+            .await;
+        if let Ok(output) = output {
+            if output.status.success() {
+                let sha = valid_commit(&String::from_utf8_lossy(&output.stdout));
+                if !sha.is_empty() {
+                    return sha;
+                }
+            }
+        }
+    }
+    String::new()
 }
 
 /// release GET /api/app-update：与远端 release 分支比较 commit。
 pub(crate) async fn app_update(State(state): State<ArcAppState>) -> Result<Json<Value>, ApiError> {
     let current_commit = current_git_commit(&state).await;
     if current_commit.is_empty() {
-        return Err(ApiError::bad_request(
+        return Err(ApiError::new(
+            axum::http::StatusCode::BAD_GATEWAY,
+            "update_check_failed",
             "无法识别当前 Web 源码的 Git commit。请使用 Git 仓库运行，或设置 PISPER_COMMIT_SHA。",
         ));
     }
@@ -636,17 +651,28 @@ pub(crate) async fn app_update(State(state): State<ArcAppState>) -> Result<Json<
         .timeout(Duration::from_secs(10))
         .send()
         .await
-        .map_err(|error| ApiError::internal(error.to_string()))?;
+        .map_err(|error| {
+            ApiError::new(
+                axum::http::StatusCode::BAD_GATEWAY,
+                "update_check_failed",
+                error.to_string(),
+            )
+        })?;
     if !response.status().is_success() {
-        return Err(ApiError::internal(format!(
-            "GitHub commit 比较失败：HTTP {}",
-            response.status().as_u16()
-        )));
+        // release app-update 路由把检查失败包裹为 502 {error}。
+        return Err(ApiError::new(
+            axum::http::StatusCode::BAD_GATEWAY,
+            "update_check_failed",
+            format!("GitHub commit 比较失败：HTTP {}", response.status().as_u16()),
+        ));
     }
-    let comparison: Value = response
-        .json()
-        .await
-        .map_err(|error| ApiError::internal(error.to_string()))?;
+    let comparison: Value = response.json().await.map_err(|error| {
+        ApiError::new(
+            axum::http::StatusCode::BAD_GATEWAY,
+            "update_check_failed",
+            error.to_string(),
+        )
+    })?;
     let commits = comparison["commits"].as_array().cloned().unwrap_or_default();
     let ahead_by = comparison["ahead_by"].as_u64().unwrap_or(0).max(0);
     let available = ahead_by > 0;

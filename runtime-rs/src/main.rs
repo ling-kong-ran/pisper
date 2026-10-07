@@ -476,7 +476,7 @@ async fn derive_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let source = session_runtime::mutation(&state, &id).await?;
     let entry_id = body
         .get("boundaryEntryId")
@@ -518,11 +518,15 @@ async fn derive_session(
             .append_session_info(&name)
             .map_err(|e| ApiError::internal(e.to_string()))?;
     }
-    Ok(Json(serde_json::json!({
-        "ok": true,
-        "id": session.session_id(),
-        "name": name,
-    })))
+    // release: json(201, await runtime.deriveSession(...))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "ok": true,
+            "id": session.session_id(),
+            "name": name,
+        })),
+    ))
 }
 
 async fn session_compact(
@@ -534,7 +538,10 @@ async fn session_compact(
     let result = session
         .compact(None)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| {
+            // release 的通用错误映射把无状态码的 Error 归为 400。
+            ApiError::bad_request(crate::security::redact_secret_text(&e.to_string()))
+        })?;
     Ok(Json(result))
 }
 
@@ -1874,13 +1881,14 @@ async fn create_pairing_code(State(state): State<Arc<AppState>>) -> Json<serde_j
     let _ = write!(code_str, "{code:06}");
     let expires_at = product::now_ms() + 300_000;
     *state.pairing.pending.lock().expect("pairing lock") = Some((code_str.clone(), expires_at));
-    Json(serde_json::json!({ "code": code_str, "expiresAt": expires_at }))
+    // release 同形状（qrDataUrl 在渲染失败时为空字符串；本后端暂不渲染二维码图形）。
+    Json(serde_json::json!({ "code": code_str, "expiresAt": expires_at, "qrDataUrl": "" }))
 }
 
 async fn pair_device(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let code = body
         .get("code")
         .and_then(|v| v.as_str())
@@ -1940,11 +1948,23 @@ async fn pair_device(
     let mut devices = state.pairing.devices.lock().expect("devices lock");
     devices.push(device.clone());
     security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
-    Ok(Json(serde_json::json!({
-        "deviceId": device.id,
-        "token": token,
-        "name": device.name,
-    })))
+    // release pairedResponse：201 + {deviceId, token, serverName, endpoints, apiVersion}。
+    let endpoints = if state.remote_enabled.load(std::sync::atomic::Ordering::Relaxed) {
+        serde_json::json!([{ "t": "lan" }])
+    } else {
+        serde_json::json!([])
+    };
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "deviceId": device.id,
+            "token": token,
+            "name": device.name,
+            "serverName": "Pisper",
+            "endpoints": endpoints,
+            "apiVersion": 1,
+        })),
+    ))
 }
 
 async fn list_devices(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {

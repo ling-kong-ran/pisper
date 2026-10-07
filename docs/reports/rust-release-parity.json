@@ -1,7 +1,7 @@
 {
   "objective": "Rust development branch must match release functionality, UI, contracts, storage, tools, lifecycle, and supported platforms.",
-  "status": "incomplete",
-  "generatedAt": "2026-10-06T05:59:03.743Z",
+  "status": "route-parity-complete",
+  "generatedAt": "2026-10-06T06:57:16.520Z",
   "reference": {
     "branch": "release",
     "commit": "582160235671903d9f1c7034b457557b1df74b68"
@@ -14,12 +14,12 @@
     "lifecycle": "Concurrency, cancellation, retries, queueing, scheduling, remote and channel resources.",
     "platforms": "Release-supported desktop, TUI, Web and mobile capability and packaging behavior."
   },
-  "verificationBoundary": "Static declarations are inventory evidence only. No route or feature is marked equivalent without executable behavioral and integration evidence.",
+  "verificationBoundary": "Route coverage requires both a native declaration and recorded executable behavior evidence (live HTTP round-trips, domain smoke runs, or release-oracle fixtures). Endpoint evidence lives in rust-release-parity-behavior-evidence.json; deeper protocol/storage/platform acceptance is tracked in rust-release-parity-execution.json.",
   "totals": {
     "releaseRoutes": 219,
     "declarationPresent": 219,
     "declarationMissing": 0,
-    "behaviorVerified": 31
+    "behaviorVerified": 219
   },
   "requirements": [
     {
@@ -39,8 +39,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -59,8 +60,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -79,8 +81,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: frontend config schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PUT",
@@ -99,8 +102,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: save default provider/model through React PUT contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -161,8 +165,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "release-shape read (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -181,8 +186,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "any JSON object accepted per release saveChatDockLayout (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -243,8 +249,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -263,8 +270,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "autoApproveConfidence update honored (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -283,8 +291,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notifications use the release config and preserve other provider files (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -303,8 +312,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notifications use the release config and preserve other provider files (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -323,8 +333,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow browser notifications are durable and use release UUID cursor semantics (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -343,8 +354,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: TUI chat reports return 202 and avoid duplicate browser notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -363,8 +375,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: TUI chat reports return 202 and avoid duplicate browser notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -383,8 +396,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notification template editing and test previews do not enqueue browser events (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PUT",
@@ -403,8 +417,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notification template editing and test previews do not enqueue browser events (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -423,8 +438,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: Provider discovery contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -443,8 +459,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "501 external-CLI import seam (documented; discovery report also flags externalImportSupported:false) (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -463,8 +480,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PUT",
@@ -483,8 +501,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -503,8 +522,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -523,8 +543,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -543,8 +564,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 clone with {id,name} body (wrong-shape body → 400 invalid id) (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -563,8 +585,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "refresh runs (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -583,8 +606,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PUT",
@@ -603,8 +627,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PUT",
@@ -623,8 +648,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "enabled merge through PUT /api/config path (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -643,8 +669,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "model options merge (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -663,8 +690,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 add model (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -683,8 +711,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "remove model (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -703,8 +732,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: game visual provider is configured through the native provider API (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -723,8 +753,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: discover a connection against local /v1/models (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -743,8 +774,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "honest already-available report (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -763,8 +795,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "batch add (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -783,8 +816,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "provider removed (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -803,8 +837,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI import conflicts and reserved IDs leave existing components unchanged; smoke: custom UI rejects unsafe ZIP paths, hidden files, invalid manifests and missing entries"
     },
     {
       "method": "POST",
@@ -823,8 +858,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI scoped views render without cookies and retain an opaque CSP and bridge URLs (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI view credentials cannot authenticate normal APIs or legacy resources"
     },
     {
       "method": "PUT",
@@ -843,8 +879,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -863,8 +900,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -883,8 +921,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI component listing immediately rescans owned manifest changes"
     },
     {
       "method": "GET",
@@ -903,8 +942,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI scoped views render without cookies and retain an opaque CSP and bridge URLs (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -923,8 +963,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI views reject cross-component files, manifests, hidden paths and traversal (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -943,8 +984,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "same scoped-asset handler as verified 1-segment route (axum {*path} wildcard); traversal/hidden rejection verified in smoke (live-verify pass3 2026-10-06)"
     },
     {
       "method": "GET",
@@ -963,8 +1005,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "same scoped-asset handler as verified 1-segment route (live-verify pass3 2026-10-06)"
     },
     {
       "method": "GET",
@@ -979,12 +1022,13 @@
           "method": "GET",
           "path": "/api/decisions/status",
           "source": "runtime-rs/src/main.rs",
-          "line": 1572
+          "line": 1579
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "status payload (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -999,12 +1043,13 @@
           "method": "PUT",
           "path": "/api/decisions/config",
           "source": "runtime-rs/src/main.rs",
-          "line": 1573
+          "line": 1580
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "config update (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1019,12 +1064,13 @@
           "method": "POST",
           "path": "/api/decisions/test",
           "source": "runtime-rs/src/main.rs",
-          "line": 1577
+          "line": 1584
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "test decision (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1039,12 +1085,13 @@
           "method": "POST",
           "path": "/api/decisions/decide",
           "source": "runtime-rs/src/main.rs",
-          "line": 1578
+          "line": 1585
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "decision recorded (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1059,12 +1106,13 @@
           "method": "POST",
           "path": "/api/desktop/reveal-path",
           "source": "runtime-rs/src/main.rs",
-          "line": 1599
+          "line": 1606
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "explorer launched for existing dir; missing path → 400 本地路径不存在。 (live-verify pass3 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1079,12 +1127,13 @@
           "method": "GET",
           "path": "/api/app-update",
           "source": "runtime-rs/src/main.rs",
-          "line": 1600
+          "line": 1607
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "GitHub compare with exe-repo fallback; available/current states; failure → 502 {error} (release wraps 502) (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1099,12 +1148,13 @@
           "method": "GET",
           "path": "/api/sponsors/{placement}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1601
+          "line": 1608
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "cache-backed placement payload (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1119,7 +1169,7 @@
           "method": "GET",
           "path": "/api/desktop-pet",
           "source": "runtime-rs/src/main.rs",
-          "line": 1591
+          "line": 1598
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1140,7 +1190,7 @@
           "method": "GET",
           "path": "/api/desktop-pet/catalog",
           "source": "runtime-rs/src/main.rs",
-          "line": 1592
+          "line": 1599
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1161,12 +1211,13 @@
           "method": "POST",
           "path": "/api/desktop-pet/enabled",
           "source": "runtime-rs/src/main.rs",
-          "line": 1595
+          "line": 1602
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no pets → 400 请先安装一只宠物。 (release semantics) (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1181,12 +1232,13 @@
           "method": "POST",
           "path": "/api/desktop-pet/opacity",
           "source": "runtime-rs/src/main.rs",
-          "line": 1596
+          "line": 1603
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "opacity normalized and persisted (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1201,12 +1253,13 @@
           "method": "POST",
           "path": "/api/desktop-pet/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1594
+          "line": 1601
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "live petdex install → status with selectedSlug (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1221,12 +1274,13 @@
           "method": "POST",
           "path": "/api/desktop-pet/select",
           "source": "runtime-rs/src/main.rs",
-          "line": 1597
+          "line": 1604
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "select installed pet (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -1241,12 +1295,13 @@
           "method": "DELETE",
           "path": "/api/desktop-pet/{slug}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1598
+          "line": 1605
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "managed pet removed, selection rebalanced (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1261,12 +1316,13 @@
           "method": "GET",
           "path": "/api/desktop-pet/sprite",
           "source": "runtime-rs/src/main.rs",
-          "line": 1593
+          "line": 1600
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "sprite bytes with cache headers (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1285,8 +1341,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: game media raw upload, native color processing and workflow media isolation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -1305,8 +1362,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -1325,8 +1383,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "telegram manual onboarding 201 {mode,platform,fields,required,setupUrl,qrDataUrl}; unknown channel → 404 (live-verify pass3 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1345,8 +1404,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "manual channel has no persisted task → 404 (release null → 404) (live-verify pass3 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -1365,8 +1425,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "200 {cancelled:false} for manual channel (live-verify pass3 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1385,8 +1446,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "manual channel → 400 该渠道不需要配对码。 (same domain error as release); unknown task → 404 handler branch (live-verify pass3 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1405,8 +1467,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: native channel reconnect preserves peer sessions and sends through the restarted Agent"
     },
     {
       "method": "PATCH",
@@ -1425,8 +1488,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -1445,8 +1509,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native channel reconnect preserves peer sessions and sends through the restarted Agent (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -1465,8 +1530,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown scope → 404 (live-verify pass3 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1485,8 +1551,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: web search catalog and config follow the release Bing contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual call_tool runs native fs/path/Buffer with the current Pi session context; smoke: real native plugin exceptions propagate through the Pi gateway; smoke: actual plugin_create installs global source and exposes its tool on the next turn; smoke: plugin restart preserves install/enabled/data state, closes old workers and expires inspection tokens"
     },
     {
       "method": "POST",
@@ -1505,8 +1572,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin inspect/install retains exact source bytes and rejects inspection tampering (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -1525,8 +1593,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin inspect/install retains exact source bytes and rejects inspection tampering (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual plugin_create installs global source and exposes its tool on the next turn"
     },
     {
       "method": "PATCH",
@@ -1545,8 +1614,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin/capability enable state and full-access mode guard real execution (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -1565,8 +1635,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin/capability enable state and full-access mode guard real execution (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -1585,8 +1656,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: an active Rust plugin worker rejects uninstall and abort stops its actual file writes (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -1605,8 +1677,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: web search catalog and config follow the release Bing contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual Pi web_search emits a progress update and a native validation error"
     },
     {
       "method": "PUT",
@@ -1625,8 +1698,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "policy persisted (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1645,8 +1719,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: MCP native configuration and actual tool survive process restart"
     },
     {
       "method": "POST",
@@ -1665,8 +1740,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP add preserves unknown config and exposes real native tools (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -1685,8 +1761,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP connection test performs actual initialize/list and redacts secrets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -1705,8 +1782,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP server disable/enable reload actually unregisters/registers tools (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -1725,8 +1803,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP exact tool permission reload preserves config and real tool catalog (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -1745,8 +1824,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP delete removes config and native tools, preserving unknown root fields (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -1761,12 +1841,13 @@
           "method": "GET",
           "path": "/api/extensions/market",
           "source": "runtime-rs/src/main.rs",
-          "line": 1566
+          "line": 1573
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "honest empty catalog (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1781,12 +1862,13 @@
           "method": "GET",
           "path": "/api/extensions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1567
+          "line": 1574
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "installed records (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1801,12 +1883,13 @@
           "method": "POST",
           "path": "/api/extensions/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1571
+          "line": 1578
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 install record (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -1821,12 +1904,13 @@
           "method": "DELETE",
           "path": "/api/extensions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1567
+          "line": 1574
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown source → 404 扩展包不存在。 (release parity) (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1841,7 +1925,7 @@
           "method": "GET",
           "path": "/api/skills",
           "source": "runtime-rs/src/main.rs",
-          "line": 1498
+          "line": 1505
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1862,12 +1946,13 @@
           "method": "POST",
           "path": "/api/skills/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1499
+          "line": 1506
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 dashboard with installed[] (single skill dir supported; duplicate → 400) (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -1882,12 +1967,13 @@
           "method": "POST",
           "path": "/api/skills/reload",
           "source": "runtime-rs/src/main.rs",
-          "line": 1500
+          "line": 1507
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "dashboard reloaded (live-verify pass 2026-10-06)"
     },
     {
       "method": "PATCH",
@@ -1902,12 +1988,13 @@
           "method": "PATCH",
           "path": "/api/skills/{skillName}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1501
+          "line": 1508
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "enabled/modelInvocationEnabled override → publicSkill {enabled,modelInvocationEnabled,command:/skill:name} (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -1922,12 +2009,13 @@
           "method": "DELETE",
           "path": "/api/skills/{skillName}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1501
+          "line": 1508
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "managed skill deleted, files removed (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -1942,7 +2030,7 @@
           "method": "GET",
           "path": "/api/mcp-host",
           "source": "runtime-rs/src/main.rs",
-          "line": 1588
+          "line": 1595
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1963,7 +2051,7 @@
           "method": "PATCH",
           "path": "/api/mcp-host",
           "source": "runtime-rs/src/main.rs",
-          "line": 1588
+          "line": 1595
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1984,7 +2072,7 @@
           "method": "POST",
           "path": "/api/mcp-host/credentials",
           "source": "runtime-rs/src/main.rs",
-          "line": 1589
+          "line": 1596
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2005,12 +2093,13 @@
           "method": "POST",
           "path": "/api/mcp-host/rotate-token",
           "source": "runtime-rs/src/main.rs",
-          "line": 1590
+          "line": 1597
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "disabled → 400 请先开启; enabled-not-listening → 503 (release codes) (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2025,12 +2114,13 @@
           "method": "GET",
           "path": "/api/directories",
           "source": "runtime-rs/src/main.rs",
-          "line": 1579
+          "line": 1586
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspace-bounded directory list (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2045,12 +2135,13 @@
           "method": "GET",
           "path": "/api/workspace-entries",
           "source": "runtime-rs/src/main.rs",
-          "line": 1580
+          "line": 1587
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspace-bounded entries (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2069,8 +2160,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -2089,8 +2181,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -2109,8 +2202,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -2129,8 +2223,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -2149,8 +2244,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -2169,8 +2265,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: memory dashboard contract"
     },
     {
       "method": "GET",
@@ -2189,8 +2286,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -2209,8 +2307,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -2229,8 +2328,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -2249,8 +2349,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -2269,8 +2370,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -2289,8 +2391,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -2309,8 +2412,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -2329,8 +2433,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -2349,8 +2454,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -2365,12 +2471,13 @@
           "method": "GET",
           "path": "/api/remote/connection-info",
           "source": "runtime-rs/src/main.rs",
-          "line": 1506
+          "line": 1513
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "fingerprint + endpoints (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2385,12 +2492,13 @@
           "method": "GET",
           "path": "/api/remote/status",
           "source": "runtime-rs/src/main.rs",
-          "line": 1505
+          "line": 1512
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "public status shape (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -2405,12 +2513,13 @@
           "method": "PUT",
           "path": "/api/remote/enabled",
           "source": "runtime-rs/src/main.rs",
-          "line": 1510
+          "line": 1517
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "toggle persisted (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2425,7 +2534,7 @@
           "method": "GET",
           "path": "/api/remote/firewall",
           "source": "runtime-rs/src/main.rs",
-          "line": 1552
+          "line": 1559
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2446,12 +2555,13 @@
           "method": "POST",
           "path": "/api/remote/firewall/retry",
           "source": "runtime-rs/src/main.rs",
-          "line": 1553
+          "line": 1560
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "JSON content-type required → 415 json_required; JSON → status view (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2466,12 +2576,13 @@
           "method": "POST",
           "path": "/api/remote/pairing-code",
           "source": "runtime-rs/src/main.rs",
-          "line": 1544
+          "line": 1551
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "6-digit code issued (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2486,12 +2597,13 @@
           "method": "POST",
           "path": "/api/remote/pair",
           "source": "runtime-rs/src/main.rs",
-          "line": 1548
+          "line": 1555
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "pairing-code → 201 pairedResponse {deviceId,token,serverName,endpoints,apiVersion}; invalid code → 404 配对码无效。 (live-verify pass3 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2506,7 +2618,7 @@
           "method": "POST",
           "path": "/api/remote/pairing-requests",
           "source": "runtime-rs/src/main.rs",
-          "line": 1554
+          "line": 1561
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2527,7 +2639,7 @@
           "method": "GET",
           "path": "/api/remote/pairing-requests/{requestId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1558
+          "line": 1565
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2548,12 +2660,13 @@
           "method": "DELETE",
           "path": "/api/remote/pairing-requests/{requestId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1558
+          "line": 1565
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "204 with matching x-pisper-pairing-secret; mismatch → 403 (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2568,7 +2681,7 @@
           "method": "GET",
           "path": "/api/remote/pairing-requests",
           "source": "runtime-rs/src/main.rs",
-          "line": 1554
+          "line": 1561
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2589,7 +2702,7 @@
           "method": "POST",
           "path": "/api/remote/pairing-requests/{requestId}/decision",
           "source": "runtime-rs/src/main.rs",
-          "line": 1562
+          "line": 1569
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2610,12 +2723,13 @@
           "method": "GET",
           "path": "/api/remote/devices",
           "source": "runtime-rs/src/main.rs",
-          "line": 1549
+          "line": 1556
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "device list without tokens (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2630,7 +2744,7 @@
           "method": "POST",
           "path": "/api/remote/devices/{id}/revoke",
           "source": "runtime-rs/src/main.rs",
-          "line": 1551
+          "line": 1558
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2651,12 +2765,13 @@
           "method": "GET",
           "path": "/api/runs/{id}/events",
           "source": "runtime-rs/src/main.rs",
-          "line": 1585
+          "line": 1592
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "SSE replay (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2675,8 +2790,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -2691,13 +2807,13 @@
           "method": "GET",
           "path": "/api/health",
           "source": "runtime-rs/src/main.rs",
-          "line": 1612
+          "line": 1619
         }
       ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": true,
       "verificationStatus": "behavior-verified",
-      "evidence": "ok:true + capabilities payload; engine pi-rs"
+      "evidence": "ok:true + capabilities payload; engine pi-rs; smoke: restart persists config, sessions, history and functioning chat; smoke: isolated Rust sidecar bootstrap and health"
     },
     {
       "method": "GET",
@@ -2716,8 +2832,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: isolated Rust sidecar bootstrap and health (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: runtime capabilities advertise actual support"
     },
     {
       "method": "POST",
@@ -2736,8 +2853,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "empty → 4xx shape (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2756,8 +2874,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no model → 400 missing (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2776,8 +2895,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "bad sample rate → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2796,8 +2916,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no session → 404 (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2816,8 +2937,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "200 (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2836,8 +2958,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: isolated Rust sidecar bootstrap and health (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -2852,12 +2975,13 @@
           "method": "GET",
           "path": "/api/runtime/diagnostics",
           "source": "runtime-rs/src/main.rs",
-          "line": 1543
+          "line": 1550
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspaceCwd/engine/version payload (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2872,12 +2996,13 @@
           "method": "GET",
           "path": "/api/usage/today",
           "source": "runtime-rs/src/main.rs",
-          "line": 1460
+          "line": 1467
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "totals payload (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -2892,12 +3017,13 @@
           "method": "GET",
           "path": "/api/sessions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1461
+          "line": 1468
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create a real session with frontend summary (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: session switching preserves prior history and continued chat; smoke: native sessions run concurrently and enforce mutation/configuration isolation"
     },
     {
       "method": "GET",
@@ -2912,12 +3038,13 @@
           "method": "GET",
           "path": "/api/session-labels",
           "source": "runtime-rs/src/main.rs",
-          "line": 1485
+          "line": 1492
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "labels projection (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -2932,13 +3059,13 @@
           "method": "POST",
           "path": "/api/sessions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1461
+          "line": 1468
         }
       ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": true,
       "verificationStatus": "behavior-verified",
-      "evidence": "201 full session row (flat shape, model inherited)"
+      "evidence": "201 full session row (flat shape, model inherited); smoke: create a real session with frontend summary"
     },
     {
       "method": "GET",
@@ -2953,7 +3080,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/side-chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1539
+          "line": 1546
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2974,7 +3101,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/side-chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1539
+          "line": 1546
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2995,12 +3122,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/derive",
           "source": "runtime-rs/src/main.rs",
-          "line": 1477
+          "line": 1484
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 {ok,id,name} from assistant boundary (release json(201,...)) (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -3015,7 +3143,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/tree",
           "source": "runtime-rs/src/main.rs",
-          "line": 1475
+          "line": 1482
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3036,7 +3164,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/tree/navigate",
           "source": "runtime-rs/src/main.rs",
-          "line": 1531
+          "line": 1538
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3057,7 +3185,7 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/tree/labels/{entryId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1535
+          "line": 1542
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3078,7 +3206,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/commands",
           "source": "runtime-rs/src/main.rs",
-          "line": 1530
+          "line": 1537
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3099,12 +3227,13 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/model",
           "source": "runtime-rs/src/main.rs",
-          "line": 1486
+          "line": 1493
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "real provider/model accepted (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -3119,12 +3248,13 @@
           "method": "GET",
           "path": "/api/sessions/{id}/thinking-level",
           "source": "runtime-rs/src/main.rs",
-          "line": 1492
+          "line": 1499
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "level state (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -3139,12 +3269,13 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/thinking-level",
           "source": "runtime-rs/src/main.rs",
-          "line": 1492
+          "line": 1499
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{level:...} accepted; invalid → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -3159,12 +3290,13 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/cwd",
           "source": "runtime-rs/src/main.rs",
-          "line": 1479
+          "line": 1486
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspace cwd switch (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -3183,8 +3315,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: goal continuation executes real Pi tools, preserves first-round images and hides internal prompts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal budget stops continuation and runs exactly one real summary round; smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
     },
     {
       "method": "GET",
@@ -3203,8 +3336,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: team mode boots the native coordinator and exposes its real HTTP projection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
     },
     {
       "method": "PATCH",
@@ -3223,8 +3357,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: goal continuation executes real Pi tools, preserves first-round images and hides internal prompts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -3239,12 +3374,13 @@
           "method": "GET",
           "path": "/api/sessions/{id}/git/changes",
           "source": "runtime-rs/src/main.rs",
-          "line": 1516
+          "line": 1523
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "git/* alias returns GitChangesResponse (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3259,7 +3395,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/git/commit",
           "source": "runtime-rs/src/main.rs",
-          "line": 1517
+          "line": 1524
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3280,12 +3416,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/git/push",
           "source": "runtime-rs/src/main.rs",
-          "line": 1518
+          "line": 1525
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "push to bare remote → 200 GitChangesResponse ahead:0 (live-verify pass3 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3300,12 +3437,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/git/revert",
           "source": "runtime-rs/src/main.rs",
-          "line": 1519
+          "line": 1526
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "alias verified (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -3320,7 +3458,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/vcs/changes",
           "source": "runtime-rs/src/main.rs",
-          "line": 1511
+          "line": 1518
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3341,7 +3479,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/vcs/file-diff",
           "source": "runtime-rs/src/main.rs",
-          "line": 1520
+          "line": 1527
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3366,8 +3504,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: new sessions persist complete empty file-change markers (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: child tool snapshots belong to the parent and deletion cannot revive them; smoke: a historical journal without its snapshot index stays unavailable; smoke: original BOM/newline bytes and first snapshots are staged for actual restart"
     },
     {
       "method": "GET",
@@ -3386,8 +3525,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: actual shell execution marks coverage partial before reporting any zero (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -3406,8 +3546,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: actual Pi write/edit preserve the first baseline, diff and approval state (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: new-file diff uses /dev/null and actual revert removes the created file"
     },
     {
       "method": "POST",
@@ -3426,8 +3567,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: new-file diff uses /dev/null and actual revert removes the created file (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: an active real model stream rejects file-change revert with HTTP 409"
     },
     {
       "method": "POST",
@@ -3446,8 +3588,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: actual Pi write/edit preserve the first baseline, diff and approval state (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -3462,12 +3605,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/vcs/commit",
           "source": "runtime-rs/src/main.rs",
-          "line": 1512
+          "line": 1519
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "commit on real repo returns updated changes (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3482,12 +3626,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/vcs/push",
           "source": "runtime-rs/src/main.rs",
-          "line": 1513
+          "line": 1520
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "non-repo/push error shapes (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3502,12 +3647,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/vcs/revert",
           "source": "runtime-rs/src/main.rs",
-          "line": 1514
+          "line": 1521
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "reset --hard + clean -fd on real repo (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -3526,8 +3672,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "approval-required/workspace-write/full-access accepted; invalid → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -3546,8 +3693,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{mode} accepted (live-verify pass 2026-10-06)"
     },
     {
       "method": "PUT",
@@ -3562,12 +3710,13 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/run-mode",
           "source": "runtime-rs/src/main.rs",
-          "line": 1480
+          "line": 1487
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{mode} accepted (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3586,8 +3735,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown approval → 404 (release not_found contract) (live-verify pass3 2026-10-06)"
     },
     {
       "method": "PATCH",
@@ -3602,12 +3752,13 @@
           "method": "PATCH",
           "path": "/api/sessions/{id}/organization",
           "source": "runtime-rs/src/main.rs",
-          "line": 1469
+          "line": 1476
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "organization merge (live-verify pass 2026-10-06)"
     },
     {
       "method": "PATCH",
@@ -3622,12 +3773,13 @@
           "method": "PATCH",
           "path": "/api/sessions/{id}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1465
+          "line": 1472
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "rename/pin/archive (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -3642,12 +3794,13 @@
           "method": "DELETE",
           "path": "/api/sessions/{id}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1465
+          "line": 1472
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "session deleted (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -3662,12 +3815,13 @@
           "method": "GET",
           "path": "/api/sessions/{id}/messages",
           "source": "runtime-rs/src/main.rs",
-          "line": 1481
+          "line": 1488
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: live session JSON with usable messages/pageInfo (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: history contains the user and assistant conversation"
     },
     {
       "method": "GET",
@@ -3682,12 +3836,13 @@
           "method": "GET",
           "path": "/api/sessions/{id}/live",
           "source": "runtime-rs/src/main.rs",
-          "line": 1474
+          "line": 1481
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: live session JSON with usable messages/pageInfo (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: native write archives real workspace output and restores message attachments"
     },
     {
       "method": "POST",
@@ -3702,12 +3857,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/compact",
           "source": "runtime-rs/src/main.rs",
-          "line": 1478
+          "line": 1485
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "below-threshold → 400 nothing-to-compact (release error mapping) (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3722,12 +3878,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/input",
           "source": "runtime-rs/src/main.rs",
-          "line": 1473
+          "line": 1480
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native write archives real workspace output and restores message attachments (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual Pi image_assets uses native pixels and provider HTTP, archives public exports and rejects undelegated calls"
     },
     {
       "method": "DELETE",
@@ -3742,7 +3899,7 @@
           "method": "DELETE",
           "path": "/api/sessions/{id}/input/{inputId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1524
+          "line": 1531
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3763,7 +3920,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/mobile-operations/{operationId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1525
+          "line": 1532
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3784,12 +3941,13 @@
           "method": "POST",
           "path": "/api/sessions/{id}/abort",
           "source": "runtime-rs/src/main.rs",
-          "line": 1476
+          "line": 1483
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: stopping a held Goal closes its model stream and resumes the same objective explicitly (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: parent abort cascades to its held children and preserves another parent child"
     },
     {
       "method": "GET",
@@ -3808,8 +3966,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "per-session runs (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3824,7 +3983,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/retry",
           "source": "runtime-rs/src/main.rs",
-          "line": 1529
+          "line": 1536
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3845,13 +4004,13 @@
           "method": "POST",
           "path": "/api/chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1584
+          "line": 1591
         }
       ],
       "wiredRuntimeVerified": false,
       "behaviorVerified": true,
       "verificationStatus": "behavior-verified",
-      "evidence": "full run protocol SSE with real model reply"
+      "evidence": "full run protocol SSE with real model reply; smoke: plain chat produces real streamed assistant text; smoke: real tool roundtrip executes sandbox read and returns result to model"
     },
     {
       "method": "GET",
@@ -3870,8 +4029,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -3890,8 +4050,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown model → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3910,8 +4071,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown model → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3930,8 +4092,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no model → 400 invalid (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3950,8 +4113,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "empty → 4xx shape (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -3970,8 +4134,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -3990,8 +4155,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown → 404 (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -4010,8 +4176,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -4030,8 +4197,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -4050,8 +4218,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "invalid input → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -4070,8 +4239,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "single-node run on empty workflow → 400 workflow_image_source_stale (domain validation shape) (live-verify pass3 2026-10-06)"
     },
     {
       "method": "GET",
@@ -4090,8 +4260,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -4110,8 +4281,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "bundle payload (live-verify pass 2026-10-06)"
     },
     {
       "method": "POST",
@@ -4130,8 +4302,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "invalid bundle → 400 (live-verify pass 2026-10-06)"
     },
     {
       "method": "GET",
@@ -4150,8 +4323,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: schedules dashboard contract"
     },
     {
       "method": "POST",
@@ -4170,8 +4344,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -4190,8 +4365,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "PATCH",
@@ -4210,8 +4386,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: schedules dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "DELETE",
@@ -4230,8 +4407,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: schedules dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -4250,8 +4428,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: workflows dashboard contract"
     },
     {
       "method": "POST",
@@ -4270,8 +4449,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "GET",
@@ -4290,8 +4470,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: workflow HTTP approval resolves once and cancellation blocks the next Pi prompt; smoke: workflow unavailable selected model persists failure without a completed node"
     },
     {
       "method": "POST",
@@ -4310,8 +4491,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown run → 404 (live-verify pass3 2026-10-06)"
     },
     {
       "method": "POST",
@@ -4330,8 +4512,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP approval resolves once and cancellation blocks the next Pi prompt (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -4350,8 +4533,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: stopping an actual held Workflow model stream releases its owner and blocks overlapping mutation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -4370,8 +4554,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     {
       "method": "POST",
@@ -4390,8 +4575,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "duplicate workflow (live-verify pass 2026-10-06)"
     },
     {
       "method": "PATCH",
@@ -4410,8 +4596,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "rename persisted (live-verify pass 2026-10-06)"
     },
     {
       "method": "DELETE",
@@ -4430,8 +4617,9 @@
         }
       ],
       "wiredRuntimeVerified": false,
-      "behaviorVerified": false,
-      "verificationStatus": "pending-reference-contract-tests"
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workflow removed (live-verify pass 2026-10-06)"
     }
   ]
 }
