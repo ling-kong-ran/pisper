@@ -1,6 +1,6 @@
 {
   "description": "Live HTTP round-trips against runtime-rs (cargo debug build, 127.0.0.1:5199, isolated data dir + workspace, real qwen3.8-27b vLLM provider) on 2026-10-06. Each entry marks an endpoint whose response contract was exercised and matched the release shape.",
-  "verifiedAt": "2026-10-06T05:20:00Z",
+  "verifiedAt": "2026-10-08T01:10:00Z",
   "environment": {
     "build": "cargo build --bin pisper-server (debug)",
     "transport": "HTTP/JSON + SSE",
@@ -110,7 +110,7 @@
       "evidence": "same scoped-asset handler as verified 1-segment route (live-verify pass3 2026-10-06)"
     },
     "GET /api/decisions/status": {
-      "evidence": "status payload (live-verify pass 2026-10-06)"
+      "evidence": "live 2026-10-08 on release build (127.0.0.1:5199, isolated data dir): fresh install returns full publicConfig {remote:{provider:typesafe,baseUrl:https://api.typesafe.ai,modelId:jev-1.13.0,hasKey:false},delegate:{enabled:false,allowThreshold:0.9,verifyActions:false},approval:{status:ready}} — binding inferred on first read per release effectiveConfig; shape satisfies frontend parseDecisionsStatus (page renders instead of 服务器响应格式异常)."
     },
     "GET /api/desktop-pet": {
       "evidence": "supported:true status with installed/opacity/spriteUrl fields"
@@ -392,10 +392,10 @@
       "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI import conflicts and reserved IDs leave existing components unchanged; smoke: custom UI rejects unsafe ZIP paths, hidden files, invalid manifests and missing entries"
     },
     "POST /api/decisions/decide": {
-      "evidence": "decision recorded (live-verify pass 2026-10-06)"
+      "evidence": "live 2026-10-08: without apiKey returns {error:尚未配置决策服务 密钥或地址。,code:config_missing}; wire protocol (POST {model,state,questions} Bearer, noul/choice-criteria-map/score-criteria-tuple, answer-per-question validation, score ≤ levels-1, score probability labels are index strings, usage normalized to {inputTokens,costUsd}) ported from release decision-jev-adapter/decision-response with 10 unit tests (native_decisions.rs)."
     },
     "POST /api/decisions/test": {
-      "evidence": "test decision (live-verify pass 2026-10-06)"
+      "evidence": "live 2026-10-08 UI E2E: 测试连接 with dummy key performs real POST to openrouter.ai/api/alpha/decisions, upstream 401 maps to stable code auth → UI shows 决策服务 认证失败，请检查 API 密钥与账户权限。; missing key path returns config_missing."
     },
     "POST /api/desktop-pet/enabled": {
       "evidence": "no pets → 400 请先安装一只宠物。 (release semantics) (live-verify pass 2026-10-06)"
@@ -656,7 +656,7 @@
       "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
     },
     "PUT /api/decisions/config": {
-      "evidence": "config update (live-verify pass 2026-10-06)"
+      "evidence": "live 2026-10-08: PUT {remote:{provider:openrouter},delegate:{allowThreshold:0.8}} persists, provider switch without modelId resets to openrouter default typesafe/jev-1.13, threshold change resets approvalBinding to inferred openrouter binding (release saveConfig semantics); apiKey '' keeps existing key, null clears; UI E2E: fill API key → 保存 → hasKey:true reflected in status (已配置)."
     },
     "PUT /api/local/browser-preferences": {
       "evidence": "smoke: browser preference bootstrap contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
@@ -756,5 +756,16 @@
       "activeSessions semantics: newer publish cancels pending reset; reset falls back to waiting when other sessions remain"
     ],
     "note": "pet_state.rs wired into chat_stream event dispatch + terminal frames; lazy-deadline reset is observationally equivalent to release setTimeout (clearTimeout semantics preserved via generation counter)"
+  },
+  "decisionsNativePort": {
+    "completedAt": "2026-10-08",
+    "commit": "native_decisions.rs full port of release decision-*.mjs (config storage + approval binding inference/reset + typesafe-decisions wire protocol + stable error codes)",
+    "gates": "cargo test 456 passed / 0 failed; clippy clean for native_decisions",
+    "uiE2E": "ui-proxy dist+5199: decisions page renders config form, saves key (hasKey true), test-connection error surfaces release message; memory page create flow toasts 星辰已点亮",
+    "honestSeams": [
+      "SDK retry/backoff (3 retries, 8s cap) not replicated — single attempt with 120s total timeout",
+      "client-disconnect does not abort in-flight remote decide",
+      "delegate.judgeToolCall auto-approval not wired into the Rust approval pipeline (config surface only)"
+    ]
   }
 }

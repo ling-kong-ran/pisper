@@ -27,6 +27,7 @@ mod multi_agent_api;
 mod native_browser;
 mod native_channels;
 mod native_custom_ui;
+mod native_decisions;
 mod native_file_changes;
 mod native_game_assets;
 mod native_image_agent;

@@ -169,65 +169,33 @@ pub async fn custom_ui_bridge_js() -> impl IntoResponse {
 }
 
 // ---------------------------------------------------------------- decisions
+// 完整决策领域已原生移植到 native_decisions(release decision-*.mjs 契约):
+// 状态默认视图、配置白名单校验(apiKey 只写)、真实远端 typesafe-decisions 协议。
 
-#[derive(Default, Serialize, Deserialize)]
-pub struct DecisionsConfig {
-    #[serde(default)]
-    pub remote: Option<Value>,
-    #[serde(default)]
-    pub delegate: Option<Value>,
-}
-
-pub async fn decisions_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let config: DecisionsConfig = read_store(&state.data_dir, "decisions.json");
-    Json(serde_json::json!({ "config": config }))
+pub async fn decisions_status(
+    state: axum::extract::State<std::sync::Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    crate::native_decisions::status(state).await
 }
 
 pub async fn decisions_update_config(
-    State(state): State<Arc<AppState>>,
-    Json(patch): Json<Value>,
+    state: axum::extract::State<std::sync::Arc<AppState>>,
+    body: Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut config: DecisionsConfig = read_store(&state.data_dir, "decisions.json");
-    if let Some(remote) = patch.get("remote") {
-        config.remote = Some(remote.clone());
-    }
-    if let Some(delegate) = patch.get("delegate") {
-        config.delegate = Some(delegate.clone());
-    }
-    write_store(&state.data_dir, "decisions.json", &config)?;
-    Ok(Json(serde_json::json!({ "config": config })))
+    crate::native_decisions::update_config(state, body).await
 }
 
-pub async fn decisions_test(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let config: DecisionsConfig = read_store(&state.data_dir, "decisions.json");
-    match config.remote {
-        Some(remote) => {
-            let base = remote.get("baseUrl").and_then(|v| v.as_str()).unwrap_or("");
-            Json(serde_json::json!({ "ok": !base.is_empty(), "baseUrl": base }))
-        }
-        None => {
-            Json(serde_json::json!({ "ok": false, "reason": "decision backend not configured" }))
-        }
-    }
+pub async fn decisions_test(
+    state: axum::extract::State<std::sync::Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    crate::native_decisions::test_connection(state).await
 }
 
 pub async fn decisions_decide(
-    State(state): State<Arc<AppState>>,
-    Json(body): Json<Value>,
-) -> Json<serde_json::Value> {
-    let config: DecisionsConfig = read_store(&state.data_dir, "decisions.json");
-    let mut decisions = read_store::<Vec<Value>>(&state.data_dir, "decision-records.json");
-    decisions.push(serde_json::json!({
-        "id": product::new_id(),
-        "at": product::now_ms(),
-        "input": body,
-        "configured": config.remote.is_some(),
-    }));
-    let _ = write_store(&state.data_dir, "decision-records.json", &decisions);
-    Json(serde_json::json!({
-        "decision": "defer",
-        "reason": "decision backend not configured; request recorded",
-    }))
+    state: axum::extract::State<std::sync::Arc<AppState>>,
+    body: Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    crate::native_decisions::decide(state, body).await
 }
 
 // ------------------------------------------------------------------- speech
