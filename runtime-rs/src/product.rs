@@ -618,7 +618,20 @@ pub async fn remote_set_enabled(
     state
         .remote_enabled
         .store(enabled, std::sync::atomic::Ordering::Relaxed);
-    Json(serde_json::json!({ "enabled": enabled }))
+    // release setEnabled({configureFirewall:true}) 触发防火墙 reconcile；
+    // 失败不阻塞开关本身（release 同样吞掉防火墙错误继续返回状态）。
+    if body.get("configureFirewall").and_then(|v| v.as_bool()) == Some(true) {
+        let port = body
+            .get("port")
+            .and_then(|v| v.as_u64())
+            .map(|value| value as u16);
+        let _ = crate::firewall_ops::reconcile(&state, enabled, port).await;
+    }
+    Json(serde_json::json!({
+        "enabled": enabled,
+        "listening": enabled,
+        "error": serde_json::Value::Null,
+    }))
 }
 
 // ---------------------------------------------------------------------- vcs

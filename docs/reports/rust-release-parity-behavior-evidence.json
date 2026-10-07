@@ -726,5 +726,26 @@
     "scripts/parity-live-verify.sh",
     "scripts/parity-live-verify2.sh",
     "scripts/parity-live-verify3.sh"
-  ]
+  ],
+  "mcp": {
+    "protocol": "Streamable-HTTP JSON-RPC (stateless) at /mcp, Bearer token auth",
+    "verified": [
+      "wrong token → 401",
+      "initialize → protocolVersion 2025-03-26 + serverInfo",
+      "notifications/initialized → 202",
+      "tools/list → 21 tools (release count)",
+      "tools/call pisper_capabilities/pisper_list_sessions/pisper_get_session_messages",
+      "pisper_send_message → runId → pisper_get_run polls → completed with text (loopback fixture model); gateway-down path → failed with redacted error"
+    ],
+    "note": "tools reuse the /api contracts via loopback self-calls; topology differs from release (single port) — documented in mcp_host_ops.rs"
+  },
+  "firewall": {
+    "verified": [
+      "disabled state shape",
+      "enable+configureFirewall registers target (remote-firewall.json, sidecar-path validated)",
+      "real PowerShell Get-NetFirewallRule inspect found pre-existing allowed rule (state allowed, port 5174)",
+      "retry returns fresh status"
+    ],
+    "note": "elevated add/remove use release PowerShell semantics (Start-Process -Verb RunAs, exit 80/77 codes); UAC prompts cannot complete headless — states reported honestly"
+  }
 }

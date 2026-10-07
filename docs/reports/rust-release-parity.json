@@ -1,7 +1,7 @@
 {
   "objective": "Rust development branch must match release functionality, UI, contracts, storage, tools, lifecycle, and supported platforms.",
   "status": "route-parity-complete",
-  "generatedAt": "2026-10-06T06:57:16.520Z",
+  "generatedAt": "2026-10-07T12:56:13.774Z",
   "reference": {
     "branch": "release",
     "commit": "582160235671903d9f1c7034b457557b1df74b68"
@@ -1022,7 +1022,7 @@
           "method": "GET",
           "path": "/api/decisions/status",
           "source": "runtime-rs/src/main.rs",
-          "line": 1579
+          "line": 1595
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1043,7 +1043,7 @@
           "method": "PUT",
           "path": "/api/decisions/config",
           "source": "runtime-rs/src/main.rs",
-          "line": 1580
+          "line": 1596
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1064,7 +1064,7 @@
           "method": "POST",
           "path": "/api/decisions/test",
           "source": "runtime-rs/src/main.rs",
-          "line": 1584
+          "line": 1600
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1085,7 +1085,7 @@
           "method": "POST",
           "path": "/api/decisions/decide",
           "source": "runtime-rs/src/main.rs",
-          "line": 1585
+          "line": 1601
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1106,7 +1106,7 @@
           "method": "POST",
           "path": "/api/desktop/reveal-path",
           "source": "runtime-rs/src/main.rs",
-          "line": 1606
+          "line": 1622
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1127,7 +1127,7 @@
           "method": "GET",
           "path": "/api/app-update",
           "source": "runtime-rs/src/main.rs",
-          "line": 1607
+          "line": 1623
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1148,7 +1148,7 @@
           "method": "GET",
           "path": "/api/sponsors/{placement}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1608
+          "line": 1624
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1169,7 +1169,7 @@
           "method": "GET",
           "path": "/api/desktop-pet",
           "source": "runtime-rs/src/main.rs",
-          "line": 1598
+          "line": 1614
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1190,7 +1190,7 @@
           "method": "GET",
           "path": "/api/desktop-pet/catalog",
           "source": "runtime-rs/src/main.rs",
-          "line": 1599
+          "line": 1615
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1211,7 +1211,7 @@
           "method": "POST",
           "path": "/api/desktop-pet/enabled",
           "source": "runtime-rs/src/main.rs",
-          "line": 1602
+          "line": 1618
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1232,7 +1232,7 @@
           "method": "POST",
           "path": "/api/desktop-pet/opacity",
           "source": "runtime-rs/src/main.rs",
-          "line": 1603
+          "line": 1619
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1253,7 +1253,7 @@
           "method": "POST",
           "path": "/api/desktop-pet/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1601
+          "line": 1617
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1274,7 +1274,7 @@
           "method": "POST",
           "path": "/api/desktop-pet/select",
           "source": "runtime-rs/src/main.rs",
-          "line": 1604
+          "line": 1620
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1295,7 +1295,7 @@
           "method": "DELETE",
           "path": "/api/desktop-pet/{slug}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1605
+          "line": 1621
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1316,7 +1316,7 @@
           "method": "GET",
           "path": "/api/desktop-pet/sprite",
           "source": "runtime-rs/src/main.rs",
-          "line": 1600
+          "line": 1616
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1841,7 +1841,7 @@
           "method": "GET",
           "path": "/api/extensions/market",
           "source": "runtime-rs/src/main.rs",
-          "line": 1573
+          "line": 1589
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1862,7 +1862,7 @@
           "method": "GET",
           "path": "/api/extensions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1574
+          "line": 1590
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1883,7 +1883,7 @@
           "method": "POST",
           "path": "/api/extensions/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1578
+          "line": 1594
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1904,7 +1904,7 @@
           "method": "DELETE",
           "path": "/api/extensions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1574
+          "line": 1590
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1925,7 +1925,7 @@
           "method": "GET",
           "path": "/api/skills",
           "source": "runtime-rs/src/main.rs",
-          "line": 1505
+          "line": 1521
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1946,7 +1946,7 @@
           "method": "POST",
           "path": "/api/skills/install",
           "source": "runtime-rs/src/main.rs",
-          "line": 1506
+          "line": 1522
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1967,7 +1967,7 @@
           "method": "POST",
           "path": "/api/skills/reload",
           "source": "runtime-rs/src/main.rs",
-          "line": 1507
+          "line": 1523
         }
       ],
       "wiredRuntimeVerified": false,
@@ -1988,7 +1988,7 @@
           "method": "PATCH",
           "path": "/api/skills/{skillName}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1508
+          "line": 1524
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2009,7 +2009,7 @@
           "method": "DELETE",
           "path": "/api/skills/{skillName}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1508
+          "line": 1524
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2030,7 +2030,7 @@
           "method": "GET",
           "path": "/api/mcp-host",
           "source": "runtime-rs/src/main.rs",
-          "line": 1595
+          "line": 1611
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2051,7 +2051,7 @@
           "method": "PATCH",
           "path": "/api/mcp-host",
           "source": "runtime-rs/src/main.rs",
-          "line": 1595
+          "line": 1611
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2072,7 +2072,7 @@
           "method": "POST",
           "path": "/api/mcp-host/credentials",
           "source": "runtime-rs/src/main.rs",
-          "line": 1596
+          "line": 1612
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2093,7 +2093,7 @@
           "method": "POST",
           "path": "/api/mcp-host/rotate-token",
           "source": "runtime-rs/src/main.rs",
-          "line": 1597
+          "line": 1613
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2114,7 +2114,7 @@
           "method": "GET",
           "path": "/api/directories",
           "source": "runtime-rs/src/main.rs",
-          "line": 1586
+          "line": 1602
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2135,7 +2135,7 @@
           "method": "GET",
           "path": "/api/workspace-entries",
           "source": "runtime-rs/src/main.rs",
-          "line": 1587
+          "line": 1603
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2471,7 +2471,7 @@
           "method": "GET",
           "path": "/api/remote/connection-info",
           "source": "runtime-rs/src/main.rs",
-          "line": 1513
+          "line": 1529
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2492,7 +2492,7 @@
           "method": "GET",
           "path": "/api/remote/status",
           "source": "runtime-rs/src/main.rs",
-          "line": 1512
+          "line": 1528
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2513,7 +2513,7 @@
           "method": "PUT",
           "path": "/api/remote/enabled",
           "source": "runtime-rs/src/main.rs",
-          "line": 1517
+          "line": 1533
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2534,7 +2534,7 @@
           "method": "GET",
           "path": "/api/remote/firewall",
           "source": "runtime-rs/src/main.rs",
-          "line": 1559
+          "line": 1575
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2555,7 +2555,7 @@
           "method": "POST",
           "path": "/api/remote/firewall/retry",
           "source": "runtime-rs/src/main.rs",
-          "line": 1560
+          "line": 1576
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2576,7 +2576,7 @@
           "method": "POST",
           "path": "/api/remote/pairing-code",
           "source": "runtime-rs/src/main.rs",
-          "line": 1551
+          "line": 1567
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2597,7 +2597,7 @@
           "method": "POST",
           "path": "/api/remote/pair",
           "source": "runtime-rs/src/main.rs",
-          "line": 1555
+          "line": 1571
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2618,7 +2618,7 @@
           "method": "POST",
           "path": "/api/remote/pairing-requests",
           "source": "runtime-rs/src/main.rs",
-          "line": 1561
+          "line": 1577
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2639,7 +2639,7 @@
           "method": "GET",
           "path": "/api/remote/pairing-requests/{requestId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1565
+          "line": 1581
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2660,7 +2660,7 @@
           "method": "DELETE",
           "path": "/api/remote/pairing-requests/{requestId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1565
+          "line": 1581
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2681,7 +2681,7 @@
           "method": "GET",
           "path": "/api/remote/pairing-requests",
           "source": "runtime-rs/src/main.rs",
-          "line": 1561
+          "line": 1577
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2702,7 +2702,7 @@
           "method": "POST",
           "path": "/api/remote/pairing-requests/{requestId}/decision",
           "source": "runtime-rs/src/main.rs",
-          "line": 1569
+          "line": 1585
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2723,7 +2723,7 @@
           "method": "GET",
           "path": "/api/remote/devices",
           "source": "runtime-rs/src/main.rs",
-          "line": 1556
+          "line": 1572
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2744,7 +2744,7 @@
           "method": "POST",
           "path": "/api/remote/devices/{id}/revoke",
           "source": "runtime-rs/src/main.rs",
-          "line": 1558
+          "line": 1574
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2765,7 +2765,7 @@
           "method": "GET",
           "path": "/api/runs/{id}/events",
           "source": "runtime-rs/src/main.rs",
-          "line": 1592
+          "line": 1608
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2807,7 +2807,7 @@
           "method": "GET",
           "path": "/api/health",
           "source": "runtime-rs/src/main.rs",
-          "line": 1619
+          "line": 1635
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2975,7 +2975,7 @@
           "method": "GET",
           "path": "/api/runtime/diagnostics",
           "source": "runtime-rs/src/main.rs",
-          "line": 1550
+          "line": 1566
         }
       ],
       "wiredRuntimeVerified": false,
@@ -2996,7 +2996,7 @@
           "method": "GET",
           "path": "/api/usage/today",
           "source": "runtime-rs/src/main.rs",
-          "line": 1467
+          "line": 1483
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3017,7 +3017,7 @@
           "method": "GET",
           "path": "/api/sessions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1468
+          "line": 1484
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3038,7 +3038,7 @@
           "method": "GET",
           "path": "/api/session-labels",
           "source": "runtime-rs/src/main.rs",
-          "line": 1492
+          "line": 1508
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3059,7 +3059,7 @@
           "method": "POST",
           "path": "/api/sessions",
           "source": "runtime-rs/src/main.rs",
-          "line": 1468
+          "line": 1484
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3080,7 +3080,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/side-chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1546
+          "line": 1562
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3101,7 +3101,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/side-chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1546
+          "line": 1562
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3122,7 +3122,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/derive",
           "source": "runtime-rs/src/main.rs",
-          "line": 1484
+          "line": 1500
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3143,7 +3143,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/tree",
           "source": "runtime-rs/src/main.rs",
-          "line": 1482
+          "line": 1498
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3164,7 +3164,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/tree/navigate",
           "source": "runtime-rs/src/main.rs",
-          "line": 1538
+          "line": 1554
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3185,7 +3185,7 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/tree/labels/{entryId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1542
+          "line": 1558
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3206,7 +3206,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/commands",
           "source": "runtime-rs/src/main.rs",
-          "line": 1537
+          "line": 1553
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3227,7 +3227,7 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/model",
           "source": "runtime-rs/src/main.rs",
-          "line": 1493
+          "line": 1509
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3248,7 +3248,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/thinking-level",
           "source": "runtime-rs/src/main.rs",
-          "line": 1499
+          "line": 1515
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3269,7 +3269,7 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/thinking-level",
           "source": "runtime-rs/src/main.rs",
-          "line": 1499
+          "line": 1515
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3290,7 +3290,7 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/cwd",
           "source": "runtime-rs/src/main.rs",
-          "line": 1486
+          "line": 1502
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3374,7 +3374,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/git/changes",
           "source": "runtime-rs/src/main.rs",
-          "line": 1523
+          "line": 1539
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3395,7 +3395,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/git/commit",
           "source": "runtime-rs/src/main.rs",
-          "line": 1524
+          "line": 1540
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3416,7 +3416,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/git/push",
           "source": "runtime-rs/src/main.rs",
-          "line": 1525
+          "line": 1541
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3437,7 +3437,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/git/revert",
           "source": "runtime-rs/src/main.rs",
-          "line": 1526
+          "line": 1542
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3458,7 +3458,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/vcs/changes",
           "source": "runtime-rs/src/main.rs",
-          "line": 1518
+          "line": 1534
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3479,7 +3479,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/vcs/file-diff",
           "source": "runtime-rs/src/main.rs",
-          "line": 1527
+          "line": 1543
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3605,7 +3605,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/vcs/commit",
           "source": "runtime-rs/src/main.rs",
-          "line": 1519
+          "line": 1535
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3626,7 +3626,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/vcs/push",
           "source": "runtime-rs/src/main.rs",
-          "line": 1520
+          "line": 1536
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3647,7 +3647,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/vcs/revert",
           "source": "runtime-rs/src/main.rs",
-          "line": 1521
+          "line": 1537
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3710,7 +3710,7 @@
           "method": "PUT",
           "path": "/api/sessions/{id}/run-mode",
           "source": "runtime-rs/src/main.rs",
-          "line": 1487
+          "line": 1503
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3752,7 +3752,7 @@
           "method": "PATCH",
           "path": "/api/sessions/{id}/organization",
           "source": "runtime-rs/src/main.rs",
-          "line": 1476
+          "line": 1492
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3773,7 +3773,7 @@
           "method": "PATCH",
           "path": "/api/sessions/{id}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1472
+          "line": 1488
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3794,7 +3794,7 @@
           "method": "DELETE",
           "path": "/api/sessions/{id}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1472
+          "line": 1488
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3815,7 +3815,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/messages",
           "source": "runtime-rs/src/main.rs",
-          "line": 1488
+          "line": 1504
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3836,7 +3836,7 @@
           "method": "GET",
           "path": "/api/sessions/{id}/live",
           "source": "runtime-rs/src/main.rs",
-          "line": 1481
+          "line": 1497
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3857,7 +3857,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/compact",
           "source": "runtime-rs/src/main.rs",
-          "line": 1485
+          "line": 1501
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3878,7 +3878,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/input",
           "source": "runtime-rs/src/main.rs",
-          "line": 1480
+          "line": 1496
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3899,7 +3899,7 @@
           "method": "DELETE",
           "path": "/api/sessions/{id}/input/{inputId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1531
+          "line": 1547
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3920,7 +3920,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/mobile-operations/{operationId}",
           "source": "runtime-rs/src/main.rs",
-          "line": 1532
+          "line": 1548
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3941,7 +3941,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/abort",
           "source": "runtime-rs/src/main.rs",
-          "line": 1483
+          "line": 1499
         }
       ],
       "wiredRuntimeVerified": false,
@@ -3983,7 +3983,7 @@
           "method": "POST",
           "path": "/api/sessions/{id}/retry",
           "source": "runtime-rs/src/main.rs",
-          "line": 1536
+          "line": 1552
         }
       ],
       "wiredRuntimeVerified": false,
@@ -4004,7 +4004,7 @@
           "method": "POST",
           "path": "/api/chat",
           "source": "runtime-rs/src/main.rs",
-          "line": 1591
+          "line": 1607
         }
       ],
       "wiredRuntimeVerified": false,

@@ -14,6 +14,7 @@ mod execution_adapter;
 mod execution_modes;
 mod desktop_ops;
 mod file_changes_api;
+mod firewall_ops;
 mod game_assets_api;
 mod goal_api;
 #[cfg(test)]
@@ -173,6 +174,10 @@ pub(crate) struct AppState {
     pub(crate) pairing: security::PairingStore,
     /// release remoteAccess 的配对审批流（pairing-requests）。
     pub(crate) pairing_requests: std::sync::Mutex<Vec<security::PairingApproval>>,
+    /// 本服务回环基址（bind 后写入）：MCP 工具经它自调用 /api。
+    pub(crate) self_base: std::sync::Mutex<Option<String>>,
+    /// 对外 MCP 异步运行记录（release mcp-host-tools 的 runs）。
+    pub(crate) mcp_runs: std::sync::Mutex<std::collections::HashMap<String, serde_json::Value>>,
     /// Pisper product-layer per-session metadata (Node sessionMeta store):
     /// execution mode -> permission mode mapping and the goal tracker.
     session_meta: Arc<std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>>,
@@ -1317,6 +1322,8 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
             devices: std::sync::Mutex::new(security::load_devices(&data_dir)),
         },
         pairing_requests: std::sync::Mutex::new(security::load_pairing_requests(&data_dir)),
+        self_base: std::sync::Mutex::new(None),
+        mcp_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.executor.attach(&state);
     state.plugin_integration.attach(&state)?;
@@ -1412,6 +1419,15 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
+    if let Ok(addr) = listener.local_addr() {
+        let host = match addr.ip() {
+            std::net::IpAddr::V4(ip) if ip.is_unspecified() => "127.0.0.1".to_string(),
+            std::net::IpAddr::V6(ip) if ip.is_unspecified() => "127.0.0.1".to_string(),
+            ip => ip.to_string(),
+        };
+        *state.self_base.lock().expect("self base lock") =
+            Some(format!("http://{host}:{}", addr.port()));
+    }
     axum::serve(
         listener,
         app_router(state.clone())?.into_make_service_with_connect_info::<std::net::SocketAddr>(),
@@ -1556,8 +1572,8 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/remote/devices", get(list_devices))
         .route("/api/remote/devices/{id}", delete(revoke_device))
         .route("/api/remote/devices/{id}/revoke", post(remote_ops::revoke_device_post))
-        .route("/api/remote/firewall", get(remote_ops::firewall_status))
-        .route("/api/remote/firewall/retry", post(remote_ops::firewall_retry))
+        .route("/api/remote/firewall", get(firewall_ops::firewall_status))
+        .route("/api/remote/firewall/retry", post(firewall_ops::firewall_retry))
         .route(
             "/api/remote/pairing-requests",
             get(remote_ops::list_requests).post(remote_ops::create_request),
@@ -1641,6 +1657,10 @@ async fn desktop_auth_middleware(
     .await
     {
         return response;
+    }
+    // /mcp 是对外 MCP 协议端点，独立做 Bearer 令牌鉴权（mcp_host_ops）。
+    if request.uri().path() == "/mcp" || request.uri().path().starts_with("/mcp/") {
+        return next.run(request).await;
     }
     let Some(expected) = token else {
         return next.run(request).await;
@@ -1841,6 +1861,12 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
             Some(state.workflows.cache.clone()),
         ))
         .merge(schedule_api::routes(schedules))
+        .merge(
+            axum::Router::new()
+                // 对外 MCP 端点：独立 Bearer 鉴权（desktop_auth_middleware 对 /mcp 放行）。
+                .route("/mcp", axum::routing::post(mcp_host_ops::mcp_endpoint))
+                .with_state(state.clone()),
+        )
         .merge(native_image_runtime::engines::routes(
             state.workflows.engines.clone(),
         ))
