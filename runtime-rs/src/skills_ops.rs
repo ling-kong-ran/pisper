@@ -177,6 +177,204 @@ fn source_label(source_info: &Value) -> String {
     }
 }
 
+/// 解析技能来源到本地路径：本地路径原样；git 仓库浅克隆；npm 包下载
+/// registry tarball 并解包。所有临时产物放在 data_dir/skill-install-tmp 下
+/// 随用随清理（release 经包管理器解析后的语义等价）。
+async fn resolve_skill_source(
+    state: &AppState,
+    source: &str,
+    cwd: &str,
+    temp_root: &std::path::Path,
+) -> Result<std::path::PathBuf, ApiError> {
+    let local = expand_path(source, cwd);
+    if local.exists() {
+        return Ok(local);
+    }
+    let source_trimmed = source.trim();
+    // 受信 git 来源：https；回环 git:// 与 http:// 仅供本机测试夹具。
+    let loopback_http = source_trimmed.starts_with("http://127.0.0.1")
+        || source_trimmed.starts_with("http://localhost")
+        || source_trimmed.starts_with("git://127.0.0.1")
+        || source_trimmed.starts_with("git://localhost");
+    let is_git = source_trimmed.starts_with("git+https://")
+        || (source_trimmed.starts_with("https://") && source_trimmed.ends_with(".git"))
+        || (loopback_http && (source_trimmed.ends_with(".git") || source_trimmed.starts_with("git://")));
+    if is_git {
+        let url = source_trimmed.trim_start_matches("git+").to_string();
+        let trusted = url.starts_with("https://")
+            || url.starts_with("http://127.0.0.1")
+            || url.starts_with("http://localhost")
+            || url.starts_with("git://127.0.0.1")
+            || url.starts_with("git://localhost");
+        if !trusted {
+            return Err(ApiError::bad_request(
+                "该来源没有发现符合 Agent Skills 标准的技能。",
+            ));
+        }
+        let workdir = temp_root.join(format!(
+            "git-{}",
+            crate::product::new_id().replace('-', "")
+        ));
+        std::fs::create_dir_all(&workdir).map_err(|e| ApiError::internal(e.to_string()))?;
+        let result = tokio::process::Command::new("git")
+            .args(["clone", "--depth", "1", "--quiet", &url])
+            .arg(&workdir)
+            .output()
+            .await;
+        let cloned_ok = matches!(&result, Ok(output) if output.status.success());
+        if !cloned_ok {
+            let _ = std::fs::remove_dir_all(&workdir);
+            return Err(ApiError::bad_request(
+                "该来源没有发现符合 Agent Skills 标准的技能。",
+            ));
+        }
+        // 克隆根或其唯一一级子目录作为技能根。
+        if workdir.join("SKILL.md").is_file()
+            || workdir.join("skills").is_dir()
+            || workdir.join("package.json").is_file()
+        {
+            return Ok(workdir);
+        }
+        let Ok(entries) = std::fs::read_dir(&workdir) else {
+            return Err(ApiError::bad_request(
+                "该来源没有发现符合 Agent Skills 标准的技能。",
+            ));
+        };
+        let mut subdirectories = entries
+            .flatten()
+            .filter(|entry| entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false))
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        if subdirectories.len() == 1 {
+            return Ok(subdirectories.remove(0));
+        }
+        return Ok(workdir);
+    }
+    if source_trimmed.starts_with("http://") || source_trimmed.starts_with("https://") {
+        return Err(ApiError::bad_request(
+            "该来源没有发现符合 Agent Skills 标准的技能。",
+        ));
+    }
+    resolve_npm_skill_source(state, source_trimmed, temp_root).await
+}
+
+/// registry 基址：默认官方 npm；PISPER_NPM_REGISTRY 供本机测试夹具覆盖。
+fn npm_registry_base() -> String {
+    std::env::var("PISPER_NPM_REGISTRY")
+        .ok()
+        .filter(|value| value.starts_with("http://127.0.0.1") || value.starts_with("http://localhost") || value.starts_with("https://registry.npmjs.org"))
+        .unwrap_or_else(|| "https://registry.npmjs.org".to_string())
+}
+
+/// npm 包来源：`pkg`、`@scope/pkg`、可选 `@version`；查 registry 元数据里的
+/// dist.tarball，下载 .tgz 并解包到临时目录，返回包根（通常在 package/ 下）。
+async fn resolve_npm_skill_source(
+    state: &AppState,
+    source: &str,
+    temp_root: &std::path::Path,
+) -> Result<std::path::PathBuf, ApiError> {
+    let (name, requested_version) = match source.rsplit_once('@') {
+        // @scope/pkg（无版本）时 rsplit_once 命中 scope 前导 @ 的边界。
+        Some((scope, version)) if scope.starts_with('@') && scope.contains('/') => {
+            (source.to_string(), None)
+        }
+        Some((name, version)) if !version.is_empty() => (name.to_string(), Some(version.to_string())),
+        _ => (source.to_string(), None),
+    };
+    let looks_like_package = !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '@' | '/'));
+    if !looks_like_package || !name.contains(|c: char| c.is_ascii_alphanumeric()) {
+        return Err(ApiError::bad_request(
+            "该来源没有发现符合 Agent Skills 标准的技能。",
+        ));
+    }
+    let registry_base = npm_registry_base().trim_end_matches('/').to_string();
+    let encoded = name.replace('/', "%2F");
+    let registry_url = match &requested_version {
+        Some(version) => format!("{registry_base}/{encoded}/{version}"),
+        None => format!("{registry_base}/{encoded}/latest"),
+    };
+    let client = crate::desktop_ops::http_client();
+    let response = client
+        .get(&registry_url)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|_| {
+            ApiError::bad_request("该来源没有发现符合 Agent Skills 标准的技能。")
+        })?;
+    if !response.status().is_success() {
+        return Err(ApiError::bad_request(
+            "该来源没有发现符合 Agent Skills 标准的技能。",
+        ));
+    }
+    let metadata: serde_json::Value = response.json().await.map_err(|_| {
+        ApiError::bad_request("该来源没有发现符合 Agent Skills 标准的技能。")
+    })?;
+    let tarball_url = metadata["dist"]["tarball"]
+        .as_str()
+        .filter(|url| url.starts_with(&registry_base) || url.starts_with("https://registry.npmjs.org/"))
+        .ok_or_else(|| {
+            ApiError::bad_request("该来源没有发现符合 Agent Skills 标准的技能。")
+        })?;
+    let package_dir = temp_root.join(format!(
+        "npm-{}",
+        crate::product::new_id().replace('-', "")
+    ));
+    std::fs::create_dir_all(&package_dir).map_err(|e| ApiError::internal(e.to_string()))?;
+    let archive = client
+        .get(tarball_url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|_| {
+            ApiError::bad_request("该来源没有发现符合 Agent Skills 标准的技能。")
+        })?;
+    if !archive.status().is_success() {
+        let _ = std::fs::remove_dir_all(&package_dir);
+        return Err(ApiError::bad_request(
+            "该来源没有发现符合 Agent Skills 标准的技能。",
+        ));
+    }
+    let bytes = archive.bytes().await.map_err(|_| {
+        ApiError::bad_request("该来源没有发现符合 Agent Skills 标准的技能。")
+    })?;
+    let decompressed = {
+        let mut decoder = flate2::read::GzDecoder::new(&bytes[..]);
+        let mut out = Vec::new();
+        std::io::Read::read_to_end(&mut decoder, &mut out)
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+        out
+    };
+    let mut archive = tar::Archive::new(&decompressed[..]);
+    archive.set_overwrite(true);
+    // tar 解包限制在包目录内，拒绝绝对路径与路径穿越。
+    for entry in archive
+        .entries()
+        .map_err(|e| ApiError::internal(e.to_string()))?
+    {
+        let mut entry = entry.map_err(|e| ApiError::internal(e.to_string()))?;
+        let path = entry
+            .path()
+            .map_err(|e| ApiError::internal(e.to_string()))?
+            .into_owned();
+        if path.is_absolute() || path.components().any(|c| c == std::path::Component::ParentDir) {
+            let _ = std::fs::remove_dir_all(&package_dir);
+            return Err(ApiError::bad_request(
+                "该来源没有发现符合 Agent Skills 标准的技能。",
+            ));
+        }
+        entry
+            .unpack_in(&package_dir)
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    }
+    let extracted = package_dir.join("package");
+    let root = if extracted.is_dir() { extracted } else { package_dir.clone() };
+    Ok(root)
+}
+
 fn expand_path(value: &str, cwd: &str) -> PathBuf {
     let input = value.trim();
     if input == "~" {
@@ -358,12 +556,10 @@ pub(crate) async fn install(
     if source.chars().count() > MAX_SKILL_SOURCE_CHARS {
         return Err(ApiError::bad_request("技能来源过长。"));
     }
-    let local = expand_path(&source, &cwd);
-    if !local.exists() {
-        return Err(ApiError::bad_request(
-            "该来源没有发现符合 Agent Skills 标准的技能。",
-        ));
-    }
+    // release resolveInstallSkills：本地路径直接校验；git/npm 来源经包管理器
+    // 解析到本地路径后再走同一安装流。
+    let temp_root = std::path::PathBuf::from(&state.data_dir).join("skill-install-tmp");
+    let local = resolve_skill_source(&state, &source, &cwd, &temp_root).await?;
     // release resolveInstallSkills 接受三种来源形状：技能根目录、单技能目录
     // （内含 SKILL.md）、SKILL.md 文件。pi-rs 的 load_skills 对目录按根扫描、
     // 对 .md 文件单载 —— 含 SKILL.md 的目录必须转成其 SKILL.md 文件路径。

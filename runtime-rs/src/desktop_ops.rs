@@ -47,7 +47,7 @@ const PET_SPRITE_NAMES: [&str; 4] = [
     "sprite.png",
 ];
 
-fn http_client() -> reqwest::Client {
+pub(crate) fn http_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .user_agent(concat!("Pisper/", env!("CARGO_PKG_VERSION")))
