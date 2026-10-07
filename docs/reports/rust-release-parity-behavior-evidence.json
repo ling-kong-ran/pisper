@@ -747,5 +747,14 @@
       "retry returns fresh status"
     ],
     "note": "elevated add/remove use release PowerShell semantics (Start-Process -Verb RunAs, exit 80/77 codes); UAC prompts cannot complete headless — states reported honestly"
+  },
+  "desktopPetRuntimeState": {
+    "verified": [
+      "GET /api/desktop-pet idle baseline (state:idle, stateVersion:0)",
+      "during chat run events map per release petStateForAgentEvent: text_delta→waiting, tool_*→running, thinking_patch/compaction_start→review, done→waving(+1400ms), error→failed(+2200ms), stateVersion increments per publish",
+      "live sequence: idle v0 → chat run → waving v2 → lazy reset to idle v3 after 1.4s (fixture model)",
+      "activeSessions semantics: newer publish cancels pending reset; reset falls back to waiting when other sessions remain"
+    ],
+    "note": "pet_state.rs wired into chat_stream event dispatch + terminal frames; lazy-deadline reset is observationally equivalent to release setTimeout (clearTimeout semantics preserved via generation counter)"
   }
 }

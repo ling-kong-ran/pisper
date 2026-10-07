@@ -429,6 +429,7 @@ pub(crate) async fn chat_owned(
                 &mut mapper_projection.lock().expect("projection lock"),
             );
             if let Some((name, data)) = mapped {
+                crate::pet_state::observe_runtime_event(&mapper_state, &name, &data);
                 record(&mapper_state, &mapper_run, &name, data);
             }
         }
@@ -592,7 +593,8 @@ pub(crate) async fn chat_owned(
             let _ = task_state.events.send(
                 json!({"pisperEvent":"error","sessionId":session_id,"data":terminal}).to_string(),
             );
-            record(&task_state, &run_id, "error", terminal);
+            crate::pet_state::observe_runtime_event(&task_state, "error", &terminal);
+            record(&task_state, &run_id, "error", terminal.clone());
         } else {
             if !isolated_context
                 && !internal
@@ -614,7 +616,8 @@ pub(crate) async fn chat_owned(
             let _ = task_state.events.send(
                 json!({"pisperEvent":"done","sessionId":session_id,"data":terminal}).to_string(),
             );
-            record(&task_state, &run_id, "done", terminal);
+            crate::pet_state::observe_runtime_event(&task_state, "done", &terminal);
+            record(&task_state, &run_id, "done", terminal.clone());
         }
         hosted.touch();
         drop(guard);

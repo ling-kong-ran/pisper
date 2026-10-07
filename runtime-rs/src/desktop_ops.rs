@@ -314,8 +314,8 @@ fn pet_status(state: &AppState) -> Value {
         "selectedName": selected_name,
         "installed": installed.iter().map(|(pet, _)| pet.clone()).collect::<Vec<_>>(),
         "opacity": preferences.get("opacity").map(normalize_pet_opacity).unwrap_or(1.0),
-        "state": "idle",
-        "stateVersion": 0,
+        "state": state.pet.fields().0,
+        "stateVersion": state.pet.fields().1,
         "sheetWidth": loaded.as_ref().map(|pet| pet.width).unwrap_or(0),
         "sheetHeight": loaded.as_ref().map(|pet| pet.height).unwrap_or(0),
         "spriteUrl": loaded.as_ref().map(|pet| {

@@ -40,6 +40,7 @@ mod native_visual;
 mod native_web_search;
 mod native_workflow;
 mod notification_api;
+mod pet_state;
 mod plan_api;
 mod plugin_integration;
 mod plugins_api;
@@ -178,6 +179,8 @@ pub(crate) struct AppState {
     pub(crate) self_base: std::sync::Mutex<Option<String>>,
     /// 对外 MCP 异步运行记录（release mcp-host-tools 的 runs）。
     pub(crate) mcp_runs: std::sync::Mutex<std::collections::HashMap<String, serde_json::Value>>,
+    /// 桌面宠物运行状态（release WebDesktopPetService 的状态面）。
+    pub(crate) pet: pet_state::PetState,
     /// Pisper product-layer per-session metadata (Node sessionMeta store):
     /// execution mode -> permission mode mapping and the goal tracker.
     session_meta: Arc<std::sync::Mutex<std::collections::HashMap<String, SessionMeta>>>,
@@ -1323,6 +1326,7 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
         },
         pairing_requests: std::sync::Mutex::new(security::load_pairing_requests(&data_dir)),
         self_base: std::sync::Mutex::new(None),
+        pet: pet_state::PetState::default(),
         mcp_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.executor.attach(&state);
