@@ -32,7 +32,7 @@ jobs:
     name: Prepare staged app release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
     name: Build shared embedded Runtime
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/setup-node@v5
@@ -111,7 +111,7 @@ jobs:
     needs: [prepare, embedded-runtime]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/setup-node@v5
@@ -269,7 +269,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/setup-node@v5
@@ -402,7 +402,7 @@ jobs:
     if: ${{ always() && needs.prepare.result == 'success' && needs['embedded-runtime'].result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0

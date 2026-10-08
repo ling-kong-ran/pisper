@@ -58,7 +58,7 @@ jobs:
     name: Prepare staged ${{ inputs.component }} release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0
@@ -94,7 +94,7 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/download-artifact@v5
@@ -171,7 +171,7 @@ jobs:
       APPLE_PASSWORD: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
       APPLE_TEAM_ID: ${{ inputs.component == 'desktop' && startsWith(matrix.target, 'darwin-') && secrets.APPLE_TEAM_ID || '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0
@@ -265,7 +265,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0
@@ -386,7 +386,7 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - name: Dispatch the provenance-enabled npm workflow

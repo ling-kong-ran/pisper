@@ -41,7 +41,7 @@ jobs:
     name: Build store embedded Runtime
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/setup-node@v5
@@ -85,7 +85,7 @@ jobs:
     needs: embedded-runtime
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/setup-node@v5
@@ -254,7 +254,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_sha }}
       - uses: actions/setup-node@v5
