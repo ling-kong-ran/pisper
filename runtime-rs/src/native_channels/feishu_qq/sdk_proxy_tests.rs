@@ -126,14 +126,18 @@ struct OwnedFixture {
 }
 impl OwnedFixture {
     fn new() -> Self {
-        let node = std::env::var_os("PISPER_TEST_NODE24").unwrap_or_else(|| if cfg!(windows) { "C:/Users/13063/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe".into() } else { "node".into() });
-        let mut child = std::process::Command::new(node)
+        // env_clear 后 unix 的 execvp 退回默认 PATH 找不到 node;显式继承父进程
+        // PATH 供子进程使用,程序查找也按父 PATH 解析。
+        let node = std::env::var_os("PISPER_TEST_NODE24").unwrap_or_else(|| "node".into());
+        let parent_path = std::env::var_os("PATH");
+        let mut child = std::process::Command::new(&node)
             .arg(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/src/native_channels/feishu_qq/sdk-proxy-oracle.mjs"
             ))
             .arg("--serve")
             .env_clear()
+            .env("PATH", parent_path.unwrap_or_default())
             .env("SYSTEMROOT", "C:/Windows")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())

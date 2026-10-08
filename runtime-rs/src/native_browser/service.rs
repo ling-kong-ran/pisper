@@ -226,13 +226,12 @@ pub(super) fn safe_selector(value: &Value) -> BrowserResult<String> {
 pub(super) fn output_name(value: &Value, now_ms: u128) -> BrowserResult<String> {
     let value = coercion::string_or_empty(value)?;
     let value = value.trim_matches(coercion::whitespace);
-    #[cfg(windows)]
+    // 契约是 win32 路径语义(node24 oracle 按双分隔符 + 盘符捕获),与宿主平台无关。
     let name = value
         .trim_end_matches(['/', '\\'])
         .rsplit(['/', '\\'])
         .next()
         .unwrap_or_default();
-    #[cfg(windows)]
     let name = if name.len() >= 2
         && name.as_bytes()[0].is_ascii_alphabetic()
         && name.as_bytes()[1] == b':'
@@ -241,12 +240,6 @@ pub(super) fn output_name(value: &Value, now_ms: u128) -> BrowserResult<String> 
     } else {
         name
     };
-    #[cfg(not(windows))]
-    let name = value
-        .trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or_default();
     let mut requested = String::new();
     let mut invalid = false;
     for character in name.chars() {
