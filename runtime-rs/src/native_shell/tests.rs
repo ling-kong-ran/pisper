@@ -499,7 +499,9 @@ async fn cancellation_tree(timeout: bool) {
     let _owned = OwnedProcesses(pids.clone());
     let signal = Arc::new(AbortSignal::new());
     options.signal = Some(signal.clone());
-    options.timeout = if timeout { Some(8.0) } else { Some(15.0) };
+    // abort 变体的运行时超时必须盖过 CI runner 上 PowerShell 的冷启动
+    // (本地 ~1s,GitHub windows runner 可达 20s+),否则先触发 timeout:15。
+    options.timeout = if timeout { Some(8.0) } else { Some(90.0) };
     let (operations, command) = interpreter_for_tree();
     let spawn = prepare(
         &command,
@@ -512,7 +514,8 @@ async fn cancellation_tree(timeout: bool) {
     options.env = Some(spawn.env);
     let execution = (operations.exec)(spawn.command, spawn.cwd, options);
     let cancel = async {
-        tokio::time::timeout(Duration::from_secs(7), ready.notified())
+        // CI runner 冷启动余量:PowerShell 首启可达 20s+,本地 ~1s。
+        tokio::time::timeout(Duration::from_secs(60), ready.notified())
             .await
             .expect("owned interpreter/descendant did not start");
         if !timeout {
