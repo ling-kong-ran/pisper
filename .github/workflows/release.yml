@@ -137,7 +137,13 @@ jobs:
           npm run i18n:check
           npm run format:check
           npm run build
-          mkdir -p release/rust-runtime
+          mkdir -p release/rust-runtime src-tauri/binaries
+          # cargo check 只编译 codegen;tauri 构建脚本按宿主三元组校验 externalBin
+          # 存在性,quality 阶段用占位文件满足(linux 三元组由打包脚本在
+          # Windows 机器上不会暂存)。
+          for bin in pisper-sidecar pisper-cli; do
+            [ -f "src-tauri/binaries/$bin-x86_64-unknown-linux-gnu" ] || printf '#!/bin/sh\n' > "src-tauri/binaries/$bin-x86_64-unknown-linux-gnu"
+          done
           cargo fmt --manifest-path src-tui/Cargo.toml -- --check
           cargo check --manifest-path src-tauri/Cargo.toml
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
