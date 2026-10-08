@@ -172,5 +172,19 @@
   "window.close": "关闭窗口",
   "appSidebar.running": "正在执行",
   "navigation.gameAssetWorkbench": "游戏素材工作台",
-  "navigation.gameAssetWorkbenchDescription": "独立管理游戏素材、调整动画帧并导出图集"
+  "navigation.gameAssetWorkbenchDescription": "独立管理游戏素材、调整动画帧并导出图集",
+  "mobileShell.sessions": "会话列表",
+  "mobileShell.chat": "对话",
+  "mobileShell.context": "工作区",
+  "mobileShell.pager": "切换会话列表、对话和工作区",
+  "mobileShell.changes": "改动",
+  "mobileShell.extensions": "扩展",
+  "mobileShell.files": "文件",
+  "mobileShell.terminal": "终端",
+  "mobileShell.terminalUnavailable": "当前设备没有可用的终端",
+  "mobileShell.filesEmpty": "这个目录是空的",
+  "mobileShell.filesLoading": "正在读取目录",
+  "mobileShell.filesUp": "上级目录",
+  "mobileShell.workspaceRoot": "工作区",
+  "mobileShell.noSessionChanges": "打开一个会话后，这里会显示文件改动"
 }

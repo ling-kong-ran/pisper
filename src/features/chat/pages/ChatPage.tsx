@@ -14,6 +14,7 @@ import type { DockviewGroupPanel } from 'dockview-react'
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { WorkspacePicker } from '@/components/common/WorkspacePicker'
+import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
@@ -166,12 +167,16 @@ export function ChatPage({
   )
   const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
   const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
-  const contextPresentation = resolveSessionContextPresentation({
-    availableWidth: contextWidth,
-    mobileLayout,
-    hasSession: Boolean(activeSession),
-    preference: contextOpen ? 'open' : 'closed',
-  })
+  const shell = useMobileShell()
+  // 手机壳的右屏已经承载文件改动，主屏不再叠一层会话抽屉。
+  const contextPresentation = shell.active
+    ? 'closed'
+    : resolveSessionContextPresentation({
+        availableWidth: contextWidth,
+        mobileLayout,
+        hasSession: Boolean(activeSession),
+        preference: contextOpen ? 'open' : 'closed',
+      })
   const contextCompact = mobileLayout || contextWidth < 800
   useSessionContextAutoReveal({
     sessionId: catalog.activeId,
@@ -190,6 +195,11 @@ export function ChatPage({
   const toggleSessionContext = useCallback(
     (sessionId: string, open: boolean) => {
       if (!sessionId) return
+      if (shell.active) {
+        if (shell.mode === 'pad' || open) shell.openContext('changes')
+        else shell.setPane('chat')
+        return
+      }
       if (open) {
         setActiveId(sessionId)
         setContextOpen(true)
@@ -197,7 +207,7 @@ export function ChatPage({
         setContextOpen(false)
       }
     },
-    [setActiveId, setContextOpen],
+    [setActiveId, setContextOpen, shell],
   )
 
   const createSessionRecord = catalog.createSessionRecord
@@ -384,7 +394,13 @@ export function ChatPage({
       globalError: catalog.globalError,
       activeId: catalog.activeId,
       compactDock: dock.compactDock,
-      contextTab: contextPresentation === 'closed' ? null : contextTab,
+      contextTab: shell.active
+        ? shell.mode === 'phone' && shell.pane === 'context' && shell.tab === 'changes'
+          ? 'files'
+          : null
+        : contextPresentation === 'closed'
+          ? null
+          : contextTab,
       contextCompact,
       contextPanelId: SESSION_CONTEXT_PANEL_ID,
       toggleSessionContext,
@@ -431,6 +447,7 @@ export function ChatPage({
       contextPresentation,
       contextTab,
       contextCompact,
+      shell,
       toggleSessionContext,
       dock.splitDockPanel,
       dock.closeDockPanel,
