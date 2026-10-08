@@ -2,10 +2,8 @@ import { createHash } from 'node:crypto'
 import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
-const CATALOG_FILE = 'speech/speech-model-catalog.json'
-const CATALOG_TARGET = 'speech-model-catalog.json'
-const NOTICES_FILE = 'speech/speech-resource-notices.json'
-const NOTICES_TARGET = 'speech-resource-notices.json'
+const CATALOG_FILE = 'speech-model-catalog.json'
+const NOTICES_FILE = 'speech-resource-notices.json'
 const BPE_RESOURCE = 'speech-resources/xasr-bpe.vocab'
 const BPE_BYTES = 61562
 const BPE_SHA256 = '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
@@ -112,8 +110,8 @@ export async function stageSpeechResources({ sourceDir, targetDir }) {
   }
   await rejectSymlinkAncestors(target)
   await rejectSymlinkAncestors(join(target, 'speech-resources'))
-  await rejectSymlinkAncestors(join(target, CATALOG_TARGET))
-  await rejectSymlinkAncestors(join(target, NOTICES_TARGET))
+  await rejectSymlinkAncestors(join(target, CATALOG_FILE))
+  await rejectSymlinkAncestors(join(target, NOTICES_FILE))
   await rejectSymlinkAncestors(join(source, BPE_RESOURCE))
   const catalogBytes = await readSmallFile(join(source, CATALOG_FILE), 4 * 1024 * 1024)
   const catalog = JSON.parse(catalogBytes.toString('utf8'))
@@ -143,11 +141,9 @@ export async function stageSpeechResources({ sourceDir, targetDir }) {
   await rm(join(target, 'speech-resources'), { recursive: true, force: true })
   await mkdir(join(target, 'speech-resources'), { recursive: true })
   await writeFile(join(target, BPE_RESOURCE), bpeBytes, { flag: 'wx' })
-  await rm(join(target, CATALOG_TARGET), { force: true })
-  await mkdir(dirname(join(target, CATALOG_TARGET)), { recursive: true })
-  await writeFile(join(target, CATALOG_TARGET), catalogBytes, { flag: 'wx' })
-  await rm(join(target, NOTICES_TARGET), { force: true })
-  await mkdir(dirname(join(target, NOTICES_TARGET)), { recursive: true })
-  await writeFile(join(target, NOTICES_TARGET), noticesBytes, { flag: 'wx' })
+  await rm(join(target, CATALOG_FILE), { force: true })
+  await writeFile(join(target, CATALOG_FILE), catalogBytes, { flag: 'wx' })
+  await rm(join(target, NOTICES_FILE), { force: true })
+  await writeFile(join(target, NOTICES_FILE), noticesBytes, { flag: 'wx' })
   return target
 }

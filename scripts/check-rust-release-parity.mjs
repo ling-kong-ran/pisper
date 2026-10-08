@@ -141,9 +141,7 @@ function declarationCovers(native, normalizedPath) {
   const wildcard = nativeShape.indexOf('/{*}/')
   if (wildcard === -1 && !nativeShape.endsWith('/{*}')) return false
   const base = wildcard === -1 ? nativeShape.slice(0, -4) : nativeShape.slice(0, wildcard + 1)
-  return (
-    expectedShape === base.slice(0, -1) || expectedShape.startsWith(`${base}`)
-  )
+  return expectedShape === base.slice(0, -1) || expectedShape.startsWith(`${base}`)
 }
 
 const byKey = new Map(expected.map((route) => [`${route.method} ${route.path}`, route]))
@@ -174,10 +172,9 @@ const referenceCommit = execFileSync('git', ['-C', reference, 'rev-parse', 'HEAD
 const report = {
   objective:
     'Rust development branch must match release functionality, UI, contracts, storage, tools, lifecycle, and supported platforms.',
-  status:
-    requirements.every((route) => route.declarations.length > 0 && route.behaviorVerified)
-      ? 'route-parity-complete'
-      : 'incomplete',
+  status: requirements.every((route) => route.declarations.length > 0 && route.behaviorVerified)
+    ? 'route-parity-complete'
+    : 'incomplete',
   generatedAt: new Date().toISOString(),
   reference: { branch: 'release', commit: referenceCommit },
   scope: {

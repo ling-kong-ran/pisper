@@ -1,4 +1,3 @@
-<<<<<<<< HEAD:shared/game/game-assets.mjs
 // 工作台有自己的项目和任务契约；共享图片引用与像素结果，不保存工作流实体或节点。
 import { parseWorkflowMedia } from '../workflow/workflow-inputs.mjs'
 import { normalizeImageFrameEdits } from '../image/image-frame-edits.mjs'
@@ -231,7 +230,3 @@ export function parseGameAssetsCatalog(value) {
     return invalid()
   return { projects, jobs }
 }
-========
-// 旧 Rust 分支构建脚本的兼容入口；业务协议以 release 的分域模块为唯一来源。
-export * from './game/game-assets.mjs'
->>>>>>>> origin/develop-rust:shared/game-assets.mjs

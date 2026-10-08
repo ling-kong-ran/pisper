@@ -23,3 +23,10 @@ crates/tauri-plugin-dns-sd/permissions/schemas
 
 # Exact third-party Pi source is formatted upstream; the patch uses rustfmt.
 runtime-rs/vendor
+
+# Captured contract fixtures and injected browser scripts: bytes are
+# contract-pinned (tests and oracles read them verbatim), do not reformat.
+runtime-rs/src/native_browser/browser_scripts
+runtime-rs/src/native_browser/oracles
+runtime-rs/src/native_channels/feishu_qq
+runtime-rs/src/native_visual/oracles

@@ -17,13 +17,13 @@
   "files": [
     "shared/browser-preferences.mjs",
     "shared/app-update.mjs",
-    "shared/image/raster-image.mjs",
-    "shared/game/sprite-engine-catalog.mjs",
-    "shared/workflow/workflow-inputs.mjs",
-    "shared/workflow/workflow-image-nodes.mjs",
-    "shared/image/image-operations.mjs",
-    "shared/image/image-frame-edits.mjs",
-    "shared/image/image-alpha-strokes.mjs",
-    "shared/game/game-assets.mjs"
+    "shared/raster-image.mjs",
+    "shared/sprite-engine-catalog.mjs",
+    "shared/workflow-inputs.mjs",
+    "shared/workflow-image-nodes.mjs",
+    "shared/image-operations.mjs",
+    "shared/image-frame-edits.mjs",
+    "shared/image-alpha-strokes.mjs",
+    "shared/game-assets.mjs"
   ]
 }

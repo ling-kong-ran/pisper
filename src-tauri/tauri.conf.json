@@ -21,7 +21,7 @@
     "externalBin": ["binaries/pisper-sidecar", "binaries/pisper-cli"],
     "resources": {
       "../dist/": "desktop/dist/",
-      "../release/sea/runtime/": "sidecar-runtime/"
+      "../release/rust-runtime/": "sidecar-runtime/"
     },
     "icon": [
       "icons/32x32.png",

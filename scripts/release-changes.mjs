@@ -79,6 +79,7 @@ export function releaseComponentsForPath(input) {
   if (path.startsWith('crates/tauri-plugin-dns-sd/')) return ['desktop']
   if (path.startsWith('src-tauri/')) return ['desktop']
   if (path.startsWith('src-tui/')) return ['tui']
+  if (path.startsWith('runtime-rs/')) return ['desktop']
   if (path.startsWith('runtime/')) return ['runtime']
   if (path.startsWith('src/') || path.startsWith('public/')) return ['desktop']
   if (path.startsWith('shared/')) return ['desktop', 'runtime']

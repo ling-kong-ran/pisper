@@ -16,7 +16,7 @@ const fixture = await build({
       import React from 'react'
       import { createRoot } from 'react-dom/client'
       import { MessageAttachments } from './src/features/chat/ChatMessage.tsx'
-      import { LOCAL_REVEAL_NOTICE_EVENT } from './src/app/routes/route-context.ts'
+      import { LOCAL_REVEAL_NOTICE_EVENT } from './src/app/route-context.ts'
       window.notices = []
       window.addEventListener(LOCAL_REVEAL_NOTICE_EVENT, event => window.notices.push(event.detail))
       createRoot(document.getElementById('root')).render(React.createElement(MessageAttachments, {

@@ -23,15 +23,15 @@ export const RUNTIME_EXTERNAL_PACKAGES = Object.freeze([
 const BUILD_EXTERNAL_PACKAGES = [...RUNTIME_EXTERNAL_PACKAGES, 'vite']
 const ENTRY_POINTS = Object.freeze({
   sidecar: 'runtime/sidecar.mjs',
-  'services/mobile-embedded': 'runtime/services/mobile-embedded.mjs',
+  'mobile-embedded': 'runtime/mobile-embedded.mjs',
   'workers/speech-inference-worker': 'runtime/workers/speech-inference-worker.mjs',
   'workers/workflow-image-worker': 'runtime/workers/workflow-image-worker.mjs',
 })
 const SHARED_RESOURCES = Object.freeze([
-  'speech/speech-model-catalog.json',
-  'speech/speech-resource-notices.json',
+  'speech-model-catalog.json',
+  'speech-resource-notices.json',
   'speech-resources/xasr-bpe.vocab',
-  'speech/ocr-model-catalog.mjs',
+  'ocr-model-catalog.mjs',
   'vendor/framebaker/LICENSE',
 ])
 
@@ -213,7 +213,7 @@ export async function bundleRuntime({ runtimeDir }) {
   const manifest = {
     schema: RUNTIME_BUNDLE_SCHEMA,
     version: RUNTIME_BUNDLE_VERSION,
-    entries: Object.values(ENTRY_POINTS),
+    entries: Object.keys(ENTRY_POINTS).map((name) => `runtime/${name}.mjs`),
     externalPackages: [...RUNTIME_EXTERNAL_PACKAGES],
     inputFileCount: Object.keys(result.metafile.inputs).length,
     inputBytes: Object.values(result.metafile.inputs).reduce((sum, input) => sum + input.bytes, 0),

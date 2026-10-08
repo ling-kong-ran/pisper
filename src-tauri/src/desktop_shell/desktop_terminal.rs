@@ -695,13 +695,6 @@ pub fn desktop_terminal_close_all(
     close_registry(&state, false)
 }
 
-pub fn close_all(state: &DesktopTerminalState) -> usize {
-    close_registry(state, false).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        0
-    })
-}
-
 /// Close admission permanently before GUI teardown. Ordinary panel close-all
 /// keeps admission open so the user can create another terminal later.
 pub fn shutdown(state: &DesktopTerminalState) -> usize {

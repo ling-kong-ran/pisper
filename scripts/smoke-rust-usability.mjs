@@ -976,7 +976,9 @@ async function createFixture() {
         : undefined
       if (snapshotTool) {
         assert.ok(
-          ['read', 'write', 'edit', 'bash', 'call_tool', 'discover_tools'].includes(snapshotTool.name),
+          ['read', 'write', 'edit', 'bash', 'call_tool', 'discover_tools'].includes(
+            snapshotTool.name,
+          ),
         )
         assert.equal(typeof snapshotTool.args, 'object')
       }
@@ -2684,8 +2686,17 @@ try {
         delay,
       })
       browserRestart = await checkBrowserParity({
-        check, json, request, chat, workspace, agent, output, providerId, modelId,
-        fixtureRequests: report.fixtureRequests, delay,
+        check,
+        json,
+        request,
+        chat,
+        workspace,
+        agent,
+        output,
+        providerId,
+        modelId,
+        fixtureRequests: report.fixtureRequests,
+        delay,
       })
       pluginsRestart = await checkPluginsParity({
         check,

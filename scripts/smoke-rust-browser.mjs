@@ -177,10 +177,15 @@ export async function checkBrowserParity({
   }
   async function create(name) {
     // release POST /api/sessions returns 201 (sessions-runtime.mjs json(201, ...)).
-    const session = await idleJson('/api/sessions', 'POST', {
-      name: `browser-${name}-${nonce}`,
-      cwd: fixture,
-    }, 201)
+    const session = await idleJson(
+      '/api/sessions',
+      'POST',
+      {
+        name: `browser-${name}-${nonce}`,
+        cwd: fixture,
+      },
+      201,
+    )
     sessions.add(session.id)
     await idleJson(`/api/sessions/${session.id}/model`, 'PUT', {
       provider: providerId,

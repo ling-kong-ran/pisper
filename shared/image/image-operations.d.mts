@@ -1,4 +1,3 @@
-<<<<<<<< HEAD:shared/image/image-operations.d.mts
 import type { WorkflowMedia } from '../workflow/workflow-inputs.mjs'
 
 export type ImageDirection = 'S' | 'SW' | 'W' | 'NW' | 'N' | 'NE' | 'E' | 'SE'
@@ -68,7 +67,3 @@ export const IMAGE_DIRECTIONS: readonly ImageDirection[]
 export function normalizeImageSettings(value?: unknown): ImageSettings
 export function parseImageOutput(value: unknown): ImageOutput
 export function imageOperationError(code: string): Error & { code: string; statusCode: number }
-========
-// 旧 Rust 分支构建脚本的兼容入口；业务协议以 release 的分域模块为唯一来源。
-export * from './image/image-operations.mjs'
->>>>>>>> origin/develop-rust:shared/image-operations.d.mts

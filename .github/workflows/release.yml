@@ -134,8 +134,8 @@ jobs:
           npm test
           npm run check
           npm run build
-          npm run sidecar:sea
-          npm run tui:stage
+          mkdir -p release/rust-runtime
+          cargo fmt --manifest-path src-tui/Cargo.toml -- --check
           cargo check --manifest-path src-tauri/Cargo.toml
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
           cargo test --manifest-path src-tui/Cargo.toml --locked
@@ -184,9 +184,9 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        if: inputs.component != 'runtime'
+        if: inputs.component != 'runtime' && (inputs.component != 'desktop' || matrix.target == 'windows-x86_64')
       - uses: Swatinem/rust-cache@v2
-        if: inputs.component != 'runtime'
+        if: inputs.component != 'runtime' && (inputs.component != 'desktop' || matrix.target == 'windows-x86_64')
         with:
           workspaces: |
             src-tauri
@@ -197,27 +197,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
-      - name: Verify Windows shell process cleanup
-        if: runner.os == 'Windows' && inputs.component != 'tui'
-        run: node --import tsx --test runtime/tests/host-bash.test.mjs
+        if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
+      # Rust 桌面打包仅支持 Windows；desktop 的其余 matrix 行直接跳过。
       - name: Require component signing credentials
+        if: inputs.component != 'runtime'
         shell: bash
         run: |
           test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not configured." >&2; exit 1; }
           test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured." >&2; exit 1; }
       - name: Build scoped release artifacts
         shell: bash
+        if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
         run: |
           case "$RELEASE_COMPONENT" in
             desktop)
               npm run build
-              node scripts/fetch-bundled-components.mjs
-              npm run desktop:webview:package
-              node scripts/archive-component-release.mjs desktop
+              node scripts/package-tauri-rust.mjs
               ;;
             tui)
-              npm run sidecar:sea
-              npm run sidecar:sea:smoke
               npm run tui:package
               node scripts/archive-component-release.mjs tui
               ;;
@@ -231,53 +228,37 @@ jobs:
               exit 1
               ;;
           esac
-      - name: Verify Windows standard and offline prerequisites
+      - name: Verify the Windows installer embeds a signed WebView2 bootstrapper
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem release/tauri-artifacts -Recurse -File -Filter '*-setup.exe')
-          if ($installers.Count -ne 2) { throw 'Expected standard and offline Windows installers.' }
-          $offline = @($installers | Where-Object { $_.Name -like '*-offline-setup.exe' })
-          $standard = @($installers | Where-Object { $_.Name -notlike '*-offline-setup.exe' })
-          if ($offline.Count -ne 1 -or $standard.Count -ne 1) { throw 'Missing Windows installer variant.' }
+          $installers = @(Get-ChildItem release/tauri-rust-artifacts -Recurse -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
+          $installer = $installers[0]
           $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
           New-Item -ItemType Directory -Path $payloadDir | Out-Null
           try {
-            foreach ($installer in $installers) {
-              $variantDir = Join-Path $payloadDir $installer.Name
-              & 7z x $installer.FullName "-o$variantDir" '*MicrosoftEdgeWebView2RuntimeInstaller.exe' '*MicrosoftEdgeWebview2Setup.exe' -r -y | Out-Null
-              if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
-              $payloads = @(Get-ChildItem $variantDir -Recurse -File -Filter '*MicrosoftEdgeWeb*.exe')
-              $expected = if ($installer.Name -like '*-offline-setup.exe') { 'MicrosoftEdgeWebView2RuntimeInstaller.exe' } else { 'MicrosoftEdgeWebview2Setup.exe' }
-              if ($payloads.Count -ne 1 -or $payloads[0].Name -ne $expected) { throw "Incorrect WebView2 payload in $($installer.Name)." }
-              $payload = $payloads[0]
-              $signature = Get-AuthenticodeSignature $payload.FullName
-              if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
-                throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
-              }
-              $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
-              Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2=$expected version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
+            & 7z x $installer.FullName "-o$payloadDir" '*MicrosoftEdgeWebview2Setup.exe' -r -y | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
+            $payloads = @(Get-ChildItem $payloadDir -Recurse -File -Filter 'MicrosoftEdgeWebview2Setup.exe')
+            if ($payloads.Count -ne 1) { throw 'Installer does not embed the WebView2 bootstrapper.' }
+            $payload = $payloads[0]
+            $signature = Get-AuthenticodeSignature $payload.FullName
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
+              throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
             }
+            $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
+            Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2 version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
           } finally {
             Remove-Item $payloadDir -Recurse -Force
           }
-      - name: Test desktop shell on the release platform
-        if: inputs.component == 'desktop'
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
-      - name: Sign independently updateable component archives
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          while IFS= read -r -d '' archive; do
-            npx tauri signer sign "$archive"
-          done < <(find release/component-artifacts -type f -name '*.tar.gz' -print0)
       - uses: actions/upload-artifact@v4
+        if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
         with:
           name: pisper-${{ inputs.component }}-${{ matrix.target }}
           if-no-files-found: error
           path: |
-            release/tauri-artifacts
-            release/component-artifacts
+            release/tauri-rust-artifacts
 
   release:
     name: Finalize ${{ inputs.component }} version and publish release
@@ -302,7 +283,7 @@ jobs:
           merge-multiple: true
       - name: Create multi-platform updater manifest
         if: inputs.component == 'desktop'
-        run: node scripts/create-tauri-update-manifest.mjs "$RELEASE_TAG" artifacts --require-all --output artifacts/latest.json
+        run: node scripts/create-tauri-update-manifest.mjs "$RELEASE_TAG" artifacts --output artifacts/latest.json
       - name: Validate exact desktop release asset set
         if: inputs.component == 'desktop'
         run: node scripts/validate-tauri-release-assets.mjs "$RELEASE_TAG" artifacts

@@ -13,7 +13,7 @@ const fixture = await build({
     contents: `
       import React from 'react'
       import { createRoot } from 'react-dom/client'
-      import MarkdownMessage from './src/components/common/MarkdownMessage.tsx'
+      import MarkdownMessage from './src/components/MarkdownMessage.tsx'
       const root = createRoot(document.getElementById('root'))
       window.notices = []
       window.addEventListener('pisper:local-reveal-notice', event => window.notices.push(event.detail))

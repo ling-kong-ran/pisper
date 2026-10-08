@@ -32,11 +32,11 @@ const fixture = await build({
       import { createRoot } from 'react-dom/client'
       import { QueryClientProvider } from '@tanstack/react-query'
       import { SidebarRecentSessions } from './src/components/layout/SidebarRecentSessions.tsx'
-      import { ChatHistoryPage } from './src/features/chat/pages/ChatHistoryPage.tsx'
+      import { ChatHistoryPage } from './src/features/chat/ChatHistoryPage.tsx'
       import { SidebarProvider } from './src/components/ui/sidebar.tsx'
       import { AppDialog } from './src/components/layout/AppDialog.tsx'
       import { useAppDialog } from './src/hooks/useAppDialog.ts'
-      import { queryClient, installStartupQueryEvents } from './src/lib/startup/startup-queries.ts'
+      import { queryClient, installStartupQueryEvents } from './src/lib/startup-queries.ts'
       const uninstall = installStartupQueryEvents(window)
       window.addEventListener('pagehide', () => { uninstall(); queryClient.clear() }, { once: true })
       function Fixture() {

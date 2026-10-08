@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { PNG } from 'pngjs'
 import { zipSync } from 'fflate'
-import { SPRITE_ENGINE_CATALOG } from '../shared/game/sprite-engine-catalog.mjs'
+import { SPRITE_ENGINE_CATALOG } from '../shared/sprite-engine-catalog.mjs'
 
 assert.equal(process.versions.node.split('.')[0], '24', 'Use the project Node.js 24 baseline')
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')

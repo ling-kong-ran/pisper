@@ -1,4 +1,3 @@
-<<<<<<<< HEAD:shared/image/image-operations.mjs
 // 通用图片运算契约。历史 wire 标记 workflow-images 仅标识数据格式，不引用工作流实体。
 import { parseWorkflowMedia } from '../workflow/workflow-inputs.mjs'
 
@@ -162,7 +161,3 @@ export function parseImageOutput(value) {
   }
   return output
 }
-========
-// 旧 Rust 分支构建脚本的兼容入口；业务协议以 release 的分域模块为唯一来源。
-export * from './image/image-operations.mjs'
->>>>>>>> origin/develop-rust:shared/image-operations.mjs

@@ -33,12 +33,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: node --import tsx --test runtime/tests/host-bash.test.mjs
+          workspaces: runtime-rs
+      - name: Test the Rust host shell lifecycle on Windows
+        run: cargo test --manifest-path runtime-rs/Cargo.toml --release host_shell
 
   ios-native:
     name: iOS native tests

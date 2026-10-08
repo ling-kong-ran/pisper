@@ -1,2 +1,5 @@
-// 旧 Rust 分支构建脚本的兼容入口；业务协议以 release 的分域模块为唯一来源。
-export * from './image/raster-image.mjs'
+export const MAX_RASTER_SIDE: number
+export const MAX_RASTER_PIXELS: number
+export type RasterDimensions = { width: number; height: number; mimeType: string }
+export function readRasterDimensions(bytes: Uint8Array): RasterDimensions | null
+export function assertRasterBounds(dimensions: { width: number; height: number } | null): void

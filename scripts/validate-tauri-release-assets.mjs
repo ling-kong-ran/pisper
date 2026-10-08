@@ -12,33 +12,20 @@ if (!match) {
 }
 
 const version = match[1]
+// Rust 桌面流水线当前只在 Windows 产出 NSIS 安装包；其余平台恢复打包时
+// 在这里补回对应资产（darwin .app.tar.gz/.dmg、linux .AppImage/.deb）。
 const tauriAssets = [
   'latest.json',
-  `Pisper_${version}_darwin_aarch64.app.tar.gz`,
-  `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
-  `Pisper_${version}_darwin_aarch64.dmg`,
-  `Pisper_${version}_darwin_x86_64.app.tar.gz`,
-  `Pisper_${version}_darwin_x86_64.app.tar.gz.sig`,
-  `Pisper_${version}_darwin_x86_64.dmg`,
-  `Pisper_${version}_linux_x86_64.AppImage`,
-  `Pisper_${version}_linux_x86_64.AppImage.sig`,
-  `Pisper_${version}_linux_x86_64.deb`,
   `Pisper_${version}_windows_x86_64-setup.exe`,
   `Pisper_${version}_windows_x86_64-setup.exe.sig`,
-  `Pisper_${version}_windows_x86_64-offline-setup.exe`,
-  `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
 ]
-const componentAssets = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
-  .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
-  .flatMap((archive) => [archive, `${archive}.sig`])
-const expected = new Set([...tauriAssets, ...componentAssets])
+const expected = new Set(tauriAssets)
 
 async function filesUnder(directory) {
   const result = []
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const fullPath = path.join(directory, entry.name)
-    if (entry.isDirectory()) result.push(...(await filesUnder(fullPath)))
-    else result.push(fullPath)
+    if (entry.isDirectory()) result.push(...(await filesUnder(path.join(directory, entry.name))))
+    else result.push(path.join(directory, entry.name))
   }
   return result
 }
