@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "tools": [
+    {
+      "id": "read",
+      "name": "Read",
+      "category": "filesystem",
+      "risk": "low",
+      "description": "Read text, code, and image files in the workspace.",
+      "scope": "Current chat workspace",
+      "capability": "Read file contents without modifying files",
+      "source": "builtin"
+    },
+    {
+      "id": "ls",
+      "name": "List",
+      "category": "filesystem",
+      "risk": "low",
+      "description": "List directory structures and basic file information.",
+      "scope": "Current chat workspace",
+      "capability": "Browse directories without reading file contents",
+      "source": "builtin"
+    },
+    {
+      "id": "grep",
+      "name": "Grep",
+      "category": "search",
+      "risk": "low",
+      "description": "Run full-text and regular-expression searches across project files.",
+      "scope": "Current chat workspace",
+      "capability": "Search text without modifying files",
+      "source": "builtin"
+    },
+    {
+      "id": "find",
+      "name": "Find",
+      "category": "search",
+      "risk": "low",
+      "description": "Find project files by name and pattern.",
+      "scope": "Current chat workspace",
+      "capability": "Find paths without modifying files",
+      "source": "builtin"
+    },
+    {
+      "id": "edit",
+      "name": "Edit",
+      "category": "filesystem",
+      "risk": "high",
+      "description": "Apply precise local edits to existing files.",
+      "scope": "Current chat workspace",
+      "capability": "Modify existing files and produce diffs",
+      "source": "builtin"
+    },
+    {
+      "id": "write",
+      "name": "Write",
+      "category": "filesystem",
+      "risk": "high",
+      "description": "Create new files or overwrite file contents.",
+      "scope": "Current chat workspace",
+      "capability": "Create and overwrite files",
+      "source": "builtin"
+    },
+    {
+      "id": "bash",
+      "name": "Shell",
+      "category": "terminal",
+      "risk": "high",
+      "description": "Run terminal commands as the current operating-system user.",
+      "scope": "Current operating-system user",
+      "capability": "Run commands, builds, and tests",
+      "source": "builtin"
+    },
+    {
+      "id": "web_search",
+      "name": "Web Search",
+      "category": "search",
+      "risk": "medium",
+      "description": "Search the internet through Bing RSS without installation or an API key.",
+      "scope": "Bing public web search",
+      "capability": "Send search terms and return titles, links, summaries, and dates without modifying web pages",
+      "source": "app"
+    },
+    {
+      "id": "browser_automation",
+      "name": "Browser Control",
+      "category": "browser",
+      "risk": "medium",
+      "description": "Provide an isolated, controlled browser for navigation, inspection, and page interaction.",
+      "scope": "Isolated browser for the current primary Agent chat; HTTP/HTTPS only",
+      "capability": "Navigate, inspect, click, type, wait, capture screenshots, and close the browser without arbitrary JavaScript",
+      "source": "app"
+    },
+    {
+      "id": "generate_visual",
+      "name": "Visual Generate",
+      "category": "visual",
+      "risk": "high",
+      "description": "Generate or edit images, mockups, posters, logos, or videos.",
+      "scope": "Visual providers; workspace/generated/visuals",
+      "capability": "Generate or edit images and videos",
+      "source": "app"
+    },
+    {
+      "id": "skill_create",
+      "name": "Skill Create",
+      "category": "skills",
+      "risk": "high",
+      "description": "Create a standards-compliant Agent Skill in the current project or global Pisper skills directory.",
+      "scope": "Current project or global Pisper skills directory",
+      "capability": "Validate and atomically create a new SKILL.md without overwriting existing content",
+      "source": "app"
+    },
+    {
+      "id": "plugin_create",
+      "name": "Plugin Create",
+      "category": "plugins",
+      "risk": "high",
+      "description": "Create and install a standards-compliant local Pisper plugin for all projects.",
+      "scope": "Global Pisper plugin sources and local plugin installation",
+      "capability": "Define one or more Agent tools, create their source without overwriting files, validate the plugin, and install it",
+      "source": "app"
+    },
+    {
+      "id": "mobile_device",
+      "name": "Mobile Device",
+      "category": "device",
+      "risk": "high",
+      "description": "Use phone capabilities permitted by the connected Pisper mobile App and operating system, including device status, storage, clipboard, photos, sensors, and constrained external apps.",
+      "scope": "Currently connected Pisper mobile App and its per-capability privacy controls",
+      "capability": "Inspect or update supported phone state, organize photos, use sensors, and open approved external targets",
+      "source": "app"
+    },
+    {
+      "id": "typed_decide",
+      "name": "Typed Decide",
+      "category": "analysis",
+      "risk": "low",
+      "description": "Ask a decision model typed questions (yes-no, choice, score) about a state and get typed answers and available probabilities.",
+      "scope": "Remote decision model configured in settings",
+      "capability": "Judge text or structured state with typed questions and return probabilities without generating text",
+      "source": "app"
+    },
+    {
+      "id": "image_assets",
+      "name": "Image Assets",
+      "category": "visual",
+      "risk": "high",
+      "description": "Generate action frames, remove backgrounds locally, split, manually edit, and export image assets.",
+      "scope": "Imported workspace images and managed image assets",
+      "capability": "Use the same image-processing engine as workflows and the game assets workbench",
+      "source": "app"
+    },
+    {
+      "id": "memory_search",
+      "name": "Memory Search",
+      "category": "memory",
+      "risk": "low",
+      "description": "Search long-term memory across global and current-project spaces.",
+      "scope": "Global and current-project memory spaces",
+      "capability": "Read relevant preferences, facts, decisions, and tasks without modifying memory",
+      "source": "app"
+    },
+    {
+      "id": "memory_remember",
+      "name": "Memory Remember",
+      "category": "memory",
+      "risk": "medium",
+      "description": "Save explicit remember requests directly and silently queue inferred reusable information as candidates.",
+      "scope": "Global or current-project memory spaces",
+      "capability": "Save explicit requests, queue inferred candidates, and hide common secret formats",
+      "source": "app"
+    },
+    {
+      "id": "mcp_list",
+      "name": "MCP List",
+      "category": "mcp",
+      "risk": "low",
+      "description": "Read configured MCP services, connection status, and available tools.",
+      "scope": "Application-level MCP configuration",
+      "capability": "Read redacted MCP service information without changing configuration",
+      "source": "app"
+    },
+    {
+      "id": "mcp_manage",
+      "name": "MCP Manage",
+      "category": "mcp",
+      "risk": "high",
+      "description": "Manage MCP services with structured parameters. To add a service, use action=\"add\" and put the complete connection in config: stdio requires name, transport=\"stdio\", and command; http or sse requires name, transport, and url.",
+      "scope": "Application-level MCP configuration",
+      "capability": "Modify MCP service configuration without exposing sensitive headers or environment values",
+      "source": "app"
+    }
+  ],
+  "presets": {
+    "full": [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "edit",
+      "write",
+      "bash",
+      "skill_create",
+      "plugin_create",
+      "web_search",
+      "browser_automation",
+      "generate_visual",
+      "mobile_device",
+      "memory_search",
+      "memory_remember",
+      "mcp_list",
+      "mcp_manage",
+      "typed_decide"
+    ]
+  }
+}

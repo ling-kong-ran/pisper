@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/ling-kong-ran/pisper-components",
+  "commit": "ad03ef0e62947051453663a7bbde5fc5d74eed3c",
+  "component": "pisper-game-asset-workbench",
+  "version": "1.0.0",
+  "license": "MIT",
+  "fixtureOnly": true,
+  "sha256": "dfb6f1372ba9f6e4f9ff0137399f4ede74c3d15fc857ee0917a29ae80c162730",
+  "files": {
+    "manifest.json": "6801a0b08610989f55374b84676b244b1b8cebbfcfa8e6d58f6e7efcd4a11a17",
+    "index.html": "9cf1cfaa94581ba3992482838cb6bbeda1de571437b275a7690a64cc3f4090c0",
+    "frame-editor.js": "aa6f1f4d8bc45b3baa882cdb154f285b683175668e7d0886551f62c1dead89ff"
+  }
+}

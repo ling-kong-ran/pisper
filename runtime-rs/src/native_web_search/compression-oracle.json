@@ -1,0 +1,143 @@
+{
+  "sourceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "nodeVersion": "v24.19.0",
+  "xml": "<?xml version=\"1.0\"?><rss><channel><item><title>Pisper &#xD83D;&#56832; &amp; Research</title><link>https://example.com/evidence?q=a&amp;b=2</link><description><![CDATA[<b>文档</b> &amp;#39;yes&amp;#39; &#x1F600;]]></description><pubDate>2026-10-06</pubDate></item><item><title>Documentation</title><link>https://example.com/docs</link><description>Official docs</description></item><item><link>javascript:alert(1)</link></item></channel></rss>",
+  "input": {
+    "query": "release public evidence",
+    "page": 2,
+    "limit": 2,
+    "language": "ko-KR"
+  },
+  "rows": [
+    {
+      "encoding": "identity",
+      "format": "identity",
+      "base64": "77u/PD94bWwgdmVyc2lvbj0iMS4wIj8+PHJzcz48Y2hhbm5lbD48aXRlbT48dGl0bGU+UGlzcGVyICYjeEQ4M0Q7JiM1NjgzMjsgJmFtcDsgUmVzZWFyY2g8L3RpdGxlPjxsaW5rPmh0dHBzOi8vZXhhbXBsZS5jb20vZXZpZGVuY2U/cT1hJmFtcDtiPTI8L2xpbms+PGRlc2NyaXB0aW9uPjwhW0NEQVRBWzxiPuaWh+ahozwvYj4gJmFtcDsjMzk7eWVzJmFtcDsjMzk7ICYjeDFGNjAwO11dPjwvZGVzY3JpcHRpb24+PHB1YkRhdGU+MjAyNi0xMC0wNjwvcHViRGF0ZT48L2l0ZW0+PGl0ZW0+PHRpdGxlPkRvY3VtZW50YXRpb248L3RpdGxlPjxsaW5rPmh0dHBzOi8vZXhhbXBsZS5jb20vZG9jczwvbGluaz48ZGVzY3JpcHRpb24+T2ZmaWNpYWwgZG9jczwvZGVzY3JpcHRpb24+PC9pdGVtPjxpdGVtPjxsaW5rPmphdmFzY3JpcHQ6YWxlcnQoMSk8L2xpbms+PC9pdGVtPjwvY2hhbm5lbD48L3Jzcz4=",
+      "expected": {
+        "query": "release public evidence",
+        "provider": "bing",
+        "results": [
+          {
+            "title": "Pisper 😀 & Research",
+            "url": "https://example.com/evidence?q=a&b=2",
+            "snippet": "文档 'yes' 😀",
+            "publishedAt": "2026-10-06"
+          },
+          {
+            "title": "Documentation",
+            "url": "https://example.com/docs",
+            "snippet": "Official docs",
+            "publishedAt": ""
+          }
+        ],
+        "text": "Bing 搜索结果：release public evidence\n\n1. Pisper 😀 & Research\nhttps://example.com/evidence?q=a&b=2\n文档 'yes' 😀\n发布时间：2026-10-06\n\n2. Documentation\nhttps://example.com/docs\nOfficial docs"
+      }
+    },
+    {
+      "encoding": "gzip",
+      "format": "gzip",
+      "base64": "H4sIAAAAAAAACoWRzUrDQBSFXyU2EHTRTn4w1OZmQjG4VcRd6WIyuSWjk0nMTEN8At/AvfgYLnybbvsKksQWC4K7y+U7957D2X9+QdKV0mqx0aJS8cSbuZOEQqM1BV4wpVBSEAZLCkYYifRO6Boby7G7dB6kkWNfhvPAjyyHlXVk3aNG1vACyEiDFOqJFsbUekEIdqysJc54VRJsRY6KY/Ics0GbxT6QAYccNW9EbUSlKJytrtPlw3IFGd29ve7eP4BkdHxnB1fRC+rj3LvybkLXjdZrCuTkTL3NUmaQ+q4fTj136oZADjsgY8LfOdOKb0tUhvXy/+PkFdd/2b/dbAQXTFojcGLp5OsgfWQtG4EFk9iYc+/icPQHJsdSSN/RN0h2brXBAQAA",
+      "expected": {
+        "query": "release public evidence",
+        "provider": "bing",
+        "results": [
+          {
+            "title": "Pisper 😀 & Research",
+            "url": "https://example.com/evidence?q=a&b=2",
+            "snippet": "文档 'yes' 😀",
+            "publishedAt": "2026-10-06"
+          },
+          {
+            "title": "Documentation",
+            "url": "https://example.com/docs",
+            "snippet": "Official docs",
+            "publishedAt": ""
+          }
+        ],
+        "text": "Bing 搜索结果：release public evidence\n\n1. Pisper 😀 & Research\nhttps://example.com/evidence?q=a&b=2\n文档 'yes' 😀\n发布时间：2026-10-06\n\n2. Documentation\nhttps://example.com/docs\nOfficial docs"
+      }
+    },
+    {
+      "encoding": "deflate",
+      "format": "deflate",
+      "base64": "eJyFkc1Kw0AUhV8lNhB00U5+MNTmZkIxuFXEXeliMrklo5NJzExDfALfwL34GC58m277CpLEFguCu8vlO/eew9l/fkHSldJqsdGiUvHEm7mThEKjNQVeMKVQUhAGSwpGGIn0TugaG8uxu3QepJFjX4bzwI8sh5V1ZN2jRtbwAshIgxTqiRbG1HpBCHasrCXOeFUSbEWOimPyHLNBm8U+kAGHHDVvRG1EpSicra7T5cNyBRndvb3u3j+AZHR8ZwdX0Qvq49y78m5C143Wawrk5Ey9zVJmkPquH049d+qGQA47IGPC3znTim9LVIb18v/j5BXXf9m/3WwEF0xaI3Bi6eTrIH1kLRuBBZPYmHPv4nD0BybHUkjf0TcrCZxq",
+      "expected": {
+        "query": "release public evidence",
+        "provider": "bing",
+        "results": [
+          {
+            "title": "Pisper 😀 & Research",
+            "url": "https://example.com/evidence?q=a&b=2",
+            "snippet": "文档 'yes' 😀",
+            "publishedAt": "2026-10-06"
+          },
+          {
+            "title": "Documentation",
+            "url": "https://example.com/docs",
+            "snippet": "Official docs",
+            "publishedAt": ""
+          }
+        ],
+        "text": "Bing 搜索结果：release public evidence\n\n1. Pisper 😀 & Research\nhttps://example.com/evidence?q=a&b=2\n文档 'yes' 😀\n发布时间：2026-10-06\n\n2. Documentation\nhttps://example.com/docs\nOfficial docs"
+      }
+    },
+    {
+      "encoding": "deflate",
+      "format": "rawdeflate",
+      "base64": "hZHNSsNAFIVfJTYQdNFOfjDU5mZCMbhVxF3pYjK5JaOTScxMQ3wC38C9+BgufJtu+wqSxBYLgrvL5Tv3nsPZf35B0pXSarHRolLxxJu5k4RCozUFXjClUFIQBksKRhiJ9E7oGhvLsbt0HqSRY1+G88CPLIeVdWTdo0bW8ALISIMU6okWxtR6QQh2rKwlznhVEmxFjopj8hyzQZvFPpABhxw1b0RtRKUonK2u0+XDcgUZ3b297t4/gGR0fGcHV9EL6uPcu/JuQteN1msK5ORMvc1SZpD6rh9OPXfqhkAOOyBjwt8504pvS1SG9fL/4+QV13/Zv91sBBdMWiNwYunk6yB9ZC0bgQWT2Jhz7+Jw9Acmx1JI39E3",
+      "expected": {
+        "query": "release public evidence",
+        "provider": "bing",
+        "results": [
+          {
+            "title": "Pisper 😀 & Research",
+            "url": "https://example.com/evidence?q=a&b=2",
+            "snippet": "文档 'yes' 😀",
+            "publishedAt": "2026-10-06"
+          },
+          {
+            "title": "Documentation",
+            "url": "https://example.com/docs",
+            "snippet": "Official docs",
+            "publishedAt": ""
+          }
+        ],
+        "text": "Bing 搜索结果：release public evidence\n\n1. Pisper 😀 & Research\nhttps://example.com/evidence?q=a&b=2\n文档 'yes' 😀\n发布时间：2026-10-06\n\n2. Documentation\nhttps://example.com/docs\nOfficial docs"
+      }
+    },
+    {
+      "encoding": "br",
+      "format": "br",
+      "base64": "G8ABIByJsS2aLazbIy4jJJltk7TQdwpsM1UkuYyBZ0IRzVw0R3d/p26CPiDP0aSsizrfQziTVAuH5YnLgi/u2yAkpbgRxiRXIdpBQTyeT0JYSEA3ZP0afN7Oh4D8a2OvzUAQJm6Gmm4wmp07gOZ48KKnJIToXwblxT1f2cstd2Fx3AHAMcIybHx4XhhXYY1V2Uuy//lswon9dfrQtrNxJCxJrdt7a9fXyeIwMhzbsENY3REskEuoy4W2g4hej2t/ImB5h2nmo0vFRPi8IuCcTB3FLITeWX6RlpsA",
+      "expected": {
+        "query": "release public evidence",
+        "provider": "bing",
+        "results": [
+          {
+            "title": "Pisper 😀 & Research",
+            "url": "https://example.com/evidence?q=a&b=2",
+            "snippet": "文档 'yes' 😀",
+            "publishedAt": "2026-10-06"
+          },
+          {
+            "title": "Documentation",
+            "url": "https://example.com/docs",
+            "snippet": "Official docs",
+            "publishedAt": ""
+          }
+        ],
+        "text": "Bing 搜索结果：release public evidence\n\n1. Pisper 😀 & Research\nhttps://example.com/evidence?q=a&b=2\n文档 'yes' 😀\n发布时间：2026-10-06\n\n2. Documentation\nhttps://example.com/docs\nOfficial docs"
+      }
+    }
+  ],
+  "request": {
+    "path": "/search?q=release+public+evidence&format=rss&count=2&adlt=strict&first=3&mkt=ko-KR&setlang=ko",
+    "headers": {
+      "accept": "application/rss+xml,application/xml,text/xml",
+      "userAgent": "Pisper Web Search/1.0",
+      "acceptEncoding": "gzip, deflate",
+      "acceptLanguage": "*",
+      "fetchMode": "cors"
+    }
+  }
+}

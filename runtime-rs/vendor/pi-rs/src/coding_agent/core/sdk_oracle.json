@@ -1,0 +1,2189 @@
+{
+  "schema": 1,
+  "sourceHashes": {
+    "packages/ai/src/utils/transcript.ts": "cad0c126cdfadc1b4f430cc5a95b1c9285ecd1ee9957642d7773b1357bbc9ac5",
+    "packages/ai/src/utils/text.ts": "d37c1825855c7fc71669a545b5b266810242c1c7e58d57228c0c143f29c1c544",
+    "packages/ai/src/utils/event-stream.ts": "147084657f76665ff7d6c8dcd6eb0745149e3aaee3e7b9c272b315a1b5679386",
+    "packages/ai/src/models.ts": "84f2799b0bf45fb01237c5c2c19641b0da5d1245670b208c05bacb5cff36b96f",
+    "packages/agent/src/agent.ts": "a586b3b5488ce3018a89dcd30350689942e72cd9fe1cc2a3d8bb1360e355476c",
+    "packages/agent/src/agent-loop.ts": "2f4e228055729f684e01349813a6ab903b0f646f6320d5f892ef77303561b82e",
+    "packages/agent/src/stream-fn.ts": "1f9dee101a5ce1052558458d9ce47e53e05187224e879217899059a80d90bc45",
+    "packages/coding-agent/src/core/sdk.ts": "938f9f3d484544040e7a06e6f89a07adb72ab007ea660bcaf4a8c1846d20a021",
+    "packages/coding-agent/src/core/auth-guidance.ts": "8fbee7c272953bf881f22e9ce4b163bb0df9c091f63ee823dbfe32186991efe0",
+    "packages/coding-agent/src/core/defaults.ts": "e05e32e5613066667b52fa1d8864fec27b3564636f93af7983f53984bce02955",
+    "packages/coding-agent/src/core/messages.ts": "5397e3c96c9504266e4ee8b6e88d5098b3280ee7dbb0c687b74708c62a06c8d4",
+    "packages/coding-agent/src/core/model-resolver.ts": "75fead81206126dbdfbf559746b91400cd5b70a5358a4b133e2cc0de04f1cc57",
+    "packages/coding-agent/src/core/provider-attribution.ts": "c3d342e08f2297a9bb4bb1dc18066ed9b60a254ffbefc72517cadb2288242235",
+    "packages/coding-agent/src/core/telemetry.ts": "5ec837b287ea0303f704a5278c586e2a5d4003f3ad2ccad94997d2fa59164855"
+  },
+  "factories": [
+    {
+      "input": {
+        "name": "new_default"
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "no_models",
+        "models": [],
+        "configured": []
+      },
+      "expected": {
+        "model": "unknown/unknown",
+        "thinking": "off",
+        "writes": [
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "off"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": "NO_MODELS",
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "explicit_unauth_model",
+        "options": {
+          "model": {
+            "id": "explicit",
+            "name": "explicit",
+            "provider": "unconfigured",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          "thinkingLevel": "max"
+        }
+      },
+      "expected": {
+        "model": "unconfigured/explicit",
+        "thinking": "high",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "unconfigured",
+            "modelId": "explicit"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "high"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "saved_authenticated",
+        "existing": true,
+        "savedModel": {
+          "provider": "r15-provider",
+          "modelId": "m2"
+        },
+        "models": [
+          {
+            "id": "m1",
+            "name": "m1",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          {
+            "id": "m2",
+            "name": "m2",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          }
+        ],
+        "hasThinking": true,
+        "savedThinking": "high"
+      },
+      "expected": {
+        "model": "r15-provider/m2",
+        "thinking": "high",
+        "writes": [],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "saved_missing_fallback",
+        "existing": true,
+        "savedModel": {
+          "provider": "lost",
+          "modelId": "missing"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": "Could not restore model lost/missing. Using r15-provider/m1",
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "saved_unauth_fallback",
+        "existing": true,
+        "savedModel": {
+          "provider": "unconfigured",
+          "modelId": "m2"
+        },
+        "models": [
+          {
+            "id": "m1",
+            "name": "m1",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          {
+            "id": "m2",
+            "name": "m2",
+            "provider": "unconfigured",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          }
+        ]
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": "Could not restore model unconfigured/m2. Using r15-provider/m1",
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "saved_no_models",
+        "existing": true,
+        "savedModel": {
+          "provider": "lost",
+          "modelId": "missing"
+        },
+        "models": [],
+        "configured": []
+      },
+      "expected": {
+        "model": "unknown/unknown",
+        "thinking": "off",
+        "writes": [
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "off"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": "NO_MODELS",
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "saved_explicit_wins",
+        "existing": true,
+        "savedModel": {
+          "provider": "lost",
+          "modelId": "missing"
+        },
+        "hasThinking": true,
+        "savedThinking": "low",
+        "options": {
+          "model": {
+            "id": "explicit",
+            "name": "explicit",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          "thinkingLevel": "high"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/explicit",
+        "thinking": "high",
+        "writes": [],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "settings_model",
+        "models": [
+          {
+            "id": "m1",
+            "name": "m1",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          {
+            "id": "m2",
+            "name": "m2",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          }
+        ],
+        "settings": {
+          "defaultProvider": "r15-provider",
+          "defaultModel": "m2"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m2",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m2"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "scoped_not_initial",
+        "options": {
+          "scopedModels": [
+            {
+              "model": {
+                "id": "scoped",
+                "name": "scoped",
+                "provider": "r15-provider",
+                "api": "openai-completions",
+                "baseUrl": "https://r15.invalid/v1",
+                "reasoning": true,
+                "input": [
+                  "text",
+                  "image"
+                ],
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0
+                },
+                "contextWindow": 100000,
+                "maxTokens": 2000
+              },
+              "thinkingLevel": "high"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "per_model_thinking",
+        "settings": {
+          "defaultThinkingLevel": "low",
+          "modelThinkingLevels": {
+            "r15-provider/m1": "high"
+          }
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "high",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "high"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "existing_without_thinking_uses_global",
+        "existing": true,
+        "settings": {
+          "defaultThinkingLevel": "low",
+          "modelThinkingLevels": {
+            "r15-provider/m1": "high"
+          }
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "low",
+        "writes": [
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "low"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "empty_existing_entries_not_session",
+        "hasThinking": true,
+        "savedThinking": "high",
+        "savedModel": {
+          "provider": "r15-provider",
+          "modelId": "m2"
+        },
+        "models": [
+          {
+            "id": "m1",
+            "name": "m1",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          {
+            "id": "m2",
+            "name": "m2",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          }
+        ]
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "no_reasoning",
+        "options": {
+          "model": {
+            "id": "m1",
+            "name": "m1",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": false,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000
+          },
+          "thinkingLevel": "high"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "off",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "off"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "thinking_map_clamp",
+        "options": {
+          "model": {
+            "id": "m1",
+            "name": "m1",
+            "provider": "r15-provider",
+            "api": "openai-completions",
+            "baseUrl": "https://r15.invalid/v1",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 100000,
+            "maxTokens": 2000,
+            "thinkingLevelMap": {
+              "off": null,
+              "minimal": null,
+              "low": null,
+              "medium": "medium",
+              "high": "high",
+              "xhigh": null,
+              "max": null
+            }
+          },
+          "thinkingLevel": "low"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "tools_configured",
+        "settings": {
+          "defaultTools": [
+            "grep",
+            "read",
+            "read"
+          ]
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "grep",
+          "read",
+          "read"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "tools_builtin",
+        "options": {
+          "noTools": "builtin"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "tools_all",
+        "options": {
+          "noTools": "all"
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [],
+        "allowed": [],
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "tools_empty",
+        "options": {
+          "tools": []
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [],
+        "allowed": [],
+        "excluded": null,
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "tools_explicit_wins",
+        "settings": {
+          "defaultTools": [
+            "read"
+          ]
+        },
+        "options": {
+          "noTools": "all",
+          "tools": [
+            "grep",
+            "read",
+            "grep"
+          ],
+          "excludeTools": [
+            "read"
+          ]
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "grep",
+          "grep"
+        ],
+        "allowed": [
+          "grep",
+          "read",
+          "grep"
+        ],
+        "excluded": [
+          "read"
+        ],
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "tools_deny",
+        "options": {
+          "excludeTools": [
+            "edit",
+            "write"
+          ]
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash"
+        ],
+        "allowed": null,
+        "excluded": [
+          "edit",
+          "write"
+        ],
+        "fallback": null,
+        "steering": "one-at-a-time",
+        "followUp": "one-at-a-time",
+        "transport": "auto",
+        "sessionId": "r15-session",
+        "thinkingBudgets": null,
+        "maxRetryDelayMs": 60000
+      }
+    },
+    {
+      "input": {
+        "name": "configured_runtime",
+        "settings": {
+          "steeringMode": "all",
+          "followUpMode": "all",
+          "transport": "websocket",
+          "thinkingBudgets": {
+            "high": 99
+          },
+          "retry": {
+            "provider": {
+              "maxRetryDelayMs": 123
+            }
+          }
+        }
+      },
+      "expected": {
+        "model": "r15-provider/m1",
+        "thinking": "medium",
+        "writes": [
+          {
+            "type": "model_change",
+            "provider": "r15-provider",
+            "modelId": "m1"
+          },
+          {
+            "type": "thinking_level_change",
+            "thinkingLevel": "medium"
+          }
+        ],
+        "initial": [
+          "read",
+          "bash",
+          "edit",
+          "write"
+        ],
+        "allowed": null,
+        "excluded": null,
+        "fallback": null,
+        "steering": "all",
+        "followUp": "all",
+        "transport": "websocket",
+        "sessionId": "r15-session",
+        "thinkingBudgets": {
+          "high": 99
+        },
+        "maxRetryDelayMs": 123
+      }
+    }
+  ],
+  "streams": [
+    {
+      "input": {
+        "name": "default"
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 300000,
+          "maxRetryDelayMs": 60000
+        },
+        "headers": {}
+      }
+    },
+    {
+      "input": {
+        "name": "idle_zero",
+        "settings": {
+          "httpIdleTimeoutMs": 0
+        }
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 2147483647,
+          "maxRetryDelayMs": 60000
+        },
+        "headers": {}
+      }
+    },
+    {
+      "input": {
+        "name": "idle_custom",
+        "settings": {
+          "httpIdleTimeoutMs": 1234,
+          "websocketConnectTimeoutMs": 456
+        }
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 1234,
+          "websocketConnectTimeoutMs": 456,
+          "maxRetryDelayMs": 60000
+        },
+        "headers": {}
+      }
+    },
+    {
+      "input": {
+        "name": "retry_timeout",
+        "settings": {
+          "httpIdleTimeoutMs": 1234,
+          "retry": {
+            "provider": {
+              "timeoutMs": 567,
+              "maxRetries": 2,
+              "maxRetryDelayMs": 3000
+            }
+          }
+        }
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 567,
+          "maxRetries": 2,
+          "maxRetryDelayMs": 3000
+        },
+        "headers": {}
+      }
+    },
+    {
+      "input": {
+        "name": "explicit_zero",
+        "settings": {
+          "httpIdleTimeoutMs": 1234,
+          "websocketConnectTimeoutMs": 567,
+          "retry": {
+            "provider": {
+              "timeoutMs": 890,
+              "maxRetries": 2,
+              "maxRetryDelayMs": 3000
+            }
+          }
+        },
+        "request": {
+          "timeoutMs": 0,
+          "websocketConnectTimeoutMs": 0,
+          "maxRetries": 0,
+          "maxRetryDelayMs": 0
+        }
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 0,
+          "websocketConnectTimeoutMs": 0,
+          "maxRetries": 0,
+          "maxRetryDelayMs": 0
+        },
+        "headers": {}
+      }
+    },
+    {
+      "input": {
+        "name": "forwarding",
+        "request": {
+          "timeoutMs": 789,
+          "sessionId": "explicit-session",
+          "transport": "sse",
+          "apiKey": "test-not-real",
+          "headers": {
+            "x-one": "one",
+            "x-delete": null
+          },
+          "temperature": 0.5,
+          "maxTokens": 321,
+          "reasoning": "high",
+          "thinkingBudgets": {
+            "high": 123
+          },
+          "env": {
+            "R15": "offline"
+          },
+          "metadata": {
+            "source": "oracle"
+          }
+        }
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 789,
+          "sessionId": "explicit-session",
+          "transport": "sse",
+          "apiKey": "test-not-real",
+          "headers": {
+            "x-one": "one",
+            "x-delete": null
+          },
+          "temperature": 0.5,
+          "maxTokens": 321,
+          "reasoning": "high",
+          "thinkingBudgets": {
+            "high": 123
+          },
+          "env": {
+            "R15": "offline"
+          },
+          "metadata": {
+            "source": "oracle"
+          },
+          "maxRetryDelayMs": 60000
+        },
+        "headers": {
+          "x-one": "one",
+          "x-delete": null
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "live_settings",
+        "settings": {
+          "httpIdleTimeoutMs": 12
+        },
+        "change": {
+          "httpIdleTimeoutMs": 98,
+          "websocketConnectTimeoutMs": 77,
+          "retry": {
+            "provider": {
+              "maxRetries": 4,
+              "maxRetryDelayMs": 99
+            }
+          }
+        }
+      },
+      "expected": {
+        "options": {
+          "timeoutMs": 98,
+          "websocketConnectTimeoutMs": 77,
+          "maxRetries": 4,
+          "maxRetryDelayMs": 99
+        },
+        "headers": {}
+      }
+    }
+  ],
+  "attribution": [
+    {
+      "input": {
+        "provider": "openrouter",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "HTTP-Referer": "https://pi.dev",
+        "X-OpenRouter-Title": "pi",
+        "X-OpenRouter-Categories": "cli-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "openrouter",
+        "baseUrl": "invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "not-a-url/openrouter.ai",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "HTTP-Referer": "https://pi.dev",
+        "X-OpenRouter-Title": "pi",
+        "X-OpenRouter-Categories": "cli-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "not-a-url/openrouter.ai",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://openrouter.ai.evil/path",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "HTTP-Referer": "https://pi.dev",
+        "X-OpenRouter-Title": "pi",
+        "X-OpenRouter-Categories": "cli-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://openrouter.ai.evil/path",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "nvidia",
+        "baseUrl": "https://host/openrouter.ai",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "HTTP-Referer": "https://pi.dev",
+        "X-OpenRouter-Title": "pi",
+        "X-OpenRouter-Categories": "cli-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "nvidia",
+        "baseUrl": "https://host/openrouter.ai",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://OPENROUTER.AI/path",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://OPENROUTER.AI/path",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://INTEGRATE.API.NVIDIA.COM:443/v1",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "X-BILLING-INVOKE-ORIGIN": "Pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://INTEGRATE.API.NVIDIA.COM:443/v1",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://integrate.api.nvidia.com.evil",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://integrate.api.nvidia.com.evil",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://evil/?integrate.api.nvidia.com",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://evil/?integrate.api.nvidia.com",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "nvidia",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "X-BILLING-INVOKE-ORIGIN": "Pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "nvidia",
+        "baseUrl": "invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://api.cloudflare.com/client/v4",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "User-Agent": "pi-coding-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://api.cloudflare.com/client/v4",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://gateway.ai.cloudflare.com/v1",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "User-Agent": "pi-coding-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://gateway.ai.cloudflare.com/v1",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "cloudflare-workers-ai",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "User-Agent": "pi-coding-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "cloudflare-workers-ai",
+        "baseUrl": "invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "cloudflare-ai-gateway",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "User-Agent": "pi-coding-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "cloudflare-ai-gateway",
+        "baseUrl": "invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "opencode",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "opencode",
+        "baseUrl": "invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "opencode-go",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "opencode-go",
+        "baseUrl": "invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://OPENCODE.AI:443/v1",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://OPENCODE.AI:443/v1",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://opencode.ai.evil",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://opencode.ai.evil",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://user@opencode.ai/v1",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://user@opencode.ai/v1",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "//opencode.ai/v1",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "//opencode.ai/v1",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://opencode.ai./v1",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://opencode.ai./v1",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "opencode",
+        "baseUrl": "https://openrouter.ai",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi",
+        "HTTP-Referer": "https://pi.dev",
+        "X-OpenRouter-Title": "pi",
+        "X-OpenRouter-Categories": "cli-agent"
+      }
+    },
+    {
+      "input": {
+        "provider": "opencode",
+        "baseUrl": "https://openrouter.ai",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": {
+        "x-opencode-session": "session-123",
+        "x-opencode-client": "pi"
+      }
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://elsewhere.invalid",
+        "enabled": true,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "custom",
+        "baseUrl": "https://elsewhere.invalid",
+        "enabled": false,
+        "sessionId": "session-123"
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "opencode",
+        "baseUrl": "invalid",
+        "enabled": true
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "opencode",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": ""
+      },
+      "expected": null
+    },
+    {
+      "input": {
+        "provider": "openrouter",
+        "baseUrl": "invalid",
+        "enabled": true,
+        "sessionId": "s",
+        "sources": [
+          {
+            "HTTP-Referer": "first",
+            "X-OpenRouter-Title": null
+          },
+          null,
+          {
+            "HTTP-Referer": null,
+            "http-referer": "lower",
+            "X-Extra": "x"
+          }
+        ]
+      },
+      "expected": {
+        "HTTP-Referer": null,
+        "X-OpenRouter-Title": null,
+        "X-OpenRouter-Categories": "cli-agent",
+        "http-referer": "lower",
+        "X-Extra": "x"
+      }
+    }
+  ],
+  "telemetry": [
+    {
+      "input": {
+        "enabled": true
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": ""
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "1"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "0"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "true"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "TrUe"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "YES"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "yes "
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": " true"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "on"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": true,
+        "env": "false"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": ""
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "1"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "0"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "true"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "TrUe"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "YES"
+      },
+      "expected": true
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "yes "
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": " true"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "on"
+      },
+      "expected": false
+    },
+    {
+      "input": {
+        "enabled": false,
+        "env": "false"
+      },
+      "expected": false
+    }
+  ],
+  "images": [
+    {
+      "input": {
+        "name": "block",
+        "block": true,
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "text",
+                "text": "Image reading is disabled."
+              },
+              {
+                "type": "text",
+                "text": "gap"
+              },
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              }
+            ],
+            "timestamp": 1
+          },
+          {
+            "role": "toolResult",
+            "toolCallId": "t",
+            "toolName": "read",
+            "content": [
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              }
+            ],
+            "isError": false,
+            "timestamp": 2
+          }
+        ]
+      },
+      "expected": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Image reading is disabled."
+            },
+            {
+              "type": "text",
+              "text": "gap"
+            },
+            {
+              "type": "text",
+              "text": "Image reading is disabled."
+            }
+          ],
+          "timestamp": 1
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "t",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "Image reading is disabled."
+            }
+          ],
+          "isError": false,
+          "timestamp": 2
+        }
+      ]
+    },
+    {
+      "input": {
+        "name": "allow",
+        "block": false,
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              }
+            ],
+            "timestamp": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "image",
+              "data": "AA==",
+              "mimeType": "image/png"
+            },
+            {
+              "type": "image",
+              "data": "AA==",
+              "mimeType": "image/png"
+            }
+          ],
+          "timestamp": 1
+        }
+      ]
+    },
+    {
+      "input": {
+        "name": "no_images_no_dedup",
+        "block": true,
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Image reading is disabled."
+              },
+              {
+                "type": "text",
+                "text": "Image reading is disabled."
+              }
+            ],
+            "timestamp": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Image reading is disabled."
+            },
+            {
+              "type": "text",
+              "text": "Image reading is disabled."
+            }
+          ],
+          "timestamp": 1
+        }
+      ]
+    },
+    {
+      "input": {
+        "name": "custom_conversion",
+        "block": true,
+        "messages": [
+          {
+            "role": "custom",
+            "customType": "notice",
+            "content": [
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              },
+              {
+                "type": "image",
+                "data": "AA==",
+                "mimeType": "image/png"
+              }
+            ],
+            "display": true,
+            "timestamp": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Image reading is disabled."
+            }
+          ],
+          "timestamp": 1
+        }
+      ]
+    }
+  ]
+}

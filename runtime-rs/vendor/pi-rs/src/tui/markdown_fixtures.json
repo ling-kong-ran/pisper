@@ -1,0 +1,1607 @@
+{
+ "themeProbe": {
+  "heading": "\u001b[1m\u001b[36mT\u001b[39m\u001b[22m",
+  "link": "\u001b[34mT\u001b[39m",
+  "linkUrl": "\u001b[2mT\u001b[22m",
+  "code": "\u001b[33mT\u001b[39m",
+  "codeBlock": "\u001b[32mT\u001b[39m",
+  "codeBlockBorder": "\u001b[2mT\u001b[22m",
+  "quote": "\u001b[3mT\u001b[23m",
+  "quoteBorder": "\u001b[2mT\u001b[22m",
+  "hr": "\u001b[2mT\u001b[22m",
+  "listBullet": "\u001b[36mT\u001b[39m",
+  "bold": "\u001b[1mT\u001b[22m",
+  "italic": "\u001b[3mT\u001b[23m",
+  "strikethrough": "\u001b[9mT\u001b[29m",
+  "underline": "\u001b[4mT\u001b[24m",
+  "dimItalic": "\u001b[2m\u001b[3mT\u001b[23m\u001b[22m",
+  "bgBlue": "\u001b[44mT\u001b[49m",
+  "grayText": "\u001b[90mT\u001b[39m"
+ },
+ "deviationChecks": [
+  {
+   "name": "task list",
+   "ok": true
+  },
+  {
+   "name": "code/paragraph single blank",
+   "ok": true
+  },
+  {
+   "name": "hr spacing",
+   "ok": true
+  },
+  {
+   "name": "simple nested list shape",
+   "ok": true
+  }
+ ],
+ "cases": [
+  {
+   "name": "heading1_paragraph",
+   "md": "# Title\n\nBody text here.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1m\u001b[36m\u001b[1m\u001b[4mTitle\u001b[24m\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                                           ",
+    "                                                                                ",
+    "Body text here.                                                                 "
+   ]
+  },
+  {
+   "name": "heading2_paragraph",
+   "md": "## Section\n\nBody.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1m\u001b[36m\u001b[1mSection\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                                         ",
+    "                                                                                ",
+    "Body.                                                                           "
+   ]
+  },
+  {
+   "name": "heading3_prefix",
+   "md": "### Deep heading\nText",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1m\u001b[36m\u001b[1m### \u001b[22m\u001b[1m\u001b[39m\u001b[22m\u001b[1m\u001b[36m\u001b[1mDeep heading\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                                ",
+    "                                                                                ",
+    "Text                                                                            "
+   ]
+  },
+  {
+   "name": "heading_last_block",
+   "md": "# Only heading",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1m\u001b[36m\u001b[1m\u001b[4mOnly heading\u001b[24m\u001b[22m\u001b[1m\u001b[39m\u001b[22m                                                                    "
+   ]
+  },
+  {
+   "name": "two_paragraphs",
+   "md": "First para.\n\nSecond para.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "First para.                                                                     ",
+    "                                                                                ",
+    "Second para.                                                                    "
+   ]
+  },
+  {
+   "name": "paragraph_last_block",
+   "md": "Only one paragraph.",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Only one paragraph.                     "
+   ]
+  },
+  {
+   "name": "paragraph_wraps",
+   "md": "This is a fairly long paragraph that will definitely need to wrap at the narrow width given.",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "This is a fairly long         ",
+    "paragraph that will definitely",
+    "need to wrap at the narrow    ",
+    "width given.                  "
+   ]
+  },
+  {
+   "name": "code_fence_lang",
+   "md": "```rust\nfn main() {}\nlet x = 1;\n```",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m```rust\u001b[22m                                                                         ",
+    "  \u001b[32mfn main() {}\u001b[39m                                                                  ",
+    "  \u001b[32mlet x = 1;\u001b[39m                                                                    ",
+    "\u001b[2m```\u001b[22m                                                                             "
+   ]
+  },
+  {
+   "name": "code_fence_plain",
+   "md": "```\nplain code\n```",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m```\u001b[22m                                                                             ",
+    "  \u001b[32mplain code\u001b[39m                                                                    ",
+    "\u001b[2m```\u001b[22m                                                                             "
+   ]
+  },
+  {
+   "name": "code_then_paragraph",
+   "md": "```\ncode\n```\n\nAfter paragraph.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m```\u001b[22m                                                                             ",
+    "  \u001b[32mcode\u001b[39m                                                                          ",
+    "\u001b[2m```\u001b[22m                                                                             ",
+    "                                                                                ",
+    "After paragraph.                                                                "
+   ]
+  },
+  {
+   "name": "code_last_block",
+   "md": "```\ncode only\n```",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m```\u001b[22m                                                                             ",
+    "  \u001b[32mcode only\u001b[39m                                                                     ",
+    "\u001b[2m```\u001b[22m                                                                             "
+   ]
+  },
+  {
+   "name": "code_with_tilde",
+   "md": "~~~js\nvar x = 2;\n~~~",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m```js\u001b[22m                                                                           ",
+    "  \u001b[32mvar x = 2;\u001b[39m                                                                    ",
+    "\u001b[2m```\u001b[22m                                                                             "
+   ]
+  },
+  {
+   "name": "list_simple",
+   "md": "- Item 1\n- Item 2",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mItem 1                                                                        ",
+    "\u001b[36m- \u001b[39mItem 2                                                                        "
+   ]
+  },
+  {
+   "name": "list_nested",
+   "md": "- Item 1\n  - Nested 1.1\n  - Nested 1.2\n- Item 2",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mItem 1                                                                        ",
+    "    \u001b[36m- \u001b[39mNested 1.1                                                                ",
+    "    \u001b[36m- \u001b[39mNested 1.2                                                                ",
+    "\u001b[36m- \u001b[39mItem 2                                                                        "
+   ]
+  },
+  {
+   "name": "list_deep_nested",
+   "md": "- Level 1\n  - Level 2\n    - Level 3\n      - Level 4",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mLevel 1                                                                       ",
+    "    \u001b[36m- \u001b[39mLevel 2                                                                   ",
+    "        \u001b[36m- \u001b[39mLevel 3                                                               ",
+    "            \u001b[36m- \u001b[39mLevel 4                                                           "
+   ]
+  },
+  {
+   "name": "list_ordered_nested",
+   "md": "1. First\n   1. Inner A\n   2. Inner B\n2. Second",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m1. \u001b[39mFirst                                                                        ",
+    "    \u001b[36m1. \u001b[39mInner A                                                                  ",
+    "    \u001b[36m2. \u001b[39mInner B                                                                  ",
+    "\u001b[36m2. \u001b[39mSecond                                                                       "
+   ]
+  },
+  {
+   "name": "list_ordered_markers_normalized",
+   "md": "3. Third\n4. Fourth",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m3. \u001b[39mThird                                                                        ",
+    "\u001b[36m4. \u001b[39mFourth                                                                       "
+   ]
+  },
+  {
+   "name": "list_ordered_markers_preserved",
+   "md": "3. Third\n4. Fourth",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": true,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m3. \u001b[39mThird                                                                        ",
+    "\u001b[36m4. \u001b[39mFourth                                                                       "
+   ]
+  },
+  {
+   "name": "list_mixed_ordered_unordered",
+   "md": "1. One\n   - Bullet A\n   - Bullet B\n2. Two",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m1. \u001b[39mOne                                                                          ",
+    "    \u001b[36m- \u001b[39mBullet A                                                                  ",
+    "    \u001b[36m- \u001b[39mBullet B                                                                  ",
+    "\u001b[36m2. \u001b[39mTwo                                                                          "
+   ]
+  },
+  {
+   "name": "list_loose_blank_lines",
+   "md": "- Alpha\n\n- Beta\n\n- Gamma",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mAlpha                                                                         ",
+    "                                                                                ",
+    "\u001b[36m- \u001b[39mBeta                                                                          ",
+    "                                                                                ",
+    "\u001b[36m- \u001b[39mGamma                                                                         "
+   ]
+  },
+  {
+   "name": "list_task",
+   "md": "- [ ] beep\n- [x] boop",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- [ ] \u001b[39mbeep                                                                      ",
+    "\u001b[36m- [x] \u001b[39mboop                                                                      "
+   ]
+  },
+  {
+   "name": "list_code_not_indented",
+   "md": "1. First item\n\n```js\nconsole.log(1);\n```\n\n2. Second item",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m1. \u001b[39mFirst item                                                                   ",
+    "                                                                                ",
+    "\u001b[2m```js\u001b[22m                                                                           ",
+    "  \u001b[32mconsole.log(1);\u001b[39m                                                               ",
+    "\u001b[2m```\u001b[22m                                                                             ",
+    "                                                                                ",
+    "\u001b[36m2. \u001b[39mSecond item                                                                  "
+   ]
+  },
+  {
+   "name": "list_wrapped_unordered",
+   "md": "- This item text is long enough that it will wrap when rendered at a narrow width",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mThis item text is long      ",
+    "  enough that it will wrap    ",
+    "  when rendered at a narrow   ",
+    "  width                       "
+   ]
+  },
+  {
+   "name": "list_wrapped_ordered",
+   "md": "1. This ordered item text is long enough that it wraps at the narrow width",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m1. \u001b[39mThis ordered item text is  ",
+    "   long enough that it wraps  ",
+    "   at the narrow width        "
+   ]
+  },
+  {
+   "name": "list_wrapped_multidigit",
+   "md": "10. This ordered item text is long enough that it wraps when rendered narrow",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m10. \u001b[39mThis ordered item text is ",
+    "    long enough that it wraps ",
+    "    when rendered narrow      "
+   ]
+  },
+  {
+   "name": "list_wrapped_nested",
+   "md": "- Parent with a fairly long text line that wraps\n  - Child with a fairly long text line that wraps too",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mParent with a fairly long text line   ",
+    "  that wraps                            ",
+    "    \u001b[36m- \u001b[39mChild with a fairly long text line",
+    "      that wraps too                    "
+   ]
+  },
+  {
+   "name": "list_blockquote_inside",
+   "md": "- Quoted:\n  > Inner quote line",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mQuoted:                                                   ",
+    "  \u001b[2m│ \u001b[22m\u001b[3m\u001b[3mInner quote line\u001b[23m\u001b[3m\u001b[23m                                        "
+   ]
+  },
+  {
+   "name": "list_code_inside",
+   "md": "- Code:\n  ```\n  fenced\n  ```",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mCode:                                                     ",
+    "  \u001b[2m```\u001b[22m                                                       ",
+    "    \u001b[32mfenced\u001b[39m                                                  ",
+    "  \u001b[2m```\u001b[22m                                                       "
+   ]
+  },
+  {
+   "name": "list_last_block",
+   "md": "- only",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39monly                                                                          "
+   ]
+  },
+  {
+   "name": "blockquote_simple",
+   "md": "> Quoted line one\n> Quoted line two",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mQuoted line one\u001b[23m\u001b[3m\u001b[23m                                                               ",
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mQuoted line two\u001b[23m\u001b[3m\u001b[23m                                                               "
+   ]
+  },
+  {
+   "name": "blockquote_paragraph_after",
+   "md": "> quote\n\nAfter.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mquote\u001b[23m\u001b[3m\u001b[23m                                                                         ",
+    "                                                                                ",
+    "After.                                                                          "
+   ]
+  },
+  {
+   "name": "blockquote_wraps",
+   "md": "> This quote line is long enough that it will need to wrap at this width",
+   "width": 30,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m│ \u001b[22m\u001b[3m\u001b[3mThis quote line is long     ",
+    "\u001b[2m│ \u001b[22m\u001b[3menough that it will need to ",
+    "\u001b[2m│ \u001b[22m\u001b[3mwrap at this width\u001b[23m\u001b[3m\u001b[23m          "
+   ]
+  },
+  {
+   "name": "hr_paragraph",
+   "md": "---\n\nAfter divider.",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m────────────────────────────────────────\u001b[22m",
+    "                                        ",
+    "After divider.                          "
+   ]
+  },
+  {
+   "name": "hr_last_block",
+   "md": "---",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m────────────────────────────────────────\u001b[22m"
+   ]
+  },
+  {
+   "name": "hr_wide_clamped",
+   "md": "---",
+   "width": 100,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m────────────────────────────────────────────────────────────────────────────────\u001b[22m                    "
+   ]
+  },
+  {
+   "name": "html_block",
+   "md": "<div>\n  raw html\n</div>\n\nAfter.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "<div>                                                                           ",
+    "  raw html                                                                      ",
+    "</div>                                                                          ",
+    "                                                                                ",
+    "After.                                                                          "
+   ]
+  },
+  {
+   "name": "html_inline",
+   "md": "Text with <b>inline html</b> inside.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Text with <b>inline html</b> inside.                                            "
+   ]
+  },
+  {
+   "name": "link_no_hyperlinks",
+   "md": "See [the docs](https://example.com/a) for details.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "See \u001b[34m\u001b[4mthe docs\u001b[24m\u001b[39m\u001b[2m (https://example.com/a)\u001b[22m for details.                               "
+   ]
+  },
+  {
+   "name": "link_autolink_text_eq",
+   "md": "Go to [https://example.com](https://example.com) now.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Go to \u001b[34m\u001b[4mhttps://example.com\u001b[24m\u001b[39m now.                                                  "
+   ]
+  },
+  {
+   "name": "link_hyperlinks_on",
+   "md": "See [the docs](https://example.com/a) for details.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": true,
+   "expected": [
+    "See \u001b]8;;https://example.com/a\u001b\\\u001b[34m\u001b[4mthe docs\u001b[24m\u001b[39m\u001b]8;;\u001b\\ for details.                                                       "
+   ]
+  },
+  {
+   "name": "inline_styles",
+   "md": "This is **bold**, *italic*, ~~deleted~~, and `coded`.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "This is \u001b[1mbold\u001b[22m, \u001b[3mitalic\u001b[23m, \u001b[9mdeleted\u001b[29m, and \u001b[33mcoded\u001b[39m.                                       "
+   ]
+  },
+  {
+   "name": "inline_hard_break",
+   "md": "line one\nline two",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "line one                                                                        ",
+    "line two                                                                        "
+   ]
+  },
+  {
+   "name": "style_prefix_restored_after_code",
+   "md": "*italic `code` tail*",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[3mitalic \u001b[33mcode\u001b[39m tail\u001b[23m                                                                "
+   ]
+  },
+  {
+   "name": "table_simple",
+   "md": "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌───────┬─────┐                                                                 ",
+    "│ \u001b[1mName \u001b[22m │ \u001b[1mAge\u001b[22m │                                                                 ",
+    "├───────┼─────┤                                                                 ",
+    "│ Alice │ 30  │                                                                 ",
+    "├───────┼─────┤                                                                 ",
+    "│ Bob   │ 25  │                                                                 ",
+    "└───────┴─────┘                                                                 "
+   ]
+  },
+  {
+   "name": "table_row_dividers",
+   "md": "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌───┬───┐                                                                       ",
+    "│ \u001b[1mA\u001b[22m │ \u001b[1mB\u001b[22m │                                                                       ",
+    "├───┼───┤                                                                       ",
+    "│ 1 │ 2 │                                                                       ",
+    "├───┼───┤                                                                       ",
+    "│ 3 │ 4 │                                                                       ",
+    "└───┴───┘                                                                       "
+   ]
+  },
+  {
+   "name": "table_alignment",
+   "md": "| Left | Center | Right |\n| :--- | :---: | ---: |\n| a | b | c |",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌──────┬────────┬───────┐                                   ",
+    "│ \u001b[1mLeft\u001b[22m │ \u001b[1mCenter\u001b[22m │ \u001b[1mRight\u001b[22m │                                   ",
+    "├──────┼────────┼───────┤                                   ",
+    "│ a    │ b      │ c     │                                   ",
+    "└──────┴────────┴───────┘                                   "
+   ]
+  },
+  {
+   "name": "table_varying_widths",
+   "md": "| X | YYYY |\n| --- | --- |\n| 1 | 2 |",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌───┬──────┐                                                                    ",
+    "│ \u001b[1mX\u001b[22m │ \u001b[1mYYYY\u001b[22m │                                                                    ",
+    "├───┼──────┤                                                                    ",
+    "│ 1 │ 2    │                                                                    ",
+    "└───┴──────┘                                                                    "
+   ]
+  },
+  {
+   "name": "table_cell_wrap",
+   "md": "| Column A | Column B |\n| --- | --- |\n| This cell has a lot of text that must wrap inside the column | short |",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌─────────────────────────────┬────────┐",
+    "│ \u001b[1mColumn A                   \u001b[22m │ \u001b[1mColumn\u001b[22;23;24;25;27;28;29;39m\u001b[22m │",
+    "│ \u001b[1m                           \u001b[22m │ \u001b[1mB     \u001b[22m │",
+    "├─────────────────────────────┼────────┤",
+    "│ This cell has a lot of text\u001b[22;23;24;25;27;28;29;39m │ short  │",
+    "│ that must wrap inside the\u001b[22;23;24;25;27;28;29;39m   │        │",
+    "│ column                      │        │",
+    "└─────────────────────────────┴────────┘"
+   ]
+  },
+  {
+   "name": "table_link_no_leak",
+   "md": "| Link |\n| --- |\n| [example site](https://example.com/long) |",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌──────────────────────────────────────┐",
+    "│ \u001b[1mLink                                \u001b[22m │",
+    "├──────────────────────────────────────┤",
+    "│ \u001b[34m\u001b[4mexample site\u001b[24m\u001b[39m\u001b[2m\u001b[22;23;24;25;27;28;29;39m                         │",
+    "│ \u001b[2m(https://example.com/long)\u001b[22m           │",
+    "└──────────────────────────────────────┘"
+   ]
+  },
+  {
+   "name": "table_inline_code",
+   "md": "| Code |\n| --- |\n| Use `npm run build` daily |",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌─────────────────────────┐             ",
+    "│ \u001b[1mCode                   \u001b[22m │             ",
+    "├─────────────────────────┤             ",
+    "│ Use \u001b[33mnpm run build\u001b[39m daily │             ",
+    "└─────────────────────────┘             "
+   ]
+  },
+  {
+   "name": "table_narrow_fallback",
+   "md": "| VeryLongHeaderName | AnotherVeryLongHeaderName |\n| --- | --- |\n| a | b |",
+   "width": 16,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌──────┬───────┐",
+    "│ \u001b[1mVery\u001b[22;23;24;25;27;28;29;39m\u001b[22m │ \u001b[1mAnoth\u001b[22;23;24;25;27;28;29;39m\u001b[22m │",
+    "│ \u001b[1mLong\u001b[22;23;24;25;27;28;29;39m\u001b[22m │ \u001b[1merVer\u001b[22;23;24;25;27;28;29;39m\u001b[22m │",
+    "│ \u001b[1mHead\u001b[22;23;24;25;27;28;29;39m\u001b[22m │ \u001b[1myLong\u001b[22;23;24;25;27;28;29;39m\u001b[22m │",
+    "│ \u001b[1merNa\u001b[22;23;24;25;27;28;29;39m\u001b[22m │ \u001b[1mHeade\u001b[22;23;24;25;27;28;29;39m\u001b[22m │",
+    "│ \u001b[1mme  \u001b[22m │ \u001b[1mrName\u001b[22m │",
+    "├──────┼───────┤",
+    "│ a    │ b     │",
+    "└──────┴───────┘"
+   ]
+  },
+  {
+   "name": "table_fits_naturally",
+   "md": "| id | name |\n| --- | --- |\n| 1 | alice |",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌────┬───────┐                                                                  ",
+    "│ \u001b[1mid\u001b[22m │ \u001b[1mname \u001b[22m │                                                                  ",
+    "├────┼───────┤                                                                  ",
+    "│ 1  │ alice │                                                                  ",
+    "└────┴───────┘                                                                  "
+   ]
+  },
+  {
+   "name": "table_paddingX",
+   "md": "| A |\n| --- |\n| b |",
+   "width": 40,
+   "paddingX": 3,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "   ┌───┐                                ",
+    "   │ \u001b[1mA\u001b[22m │                                ",
+    "   ├───┤                                ",
+    "   │ b │                                ",
+    "   └───┘                                "
+   ]
+  },
+  {
+   "name": "table_last_block",
+   "md": "| A |\n| --- |\n| b |",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "┌───┐                                                                           ",
+    "│ \u001b[1mA\u001b[22m │                                                                           ",
+    "├───┤                                                                           ",
+    "│ b │                                                                           ",
+    "└───┘                                                                           "
+   ]
+  },
+  {
+   "name": "list_then_table",
+   "md": "- item\n\n| H |\n| --- |\n| v |",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mitem                                                      ",
+    "                                                            ",
+    "┌───┐                                                       ",
+    "│ \u001b[1mH\u001b[22m │                                                       ",
+    "├───┤                                                       ",
+    "│ v │                                                       ",
+    "└───┘                                                       "
+   ]
+  },
+  {
+   "name": "latex_inline_dollar",
+   "md": "Energy is $E = mc^2$ indeed.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Energy is E = mc² indeed.                                                       "
+   ]
+  },
+  {
+   "name": "latex_inline_paren",
+   "md": "Also \\(a + b\\) works.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Also a + b works.                                                               "
+   ]
+  },
+  {
+   "name": "latex_display_dollar",
+   "md": "$$\nx = \\frac{1}{2}\n$$\n\nAfter.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "    1                                                                           ",
+    "x = ─                                                                           ",
+    "    2                                                                           ",
+    "                                                                                ",
+    "After.                                                                          "
+   ]
+  },
+  {
+   "name": "latex_display_bracket",
+   "md": "\\[\n\\sum_{i=1}^{n} i\n\\]\nAfter.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    " n                                                                              ",
+    " ∑  i                                                                           ",
+    "i=1                                                                             ",
+    "                                                                                ",
+    "After.                                                                          "
+   ]
+  },
+  {
+   "name": "latex_matrix_display",
+   "md": "$$\n\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}\n$$",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "⎛ a │ b ⎞                                                                       ",
+    "⎝ c │ d ⎠                                                                       "
+   ]
+  },
+  {
+   "name": "latex_lower_limit",
+   "md": "\\[\n\\lim_{x \\to 0} f(x)\n\\]",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "lim f(x)                                                                        ",
+    "x→0                                                                             "
+   ]
+  },
+  {
+   "name": "latex_in_list",
+   "md": "- Math: $x^2 + y^2 = z^2$ inline",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[36m- \u001b[39mMath: x² + y² = z² inline                                                     "
+   ]
+  },
+  {
+   "name": "latex_currency_not_math",
+   "md": "It costs $5 and $10 total.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "It costs $5 and $10 total.                                                      "
+   ]
+  },
+  {
+   "name": "latex_shell_var_not_math",
+   "md": "Use $HOME variable here.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Use $HOME variable here.                                                        "
+   ]
+  },
+  {
+   "name": "latex_unsupported_preserved",
+   "md": "$\\unknowncmd{x}$ stays raw.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "$\\unknowncmd{x}$ stays raw.                                                     "
+   ]
+  },
+  {
+   "name": "latex_pending_stream",
+   "md": "Streaming \\(x +",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Streaming \\(x +                                                                 "
+   ]
+  },
+  {
+   "name": "latex_pending_dollar",
+   "md": "Streaming $x +",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Streaming $x +                                                                  "
+   ]
+  },
+  {
+   "name": "latex_disabled",
+   "md": "$E = mc^2$ raw please.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": false,
+   "hyperlinks": false,
+   "expected": [
+    "$E = mc^2$ raw please.                                                          "
+   ]
+  },
+  {
+   "name": "latex_in_code_fence_ignored",
+   "md": "```\n$E = mc^2$\n```",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[2m```\u001b[22m                                                                             ",
+    "  \u001b[32m$E = mc^2$\u001b[39m                                                                    ",
+    "\u001b[2m```\u001b[22m                                                                             "
+   ]
+  },
+  {
+   "name": "latex_escaped_dollars",
+   "md": "Price: \\$100 and \\$200.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Price: $100 and $200.                                                           "
+   ]
+  },
+  {
+   "name": "escapes_normalized",
+   "md": "Symbols \\* \\_ \\# appear literally.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Symbols * _ # appear literally.                                                 "
+   ]
+  },
+  {
+   "name": "escapes_preserved",
+   "md": "Symbols \\* \\_ \\# appear literally.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": true,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Symbols \\* \\_ \\# appear literally.                                              "
+   ]
+  },
+  {
+   "name": "padding_xy",
+   "md": "Hello **world**.",
+   "width": 40,
+   "paddingX": 2,
+   "paddingY": 1,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "                                        ",
+    "  Hello \u001b[1mworld\u001b[22m.                          ",
+    "                                        "
+   ]
+  },
+  {
+   "name": "bg_blue",
+   "md": "Hello with background.",
+   "width": 30,
+   "paddingX": 1,
+   "paddingY": 1,
+   "style": "bgBlue",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[44m                              \u001b[49m",
+    "\u001b[44m Hello with background.       \u001b[49m",
+    "\u001b[44m                              \u001b[49m"
+   ]
+  },
+  {
+   "name": "default_gray_italic",
+   "md": "Plain text with *emphasis* and `code`.",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "grayItalic",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[3m\u001b[2mPlain text with \u001b[22m\u001b[23m\u001b[3m\u001b[3m\u001b[2memphasis\u001b[22m\u001b[23m\u001b[3m\u001b[23m\u001b[3m\u001b[2m\u001b[3m\u001b[2m and \u001b[22m\u001b[23m\u001b[33mcode\u001b[39m\u001b[3m\u001b[2m\u001b[3m\u001b[2m.\u001b[22m\u001b[23m                          "
+   ]
+  },
+  {
+   "name": "default_bold",
+   "md": "Bold body text.",
+   "width": 60,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "bold",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[1mBold body text.\u001b[22m                                             "
+   ]
+  },
+  {
+   "name": "empty_input",
+   "md": "",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": []
+  },
+  {
+   "name": "whitespace_input",
+   "md": "   \n  \n",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": []
+  },
+  {
+   "name": "image_line_kitty",
+   "md": "\u001b_Gf=100;\u001b\\\nAfter image.",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b_Gf=100;\u001b\nAfter image."
+   ]
+  },
+  {
+   "name": "image_line_iterm2",
+   "md": "\u001b]1337;File=inline=1\u0007\nAfter image.",
+   "width": 40,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b]1337;File=inline=1\u0007\nAfter image."
+   ]
+  },
+  {
+   "name": "long_unbroken_word",
+   "md": "Supercalifragilisticexpialidocious-and-even-more-letters-here-yes",
+   "width": 20,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Supercalifragilistic",
+    "expialidocious-and-e",
+    "ven-more-letters-her",
+    "e-yes               "
+   ]
+  },
+  {
+   "name": "cjk_paragraph",
+   "md": "这是一个相当长的中文段落，需要在较窄的宽度下换行渲染测试。Second part.",
+   "width": 20,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "这是一个相当长的中文",
+    "段落，需要在较窄的宽",
+    "度下换行渲染测试。  ",
+    "Second part.        "
+   ]
+  },
+  {
+   "name": "resume_codespan_single",
+   "md": "Before `x` after.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before \u001b[33mx\u001b[39m after.                                                                 "
+   ]
+  },
+  {
+   "name": "resume_codespan_unicode",
+   "md": "Before `中` after.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before \u001b[33m中\u001b[39m after.                                                                "
+   ]
+  },
+  {
+   "name": "resume_codespan_multitick",
+   "md": "Before ``one ` two`` after.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before \u001b[33mone ` two\u001b[39m after.                                                         "
+   ]
+  },
+  {
+   "name": "resume_codespan_unmatched",
+   "md": "Before `open and more",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before `open and more                                                           "
+   ]
+  },
+  {
+   "name": "resume_codespan_mismatched",
+   "md": "Before ``no` after.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before ``no` after.                                                             "
+   ]
+  },
+  {
+   "name": "resume_underscore_em",
+   "md": "Before _italic_ and __bold__.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before \u001b[3mitalic\u001b[23m and \u001b[1mbold\u001b[22m.                                                         "
+   ]
+  },
+  {
+   "name": "resume_nested_em",
+   "md": "Before ***bold italic*** and **one *two* three**.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "Before \u001b[3m\u001b[1mbold italic\u001b[22m\u001b[23m and \u001b[1mone \u001b[3mtwo\u001b[23m three\u001b[22m.                                           "
+   ]
+  },
+  {
+   "name": "resume_unicode_em",
+   "md": "中文 **粗体** and *😀*.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "中文 \u001b[1m粗体\u001b[22m and \u001b[3m😀\u001b[23m.                                                               "
+   ]
+  },
+  {
+   "name": "resume_many_codespans",
+   "md": "`one` then `two` and **three**.",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "\u001b[33mone\u001b[39m then \u001b[33mtwo\u001b[39m and \u001b[1mthree\u001b[22m.                                                         "
+   ]
+  },
+  {
+   "name": "resume_cjk_inline_start",
+   "md": "中文$not math here",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "中文$not math here                                                              "
+   ]
+  },
+  {
+   "name": "resume_em_orphan_ast",
+   "md": "*foo __bar* baz__",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "*foo \u001b[1mbar* baz\u001b[22m                                                                   "
+   ]
+  },
+  {
+   "name": "resume_em_orphan_und",
+   "md": "_foo **bar_ baz**",
+   "width": 80,
+   "paddingX": 0,
+   "paddingY": 0,
+   "style": "none",
+   "preserveMarkers": false,
+   "preserveEscapes": false,
+   "renderLatex": true,
+   "hyperlinks": false,
+   "expected": [
+    "_foo \u001b[1mbar_ baz\u001b[22m                                                                   "
+   ]
+  }
+ ]
+}

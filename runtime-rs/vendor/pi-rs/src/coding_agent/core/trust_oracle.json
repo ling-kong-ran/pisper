@@ -1,0 +1,1723 @@
+{
+  "provenance": {
+    "node": "v25.8.2",
+    "sources": {
+      "utils/paths.ts": "a687cdb54b82216673fea5be1210c48e64ffa8398d64cfabf2bd7dba5c9d4210",
+      "core/trust-manager.ts": "b19e0a54037f48cc9c6c65d2ccdacb6809ac961111848e1c2d99db99bbed388c",
+      "core/project-trust.ts": "39d5874a2a001ae7ac797ea297e31bf061eff07f9b2883f3eeaf6d3e1f5637ba",
+      "core/settings-diagnostics.ts": "8ef3554ff841468a2493d9bab2754aa7a305471ea5754e54efccc363fe0dd0e1",
+      "core/extensions/runner.ts": "92da35c1df5c64b98bb4dfe485140b3e98863f6d44f4686dbf5eb77ddc4ea8c7"
+    },
+    "boundary": "Actual upstream trust-manager, project-trust, emitProjectTrustEvent, diagnostics and paths; virtual POSIX/Windows filesystems and proper-lockfile acquisition seam. Store oracle includes separately executed Windows path sorting; only paths are normalized in expected byte strings. Native OS errno/mtime behavior is not oracle-covered."
+  },
+  "storeCases": [
+    {
+      "id": "inherit-override-delete",
+      "ops": [
+        [
+          "get",
+          "/root/project/child"
+        ],
+        [
+          "set",
+          "/root/project",
+          true
+        ],
+        [
+          "getEntry",
+          "/root/project/child"
+        ],
+        [
+          "set",
+          "/root/project/child",
+          false
+        ],
+        [
+          "get",
+          "/root/project/child"
+        ],
+        [
+          "set",
+          "/root/project/child",
+          null
+        ],
+        [
+          "getEntry",
+          "/root/project/child"
+        ]
+      ],
+      "results": [
+        {
+          "value": null
+        },
+        {
+          "value": null
+        },
+        {
+          "value": {
+            "path": "/root/project",
+            "decision": true
+          }
+        },
+        {
+          "value": null
+        },
+        {
+          "value": false
+        },
+        {
+          "value": null
+        },
+        {
+          "value": {
+            "path": "/root/project",
+            "decision": true
+          }
+        }
+      ],
+      "file": "{\n  \"/root/project\": true\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "value": null
+          },
+          {
+            "value": null
+          },
+          {
+            "value": {
+              "path": "/root/project",
+              "decision": true
+            }
+          },
+          {
+            "value": null
+          },
+          {
+            "value": false
+          },
+          {
+            "value": null
+          },
+          {
+            "value": {
+              "path": "/root/project",
+              "decision": true
+            }
+          }
+        ],
+        "file": "{\n  \"/root/project\": true\n}\n",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "parent-trust-clears-child",
+      "ops": [
+        [
+          "set",
+          "/root/project/child",
+          false
+        ],
+        [
+          "setMany",
+          [
+            {
+              "path": "/root/project",
+              "decision": true
+            },
+            {
+              "path": "/root/project/child",
+              "decision": null
+            }
+          ]
+        ],
+        [
+          "getEntry",
+          "/root/project/child"
+        ]
+      ],
+      "results": [
+        {
+          "value": null
+        },
+        {
+          "value": null
+        },
+        {
+          "value": {
+            "path": "/root/project",
+            "decision": true
+          }
+        }
+      ],
+      "file": "{\n  \"/root/project\": true\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "value": null
+          },
+          {
+            "value": null
+          },
+          {
+            "value": {
+              "path": "/root/project",
+              "decision": true
+            }
+          }
+        ],
+        "file": "{\n  \"/root/project\": true\n}\n",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "normalization-and-last-update",
+      "ops": [
+        [
+          "setMany",
+          [
+            {
+              "path": "/root/project/.",
+              "decision": true
+            },
+            {
+              "path": "/root/project",
+              "decision": false
+            }
+          ]
+        ],
+        [
+          "getEntry",
+          "/root/project/nested/.."
+        ]
+      ],
+      "results": [
+        {
+          "value": null
+        },
+        {
+          "value": {
+            "path": "/root/project",
+            "decision": false
+          }
+        }
+      ],
+      "file": "{\n  \"/root/project\": false\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "value": null
+          },
+          {
+            "value": {
+              "path": "/root/project",
+              "decision": false
+            }
+          }
+        ],
+        "file": "{\n  \"/root/project\": false\n}\n",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "bom-null-and-preserved-values",
+      "initial": "﻿{\"/root/project\":true,\"/root/project/child\":null,\"orphan\":false}",
+      "ops": [
+        [
+          "getEntry",
+          "/root/project/child"
+        ],
+        [
+          "set",
+          "/root/another",
+          false
+        ]
+      ],
+      "results": [
+        {
+          "value": {
+            "path": "/root/project",
+            "decision": true
+          }
+        },
+        {
+          "value": null
+        }
+      ],
+      "file": "{\n  \"/root/another\": false,\n  \"/root/project\": true,\n  \"/root/project/child\": null,\n  \"orphan\": false\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "value": {
+              "path": "/root/project",
+              "decision": true
+            }
+          },
+          {
+            "value": null
+          }
+        ],
+        "file": "{\n  \"/root/another\": false,\n  \"/root/project\": true,\n  \"/root/project/child\": null,\n  \"orphan\": false\n}\n",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "utf16-sort-and-js-index-keys",
+      "initial": "{\"10\":true,\"2\":false,\"01\":null,\"/root/\":true,\"/root/𐀀\":false,\"__proto__\":true}",
+      "ops": [
+        [
+          "set",
+          "/root/project",
+          true
+        ]
+      ],
+      "results": [
+        {
+          "value": null
+        }
+      ],
+      "file": "{\n  \"2\": false,\n  \"10\": true,\n  \"/root/project\": true,\n  \"/root/𐀀\": false,\n  \"/root/\": true,\n  \"01\": null\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "value": null
+          }
+        ],
+        "file": "{\n  \"2\": false,\n  \"10\": true,\n  \"01\": null,\n  \"/root/project\": true,\n  \"/root/𐀀\": false,\n  \"/root/\": true\n}\n",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reject-array",
+      "initial": "[]",
+      "ops": [
+        [
+          "get",
+          "/root/project"
+        ]
+      ],
+      "results": [
+        {
+          "error": "Invalid trust store /root/agent/trust.json: expected an object"
+        }
+      ],
+      "file": "[]",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "error": "Invalid trust store /root/agent/trust.json: expected an object"
+          }
+        ],
+        "file": "[]",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reject-null",
+      "initial": "null",
+      "ops": [
+        [
+          "get",
+          "/root/project"
+        ]
+      ],
+      "results": [
+        {
+          "error": "Invalid trust store /root/agent/trust.json: expected an object"
+        }
+      ],
+      "file": "null",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "error": "Invalid trust store /root/agent/trust.json: expected an object"
+          }
+        ],
+        "file": "null",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reject-string",
+      "initial": "\"no\"",
+      "ops": [
+        [
+          "get",
+          "/root/project"
+        ]
+      ],
+      "results": [
+        {
+          "error": "Invalid trust store /root/agent/trust.json: expected an object"
+        }
+      ],
+      "file": "\"no\"",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "error": "Invalid trust store /root/agent/trust.json: expected an object"
+          }
+        ],
+        "file": "\"no\"",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reject-invalid-value",
+      "initial": "{\"bad\":1}",
+      "ops": [
+        [
+          "get",
+          "/root/project"
+        ]
+      ],
+      "results": [
+        {
+          "error": "Invalid trust store /root/agent/trust.json: value for \"bad\" must be true, false, or null"
+        }
+      ],
+      "file": "{\"bad\":1}",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "error": "Invalid trust store /root/agent/trust.json: value for \"bad\" must be true, false, or null"
+          }
+        ],
+        "file": "{\"bad\":1}",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "reject-first-invalid-in-js-order",
+      "initial": "{\"z\":\"no\",\"2\":2,\"1\":1}",
+      "ops": [
+        [
+          "get",
+          "/root/project"
+        ]
+      ],
+      "results": [
+        {
+          "error": "Invalid trust store /root/agent/trust.json: value for \"1\" must be true, false, or null"
+        }
+      ],
+      "file": "{\"z\":\"no\",\"2\":2,\"1\":1}",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ],
+      "windows": {
+        "results": [
+          {
+            "error": "Invalid trust store /root/agent/trust.json: value for \"1\" must be true, false, or null"
+          }
+        ],
+        "file": "{\"z\":\"no\",\"2\":2,\"1\":1}",
+        "effects": [
+          [
+            "lock",
+            "/root/agent/trust.json.lock"
+          ],
+          [
+            "unlock",
+            "/root/agent/trust.json.lock"
+          ]
+        ]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "id": "empty",
+      "entries": [],
+      "cwd": "/root/home/project",
+      "value": false
+    },
+    {
+      "id": "home-global-only",
+      "entries": [
+        "/root/home/.agents/skills",
+        "/root/home/.pi/agent"
+      ],
+      "cwd": "/root/home",
+      "value": false
+    },
+    {
+      "id": "home-global-from-child",
+      "entries": [
+        "/root/home/.agents/skills"
+      ],
+      "cwd": "/root/home/project",
+      "value": false
+    },
+    {
+      "id": "ancestor-pi-not-project",
+      "entries": [
+        "/root/.pi/settings.json"
+      ],
+      "cwd": "/root/home/project",
+      "value": false
+    },
+    {
+      "id": "ancestor-agents",
+      "entries": [
+        "/root/.agents/skills"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-agents",
+      "entries": [
+        "/root/home/project/.agents/skills"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-settings.json",
+      "entries": [
+        "/root/home/project/.pi/settings.json"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-extensions",
+      "entries": [
+        "/root/home/project/.pi/extensions"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-skills",
+      "entries": [
+        "/root/home/project/.pi/skills"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-prompts",
+      "entries": [
+        "/root/home/project/.pi/prompts"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-themes",
+      "entries": [
+        "/root/home/project/.pi/themes"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-SYSTEM.md",
+      "entries": [
+        "/root/home/project/.pi/SYSTEM.md"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "project-APPEND_SYSTEM.md",
+      "entries": [
+        "/root/home/project/.pi/APPEND_SYSTEM.md"
+      ],
+      "cwd": "/root/home/project",
+      "value": true
+    },
+    {
+      "id": "unknown-pi",
+      "entries": [
+        "/root/home/project/.pi/agent",
+        "/root/home/project/.pi/README.md"
+      ],
+      "cwd": "/root/home/project",
+      "value": false
+    }
+  ],
+  "options": [
+    {
+      "cwd": "/root/home/project",
+      "includeSessionOnly": false,
+      "value": [
+        {
+          "label": "Trust",
+          "trusted": true,
+          "updates": [
+            {
+              "path": "/root/home/project",
+              "decision": true
+            }
+          ],
+          "savedPath": "/root/home/project"
+        },
+        {
+          "label": "Trust parent folder (/root/home)",
+          "trusted": true,
+          "updates": [
+            {
+              "path": "/root/home",
+              "decision": true
+            },
+            {
+              "path": "/root/home/project",
+              "decision": null
+            }
+          ],
+          "savedPath": "/root/home"
+        },
+        {
+          "label": "Do not trust",
+          "trusted": false,
+          "updates": [
+            {
+              "path": "/root/home/project",
+              "decision": false
+            }
+          ],
+          "savedPath": "/root/home/project"
+        }
+      ],
+      "parent": "/root/home"
+    },
+    {
+      "cwd": "/root/home/project",
+      "includeSessionOnly": true,
+      "value": [
+        {
+          "label": "Trust",
+          "trusted": true,
+          "updates": [
+            {
+              "path": "/root/home/project",
+              "decision": true
+            }
+          ],
+          "savedPath": "/root/home/project"
+        },
+        {
+          "label": "Trust parent folder (/root/home)",
+          "trusted": true,
+          "updates": [
+            {
+              "path": "/root/home",
+              "decision": true
+            },
+            {
+              "path": "/root/home/project",
+              "decision": null
+            }
+          ],
+          "savedPath": "/root/home"
+        },
+        {
+          "label": "Trust (this session only)",
+          "trusted": true,
+          "updates": []
+        },
+        {
+          "label": "Do not trust",
+          "trusted": false,
+          "updates": [
+            {
+              "path": "/root/home/project",
+              "decision": false
+            }
+          ],
+          "savedPath": "/root/home/project"
+        },
+        {
+          "label": "Do not trust (this session only)",
+          "trusted": false,
+          "updates": []
+        }
+      ],
+      "parent": "/root/home"
+    },
+    {
+      "cwd": "/",
+      "includeSessionOnly": false,
+      "value": [
+        {
+          "label": "Trust",
+          "trusted": true,
+          "updates": [
+            {
+              "path": "/",
+              "decision": true
+            }
+          ],
+          "savedPath": "/"
+        },
+        {
+          "label": "Do not trust",
+          "trusted": false,
+          "updates": [
+            {
+              "path": "/",
+              "decision": false
+            }
+          ],
+          "savedPath": "/"
+        }
+      ],
+      "parent": null
+    },
+    {
+      "cwd": "/",
+      "includeSessionOnly": true,
+      "value": [
+        {
+          "label": "Trust",
+          "trusted": true,
+          "updates": [
+            {
+              "path": "/",
+              "decision": true
+            }
+          ],
+          "savedPath": "/"
+        },
+        {
+          "label": "Trust (this session only)",
+          "trusted": true,
+          "updates": []
+        },
+        {
+          "label": "Do not trust",
+          "trusted": false,
+          "updates": [
+            {
+              "path": "/",
+              "decision": false
+            }
+          ],
+          "savedPath": "/"
+        },
+        {
+          "label": "Do not trust (this session only)",
+          "trusted": false,
+          "updates": []
+        }
+      ],
+      "parent": null
+    }
+  ],
+  "resolveCases": [
+    {
+      "id": "override-yes",
+      "override": true,
+      "stored": false,
+      "value": true,
+      "trace": [],
+      "file": "{\n  \"/root/home/project\": false\n}\n",
+      "effects": []
+    },
+    {
+      "id": "override-no",
+      "override": false,
+      "noResources": true,
+      "value": false,
+      "trace": [],
+      "file": null,
+      "effects": []
+    },
+    {
+      "id": "no-resources",
+      "noResources": true,
+      "stored": false,
+      "value": true,
+      "trace": [],
+      "file": "{\n  \"/root/home/project\": false\n}\n",
+      "effects": []
+    },
+    {
+      "id": "saved-yes",
+      "stored": true,
+      "policy": "never",
+      "value": true,
+      "trace": [],
+      "file": "{\n  \"/root/home/project\": true\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "saved-no",
+      "stored": false,
+      "policy": "always",
+      "value": false,
+      "trace": [],
+      "file": "{\n  \"/root/home/project\": false\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "default-always",
+      "policy": "always",
+      "value": true,
+      "trace": [],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "default-never",
+      "policy": "never",
+      "value": false,
+      "trace": [],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ask-without-ui",
+      "value": false,
+      "trace": [],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "extension-yes-before-store",
+      "stored": false,
+      "handlers": [
+        {
+          "trusted": "yes"
+        }
+      ],
+      "value": true,
+      "trace": [
+        [
+          "handler",
+          0,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ]
+      ],
+      "file": "{\n  \"/root/home/project\": false\n}\n",
+      "effects": []
+    },
+    {
+      "id": "extension-no-remember",
+      "stored": true,
+      "handlers": [
+        {
+          "trusted": "no",
+          "remember": true
+        }
+      ],
+      "value": false,
+      "trace": [
+        [
+          "handler",
+          0,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ]
+      ],
+      "file": "{\n  \"/root/home/project\": false\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "extension-yes-remember",
+      "handlers": [
+        {
+          "trusted": "yes",
+          "remember": true
+        }
+      ],
+      "value": true,
+      "trace": [
+        [
+          "handler",
+          0,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ]
+      ],
+      "file": "{\n  \"/root/home/project\": true\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "extension-undecided",
+      "handlers": [
+        {
+          "trusted": "undecided"
+        }
+      ],
+      "policy": "always",
+      "value": true,
+      "trace": [
+        [
+          "handler",
+          0,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ]
+      ],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "extension-error-continues",
+      "handlers": [
+        {
+          "error": "boom"
+        },
+        {
+          "trusted": "undecided"
+        },
+        {
+          "trusted": "yes"
+        },
+        {
+          "error": "unreachable"
+        }
+      ],
+      "value": true,
+      "trace": [
+        [
+          "handler",
+          0,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ],
+        [
+          "handler",
+          1,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ],
+        [
+          "handler",
+          2,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ],
+        [
+          "error",
+          "Extension \"fixture-extension\" project_trust error: boom"
+        ]
+      ],
+      "file": null,
+      "effects": []
+    },
+    {
+      "id": "extension-first-wins",
+      "handlers": [
+        {
+          "trusted": "no"
+        },
+        {
+          "trusted": "yes"
+        }
+      ],
+      "value": false,
+      "trace": [
+        [
+          "handler",
+          0,
+          {
+            "type": "project_trust",
+            "cwd": "/root/home/project"
+          },
+          "/root/home/project",
+          "print",
+          false
+        ]
+      ],
+      "file": null,
+      "effects": []
+    },
+    {
+      "id": "ui-trust",
+      "ui": true,
+      "selection": 0,
+      "value": true,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": "{\n  \"/root/home/project\": true\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-parent",
+      "ui": true,
+      "selection": 1,
+      "value": true,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": "{\n  \"/root/home\": true\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-session-trust",
+      "ui": true,
+      "selection": 2,
+      "value": true,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-deny",
+      "ui": true,
+      "selection": 3,
+      "value": false,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": "{\n  \"/root/home/project\": false\n}\n",
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-session-deny",
+      "ui": true,
+      "selection": 4,
+      "value": false,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-cancel",
+      "ui": true,
+      "value": false,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-unknown-label",
+      "ui": true,
+      "label": "unknown",
+      "value": false,
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    },
+    {
+      "id": "ui-reject",
+      "ui": true,
+      "uiError": "dialog failed",
+      "error": "dialog failed",
+      "trace": [
+        [
+          "select",
+          "Trust project folder?\n/root/home/project\n\nThis allows pi to load .pi settings and resources, install missing project packages, and execute project extensions.",
+          [
+            "Trust",
+            "Trust parent folder (/root/home)",
+            "Trust (this session only)",
+            "Do not trust",
+            "Do not trust (this session only)"
+          ]
+        ]
+      ],
+      "file": null,
+      "effects": [
+        [
+          "lock",
+          "/root/agent/trust.json.lock"
+        ],
+        [
+          "unlock",
+          "/root/agent/trust.json.lock"
+        ]
+      ]
+    }
+  ],
+  "diagnostics": {
+    "errors": [
+      {
+        "scope": "global",
+        "path": "/root/agent/settings.json",
+        "error": {
+          "message": "bad json"
+        }
+      },
+      {
+        "scope": "project",
+        "error": {
+          "message": "backend failed"
+        }
+      },
+      {
+        "scope": "global",
+        "path": "",
+        "error": {
+          "message": "empty path"
+        }
+      }
+    ],
+    "first": [
+      {
+        "type": "warning",
+        "message": "Invalid settings file /root/agent/settings.json: bad json"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid project settings: backend failed"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid global settings: empty path"
+      }
+    ],
+    "second": [],
+    "input": [
+      {
+        "type": "warning",
+        "message": "Invalid settings file /root/agent/settings.json: bad json"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid project settings: backend failed"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid global settings: empty path"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid settings file /root/agent/settings.json: bad json"
+      },
+      {
+        "type": "error",
+        "message": "Invalid settings file /root/agent/settings.json: bad json"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid project settings: backend failed"
+      }
+    ],
+    "deduplicated": [
+      {
+        "type": "warning",
+        "message": "Invalid settings file /root/agent/settings.json: bad json"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid project settings: backend failed"
+      },
+      {
+        "type": "warning",
+        "message": "Invalid global settings: empty path"
+      },
+      {
+        "type": "error",
+        "message": "Invalid settings file /root/agent/settings.json: bad json"
+      }
+    ]
+  }
+}

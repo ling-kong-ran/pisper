@@ -164,6 +164,8 @@ export function TerminalPanel({
   const runtimesRef = useRef<Map<string, TerminalRuntime>>(new Map())
   const outputBufferRef = useRef<Map<string, Uint8Array[]>>(new Map())
   const liveTerminalIdsRef = useRef<Set<string>>(new Set())
+  const generationRef = useRef(0)
+  const resizeCleanupRef = useRef<(() => void) | undefined>(undefined)
   const activeIdRef = useRef('')
   const openRef = useRef(open)
   const visibleTabs = visibleSessionTerminals(tabs, activeSessionId)
@@ -192,10 +194,18 @@ export function TerminalPanel({
 
   useEffect(() => {
     if (!supported) return
+    let current = true
     bridge
       ?.terminalProfiles?.()
-      .then(setProfiles)
-      .catch((error) => setPanelError(error instanceof Error ? error.message : String(error)))
+      .then((profiles) => {
+        if (current) setProfiles(profiles)
+      })
+      .catch((error) => {
+        if (current) setPanelError(error instanceof Error ? error.message : String(error))
+      })
+    return () => {
+      current = false
+    }
   }, [bridge, supported])
 
   // 销毁终端运行时：断开 ResizeObserver、释放插件、销毁 xterm 与 DOM 节点。
@@ -322,7 +332,14 @@ export function TerminalPanel({
 
   useEffect(() => {
     const runtimes = runtimesRef.current
+    const liveIds = liveTerminalIdsRef.current
+    const bufferedOutput = outputBufferRef.current
+    generationRef.current += 1
     return () => {
+      generationRef.current += 1
+      liveIds.clear()
+      bufferedOutput.clear()
+      resizeCleanupRef.current?.()
       void bridge?.terminalCloseAll?.().catch(() => {})
       for (const id of [...runtimes.keys()]) disposeRuntime(id)
     }
@@ -369,11 +386,13 @@ export function TerminalPanel({
     async (requestedProfile?: DesktopTerminalProfile) => {
       const profile = requestedProfile || profiles.find((item) => item.default) || profiles[0]
       if (!profile || !bridge?.terminalCreate) return
+      const generation = generationRef.current
       setProfileMenuOpen(false)
       setPanelError('')
       onOpenChange(true)
       const sessionId = activeSessionId
       const cwd = await resolveSessionCwd(sessionId).catch(() => '')
+      if (generation !== generationRef.current) return
       const id = terminalId()
       const tab: TerminalTab = {
         id,
@@ -388,6 +407,7 @@ export function TerminalPanel({
       setTabs((current) => [...current, tab])
       setActiveIds((current) => ({ ...current, [sessionId]: id }))
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      if (generation !== generationRef.current || !liveTerminalIdsRef.current.has(id)) return
       const runtime = mountRuntime(id)
       runtime?.terminal.write(`\x1b[90m${labels.starting}\x1b[0m\r\n`)
       try {
@@ -401,7 +421,7 @@ export function TerminalPanel({
           },
           handleTerminalEvent,
         )
-        if (!liveTerminalIdsRef.current.has(id)) {
+        if (generation !== generationRef.current || !liveTerminalIdsRef.current.has(id)) {
           await bridge.terminalClose?.(id).catch(() => false)
           return
         }
@@ -410,7 +430,7 @@ export function TerminalPanel({
             item.id === id
               ? {
                   ...item,
-                  status: 'running',
+                  status: item.status === 'starting' ? 'running' : item.status,
                   cwd: created.cwd,
                   profileId: created.profileId,
                   title: terminalTitle(profile, created.cwd),
@@ -470,6 +490,7 @@ export function TerminalPanel({
   )
 
   const beginResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    resizeCleanupRef.current?.()
     event.currentTarget.setPointerCapture(event.pointerId)
     const startY = event.clientY
     const startHeight = height
@@ -482,7 +503,9 @@ export function TerminalPanel({
     const finish = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', finish)
+      resizeCleanupRef.current = undefined
     }
+    resizeCleanupRef.current = finish
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', finish, { once: true })
   }

@@ -1,0 +1,205 @@
+{
+  "provenance": {
+    "source": "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
+    "sourceSha256": "7d4bf1e4291a5320a1ce27504c488622c9a7307ce9e7c2d973f9d95f18a8b2bc",
+    "jsonlSha256": "95723d349fcebad1f1da7ce103d02ba7d5e2c876b7d178d41d8b56beedbd93e0",
+    "node": "v25.8.2",
+    "boundary": "Full actual runRpcMode plus actual JSONL reader/serializer; mock session/process/output only. The exit sentinel suppresses observable writes after process exit. No CLI or real model call."
+  },
+  "cases": [
+    {
+      "id": "eof-tail",
+      "log": [
+        [
+          "remove",
+          143
+        ],
+        [
+          "remove",
+          129
+        ],
+        [
+          "exit",
+          0
+        ]
+      ],
+      "outputs": [
+        {
+          "id": "tail",
+          "type": "response",
+          "command": "get_state",
+          "success": true,
+          "data": {
+            "thinkingLevel": "off",
+            "isStreaming": false,
+            "isCompacting": false,
+            "steeringMode": "one-at-a-time",
+            "followUpMode": "one-at-a-time",
+            "sessionId": "fixed",
+            "autoCompactionEnabled": true,
+            "messageCount": 0,
+            "pendingMessageCount": 0
+          }
+        }
+      ],
+      "disposeCalls": 1,
+      "disposeCompleted": 1,
+      "flushCalls": 1,
+      "paused": true,
+      "inputDataListeners": 0
+    },
+    {
+      "id": "sigterm",
+      "log": [
+        [
+          "kill"
+        ],
+        [
+          "remove",
+          143
+        ],
+        [
+          "remove",
+          129
+        ],
+        [
+          "exit",
+          143
+        ]
+      ],
+      "outputs": [],
+      "disposeCalls": 1,
+      "disposeCompleted": 1,
+      "flushCalls": 0,
+      "paused": true,
+      "inputDataListeners": 0
+    },
+    {
+      "id": "hangup",
+      "log": [
+        [
+          "kill"
+        ],
+        [
+          "remove",
+          143
+        ],
+        [
+          "remove",
+          129
+        ],
+        [
+          "exit",
+          129
+        ]
+      ],
+      "outputs": [],
+      "disposeCalls": 1,
+      "disposeCompleted": 1,
+      "flushCalls": 1,
+      "paused": true,
+      "inputDataListeners": 0
+    },
+    {
+      "id": "shutdown-dialog",
+      "log": [
+        [
+          "kill"
+        ],
+        [
+          "remove",
+          143
+        ],
+        [
+          "remove",
+          129
+        ],
+        [
+          "exit",
+          129
+        ]
+      ],
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "confirm",
+          "title": "exit",
+          "message": "save?"
+        }
+      ],
+      "disposeCalls": 1,
+      "disposeCompleted": 1,
+      "flushCalls": 1,
+      "paused": true,
+      "inputDataListeners": 0
+    },
+    {
+      "id": "second-eof",
+      "log": [
+        [
+          "kill"
+        ],
+        [
+          "remove",
+          143
+        ],
+        [
+          "remove",
+          129
+        ],
+        [
+          "exit",
+          0
+        ]
+      ],
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "confirm",
+          "title": "exit",
+          "message": "save?"
+        }
+      ],
+      "disposeCalls": 1,
+      "disposeCompleted": 0,
+      "flushCalls": 0,
+      "paused": false,
+      "inputDataListeners": 1
+    },
+    {
+      "id": "extension-shutdown",
+      "log": [
+        [
+          "remove",
+          143
+        ],
+        [
+          "remove",
+          129
+        ],
+        [
+          "exit",
+          0
+        ]
+      ],
+      "outputs": [
+        {
+          "id": "shutdown",
+          "type": "response",
+          "command": "prompt",
+          "success": true,
+          "data": {
+            "disposition": "handled"
+          }
+        }
+      ],
+      "disposeCalls": 1,
+      "disposeCompleted": 1,
+      "flushCalls": 1,
+      "paused": true,
+      "inputDataListeners": 0
+    }
+  ]
+}

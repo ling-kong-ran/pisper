@@ -36,6 +36,84 @@ const SIDECAR_TIMEOUT: Duration = Duration::from_secs(30);
 const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
 const DESKTOP_BRIDGE_SCRIPT: &str = include_str!("desktop-bridge.js");
 
+fn parse_desktop_data_dir(value: Option<std::ffi::OsString>) -> Result<Option<PathBuf>, String> {
+    let Some(value) = value else { return Ok(None) };
+    let directory = PathBuf::from(value);
+    if !directory.is_absolute() {
+        return Err("PISPER_DESKTOP_DATA_DIR must be an absolute directory path.".into());
+    }
+    Ok(Some(directory))
+}
+
+fn isolated_test_script(
+    directory: Option<&Path>,
+    input: Option<std::ffi::OsString>,
+) -> Result<Option<String>, String> {
+    let (Some(directory), Some(input)) = (directory, input) else {
+        return Ok(None);
+    };
+    let script = PathBuf::from(input);
+    if !script.is_absolute() {
+        return Err("PISPER_DESKTOP_TEST_INIT_SCRIPT must be an absolute path.".into());
+    }
+    let directory = directory
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let script = script.canonicalize().map_err(|error| error.to_string())?;
+    if !script.starts_with(&directory) {
+        return Err(
+            "The desktop test script must remain inside its isolated data directory.".into(),
+        );
+    }
+    let file = std::fs::File::open(script).map_err(|error| error.to_string())?;
+    let metadata = file.metadata().map_err(|error| error.to_string())?;
+    const MAX_BYTES: u64 = 256 * 1024;
+    if !metadata.is_file() || metadata.len() > MAX_BYTES {
+        return Err(
+            "The desktop test script must be a regular UTF-8 file no larger than 256 KiB.".into(),
+        );
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("The desktop test script exceeds 256 KiB.".into());
+    }
+    String::from_utf8(bytes)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+pub(crate) fn desktop_data_dir_override() -> Result<Option<PathBuf>, String> {
+    parse_desktop_data_dir(std::env::var_os("PISPER_DESKTOP_DATA_DIR"))
+}
+
+fn select_desktop_directory(
+    override_directory: Option<PathBuf>,
+    default_directory: impl FnOnce() -> Result<PathBuf, String>,
+) -> Result<PathBuf, String> {
+    match override_directory {
+        Some(directory) => Ok(directory),
+        None => default_directory(),
+    }
+}
+
+fn prepare_desktop_directory(directory: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(directory)
+        .map_err(|error| format!("Cannot create the desktop data directory: {error}"))
+}
+
+pub(crate) fn desktop_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let directory = select_desktop_directory(desktop_data_dir_override()?, || {
+        app.path()
+            .app_local_data_dir()
+            .map_err(|error| error.to_string())
+    })?;
+    prepare_desktop_directory(&directory)?;
+    Ok(directory)
+}
+
 #[derive(serde::Deserialize)]
 pub(crate) struct SidecarReady {
     pub(crate) url: String,
@@ -177,11 +255,7 @@ fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, 
     }
 
     let frontend_root = frontend_root(app, &app_root)?;
-    let tunnel_status_path = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| error.to_string())?
-        .join("iroh-tunnel-status.json");
+    let tunnel_status_path = tunnel_status_path(app.handle())?;
     command
         .env("PISPER_APP_ROOT", &app_root)
         .env("PISPER_FRONTEND_ROOT", frontend_root)
@@ -271,11 +345,7 @@ fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
 }
 
 fn tunnel_status_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| error.to_string())?
-        .join("iroh-tunnel-status.json"))
+    Ok(desktop_data_dir(app)?.join("iroh-tunnel-status.json"))
 }
 
 fn write_tunnel_status(
@@ -306,7 +376,7 @@ fn start_desktop_tunnel(app: &AppHandle) {
     let Some(generation) = lifecycle.start() else {
         return;
     };
-    let Ok(data_dir) = app.path().app_local_data_dir() else {
+    let Ok(data_dir) = desktop_data_dir(app) else {
         lifecycle.fail(generation, || {});
         return;
     };
@@ -435,11 +505,7 @@ fn desktop_iroh_set_enabled(app: AppHandle, enabled: bool) {
 }
 
 fn sidecar_descriptor_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| error.to_string())?
-        .join(SIDECAR_DESCRIPTOR_NAME))
+    Ok(desktop_data_dir(app)?.join(SIDECAR_DESCRIPTOR_NAME))
 }
 
 fn publish_sidecar_descriptor(app: &AppHandle, ready: &SidecarReady) -> Result<(), String> {
@@ -549,7 +615,35 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
     let navigation_app = app.handle().clone();
     let new_window_app = app.handle().clone();
 
-    WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+    let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+        .devtools(cfg!(debug_assertions));
+    let mut test_script = None;
+    if let Some(directory) = desktop_data_dir_override()? {
+        test_script = isolated_test_script(
+            Some(&directory),
+            std::env::var_os("PISPER_DESKTOP_TEST_INIT_SCRIPT"),
+        )?;
+        let directory = directory.join("webview");
+        prepare_desktop_directory(&directory)?;
+        // 仅显式隔离测试允许发布构建的 WebView 自动化调试；普通启动保持关闭。
+        builder = builder.data_directory(directory).devtools(true);
+        #[cfg(target_os = "windows")]
+        if let Some(value) = std::env::var_os("PISPER_DESKTOP_TEST_CDP_PORT") {
+            let port = value
+                .to_str()
+                .and_then(|value| value.parse::<u16>().ok())
+                .ok_or("PISPER_DESKTOP_TEST_CDP_PORT must be a TCP port (0 selects an owned automatic port).")?;
+            // 直接传入 WebView2 environment options，不依赖运行时对 WEBVIEW2_* 环境变量的信任。
+            builder = builder.additional_browser_args(&format!(
+                "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port} --remote-debugging-address=127.0.0.1 --no-first-run --disable-background-networking"
+            ));
+        }
+    }
+    builder = builder.initialization_script(DESKTOP_BRIDGE_SCRIPT);
+    if let Some(script) = test_script {
+        builder = builder.initialization_script(&script);
+    }
+    builder
         // Tauri's native Windows file-drop handler intercepts HTML5 drag events used by React Flow.
         .disable_drag_drop_handler()
         .title("Pisper")
@@ -559,7 +653,6 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         // 页头标题被压缩成逐字换行（见 PageHeader），因此保持 1080 起步。
         .min_inner_size(1080.0, 680.0)
         .center()
-        .initialization_script(DESKTOP_BRIDGE_SCRIPT)
         .on_navigation(move |target| {
             if same_origin(target, &allowed) || target.scheme() == "about" {
                 return true;
@@ -753,6 +846,21 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
 }
 
 pub fn run() {
+    // 显式隔离目录用于验证安装包，不能转发到用户已有窗口或复用其浏览器档案。
+    let isolated = match desktop_data_dir_override().and_then(|directory| {
+        if let Some(directory) = &directory {
+            prepare_desktop_directory(directory)?;
+        }
+        Ok(directory.is_some())
+    }) {
+        Ok(isolated) => isolated,
+        Err(error) => {
+            eprintln!("{error}");
+            #[cfg(target_os = "windows")]
+            startup_diagnostics::show_before_runtime(&error);
+            std::process::exit(1);
+        }
+    };
     let process_args = std::env::args_os().skip(1).collect::<Vec<_>>();
     let cli_args = process_args
         .first()
@@ -765,21 +873,22 @@ pub fn run() {
     }
     let mut builder = tauri::Builder::default()
         .on_menu_event(|app, event| handle_desktop_menu_event(app, event.id().as_ref()));
-    if cli_args.is_none() {
+    if cli_args.is_none() && !isolated {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main_window(app);
         }));
     }
     let cli_args_for_setup = cli_args.clone();
-    let builder = builder
+    builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)
                 .build(),
-        )
-        .plugin(
+        );
+    if !isolated {
+        builder = builder.plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::POSITION
@@ -787,7 +896,9 @@ pub fn run() {
                         | tauri_plugin_window_state::StateFlags::MAXIMIZED,
                 )
                 .build(),
-        )
+        );
+    }
+    let builder = builder
         .manage(component_updates::ComponentUpdateState::default())
         .manage(desktop_terminal::DesktopTerminalState::default())
         .manage(computer_use::ComputerUseStreamState::default())
@@ -836,7 +947,9 @@ pub fn run() {
             desktop_iroh_set_enabled,
         ])
         .setup(move |app| {
-            desktop_bridge::cleanup_open_assets(app.handle());
+            if !isolated {
+                desktop_bridge::cleanup_open_assets(app.handle());
+            }
             if let Some(args) = cli_args_for_setup.as_deref() {
                 let exit_code = match cli_manager::run_bundled_cli(app, args) {
                     Ok(code) => code,
@@ -865,8 +978,10 @@ pub fn run() {
                         return Err(format!("Required bundled file is missing: {missing}").into());
                     }
                 }
-                if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
-                    eprintln!("Failed to refresh the managed Pisper CLI: {error}");
+                if !isolated {
+                    if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
+                        eprintln!("Failed to refresh the managed Pisper CLI: {error}");
+                    }
                 }
 
                 app.manage(DesktopTunnelState::default());
@@ -963,10 +1078,91 @@ pub fn run() {
         }
         if matches!(&event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
             if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
-                desktop_terminal::close_all(&state);
+                desktop_terminal::shutdown(&state);
             }
             stop_desktop_tunnel(app);
             stop_sidecar(app);
         }
     });
+}
+
+#[cfg(test)]
+mod desktop_directory_tests {
+    use super::*;
+
+    #[test]
+    fn explicit_desktop_directory_is_absolute_and_avoids_default_resolver() {
+        let directory = std::env::temp_dir().join("pisper-isolated-desktop");
+        let parsed = parse_desktop_data_dir(Some(directory.clone().into_os_string())).unwrap();
+        let selected =
+            select_desktop_directory(parsed, || panic!("default path must not be read")).unwrap();
+        assert_eq!(selected, directory);
+    }
+
+    #[test]
+    fn ordinary_desktop_directory_keeps_default_path_and_errors() {
+        let parsed = parse_desktop_data_dir(None).unwrap();
+        let original = std::env::temp_dir().join("existing-app-local-data");
+        assert_eq!(
+            select_desktop_directory(parsed, || Ok(original.clone())).unwrap(),
+            original
+        );
+        assert_eq!(
+            select_desktop_directory(None, || Err("resolver failure".into())).unwrap_err(),
+            "resolver failure"
+        );
+    }
+
+    #[test]
+    fn relative_or_empty_desktop_override_is_rejected() {
+        for path in ["", "relative-directory", "../another-directory"] {
+            let error = parse_desktop_data_dir(Some(path.into())).unwrap_err();
+            assert!(error.contains("PISPER_DESKTOP_DATA_DIR"));
+            assert!(error.contains("absolute"));
+        }
+    }
+
+    #[test]
+    fn desktop_probe_script_is_inert_without_an_isolated_directory() {
+        assert!(isolated_test_script(None, Some("nonexistent.js".into()))
+            .unwrap()
+            .is_none());
+        assert!(isolated_test_script(Some(Path::new("nonexistent")), None)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn desktop_probe_script_requires_owned_utf8_file_and_size_limit() {
+        let temporary = std::env::temp_dir().canonicalize().unwrap();
+        let root = temporary.join(format!(
+            "pisper-webview-probe-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let directory = root.join("isolated");
+        std::fs::create_dir(&directory).unwrap();
+        let file = directory.join("probe.js");
+        let code = "window.__ownedProbe = true;";
+        std::fs::write(&file, code).unwrap();
+        assert_eq!(
+            isolated_test_script(Some(&directory), Some(file.clone().into())).unwrap(),
+            Some(code.into())
+        );
+        assert!(isolated_test_script(Some(&directory), Some("relative.js".into())).is_err());
+        let outside = root.join("outside.js");
+        std::fs::write(&outside, code).unwrap();
+        assert!(isolated_test_script(Some(&directory), Some(outside.into())).is_err());
+        assert!(isolated_test_script(Some(&directory), Some(directory.clone().into())).is_err());
+        std::fs::write(&file, vec![b'a'; 256 * 1024 + 1]).unwrap();
+        assert!(isolated_test_script(Some(&directory), Some(file.clone().into())).is_err());
+        std::fs::write(&file, [0xff]).unwrap();
+        assert!(isolated_test_script(Some(&directory), Some(file.into())).is_err());
+        assert!(root.canonicalize().unwrap().starts_with(&temporary));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

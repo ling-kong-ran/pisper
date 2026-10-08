@@ -1,0 +1,212 @@
+{
+  "generatedAt": "2026-09-27T05:47:27.927Z",
+  "runtime": "v25.8.2",
+  "source": "pi/packages/coding-agent/src/modes/json-event.ts",
+  "sourceSha256": "87f6fa86cd73b817470062f5ab0a99c790d0c0e222e25979b96bfcd157e119bf",
+  "notes": "Direct actual-source import. Raw JSON input strings retain deliberate unsorted integer keys; no network, credentials, mocked projection, or fixture expectation edits.",
+  "cases": [
+    {
+      "name": "text_start_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"contentIndex\":0,\"type\":\"text_start\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"contentIndex\":0,\"type\":\"text_start\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "text_delta_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"delta\":\"hello\",\"contentIndex\":0,\"type\":\"text_delta\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"delta\":\"hello\",\"contentIndex\":0,\"type\":\"text_delta\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "text_end_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"content\":\"hello\",\"contentIndex\":0,\"type\":\"text_end\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"content\":\"hello\",\"contentIndex\":0,\"type\":\"text_end\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "thinking_start_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"contentIndex\":0,\"type\":\"thinking_start\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"contentIndex\":0,\"type\":\"thinking_start\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "thinking_delta_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"delta\":\"hello\",\"contentIndex\":0,\"type\":\"thinking_delta\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"delta\":\"hello\",\"contentIndex\":0,\"type\":\"thinking_delta\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "thinking_end_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"content\":\"hello\",\"contentIndex\":0,\"type\":\"thinking_end\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"content\":\"hello\",\"contentIndex\":0,\"type\":\"thinking_end\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "toolcall_delta_reordered",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"delta\":\"hello\",\"contentIndex\":0,\"type\":\"toolcall_delta\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"delta\":\"hello\",\"contentIndex\":0,\"type\":\"toolcall_delta\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "start_extra_slots",
+      "group": "start",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"type\":\"start\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":\"keep\"}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"type\":\"start\",\"extraAfter\":\"keep\"}}"
+    },
+    {
+      "name": "start_message_is_extra_when_partial_present",
+      "group": "start",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"message\":{\"extension\":\"keep\"},\"type\":\"start\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":\"keep\"}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"message\":{\"extension\":\"keep\"},\"type\":\"start\",\"extraAfter\":\"keep\"}}"
+    },
+    {
+      "name": "unknown_delta_keeps_fields",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"type\":\"vendor_delta\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"payload\":[{\"z\":1,\"a\":2}]}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":{\"z\":1,\"a\":2},\"type\":\"vendor_delta\",\"payload\":[{\"z\":1,\"a\":2}]}}"
+    },
+    {
+      "name": "tool_start_overlay_existing_slots",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"id\":\"old\",\"extraBefore\":true,\"toolName\":\"oldName\",\"contentIndex\":0,\"type\":\"toolcall_start\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"id\":\"toolu_01\",\"extraBefore\":true,\"toolName\":\"bash\",\"contentIndex\":0,\"type\":\"toolcall_start\",\"extraAfter\":null}}"
+    },
+    {
+      "name": "tool_start_uses_own_partial",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":0,\"partial\":{\"content\":[{\"type\":\"toolCall\",\"id\":\"own-id\",\"name\":\"own-name\",\"arguments\":{}}]}}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":0,\"id\":\"own-id\",\"toolName\":\"own-name\"}}"
+    },
+    {
+      "name": "tool_start_string_index",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":\"0\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000}}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":\"0\",\"id\":\"toolu_01\",\"toolName\":\"bash\"}}"
+    },
+    {
+      "name": "tool_start_integral_float_index",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":0.0,\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000}}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":0,\"id\":\"toolu_01\",\"toolName\":\"bash\"}}"
+    },
+    {
+      "name": "tool_start_missing_identity_omits_overlaid_keys",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"id\":\"old\",\"type\":\"toolcall_start\",\"contentIndex\":0,\"toolName\":\"old\",\"partial\":{\"content\":[{\"type\":\"toolCall\"}]},\"extraAfter\":true}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":0,\"extraAfter\":true}}"
+    },
+    {
+      "name": "tool_start_invalid_leading_zero_index",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":\"01\",\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000}}}",
+      "ok": false,
+      "error": "toolcall_start content at index 01 is not a tool call"
+    },
+    {
+      "name": "tool_start_rejects_non_tool_partial",
+      "group": "raw",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"type\":\"toolcall_start\",\"contentIndex\":0,\"partial\":{\"content\":[{\"type\":\"text\",\"text\":\"not-tool\"}]}}}",
+      "ok": false,
+      "error": "toolcall_start content at index 0 is not a tool call"
+    },
+    {
+      "name": "tool_end_preserves_nested_unknowns",
+      "group": "terminal",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"extraBefore\":true,\"toolCall\":{\"extensionFirst\":{\"z\":1,\"a\":2},\"arguments\":{\"z\":1,\"a\":2},\"name\":\"bash\",\"type\":\"toolCall\",\"id\":\"toolu_01\",\"extensionLast\":null},\"type\":\"toolcall_end\",\"contentIndex\":0,\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"extraAfter\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"extraBefore\":true,\"toolCall\":{\"extensionFirst\":{\"z\":1,\"a\":2},\"arguments\":{\"z\":1,\"a\":2},\"name\":\"bash\",\"type\":\"toolCall\",\"id\":\"toolu_01\",\"extensionLast\":null},\"type\":\"toolcall_end\",\"contentIndex\":0,\"extraAfter\":null}}"
+    },
+    {
+      "name": "done_preserves_message_unknowns_and_order",
+      "group": "terminal",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"message\":{\"extensionFirst\":{\"z\":1,\"a\":2},\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"timestamp\":1700000000000,\"role\":\"assistant\",\"content\":[{\"extensionFirst\":{\"z\":1,\"a\":2},\"arguments\":{\"z\":1,\"a\":2},\"name\":\"bash\",\"type\":\"toolCall\",\"id\":\"toolu_01\",\"extensionLast\":null}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"stopReason\":\"stop\",\"extensionLast\":null},\"type\":\"done\",\"reason\":\"stop\",\"extensionLast\":null}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"message\":{\"extensionFirst\":{\"z\":1,\"a\":2},\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"timestamp\":1700000000000,\"role\":\"assistant\",\"content\":[{\"extensionFirst\":{\"z\":1,\"a\":2},\"arguments\":{\"z\":1,\"a\":2},\"name\":\"bash\",\"type\":\"toolCall\",\"id\":\"toolu_01\",\"extensionLast\":null}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"stopReason\":\"stop\",\"extensionLast\":null},\"type\":\"done\",\"reason\":\"stop\",\"extensionLast\":null}}"
+    },
+    {
+      "name": "error_preserves_message_unknowns_and_order",
+      "group": "terminal",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"error\":{\"errorMessage\":\"boom\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"role\":\"assistant\",\"content\":[],\"timestamp\":1700000000000,\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"stopReason\":\"error\",\"extensionLast\":{\"z\":1,\"a\":2}},\"extraBefore\":true,\"reason\":\"error\",\"type\":\"error\"}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"error\":{\"errorMessage\":\"boom\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"role\":\"assistant\",\"content\":[],\"timestamp\":1700000000000,\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"stopReason\":\"error\",\"extensionLast\":{\"z\":1,\"a\":2}},\"extraBefore\":true,\"reason\":\"error\",\"type\":\"error\"}}"
+    },
+    {
+      "name": "delta_integer_keys_nested",
+      "group": "numeric",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"type\":\"text_delta\",\"contentIndex\":0,\"delta\":\"hi\",\"payload\":{\"z\":1,\"10\":\"ten\",\"2\":\"two\",\"01\":\"leading\",\"0\":\"zero\",\"4294967295\":\"not-index\",\"4294967294\":\"last-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"8\":8,\"b\":0,\"3\":3}],\"__proto__\":{\"7\":7,\"a\":0,\"2\":2}},\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000}}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"type\":\"text_delta\",\"contentIndex\":0,\"delta\":\"hi\",\"payload\":{\"0\":\"zero\",\"2\":\"two\",\"10\":\"ten\",\"4294967294\":\"last-index\",\"z\":1,\"01\":\"leading\",\"4294967295\":\"not-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"3\":3,\"8\":8,\"b\":0}],\"__proto__\":{\"2\":2,\"7\":7,\"a\":0}}}}"
+    },
+    {
+      "name": "delta_integer_keys_at_event_level",
+      "group": "numeric",
+      "input": "{\"type\":\"message_update\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"assistantMessageEvent\":{\"z\":0,\"10\":10,\"2\":2,\"type\":\"text_start\",\"contentIndex\":0,\"partial\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"toolu_01\",\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}],\"api\":\"faux\",\"provider\":\"faux\",\"model\":\"faux-1\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"stopReason\":\"stop\",\"timestamp\":1700000000000},\"a\":1}}",
+      "ok": true,
+      "out": "{\"type\":\"message_update\",\"usage\":{\"input\":10,\"output\":5,\"cacheRead\":2,\"cacheWrite\":1,\"totalTokens\":16,\"cost\":{\"input\":0.1,\"output\":0.2,\"cacheRead\":0,\"cacheWrite\":0,\"total\":0.3}},\"assistantMessageEvent\":{\"2\":2,\"10\":10,\"z\":0,\"type\":\"text_start\",\"contentIndex\":0,\"a\":1}}"
+    },
+    {
+      "name": "tool_start_integer_args",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"z\":1,\"10\":\"ten\",\"2\":\"two\",\"01\":\"leading\",\"0\":\"zero\",\"4294967295\":\"not-index\",\"4294967294\":\"last-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"8\":8,\"b\":0,\"3\":3}],\"__proto__\":{\"7\":7,\"a\":0,\"2\":2}}}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"0\":\"zero\",\"2\":\"two\",\"10\":\"ten\",\"4294967294\":\"last-index\",\"z\":1,\"01\":\"leading\",\"4294967295\":\"not-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"3\":3,\"8\":8,\"b\":0}],\"__proto__\":{\"2\":2,\"7\":7,\"a\":0}}}"
+    },
+    {
+      "name": "tool_update_integer_results",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_update\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"z\":1,\"10\":\"ten\",\"2\":\"two\",\"01\":\"leading\",\"0\":\"zero\",\"4294967295\":\"not-index\",\"4294967294\":\"last-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"8\":8,\"b\":0,\"3\":3}],\"__proto__\":{\"7\":7,\"a\":0,\"2\":2}},\"partialResult\":{\"content\":[],\"details\":{\"z\":1,\"10\":\"ten\",\"2\":\"two\",\"01\":\"leading\",\"0\":\"zero\",\"4294967295\":\"not-index\",\"4294967294\":\"last-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"8\":8,\"b\":0,\"3\":3}],\"__proto__\":{\"7\":7,\"a\":0,\"2\":2}}}}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_update\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"0\":\"zero\",\"2\":\"two\",\"10\":\"ten\",\"4294967294\":\"last-index\",\"z\":1,\"01\":\"leading\",\"4294967295\":\"not-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"3\":3,\"8\":8,\"b\":0}],\"__proto__\":{\"2\":2,\"7\":7,\"a\":0}},\"partialResult\":{\"content\":[],\"details\":{\"0\":\"zero\",\"2\":\"two\",\"10\":\"ten\",\"4294967294\":\"last-index\",\"z\":1,\"01\":\"leading\",\"4294967295\":\"not-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"3\":3,\"8\":8,\"b\":0}],\"__proto__\":{\"2\":2,\"7\":7,\"a\":0}}}}"
+    },
+    {
+      "name": "tool_end_integer_results",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_end\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"result\":{\"content\":[],\"details\":{\"z\":1,\"10\":\"ten\",\"2\":\"two\",\"01\":\"leading\",\"0\":\"zero\",\"4294967295\":\"not-index\",\"4294967294\":\"last-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"8\":8,\"b\":0,\"3\":3}],\"__proto__\":{\"7\":7,\"a\":0,\"2\":2}}},\"isError\":false}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_end\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"result\":{\"content\":[],\"details\":{\"0\":\"zero\",\"2\":\"two\",\"10\":\"ten\",\"4294967294\":\"last-index\",\"z\":1,\"01\":\"leading\",\"4294967295\":\"not-index\",\"-0\":\"minus-zero\",\"+1\":\"plus\",\"1e0\":\"exponent\",\"a\":[{\"3\":3,\"8\":8,\"b\":0}],\"__proto__\":{\"2\":2,\"7\":7,\"a\":0}}},\"isError\":false}"
+    },
+    {
+      "name": "key_boundary_0",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"3\":3,\"2\":2,\"1\":1,\"0\":0}}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"0\":0,\"1\":1,\"2\":2,\"3\":3}}"
+    },
+    {
+      "name": "key_boundary_1",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"b\":1,\"a\":2,\"01\":3,\"-0\":4,\"+0\":5,\"0.0\":6,\"1e0\":7,\"\":8,\" 1\":9,\"1 \":10,\"１２\":11}}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"b\":1,\"a\":2,\"01\":3,\"-0\":4,\"+0\":5,\"0.0\":6,\"1e0\":7,\"\":8,\" 1\":9,\"1 \":10,\"１２\":11}}"
+    },
+    {
+      "name": "key_boundary_2",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"4294967295\":1,\"4294967294\":2,\"4294967293\":3,\"9007199254740991\":4,\"18446744073709551615\":5,\"000\":6,\"0\":7}}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"0\":7,\"4294967293\":3,\"4294967294\":2,\"4294967295\":1,\"9007199254740991\":4,\"18446744073709551615\":5,\"000\":6}}"
+    },
+    {
+      "name": "key_boundary_3",
+      "group": "chain",
+      "input": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"a\":0,\"10\":1,\"z\":2,\"2\":3,\"a\":4,\"1\":5}}",
+      "ok": true,
+      "out": "{\"type\":\"tool_execution_start\",\"toolCallId\":\"toolu_01\",\"toolName\":\"bash\",\"args\":{\"1\":5,\"2\":3,\"10\":1,\"a\":4,\"z\":2}}"
+    }
+  ]
+}

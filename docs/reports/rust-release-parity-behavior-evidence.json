@@ -1,0 +1,771 @@
+{
+  "description": "Live HTTP round-trips against runtime-rs (cargo debug build, 127.0.0.1:5199, isolated data dir + workspace, real qwen3.8-27b vLLM provider) on 2026-10-06. Each entry marks an endpoint whose response contract was exercised and matched the release shape.",
+  "verifiedAt": "2026-10-08T01:10:00Z",
+  "environment": {
+    "build": "cargo build --bin pisper-server (debug)",
+    "transport": "HTTP/JSON + SSE",
+    "provider": "openai-compat qwen3.8-27b (internal vLLM)"
+  },
+  "entries": {
+    "DELETE /api/assets/{assetId}": {
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/channels/scopes/{scopeId}": {
+      "evidence": "unknown scope → 404 (live-verify pass3 2026-10-06)"
+    },
+    "DELETE /api/channels/{channel}": {
+      "evidence": "smoke: native channel reconnect preserves peer sessions and sends through the restarted Agent (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/channels/{channel}/onboarding/{onboardingId}": {
+      "evidence": "200 {cancelled:false} for manual channel (live-verify pass3 2026-10-06)"
+    },
+    "DELETE /api/custom-ui/views/{viewId}": {
+      "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/desktop-pet/{slug}": {
+      "evidence": "managed pet removed, selection rebalanced (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/extensions": {
+      "evidence": "unknown source → 404 扩展包不存在。 (release parity) (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/game-assets/projects/{projectId}": {
+      "evidence": "smoke: game asset catalog and independent draft CRUD obey the release schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/mcp/{serverId}": {
+      "evidence": "smoke: MCP delete removes config and native tools, preserving unknown root fields (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/memory/nodes/{memoryId}": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/memory/spaces/{spaceId}": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/plugins/{pluginId}": {
+      "evidence": "smoke: an active Rust plugin worker rejects uninstall and abort stops its actual file writes (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/providers/{providerId}": {
+      "evidence": "provider removed (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/providers/{providerId}/models": {
+      "evidence": "remove model (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/remote/pairing-requests/{requestId}": {
+      "evidence": "204 with matching x-pisper-pairing-secret; mismatch → 403 (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/schedules/{scheduleId}": {
+      "evidence": "smoke: schedules dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/sessions/{sessionId}": {
+      "evidence": "session deleted (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/sessions/{sessionId}/input/{inputId}": {
+      "evidence": "{removed:false,inputId,pendingMessageCount,queuedInputs}"
+    },
+    "DELETE /api/sessions/{sessionId}/plan": {
+      "evidence": "smoke: native plan HTTP, real Pi tool, child parent-plan reading and usage accounting (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "DELETE /api/skills/{skillName}": {
+      "evidence": "managed skill deleted, files removed (live-verify pass 2026-10-06)"
+    },
+    "DELETE /api/workflows/{workflowId}": {
+      "evidence": "workflow removed (live-verify pass 2026-10-06)"
+    },
+    "GET /api/app-update": {
+      "evidence": "GitHub compare with exe-repo fallback; available/current states; failure → 502 {error} (release wraps 502) (live-verify pass 2026-10-06)"
+    },
+    "GET /api/assets": {
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/assets/{assetId}/content": {
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/assets/{assetId}/download": {
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/channels": {
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/channels/{channel}/onboarding/{onboardingId}": {
+      "evidence": "manual channel has no persisted task → 404 (release null → 404) (live-verify pass3 2026-10-06)"
+    },
+    "GET /api/client-info": {
+      "evidence": "smoke: isolated Rust sidecar bootstrap and health (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/config": {
+      "evidence": "smoke: frontend config schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/custom-ui/bridge.js": {
+      "evidence": "smoke: custom UI scoped views render without cookies and retain an opaque CSP and bridge URLs (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/custom-ui/components": {
+      "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI component listing immediately rescans owned manifest changes"
+    },
+    "GET /api/custom-ui/components/{componentId}/assets/{asset1}": {
+      "evidence": "smoke: custom UI views reject cross-component files, manifests, hidden paths and traversal (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/custom-ui/components/{componentId}/assets/{asset1}/{asset2}": {
+      "evidence": "same scoped-asset handler as verified 1-segment route (axum {*path} wildcard); traversal/hidden rejection verified in smoke (live-verify pass3 2026-10-06)"
+    },
+    "GET /api/custom-ui/components/{componentId}/assets/{asset1}/{asset2}/{asset3}": {
+      "evidence": "same scoped-asset handler as verified 1-segment route (live-verify pass3 2026-10-06)"
+    },
+    "GET /api/decisions/status": {
+      "evidence": "live 2026-10-08 on release build (127.0.0.1:5199, isolated data dir): fresh install returns full publicConfig {remote:{provider:typesafe,baseUrl:https://api.typesafe.ai,modelId:jev-1.13.0,hasKey:false},delegate:{enabled:false,allowThreshold:0.9,verifyActions:false},approval:{status:ready}} — binding inferred on first read per release effectiveConfig; shape satisfies frontend parseDecisionsStatus (page renders instead of 服务器响应格式异常)."
+    },
+    "GET /api/desktop-pet": {
+      "evidence": "supported:true status with installed/opacity/spriteUrl fields"
+    },
+    "GET /api/desktop-pet/catalog": {
+      "evidence": "live petdex.dev manifest query returned real slugs"
+    },
+    "GET /api/desktop-pet/sprite": {
+      "evidence": "sprite bytes with cache headers (live-verify pass 2026-10-06)"
+    },
+    "GET /api/directories": {
+      "evidence": "workspace-bounded directory list (live-verify pass 2026-10-06)"
+    },
+    "GET /api/extensions": {
+      "evidence": "installed records (live-verify pass 2026-10-06)"
+    },
+    "GET /api/extensions/market": {
+      "evidence": "honest empty catalog (live-verify pass 2026-10-06)"
+    },
+    "GET /api/game-assets": {
+      "evidence": "smoke: game asset catalog and independent draft CRUD obey the release schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/game-assets/jobs/{jobId}": {
+      "evidence": "smoke: game generation uses native provider HTTP then edits and exports from immutable originals (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: game paid generation failure retains completed direction pixels without retry"
+    },
+    "GET /api/game-assets/media/{mediaId}/content": {
+      "evidence": "smoke: game media raw upload, native color processing and workflow media isolation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/health": {
+      "evidence": "ok:true + capabilities payload; engine pi-rs; smoke: restart persists config, sessions, history and functioning chat; smoke: isolated Rust sidecar bootstrap and health"
+    },
+    "GET /api/local/browser-preferences": {
+      "evidence": "smoke: browser preference bootstrap contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/mcp": {
+      "evidence": "smoke: MCP dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: MCP native configuration and actual tool survive process restart"
+    },
+    "GET /api/mcp-host": {
+      "evidence": "status shape {enabled,listening,host,port,url,error}"
+    },
+    "GET /api/memory": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: memory dashboard contract"
+    },
+    "GET /api/memory/candidates": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/plugins": {
+      "evidence": "smoke: web search catalog and config follow the release Bing contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual call_tool runs native fs/path/Buffer with the current Pi session context; smoke: real native plugin exceptions propagate through the Pi gateway; smoke: actual plugin_create installs global source and exposes its tool on the next turn; smoke: plugin restart preserves install/enabled/data state, closes old workers and expires inspection tokens"
+    },
+    "GET /api/providers/discovery": {
+      "evidence": "smoke: Provider discovery contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/providers/export": {
+      "evidence": "version:1 + providers/credentials/toolMode/disabledProviders/settings snapshot"
+    },
+    "GET /api/remote/connection-info": {
+      "evidence": "fingerprint + endpoints (live-verify pass 2026-10-06)"
+    },
+    "GET /api/remote/devices": {
+      "evidence": "device list without tokens (live-verify pass 2026-10-06)"
+    },
+    "GET /api/remote/firewall": {
+      "evidence": "status shape {state,reason,port,scope,checkedAt,busy,lanReachability}"
+    },
+    "GET /api/remote/pairing-requests": {
+      "evidence": "desktop list without secrets"
+    },
+    "GET /api/remote/pairing-requests/{requestId}": {
+      "evidence": "secret-gated pending → approved token retrieval"
+    },
+    "GET /api/remote/status": {
+      "evidence": "public status shape (live-verify pass 2026-10-06)"
+    },
+    "GET /api/runs/{runId}/events": {
+      "evidence": "SSE replay (live-verify pass 2026-10-06)"
+    },
+    "GET /api/runtime/capabilities": {
+      "evidence": "smoke: isolated Rust sidecar bootstrap and health (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: runtime capabilities advertise actual support"
+    },
+    "GET /api/runtime/diagnostics": {
+      "evidence": "workspaceCwd/engine/version payload (live-verify pass 2026-10-06)"
+    },
+    "GET /api/schedules": {
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: schedules dashboard contract"
+    },
+    "GET /api/session-labels": {
+      "evidence": "labels projection (live-verify pass 2026-10-06)"
+    },
+    "GET /api/sessions": {
+      "evidence": "smoke: create a real session with frontend summary (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: session switching preserves prior history and continued chat; smoke: native sessions run concurrently and enforce mutation/configuration isolation"
+    },
+    "GET /api/sessions/{sessionId}/agents": {
+      "evidence": "smoke: held child interrupt closes the real stream and preserves follow-up context (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: parent abort cascades to its held children and preserves another parent child; smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
+    },
+    "GET /api/sessions/{sessionId}/change-summary": {
+      "evidence": "smoke: actual shell execution marks coverage partial before reporting any zero (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/sessions/{sessionId}/commands": {
+      "evidence": "{sessionId,commands,counts{total,prompts,skills,diagnostics}}"
+    },
+    "GET /api/sessions/{sessionId}/file-changes": {
+      "evidence": "smoke: new sessions persist complete empty file-change markers (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: child tool snapshots belong to the parent and deletion cannot revive them; smoke: a historical journal without its snapshot index stays unavailable; smoke: original BOM/newline bytes and first snapshots are staged for actual restart"
+    },
+    "GET /api/sessions/{sessionId}/file-changes/diff": {
+      "evidence": "smoke: actual Pi write/edit preserve the first baseline, diff and approval state (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: new-file diff uses /dev/null and actual revert removes the created file"
+    },
+    "GET /api/sessions/{sessionId}/git/changes": {
+      "evidence": "git/* alias returns GitChangesResponse (live-verify pass 2026-10-06)"
+    },
+    "GET /api/sessions/{sessionId}/goal": {
+      "evidence": "smoke: goal continuation executes real Pi tools, preserves first-round images and hides internal prompts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal budget stops continuation and runs exactly one real summary round; smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
+    },
+    "GET /api/sessions/{sessionId}/live": {
+      "evidence": "smoke: live session JSON with usable messages/pageInfo (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: native write archives real workspace output and restores message attachments"
+    },
+    "GET /api/sessions/{sessionId}/messages": {
+      "evidence": "smoke: live session JSON with usable messages/pageInfo (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: history contains the user and assistant conversation"
+    },
+    "GET /api/sessions/{sessionId}/plan": {
+      "evidence": "smoke: native plan HTTP, real Pi tool, child parent-plan reading and usage accounting (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
+    },
+    "GET /api/sessions/{sessionId}/side-chat": {
+      "evidence": "empty: {session:null,expiresAt:null,created:false}"
+    },
+    "GET /api/sessions/{sessionId}/team": {
+      "evidence": "smoke: team mode boots the native coordinator and exposes its real HTTP projection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
+    },
+    "GET /api/sessions/{sessionId}/thinking-level": {
+      "evidence": "level state (live-verify pass 2026-10-06)"
+    },
+    "GET /api/sessions/{sessionId}/tree": {
+      "evidence": "projected nodes (kind/role/status/label/leaf/branchPoint) after real chat turn"
+    },
+    "GET /api/sessions/{sessionId}/vcs/changes": {
+      "evidence": "real git repo: isRepo/branch/hasHead/files/ahead/vcs shapes"
+    },
+    "GET /api/sessions/{sessionId}/vcs/file-diff": {
+      "evidence": "real tracked-file diff with source:'vcs',canRevert:false"
+    },
+    "GET /api/sessions/{sessionId}/workflow-runs": {
+      "evidence": "per-session runs (live-verify pass 2026-10-06)"
+    },
+    "GET /api/settings/chat-dock-layout": {
+      "evidence": "release-shape read (live-verify pass 2026-10-06)"
+    },
+    "GET /api/settings/compaction": {
+      "evidence": "{thresholdPercent,minPercent:10,maxPercent:95}; persisted threshold honored"
+    },
+    "GET /api/settings/memory": {
+      "evidence": "smoke: memory dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/settings/notifications": {
+      "evidence": "smoke: notifications use the release config and preserve other provider files (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/settings/notifications/browser/events": {
+      "evidence": "smoke: workflow browser notifications are durable and use release UUID cursor semantics (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/settings/speech": {
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/skills": {
+      "evidence": "release dashboard shape: cwd/locations/skills/packages/counts"
+    },
+    "GET /api/speech/models": {
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/speech/terms": {
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/sponsors/test-placement": {
+      "evidence": "{placement,campaigns,checkedAt,source} shape; cache honored"
+    },
+    "GET /api/sponsors/{placement}": {
+      "evidence": "cache-backed placement payload (live-verify pass 2026-10-06)"
+    },
+    "GET /api/sprite-engines/{engineId}/files/{fileName}": {
+      "evidence": "unknown → 404 (live-verify pass 2026-10-06)"
+    },
+    "GET /api/usage/today": {
+      "evidence": "totals payload (live-verify pass 2026-10-06)"
+    },
+    "GET /api/visual/models": {
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/workflow-image-models": {
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/workflow-media/{mediaId}/content": {
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "GET /api/workflow-runs/{runId}": {
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: workflow HTTP approval resolves once and cancellation blocks the next Pi prompt; smoke: workflow unavailable selected model persists failure without a completed node"
+    },
+    "GET /api/workflows": {
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: workflows dashboard contract"
+    },
+    "GET /api/workflows/{workflowId}/bundle": {
+      "evidence": "bundle payload (live-verify pass 2026-10-06)"
+    },
+    "GET /api/workspace-entries": {
+      "evidence": "workspace-bounded entries (live-verify pass 2026-10-06)"
+    },
+    "PATCH /api/channels/{channel}": {
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/game-assets/projects/{projectId}": {
+      "evidence": "smoke: game asset catalog and independent draft CRUD obey the release schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/mcp-host": {
+      "evidence": "enabled:true persisted; listening:false seam reported honestly"
+    },
+    "PATCH /api/mcp/{serverId}": {
+      "evidence": "smoke: MCP exact tool permission reload preserves config and real tool catalog (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/mcp/{serverId}/tools/{toolName}": {
+      "evidence": "smoke: MCP server disable/enable reload actually unregisters/registers tools (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/memory/nodes/{memoryId}": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/memory/spaces/{spaceId}": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/plugins/{pluginId}": {
+      "evidence": "smoke: plugin/capability enable state and full-access mode guard real execution (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/plugins/{pluginId}/capabilities/{capabilityName}": {
+      "evidence": "smoke: plugin/capability enable state and full-access mode guard real execution (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/schedules/{scheduleId}": {
+      "evidence": "smoke: schedules dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/sessions/{sessionId}": {
+      "evidence": "rename/pin/archive (live-verify pass 2026-10-06)"
+    },
+    "PATCH /api/sessions/{sessionId}/goal": {
+      "evidence": "smoke: goal continuation executes real Pi tools, preserves first-round images and hides internal prompts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/sessions/{sessionId}/organization": {
+      "evidence": "organization merge (live-verify pass 2026-10-06)"
+    },
+    "PATCH /api/settings/compaction": {
+      "evidence": "PATCH 60 → GET returns 60; invalid-range rejected"
+    },
+    "PATCH /api/settings/memory": {
+      "evidence": "autoApproveConfidence update honored (live-verify pass 2026-10-06)"
+    },
+    "PATCH /api/settings/notifications/browser": {
+      "evidence": "smoke: notifications use the release config and preserve other provider files (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/settings/speech": {
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PATCH /api/skills/{skillName}": {
+      "evidence": "enabled/modelInvocationEnabled override → publicSkill {enabled,modelInvocationEnabled,command:/skill:name} (live-verify pass 2026-10-06)"
+    },
+    "PATCH /api/workflows/{workflowId}": {
+      "evidence": "rename persisted (live-verify pass 2026-10-06)"
+    },
+    "POST /api/assets": {
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/channels/{channel}/onboarding": {
+      "evidence": "telegram manual onboarding 201 {mode,platform,fields,required,setupUrl,qrDataUrl}; unknown channel → 404 (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/channels/{channel}/onboarding/{onboardingId}/verify": {
+      "evidence": "manual channel → 400 该渠道不需要配对码。 (same domain error as release); unknown task → 404 handler branch (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/channels/{channel}/reconnect": {
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: native channel reconnect preserves peer sessions and sends through the restarted Agent"
+    },
+    "POST /api/chat": {
+      "evidence": "full run protocol SSE with real model reply; smoke: plain chat produces real streamed assistant text; smoke: real tool roundtrip executes sandbox read and returns result to model"
+    },
+    "POST /api/custom-ui/components/{componentId}/views": {
+      "evidence": "smoke: custom UI scoped views render without cookies and retain an opaque CSP and bridge URLs (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI view credentials cannot authenticate normal APIs or legacy resources"
+    },
+    "POST /api/custom-ui/import": {
+      "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI import conflicts and reserved IDs leave existing components unchanged; smoke: custom UI rejects unsafe ZIP paths, hidden files, invalid manifests and missing entries"
+    },
+    "POST /api/decisions/decide": {
+      "evidence": "live 2026-10-08: without apiKey returns {error:尚未配置决策服务 密钥或地址。,code:config_missing}; wire protocol (POST {model,state,questions} Bearer, noul/choice-criteria-map/score-criteria-tuple, answer-per-question validation, score ≤ levels-1, score probability labels are index strings, usage normalized to {inputTokens,costUsd}) ported from release decision-jev-adapter/decision-response with 10 unit tests (native_decisions.rs)."
+    },
+    "POST /api/decisions/test": {
+      "evidence": "live 2026-10-08 UI E2E: 测试连接 with dummy key performs real POST to openrouter.ai/api/alpha/decisions, upstream 401 maps to stable code auth → UI shows 决策服务 认证失败，请检查 API 密钥与账户权限。; missing key path returns config_missing."
+    },
+    "POST /api/desktop-pet/enabled": {
+      "evidence": "no pets → 400 请先安装一只宠物。 (release semantics) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/desktop-pet/install": {
+      "evidence": "live petdex install → status with selectedSlug (live-verify pass 2026-10-06)"
+    },
+    "POST /api/desktop-pet/opacity": {
+      "evidence": "opacity normalized and persisted (live-verify pass 2026-10-06)"
+    },
+    "POST /api/desktop-pet/select": {
+      "evidence": "select installed pet (live-verify pass 2026-10-06)"
+    },
+    "POST /api/desktop/reveal-path": {
+      "evidence": "explorer launched for existing dir; missing path → 400 本地路径不存在。 (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/extensions/install": {
+      "evidence": "201 install record (live-verify pass 2026-10-06)"
+    },
+    "POST /api/game-assets/jobs/{jobId}/stop": {
+      "evidence": "smoke: game jobs enforce two active projects and stop their actual image HTTP connections (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/game-assets/media": {
+      "evidence": "smoke: game media raw upload, native color processing and workflow media isolation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/game-assets/process": {
+      "evidence": "smoke: game media raw upload, native color processing and workflow media isolation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/game-assets/projects": {
+      "evidence": "smoke: game asset catalog and independent draft CRUD obey the release schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/game-assets/projects/{projectId}/run": {
+      "evidence": "smoke: game generation uses native provider HTTP then edits and exports from immutable originals (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/mcp": {
+      "evidence": "smoke: MCP add preserves unknown config and exposes real native tools (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/mcp-host/credentials": {
+      "evidence": "409 mcp_host_not_listening (release not-listening branch)"
+    },
+    "POST /api/mcp-host/rotate-token": {
+      "evidence": "disabled → 400 请先开启; enabled-not-listening → 503 (release codes) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/mcp/{serverId}/test": {
+      "evidence": "smoke: MCP connection test performs actual initialize/list and redacts secrets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/memory/candidates/reject-all": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/memory/candidates/{candidateId}/{action}": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/memory/nodes": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/memory/spaces": {
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/plugins/inspect": {
+      "evidence": "smoke: plugin inspect/install retains exact source bytes and rejects inspection tampering (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/plugins/install": {
+      "evidence": "smoke: plugin inspect/install retains exact source bytes and rejects inspection tampering (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual plugin_create installs global source and exposes its tool on the next turn"
+    },
+    "POST /api/plugins/web-search/test": {
+      "evidence": "smoke: web search catalog and config follow the release Bing contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual Pi web_search emits a progress update and a native validation error"
+    },
+    "POST /api/providers": {
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/providers/import": {
+      "evidence": "export→import roundtrip; imported lists all provider ids; config reloaded"
+    },
+    "POST /api/providers/import-local": {
+      "evidence": "honest already-available report (live-verify pass 2026-10-06)"
+    },
+    "POST /api/providers/models/discover-connection": {
+      "evidence": "smoke: discover a connection against local /v1/models (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/providers/models/refresh": {
+      "evidence": "refresh runs (live-verify pass 2026-10-06)"
+    },
+    "POST /api/providers/{providerId}/clone": {
+      "evidence": "201 clone with {id,name} body (wrong-shape body → 400 invalid id) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/providers/{providerId}/import": {
+      "evidence": "501 external-CLI import seam (documented; discovery report also flags externalImportSupported:false) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/providers/{providerId}/models": {
+      "evidence": "201 add model (live-verify pass 2026-10-06)"
+    },
+    "POST /api/providers/{providerId}/models/batch": {
+      "evidence": "batch add (live-verify pass 2026-10-06)"
+    },
+    "POST /api/providers/{providerId}/models/discover": {
+      "evidence": "smoke: game visual provider is configured through the native provider API (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/remote/devices/{deviceId}/revoke": {
+      "evidence": "204 empty; device removed"
+    },
+    "POST /api/remote/firewall/retry": {
+      "evidence": "JSON content-type required → 415 json_required; JSON → status view (live-verify pass 2026-10-06)"
+    },
+    "POST /api/remote/pair": {
+      "evidence": "pairing-code → 201 pairedResponse {deviceId,token,serverName,endpoints,apiVersion}; invalid code → 404 配对码无效。 (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/remote/pairing-code": {
+      "evidence": "6-digit code issued (live-verify pass 2026-10-06)"
+    },
+    "POST /api/remote/pairing-requests": {
+      "evidence": "202 {requestId,requestSecret,expiresAt,serverName,endpoints,fingerprint,apiVersion}"
+    },
+    "POST /api/remote/pairing-requests/{requestId}/decision": {
+      "evidence": "approve created device + token; persisted"
+    },
+    "POST /api/schedules": {
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/schedules/{scheduleId}/run": {
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/sessions": {
+      "evidence": "201 full session row (flat shape, model inherited); smoke: create a real session with frontend summary"
+    },
+    "POST /api/sessions/{sessionId}/abort": {
+      "evidence": "smoke: stopping a held Goal closes its model stream and resumes the same objective explicitly (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: parent abort cascades to its held children and preserves another parent child"
+    },
+    "POST /api/sessions/{sessionId}/approvals/{approvalId}": {
+      "evidence": "unknown approval → 404 (release not_found contract) (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/compact": {
+      "evidence": "below-threshold → 400 nothing-to-compact (release error mapping) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/derive": {
+      "evidence": "201 {ok,id,name} from assistant boundary (release json(201,...)) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/file-changes/approve": {
+      "evidence": "smoke: actual Pi write/edit preserve the first baseline, diff and approval state (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/sessions/{sessionId}/file-changes/revert": {
+      "evidence": "smoke: new-file diff uses /dev/null and actual revert removes the created file (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: an active real model stream rejects file-change revert with HTTP 409"
+    },
+    "POST /api/sessions/{sessionId}/git/commit": {
+      "evidence": "git/* alias committed and returned updated changes"
+    },
+    "POST /api/sessions/{sessionId}/git/push": {
+      "evidence": "push to bare remote → 200 GitChangesResponse ahead:0 (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/git/revert": {
+      "evidence": "alias verified (live-verify pass 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/input": {
+      "evidence": "smoke: native write archives real workspace output and restores message attachments (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual Pi image_assets uses native pixels and provider HTTP, archives public exports and rejects undelegated calls"
+    },
+    "POST /api/sessions/{sessionId}/mobile-operations/{operationId}": {
+      "evidence": "{accepted:false} (release unknown-opId branch; mobile channel seam)"
+    },
+    "POST /api/sessions/{sessionId}/retry": {
+      "evidence": "SSE re-ran last turn after tree navigation (real model response)"
+    },
+    "POST /api/sessions/{sessionId}/side-chat": {
+      "evidence": "created side-<uuid> session, 24h expiresAt, metadata.sideChat persisted; GET returns existing row"
+    },
+    "POST /api/sessions/{sessionId}/tree/navigate": {
+      "evidence": "includeTree:false → {cancelled:false,editorText:null}; leaf moved"
+    },
+    "POST /api/sessions/{sessionId}/vcs/commit": {
+      "evidence": "commit on real repo returns updated changes (live-verify pass 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/vcs/push": {
+      "evidence": "non-repo/push error shapes (live-verify pass 2026-10-06)"
+    },
+    "POST /api/sessions/{sessionId}/vcs/revert": {
+      "evidence": "reset --hard + clean -fd on real repo (live-verify pass 2026-10-06)"
+    },
+    "POST /api/settings/notifications/chat-completed": {
+      "evidence": "smoke: TUI chat reports return 202 and avoid duplicate browser notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/settings/notifications/chat-waiting": {
+      "evidence": "smoke: TUI chat reports return 202 and avoid duplicate browser notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/settings/notifications/templates/{templateId}/{channel}/test": {
+      "evidence": "smoke: notification template editing and test previews do not enqueue browser events (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/skills/install": {
+      "evidence": "201 dashboard with installed[] (single skill dir supported; duplicate → 400) (live-verify pass 2026-10-06)"
+    },
+    "POST /api/skills/reload": {
+      "evidence": "dashboard reloaded (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/cancel": {
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/speech/models/cancel": {
+      "evidence": "unknown model → 400 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/models/download": {
+      "evidence": "unknown model → 400 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/session": {
+      "evidence": "no model → 400 invalid (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/stream/cancel": {
+      "evidence": "200 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/stream/chunk": {
+      "evidence": "bad sample rate → 400 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/stream/finish": {
+      "evidence": "no session → 404 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/stream/start": {
+      "evidence": "no model → 400 missing (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/synthesize": {
+      "evidence": "empty → 4xx shape (live-verify pass 2026-10-06)"
+    },
+    "POST /api/speech/transcribe": {
+      "evidence": "empty → 4xx shape (live-verify pass 2026-10-06)"
+    },
+    "POST /api/visual/test": {
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/workflow-image-process": {
+      "evidence": "invalid input → 400 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/workflow-media": {
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/workflow-runs/{runId}/approvals/{nodeId}": {
+      "evidence": "smoke: workflow HTTP approval resolves once and cancellation blocks the next Pi prompt (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/workflow-runs/{runId}/retry": {
+      "evidence": "unknown run → 404 (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/workflow-runs/{runId}/stop": {
+      "evidence": "smoke: stopping an actual held Workflow model stream releases its owner and blocks overlapping mutation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/workflows": {
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "POST /api/workflows/import-bundle": {
+      "evidence": "invalid bundle → 400 (live-verify pass 2026-10-06)"
+    },
+    "POST /api/workflows/{workflowId}/duplicate": {
+      "evidence": "duplicate workflow (live-verify pass 2026-10-06)"
+    },
+    "POST /api/workflows/{workflowId}/nodes/{nodeId}/run": {
+      "evidence": "single-node run on empty workflow → 400 workflow_image_source_stale (domain validation shape) (live-verify pass3 2026-10-06)"
+    },
+    "POST /api/workflows/{workflowId}/run": {
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/config": {
+      "evidence": "smoke: save default provider/model through React PUT contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/custom-ui/views/{viewId}": {
+      "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/decisions/config": {
+      "evidence": "live 2026-10-08: PUT {remote:{provider:openrouter},delegate:{allowThreshold:0.8}} persists, provider switch without modelId resets to openrouter default typesafe/jev-1.13, threshold change resets approvalBinding to inferred openrouter binding (release saveConfig semantics); apiKey '' keeps existing key, null clears; UI E2E: fill API key → 保存 → hasKey:true reflected in status (已配置)."
+    },
+    "PUT /api/local/browser-preferences": {
+      "evidence": "smoke: browser preference bootstrap contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/plugins": {
+      "evidence": "policy persisted (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/providers/{providerId}/api-key": {
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/providers/{providerId}/connection": {
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/providers/{providerId}/enabled": {
+      "evidence": "enabled merge through PUT /api/config path (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/providers/{providerId}/models/options": {
+      "evidence": "model options merge (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/remote/enabled": {
+      "evidence": "toggle persisted (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/cwd": {
+      "evidence": "workspace cwd switch (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/execution-mode": {
+      "evidence": "approval-required/workspace-write/full-access accepted; invalid → 400 (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/model": {
+      "evidence": "real provider/model accepted (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/permission": {
+      "evidence": "{mode} accepted (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/plan": {
+      "evidence": "smoke: native plan HTTP, real Pi tool, child parent-plan reading and usage accounting (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/sessions/{sessionId}/run-mode": {
+      "evidence": "{mode} accepted (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/thinking-level": {
+      "evidence": "{level:...} accepted; invalid → 400 (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/sessions/{sessionId}/tree/labels/{entryId}": {
+      "evidence": "label set via appendLabelChange; returned tree shows label"
+    },
+    "PUT /api/settings/chat-dock-layout": {
+      "evidence": "any JSON object accepted per release saveChatDockLayout (live-verify pass 2026-10-06)"
+    },
+    "PUT /api/settings/notifications/templates/{templateId}/{channel}": {
+      "evidence": "smoke: notification template editing and test previews do not enqueue browser events (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    "PUT /api/visual/models/{kind}": {
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    }
+  },
+  "smoke": {
+    "runner": "scripts/smoke-rust-usability.mjs --skip-ui",
+    "report": "release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json",
+    "checks": 93,
+    "passed": 92,
+    "failed": [
+      "Native browser real Pi discovery, trusted selectors, PNG assets and primary-session isolation"
+    ]
+  },
+  "liveVerifyScripts": [
+    "scripts/parity-live-verify.sh",
+    "scripts/parity-live-verify2.sh",
+    "scripts/parity-live-verify3.sh"
+  ],
+  "mcp": {
+    "protocol": "Streamable-HTTP JSON-RPC (stateless) at /mcp, Bearer token auth",
+    "verified": [
+      "wrong token → 401",
+      "initialize → protocolVersion 2025-03-26 + serverInfo",
+      "notifications/initialized → 202",
+      "tools/list → 21 tools (release count)",
+      "tools/call pisper_capabilities/pisper_list_sessions/pisper_get_session_messages",
+      "pisper_send_message → runId → pisper_get_run polls → completed with text (loopback fixture model); gateway-down path → failed with redacted error"
+    ],
+    "note": "tools reuse the /api contracts via loopback self-calls; topology differs from release (single port) — documented in mcp_host_ops.rs"
+  },
+  "firewall": {
+    "verified": [
+      "disabled state shape",
+      "enable+configureFirewall registers target (remote-firewall.json, sidecar-path validated)",
+      "real PowerShell Get-NetFirewallRule inspect found pre-existing allowed rule (state allowed, port 5174)",
+      "retry returns fresh status"
+    ],
+    "note": "elevated add/remove use release PowerShell semantics (Start-Process -Verb RunAs, exit 80/77 codes); UAC prompts cannot complete headless — states reported honestly"
+  },
+  "desktopPetRuntimeState": {
+    "verified": [
+      "GET /api/desktop-pet idle baseline (state:idle, stateVersion:0)",
+      "during chat run events map per release petStateForAgentEvent: text_delta→waiting, tool_*→running, thinking_patch/compaction_start→review, done→waving(+1400ms), error→failed(+2200ms), stateVersion increments per publish",
+      "live sequence: idle v0 → chat run → waving v2 → lazy reset to idle v3 after 1.4s (fixture model)",
+      "activeSessions semantics: newer publish cancels pending reset; reset falls back to waiting when other sessions remain"
+    ],
+    "note": "pet_state.rs wired into chat_stream event dispatch + terminal frames; lazy-deadline reset is observationally equivalent to release setTimeout (clearTimeout semantics preserved via generation counter)"
+  },
+  "decisionsNativePort": {
+    "completedAt": "2026-10-08",
+    "commit": "native_decisions.rs full port of release decision-*.mjs (config storage + approval binding inference/reset + typesafe-decisions wire protocol + stable error codes)",
+    "gates": "cargo test 456 passed / 0 failed; clippy clean for native_decisions",
+    "uiE2E": "ui-proxy dist+5199: decisions page renders config form, saves key (hasKey true), test-connection error surfaces release message; memory page create flow toasts 星辰已点亮",
+    "honestSeams": [
+      "SDK retry/backoff (3 retries, 8s cap) not replicated — single attempt with 120s total timeout",
+      "client-disconnect does not abort in-flight remote decide",
+      "delegate.judgeToolCall auto-approval not wired into the Rust approval pipeline (config surface only)"
+    ]
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "releaseCommit": "5821602",
+  "sourceSha256": {
+    "telegram-gateway.mjs": "e7b7b6539d3c39b0b1e0a2164cdc2c2d739c5040521296f979c95dbd6d3e4a0c",
+    "weixin-gateway.mjs": "2cf6558393494bc4cb3f646c29587a8a46c15a5a29f84d2a9991a6b77d23763d",
+    "weixin-protocol.mjs": "020209001062dc3b7727bab63129d986b6fcee58cee3ae8fef581b4363d3ff53",
+    "weixin-onboarding.mjs": "9694555c76c3ab3eda8df940195bd84d1df37ec40063978d72c00e22be898f44"
+  },
+  "telegramRaw": {
+    "message_id": 12,
+    "chat": {
+      "id": -100,
+      "type": "supergroup"
+    },
+    "from": {
+      "id": 7,
+      "first_name": "Ada"
+    },
+    "caption": "请看图",
+    "photo": [
+      {
+        "file_id": "small"
+      },
+      {
+        "file_id": "large"
+      }
+    ]
+  },
+  "telegramMapped": {
+    "messageId": "12",
+    "peerId": "-100",
+    "senderId": "7",
+    "senderName": "Ada",
+    "chatType": "group",
+    "content": "请看图",
+    "resources": [
+      {
+        "type": "image",
+        "fileId": "large",
+        "name": "telegram-large.jpg"
+      }
+    ]
+  },
+  "weixinRaw": {
+    "message_id": 9,
+    "from_user_id": "wx-owner",
+    "context_token": "reply-context",
+    "item_list": [
+      {
+        "type": 1,
+        "text_item": {
+          "text": " hello "
+        }
+      },
+      {
+        "type": 3,
+        "voice_item": {
+          "text": "voice"
+        }
+      },
+      {
+        "type": 4,
+        "file_item": {
+          "file_name": "actual.txt",
+          "media": {
+            "encrypt_query_param": "owned"
+          }
+        }
+      }
+    ]
+  },
+  "weixinMapped": {
+    "messageId": "9",
+    "peerId": "wx-owner",
+    "senderId": "wx-owner",
+    "senderName": "",
+    "chatType": "p2p",
+    "content": "hello \nvoice",
+    "resources": [
+      {
+        "type": 4,
+        "file_item": {
+          "file_name": "actual.txt",
+          "media": {
+            "encrypt_query_param": "owned"
+          }
+        }
+      }
+    ],
+    "contextToken": "reply-context"
+  },
+  "crypto": {
+    "plaintextHex": "506973706572206d6564696120627974657300e4b8ade69687",
+    "ciphertextHex": "9943c2dff841eae49bf3f488b028acf05501dd08b9adae8addfe10df521a1ea2"
+  },
+  "expiredContextError": "微信会话上下文已失效，请先在微信中向机器人发送一条消息后重试。",
+  "protocol": {
+    "clientVersion": "132102",
+    "baseInfo": {
+      "channel_version": "2.4.6",
+      "bot_agent": "Pisper/0.0.0"
+    }
+  }
+}

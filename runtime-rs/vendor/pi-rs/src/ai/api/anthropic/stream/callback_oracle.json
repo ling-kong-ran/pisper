@@ -1,0 +1,1179 @@
+{
+  "schema": 1,
+  "authority": "actual upstream stream/retry and pinned SDK Messages.create; transcript/params/SSE/HTTP dependency seams controlled",
+  "sources": {
+    "sdk-0.124.0/src/resources/beta/messages/messages.ts": "e06cb53cf85b4f8bb7d071b86ef86a7ee8a735b78c702f8fa636750d2973492a",
+    "sdk-0.124.0/src/internal/headers.ts": "2cc330e337adaebe7f9cd9611f658feba7a18f85fbc68ff05ce1f2e10cdd4591",
+    "packages/ai/src/utils/provider-retry.ts": "d0f68cfe9fe6a5d4be778eaefedc0b453021f89026810691dcd1479371dca699",
+    "packages/ai/src/api/anthropic-messages.ts": "d1316907eaeac7d547b75e3c5ec1eb92c7b6af515b74917d068f3e262cde6209"
+  },
+  "cases": [
+    {
+      "input": {
+        "name": "callback-free",
+        "payload": "absent",
+        "response": false
+      },
+      "output": {
+        "trace": [
+          "request",
+          "start",
+          "done"
+        ],
+        "seen": [],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "callback-free-beta",
+        "payload": "absent",
+        "response": false,
+        "clientBeta": "client-beta"
+      },
+      "output": {
+        "trace": [
+          "request",
+          "start",
+          "done"
+        ],
+        "seen": [],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {
+              "anthropic-beta": "client-beta"
+            }
+          }
+        ],
+        "metadata": [],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "undefined-preserves"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "replacement-stream-false",
+        "replacement": {
+          "model": "patched",
+          "stream": false,
+          "betas": [
+            "beta-a",
+            "beta-b"
+          ],
+          "user_profile_id": "profile",
+          "workspace_id": "workspace",
+          "custom": true
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "patched",
+              "stream": true,
+              "custom": true
+            },
+            "headers": {
+              "anthropic-beta": "beta-a,beta-b",
+              "anthropic-user-profile-id": "profile",
+              "anthropic-workspace-id": "workspace"
+            }
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "null-is-object",
+        "replacement": null
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "array-spread",
+        "replacement": [
+          1,
+          "x"
+        ]
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "0": 1,
+              "1": "x",
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "bmp-string-spread",
+        "replacement": "A中"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "0": "A",
+              "1": "中",
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "number-spread",
+        "replacement": 12
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "bool-spread",
+        "replacement": false
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "empty-beta-overrides-client",
+        "clientBeta": "client-beta",
+        "replacement": {
+          "betas": [],
+          "stream": false
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true,
+            "betas": [
+              "client-beta"
+            ]
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "stream": true
+            },
+            "headers": {
+              "anthropic-beta": ""
+            }
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "removed-beta-restores-client",
+        "clientBeta": "client-beta",
+        "replacement": {
+          "custom": true
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true,
+            "betas": [
+              "client-beta"
+            ]
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "custom": true,
+              "stream": true
+            },
+            "headers": {
+              "anthropic-beta": "client-beta"
+            }
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "null-beta-restores-client",
+        "clientBeta": "client-beta",
+        "replacement": {
+          "betas": null
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true,
+            "betas": [
+              "client-beta"
+            ]
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "stream": true
+            },
+            "headers": {
+              "anthropic-beta": "client-beta"
+            }
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "beta-array-coercion",
+        "replacement": {
+          "betas": [
+            "a",
+            null,
+            [
+              "b",
+              "c"
+            ]
+          ],
+          "user_profile_id": 4,
+          "workspace_id": false
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "stream": true
+            },
+            "headers": {
+              "anthropic-beta": "a,,b,c",
+              "anthropic-user-profile-id": "4",
+              "anthropic-workspace-id": "false"
+            }
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "output-format",
+        "replacement": {
+          "output_format": {
+            "type": "json_schema",
+            "schema": {}
+          },
+          "output_config": {
+            "effort": "high"
+          }
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "output_config": {
+                "effort": "high",
+                "format": {
+                  "type": "json_schema",
+                  "schema": {}
+                }
+              },
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "output-format-conflict",
+        "replacement": {
+          "output_format": {
+            "type": "json_schema"
+          },
+          "output_config": {
+            "format": {
+              "type": "json_schema"
+            }
+          }
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [],
+        "metadata": [],
+        "stopReason": "error",
+        "error": "Both output_format and output_config.format were provided. Please use only output_config.format (output_format is deprecated)."
+      }
+    },
+    {
+      "input": {
+        "name": "aborted-sdk-preflight-error",
+        "cancel": "payload",
+        "replacement": {
+          "output_format": {
+            "type": "json_schema"
+          },
+          "output_config": {
+            "format": {
+              "type": "json_schema"
+            }
+          }
+        }
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [],
+        "metadata": [],
+        "stopReason": "aborted",
+        "error": "Request aborted"
+      }
+    },
+    {
+      "input": {
+        "name": "payload-failure",
+        "payload": "error"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [],
+        "metadata": [],
+        "stopReason": "error",
+        "error": "payload refused"
+      }
+    },
+    {
+      "input": {
+        "name": "response-failure",
+        "response": "error"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "error",
+        "error": "response refused"
+      }
+    },
+    {
+      "input": {
+        "name": "non2xx",
+        "statuses": [
+          401
+        ]
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [],
+        "stopReason": "error",
+        "error": "401: denied"
+      }
+    },
+    {
+      "input": {
+        "name": "retry-success",
+        "statuses": [
+          503,
+          200
+        ]
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "request",
+          "response",
+          "start",
+          "done"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          },
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "stop",
+        "error": null
+      }
+    },
+    {
+      "input": {
+        "name": "retry-exhausted",
+        "statuses": [
+          503,
+          503,
+          503
+        ]
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "request",
+          "request",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          },
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          },
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [],
+        "stopReason": "error",
+        "error": "503: denied"
+      }
+    },
+    {
+      "input": {
+        "name": "pre-aborted",
+        "cancel": "before"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [],
+        "metadata": [],
+        "stopReason": "aborted",
+        "error": "Request aborted"
+      }
+    },
+    {
+      "input": {
+        "name": "payload-cancels",
+        "cancel": "payload"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [],
+        "metadata": [],
+        "stopReason": "aborted",
+        "error": "Request aborted"
+      }
+    },
+    {
+      "input": {
+        "name": "payload-cancels-throws",
+        "cancel": "payload",
+        "payload": "error"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [],
+        "metadata": [],
+        "stopReason": "aborted",
+        "error": "payload refused"
+      }
+    },
+    {
+      "input": {
+        "name": "response-cancels",
+        "cancel": "response"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "aborted",
+        "error": "Request was aborted"
+      }
+    },
+    {
+      "input": {
+        "name": "response-cancels-throws",
+        "cancel": "response",
+        "response": "error"
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "aborted",
+        "error": "response refused"
+      }
+    },
+    {
+      "input": {
+        "name": "sse-error-no-retry",
+        "sseError": true
+      },
+      "output": {
+        "trace": [
+          "payload",
+          "request",
+          "response",
+          "start",
+          "error"
+        ],
+        "seen": [
+          {
+            "model": "claude-callback",
+            "messages": [],
+            "max_tokens": 64,
+            "stream": true
+          }
+        ],
+        "requests": [
+          {
+            "url": "/v1/messages?beta=true",
+            "body": {
+              "model": "claude-callback",
+              "messages": [],
+              "max_tokens": 64,
+              "stream": true
+            },
+            "headers": {}
+          }
+        ],
+        "metadata": [
+          {
+            "status": 200,
+            "headers": {
+              "content-type": "text/event-stream",
+              "x-callback": "observed"
+            }
+          }
+        ],
+        "stopReason": "error",
+        "error": "stream refused"
+      }
+    }
+  ]
+}

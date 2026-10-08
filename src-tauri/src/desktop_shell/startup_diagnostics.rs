@@ -28,13 +28,46 @@ pub(super) fn missing_bundled_file<'a>(
     if !executable_dir.join(binary_name).is_file() {
         return Some(binary_name);
     }
-    [
-        "sidecar-runtime/runtime/sidecar.mjs",
-        "desktop/dist/index.html",
-    ]
-    .into_iter()
-    .find(|relative| !resources.join(relative).is_file())
+    // 原生 Rust 包用元数据识别后端，不依赖升级前可能残留的 Node 入口。
+    // 不带此标记的既有 Node 包仍按原来的运行时闭包检查。
+    let runtime_metadata = std::fs::read(resources.join("sidecar-runtime/package.json"))
+        .ok()
+        .and_then(|source| serde_json::from_slice::<serde_json::Value>(&source).ok());
+    let rust_runtime = runtime_metadata.as_ref().is_some_and(|package| {
+        package.get("backend").and_then(|value| value.as_str()) == Some("rust")
+    });
+    if !rust_runtime
+        && !resources
+            .join("sidecar-runtime/runtime/sidecar.mjs")
+            .is_file()
+    {
+        return Some("sidecar-runtime/runtime/sidecar.mjs");
+    }
+    if rust_runtime
+        && runtime_metadata
+            .as_ref()
+            .is_some_and(|package| package.get("speechResources").is_some())
+    {
+        for path in RUST_SPEECH_RESOURCES {
+            if !resources.join(path).is_file() {
+                return Some(path);
+            }
+        }
+    }
+    (!resources.join("desktop/dist/index.html").is_file()).then_some("desktop/dist/index.html")
 }
+
+const RUST_SPEECH_RESOURCES: [&str; 9] = [
+    "sidecar-runtime/speech-native/sherpa-onnx-c-api.dll",
+    "sidecar-runtime/speech-native/onnxruntime.dll",
+    "sidecar-runtime/speech-native/onnxruntime_providers_shared.dll",
+    "sidecar-runtime/speech-native/SHERPA-LICENSE",
+    "sidecar-runtime/speech-native/ONNXRUNTIME-LICENSE.txt",
+    "sidecar-runtime/speech-native/ONNXRUNTIME-THIRD-PARTY-NOTICES.txt",
+    "sidecar-runtime/shared/speech/speech-model-catalog.json",
+    "sidecar-runtime/shared/speech/speech-resource-notices.json",
+    "sidecar-runtime/shared/speech-resources/xasr-bpe.vocab",
+];
 
 pub(super) fn show(app: &AppHandle, message: &str) {
     // WebView 创建失败时仍能显示系统原生对话框；不在主线程阻塞等待回调。
@@ -68,28 +101,129 @@ pub(super) fn show_before_runtime(message: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestInstall(std::path::PathBuf);
+
+    impl TestInstall {
+        fn new(name: &str) -> Self {
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "pisper-startup-{name}-{}-{nonce}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(root.join("bin")).unwrap();
+            std::fs::create_dir_all(root.join("resources/sidecar-runtime")).unwrap();
+            std::fs::create_dir_all(root.join("resources/desktop/dist")).unwrap();
+            Self(root)
+        }
+
+        fn binaries(&self) -> std::path::PathBuf {
+            self.0.join("bin")
+        }
+
+        fn resources(&self) -> std::path::PathBuf {
+            self.0.join("resources")
+        }
+
+        fn missing(&self) -> Option<&'static str> {
+            missing_bundled_file(&self.binaries(), &self.resources(), "sidecar")
+        }
+    }
+
+    impl Drop for TestInstall {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn resource_diagnostics_identify_missing_payload_without_personal_paths() {
-        let root =
-            std::env::temp_dir().join(format!("pisper-startup-files-{}", std::process::id()));
+        let install = TestInstall::new("node");
+        let root = install.resources();
         std::fs::create_dir_all(root.join("sidecar-runtime/runtime")).unwrap();
-        std::fs::create_dir_all(root.join("desktop/dist")).unwrap();
+        assert_eq!(install.missing(), Some("sidecar"));
+        std::fs::write(install.binaries().join("sidecar"), "binary").unwrap();
         assert_eq!(
-            missing_bundled_file(&root, &root, "sidecar"),
-            Some("sidecar")
-        );
-        std::fs::write(root.join("sidecar"), "binary").unwrap();
-        assert_eq!(
-            missing_bundled_file(&root, &root, "sidecar"),
+            install.missing(),
             Some("sidecar-runtime/runtime/sidecar.mjs")
         );
         std::fs::write(root.join("sidecar-runtime/runtime/sidecar.mjs"), "runtime").unwrap();
-        assert_eq!(
-            missing_bundled_file(&root, &root, "sidecar"),
-            Some("desktop/dist/index.html")
-        );
+        assert_eq!(install.missing(), Some("desktop/dist/index.html"));
         std::fs::write(root.join("desktop/dist/index.html"), "frontend").unwrap();
-        assert_eq!(missing_bundled_file(&root, &root, "sidecar"), None);
-        std::fs::remove_dir_all(root).unwrap();
+        assert_eq!(install.missing(), None);
+    }
+
+    #[test]
+    fn clean_rust_install_requires_its_binary_metadata_and_frontend_only() {
+        let install = TestInstall::new("rust");
+        let resources = install.resources();
+        std::fs::write(
+            resources.join("sidecar-runtime/package.json"),
+            r#"{"name":"pisper-runtime","version":"0.5.62","backend":"rust"}"#,
+        )
+        .unwrap();
+        assert_eq!(install.missing(), Some("sidecar"));
+        std::fs::write(install.binaries().join("sidecar"), "native binary").unwrap();
+        assert_eq!(install.missing(), Some("desktop/dist/index.html"));
+        std::fs::write(resources.join("desktop/dist/index.html"), "frontend").unwrap();
+        assert!(!resources
+            .join("sidecar-runtime/runtime/sidecar.mjs")
+            .exists());
+        assert_eq!(install.missing(), None);
+
+        std::fs::remove_file(resources.join("sidecar-runtime/package.json")).unwrap();
+        assert_eq!(
+            install.missing(),
+            Some("sidecar-runtime/runtime/sidecar.mjs")
+        );
+    }
+
+    #[test]
+    fn invalid_or_non_rust_metadata_does_not_bypass_node_payload_validation() {
+        let install = TestInstall::new("metadata");
+        let resources = install.resources();
+        std::fs::write(install.binaries().join("sidecar"), "binary").unwrap();
+        std::fs::write(resources.join("desktop/dist/index.html"), "frontend").unwrap();
+        for metadata in [
+            "invalid json",
+            r#"{"backend":"node"}"#,
+            r#"{"backend":true}"#,
+            r#"{"version":"0.5.62"}"#,
+        ] {
+            std::fs::write(resources.join("sidecar-runtime/package.json"), metadata).unwrap();
+            assert_eq!(
+                install.missing(),
+                Some("sidecar-runtime/runtime/sidecar.mjs")
+            );
+        }
+    }
+
+    #[test]
+    fn speech_bundle_requires_every_native_dependency_and_shared_resource() {
+        let install = TestInstall::new("rust-speech");
+        let resources = install.resources();
+        std::fs::write(install.binaries().join("sidecar"), "binary").unwrap();
+        std::fs::write(resources.join("desktop/dist/index.html"), "frontend").unwrap();
+        std::fs::write(
+            resources.join("sidecar-runtime/package.json"),
+            r#"{"backend":"rust","speechResources":{"schemaVersion":1}}"#,
+        )
+        .unwrap();
+        for path in RUST_SPEECH_RESOURCES {
+            let file = resources.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, "resource").unwrap();
+        }
+        assert_eq!(install.missing(), None);
+        for path in RUST_SPEECH_RESOURCES {
+            let file = resources.join(path);
+            std::fs::remove_file(&file).unwrap();
+            assert_eq!(install.missing(), Some(path));
+            std::fs::write(file, "resource").unwrap();
+        }
+        assert_eq!(install.missing(), None);
     }
 }

@@ -1,0 +1,383 @@
+{
+  "provenance": {
+    "source": "packages/coding-agent/src/modes/rpc/rpc-mode.ts",
+    "sourceSha256": "7d4bf1e4291a5320a1ce27504c488622c9a7307ce9e7c2d973f9d95f18a8b2bc",
+    "sliceSha256": "cb982ceb82665b7d03b109170bb20b5798a995dcb54d556243981e79f8f7c2ae",
+    "node": "v25.8.2",
+    "boundary": "Actual createDialogPromise and createExtensionUIContext with deterministic crypto/timers/output; not process runRpcMode."
+  },
+  "cases": [
+    {
+      "id": "dialog-0",
+      "method": "select",
+      "args": [
+        "Pick",
+        [
+          "a",
+          "b"
+        ]
+      ],
+      "fields": {
+        "value": "b"
+      },
+      "result": "b",
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "select",
+          "title": "Pick",
+          "options": [
+            "a",
+            "b"
+          ]
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-1",
+      "method": "select",
+      "args": [
+        "Pick",
+        []
+      ],
+      "fields": {
+        "cancelled": true,
+        "value": "a"
+      },
+      "result": null,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "select",
+          "title": "Pick",
+          "options": []
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-2",
+      "method": "select",
+      "args": [
+        "Pick",
+        []
+      ],
+      "fields": {},
+      "result": null,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "select",
+          "title": "Pick",
+          "options": []
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-3",
+      "method": "confirm",
+      "args": [
+        "Sure",
+        "message"
+      ],
+      "fields": {
+        "confirmed": true
+      },
+      "result": true,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "confirm",
+          "title": "Sure",
+          "message": "message"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-4",
+      "method": "confirm",
+      "args": [
+        "Sure",
+        "message"
+      ],
+      "fields": {
+        "cancelled": true,
+        "confirmed": true
+      },
+      "result": false,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "confirm",
+          "title": "Sure",
+          "message": "message"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-5",
+      "method": "confirm",
+      "args": [
+        "Sure",
+        "message"
+      ],
+      "fields": {
+        "value": "yes"
+      },
+      "result": false,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "confirm",
+          "title": "Sure",
+          "message": "message"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-6",
+      "method": "input",
+      "args": [
+        "Input"
+      ],
+      "fields": {
+        "value": ""
+      },
+      "result": "",
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "input",
+          "title": "Input"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-7",
+      "method": "input",
+      "args": [
+        "Input",
+        "placeholder"
+      ],
+      "fields": {
+        "cancelled": true
+      },
+      "result": null,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "input",
+          "title": "Input",
+          "placeholder": "placeholder"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-8",
+      "method": "editor",
+      "args": [
+        "Edit"
+      ],
+      "fields": {
+        "value": "edited\ntext"
+      },
+      "result": "edited\ntext",
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "editor",
+          "title": "Edit"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "dialog-9",
+      "method": "editor",
+      "args": [
+        "Edit",
+        ""
+      ],
+      "fields": {},
+      "result": null,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "editor",
+          "title": "Edit",
+          "prefill": ""
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "preabort",
+      "result": null,
+      "outputs": [],
+      "pending": 0,
+      "timers": 0
+    },
+    {
+      "id": "abort-response",
+      "result": null,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "input",
+          "title": "Wait",
+          "timeout": 25.5
+        }
+      ],
+      "pending": 0,
+      "timers": 0
+    },
+    {
+      "id": "response-abort",
+      "result": "first",
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "input",
+          "title": "Wait",
+          "timeout": 25.5
+        }
+      ],
+      "pending": 0,
+      "timers": 0
+    },
+    {
+      "id": "timeout-response",
+      "result": null,
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "input",
+          "title": "Wait",
+          "timeout": 25.5
+        }
+      ],
+      "pending": 0,
+      "timers": 0
+    },
+    {
+      "id": "response-timeout",
+      "result": "first",
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "input",
+          "title": "Wait",
+          "timeout": 25.5
+        }
+      ],
+      "pending": 0,
+      "timers": 0
+    },
+    {
+      "id": "fire-and-forget",
+      "outputs": [
+        {
+          "type": "extension_ui_request",
+          "id": "request-1",
+          "method": "notify",
+          "message": "hello"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-2",
+          "method": "notify",
+          "message": "warn",
+          "notifyType": "warning"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-3",
+          "method": "setStatus",
+          "statusKey": "s"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-4",
+          "method": "setStatus",
+          "statusKey": "s",
+          "statusText": ""
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-5",
+          "method": "setWidget",
+          "widgetKey": "w"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-6",
+          "method": "setWidget",
+          "widgetKey": "w",
+          "widgetLines": [
+            "line",
+            4,
+            null
+          ],
+          "widgetPlacement": "belowEditor"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-7",
+          "method": "setTitle",
+          "title": "title"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-8",
+          "method": "set_editor_text",
+          "text": "direct"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "request-9",
+          "method": "set_editor_text",
+          "text": "paste"
+        }
+      ],
+      "pending": 0
+    },
+    {
+      "id": "unsupported-defaults",
+      "outputs": [],
+      "custom": null,
+      "editorText": "",
+      "editorComponent": null,
+      "allThemes": [],
+      "missingTheme": null,
+      "setTheme": {
+        "success": false,
+        "error": "Theme switching not supported in RPC mode"
+      },
+      "toolsExpanded": false,
+      "theme": {
+        "name": "live"
+      }
+    }
+  ]
+}

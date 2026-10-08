@@ -1,0 +1,685 @@
+{
+  "source": "packages/coding-agent/src/core/extensions/runner.ts",
+  "sourceHash": "92da35c1df5c64b98bb4dfe485140b3e98863f6d44f4686dbf5eb77ddc4ea8c7",
+  "node": "v25.8.2",
+  "seams": [
+    "theme/system-prompt imports stubbed and fail if called",
+    "runtime.invalidate records messages; runtime implementation is a separate collaborator"
+  ],
+  "cases": [
+    {
+      "name": "waitForIdle_resolve",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "fulfilled"
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "waitForIdle_reject",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "rejected"
+      ],
+      "result": {
+        "error": "async failure"
+      }
+    },
+    {
+      "name": "waitForIdle_sync_throw",
+      "trace": [
+        "call"
+      ],
+      "error": "sync failure"
+    },
+    {
+      "name": "waitForIdle_stale",
+      "error": "old context",
+      "newContextError": "old context",
+      "getterError": "old context",
+      "optionsError": "old context",
+      "invalidations": [
+        "old context"
+      ],
+      "trace": []
+    },
+    {
+      "name": "waitForIdle_rebind_reset_inflight",
+      "trace": [
+        "A",
+        "B"
+      ],
+      "first": null,
+      "second": null,
+      "reset": null,
+      "nextError": "replaced"
+    },
+    {
+      "name": "waitForIdle_discarded",
+      "before": [
+        "started"
+      ],
+      "trace": [
+        "started",
+        "completed"
+      ]
+    },
+    {
+      "name": "newSession_resolve",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "fulfilled"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": true
+        }
+      }
+    },
+    {
+      "name": "newSession_reject",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "rejected"
+      ],
+      "result": {
+        "error": "async failure"
+      }
+    },
+    {
+      "name": "newSession_sync_throw",
+      "trace": [
+        "call"
+      ],
+      "error": "sync failure"
+    },
+    {
+      "name": "newSession_stale",
+      "error": "old context",
+      "newContextError": "old context",
+      "getterError": "old context",
+      "optionsError": "old context",
+      "invalidations": [
+        "old context"
+      ],
+      "trace": []
+    },
+    {
+      "name": "newSession_rebind_reset_inflight",
+      "trace": [
+        "A",
+        "B"
+      ],
+      "first": {
+        "cancelled": false
+      },
+      "second": {
+        "cancelled": true
+      },
+      "reset": {
+        "cancelled": false
+      },
+      "nextError": "replaced"
+    },
+    {
+      "name": "newSession_discarded",
+      "before": [
+        "started"
+      ],
+      "trace": [
+        "started",
+        "completed"
+      ]
+    },
+    {
+      "name": "fork_resolve",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "fulfilled"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": true
+        }
+      }
+    },
+    {
+      "name": "fork_reject",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "rejected"
+      ],
+      "result": {
+        "error": "async failure"
+      }
+    },
+    {
+      "name": "fork_sync_throw",
+      "trace": [
+        "call"
+      ],
+      "error": "sync failure"
+    },
+    {
+      "name": "fork_stale",
+      "error": "old context",
+      "newContextError": "old context",
+      "getterError": "old context",
+      "optionsError": "old context",
+      "invalidations": [
+        "old context"
+      ],
+      "trace": []
+    },
+    {
+      "name": "fork_rebind_reset_inflight",
+      "trace": [
+        "A",
+        "B"
+      ],
+      "first": {
+        "cancelled": false
+      },
+      "second": {
+        "cancelled": true
+      },
+      "reset": {
+        "cancelled": false
+      },
+      "nextError": "replaced"
+    },
+    {
+      "name": "fork_discarded",
+      "before": [
+        "started"
+      ],
+      "trace": [
+        "started",
+        "completed"
+      ]
+    },
+    {
+      "name": "navigateTree_resolve",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "fulfilled"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": true
+        }
+      }
+    },
+    {
+      "name": "navigateTree_reject",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "rejected"
+      ],
+      "result": {
+        "error": "async failure"
+      }
+    },
+    {
+      "name": "navigateTree_sync_throw",
+      "trace": [
+        "call"
+      ],
+      "error": "sync failure"
+    },
+    {
+      "name": "navigateTree_stale",
+      "error": "old context",
+      "newContextError": "old context",
+      "getterError": "old context",
+      "optionsError": "old context",
+      "invalidations": [
+        "old context"
+      ],
+      "trace": []
+    },
+    {
+      "name": "navigateTree_rebind_reset_inflight",
+      "trace": [
+        "A",
+        "B"
+      ],
+      "first": {
+        "cancelled": false
+      },
+      "second": {
+        "cancelled": true
+      },
+      "reset": {
+        "cancelled": false
+      },
+      "nextError": "replaced"
+    },
+    {
+      "name": "navigateTree_discarded",
+      "before": [
+        "started"
+      ],
+      "trace": [
+        "started",
+        "completed"
+      ]
+    },
+    {
+      "name": "switchSession_resolve",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "fulfilled"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": true
+        }
+      }
+    },
+    {
+      "name": "switchSession_reject",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "rejected"
+      ],
+      "result": {
+        "error": "async failure"
+      }
+    },
+    {
+      "name": "switchSession_sync_throw",
+      "trace": [
+        "call"
+      ],
+      "error": "sync failure"
+    },
+    {
+      "name": "switchSession_stale",
+      "error": "old context",
+      "newContextError": "old context",
+      "getterError": "old context",
+      "optionsError": "old context",
+      "invalidations": [
+        "old context"
+      ],
+      "trace": []
+    },
+    {
+      "name": "switchSession_rebind_reset_inflight",
+      "trace": [
+        "A",
+        "B"
+      ],
+      "first": {
+        "cancelled": false
+      },
+      "second": {
+        "cancelled": true
+      },
+      "reset": {
+        "cancelled": false
+      },
+      "nextError": "replaced"
+    },
+    {
+      "name": "switchSession_discarded",
+      "before": [
+        "started"
+      ],
+      "trace": [
+        "started",
+        "completed"
+      ]
+    },
+    {
+      "name": "reload_resolve",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "fulfilled"
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "name": "reload_reject",
+      "samePromise": true,
+      "pending": true,
+      "before": [
+        "call",
+        "returned"
+      ],
+      "trace": [
+        "call",
+        "returned",
+        "rejected"
+      ],
+      "result": {
+        "error": "async failure"
+      }
+    },
+    {
+      "name": "reload_sync_throw",
+      "trace": [
+        "call"
+      ],
+      "error": "sync failure"
+    },
+    {
+      "name": "reload_stale",
+      "error": "old context",
+      "newContextError": "old context",
+      "getterError": "old context",
+      "optionsError": "old context",
+      "invalidations": [
+        "old context"
+      ],
+      "trace": []
+    },
+    {
+      "name": "reload_rebind_reset_inflight",
+      "trace": [
+        "A",
+        "B"
+      ],
+      "first": null,
+      "second": null,
+      "reset": null,
+      "nextError": "replaced"
+    },
+    {
+      "name": "reload_discarded",
+      "before": [
+        "started"
+      ],
+      "trace": [
+        "started",
+        "completed"
+      ]
+    },
+    {
+      "name": "defaults_and_empty_invalidation",
+      "initial": [
+        null,
+        {
+          "cancelled": false
+        },
+        {
+          "cancelled": false
+        },
+        {
+          "cancelled": false
+        },
+        {
+          "cancelled": false
+        },
+        null
+      ],
+      "afterEmpty": [
+        null,
+        {
+          "cancelled": false
+        },
+        {
+          "cancelled": false
+        },
+        {
+          "cancelled": false
+        },
+        {
+          "cancelled": false
+        },
+        null
+      ],
+      "invalidations": [
+        "",
+        "after empty"
+      ],
+      "errors": [
+        "after empty",
+        "after empty",
+        "after empty",
+        "after empty",
+        "after empty",
+        "after empty"
+      ]
+    },
+    {
+      "name": "argument_forwarding",
+      "observed": [
+        {
+          "action": "newSession",
+          "id": null,
+          "sameOptions": true,
+          "options": {
+            "parentSession": "",
+            "setup": "function",
+            "withSession": "function"
+          }
+        },
+        {
+          "action": "fork",
+          "id": "entry-β",
+          "sameOptions": true,
+          "options": {
+            "position": "at",
+            "withSession": "function"
+          }
+        },
+        {
+          "action": "navigateTree",
+          "id": "entry-β",
+          "sameOptions": true,
+          "options": {
+            "summarize": false,
+            "customInstructions": "",
+            "replaceInstructions": true,
+            "label": ""
+          }
+        },
+        {
+          "action": "switchSession",
+          "id": "entry-β",
+          "sameOptions": true,
+          "options": {
+            "withSession": "function"
+          }
+        }
+      ]
+    },
+    {
+      "name": "newSession_callbacks_success",
+      "before": [
+        "handler:start",
+        "setup:start"
+      ],
+      "trace": [
+        "handler:start",
+        "setup:start",
+        "setup:end",
+        "withSession:start",
+        "withSession:same-context",
+        "handler:end"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": false
+        }
+      }
+    },
+    {
+      "name": "newSession_callbacks_withSession",
+      "before": [
+        "handler:start",
+        "setup:start"
+      ],
+      "trace": [
+        "handler:start",
+        "setup:start",
+        "setup:end",
+        "withSession:start"
+      ],
+      "result": {
+        "error": "withSession failed"
+      }
+    },
+    {
+      "name": "newSession_callbacks_setup",
+      "before": [
+        "handler:start",
+        "setup:start"
+      ],
+      "trace": [
+        "handler:start",
+        "setup:start"
+      ],
+      "result": {
+        "error": "setup failed"
+      }
+    },
+    {
+      "name": "fork_callbacks_success",
+      "before": [
+        "handler:start",
+        "withSession:start"
+      ],
+      "trace": [
+        "handler:start",
+        "withSession:start",
+        "withSession:same-context",
+        "handler:end"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": false
+        }
+      }
+    },
+    {
+      "name": "fork_callbacks_withSession",
+      "before": [
+        "handler:start",
+        "withSession:start"
+      ],
+      "trace": [
+        "handler:start",
+        "withSession:start"
+      ],
+      "result": {
+        "error": "withSession failed"
+      }
+    },
+    {
+      "name": "switchSession_callbacks_success",
+      "before": [
+        "handler:start",
+        "withSession:start"
+      ],
+      "trace": [
+        "handler:start",
+        "withSession:start",
+        "withSession:same-context",
+        "handler:end"
+      ],
+      "result": {
+        "ok": {
+          "cancelled": false
+        }
+      }
+    },
+    {
+      "name": "switchSession_callbacks_withSession",
+      "before": [
+        "handler:start",
+        "withSession:start"
+      ],
+      "trace": [
+        "handler:start",
+        "withSession:start"
+      ],
+      "result": {
+        "error": "withSession failed"
+      }
+    }
+  ]
+}

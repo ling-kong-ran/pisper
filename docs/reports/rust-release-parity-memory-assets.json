@@ -1,0 +1,144 @@
+{
+  "baseline": {
+    "branch": "release",
+    "commit": "582160235671903d9f1c7034b457557b1df74b68",
+    "source": "pisper-release-parity-reference"
+  },
+  "fullParityAchieved": false,
+  "nativeModules": {
+    "memory": [
+      "runtime-rs/src/memory_api.rs",
+      "runtime-rs/src/memory_store.rs",
+      "runtime-rs/src/native_memory/schema.sql",
+      "runtime-rs/src/native_memory/fts.sql",
+      "runtime-rs/src/native_memory/features.rs",
+      "runtime-rs/src/native_memory/runtime.rs",
+      "runtime-rs/src/native_memory/tools.rs",
+      "runtime-rs/src/native_memory/usage_ledger.rs"
+    ],
+    "assets": [
+      "runtime-rs/src/asset_api.rs",
+      "runtime-rs/src/native_assets/store.rs",
+      "runtime-rs/src/native_assets/content.rs",
+      "runtime-rs/src/native_assets/attachments.rs",
+      "runtime-rs/src/native_assets/documents.rs",
+      "runtime-rs/src/native_assets/projection.rs",
+      "runtime-rs/src/native_assets/tracker.rs"
+    ],
+    "authorizedPiRegistryPatch": [
+      "runtime-rs/vendor/pi-rs/src/coding_agent/agent_session.rs",
+      "runtime-rs/vendor/pi-rs/PISPER-PATCHES.md"
+    ]
+  },
+  "memory": {
+    "releaseSources": [
+      "runtime/http/routes/memory-assets.mjs",
+      "runtime/services/memory/local-memory-runtime.mjs",
+      "runtime/services/memory/local-embedding.mjs",
+      "runtime/services/memory/semantic-memory.mjs",
+      "runtime/services/memory/conversation-memory.mjs",
+      "runtime/runtime/conversation-memory-capture.mjs",
+      "runtime/tools/app/memory.mjs"
+    ],
+    "storage": "agent_dir/pisper-memory.sqlite schema v4; agent_dir/pisper-usage.json release day records and session scan offsets",
+    "implemented": [
+      "All release memory HTTP success payloads; memory settings through shared preference writer",
+      "Canonical global/project/custom spaces and project priority",
+      "FTS5 triggers, bounded lexical fallback, ranking and access tracking",
+      "Trusted source authority, identity deduplication, revisions/supersedes and transactional candidate review",
+      "Configurable candidate automatic approval, tombstones and retention",
+      "Historical context XML and instruction-safety preamble",
+      "Actual Pi provider-backed semantic summary/keywords, release 384-dimensional hash features and related links",
+      "Stale semantic result guards and provider generation replacement",
+      "Actual provider conversation extraction with bounded types, evidence validation and secret redaction",
+      "Owned background cancellation and awaited shutdown",
+      "Pi memory_search and memory_remember tools; trusted evidence requires original raw user text",
+      "Persistent usage callbacks, incremental complete-line JSONL scans and direct flat today totals",
+      "Restart persistence, existing v4 schema reading and unknown-field preservation"
+    ],
+    "notImplemented": [
+      "Root integration owns end-to-end context/preferences/provider refresh/capture/shutdown and installed-client evidence",
+      "Lossless incompatible pre-v4 migration requires historical schema evidence; native opening rejects before modification instead of destructive release DROP reset",
+      "Available local memory module history already uses v4; no unverified older schema mapping inferred"
+    ]
+  },
+  "assets": {
+    "releaseSources": [
+      "runtime/http/routes/memory-assets.mjs",
+      "runtime/services/asset-storage.mjs",
+      "runtime/services/asset-content.mjs",
+      "runtime/services/session-assets.mjs",
+      "runtime/services/workspace-asset-tracker.mjs",
+      "runtime/services/workspace-asset-capture.mjs",
+      "runtime/runtime/agent-runtime.mjs"
+    ],
+    "storage": "agent_dir/pisper-assets.json, agent_dir/pisper-assets/, agent_dir/pisper-workspace-asset-retries.json",
+    "implemented": [
+      "Real list/create/delete/content/streamed download with byte Range 206/416",
+      "Actual file bytes, SHA256 deduplication, multi-session references and MIME/name rules",
+      "Safe links, 24 MB upload and 10 MB chat limits",
+      "Node-compatible permissive base64 decoding, UTF-16 text limits and binary detection",
+      "Live generated file registration preserving originals, reconciliation and unknown JSON fields",
+      "Chat attachment archive, image blocks, text contexts and native document extraction",
+      "DOCX/PPTX/XLSX/ODT/ODP/ODS/EPUB ZIP/XML, RTF Unicode and PDF text extraction",
+      "Traversal rejection, archive/XML bounds and cancellation checks",
+      "Generated history projection using timestamps and path/id deduplication",
+      "Real write/edit/bash/powershell execution wrapping after approval preflight, serialized overlap and independent workspaces",
+      "Failed tool results preserved while archiving actual outputs; persistent retry state",
+      "Persistent Pi registry wrapper surviving loadout/reload and late native extension registration",
+      "Cancellation tokens, RAII scope release, wait_session and flush interfaces"
+    ],
+    "notImplemented": [
+      "Root tracker state/root+child install/event delivery/cancel/flush/history projection awaits package pipeline integration verification",
+      "Automatic tool-result image/file previews beyond workspace file change capture",
+      "Legacy Node pending dev:ino:size:mtimeMs:ctimeMs strings differ from native file versions; verified native identity adapter needed",
+      "Future call_tool gateway recursively executing wrapped inner tools requires reentrant capture; native registry currently has no such gateway",
+      "Complex Office charts/equations/notes/styles/date formats and non-Windows-1252 RTF code pages lack complete equivalence evidence",
+      "Native RTF Unicode fallback is removed correctly while release probe retains question marks; exact output equality not claimed"
+    ],
+    "releaseParserProbe": {
+      "source": "Node 24 officeparser with synthetic in-memory ZIP fixtures; no real user documents",
+      "equalCases": [
+        "DOCX Chinese/entity/supplementary Unicode paragraphs and cell",
+        "PPTX numeric slide order",
+        "XLSX shared/numeric/inline entity cells",
+        "ODT spaces and line break"
+      ],
+      "differentCase": "RTF Unicode fallback: release Hello 中?文?; native Hello 中文"
+    }
+  },
+  "mediaAndSpeech": {
+    "releaseRoutesAudited": [
+      "runtime/http/routes/speech.mjs",
+      "runtime/http/routes/game-assets.mjs"
+    ],
+    "notImplemented": [
+      "Speech model catalog download/resume, SHA256 verification and installation lifecycle",
+      "Native desktop sherpa-onnx ASR/VAD and MeloTTS VITS inference, voices/hotwords and streaming session lifecycle",
+      "Speech cancellation, bounded audio validation and worker isolation",
+      "Game asset workbench project/job lifecycle and cancellation",
+      "Image operations input/generate/slice/background/inpaint/export/edit",
+      "Sprite model engine download, checksum verification and local inference",
+      "Cross-platform speech semantics and the unchanged shared/speech/speech-model-catalog.json"
+    ],
+    "scopeNote": "Current packaging and local upgrade freezes completed memory/assets/registry sources. Speech/image new implementations are not added to this package by this agent. Full release equivalence remains incomplete."
+  },
+  "validation": {
+    "rustfmt": "Owned modules and authorized registry patch formatted before freeze",
+    "scopedBehaviorTests": {
+      "memoryCommand": "cargo test --locked --offline --manifest-path runtime-rs/Cargo.toml memory_store:: -- --nocapture",
+      "memoryPassed": 17,
+      "assetCommand": "cargo test --locked --offline --manifest-path runtime-rs/Cargo.toml asset_api:: -- --nocapture",
+      "assetPassedBeforeTwoAdditionalRegistryTests": 15,
+      "trackerCommand": "cargo test --locked --offline --manifest-path runtime-rs/Cargo.toml asset_api::tracker:: -- --nocapture",
+      "trackerPassedIncludingTwoAdditionalRegistryTests": 4,
+      "assetTotalTestsPresent": 17,
+      "failedInRecordedRuns": 0,
+      "scope": "Synthetic restart/module tests; actual local HTTP/SSE Pi provider drives memory, actual parallel Pi loop drives tracker. Real SDK loadout/reload/late extension test uses MCP registry seam without a separate MCP server. Root owns complete runtime/MCP transport/installed UI/package verification.",
+      "knownWarnings": "Unused/dead-code warnings exist; warning-free compilation not claimed"
+    },
+    "realUserDataUsed": false,
+    "referenceModified": false,
+    "sourceFrozenForPackaging": true
+  }
+}

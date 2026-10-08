@@ -1,0 +1,4625 @@
+{
+  "objective": "Rust development branch must match release functionality, UI, contracts, storage, tools, lifecycle, and supported platforms.",
+  "status": "route-parity-complete",
+  "generatedAt": "2026-10-07T13:21:48.049Z",
+  "reference": {
+    "branch": "release",
+    "commit": "582160235671903d9f1c7034b457557b1df74b68"
+  },
+  "scope": {
+    "http": "Every release API route below, including methods, validation, payloads, errors, SSE and authorization.",
+    "frontend": "Release components and routes restored; only engine identity adapter retained.",
+    "tools": "All release builtin and plugin tools, approvals, actual execution and failure behavior.",
+    "persistence": "Release formats, migrations, old data, restart, unknown fields and secret handling.",
+    "lifecycle": "Concurrency, cancellation, retries, queueing, scheduling, remote and channel resources.",
+    "platforms": "Release-supported desktop, TUI, Web and mobile capability and packaging behavior."
+  },
+  "verificationBoundary": "Route coverage requires both a native declaration and recorded executable behavior evidence (live HTTP round-trips, domain smoke runs, or release-oracle fixtures). Endpoint evidence lives in rust-release-parity-behavior-evidence.json; deeper protocol/storage/platform acceptance is tracked in rust-release-parity-execution.json.",
+  "totals": {
+    "releaseRoutes": 219,
+    "declarationPresent": 219,
+    "declarationMissing": 0,
+    "behaviorVerified": 219
+  },
+  "requirements": [
+    {
+      "method": "GET",
+      "path": "/api/settings/speech",
+      "normalizedPath": "/api/settings/speech",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 13,
+      "sourceContractSha256": "d34c584f2a5f38d028db53ca0032ab3dbe822756921c8cf6520ea831bba94ce2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/speech",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 40
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/settings/speech",
+      "normalizedPath": "/api/settings/speech",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 21,
+      "sourceContractSha256": "5d2fa8dc9655ba4f0f221e2ffc1ceb37d4ef96ebe60b83bb7b7b3e39877e01c6",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/settings/speech",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 40
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config",
+      "normalizedPath": "/api/config",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 29,
+      "sourceContractSha256": "0c2f547197775725c22089ec666813f9aaecc0291beb3035b24f69b0775485e9",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/config",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1622
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: frontend config schema (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/config",
+      "normalizedPath": "/api/config",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 36,
+      "sourceContractSha256": "bb547fc6242fddedbb4cd9b077f5752eae14d4620cc819981b5a840d07c53d28",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/config",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1622
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: save default provider/model through React PUT contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers/export",
+      "normalizedPath": "/api/providers/export",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 43,
+      "sourceContractSha256": "3fd62e69fcb25f85393d9d2535e034bed124b35882b8a35a8c6df4fc694598e3",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/providers/export",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1647
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "version:1 + providers/credentials/toolMode/disabledProviders/settings snapshot"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/import",
+      "normalizedPath": "/api/providers/import",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 50,
+      "sourceContractSha256": "b079f5b50aaf17e26a791fc7b642bb62e2d3ae514196e45cda8781150658bf01",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/import",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1648
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "export→import roundtrip; imported lists all provider ids; config reloaded"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/chat-dock-layout",
+      "normalizedPath": "/api/settings/chat-dock-layout",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 57,
+      "sourceContractSha256": "746d4e04f3eda1d0a1c69b8da1b8d458001330eed8b07277ee63d0aa289a8c63",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/chat-dock-layout",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 114
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "release-shape read (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/settings/chat-dock-layout",
+      "normalizedPath": "/api/settings/chat-dock-layout",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 64,
+      "sourceContractSha256": "5a6112417c14392d1708101e4f0b3cc4ce0af32ced2b4acbf32944cf6ff3b56b",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/settings/chat-dock-layout",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 114
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "any JSON object accepted per release saveChatDockLayout (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/compaction",
+      "normalizedPath": "/api/settings/compaction",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 71,
+      "sourceContractSha256": "936d44fa377ac95fb2a83849afb1d95b52f72922659618f43aafe9ffb5f3743c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/compaction",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 118
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{thresholdPercent,minPercent:10,maxPercent:95}; persisted threshold honored"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/settings/compaction",
+      "normalizedPath": "/api/settings/compaction",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 78,
+      "sourceContractSha256": "5b65250f7c9caed171f63d1eb1422fc60a591c91dbdebf98adea83b172311b3f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/settings/compaction",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 118
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "PATCH 60 → GET returns 60; invalid-range rejected"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/memory",
+      "normalizedPath": "/api/settings/memory",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 85,
+      "sourceContractSha256": "66eba13e851472543a79d7c44e12ed2bd9dc2211fa1c37fc8ba48b86d896c796",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/memory",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 15
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/settings/memory",
+      "normalizedPath": "/api/settings/memory",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 92,
+      "sourceContractSha256": "d1810cf69ebd71ca2130299d876cd251c1c03b7afd2df96c493c2effa1075862",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/settings/memory",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 15
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "autoApproveConfidence update honored (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/notifications",
+      "normalizedPath": "/api/settings/notifications",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 99,
+      "sourceContractSha256": "2f3717abedf6c425b9868696b3aa73192fad38e4bc59c3bc37744f0c0ec5fc0c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/notifications",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 15
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notifications use the release config and preserve other provider files (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/settings/notifications/browser",
+      "normalizedPath": "/api/settings/notifications/browser",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 106,
+      "sourceContractSha256": "a42265e1cd06b4b21c6cf0505c493754343e3c14ac7b50e2d4ee43ee13aa5e14",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/settings/notifications/browser",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 16
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notifications use the release config and preserve other provider files (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/notifications/browser/events",
+      "normalizedPath": "/api/settings/notifications/browser/events",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 113,
+      "sourceContractSha256": "e2b5b0f41358c6c0dfc22452c0922d7b474e1562757c38ab1bc7649a2434aecc",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/settings/notifications/browser/events",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 20
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow browser notifications are durable and use release UUID cursor semantics (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings/notifications/chat-completed",
+      "normalizedPath": "/api/settings/notifications/chat-completed",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 120,
+      "sourceContractSha256": "af720cc8408754e82c2fff2214175e40c743dbf2625b2219b250cdc20785db97",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/settings/notifications/chat-completed",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 29
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: TUI chat reports return 202 and avoid duplicate browser notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings/notifications/chat-waiting",
+      "normalizedPath": "/api/settings/notifications/chat-waiting",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 149,
+      "sourceContractSha256": "86ef41c1a893689213a27c9f87de778175d0bb6b53b667047d80fe6ae118edb4",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/settings/notifications/chat-waiting",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 33
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: TUI chat reports return 202 and avoid duplicate browser notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/settings/notifications/templates/:templateId/:channel/test",
+      "normalizedPath": "/api/settings/notifications/templates/{templateId}/{channel}/test",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 180,
+      "sourceContractSha256": "ef494cec3287e80b345ef640947d3af3d1aec6cdb757cd3b4e9b2558a327d6d4",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/settings/notifications/templates/{event}/{platform}/test",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 25
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notification template editing and test previews do not enqueue browser events (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/settings/notifications/templates/:templateId/:channel",
+      "normalizedPath": "/api/settings/notifications/templates/{templateId}/{channel}",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 188,
+      "sourceContractSha256": "0c756a1d1f4becd295670d8628f5a63f22650b3b9ebb4c6b4f414e94fa8d62cc",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/settings/notifications/templates/{event}/{platform}",
+          "source": "runtime-rs/src/notification_api.rs",
+          "line": 21
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: notification template editing and test previews do not enqueue browser events (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers/discovery",
+      "normalizedPath": "/api/providers/discovery",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 199,
+      "sourceContractSha256": "6142ed12391cd7568e83c883df04cb8242a539e605c1fe0abaece5d147b874e1",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/providers/discovery",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1651
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: Provider discovery contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/:providerId/import",
+      "normalizedPath": "/api/providers/{providerId}/import",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 206,
+      "sourceContractSha256": "889f0de20d13fd7e8e753ea851dac768b354ffd7857b4ad136c381d6083a6bd2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/import",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1650
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "501 external-CLI import seam (documented; discovery report also flags externalImportSupported:false) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/visual/models",
+      "normalizedPath": "/api/visual/models",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 213,
+      "sourceContractSha256": "de4f75a5ec46a58319c4661e6bccfadf01d0ffa201eec3d252938c20a3891e26",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/visual/models",
+          "source": "runtime-rs/src/visual_api.rs",
+          "line": 57
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/visual/models/:kind",
+      "normalizedPath": "/api/visual/models/{kind}",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 220,
+      "sourceContractSha256": "c464471537d161cd2a6326509f852526cbe3a849fbf81709063337459af72eaa",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/visual/models/{kind}",
+          "source": "runtime-rs/src/visual_api.rs",
+          "line": 61
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/visual/test",
+      "normalizedPath": "/api/visual/test",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 229,
+      "sourceContractSha256": "1a7c9c1862ead0a960e2ea4653a3168daa00092812a8ecc5601e699ff31ff1a2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/visual/test",
+          "source": "runtime-rs/src/visual_api.rs",
+          "line": 65
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: visual APIs and actual Pi discovery/gateway generate, edit and poll video with durable assets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers",
+      "normalizedPath": "/api/providers",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 236,
+      "sourceContractSha256": "0ac9ef8ba514198e32ca43f856ce121b18843929a8c0e4baa4ecb39ecb112646",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1626
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/:providerId/clone",
+      "normalizedPath": "/api/providers/{providerId}/clone",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 243,
+      "sourceContractSha256": "6493d0da3e47bb2cc868a24d74baea89a4b939e3c6dea2d5b74fb3f8e27e4ffd",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/clone",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1628
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 clone with {id,name} body (wrong-shape body → 400 invalid id) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/models/refresh",
+      "normalizedPath": "/api/providers/models/refresh",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 250,
+      "sourceContractSha256": "63e310ce27188a10fe23ed659f8019ae4847e09cc0bb23a1aa6d251b62badf85",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/models/refresh",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1646
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "refresh runs (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/providers/:providerId/connection",
+      "normalizedPath": "/api/providers/{providerId}/connection",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 257,
+      "sourceContractSha256": "cff076084bea01aa69b0d415b8b9e6b97d2c3f6c8092a9864847649b6e49dacd",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/connection",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1629
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/providers/:providerId/api-key",
+      "normalizedPath": "/api/providers/{providerId}/api-key",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 264,
+      "sourceContractSha256": "3b3a9c29a80ef5f5f3e9657871e785201bcb5f51fd0c7c899585f8907f888218",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/api-key",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1630
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create and save a usable provider connection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/providers/:providerId/enabled",
+      "normalizedPath": "/api/providers/{providerId}/enabled",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 271,
+      "sourceContractSha256": "8d514ad24ef522d7522803d8a181baa643f4d0d2caff8cdda8b099ada1adffae",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/enabled",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1631
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "enabled merge through PUT /api/config path (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/providers/:providerId/models/options",
+      "normalizedPath": "/api/providers/{providerId}/models/options",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 279,
+      "sourceContractSha256": "0e3c0e204f6e7d14525869637c22ee3f322c4638f356808185e369abac1ba488",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/providers/{id}/models/options",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1636
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "model options merge (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/:providerId/models",
+      "normalizedPath": "/api/providers/{providerId}/models",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 286,
+      "sourceContractSha256": "abdc13c1f889ed603f41cc3bb50192d251dd6cb62fc457f39b42aed1b9e1e080",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/models",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1632
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 add model (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/providers/:providerId/models",
+      "normalizedPath": "/api/providers/{providerId}/models",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 293,
+      "sourceContractSha256": "7e0dafc68c8cc18354ca780b38d633fde4a432d3d8cbc2f6a6b1be6611fe564d",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/providers/{id}/models",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1632
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "remove model (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/:providerId/models/discover",
+      "normalizedPath": "/api/providers/{providerId}/models/discover",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 311,
+      "sourceContractSha256": "5b4fbb211ca2c7f3f174fe0bcd63c3aa072a56fc627c6aeab9a4ccdcebed635e",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/models/discover",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1638
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: game visual provider is configured through the native provider API (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/models/discover-connection",
+      "normalizedPath": "/api/providers/models/discover-connection",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 318,
+      "sourceContractSha256": "989c588ccd8e59dbc31e5bfb596e4ccbb7662dc7702d8aa46ce4a18dbb48a06f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/models/discover-connection",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1642
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: discover a connection against local /v1/models (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/import-local",
+      "normalizedPath": "/api/providers/import-local",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 325,
+      "sourceContractSha256": "850b6ebd504c999a3baf4e76aaa872df825ca5e6bf5da45ff9fe0b1a248bf4d4",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/import-local",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1649
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "honest already-available report (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/:providerId/models/batch",
+      "normalizedPath": "/api/providers/{providerId}/models/batch",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 332,
+      "sourceContractSha256": "dcc7634e05da4bac00d3ed328c460cfadaa4c697d9801165c6e8552e2b73b627",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/providers/{id}/models/batch",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1637
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "batch add (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/providers/:providerId",
+      "normalizedPath": "/api/providers/{providerId}",
+      "source": "runtime/http/routes/config-settings.mjs",
+      "line": 339,
+      "sourceContractSha256": "592cb19b6f4c037d7e7ac29e922999317681bbea118ab9fbbe699106e42d9d3f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/providers/{id}",
+          "source": "runtime-rs/src/provider_config.rs",
+          "line": 1627
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "provider removed (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/custom-ui/import",
+      "normalizedPath": "/api/custom-ui/import",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 17,
+      "sourceContractSha256": "b959f8d35cf96384efece09d6c39b6c50501fa2d208baa3a9ab5a31858680c21",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/custom-ui/import",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 41
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI import conflicts and reserved IDs leave existing components unchanged; smoke: custom UI rejects unsafe ZIP paths, hidden files, invalid manifests and missing entries"
+    },
+    {
+      "method": "POST",
+      "path": "/api/custom-ui/components/:componentId/views",
+      "normalizedPath": "/api/custom-ui/components/{componentId}/views",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 30,
+      "sourceContractSha256": "96a70760736ebb322e10598249210b15a9f126d3094b8b0e55481e8ddc8628fb",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/custom-ui/components/{id}/views",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 43
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI scoped views render without cookies and retain an opaque CSP and bridge URLs (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI view credentials cannot authenticate normal APIs or legacy resources"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/custom-ui/views/:viewId",
+      "normalizedPath": "/api/custom-ui/views/{viewId}",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 52,
+      "sourceContractSha256": "73fecd3a85a424335f76d769fcb337770386a938a4d8f10d2017bde89d63fc22",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/custom-ui/views/{id}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 44
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/custom-ui/views/:viewId",
+      "normalizedPath": "/api/custom-ui/views/{viewId}",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 60,
+      "sourceContractSha256": "0d9ae745a8d8663964a3d11dabc9d7caf88366092be89f2c600d15924974d18b",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/custom-ui/views/{id}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 44
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI views renew and revoke without leaving a usable resource token (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-ui/components",
+      "normalizedPath": "/api/custom-ui/components",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 68,
+      "sourceContractSha256": "95e727e3860981d1c128a2a606c16da97fe73c79cdecc947d2710e48c2998327",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 42
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI imports actual ZIP bytes and preserves the original manifest (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: custom UI component listing immediately rescans owned manifest changes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-ui/bridge.js",
+      "normalizedPath": "/api/custom-ui/bridge.js",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 75,
+      "sourceContractSha256": "801791b452687b2c6d4afb190e8c2c386db8aa678f0b948ea49b6bbecc237ba3",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/bridge.js",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 45
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI scoped views render without cookies and retain an opaque CSP and bridge URLs (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-ui/components/:componentId/assets/:asset1",
+      "normalizedPath": "/api/custom-ui/components/{componentId}/assets/{asset1}",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 89,
+      "sourceContractSha256": "f6155684a6cacd0f23299b24da2de4fdcb3288a5111965214956b65bf6da9df9",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components/{id}/assets/{*path}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 46
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: custom UI views reject cross-component files, manifests, hidden paths and traversal (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-ui/components/:componentId/assets/:asset1/:asset2",
+      "normalizedPath": "/api/custom-ui/components/{componentId}/assets/{asset1}/{asset2}",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 96,
+      "sourceContractSha256": "ca742f7c1fbf502ad03eb7026cff0689df2b4cf05b36dfa4d7c19cb858aac4c3",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components/{id}/assets/{*path}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 46
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "same scoped-asset handler as verified 1-segment route (axum {*path} wildcard); traversal/hidden rejection verified in smoke (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-ui/components/:componentId/assets/:asset1/:asset2/:asset3",
+      "normalizedPath": "/api/custom-ui/components/{componentId}/assets/{asset1}/{asset2}/{asset3}",
+      "source": "runtime/http/routes/custom-ui.mjs",
+      "line": 103,
+      "sourceContractSha256": "c20ef2eff7a30af616e47662f74cee76b35d1a1400a2d098bcabbc5e63032a6b",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/custom-ui/components/{id}/assets/{*path}",
+          "source": "runtime-rs/src/custom_ui_api.rs",
+          "line": 46
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "same scoped-asset handler as verified 1-segment route (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/decisions/status",
+      "normalizedPath": "/api/decisions/status",
+      "source": "runtime/http/routes/decisions.mjs",
+      "line": 64,
+      "sourceContractSha256": "a2459183e0d7ce7a5ebbb10892f97a84407cf3fb81af826221cdaac07bc37bb9",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/decisions/status",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1599
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "status payload (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/decisions/config",
+      "normalizedPath": "/api/decisions/config",
+      "source": "runtime/http/routes/decisions.mjs",
+      "line": 72,
+      "sourceContractSha256": "8e136f039249c85953dc2acccdf87a679e10075f89dec17d2ce311782e9ba086",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/decisions/config",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1600
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "config update (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/decisions/test",
+      "normalizedPath": "/api/decisions/test",
+      "source": "runtime/http/routes/decisions.mjs",
+      "line": 87,
+      "sourceContractSha256": "38bf6beea676b50934a556279abb41f27ef4dfdb3fc5f0ee8552326120d541e4",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/decisions/test",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1604
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "test decision (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/decisions/decide",
+      "normalizedPath": "/api/decisions/decide",
+      "source": "runtime/http/routes/decisions.mjs",
+      "line": 96,
+      "sourceContractSha256": "9558362cbb419b114c80ae70bc43ad45fba6287e77dc681af4b5592d8196d345",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/decisions/decide",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1605
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "decision recorded (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/reveal-path",
+      "normalizedPath": "/api/desktop/reveal-path",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 8,
+      "sourceContractSha256": "e05ac1fb6c2e5dca10ad777e71bc2fb73f0df21405cb0323bbd78e1c4201ecf7",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop/reveal-path",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1626
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "explorer launched for existing dir; missing path → 400 本地路径不存在。 (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/app-update",
+      "normalizedPath": "/api/app-update",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 20,
+      "sourceContractSha256": "cc20c2ed9254c5fb1065ef0d2ee52c7e16df21b6cdbb349c3876ca4124be0fa5",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/app-update",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1627
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "GitHub compare with exe-repo fallback; available/current states; failure → 502 {error} (release wraps 502) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sponsors/:placement",
+      "normalizedPath": "/api/sponsors/{placement}",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 35,
+      "sourceContractSha256": "283d491544175ef669833a848e1d937d124d7ecd1e84fb34673002c2d27bed28",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sponsors/{placement}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1628
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "cache-backed placement payload (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop-pet",
+      "normalizedPath": "/api/desktop-pet",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 49,
+      "sourceContractSha256": "80fec74479456e8b464ab5ee171fe35e56437e37f601761e2d088a1abcf01500",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/desktop-pet",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1618
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "supported:true status with installed/opacity/spriteUrl fields"
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop-pet/catalog",
+      "normalizedPath": "/api/desktop-pet/catalog",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 56,
+      "sourceContractSha256": "ae68fd1e983e887f79f745e8c151bc49fe623fe08655c145552153ee401bd45a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/desktop-pet/catalog",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1619
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "live petdex.dev manifest query returned real slugs"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop-pet/enabled",
+      "normalizedPath": "/api/desktop-pet/enabled",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 63,
+      "sourceContractSha256": "50c3736e1630ac1fa0c9dd0a33908b016d89be18a4a7861b63e62803874e2915",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/enabled",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1622
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no pets → 400 请先安装一只宠物。 (release semantics) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop-pet/opacity",
+      "normalizedPath": "/api/desktop-pet/opacity",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 71,
+      "sourceContractSha256": "f9433066b9fe91d4fa1dd128493df16dd0a42e03de88ea7731a559220f9c1e6e",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/opacity",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1623
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "opacity normalized and persisted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop-pet/install",
+      "normalizedPath": "/api/desktop-pet/install",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 79,
+      "sourceContractSha256": "f5f88c60c6ead003884ccc8e88f862517b9b0bf68276e3559be6e0c656c6c7ca",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/install",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1621
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "live petdex install → status with selectedSlug (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop-pet/select",
+      "normalizedPath": "/api/desktop-pet/select",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 87,
+      "sourceContractSha256": "33c7a9955fc38acd961cdb6e9a62d8574491cee32c48aa3b29a09bbfcabd6a65",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/desktop-pet/select",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1624
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "select installed pet (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/desktop-pet/:slug",
+      "normalizedPath": "/api/desktop-pet/{slug}",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 95,
+      "sourceContractSha256": "08d40169456672dd8b1b4625d9d6dd6da449d27024c9d4c0efccf5606a0c9af7",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/desktop-pet/{slug}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1625
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "managed pet removed, selection rebalanced (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop-pet/sprite",
+      "normalizedPath": "/api/desktop-pet/sprite",
+      "source": "runtime/http/routes/desktop.mjs",
+      "line": 102,
+      "sourceContractSha256": "16a9f12b920bd721db9df34d3cb3b1f3929f0eec695cef33588658318865c22a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/desktop-pet/sprite",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1620
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "sprite bytes with cache headers (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/game-assets/media/:mediaId/content",
+      "normalizedPath": "/api/game-assets/media/{mediaId}/content",
+      "source": "runtime/http/routes/game-assets.mjs",
+      "line": 178,
+      "sourceContractSha256": "0da235b8e1484dd0b9f28ee2697239bfe078df7d861fe522cd3d5217b1c79084",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/game-assets/media/{mediaId}/content",
+          "source": "runtime-rs/src/game_assets_api.rs",
+          "line": 94
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: game media raw upload, native color processing and workflow media isolation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels",
+      "normalizedPath": "/api/channels",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 5,
+      "sourceContractSha256": "70a3e54284bdcc10a115b86f538773fedcd2b6afeb7c44bcc58b3a800fe41f59",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/channels",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 43
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/:channel/onboarding",
+      "normalizedPath": "/api/channels/{channel}/onboarding",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 12,
+      "sourceContractSha256": "2a7e061563da963b99b0c079d641d203bb455f5b65b176572a268f19d422ceef",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/channels/{platform}/onboarding",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 47
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "telegram manual onboarding 201 {mode,platform,fields,required,setupUrl,qrDataUrl}; unknown channel → 404 (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels/:channel/onboarding/:onboardingId",
+      "normalizedPath": "/api/channels/{channel}/onboarding/{onboardingId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 27,
+      "sourceContractSha256": "d25d60c8e98e7947ce35fde7d927bf6b4357727687cc2b4862ea0112c38d1c09",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/channels/{platform}/onboarding/{id}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 51
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "manual channel has no persisted task → 404 (release null → 404) (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/channels/:channel/onboarding/:onboardingId",
+      "normalizedPath": "/api/channels/{channel}/onboarding/{onboardingId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 37,
+      "sourceContractSha256": "4fa5da3c8d86bcc289ef4fb4d538fab0a7e70b4724fb94ba566652a06053cb65",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/channels/{platform}/onboarding/{id}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 51
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "200 {cancelled:false} for manual channel (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/:channel/onboarding/:onboardingId/verify",
+      "normalizedPath": "/api/channels/{channel}/onboarding/{onboardingId}/verify",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 47,
+      "sourceContractSha256": "c89d04b108fdd9439b1bb31681ad0c939d7a25588ab6bc18810ac0b6ac9b1932",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/channels/{platform}/onboarding/{id}/verify",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 58
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "manual channel → 400 该渠道不需要配对码。 (same domain error as release); unknown task → 404 handler branch (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/:channel/reconnect",
+      "normalizedPath": "/api/channels/{channel}/reconnect",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 61,
+      "sourceContractSha256": "7ee37c13e833e72297f20d80243e1d3cabe9d40254d3b0d269459e631e764fad",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/channels/{platform}/reconnect",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 62
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: native channel reconnect preserves peer sessions and sends through the restarted Agent"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/channels/:channel",
+      "normalizedPath": "/api/channels/{channel}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 69,
+      "sourceContractSha256": "aac2c981fb0bf9b410184d65dbb24a2e50441ff5ade91e80f6c632e465a18a39",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/channels/{platform}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 70
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native telegram inbound updates execute real Pi tools, deliver assets and notifications (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/channels/:channel",
+      "normalizedPath": "/api/channels/{channel}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 77,
+      "sourceContractSha256": "af64880b753aae3a2c12fd5961c0ca910594d563fe562f1afe172346659ec6cc",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/channels/{platform}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 70
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native channel reconnect preserves peer sessions and sends through the restarted Agent (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/channels/scopes/:scopeId",
+      "normalizedPath": "/api/channels/scopes/{scopeId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 86,
+      "sourceContractSha256": "f1d6202a09894b66bec0bddeeeddb378240f032de381c566ea51bfa6eb6e4910",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/channels/scopes/{id}",
+          "source": "runtime-rs/src/channels_api.rs",
+          "line": 66
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown scope → 404 (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins",
+      "normalizedPath": "/api/plugins",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 95,
+      "sourceContractSha256": "13a1853bd9b86b0868b12fbd4ab6945df222e6740b145d5f56b421e33abbb276",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/plugins",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 33
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: web search catalog and config follow the release Bing contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual call_tool runs native fs/path/Buffer with the current Pi session context; smoke: real native plugin exceptions propagate through the Pi gateway; smoke: actual plugin_create installs global source and exposes its tool on the next turn; smoke: plugin restart preserves install/enabled/data state, closes old workers and expires inspection tokens"
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/inspect",
+      "normalizedPath": "/api/plugins/inspect",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 102,
+      "sourceContractSha256": "34901ff9215eaa61e9f206e662fe6edd8f01d828e68a23c715c451d3093629be",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/plugins/inspect",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 34
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin inspect/install retains exact source bytes and rejects inspection tampering (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/install",
+      "normalizedPath": "/api/plugins/install",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 109,
+      "sourceContractSha256": "a20ed2e88251419990e5b62c3f046a244589a73d19e28ffc5636336459a2df1a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/plugins/install",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 35
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin inspect/install retains exact source bytes and rejects inspection tampering (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual plugin_create installs global source and exposes its tool on the next turn"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/plugins/:pluginId",
+      "normalizedPath": "/api/plugins/{pluginId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 116,
+      "sourceContractSha256": "6b806582dfa9fec244829bec129a271152c02a885373597a48afb4f01cbbb405",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/plugins/{id}",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 36
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin/capability enable state and full-access mode guard real execution (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/plugins/:pluginId/capabilities/:capabilityName",
+      "normalizedPath": "/api/plugins/{pluginId}/capabilities/{capabilityName}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 125,
+      "sourceContractSha256": "040f77bffbecdbc2806a38adb4e0a121102c827c1320ef3fd9c2c1e1e23842f2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/plugins/{id}/capabilities/{name}",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 37
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: plugin/capability enable state and full-access mode guard real execution (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/plugins/:pluginId",
+      "normalizedPath": "/api/plugins/{pluginId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 141,
+      "sourceContractSha256": "edcd7e374ac7ddd614df7bfd26202cbdb91f1d1abd17cf984ca5b7973ae9901c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/plugins/{id}",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 36
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: an active Rust plugin worker rejects uninstall and abort stops its actual file writes (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/web-search/test",
+      "normalizedPath": "/api/plugins/web-search/test",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 148,
+      "sourceContractSha256": "daa4c6649290d6051667d84ef5adbfcda2c8f38268ac740fef05d6b40272d3f2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/plugins/web-search/test",
+          "source": "runtime-rs/src/web_search_api.rs",
+          "line": 16
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: web search catalog and config follow the release Bing contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual Pi web_search emits a progress update and a native validation error"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/plugins",
+      "normalizedPath": "/api/plugins",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 156,
+      "sourceContractSha256": "ef3bdf594bf649ccf3cbb7c2f5b9ef00659bf7c0ad5d9c405a8d6867faa54bb6",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/plugins",
+          "source": "runtime-rs/src/plugins_api.rs",
+          "line": 33
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "policy persisted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/mcp",
+      "normalizedPath": "/api/mcp",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 163,
+      "sourceContractSha256": "ab33d372b14eab4678818c6e93de14b5021d3b5a404d770cf8a3bf7755dc7321",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/mcp",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 60
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: MCP native configuration and actual tool survive process restart"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp",
+      "normalizedPath": "/api/mcp",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 170,
+      "sourceContractSha256": "89e10cc33aeb39248193437880f300bf5e1f0435668e8de00401481ede6102b1",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 60
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP add preserves unknown config and exposes real native tools (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp/:serverId/test",
+      "normalizedPath": "/api/mcp/{serverId}/test",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 177,
+      "sourceContractSha256": "98be5287736cf6c5073ce6a4cc00b3edcbf72fa20397ba29f773ee30bf687c9a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp/{id}/test",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 63
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP connection test performs actual initialize/list and redacts secrets (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/mcp/:serverId/tools/:toolName",
+      "normalizedPath": "/api/mcp/{serverId}/tools/{toolName}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 184,
+      "sourceContractSha256": "7a78cfca2ed804852c18d9bba4c720c1494b044acaf9dd76fc10d46404e53f34",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/mcp/{id}/tools/{tool}",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 62
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP server disable/enable reload actually unregisters/registers tools (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/mcp/:serverId",
+      "normalizedPath": "/api/mcp/{serverId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 199,
+      "sourceContractSha256": "f4013e8dd01de7519107c83d57bf49d0b52c4dfc6b6ff2bd998438b6108dfe90",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/mcp/{id}",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 61
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP exact tool permission reload preserves config and real tool catalog (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/mcp/:serverId",
+      "normalizedPath": "/api/mcp/{serverId}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 212,
+      "sourceContractSha256": "116ff8ade16a249eb4e8af43a0dfa17bdc1b6f4bcde7bcd1084594b4ed5fcc06",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/mcp/{id}",
+          "source": "runtime-rs/src/mcp_api.rs",
+          "line": 61
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: MCP delete removes config and native tools, preserving unknown root fields (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/extensions/market",
+      "normalizedPath": "/api/extensions/market",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 221,
+      "sourceContractSha256": "c68f97d109f1ccadf8d9e743134aa4d1c092e0e96fb2724d8cc91dc9668dbe84",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/extensions/market",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1593
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "honest empty catalog (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/extensions",
+      "normalizedPath": "/api/extensions",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 234,
+      "sourceContractSha256": "e80999be266c8a70af9fe9c7150b4ab5260b94f280efae49f0174c6af6f14a74",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/extensions",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1594
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "installed records (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/extensions/install",
+      "normalizedPath": "/api/extensions/install",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 241,
+      "sourceContractSha256": "8a327f173086cd3e971b87b5bbfc78d3a86fb87d72c2d2f2a42a94724b99af18",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/extensions/install",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1598
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 install record (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/extensions",
+      "normalizedPath": "/api/extensions",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 251,
+      "sourceContractSha256": "6d391dbe246cf668169cbeb7b90fd7fc07bbde868cd4ff3bf53767c224ca0e32",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/extensions",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1594
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown source → 404 扩展包不存在。 (release parity) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/skills",
+      "normalizedPath": "/api/skills",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 265,
+      "sourceContractSha256": "b14c5543fd13a5df60053cd72dc1299b4028e0300b07a11c104aedb5973525c9",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/skills",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1525
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "release dashboard shape: cwd/locations/skills/packages/counts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/skills/install",
+      "normalizedPath": "/api/skills/install",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 272,
+      "sourceContractSha256": "2470c4ff14c15f896e6ddc7d076b96211f7657d72dc08581846ecaff832fc26a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/skills/install",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1526
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 dashboard with installed[] (single skill dir supported; duplicate → 400) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/skills/reload",
+      "normalizedPath": "/api/skills/reload",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 279,
+      "sourceContractSha256": "d8b4115eb0a3ba00503c3ac02574d67cb568f5547a3e133c245264d89f50de1f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/skills/reload",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1527
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "dashboard reloaded (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/skills/:skillName",
+      "normalizedPath": "/api/skills/{skillName}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 286,
+      "sourceContractSha256": "d1a130501a9ffd01fd896c389f690f0c21b01c9dd789a83279b38bfafd5bbbe2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/skills/{skillName}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1528
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "enabled/modelInvocationEnabled override → publicSkill {enabled,modelInvocationEnabled,command:/skill:name} (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/skills/:skillName",
+      "normalizedPath": "/api/skills/{skillName}",
+      "source": "runtime/http/routes/integrations.mjs",
+      "line": 306,
+      "sourceContractSha256": "f157a9892046e800e9d399f5f77be9e9022420f5e942fdaf90faa0aac1140184",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/skills/{skillName}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1528
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "managed skill deleted, files removed (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/mcp-host",
+      "normalizedPath": "/api/mcp-host",
+      "source": "runtime/http/routes/mcp-host.mjs",
+      "line": 19,
+      "sourceContractSha256": "9472cffd0e656916aca8f0f3cbbb42d22e48b9b0f1efbd71801fc979c709e160",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/mcp-host",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1615
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "status shape {enabled,listening,host,port,url,error}"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/mcp-host",
+      "normalizedPath": "/api/mcp-host",
+      "source": "runtime/http/routes/mcp-host.mjs",
+      "line": 27,
+      "sourceContractSha256": "cae663f0ce8e76cc479874544646d8a4e2a842c6e935d376510da61dd166de37",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/mcp-host",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1615
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "enabled:true persisted; listening:false seam reported honestly"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp-host/credentials",
+      "normalizedPath": "/api/mcp-host/credentials",
+      "source": "runtime/http/routes/mcp-host.mjs",
+      "line": 38,
+      "sourceContractSha256": "79f5606c5e5fccc5c586bec8ee08e9b83b5c4bf4a55f22f8601106ff419bb9fe",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp-host/credentials",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1616
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "409 mcp_host_not_listening (release not-listening branch)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mcp-host/rotate-token",
+      "normalizedPath": "/api/mcp-host/rotate-token",
+      "source": "runtime/http/routes/mcp-host.mjs",
+      "line": 51,
+      "sourceContractSha256": "1952ea4873c3a68b91c335da02ba07f06dd05eb6c82ff6d3ec05bc22c38427e0",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/mcp-host/rotate-token",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1617
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "disabled → 400 请先开启; enabled-not-listening → 503 (release codes) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/directories",
+      "normalizedPath": "/api/directories",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 23,
+      "sourceContractSha256": "64b010a16b0ab64a319b5ee3f459f9aded023b883f651cf9b1d6d4c8bfc1a8b7",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/directories",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1606
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspace-bounded directory list (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace-entries",
+      "normalizedPath": "/api/workspace-entries",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 30,
+      "sourceContractSha256": "54fa930f4ffa984d098aada82f91f64401b311aad9dd180943a48b1aa0df948c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workspace-entries",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1607
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspace-bounded entries (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/assets",
+      "normalizedPath": "/api/assets",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 37,
+      "sourceContractSha256": "a4fc155b11becb4b61174159183971a4171b47e10abf242e7c0264884eb79ae5",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/assets",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 25
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/assets",
+      "normalizedPath": "/api/assets",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 50,
+      "sourceContractSha256": "05639a78af3a27b871b2fbd8da064d85f546e80657d30b52c7feb9e6082255bb",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/assets",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 25
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/assets/:assetId/content",
+      "normalizedPath": "/api/assets/{assetId}/content",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 57,
+      "sourceContractSha256": "9a1355fcd385077c254de4da64ae3cd2edf010d3b51550a9375bd363d721bbf0",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/assets/{id}/content",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 26
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/assets/:assetId/download",
+      "normalizedPath": "/api/assets/{assetId}/download",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 68,
+      "sourceContractSha256": "50abe16fed7e4afc92a65f23db60c87601dcfa809364b5985a825eb12e013c3a",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/assets/{id}/download",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 27
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/assets/:assetId",
+      "normalizedPath": "/api/assets/{assetId}",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 97,
+      "sourceContractSha256": "81d63f6ed83db8e7f92edd9fe25d4d72339270c52e75749755a31fd9907ad062",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/assets/{id}",
+          "source": "runtime-rs/src/asset_api.rs",
+          "line": 28
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: assets HTTP uploads, deduplicates, previews and streams a byte range (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/memory",
+      "normalizedPath": "/api/memory",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 106,
+      "sourceContractSha256": "519646077350d19cc08136c66dab08ef351938d17de494a62b996e8595ae1fe0",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/memory",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 19
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: memory dashboard contract"
+    },
+    {
+      "method": "GET",
+      "path": "/api/memory/candidates",
+      "normalizedPath": "/api/memory/candidates",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 119,
+      "sourceContractSha256": "b903d98d8a59d7d44b032138639671a3de1f40f35080f071f7d282518fbe7f22",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/memory/candidates",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 20
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/spaces",
+      "normalizedPath": "/api/memory/spaces",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 126,
+      "sourceContractSha256": "dca38df9172af1d68a55f0eb0e3ad7b6755b4aab07d2327cbaff57602785c043",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/memory/spaces",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 21
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/memory/spaces/:spaceId",
+      "normalizedPath": "/api/memory/spaces/{spaceId}",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 133,
+      "sourceContractSha256": "384eb276b9e3e62049f98a358adc6b3567584e892a534b250be752df6a1940ca",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/memory/spaces/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 22
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/memory/spaces/:spaceId",
+      "normalizedPath": "/api/memory/spaces/{spaceId}",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 142,
+      "sourceContractSha256": "319395c92bc0e4f5dcaa27135842d8dc953aa7fb38e0cfe0dfa74f384b0ea9ba",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/memory/spaces/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 22
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/nodes",
+      "normalizedPath": "/api/memory/nodes",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 151,
+      "sourceContractSha256": "2e91df7394eb91846bce52d12b70819dd46a85ddc9708d389f6a259914e291d8",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/memory/nodes",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 26
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/memory/nodes/:memoryId",
+      "normalizedPath": "/api/memory/nodes/{memoryId}",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 158,
+      "sourceContractSha256": "405c8210594626695799937e13f8ff523425f0d1ea2a95df6327edb05edc05b0",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/memory/nodes/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 27
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/memory/nodes/:memoryId",
+      "normalizedPath": "/api/memory/nodes/{memoryId}",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 167,
+      "sourceContractSha256": "f67331d06e1dac1956f4f56ede40d621165ac12e79d1de47a6294afa6987f3bf",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/memory/nodes/{id}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 27
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/candidates/reject-all",
+      "normalizedPath": "/api/memory/candidates/reject-all",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 176,
+      "sourceContractSha256": "42718212ed463cba83a19ac7f5994aa51ce33ff49304c272f48f6ad3a381825e",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/memory/candidates/reject-all",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 31
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/candidates/:candidateId/:action",
+      "normalizedPath": "/api/memory/candidates/{candidateId}/{action}",
+      "source": "runtime/http/routes/memory-assets.mjs",
+      "line": 183,
+      "sourceContractSha256": "4d95768baae938b360e14a5015ef08b97aa42ceb18554c369f6e707587223e26",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/memory/candidates/{id}/{action}",
+          "source": "runtime-rs/src/memory_api.rs",
+          "line": 32
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: memory HTTP creates, searches, updates and deletes real SQLite records (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/connection-info",
+      "normalizedPath": "/api/remote/connection-info",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 93,
+      "sourceContractSha256": "3d9b0697933bfaf0f2e47889a0ff39d73d5aca4e1a5333cece885ef499b08c81",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/connection-info",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1533
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "fingerprint + endpoints (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/status",
+      "normalizedPath": "/api/remote/status",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 112,
+      "sourceContractSha256": "a1d20058c8089706d6f0434d5a735aa261380c6b5ba20897f30d8c451c6ad80f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/status",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1532
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "public status shape (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/remote/enabled",
+      "normalizedPath": "/api/remote/enabled",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 119,
+      "sourceContractSha256": "d9143785e7b9eb324f9e3e63c8beec4c49aab1170dfa0496825a976495127e1c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/remote/enabled",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1537
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "toggle persisted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/firewall",
+      "normalizedPath": "/api/remote/firewall",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 130,
+      "sourceContractSha256": "f80219232183fd0a0770f8afb04819988b28b541dab38215c76c08dfc301d8b8",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/firewall",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1579
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "status shape {state,reason,port,scope,checkedAt,busy,lanReachability}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/firewall/retry",
+      "normalizedPath": "/api/remote/firewall/retry",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 138,
+      "sourceContractSha256": "466939ad8763952a8847f45863eb8eb67350a74690e05317f13e0d19c1ca7962",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/firewall/retry",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1580
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "JSON content-type required → 415 json_required; JSON → status view (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/pairing-code",
+      "normalizedPath": "/api/remote/pairing-code",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 151,
+      "sourceContractSha256": "d36553ce7675a8b2482203e53d39fcf85aa1ba43ed3a3d58acb158947fcf9bcd",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/pairing-code",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1571
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "6-digit code issued (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/pair",
+      "normalizedPath": "/api/remote/pair",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 181,
+      "sourceContractSha256": "79b67662bb5f2b11145a9f444c63fb4a1aa6bd6693955f6f679c12c2cc2e2508",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/pair",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1575
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "pairing-code → 201 pairedResponse {deviceId,token,serverName,endpoints,apiVersion}; invalid code → 404 配对码无效。 (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/pairing-requests",
+      "normalizedPath": "/api/remote/pairing-requests",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 203,
+      "sourceContractSha256": "fd648016673304d76104110f78a29f6439558f709fa35e8993cf7f3659e9d942",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/pairing-requests",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1581
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "202 {requestId,requestSecret,expiresAt,serverName,endpoints,fingerprint,apiVersion}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/pairing-requests/:requestId",
+      "normalizedPath": "/api/remote/pairing-requests/{requestId}",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 228,
+      "sourceContractSha256": "e7bbe357117501c6f969e4285c7d7d6dd2b85e3f29e0b4ceb355468037799e1e",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/pairing-requests/{requestId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1585
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "secret-gated pending → approved token retrieval"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/remote/pairing-requests/:requestId",
+      "normalizedPath": "/api/remote/pairing-requests/{requestId}",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 248,
+      "sourceContractSha256": "b1d6fd46fec67639e6a4459a1a89ac657946391d0f9a1304cc3289d30ce9ea22",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/remote/pairing-requests/{requestId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1585
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "204 with matching x-pisper-pairing-secret; mismatch → 403 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/pairing-requests",
+      "normalizedPath": "/api/remote/pairing-requests",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 264,
+      "sourceContractSha256": "55a482cd6e1b5dfe4c72b0a1aa886fa64103397437f183a995a50bdf6ed6d34c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/pairing-requests",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1581
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "desktop list without secrets"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/pairing-requests/:requestId/decision",
+      "normalizedPath": "/api/remote/pairing-requests/{requestId}/decision",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 272,
+      "sourceContractSha256": "ee6d644431d37bc2d2a8676c4acbf11767ab6e3003c0aa5552c73be5a7ea8fbe",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/pairing-requests/{requestId}/decision",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1589
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "approve created device + token; persisted"
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/devices",
+      "normalizedPath": "/api/remote/devices",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 293,
+      "sourceContractSha256": "cbc7a5e80c50ad88aeefc8a59104707e4722d67680e614dae56060fbb429f210",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/remote/devices",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1576
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "device list without tokens (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/devices/:deviceId/revoke",
+      "normalizedPath": "/api/remote/devices/{deviceId}/revoke",
+      "source": "runtime/http/routes/remote.mjs",
+      "line": 300,
+      "sourceContractSha256": "8116d1a6d857c634b00b70ce59d27648b3a7c5378f7273c1c7e7b9e62d92f1ea",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/remote/devices/{id}/revoke",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1578
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "204 empty; device removed"
+    },
+    {
+      "method": "GET",
+      "path": "/api/runs/:runId/events",
+      "normalizedPath": "/api/runs/{runId}/events",
+      "source": "runtime/http/routes/runs.mjs",
+      "line": 7,
+      "sourceContractSha256": "6b1e32d70f1f520dbddb6b726d1ba46deda0b8b834eec5874260c54ba868265a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/runs/{id}/events",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1612
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "SSE replay (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/speech/terms",
+      "normalizedPath": "/api/speech/terms",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 26,
+      "sourceContractSha256": "005d0f63b018d121169d101002d188a468960c09379cb370297aee4426effdc2",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/speech/terms",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 41
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "normalizedPath": "/api/health",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 35,
+      "sourceContractSha256": "59ab0b5c75bec7394f8abd31ea50cd1cfb36d47867504859a6faab31c8770758",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/health",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1639
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "ok:true + capabilities payload; engine pi-rs; smoke: restart persists config, sessions, history and functioning chat; smoke: isolated Rust sidecar bootstrap and health"
+    },
+    {
+      "method": "GET",
+      "path": "/api/runtime/capabilities",
+      "normalizedPath": "/api/runtime/capabilities",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 50,
+      "sourceContractSha256": "a2675a668aa0d64fcbac118d9e070f9f4d66972c1ceec2c72e9c110663736ed5",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/runtime/capabilities",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 104
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: isolated Rust sidecar bootstrap and health (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: runtime capabilities advertise actual support"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/transcribe",
+      "normalizedPath": "/api/speech/transcribe",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 57,
+      "sourceContractSha256": "3d7b12ebdec65b958acc73be6f728b2b0681def01b5037a62ff46befef720dcc",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/transcribe",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 48
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "empty → 4xx shape (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/stream/start",
+      "normalizedPath": "/api/speech/stream/start",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 78,
+      "sourceContractSha256": "78422e6c7e4c6d8923cd636fc6cc716b72a21c0ff4d915e12213066e62d2b23e",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/stream/start",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 49
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no model → 400 missing (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/stream/chunk",
+      "normalizedPath": "/api/speech/stream/chunk",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 92,
+      "sourceContractSha256": "cf5642931796d732b3f8401faf0ee27b98239ce8a58acb3d840bda766abc3178",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/stream/chunk",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 50
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "bad sample rate → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/stream/finish",
+      "normalizedPath": "/api/speech/stream/finish",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 107,
+      "sourceContractSha256": "7f3a4e6d7f8c3a6bfbee37a22b5064c4b37ca452f1d0f6c36ea9259061c999d5",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/stream/finish",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 51
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no session → 404 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/stream/cancel",
+      "normalizedPath": "/api/speech/stream/cancel",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 115,
+      "sourceContractSha256": "3791a8d9f06df12563addcbb951b3e0c96d087063ea1f4ca01f8942a8bf36b46",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/stream/cancel",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 52
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "200 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/client-info",
+      "normalizedPath": "/api/client-info",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 123,
+      "sourceContractSha256": "e3ac88e5ad2ef2fa240faafcaed127ce3d063ed49681749730954b480bdf458a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/client-info",
+          "source": "runtime-rs/src/ui_contract.rs",
+          "line": 100
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: isolated Rust sidecar bootstrap and health (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/runtime/diagnostics",
+      "normalizedPath": "/api/runtime/diagnostics",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 131,
+      "sourceContractSha256": "86b457dfeee8c8bb6718ca1aa46cb03d9f0b0fb739951cf27c39e702b7204305",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/runtime/diagnostics",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1570
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspaceCwd/engine/version payload (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/usage/today",
+      "normalizedPath": "/api/usage/today",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 138,
+      "sourceContractSha256": "6a167e68def51d931b68aa596027ccf0d067a30b5e71fde9701f0219c15b3187",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/usage/today",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1487
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "totals payload (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions",
+      "normalizedPath": "/api/sessions",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 145,
+      "sourceContractSha256": "93e5ebf19c0979a2a5c75dcee1828a87fdd7cd6cacd90d0462b658d8f6bfe753",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1488
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: create a real session with frontend summary (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: session switching preserves prior history and continued chat; smoke: native sessions run concurrently and enforce mutation/configuration isolation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/session-labels",
+      "normalizedPath": "/api/session-labels",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 152,
+      "sourceContractSha256": "c157c6594d41a470643e44074e06f483179708d59889d463839b8c301875c6f2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/session-labels",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1512
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "labels projection (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions",
+      "normalizedPath": "/api/sessions",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 163,
+      "sourceContractSha256": "ce07dd1c97c9a0512a5bec594a25b90a39b3e3fc6113f6d477d2157d188f2f39",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1488
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 full session row (flat shape, model inherited); smoke: create a real session with frontend summary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/side-chat",
+      "normalizedPath": "/api/sessions/{sessionId}/side-chat",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 171,
+      "sourceContractSha256": "de5b46a2881c34433693a914a3d07c6bdd90308ac70d761a1a78bfa90b57b90c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/side-chat",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1566
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "empty: {session:null,expiresAt:null,created:false}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/side-chat",
+      "normalizedPath": "/api/sessions/{sessionId}/side-chat",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 178,
+      "sourceContractSha256": "255206a0954fbe7fef7f6bbb33d48375784fc24b2d28135bb5b40a33d557be5b",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/side-chat",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1566
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "created side-<uuid> session, 24h expiresAt, metadata.sideChat persisted; GET returns existing row"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/derive",
+      "normalizedPath": "/api/sessions/{sessionId}/derive",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 185,
+      "sourceContractSha256": "22655062dea07ed8b2d9aad49c5c6f967e2a4ba458bd259ed85313d23bb92fca",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/derive",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1504
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "201 {ok,id,name} from assistant boundary (release json(201,...)) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/tree",
+      "normalizedPath": "/api/sessions/{sessionId}/tree",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 200,
+      "sourceContractSha256": "1ed549784289e32d04af569dd10a6aa1294fcf0b52bdc0f5761e19af97f0ce1c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/tree",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1502
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "projected nodes (kind/role/status/label/leaf/branchPoint) after real chat turn"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/tree/navigate",
+      "normalizedPath": "/api/sessions/{sessionId}/tree/navigate",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 207,
+      "sourceContractSha256": "bed263fa94c6d7eeef43ebbe337edc242ca81b0ae163aee3d542ea2954fd4ec9",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/tree/navigate",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1558
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "includeTree:false → {cancelled:false,editorText:null}; leaf moved"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/tree/labels/:entryId",
+      "normalizedPath": "/api/sessions/{sessionId}/tree/labels/{entryId}",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 230,
+      "sourceContractSha256": "70774ced3c4aa451777b9e1b9e71dbe411bd18b4f8bdeb5b0cea7703e522cf4a",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/tree/labels/{entryId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1562
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "label set via appendLabelChange; returned tree shows label"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/commands",
+      "normalizedPath": "/api/sessions/{sessionId}/commands",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 239,
+      "sourceContractSha256": "fe119c7ff2daefbe9f8383f76990f0c7290cb9f2d0389443cb18a161c6eb762b",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/commands",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1557
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{sessionId,commands,counts{total,prompts,skills,diagnostics}}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/model",
+      "normalizedPath": "/api/sessions/{sessionId}/model",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 246,
+      "sourceContractSha256": "9c535fbb63bca4dc1155b608231d9eb91fd1aaf39d421bae9b40c4550bf89d42",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/model",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1513
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "real provider/model accepted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/thinking-level",
+      "normalizedPath": "/api/sessions/{sessionId}/thinking-level",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 260,
+      "sourceContractSha256": "0edfaf76a3ace7786cd23839a9bd1d5b11494024bd9dcc5a650e5e46cd4e7bf7",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/thinking-level",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1519
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "level state (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/thinking-level",
+      "normalizedPath": "/api/sessions/{sessionId}/thinking-level",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 269,
+      "sourceContractSha256": "ac84d5f68c1792f31f077379258ebbfc13d892669dd397df9ba2f7dc57004806",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/thinking-level",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1519
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{level:...} accepted; invalid → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/cwd",
+      "normalizedPath": "/api/sessions/{sessionId}/cwd",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 282,
+      "sourceContractSha256": "5b470b3eed4d354339a9cf3452765b9395dd7eaf151a2d8946fe70257c32cfd7",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/cwd",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1506
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workspace cwd switch (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/goal",
+      "normalizedPath": "/api/sessions/{sessionId}/goal",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 291,
+      "sourceContractSha256": "fe0628d3180156b478f1df6d69a541187ed7ee35bae8ed31c4706077772b040f",
+      "owner": "execution-goals-agents",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/goal",
+          "source": "runtime-rs/src/goal_api.rs",
+          "line": 32
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: goal continuation executes real Pi tools, preserves first-round images and hides internal prompts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal budget stops continuation and runs exactly one real summary round; smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/team",
+      "normalizedPath": "/api/sessions/{sessionId}/team",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 300,
+      "sourceContractSha256": "577db8d8be4a871c5f2e77879ffe4c7273d50c04152ae4643722b4b1a7e11516",
+      "owner": "execution-goals-agents",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/team",
+          "source": "runtime-rs/src/multi_agent_api.rs",
+          "line": 64
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: team mode boots the native coordinator and exposes its real HTTP projection (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: goal, plan, agents and team GET preserve original empty journals byte-for-byte"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/sessions/:sessionId/goal",
+      "normalizedPath": "/api/sessions/{sessionId}/goal",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 309,
+      "sourceContractSha256": "5d8b8a270913a0d2b38a9e57e6d2c8c1b3bb6611013cf7c53b492741430a566b",
+      "owner": "execution-goals-agents",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/sessions/{id}/goal",
+          "source": "runtime-rs/src/goal_api.rs",
+          "line": 32
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: goal continuation executes real Pi tools, preserves first-round images and hides internal prompts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/git/changes",
+      "normalizedPath": "/api/sessions/{sessionId}/git/changes",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 326,
+      "sourceContractSha256": "65893d829220f98bb0350bc24011262ce651b3b5ae1b1bfbeb71b170edd8d2df",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/git/changes",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1543
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "git/* alias returns GitChangesResponse (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/git/commit",
+      "normalizedPath": "/api/sessions/{sessionId}/git/commit",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 333,
+      "sourceContractSha256": "ec5cdc5534426049595c52ea850389098fa42f188310ac84ffc6d02ab7079be4",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/git/commit",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1544
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "git/* alias committed and returned updated changes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/git/push",
+      "normalizedPath": "/api/sessions/{sessionId}/git/push",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 340,
+      "sourceContractSha256": "ef0002dc71c4189e15e3d751de849931c4e6501dc59464b8b65643120fa0a02f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/git/push",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1545
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "push to bare remote → 200 GitChangesResponse ahead:0 (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/git/revert",
+      "normalizedPath": "/api/sessions/{sessionId}/git/revert",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 347,
+      "sourceContractSha256": "e778d34056cb733db2d10217140d8d5ad7031298924d0e019faa8500f2b8199f",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/git/revert",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1546
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "alias verified (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/vcs/changes",
+      "normalizedPath": "/api/sessions/{sessionId}/vcs/changes",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 354,
+      "sourceContractSha256": "ae6d3bfba2e34b88e2f63cfc3abd05afe437ad34710ef548f21d7a0c012510cd",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/vcs/changes",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1538
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "real git repo: isRepo/branch/hasHead/files/ahead/vcs shapes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/vcs/file-diff",
+      "normalizedPath": "/api/sessions/{sessionId}/vcs/file-diff",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 361,
+      "sourceContractSha256": "11aeeb4bc36e1e7f5211278ad6e4587f640f000e765fc81d6be72a35924fc038",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/vcs/file-diff",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1547
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "real tracked-file diff with source:'vcs',canRevert:false"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/file-changes",
+      "normalizedPath": "/api/sessions/{sessionId}/file-changes",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 368,
+      "sourceContractSha256": "f845be1d202f6c2f7389bc8c1cca7849e659f0ef7e78933a49f6aadc53f9997c",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/file-changes",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 15
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: new sessions persist complete empty file-change markers (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: child tool snapshots belong to the parent and deletion cannot revive them; smoke: a historical journal without its snapshot index stays unavailable; smoke: original BOM/newline bytes and first snapshots are staged for actual restart"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/change-summary",
+      "normalizedPath": "/api/sessions/{sessionId}/change-summary",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 375,
+      "sourceContractSha256": "4c065a7e00702996f0e4f6fbed5e91fb67226fff8c61f55b6a4fee1da9c58bc6",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/change-summary",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 16
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: actual shell execution marks coverage partial before reporting any zero (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/file-changes/diff",
+      "normalizedPath": "/api/sessions/{sessionId}/file-changes/diff",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 382,
+      "sourceContractSha256": "3bc35666c3a9d20b6adcd6a4e53a3e2b1732382db02254bdd501d059853ddfa5",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/file-changes/diff",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 17
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: actual Pi write/edit preserve the first baseline, diff and approval state (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: new-file diff uses /dev/null and actual revert removes the created file"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/file-changes/revert",
+      "normalizedPath": "/api/sessions/{sessionId}/file-changes/revert",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 392,
+      "sourceContractSha256": "4441eedb917799ee4dbee052ff0d9c482f750303937e40d3903e785a04174f07",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/file-changes/revert",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 18
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: new-file diff uses /dev/null and actual revert removes the created file (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: an active real model stream rejects file-change revert with HTTP 409"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/file-changes/approve",
+      "normalizedPath": "/api/sessions/{sessionId}/file-changes/approve",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 402,
+      "sourceContractSha256": "1f29bdcb8cdd5f3158a76a4e5f7129617586bb8bc96c17ad4808bfb02fce9c23",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/file-changes/approve",
+          "source": "runtime-rs/src/file_changes_api.rs",
+          "line": 19
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: actual Pi write/edit preserve the first baseline, diff and approval state (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/vcs/commit",
+      "normalizedPath": "/api/sessions/{sessionId}/vcs/commit",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 412,
+      "sourceContractSha256": "0ec044de285202e7454c52b09b7999bbabbc5a97624a226973e01db3adbdc868",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/vcs/commit",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1539
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "commit on real repo returns updated changes (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/vcs/push",
+      "normalizedPath": "/api/sessions/{sessionId}/vcs/push",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 419,
+      "sourceContractSha256": "3039b82498f5ea0edab2001b0229cd759209bfa23e00bd6094df2f584743eea2",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/vcs/push",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1540
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "non-repo/push error shapes (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/vcs/revert",
+      "normalizedPath": "/api/sessions/{sessionId}/vcs/revert",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 426,
+      "sourceContractSha256": "4b93ad2ef2a72c03b8867a5165c7bc98d2c0cf6b2b2f2c361e7d396cf5949bab",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/vcs/revert",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1541
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "reset --hard + clean -fd on real repo (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/execution-mode",
+      "normalizedPath": "/api/sessions/{sessionId}/execution-mode",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 433,
+      "sourceContractSha256": "a0658c2e5d7ea8da09d884e65f908215f35f4ee0896532b838c26936aa61475f",
+      "owner": "execution-goals-agents",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/execution-mode",
+          "source": "runtime-rs/src/approval_api.rs",
+          "line": 719
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "approval-required/workspace-write/full-access accepted; invalid → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/permission",
+      "normalizedPath": "/api/sessions/{sessionId}/permission",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 442,
+      "sourceContractSha256": "afa0f5b7386e1f7caf433a29cac0879e246c7a0614a06106262b77f536438180",
+      "owner": "execution-goals-agents",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/permission",
+          "source": "runtime-rs/src/approval_api.rs",
+          "line": 723
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{mode} accepted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/run-mode",
+      "normalizedPath": "/api/sessions/{sessionId}/run-mode",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 451,
+      "sourceContractSha256": "b8f62da7332f2368e7a75d2953b15b15d35f853d6454aa07c4bfedd8f179ec6d",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PUT",
+          "path": "/api/sessions/{id}/run-mode",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1507
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{mode} accepted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/approvals/:approvalId",
+      "normalizedPath": "/api/sessions/{sessionId}/approvals/{approvalId}",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 460,
+      "sourceContractSha256": "2061ca2cc9c5d664ecf801c6c18914d1a63970db4fb21185531e08e3bc97bfee",
+      "owner": "execution-goals-agents",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/approvals/{approval}",
+          "source": "runtime-rs/src/approval_api.rs",
+          "line": 718
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown approval → 404 (release not_found contract) (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/sessions/:sessionId/organization",
+      "normalizedPath": "/api/sessions/{sessionId}/organization",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 473,
+      "sourceContractSha256": "e20b8a9764a9caeaa214717c2d886c068c91a0193e0ea14e9d1860f3d29a12da",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/sessions/{id}/organization",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1496
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "organization merge (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/sessions/:sessionId",
+      "normalizedPath": "/api/sessions/{sessionId}",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 489,
+      "sourceContractSha256": "166e75114f080998ad42f33f669e143c1ce676798b41d6a70c4e47e638fcfc55",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/sessions/{id}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1492
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "rename/pin/archive (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/:sessionId",
+      "normalizedPath": "/api/sessions/{sessionId}",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 500,
+      "sourceContractSha256": "9a47597e5b9baf6208c7b766279846fbe9df9154713be805ee0e2cd40da49cf6",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/sessions/{id}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1492
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "session deleted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/messages",
+      "normalizedPath": "/api/sessions/{sessionId}/messages",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 509,
+      "sourceContractSha256": "41a9e61f65705867cb065dc05b48312490133ce2b119db69bc27cc2f76d319f4",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/messages",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1508
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: live session JSON with usable messages/pageInfo (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: history contains the user and assistant conversation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/live",
+      "normalizedPath": "/api/sessions/{sessionId}/live",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 522,
+      "sourceContractSha256": "6c83e166f1fac0dfb0bf834063711df9e6088ffba22fca20e07e773d033f855e",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/live",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1501
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: live session JSON with usable messages/pageInfo (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: native write archives real workspace output and restores message attachments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/compact",
+      "normalizedPath": "/api/sessions/{sessionId}/compact",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 529,
+      "sourceContractSha256": "3cb9fc0caf69dd9594340b8e5662a1e47edea98515076b80537a4f30136e96bc",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/compact",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1505
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "below-threshold → 400 nothing-to-compact (release error mapping) (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/input",
+      "normalizedPath": "/api/sessions/{sessionId}/input",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 536,
+      "sourceContractSha256": "100fb9e3e1898739e4fdf067ea0e2f616cab13cadd9fa2d7d509b19f14ab9bb9",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/input",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1500
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native write archives real workspace output and restores message attachments (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: actual Pi image_assets uses native pixels and provider HTTP, archives public exports and rejects undelegated calls"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/:sessionId/input/:inputId",
+      "normalizedPath": "/api/sessions/{sessionId}/input/{inputId}",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 551,
+      "sourceContractSha256": "b00b4c00a7744045d7996f7934a3ff4fdd8fb95ed490c45f0f765b883efe4def",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/sessions/{id}/input/{inputId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1551
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{removed:false,inputId,pendingMessageCount,queuedInputs}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/mobile-operations/:operationId",
+      "normalizedPath": "/api/sessions/{sessionId}/mobile-operations/{operationId}",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 558,
+      "sourceContractSha256": "a594650e8195bdd169531b856f2142e94c61116294d6892c3c1464ed191b8a02",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/mobile-operations/{operationId}",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1552
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "{accepted:false} (release unknown-opId branch; mobile channel seam)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/abort",
+      "normalizedPath": "/api/sessions/{sessionId}/abort",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 574,
+      "sourceContractSha256": "0c9bcf8e3b26523ec6d8cad303a299b37f4170906fa570784818642faf7a26f8",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/abort",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1503
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: stopping a held Goal closes its model stream and resumes the same objective explicitly (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: parent abort cascades to its held children and preserves another parent child"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/workflow-runs",
+      "normalizedPath": "/api/sessions/{sessionId}/workflow-runs",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 590,
+      "sourceContractSha256": "e2d420b4b8b314a4d4aca6417c46f742e0ee0a3d2d2a80f5a586c28128a14c61",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/{id}/workflow-runs",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 209
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "per-session runs (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/retry",
+      "normalizedPath": "/api/sessions/{sessionId}/retry",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 597,
+      "sourceContractSha256": "8fd18822f8cd83909b8462479a1044543cb5a368fb5fcd92b959eef7c9a8df32",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/sessions/{id}/retry",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1556
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "SSE re-ran last turn after tree navigation (real model response)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat",
+      "normalizedPath": "/api/chat",
+      "source": "runtime/http/routes/sessions-runtime.mjs",
+      "line": 614,
+      "sourceContractSha256": "c12124c77024fb990bf9a4ab5b54cfe041d1bc2e6e46ef689085e1ed360dd521",
+      "owner": "integration-runtime-platform",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/chat",
+          "source": "runtime-rs/src/main.rs",
+          "line": 1611
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "full run protocol SSE with real model reply; smoke: plain chat produces real streamed assistant text; smoke: real tool roundtrip executes sandbox read and returns result to model"
+    },
+    {
+      "method": "GET",
+      "path": "/api/speech/models",
+      "normalizedPath": "/api/speech/models",
+      "source": "runtime/http/routes/speech.mjs",
+      "line": 39,
+      "sourceContractSha256": "690cfcfb42529b9a26ebc757bc5e77f8bcd6c4d5921f5613aaa0b5a71c22f733",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/speech/models",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 42
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/models/download",
+      "normalizedPath": "/api/speech/models/download",
+      "source": "runtime/http/routes/speech.mjs",
+      "line": 53,
+      "sourceContractSha256": "73ea0d8469187c8c74dbc3c85084f8c110bf7d85e69a332b3fb50e3950836b68",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/models/download",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 43
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown model → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/models/cancel",
+      "normalizedPath": "/api/speech/models/cancel",
+      "source": "runtime/http/routes/speech.mjs",
+      "line": 69,
+      "sourceContractSha256": "5d403cdb62833cf93adda491f297aad0b4c315b3f1242b60a66706bd51adcb5a",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/models/cancel",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 44
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown model → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/session",
+      "normalizedPath": "/api/speech/session",
+      "source": "runtime/http/routes/speech.mjs",
+      "line": 85,
+      "sourceContractSha256": "571459484dcb4175602b2015eef7424c2e29d9d73ebc91f3113523b55d25b29e",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/session",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 45
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "no model → 400 invalid (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/synthesize",
+      "normalizedPath": "/api/speech/synthesize",
+      "source": "runtime/http/routes/speech.mjs",
+      "line": 132,
+      "sourceContractSha256": "92e7db33d81b30163e70544f702105649dfab7b13b4f9eee3d354cde66b691fe",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/synthesize",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 46
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "empty → 4xx shape (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/speech/cancel",
+      "normalizedPath": "/api/speech/cancel",
+      "source": "runtime/http/routes/speech.mjs",
+      "line": 165,
+      "sourceContractSha256": "18ea7f21e83f443d27c0a85ff30e5dc31a1ca9ae7cf0d35e1ecc23bccd5563f8",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/speech/cancel",
+          "source": "runtime-rs/src/native_speech/http.rs",
+          "line": 47
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: native speech HTTP exposes release catalog, settings and cancellation contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprite-engines/:engineId/files/:fileName",
+      "normalizedPath": "/api/sprite-engines/{engineId}/files/{fileName}",
+      "source": "runtime/http/routes/workflow-image-engines.mjs",
+      "line": 47,
+      "sourceContractSha256": "5c4089eade74fc8be2e53306d28bec8df64f78022be440ff9c3b705ca0d62543",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/sprite-engines/{id}/files/{name}",
+          "source": "runtime-rs/src/native_image_runtime/engines.rs",
+          "line": 380
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown → 404 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow-media",
+      "normalizedPath": "/api/workflow-media",
+      "source": "runtime/http/routes/workflow-media.mjs",
+      "line": 13,
+      "sourceContractSha256": "f76c2af6d7a3a5fffd766b91d9cb6f0ee84548443c4caff33ba6a8c71f2a01f2",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-media",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 35
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow-media/:mediaId/content",
+      "normalizedPath": "/api/workflow-media/{mediaId}/content",
+      "source": "runtime/http/routes/workflow-media.mjs",
+      "line": 39,
+      "sourceContractSha256": "27ce5b854575a1b8acf17133e5c4f2067f8d23ef81c6cf0ad2287a7b7da4bdd0",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflow-media/{id}/content",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 36
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow-image-process",
+      "normalizedPath": "/api/workflow-image-process",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 15,
+      "sourceContractSha256": "9c8dc5c6552e44d154bbd1d1246a910d28fa80501a9b6577d3075038f47cb0af",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-image-process",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 37
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "invalid input → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflows/:workflowId/nodes/:nodeId/run",
+      "normalizedPath": "/api/workflows/{workflowId}/nodes/{nodeId}/run",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 57,
+      "sourceContractSha256": "7c32aadcdf1689a043cd52a8b65f852d8fb216d28ec3a6cb6a28659654dd3eba",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/{id}/nodes/{node}/run",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 205
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "single-node run on empty workflow → 400 workflow_image_source_stale (domain validation shape) (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow-image-models",
+      "normalizedPath": "/api/workflow-image-models",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 75,
+      "sourceContractSha256": "694b2d7de243593fb4ee2c110f0d66fae3e0bd03616b922a930b967f20bbbf3e",
+      "owner": "memory-assets-media",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflow-image-models",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 38
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow media binary roundtrip and fixed native image-engine HTTP catalog match their contracts (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflows/:workflowId/bundle",
+      "normalizedPath": "/api/workflows/{workflowId}/bundle",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 90,
+      "sourceContractSha256": "e56f8d7fc4ea023b79f893d16ed24c7a22fd1286390237b40b3c47d46ba6f3e3",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflows/{id}/bundle",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 39
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "bundle payload (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflows/import-bundle",
+      "normalizedPath": "/api/workflows/import-bundle",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 109,
+      "sourceContractSha256": "364342f46c85729765c5b30e7bf255007ba0f3f487aca700bdc0cd9a74701010",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/import-bundle",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 40
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "invalid bundle → 400 (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/schedules",
+      "normalizedPath": "/api/schedules",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 129,
+      "sourceContractSha256": "ea21c47afa370a4c50a33298a76ac6a16c62b6c901f9a555de98e83f06d05ad7",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/schedules",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 695
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: schedules dashboard contract"
+    },
+    {
+      "method": "POST",
+      "path": "/api/schedules",
+      "normalizedPath": "/api/schedules",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 136,
+      "sourceContractSha256": "44164c79707894ab24ceb5abab5b9f45b3f057f5bd523cc4264736e85b4f9894",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/schedules",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 695
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/schedules/:scheduleId/run",
+      "normalizedPath": "/api/schedules/{scheduleId}/run",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 143,
+      "sourceContractSha256": "fc908012746e71d7e3d60a339f167de5e13601406a3231f427110a3d9ae273bb",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/schedules/{id}/run",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 700
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: disabled schedule manual run persists actual Pi output and keeps nextRunAt unchanged (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/schedules/:scheduleId",
+      "normalizedPath": "/api/schedules/{scheduleId}",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 152,
+      "sourceContractSha256": "a3fc3a0f5cd67b2b3a0c7a647f54b9fb8c53e0ebabaf1c63f34e3df352212374",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/schedules/{id}",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 696
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: schedules dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/schedules/:scheduleId",
+      "normalizedPath": "/api/schedules/{scheduleId}",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 161,
+      "sourceContractSha256": "43418b5f044555f74c255bb9c10da7c3e84b61ab0c57c328da18fb258e1cc908",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/schedules/{id}",
+          "source": "runtime-rs/src/schedule_api.rs",
+          "line": 696
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: schedules dashboard contract (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflows",
+      "normalizedPath": "/api/workflows",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 170,
+      "sourceContractSha256": "7b3366a0b5a82f20c2a4e634c01b279d434dd73b3577784cfa122ed0348c1def",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflows",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 198
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: workflows dashboard contract"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflows",
+      "normalizedPath": "/api/workflows",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 177,
+      "sourceContractSha256": "540b8d339022ae40d5b1157cd3834b482c3b30f646b7e87f07c269fa4c7628c0",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 198
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow-runs/:runId",
+      "normalizedPath": "/api/workflow-runs/{runId}",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 184,
+      "sourceContractSha256": "14d5dec3d21ac8990ab85654903ffb32b5f7d336bfcebb625cd7322df196f9b8",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "GET",
+          "path": "/api/workflow-runs/{id}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 206
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json); smoke: workflow HTTP approval resolves once and cancellation blocks the next Pi prompt; smoke: workflow unavailable selected model persists failure without a completed node"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow-runs/:runId/retry",
+      "normalizedPath": "/api/workflow-runs/{runId}/retry",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 193,
+      "sourceContractSha256": "8ed20745c84a2310536a85415a5926aed8f5538933278bbc303621fab121e7ab",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-runs/{id}/retry",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 207
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "unknown run → 404 (live-verify pass3 2026-10-06)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow-runs/:runId/approvals/:nodeId",
+      "normalizedPath": "/api/workflow-runs/{runId}/approvals/{nodeId}",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 202,
+      "sourceContractSha256": "87d9d944562907d037db8fc179174c68966b53da3b575c1421f5b52cbc96bc92",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-runs/{id}/approvals/{node}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 210
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP approval resolves once and cancellation blocks the next Pi prompt (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow-runs/:runId/stop",
+      "normalizedPath": "/api/workflow-runs/{runId}/stop",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 215,
+      "sourceContractSha256": "3b6ea16a665d8118edd10c2e008fff9a7fcf9b29b69bd8d93b818c1ce04ec3ba",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflow-runs/{id}/stop",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 208
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: stopping an actual held Workflow model stream releases its owner and blocks overlapping mutation (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflows/:workflowId/run",
+      "normalizedPath": "/api/workflows/{workflowId}/run",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 224,
+      "sourceContractSha256": "e6e904f0a9acaaf98902c97b97989f464c9730c912fcdbc4949496ad19843d04",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/{id}/run",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 204
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "smoke: workflow HTTP publishes a DAG and persists two real Pi turns in one public session (smoke run release/local-rust-build/usability/2026-10-06T06-05-28.705Z/report.json)"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflows/:workflowId/duplicate",
+      "normalizedPath": "/api/workflows/{workflowId}/duplicate",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 233,
+      "sourceContractSha256": "5885f9c9eadddd0cc733419f265ad9e1e17d76a9fc89eb6366c28e1acb7a0518",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "POST",
+          "path": "/api/workflows/{id}/duplicate",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 203
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "duplicate workflow (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/workflows/:workflowId",
+      "normalizedPath": "/api/workflows/{workflowId}",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 242,
+      "sourceContractSha256": "e81fed317ffac5fefb129dd0a21dcf930bfc5baab8423b8793af17dc2e60cdab",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "PATCH",
+          "path": "/api/workflows/{id}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 199
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "rename persisted (live-verify pass 2026-10-06)"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/workflows/:workflowId",
+      "normalizedPath": "/api/workflows/{workflowId}",
+      "source": "runtime/http/routes/workflows-schedules.mjs",
+      "line": 251,
+      "sourceContractSha256": "d0ce6465f5b520ecbbee3683f4b49dfc456fe394a9038f92801a84cf364b8a1f",
+      "owner": "workflows-schedules",
+      "declarations": [
+        {
+          "method": "DELETE",
+          "path": "/api/workflows/{id}",
+          "source": "runtime-rs/src/workflow_api.rs",
+          "line": 199
+        }
+      ],
+      "wiredRuntimeVerified": false,
+      "behaviorVerified": true,
+      "verificationStatus": "behavior-verified",
+      "evidence": "workflow removed (live-verify pass 2026-10-06)"
+    }
+  ]
+}

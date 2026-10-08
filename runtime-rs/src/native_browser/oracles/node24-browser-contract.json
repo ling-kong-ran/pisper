@@ -1,0 +1,2112 @@
+{
+  "nodeVersion": "v24.19.0",
+  "playwrightVersion": "1.62.1",
+  "sourceSha256": "6bf74a3c4d674fdcfb017c2fb83e0c0422735febd1d27612eff126a906562919",
+  "fixtureBase": "http://127.0.0.1:56613",
+  "source": "actual readonly release service/tool/delegated lifecycle and genuine Playwright/Edge; private coercion functions executed verbatim in Node VM",
+  "coercions": [
+    {
+      "name": "width",
+      "input": null,
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": null,
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": null,
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": null,
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": false,
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": false,
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": false,
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": false,
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": true,
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": true,
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": true,
+      "ok": true,
+      "value": "true"
+    },
+    {
+      "name": "filename",
+      "input": true,
+      "ok": true,
+      "value": "true.png"
+    },
+    {
+      "name": "width",
+      "input": 0,
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": 0,
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": 0,
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": 0,
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": 0,
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": 0,
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": 0,
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": 0,
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": -0.5,
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": -0.5,
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": -0.5,
+      "ok": true,
+      "value": "-0.5"
+    },
+    {
+      "name": "filename",
+      "input": -0.5,
+      "ok": true,
+      "value": "0.5.png"
+    },
+    {
+      "name": "width",
+      "input": 640.5,
+      "ok": true,
+      "value": 641
+    },
+    {
+      "name": "height",
+      "input": 640.5,
+      "ok": true,
+      "value": 641
+    },
+    {
+      "name": "selector",
+      "input": 640.5,
+      "ok": true,
+      "value": "640.5"
+    },
+    {
+      "name": "filename",
+      "input": 640.5,
+      "ok": true,
+      "value": "640.5.png"
+    },
+    {
+      "name": "width",
+      "input": 1000.5,
+      "ok": true,
+      "value": 1001
+    },
+    {
+      "name": "height",
+      "input": 1000.5,
+      "ok": true,
+      "value": 1001
+    },
+    {
+      "name": "selector",
+      "input": 1000.5,
+      "ok": true,
+      "value": "1000.5"
+    },
+    {
+      "name": "filename",
+      "input": 1000.5,
+      "ok": true,
+      "value": "1000.5.png"
+    },
+    {
+      "name": "width",
+      "input": 99999,
+      "ok": true,
+      "value": 2560
+    },
+    {
+      "name": "height",
+      "input": 99999,
+      "ok": true,
+      "value": 1600
+    },
+    {
+      "name": "selector",
+      "input": 99999,
+      "ok": true,
+      "value": "99999"
+    },
+    {
+      "name": "filename",
+      "input": 99999,
+      "ok": true,
+      "value": "99999.png"
+    },
+    {
+      "name": "width",
+      "input": "",
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": "",
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": "",
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": "",
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": " 900.5 ",
+      "ok": true,
+      "value": 901
+    },
+    {
+      "name": "height",
+      "input": " 900.5 ",
+      "ok": true,
+      "value": 901
+    },
+    {
+      "name": "selector",
+      "input": " 900.5 ",
+      "ok": true,
+      "value": "900.5"
+    },
+    {
+      "name": "filename",
+      "input": " 900.5 ",
+      "ok": true,
+      "value": "900.5.png"
+    },
+    {
+      "name": "width",
+      "input": "NaN",
+      "ok": true,
+      "value": 1440
+    },
+    {
+      "name": "height",
+      "input": "NaN",
+      "ok": true,
+      "value": 900
+    },
+    {
+      "name": "selector",
+      "input": "NaN",
+      "ok": true,
+      "value": "NaN"
+    },
+    {
+      "name": "filename",
+      "input": "NaN",
+      "ok": true,
+      "value": "NaN.png"
+    },
+    {
+      "name": "width",
+      "input": "Infinity",
+      "ok": true,
+      "value": 1440
+    },
+    {
+      "name": "height",
+      "input": "Infinity",
+      "ok": true,
+      "value": 900
+    },
+    {
+      "name": "selector",
+      "input": "Infinity",
+      "ok": true,
+      "value": "Infinity"
+    },
+    {
+      "name": "filename",
+      "input": "Infinity",
+      "ok": true,
+      "value": "Infinity.png"
+    },
+    {
+      "name": "width",
+      "input": [
+        1001
+      ],
+      "ok": true,
+      "value": 1001
+    },
+    {
+      "name": "height",
+      "input": [
+        1001
+      ],
+      "ok": true,
+      "value": 1001
+    },
+    {
+      "name": "selector",
+      "input": [
+        1001
+      ],
+      "ok": true,
+      "value": "1001"
+    },
+    {
+      "name": "filename",
+      "input": [
+        1001
+      ],
+      "ok": true,
+      "value": "1001.png"
+    },
+    {
+      "name": "width",
+      "input": [],
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": [],
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": [],
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": [],
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": [
+        null
+      ],
+      "ok": true,
+      "value": 640
+    },
+    {
+      "name": "height",
+      "input": [
+        null
+      ],
+      "ok": true,
+      "value": 480
+    },
+    {
+      "name": "selector",
+      "input": [
+        null
+      ],
+      "ok": false,
+      "error": "A selector is required for this browser action."
+    },
+    {
+      "name": "filename",
+      "input": [
+        null
+      ],
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "width",
+      "input": {},
+      "ok": true,
+      "value": 1440
+    },
+    {
+      "name": "height",
+      "input": {},
+      "ok": true,
+      "value": 900
+    },
+    {
+      "name": "selector",
+      "input": {},
+      "ok": true,
+      "value": "[object Object]"
+    },
+    {
+      "name": "filename",
+      "input": {},
+      "ok": true,
+      "value": "object-Object.png"
+    },
+    {
+      "name": "width",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "height",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "selector",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "filename",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "idleTimeoutMs",
+      "absent": true,
+      "ok": true,
+      "value": 600000
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": null,
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": false,
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": true,
+      "ok": true,
+      "value": 1
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": 0,
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": -5,
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": "1000",
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": 1.5,
+      "ok": true,
+      "value": 1.5
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": "NaN",
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": {},
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "idleTimeoutMs",
+      "input": [],
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "url",
+      "input": "http://127.0.0.1:80/a/../b?x=한글#frag",
+      "ok": true,
+      "value": "http://127.0.0.1/b?x=%ED%95%9C%EA%B8%80#frag"
+    },
+    {
+      "name": "url",
+      "input": " HTTP://LOCALHOST:80/one/../two ",
+      "ok": true,
+      "value": "http://localhost/two"
+    },
+    {
+      "name": "url",
+      "input": "https://example.invalid:443/a b",
+      "ok": true,
+      "value": "https://example.invalid/a%20b"
+    },
+    {
+      "name": "url",
+      "input": "file:///C:/example",
+      "ok": false,
+      "error": "Browser automation only supports http and https URLs."
+    },
+    {
+      "name": "url",
+      "input": "data:text/plain,x",
+      "ok": false,
+      "error": "Browser automation only supports http and https URLs."
+    },
+    {
+      "name": "url",
+      "input": "",
+      "ok": false,
+      "error": "Invalid URL"
+    },
+    {
+      "name": "url",
+      "input": false,
+      "ok": false,
+      "error": "Invalid URL"
+    },
+    {
+      "name": "url",
+      "input": [
+        "http://127.0.0.1:56613/"
+      ],
+      "ok": true,
+      "value": "http://127.0.0.1:56613/"
+    },
+    {
+      "name": "url",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "filename",
+      "input": "../unsafe name.PNG",
+      "ok": true,
+      "value": "unsafe-name.png"
+    },
+    {
+      "name": "filename",
+      "input": "C:\\unsafe\\..\\name.webp",
+      "ok": true,
+      "value": "name.png"
+    },
+    {
+      "name": "filename",
+      "input": "你好😀.png",
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "filename",
+      "input": "---",
+      "ok": true,
+      "value": "browser-1700000000000.png"
+    },
+    {
+      "name": "filename",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpeg",
+      "ok": true,
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png"
+    },
+    {
+      "name": "filename",
+      "input": "a.b.gif",
+      "ok": true,
+      "value": "a.b.gif.png"
+    },
+    {
+      "name": "selector",
+      "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "ok": true,
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "selector",
+      "input": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "ok": false,
+      "error": "Browser selector is limited to 500 characters."
+    },
+    {
+      "name": "action",
+      "absent": true,
+      "ok": true,
+      "value": "inspect"
+    },
+    {
+      "name": "action",
+      "input": null,
+      "ok": true,
+      "value": "inspect"
+    },
+    {
+      "name": "action",
+      "input": false,
+      "ok": true,
+      "value": "inspect"
+    },
+    {
+      "name": "action",
+      "input": true,
+      "ok": true,
+      "value": "true"
+    },
+    {
+      "name": "action",
+      "input": 0,
+      "ok": true,
+      "value": "inspect"
+    },
+    {
+      "name": "action",
+      "input": -5,
+      "ok": true,
+      "value": "-5"
+    },
+    {
+      "name": "action",
+      "input": 1.5,
+      "ok": true,
+      "value": "1.5"
+    },
+    {
+      "name": "action",
+      "input": "",
+      "ok": true,
+      "value": "inspect"
+    },
+    {
+      "name": "action",
+      "input": "false",
+      "ok": true,
+      "value": "false"
+    },
+    {
+      "name": "action",
+      "input": "0",
+      "ok": true,
+      "value": "0"
+    },
+    {
+      "name": "action",
+      "input": "NaN",
+      "ok": true,
+      "value": "NaN"
+    },
+    {
+      "name": "action",
+      "input": "Infinity",
+      "ok": true,
+      "value": "Infinity"
+    },
+    {
+      "name": "action",
+      "input": [],
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "action",
+      "input": [
+        null,
+        1,
+        true
+      ],
+      "ok": true,
+      "value": ",1,true"
+    },
+    {
+      "name": "action",
+      "input": {},
+      "ok": true,
+      "value": "[object Object]"
+    },
+    {
+      "name": "action",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "text",
+      "absent": true,
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "text",
+      "input": null,
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "text",
+      "input": false,
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "text",
+      "input": true,
+      "ok": true,
+      "value": "true"
+    },
+    {
+      "name": "text",
+      "input": 0,
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "text",
+      "input": -5,
+      "ok": true,
+      "value": "-5"
+    },
+    {
+      "name": "text",
+      "input": 1.5,
+      "ok": true,
+      "value": "1.5"
+    },
+    {
+      "name": "text",
+      "input": "",
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "text",
+      "input": "false",
+      "ok": true,
+      "value": "false"
+    },
+    {
+      "name": "text",
+      "input": "0",
+      "ok": true,
+      "value": "0"
+    },
+    {
+      "name": "text",
+      "input": "NaN",
+      "ok": true,
+      "value": "NaN"
+    },
+    {
+      "name": "text",
+      "input": "Infinity",
+      "ok": true,
+      "value": "Infinity"
+    },
+    {
+      "name": "text",
+      "input": [],
+      "ok": true,
+      "value": ""
+    },
+    {
+      "name": "text",
+      "input": [
+        null,
+        1,
+        true
+      ],
+      "ok": true,
+      "value": ",1,true"
+    },
+    {
+      "name": "text",
+      "input": {},
+      "ok": true,
+      "value": "[object Object]"
+    },
+    {
+      "name": "text",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    },
+    {
+      "name": "submit",
+      "absent": true,
+      "ok": true,
+      "value": false
+    },
+    {
+      "name": "submit",
+      "input": null,
+      "ok": true,
+      "value": false
+    },
+    {
+      "name": "submit",
+      "input": false,
+      "ok": true,
+      "value": false
+    },
+    {
+      "name": "submit",
+      "input": true,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": 0,
+      "ok": true,
+      "value": false
+    },
+    {
+      "name": "submit",
+      "input": -5,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": 1.5,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": "",
+      "ok": true,
+      "value": false
+    },
+    {
+      "name": "submit",
+      "input": "false",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": "0",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": "NaN",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": "Infinity",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": [],
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": [
+        null,
+        1,
+        true
+      ],
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": {},
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "submit",
+      "input": {
+        "toString": null
+      },
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "absent": true,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": null,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": false,
+      "ok": true,
+      "value": false
+    },
+    {
+      "name": "fullPage",
+      "input": true,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": 0,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": -5,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": 1.5,
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": "",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": "false",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": "0",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": "NaN",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": "Infinity",
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": [],
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": [
+        null,
+        1,
+        true
+      ],
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": {},
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "fullPage",
+      "input": {
+        "toString": null
+      },
+      "ok": true,
+      "value": true
+    },
+    {
+      "name": "waitMs",
+      "absent": true,
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": null,
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": false,
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": true,
+      "ok": true,
+      "value": 1
+    },
+    {
+      "name": "waitMs",
+      "input": 0,
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": -5,
+      "ok": true,
+      "value": 0
+    },
+    {
+      "name": "waitMs",
+      "input": 1.5,
+      "ok": true,
+      "value": 1.5
+    },
+    {
+      "name": "waitMs",
+      "input": "",
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": "false",
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": "0",
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": "NaN",
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": "Infinity",
+      "ok": true,
+      "value": 15000
+    },
+    {
+      "name": "waitMs",
+      "input": [],
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": [
+        null,
+        1,
+        true
+      ],
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": {},
+      "ok": true,
+      "value": 1000
+    },
+    {
+      "name": "waitMs",
+      "input": {
+        "toString": null
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value"
+    }
+  ],
+  "steps": [
+    {
+      "label": "entry-abort-after-coercion",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613"
+      },
+      "ok": false,
+      "error": "Owned entry abort",
+      "sessionLaunched": false,
+      "timerTouched": false
+    },
+    {
+      "label": "entry-abort-after-coercion",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613",
+        "width": {
+          "toString": null
+        }
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value",
+      "sessionLaunched": false,
+      "timerTouched": false
+    },
+    {
+      "label": "open-default",
+      "id": "primary",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613"
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        }
+      }
+    },
+    {
+      "label": "inspect-hints",
+      "id": "primary",
+      "input": {
+        "action": "inspect"
+      },
+      "ok": true,
+      "value": {
+        "action": "inspect",
+        "title": "Owned Browser Fixture",
+        "url": "http://127.0.0.1:56613/",
+        "text": "Owned browser contract\nTrusted clickFirst duplicateSecond duplicate\nSubmit owned form\nTest id hintEscaped idDisabled\nA\nB\nEditable body\nOwned next page\nclicks:0\nfirst:none\nstorage:empty",
+        "elements": [
+          {
+            "selector": "#trust",
+            "tag": "button",
+            "role": "",
+            "text": "Trusted click",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "button",
+            "tag": "button",
+            "role": "",
+            "text": "First duplicate",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "button",
+            "tag": "button",
+            "role": "",
+            "text": "Second duplicate",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "#value",
+            "tag": "input",
+            "role": "",
+            "text": "Fill and press Enter",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "#submit",
+            "tag": "button",
+            "role": "",
+            "text": "Submit owned form",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "input[name=\"named field\"]",
+            "tag": "input",
+            "role": "",
+            "text": "Named input",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "[data-testid=\"hint\"]",
+            "tag": "button",
+            "role": "",
+            "text": "Test id hint",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "button[aria-label=\"ARIA hint\"]",
+            "tag": "button",
+            "role": "",
+            "text": "ARIA hint",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "#\\39 \\.odd\\ name",
+            "tag": "button",
+            "role": "",
+            "text": "Escaped id",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "button",
+            "tag": "button",
+            "role": "",
+            "text": "Disabled",
+            "href": "",
+            "type": "",
+            "disabled": true
+          },
+          {
+            "selector": "textarea[aria-label=\"Notes\"]",
+            "tag": "textarea",
+            "role": "",
+            "text": "Notes",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "select[name=\"choice\"]",
+            "tag": "select",
+            "role": "",
+            "text": "A B",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "div[aria-label=\"Editable\"]",
+            "tag": "div",
+            "role": "textbox",
+            "text": "Editable body",
+            "href": "",
+            "type": "",
+            "disabled": false
+          },
+          {
+            "selector": "#link",
+            "tag": "a",
+            "role": "",
+            "text": "Owned next page",
+            "href": "http://127.0.0.1:56613/next",
+            "type": "",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "label": "trusted-click",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "#trust"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "#trust",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      },
+      "trustedEvents": [
+        {
+          "type": "click",
+          "trusted": true,
+          "value": "",
+          "key": "",
+          "target": "trust"
+        }
+      ]
+    },
+    {
+      "label": "text-engine",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "text=First duplicate"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "text=First duplicate",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "role-engine",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "role=button[name=\"Trusted click\"]"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "role=button[name=\"Trusted click\"]",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "xpath-engine",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "xpath=//button[@id=\"trust\"]"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "xpath=//button[@id=\"trust\"]",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "first-css",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": ".duplicate"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": ".duplicate",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "nth-chain",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "css=button.duplicate >> nth=1"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "css=button.duplicate >> nth=1",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "same-origin-frame",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "#same-frame >> internal:control=enter-frame >> #frame-button"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "#same-frame >> internal:control=enter-frame >> #frame-button",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "cross-origin-frame",
+      "id": "primary",
+      "input": {
+        "action": "click",
+        "selector": "#cross-frame >> internal:control=enter-frame >> #frame-button"
+      },
+      "ok": true,
+      "value": {
+        "action": "click",
+        "selector": "#cross-frame >> internal:control=enter-frame >> #frame-button",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      }
+    },
+    {
+      "label": "fill-trusted",
+      "id": "primary",
+      "input": {
+        "action": "type",
+        "selector": "#value",
+        "text": "owned 😀",
+        "submit": false
+      },
+      "ok": true,
+      "value": {
+        "action": "type",
+        "selector": "#value",
+        "submitted": false,
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      },
+      "dom": {
+        "value": "owned 😀",
+        "events": [
+          {
+            "type": "click",
+            "trusted": true,
+            "value": "",
+            "key": "",
+            "target": "trust"
+          },
+          {
+            "type": "click",
+            "trusted": true,
+            "value": "",
+            "key": "",
+            "target": "trust"
+          },
+          {
+            "type": "click",
+            "trusted": true,
+            "value": "",
+            "key": "",
+            "target": "trust"
+          },
+          {
+            "type": "input",
+            "trusted": true,
+            "value": "owned 😀",
+            "key": "",
+            "target": "value"
+          }
+        ]
+      }
+    },
+    {
+      "label": "tool-real-png-indexing-error-retains-file",
+      "ok": true,
+      "value": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"action\": \"screenshot\",\n  \"path\": \"C:\\\\Users\\\\13063\\\\Desktop\\\\code\\\\agent work\\\\pisper\\\\release\\\\local-rust-build\\\\native-browser-contract\\\\actual-node24\\\\generated\\\\browser\\\\unsafe-name.png\",\n  \"name\": \"unsafe-name.png\",\n  \"mimeType\": \"image/png\",\n  \"url\": \"http://127.0.0.1:56613/\",\n  \"title\": \"Owned Browser Fixture\",\n  \"fullPage\": true,\n  \"viewport\": {\n    \"width\": 1440,\n    \"height\": 900\n  }\n}"
+          }
+        ],
+        "details": {
+          "action": "screenshot",
+          "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\release\\local-rust-build\\native-browser-contract\\actual-node24\\generated\\browser\\unsafe-name.png",
+          "name": "unsafe-name.png",
+          "mimeType": "image/png",
+          "url": "http://127.0.0.1:56613/",
+          "title": "Owned Browser Fixture",
+          "fullPage": true,
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          }
+        }
+      },
+      "pixels": {
+        "width": 1440,
+        "height": 2200,
+        "swatch": [
+          18,
+          104,
+          173,
+          255
+        ]
+      }
+    },
+    {
+      "label": "screenshot-requested-vs-actual-viewport",
+      "id": "primary",
+      "input": {
+        "action": "screenshot",
+        "width": 700,
+        "height": 500,
+        "fullPage": false,
+        "outputName": "viewport.png"
+      },
+      "ok": true,
+      "value": {
+        "action": "screenshot",
+        "path": "<owned-generated-browser>/viewport.png",
+        "name": "viewport.png",
+        "mimeType": "image/png",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "fullPage": false,
+        "viewport": {
+          "width": 700,
+          "height": 500
+        }
+      },
+      "actualPixels": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "label": "actual-viewport-coercion",
+      "id": "dimensions",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613"
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        }
+      }
+    },
+    {
+      "label": "actual-viewport-coercion",
+      "id": "dimensions",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613",
+        "width": null,
+        "height": false
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 640,
+          "height": 480
+        }
+      }
+    },
+    {
+      "label": "actual-viewport-coercion",
+      "id": "dimensions",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613",
+        "width": "900.5",
+        "height": 1000.5
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 901,
+          "height": 1001
+        }
+      }
+    },
+    {
+      "label": "actual-viewport-coercion",
+      "id": "dimensions",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613",
+        "width": true,
+        "height": 99999
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 640,
+          "height": 1600
+        }
+      }
+    },
+    {
+      "label": "actual-viewport-coercion",
+      "id": "dimensions",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613",
+        "width": {},
+        "height": []
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 1440,
+          "height": 480
+        }
+      }
+    },
+    {
+      "label": "text5000-cuts-a-surrogate-pair",
+      "id": "primary",
+      "input": {
+        "action": "type",
+        "selector": "#value",
+        "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀z"
+      },
+      "ok": true,
+      "value": {
+        "action": "type",
+        "selector": "#value",
+        "submitted": false,
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture"
+      },
+      "dom": {
+        "utf16Length": 5000,
+        "lastUnits": [
+          97,
+          97,
+          65533
+        ],
+        "wire": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�"
+      }
+    },
+    {
+      "label": "inspect20000-utf16-cut",
+      "id": "primary",
+      "input": {
+        "action": "inspect"
+      },
+      "ok": true,
+      "value": {
+        "action": "inspect",
+        "title": "Owned Browser Fixture",
+        "url": "http://127.0.0.1:56613/",
+        "text": "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL�",
+        "elements": []
+      },
+      "rawTextLastUnits": [
+        76,
+        76,
+        55357
+      ],
+      "rawTextUtf16Length": 20000
+    },
+    {
+      "label": "restore-before-submit",
+      "id": "primary",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613"
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        }
+      }
+    },
+    {
+      "label": "enter-submit",
+      "id": "primary",
+      "input": {
+        "action": "type",
+        "selector": "#value",
+        "text": "submitted 😀",
+        "submit": true
+      },
+      "ok": true,
+      "value": {
+        "action": "type",
+        "selector": "#value",
+        "submitted": true,
+        "url": "http://127.0.0.1:56613/submitted?query=submitted+%F0%9F%98%80",
+        "title": "Owned Submitted"
+      }
+    },
+    {
+      "label": "isolation-first",
+      "id": "isolation-a",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613"
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        }
+      }
+    },
+    {
+      "label": "isolation-second",
+      "id": "isolation-b",
+      "input": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613"
+      },
+      "ok": true,
+      "value": {
+        "action": "open",
+        "url": "http://127.0.0.1:56613/",
+        "title": "Owned Browser Fixture",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        }
+      }
+    },
+    {
+      "label": "error-after-session-launch",
+      "id": "errors",
+      "input": {
+        "action": "open",
+        "url": "file:///C:/forbidden"
+      },
+      "ok": false,
+      "error": "Browser automation only supports http and https URLs.",
+      "name": "Error"
+    },
+    {
+      "label": "error-after-session-launch",
+      "id": "errors",
+      "input": {
+        "action": "click",
+        "selector": ""
+      },
+      "ok": false,
+      "error": "A selector is required for this browser action.",
+      "name": "Error"
+    },
+    {
+      "label": "error-after-session-launch",
+      "id": "errors",
+      "input": {
+        "action": "click",
+        "selector": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      },
+      "ok": false,
+      "error": "Browser selector is limited to 500 characters.",
+      "name": "Error"
+    },
+    {
+      "label": "error-after-session-launch",
+      "id": "errors",
+      "input": {
+        "action": "execute",
+        "code": "alert(1)"
+      },
+      "ok": false,
+      "error": "Unsupported browser action: execute",
+      "name": "Error"
+    },
+    {
+      "label": "error-after-session-launch",
+      "id": "errors",
+      "input": {
+        "action": "type",
+        "selector": "#value",
+        "text": {
+          "toString": null
+        }
+      },
+      "ok": false,
+      "error": "Cannot convert object to primitive value",
+      "name": "TypeError"
+    },
+    {
+      "label": "errors-inspect-retained-about-blank",
+      "id": "errors",
+      "input": {
+        "action": "inspect"
+      },
+      "ok": true,
+      "value": {
+        "action": "inspect",
+        "title": "",
+        "url": "about:blank",
+        "text": "",
+        "elements": []
+      }
+    },
+    {
+      "label": "explicit-close",
+      "id": "isolation-a",
+      "input": {
+        "action": "close"
+      },
+      "ok": true,
+      "value": {
+        "action": "close",
+        "closed": true
+      }
+    },
+    {
+      "label": "actual-delegated-delete-closes-before-child-cleanup",
+      "ok": true,
+      "order": [
+        "goals",
+        "team",
+        "plans",
+        "browser",
+        "agents",
+        "permissions"
+      ]
+    },
+    {
+      "label": "actual-delegated-delete-during-held-real-navigation",
+      "ok": true,
+      "order": [
+        "goals",
+        "team",
+        "plans",
+        "browser",
+        "agents",
+        "permissions",
+        "abort",
+        "session-dispose"
+      ],
+      "navigationResult": {
+        "ok": false,
+        "error": "page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:56613/hold\", waiting until \"domcontentloaded\"\u001b[22m\n"
+      },
+      "browserClosedBeforeAbort": true
+    },
+    {
+      "label": "exact-ten-minute-idle-timer-on-real-browser",
+      "ok": true,
+      "timeoutMs": 600000,
+      "resetCleared": 1,
+      "staleTimerDidNotClose": true
+    },
+    {
+      "label": "actual-release-close-during-real-browser-launch",
+      "ok": true,
+      "closeReturn": false,
+      "lateBrowserStillOwned": true,
+      "idleTimerRemaining": false,
+      "scope": "Source race reproduced; explicit follow-up dispose prevents an orphan in this oracle. Native no-orphan handling must be documented as a deliberate race correction."
+    },
+    {
+      "label": "actual-release-dispose-during-real-browser-launch",
+      "ok": true,
+      "closeReturn": null,
+      "lateBrowserStillOwned": true,
+      "idleTimerRemaining": false,
+      "scope": "Source race reproduced; explicit follow-up dispose prevents an orphan in this oracle. Native no-orphan handling must be documented as a deliberate race correction."
+    }
+  ],
+  "progress": [
+    "Opening http://127.0.0.1:56613/",
+    "Clicking #trust",
+    "Clicking text=First duplicate",
+    "Clicking role=button[name=\"Trusted click\"]",
+    "Clicking xpath=//button[@id=\"trust\"]",
+    "Clicking .duplicate",
+    "Clicking css=button.duplicate >> nth=1",
+    "Clicking #same-frame >> internal:control=enter-frame >> #frame-button",
+    "Clicking #cross-frame >> internal:control=enter-frame >> #frame-button",
+    "Typing into #value",
+    "Capturing http://127.0.0.1:56613/",
+    "Opening http://127.0.0.1:56613/",
+    "Opening http://127.0.0.1:56613/",
+    "Opening http://127.0.0.1:56613/",
+    "Opening http://127.0.0.1:56613/",
+    "Opening http://127.0.0.1:56613/",
+    "Typing into #value",
+    "Opening http://127.0.0.1:56613/",
+    "Typing into #value",
+    "Opening http://127.0.0.1:56613/",
+    "Opening http://127.0.0.1:56613/"
+  ],
+  "ownedEvents": [
+    {
+      "type": "click",
+      "trusted": true,
+      "value": "",
+      "key": "",
+      "target": "trust"
+    },
+    {
+      "type": "click",
+      "trusted": true,
+      "value": "",
+      "key": "",
+      "target": "trust"
+    },
+    {
+      "type": "click",
+      "trusted": true,
+      "value": "",
+      "key": "",
+      "target": "trust"
+    },
+    {
+      "type": "input",
+      "trusted": true,
+      "value": "owned 😀",
+      "key": "",
+      "target": "value"
+    },
+    {
+      "type": "input",
+      "trusted": true,
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�",
+      "key": "",
+      "target": "value"
+    },
+    {
+      "type": "change",
+      "trusted": true,
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�",
+      "key": "",
+      "target": "value"
+    },
+    {
+      "type": "input",
+      "trusted": true,
+      "value": "submitted 😀",
+      "key": "",
+      "target": "value"
+    },
+    {
+      "type": "keydown",
+      "trusted": true,
+      "value": "submitted 😀",
+      "key": "Enter",
+      "target": "value"
+    },
+    {
+      "type": "change",
+      "trusted": true,
+      "value": "submitted 😀",
+      "key": "",
+      "target": "value"
+    },
+    {
+      "type": "submit",
+      "trusted": true,
+      "value": {},
+      "key": "",
+      "target": "form"
+    },
+    {
+      "type": "keyup",
+      "trusted": true,
+      "value": "submitted 😀",
+      "key": "Enter",
+      "target": "value"
+    }
+  ],
+  "ownedBrowserPids": [
+    38440,
+    39892,
+    39180,
+    34620,
+    39416,
+    13632,
+    40004,
+    24504,
+    40784,
+    29844,
+    32524,
+    22828,
+    18288,
+    39996,
+    20636,
+    36188,
+    30360,
+    5544,
+    6624,
+    23812,
+    18376,
+    35764,
+    37092,
+    39480,
+    27428,
+    23604,
+    33576,
+    31764,
+    2188,
+    39372,
+    13748,
+    34708,
+    23492,
+    16852,
+    34680,
+    36708,
+    6500,
+    41036,
+    41568,
+    35168,
+    39960,
+    41784,
+    41804,
+    41840,
+    3596,
+    35320,
+    5224,
+    15532,
+    38524,
+    3224,
+    11408,
+    5292,
+    28408,
+    33128,
+    38532,
+    33920,
+    40796,
+    38884,
+    17872,
+    38792,
+    41588,
+    41672,
+    31756,
+    33132,
+    41844,
+    41848,
+    41704
+  ],
+  "remainingOwnedBrowserProcesses": [],
+  "allBrowsersDisconnected": true,
+  "primaryOnlySource": "runtime/services/multi-agent-service.mjs PARENT_ONLY_TOOL_NAMES; real native child proof belongs to production smoke",
+  "utf16Note": "Raw UTF16 truncation units are recorded separately; string fields use the release HTTP response U+FFFD cleaning for valid serde-compatible oracle JSON. Tool text JSON can preserve escaped surrogate units while native Value cannot; this remains an explicit representation comparison boundary.",
+  "noPublicPages": true,
+  "realProfilesTouched": false,
+  "paidModelsCalled": false
+}

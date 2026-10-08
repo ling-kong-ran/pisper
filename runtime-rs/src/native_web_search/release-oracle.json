@@ -1,0 +1,588 @@
+{
+  "sourceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "configs": [
+    {
+      "input": {
+        "language": 0.49999999999999994,
+        "safeSearch": 0.49999999999999994,
+        "maxResults": 0.49999999999999994
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0.49999999999999994",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 1.4999999999999998,
+        "safeSearch": 1.4999999999999998,
+        "maxResults": 1.4999999999999998
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1.4999999999999998",
+        "safeSearch": 1,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": null,
+        "safeSearch": null,
+        "maxResults": null
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": false,
+        "safeSearch": false,
+        "maxResults": false
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": true,
+        "safeSearch": true,
+        "maxResults": true
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "true",
+        "safeSearch": 1,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 0,
+        "safeSearch": 0,
+        "maxResults": 0
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 0,
+        "safeSearch": 0,
+        "maxResults": 0
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 0.49,
+        "safeSearch": 0.49,
+        "maxResults": 0.49
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0.49",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 0.5,
+        "safeSearch": 0.5,
+        "maxResults": 0.5
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0.5",
+        "safeSearch": 1,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 1.49,
+        "safeSearch": 1.49,
+        "maxResults": 1.49
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1.49",
+        "safeSearch": 1,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 1.5,
+        "safeSearch": 1.5,
+        "maxResults": 1.5
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1.5",
+        "safeSearch": 2,
+        "maxResults": 2
+      }
+    },
+    {
+      "input": {
+        "language": -0.5,
+        "safeSearch": -0.5,
+        "maxResults": -0.5
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "-0.5",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 2.5,
+        "safeSearch": 2.5,
+        "maxResults": 2.5
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "2.5",
+        "safeSearch": 2,
+        "maxResults": 3
+      }
+    },
+    {
+      "input": {
+        "language": 12.5,
+        "safeSearch": 12.5,
+        "maxResults": 12.5
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "12.5",
+        "safeSearch": 2,
+        "maxResults": 12
+      }
+    },
+    {
+      "input": {
+        "language": 1e21,
+        "safeSearch": 1e21,
+        "maxResults": 1e21
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1e+21",
+        "safeSearch": 2,
+        "maxResults": 12
+      }
+    },
+    {
+      "input": {
+        "language": 1e-7,
+        "safeSearch": 1e-7,
+        "maxResults": 1e-7
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1e-7",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 0.000001,
+        "safeSearch": 0.000001,
+        "maxResults": 0.000001
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0.000001",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": 1000000000000000100,
+        "safeSearch": 1000000000000000100,
+        "maxResults": 1000000000000000100
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1000000000000000100",
+        "safeSearch": 2,
+        "maxResults": 12
+      }
+    },
+    {
+      "input": {
+        "language": "",
+        "safeSearch": "",
+        "maxResults": ""
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": " ",
+        "safeSearch": " ",
+        "maxResults": " "
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": "﻿ 1.5  ",
+        "safeSearch": "﻿ 1.5  ",
+        "maxResults": "﻿ 1.5  "
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1.5",
+        "safeSearch": 2,
+        "maxResults": 2
+      }
+    },
+    {
+      "input": {
+        "language": "0x9",
+        "safeSearch": "0x9",
+        "maxResults": "0x9"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0x9",
+        "safeSearch": 2,
+        "maxResults": 9
+      }
+    },
+    {
+      "input": {
+        "language": "0b10",
+        "safeSearch": "0b10",
+        "maxResults": "0b10"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0b10",
+        "safeSearch": 2,
+        "maxResults": 2
+      }
+    },
+    {
+      "input": {
+        "language": "0o12",
+        "safeSearch": "0o12",
+        "maxResults": "0o12"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0o12",
+        "safeSearch": 2,
+        "maxResults": 10
+      }
+    },
+    {
+      "input": {
+        "language": "+0x9",
+        "safeSearch": "+0x9",
+        "maxResults": "+0x9"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "+0x9",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "0x",
+        "safeSearch": "0x",
+        "maxResults": "0x"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "0x",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "Infinity",
+        "safeSearch": "Infinity",
+        "maxResults": "Infinity"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "Infinity",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "-Infinity",
+        "safeSearch": "-Infinity",
+        "maxResults": "-Infinity"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "-Infinity",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "NaN",
+        "safeSearch": "NaN",
+        "maxResults": "NaN"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "NaN",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "1_0",
+        "safeSearch": "1_0",
+        "maxResults": "1_0"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1_0",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": ".5",
+        "safeSearch": ".5",
+        "maxResults": ".5"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": ".5",
+        "safeSearch": 1,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": "1e1",
+        "safeSearch": "1e1",
+        "maxResults": "1e1"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1e1",
+        "safeSearch": 2,
+        "maxResults": 10
+      }
+    },
+    {
+      "input": {
+        "language": "",
+        "safeSearch": "",
+        "maxResults": ""
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": [],
+        "safeSearch": [],
+        "maxResults": []
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": [null],
+        "safeSearch": [null],
+        "maxResults": [null]
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 0,
+        "maxResults": 1
+      }
+    },
+    {
+      "input": {
+        "language": ["6.4"],
+        "safeSearch": ["6.4"],
+        "maxResults": ["6.4"]
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "6.4",
+        "safeSearch": 2,
+        "maxResults": 6
+      }
+    },
+    {
+      "input": {
+        "language": ["1", "2"],
+        "safeSearch": ["1", "2"],
+        "maxResults": ["1", "2"]
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "1,2",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": [["2"]],
+        "safeSearch": [["2"]],
+        "maxResults": [["2"]]
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "2",
+        "safeSearch": 2,
+        "maxResults": 2
+      }
+    },
+    {
+      "input": {
+        "language": {},
+        "safeSearch": {},
+        "maxResults": {}
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "[object Object]",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "auto",
+        "safeSearch": "auto",
+        "maxResults": "auto"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "auto",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "toString",
+        "safeSearch": "toString",
+        "maxResults": "toString"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "toString",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "__proto__",
+        "safeSearch": "__proto__",
+        "maxResults": "__proto__"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "__proto__",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "zh-CN",
+        "safeSearch": "zh-CN",
+        "maxResults": "zh-CN"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "zh-CN",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "input": {
+        "language": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        "safeSearch": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        "maxResults": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      },
+      "expected": {
+        "provider": "bing",
+        "language": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    }
+  ],
+  "rss": {
+    "xml": "<rss><item><title>&amp;lt;b&amp;gt;Hi&amp;lt;/b&amp;gt; &#x1F600; &#39;</title><link>HTTPS://EXAMPLE.COM:443/a b</link><description><![CDATA[ <b>Oracle</b> &amp; data ]]></description><pubDate> Tue﻿ 21 </pubDate></item><item><link>file:///unsafe</link></item></rss>",
+    "expected": [
+      {
+        "title": "Hi 😀 '",
+        "url": "https://example.com/a%20b",
+        "snippet": "Oracle & data",
+        "publishedAt": "Tue 21"
+      }
+    ]
+  }
+}

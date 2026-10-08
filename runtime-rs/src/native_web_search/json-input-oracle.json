@@ -1,0 +1,60 @@
+{
+  "sourceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "nodeVersion": "v24.19.0",
+  "rows": [
+    {
+      "text": "{\"language\":1e400,\"safeSearch\":-1e400,\"maxResults\":1e400}",
+      "expected": {
+        "provider": "bing",
+        "language": "Infinity",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "text": "{\"language\":\"\\ud83d\\ude00\"}",
+      "expected": {
+        "provider": "bing",
+        "language": "😀",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "text": "{\"language\":\"\\ud83d\"}",
+      "expected": {
+        "provider": "bing",
+        "language": "�",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "text": "{\"language\":\"\\udc00\"}",
+      "expected": {
+        "provider": "bing",
+        "language": "�",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "text": "{\"language\":\"literal \\\\ud83d\"}",
+      "expected": {
+        "provider": "bing",
+        "language": "literal \\ud83d",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    },
+    {
+      "text": "{\"language\":[1e400,-1e400]}",
+      "expected": {
+        "provider": "bing",
+        "language": "Infinity,-Infinity",
+        "safeSearch": 1,
+        "maxResults": 8
+      }
+    }
+  ]
+}

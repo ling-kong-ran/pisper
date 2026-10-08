@@ -1,0 +1,793 @@
+{
+  "sourcePath": "packages/coding-agent/src/core/extensions/runner.ts",
+  "sourceSha256": "92da35c1df5c64b98bb4dfe485140b3e98863f6d44f4686dbf5eb77ddc4ea8c7",
+  "seams": [
+    "unrelated theme/system-prompt imports fail on use",
+    "native error message comparisons omit JS stack",
+    "Promise/microtask timing sampled only at explicit gates"
+  ],
+  "rows": [
+    {
+      "name": "cancel_true",
+      "cancel": true,
+      "observed": {
+        "result": {
+          "cancel": true
+        },
+        "trace": [
+          "A"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_false",
+      "cancel": false,
+      "observed": {
+        "result": {
+          "tail": true
+        },
+        "trace": [
+          "A",
+          "B"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_\"\"",
+      "cancel": "",
+      "observed": {
+        "result": {
+          "tail": true
+        },
+        "trace": [
+          "A",
+          "B"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_\"stop\"",
+      "cancel": "stop",
+      "observed": {
+        "result": {
+          "cancel": "stop"
+        },
+        "trace": [
+          "A"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_0",
+      "cancel": 0,
+      "observed": {
+        "result": {
+          "tail": true
+        },
+        "trace": [
+          "A",
+          "B"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_1",
+      "cancel": 1,
+      "observed": {
+        "result": {
+          "cancel": 1
+        },
+        "trace": [
+          "A"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_[]",
+      "cancel": [],
+      "observed": {
+        "result": {
+          "cancel": []
+        },
+        "trace": [
+          "A"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_{}",
+      "cancel": {},
+      "observed": {
+        "result": {
+          "cancel": {}
+        },
+        "trace": [
+          "A"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "cancel_null",
+      "cancel": null,
+      "observed": {
+        "result": {
+          "tail": true
+        },
+        "trace": [
+          "A",
+          "B"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "mutable_event_type_false",
+      "observed": {
+        "result": {
+          "cancel": true
+        },
+        "trace": [
+          "A"
+        ],
+        "errors": [],
+        "event": {
+          "type": "session_before_switch"
+        }
+      }
+    },
+    {
+      "name": "mutable_event_type_true",
+      "observed": {
+        "result": null,
+        "trace": [
+          "A",
+          "B"
+        ],
+        "errors": [],
+        "event": {
+          "type": "agent_end"
+        }
+      }
+    },
+    {
+      "name": "mutable_error_type",
+      "observed": {
+        "result": null,
+        "trace": [],
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "changed",
+            "error": "failure"
+          }
+        ],
+        "event": {
+          "type": "changed"
+        }
+      }
+    },
+    {
+      "name": "emit_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "note": "A"
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "emit_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": null
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "session_before_switch",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "shutdown_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": true
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "shutdown_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": true
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "session_shutdown",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "message_end_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "role": "user",
+            "content": "changed"
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "message_end_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": null
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "message_end",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_result_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "content": [
+              {
+                "type": "text",
+                "text": "changed"
+              }
+            ],
+            "details": {
+              "changed": true
+            },
+            "isError": false
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "tool_result_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": null
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "tool_result",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_call_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "block": true,
+            "reason": "blocked"
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "tool_call_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "error": "async failure"
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "user_bash_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "result": {
+              "output": "changed",
+              "exitCode": 0,
+              "cancelled": false,
+              "truncated": false
+            }
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "user_bash_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "error": "async failure"
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "user_bash",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "context_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": [
+            {
+              "role": "user",
+              "content": "changed"
+            }
+          ]
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "context_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": [
+            {
+              "role": "user",
+              "content": "original"
+            }
+          ]
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "context",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "before_provider_request_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "payload": {
+              "changed": true
+            }
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "before_provider_request_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "start": true
+          }
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "before_provider_request",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "before_provider_headers_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "existing": "yes",
+            "changed": "yes"
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "before_provider_headers_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "existing": "yes"
+          }
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "before_provider_headers",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "resources_discover_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "skillPaths": [
+              {
+                "path": "s",
+                "extensionPath": "<a>"
+              }
+            ],
+            "promptPaths": [
+              {
+                "path": "p",
+                "extensionPath": "<a>"
+              }
+            ],
+            "themePaths": [
+              {
+                "path": "t",
+                "extensionPath": "<a>"
+              }
+            ]
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "resources_discover_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "skillPaths": [],
+            "promptPaths": [],
+            "themePaths": []
+          }
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "resources_discover",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "input_resolve",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "action": "transform",
+            "text": "changed"
+          }
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "input_reject",
+      "observed": {
+        "before": [
+          "A:start"
+        ],
+        "wasPending": true,
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B"
+        ],
+        "sameContext": true,
+        "outcome": {
+          "value": {
+            "action": "continue"
+          }
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "input",
+            "error": "async failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "snapshot_across_await",
+      "observed": {
+        "firstTrace": [
+          "A:start",
+          "A:end",
+          "B:old"
+        ],
+        "secondTrace": [
+          "A:start",
+          "A:end",
+          "B:new"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "shutdown_no_handlers",
+      "observed": {
+        "value": false,
+        "errors": []
+      }
+    },
+    {
+      "name": "trust_snapshot_across_await",
+      "observed": {
+        "firstTrace": [
+          "A:start",
+          "A:end",
+          "B:old"
+        ],
+        "secondTrace": [
+          "A:start",
+          "A:end",
+          "B:new"
+        ],
+        "firstResult": {
+          "trusted": "no"
+        },
+        "secondResult": {
+          "trusted": "yes"
+        },
+        "errors": []
+      }
+    },
+    {
+      "name": "headers_mutate_then_reject",
+      "observed": {
+        "trace": [
+          "A:start",
+          "A:resume",
+          "B:yes"
+        ],
+        "result": {
+          "existing": "yes",
+          "changed": "yes"
+        },
+        "errors": [
+          {
+            "path": "<a>",
+            "event": "before_provider_headers",
+            "error": "after mutation"
+          }
+        ]
+      }
+    }
+  ]
+}

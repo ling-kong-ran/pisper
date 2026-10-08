@@ -1,0 +1,1348 @@
+{
+  "schema": 1,
+  "authority": "actual upstream stream/streamSimple + provider-retry + error-body and pinned OpenAI 6.40.0 Responses.create/APIPromise/parse chain; transcript/params/grammar/SSE-business-logic/addOutputText/HTTP-transport dependency seams controlled",
+  "sources": {
+    "sdk-6.40.0/src/resources/responses/responses.ts": "d7413e4773b300ea8868c4cc441f3343ac326f03e9a3399169cdc3a14ca126ac",
+    "sdk-6.40.0/src/core/api-promise.ts": "8d937263b62a110d1da9a138d12cc81c43db12142ba50748a6175b4808ddd398",
+    "sdk-6.40.0/src/internal/parse.ts": "10e3721c526ace9514bffd4e5d91f22eb00bbe04f108306be1b47eb01ce1a46a",
+    "packages/ai/src/utils/provider-retry.ts": "d0f68cfe9fe6a5d4be778eaefedc0b453021f89026810691dcd1479371dca699",
+    "packages/ai/src/utils/error-body.ts": "7170181ae6926709fe4ab7ac6b5b51c46ffe906868a7aac3c7627cb28ad77c09",
+    "packages/ai/src/api/simple-options.ts": "7fdc74ee2cdf3d82213cdecfb0883174cd470c22d9a9346bbef1428f4294cc94",
+    "packages/ai/src/api/openai-responses.ts": "5d524184ea001a2717fd35b4562126043338d1ef3279f4e2ce192ae5592e8479"
+  },
+  "cases": [
+    {
+      "input": {
+        "name": "callback-free"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "undefined-preserves",
+        "payload": "defined"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "replacement-keeps-stream",
+        "payload": "defined",
+        "replacement": {
+          "model": "patched",
+          "input": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "hi"
+                }
+              ]
+            }
+          ],
+          "stream": true,
+          "store": false,
+          "custom": true
+        }
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "patched",
+                "input": [
+                  {
+                    "role": "user",
+                    "content": [
+                      {
+                        "type": "input_text",
+                        "text": "hi"
+                      }
+                    ]
+                  }
+                ],
+                "stream": true,
+                "store": false,
+                "custom": true
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "patched",
+                "input": [
+                  {
+                    "role": "user",
+                    "content": [
+                      {
+                        "type": "input_text",
+                        "text": "hi"
+                      }
+                    ]
+                  }
+                ],
+                "stream": true,
+                "store": false,
+                "custom": true
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "null-replacement",
+        "payload": "defined",
+        "replacement": null
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "Cannot read properties of null (reading 'stream')"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "Cannot read properties of null (reading 'stream')"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "replacement-drops-stream",
+        "payload": "defined",
+        "replacement": {
+          "model": "patched",
+          "custom": true
+        }
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "patched",
+                "custom": true
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "patched",
+                "custom": true
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "array-replacement",
+        "payload": "defined",
+        "replacement": [
+          1,
+          "x"
+        ]
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": [
+                1,
+                "x"
+              ]
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": [
+                1,
+                "x"
+              ]
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "string-replacement",
+        "payload": "defined",
+        "replacement": "🙂"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": "🙂"
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": "🙂"
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "number-replacement",
+        "payload": "defined",
+        "replacement": 12
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": 12
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": 12
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "openaiStream is not async iterable"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "nonstream-primitive-response",
+        "payload": "defined",
+        "replacement": {
+          "model": "patched",
+          "custom": true
+        },
+        "responseBody": "\"just text\""
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "request",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "patched",
+                "custom": true
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "Cannot use 'in' operator to search for 'object' in just text"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "request",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "patched",
+                "custom": true
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "Cannot use 'in' operator to search for 'object' in just text"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "payload-failure",
+        "payload": "error"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "payload refused"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "payload refused"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "response-failure",
+        "response": "error"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "response",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "error",
+          "error": "response refused"
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "response",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "error",
+          "error": "response refused"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "response-hook-observed",
+        "response": "defined"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "response",
+            "start",
+            "done"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "stop",
+          "error": null
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "response",
+            "start",
+            "done"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "stop",
+          "error": null
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "non2xx",
+        "statuses": [
+          401
+        ]
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "OpenAI API error (401): {\"denied\":true}"
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "OpenAI API error (401): {\"denied\":true}"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "retry-success",
+        "statuses": [
+          503,
+          200
+        ]
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            },
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "request",
+            "start",
+            "done"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            },
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "stop",
+          "error": null
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "retry-exhausted",
+        "statuses": [
+          503,
+          503,
+          503
+        ]
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "request",
+            "request",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            },
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            },
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "OpenAI API error (503): {\"denied\":true}"
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "request",
+            "request",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            },
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            },
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "OpenAI API error (503): {\"denied\":true}"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "pre-aborted",
+        "cancel": "before"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "error"
+          ],
+          "seen": [],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "aborted",
+          "error": "Request aborted"
+        },
+        "simple": {
+          "trace": [
+            "error"
+          ],
+          "seen": [],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "aborted",
+          "error": "Request aborted"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "payload-cancels",
+        "cancel": "payload",
+        "payload": "defined",
+        "replacement": {
+          "model": "patched",
+          "stream": true
+        }
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "aborted",
+          "error": "Request aborted"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "aborted",
+          "error": "Request aborted"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "payload-cancels-throws",
+        "cancel": "payload",
+        "payload": "error"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "aborted",
+          "error": "payload refused"
+        },
+        "simple": {
+          "trace": [
+            "payload",
+            "error"
+          ],
+          "seen": [
+            {
+              "model": "gpt-5.4",
+              "input": [],
+              "stream": true,
+              "store": false,
+              "max_output_tokens": 128000
+            }
+          ],
+          "requests": [],
+          "metadata": [],
+          "stopReason": "aborted",
+          "error": "payload refused"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "response-cancels",
+        "cancel": "response",
+        "response": "defined"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "response",
+            "start",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "aborted",
+          "error": "Request was aborted"
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "response",
+            "start",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "aborted",
+          "error": "Request was aborted"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "response-cancels-throws",
+        "cancel": "response",
+        "response": "error"
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "response",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "aborted",
+          "error": "response refused"
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "response",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [
+            {
+              "status": 200,
+              "headers": {
+                "content-type": "text/event-stream",
+                "x-callback": "observed"
+              }
+            }
+          ],
+          "stopReason": "aborted",
+          "error": "response refused"
+        }
+      }
+    },
+    {
+      "input": {
+        "name": "sse-error-no-retry",
+        "sseError": true
+      },
+      "output": {
+        "normal": {
+          "trace": [
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "Error Code server_error: stream refused"
+        },
+        "simple": {
+          "trace": [
+            "request",
+            "start",
+            "error"
+          ],
+          "seen": [],
+          "requests": [
+            {
+              "url": "/responses",
+              "body": {
+                "model": "gpt-5.4",
+                "input": [],
+                "stream": true,
+                "store": false,
+                "max_output_tokens": 128000
+              }
+            }
+          ],
+          "metadata": [],
+          "stopReason": "error",
+          "error": "Error Code server_error: stream refused"
+        }
+      }
+    }
+  ]
+}

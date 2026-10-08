@@ -1,0 +1,415 @@
+{
+  "type": "object",
+  "required": ["operation"],
+  "properties": {
+    "operation": {
+      "type": "string",
+      "enum": [
+        "input",
+        "background",
+        "inpaint",
+        "generate",
+        "frames",
+        "transform",
+        "preview",
+        "export",
+        "edit"
+      ]
+    },
+    "sourceImage": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Image path inside the current workspace. Imported into managed media before processing; no URLs."
+    },
+    "source": {
+      "type": "object",
+      "required": ["id", "name", "mimeType", "size"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "mimeType": {
+          "type": "string",
+          "enum": ["image/png", "image/jpeg", "image/webp"]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8388608
+        }
+      },
+      "additionalProperties": false
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "media",
+          "width",
+          "height",
+          "durationMs",
+          "action",
+          "direction",
+          "columns",
+          "rows",
+          "frameCount"
+        ],
+        "properties": {
+          "media": {
+            "type": "object",
+            "required": ["id", "name", "mimeType", "size"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "mimeType": {
+                "type": "string",
+                "enum": ["image/png", "image/jpeg", "image/webp"]
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8388608
+              }
+            },
+            "additionalProperties": false
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 16,
+            "maximum": 10000
+          },
+          "action": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "direction": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "columns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16
+          },
+          "frameCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 512,
+      "description": "Frames returned by a previous image_assets call."
+    },
+    "prompt": {
+      "type": "string",
+      "maxLength": 16000
+    },
+    "model": {
+      "type": "string",
+      "maxLength": 240,
+      "description": "provider/model; omit for the configured image model. Model IDs may include additional slashes."
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["color", "model"],
+          "description": "Background removal: color key or downloaded local segmentation model. Neither uses a remote image model."
+        },
+        "colors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "maxItems": 8
+        },
+        "tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "softness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "edgeConnected": {
+          "type": "boolean"
+        },
+        "region": {
+          "type": "object",
+          "required": ["x", "y", "width", "height"],
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "width": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "height": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false
+        },
+        "action": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "frameCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "directions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["S", "SW", "W", "NW", "N", "NE", "E", "SE"]
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 10000
+        },
+        "trim": {
+          "type": "boolean"
+        },
+        "align": {
+          "type": "string",
+          "enum": ["center", "bottom-center", "none"]
+        },
+        "padding": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "maxFrameSize": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 1024
+        },
+        "frameOrder": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 511
+          },
+          "maxItems": 512,
+          "uniqueItems": true
+        },
+        "transforms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index"],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 511
+              },
+              "x": {
+                "type": "number",
+                "minimum": -4096,
+                "maximum": 4096
+              },
+              "y": {
+                "type": "number",
+                "minimum": -4096,
+                "maximum": 4096
+              },
+              "rotation": {
+                "type": "number",
+                "minimum": -360,
+                "maximum": 360
+              },
+              "scale": {
+                "type": "number",
+                "minimum": 0.05,
+                "maximum": 8
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 10000
+              },
+              "enabled": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "maxItems": 512
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "edits": {
+      "type": "object",
+      "required": ["frames"],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sourceIndex"],
+            "properties": {
+              "sourceIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 511
+              },
+              "x": {
+                "type": "number",
+                "minimum": -4096,
+                "maximum": 4096
+              },
+              "y": {
+                "type": "number",
+                "minimum": -4096,
+                "maximum": 4096
+              },
+              "rotation": {
+                "type": "number",
+                "minimum": -360,
+                "maximum": 360
+              },
+              "scale": {
+                "type": "number",
+                "minimum": 0.05,
+                "maximum": 8
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 10000
+              },
+              "eraseStrokes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["points", "radius"],
+                  "properties": {
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["x", "y"],
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "minItems": 1,
+                      "maxItems": 512
+                    },
+                    "radius": {
+                      "type": "number",
+                      "minimum": 0.001,
+                      "maximum": 0.25
+                    },
+                    "restore": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "maxItems": 64
+              }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 512
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

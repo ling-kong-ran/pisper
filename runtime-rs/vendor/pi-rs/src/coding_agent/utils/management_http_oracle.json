@@ -1,0 +1,2323 @@
+{
+  "responseJson": [
+    {
+      "id": "object",
+      "bytes": [
+        123,
+        34,
+        118,
+        101,
+        114,
+        115,
+        105,
+        111,
+        110,
+        34,
+        58,
+        34,
+        49,
+        46,
+        50,
+        46,
+        51,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "version": "1.2.3"
+        }
+      }
+    },
+    {
+      "id": "bom",
+      "bytes": [
+        239,
+        187,
+        191,
+        123,
+        34,
+        111,
+        107,
+        34,
+        58,
+        116,
+        114,
+        117,
+        101,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "double-bom",
+      "bytes": [
+        239,
+        187,
+        191,
+        239,
+        187,
+        191,
+        123,
+        125
+      ],
+      "outcome": {
+        "value": {}
+      }
+    },
+    {
+      "id": "null",
+      "bytes": [
+        110,
+        117,
+        108,
+        108
+      ],
+      "outcome": {
+        "value": null
+      }
+    },
+    {
+      "id": "empty",
+      "bytes": [],
+      "outcome": {
+        "error": {
+          "name": "SyntaxError"
+        }
+      }
+    },
+    {
+      "id": "empty-bom",
+      "bytes": [
+        239,
+        187,
+        191
+      ],
+      "outcome": {
+        "error": {
+          "name": "SyntaxError"
+        }
+      }
+    },
+    {
+      "id": "non-leading-bom",
+      "bytes": [
+        32,
+        239,
+        187,
+        191,
+        123,
+        125
+      ],
+      "outcome": {
+        "error": {
+          "name": "SyntaxError"
+        }
+      }
+    },
+    {
+      "id": "invalid-json",
+      "bytes": [
+        123,
+        34,
+        98,
+        97,
+        100,
+        34,
+        58,
+        125
+      ],
+      "outcome": {
+        "error": {
+          "name": "SyntaxError"
+        }
+      }
+    },
+    {
+      "id": "valid-unicode",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        228,
+        189,
+        160,
+        229,
+        165,
+        189,
+        240,
+        159,
+        152,
+        128,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "你好😀"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-0",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        255,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "�"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-1",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        192,
+        175,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "��"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-2",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        226,
+        130,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "�"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-3",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        237,
+        160,
+        128,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "���"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-4",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        224,
+        128,
+        128,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "���"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-5",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        244,
+        144,
+        128,
+        128,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "����"
+        }
+      }
+    },
+    {
+      "id": "invalid-utf8-6",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        240,
+        159,
+        146,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "�"
+        }
+      }
+    },
+    {
+      "id": "embedded-bom",
+      "bytes": [
+        123,
+        34,
+        116,
+        101,
+        120,
+        116,
+        34,
+        58,
+        34,
+        239,
+        187,
+        191,
+        34,
+        125
+      ],
+      "outcome": {
+        "value": {
+          "text": "﻿"
+        }
+      }
+    },
+    {
+      "id": "utf16-is-not-sniffed",
+      "bytes": [
+        255,
+        254,
+        123,
+        0,
+        125,
+        0
+      ],
+      "outcome": {
+        "error": {
+          "name": "SyntaxError"
+        }
+      }
+    }
+  ],
+  "upstream": "packages/coding-agent/src/utils/management-http.ts",
+  "sha256": "2195b345fdd5c607f87a55b93e7d00c6d70d7dcfe2989b08bbd9f39b529a756a",
+  "cases": [
+    {
+      "id": "status-200",
+      "steps": [
+        {
+          "status": 200
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-200",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 200
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "status-201",
+      "steps": [
+        {
+          "status": 201
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 201
+      }
+    },
+    {
+      "id": "no-status-retry-201",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 201
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 201
+      }
+    },
+    {
+      "id": "status-204",
+      "steps": [
+        {
+          "status": 204
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 204
+      }
+    },
+    {
+      "id": "no-status-retry-204",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 204
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 204
+      }
+    },
+    {
+      "id": "status-301",
+      "steps": [
+        {
+          "status": 301
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 301
+      }
+    },
+    {
+      "id": "no-status-retry-301",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 301
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 301
+      }
+    },
+    {
+      "id": "status-302",
+      "steps": [
+        {
+          "status": 302
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 302
+      }
+    },
+    {
+      "id": "no-status-retry-302",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 302
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 302
+      }
+    },
+    {
+      "id": "status-304",
+      "steps": [
+        {
+          "status": 304
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 304
+      }
+    },
+    {
+      "id": "no-status-retry-304",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 304
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 304
+      }
+    },
+    {
+      "id": "status-400",
+      "steps": [
+        {
+          "status": 400
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 400
+      }
+    },
+    {
+      "id": "no-status-retry-400",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 400
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 400
+      }
+    },
+    {
+      "id": "status-401",
+      "steps": [
+        {
+          "status": 401
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 401
+      }
+    },
+    {
+      "id": "no-status-retry-401",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 401
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 401
+      }
+    },
+    {
+      "id": "status-403",
+      "steps": [
+        {
+          "status": 403
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 403
+      }
+    },
+    {
+      "id": "no-status-retry-403",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 403
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 403
+      }
+    },
+    {
+      "id": "status-404",
+      "steps": [
+        {
+          "status": 404
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 404
+      }
+    },
+    {
+      "id": "no-status-retry-404",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 404
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 404
+      }
+    },
+    {
+      "id": "status-408",
+      "steps": [
+        {
+          "status": 408
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-408",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 408
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 408
+      }
+    },
+    {
+      "id": "status-409",
+      "steps": [
+        {
+          "status": 409
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 409
+      }
+    },
+    {
+      "id": "no-status-retry-409",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 409
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 409
+      }
+    },
+    {
+      "id": "status-418",
+      "steps": [
+        {
+          "status": 418
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 418
+      }
+    },
+    {
+      "id": "no-status-retry-418",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 418
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 418
+      }
+    },
+    {
+      "id": "status-425",
+      "steps": [
+        {
+          "status": 425
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-425",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 425
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 425
+      }
+    },
+    {
+      "id": "status-429",
+      "steps": [
+        {
+          "status": 429
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-429",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 429
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 429
+      }
+    },
+    {
+      "id": "status-499",
+      "steps": [
+        {
+          "status": 499
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 499
+      }
+    },
+    {
+      "id": "no-status-retry-499",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 499
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 499
+      }
+    },
+    {
+      "id": "status-500",
+      "steps": [
+        {
+          "status": 500
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-500",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 500
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 500
+      }
+    },
+    {
+      "id": "status-501",
+      "steps": [
+        {
+          "status": 501
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 501
+      }
+    },
+    {
+      "id": "no-status-retry-501",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 501
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 501
+      }
+    },
+    {
+      "id": "status-502",
+      "steps": [
+        {
+          "status": 502
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-502",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 502
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 502
+      }
+    },
+    {
+      "id": "status-503",
+      "steps": [
+        {
+          "status": 503
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-503",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 503
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "status-504",
+      "steps": [
+        {
+          "status": 504
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-status-retry-504",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 504
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 504
+      }
+    },
+    {
+      "id": "status-505",
+      "steps": [
+        {
+          "status": 505
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 505
+      }
+    },
+    {
+      "id": "no-status-retry-505",
+      "options": {
+        "retryOnStatus": false
+      },
+      "steps": [
+        {
+          "status": 505
+        },
+        {
+          "status": 201
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 505
+      }
+    },
+    {
+      "id": "transport-retries--8",
+      "options": {
+        "maxRetries": -8
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries--8",
+      "options": {
+        "maxRetries": -8
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries--0.1",
+      "options": {
+        "maxRetries": -0.1
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries--0.1",
+      "options": {
+        "maxRetries": -0.1
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-0",
+      "options": {
+        "maxRetries": 0
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-0",
+      "options": {
+        "maxRetries": 0
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-0.9",
+      "options": {
+        "maxRetries": 0.9
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-0.9",
+      "options": {
+        "maxRetries": 0.9
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-1",
+      "options": {
+        "maxRetries": 1
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-1",
+      "options": {
+        "maxRetries": 1
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-1.9",
+      "options": {
+        "maxRetries": 1.9
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-1.9",
+      "options": {
+        "maxRetries": 1.9
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-2",
+      "options": {
+        "maxRetries": 2
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-2",
+      "options": {
+        "maxRetries": 2
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "cancel",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-3",
+      "options": {
+        "maxRetries": 3
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ],
+        [
+          "fetch",
+          3
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-3",
+      "options": {
+        "maxRetries": 3
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "cancel",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ],
+        [
+          "cancel",
+          2
+        ],
+        [
+          "fetch",
+          3
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-NaN",
+      "options": {
+        "maxRetries": "NaN"
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-NaN",
+      "options": {
+        "maxRetries": "NaN"
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "cancel",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries-Infinity",
+      "options": {
+        "maxRetries": "Infinity"
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries-Infinity",
+      "options": {
+        "maxRetries": "Infinity"
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "cancel",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "transport-retries--Infinity",
+      "options": {
+        "maxRetries": "-Infinity"
+      },
+      "steps": [
+        {
+          "error": "TypeError",
+          "message": "fetch failed"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "TypeError",
+          "message": "fetch failed"
+        }
+      }
+    },
+    {
+      "id": "status-retries--Infinity",
+      "options": {
+        "maxRetries": "-Infinity"
+      },
+      "steps": [
+        {
+          "status": 503
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "cancel",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "status": 503
+      }
+    },
+    {
+      "id": "errors-then-success",
+      "steps": [
+        {
+          "error": "Error",
+          "message": "first"
+        },
+        {
+          "error": "TypeError",
+          "message": "second"
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "last-error",
+      "steps": [
+        {
+          "status": 503
+        },
+        {
+          "error": "Error",
+          "message": "second"
+        },
+        {
+          "error": "RangeError",
+          "message": "third"
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ],
+        [
+          "fetch",
+          2
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "RangeError",
+          "message": "third"
+        }
+      }
+    },
+    {
+      "id": "ignore-body-cancel-error",
+      "steps": [
+        {
+          "status": 429,
+          "cancelError": true
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "no-body-to-cancel",
+      "steps": [
+        {
+          "status": 503,
+          "noBody": true
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "abort-error-terminal",
+      "steps": [
+        {
+          "error": "AbortError",
+          "message": "caller-like abort"
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "AbortError",
+          "message": "caller-like abort"
+        }
+      }
+    },
+    {
+      "id": "abort-error-with-overall-retries",
+      "options": {
+        "timeoutMs": 100000
+      },
+      "steps": [
+        {
+          "error": "AbortError",
+          "message": "transient abort"
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "fetch",
+          1
+        ]
+      ],
+      "outcome": {
+        "status": 200
+      }
+    },
+    {
+      "id": "attempt-option-does-not-retry-unrelated-abort",
+      "options": {
+        "attemptTimeoutMs": 100000
+      },
+      "steps": [
+        {
+          "error": "AbortError",
+          "message": "unrelated abort"
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "AbortError",
+          "message": "unrelated abort"
+        }
+      }
+    },
+    {
+      "id": "zero-overall-not-present",
+      "options": {
+        "timeoutMs": 0
+      },
+      "steps": [
+        {
+          "error": "AbortError",
+          "message": "unrelated abort"
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "AbortError",
+          "message": "unrelated abort"
+        }
+      }
+    },
+    {
+      "id": "pre-aborted",
+      "preAbort": true,
+      "steps": [
+        {
+          "status": 200
+        }
+      ],
+      "trace": [],
+      "outcome": {
+        "error": {
+          "name": "AbortError",
+          "message": "This operation was aborted"
+        }
+      }
+    },
+    {
+      "id": "cancel-during-fetch",
+      "steps": [
+        {
+          "abortParent": true
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "AbortError",
+          "message": "This operation was aborted"
+        }
+      }
+    },
+    {
+      "id": "cancel-during-discard",
+      "steps": [
+        {
+          "status": 503,
+          "cancelParent": true
+        },
+        {
+          "status": 200
+        }
+      ],
+      "trace": [
+        [
+          "fetch",
+          0
+        ],
+        [
+          "cancel",
+          0
+        ]
+      ],
+      "outcome": {
+        "error": {
+          "name": "AbortError",
+          "message": "This operation was aborted"
+        }
+      }
+    }
+  ]
+}

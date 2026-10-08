@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "commit": "582160235671903d9f1c7034b457557b1df74b68",
+    "directory": "../pisper-release-parity-reference",
+    "readOnly": true
+  },
+  "scope": [
+    "execution modes and tool permissions",
+    "suspended approvals",
+    "plans",
+    "goals and continuous execution",
+    "independent child agents and queues",
+    "Team task graph and workspace JavaScript workflows",
+    "parent completion delivery"
+  ],
+  "fullReleaseParity": false,
+  "assessment": "Real domain execution is implemented and scoped tests pass. Complete release parity requires the remaining protocol details and real Pi HTTP/SSE, restart and client acceptance below. Capability flags and metadata alone are not acceptance evidence.",
+  "implemented": [
+    {
+      "domain": "execution modes and approvals",
+      "files": [
+        "runtime-rs/src/execution_modes.rs",
+        "runtime-rs/src/approval_api.rs",
+        "runtime-rs/src/tool_policy.rs"
+      ],
+      "behavior": [
+        "Release ask/auto/ignore semantics with legacy full mapped to ignore.",
+        "Supervised mode suspends a real tool future until an authorized matching decision.",
+        "Denial, cancellation, timeout, restart and shutdown cannot resume a pending tool.",
+        "Remembered approvals use exact tool/arguments/workspace keys; sensitive input and file previews are not remembered.",
+        "File preview source hashes are checked again before execution.",
+        "Child permission decisions are routed to the parent and declared file ownership is enforced even with full access."
+      ],
+      "verification": "Previously passed scoped execution-mode, approval and policy tests. The latest worker/Goal tests do not independently validate every approval HTTP/SSE or browser flow."
+    },
+    {
+      "domain": "plans",
+      "files": [
+        "runtime-rs/src/plan_api.rs",
+        "runtime-rs/src/native_plans/mod.rs"
+      ],
+      "behavior": [
+        "Release v2 plan persistence, stable item identifiers, dependency validation and cycle rejection.",
+        "Disjoint temporary plans suspend unfinished work and restore it after completion.",
+        "Explicit replace and empty-array clearing preserve their distinct release meanings.",
+        "Legacy task-list migration keeps a byte-for-byte backup.",
+        "Native get_plan/get_task_list/update_plan/update_task_list tools and GET/PUT/DELETE session plan API.",
+        "Child agents read the parent plan and cannot mutate it."
+      ],
+      "verification": "Three earlier scoped plan behavior tests passed; root's real child plan tool fixture passed. Full client plan editing and currentActivity projection remain separate acceptance requirements."
+    },
+    {
+      "domain": "goals",
+      "files": [
+        "runtime-rs/src/goal_api.rs",
+        "runtime-rs/src/native_goals/mod.rs",
+        "runtime-rs/src/native_goals/runner.rs"
+      ],
+      "behavior": [
+        "Durable release goal states active/paused/budget_limited/complete and explicit-only token budgets.",
+        "Startup pauses active goals and requires an explicit resume; no automatic model calls.",
+        "Actual SessionExecutor prompt rounds continue until a terminal state; an exhausted budget permits one actual summary round.",
+        "Goal IDs protect replacement goals against stale turn accounting and stale completion rollback.",
+        "Cancellation concurrently polls native abort and the owned prompt, allowing Pi's idle/finally path to settle.",
+        "Prepared initial images and context are transferred once; continuation rounds retain isolation without repeating images or memory injection.",
+        "Team completion checks unfinished tasks and concrete member output before accepting completion."
+      ],
+      "verification": "cargo test --manifest-path runtime-rs/Cargo.toml goal_api::domain -- --nocapture: 4 passed, 0 failed. This is actual executor fixture evidence; root owns real Pi HTTP/SSE acceptance."
+    },
+    {
+      "domain": "agents, queue and lifecycle",
+      "files": [
+        "runtime-rs/src/multi_agent_api.rs",
+        "runtime-rs/src/session_workers/mod.rs",
+        "runtime-rs/src/session_workers/agents.rs",
+        "runtime-rs/src/session_workers/persistence.rs"
+      ],
+      "behavior": [
+        "Four real execution slots, queued work, independent child runtimes, parent isolation and bounded records/output.",
+        "Queued handoffs are sent to the real executor before its prompt starts.",
+        "Context-preserving followup, bounded terminal retention and owned context disposal.",
+        "Actual progress, tool calls, run/cumulative usage, result versions and durable completion mailbox.",
+        "Restart interrupts active records without recreating child contexts or running models.",
+        "Generation and active-state guards prevent interrupted child creation from overwriting terminal state.",
+        "Shutdown and parent removal wait for worker futures to release their slots before disposing actual runtimes."
+      ],
+      "verification": "Worker fixture tests exercise real asynchronous executor calls and cancellation. Root's earlier production harness proved concurrent model requests overlap, held child interrupt, parent cascade and normal stdin exit without kill fallback."
+    },
+    {
+      "domain": "Team graph and restricted JavaScript",
+      "files": [
+        "runtime-rs/src/session_workers/team.rs",
+        "runtime-rs/src/session_workers/team_js.rs",
+        "runtime-rs/src/session_workers/team_workflow.rs"
+      ],
+      "behavior": [
+        "Durable tasks, dependency/cycle validation, actual leases, file ownership, barriers and retry classification/backoff.",
+        "Claim validates the actual bound agent ID atomically so an obsolete queued child cannot claim a replacement task.",
+        "Updating a queued task interrupts the old record and executes current message/files/dependencies in a new child.",
+        "Terminal Team followup resets the graph and rebinds the existing idle child; retryable same-name spawn reuses the task ID with a new actual child.",
+        "Release GET /api/sessions/:id/team, parent tools and restricted member communication tools.",
+        "Workspace-bound literal metadata scripts, 256 KiB source, 64 MiB QuickJS memory, stack and synchronous execution limits.",
+        "No host filesystem/network/module-loader bridge; only agent/parallel/pipeline/phase/log/args are exposed.",
+        "JS agent promises call actual AgentService workers and TaskGraph, and identical completed fingerprints reuse verified output without extra model calls."
+      ],
+      "verification": "cargo test --manifest-path runtime-rs/Cargo.toml session_workers:: -- --nocapture: 12 passed before the subsequent cooperative-notification change. Includes real dependency ordering, replacement file scope, followup context reuse, same-name retry, restart leases, QuickJS bridge and full workspace workflow result reuse."
+    },
+    {
+      "domain": "parent completion delivery",
+      "files": [
+        "runtime-rs/src/session_workers/agents.rs"
+      ],
+      "behavior": [
+        "Coalesces durable real results into one 500 ms batch.",
+        "Only a true delivery result acknowledges the exact original mailbox entry IDs; false/error retains them.",
+        "Parent suspension blocks new notifications without dropping an active native prompt callback.",
+        "Shutdown requests actual parent abort and keeps polling the callback until its native finalization completes.",
+        "Restored mailbox is not automatically replayed on startup."
+      ],
+      "verification": "cargo test --manifest-path runtime-rs/Cargo.toml session_workers::agents::tests -- --nocapture: 5 passed after the cooperative change. A held callback with delayed finalization verifies no early drop, no premature acknowledgment and actual shutdown completion."
+    }
+  ],
+  "remaining": [
+    {
+      "id": "completion-delivery-durability",
+      "owner": "root integration",
+      "status": "fix_in_progress",
+      "evidence": "execution_adapter dispatch_completion can enqueue into a native in-memory follow-up queue after the last turn stops but before chat's whole-run guard releases. Native follow_up does not immediately persist a transcript message. Acknowledging at enqueue success loses the completion on restart.",
+      "requiredAcceptance": "Persisted delivery ID must occur in an actual parent user transcript before exact mailbox acknowledgment. Verify active enqueue, finalization race, abort and restart without duplicate model attempts or lost results."
+    },
+    {
+      "id": "team-communication-delivery-state",
+      "owner": "execution domain",
+      "status": "implemented_verification_blocked",
+      "evidence": "send_from_agent now records actual member IDs after resolving canonical targets. TeamService.update_agent transitions queued communications to delivered at a real running/turn_start update. The existing dependency test now asserts canonical target resolution and actual queued executor input. The latest scoped compile passed Rust compilation but could not link the shared running test executable (LNK1104); this change is not yet counted as a passed test.",
+      "requiredAcceptance": "A queued member handoff reaches the real child executor and its communication record transitions to delivered when the child actually starts. Cancellation/restart must leave honest pending state."
+    },
+    {
+      "id": "team-conflict-audit",
+      "owner": "execution domain",
+      "status": "not_complete",
+      "evidence": "Actual conflicting registration/update is rejected, but the release service also records conflict history; the current conflicts projection has no equivalent write path.",
+      "requiredAcceptance": "Reject real overlap and persist the matching bounded conflict event without registering or running the rejected task."
+    },
+    {
+      "id": "team-summary-projection",
+      "owner": "root integration and execution domain",
+      "status": "not_complete",
+      "evidence": "TeamService exposes set_summary, but current chat/Goal completion integration does not call it with the verified final parent output.",
+      "requiredAcceptance": "Use the actual final parent result as Team summary and preserve it across restart; never synthesize a success summary."
+    },
+    {
+      "id": "domain-removal-and-history-projection",
+      "owner": "root integration and execution domain",
+      "status": "needs_contract_audit",
+      "evidence": "Agent parent removal is implemented. Goal/Plan services expose clear/remove; Team historical projection and persistent cleanup on deleted sessions require comparison with the release lifecycle.",
+      "requiredAcceptance": "Delete a synthetic session, verify no orphan execution or stale Goal/Plan/Team state, then reopen unrelated sessions unchanged."
+    },
+    {
+      "id": "team-real-pi-acceptance",
+      "owner": "root integration",
+      "status": "pending",
+      "evidence": "Scoped asynchronous fixtures prove domain execution and QuickJS integration. They do not by themselves establish the installed application's Team HTTP/SSE or real Pi tool loop behavior.",
+      "requiredAcceptance": "Real local model fixture runs run_team_workflow with dependent children, member handoff, update/followup/retry, tool allowlist, approval suspension, cancellation, nonzero ledger usage and persisted restart state. Verify visible Team/Goal/Plan SSE in both clients."
+    },
+    {
+      "id": "approval-and-plan-complete-client-contract",
+      "owner": "root integration",
+      "status": "pending",
+      "evidence": "The narrow core harness historically switched execution to full access; that does not prove all release supervised approvals, denial, remembered scopes or plan editing flows.",
+      "requiredAcceptance": "Actual tool is paused under supervised mode, approved or denied from matching session HTTP/UI, canceled and restarted safely; plan temporary suspension, clear, legacy restore and child readonly getters render and behave correctly."
+    }
+  ],
+  "diagnostics": [
+    {
+      "report": "release/local-rust-build/usability/2026-10-05T13-12-41.290Z/report.json",
+      "conclusion": "Independent child startup exceeded 20 seconds because the old executor serialized private-runtime construction under one mutex; roughly 8.3 seconds per first runtime made three children exceed the deadline.",
+      "evidence": "The independent child remained runNumber=0/turnCount=0 during creation. Parent cancellation interrupted it, and stdin cleanup completed with exit 0. No AgentService slot leak was observed.",
+      "resolutionOwner": "root replaced global private creation serialization with parallel read reservations and an exclusive shutdown barrier. No blanket timeout widening is accepted as proof."
+    }
+  ],
+  "validationBoundaries": [
+    "Only synthetic temporary directories and local fixtures were used by this domain work.",
+    "No user credentials/history, installed GUI, development server, reference checkout or source guard was modified.",
+    "Root performs the full repository, HTTP/SSE, client, packaging and installed application checks.",
+    "No feature is counted as completed merely because its capability flag is enabled.",
+    "Latest Team communication scope was blocked at Windows linking by LNK1104 on the shared test executable. No foreign process was killed and no passing status was invented."
+  ]
+}

@@ -15,11 +15,8 @@
   },
   "scripts": {
     "postinstall": "node scripts/patch-pi-mobile-compat.mjs",
-    "dev": "node runtime/index.mjs",
+    "dev": "cargo run -p pisper-server --manifest-path runtime-rs/Cargo.toml  # Rust backend (replaces node runtime/index.mjs)",
     "build": "node scripts/build-frontend.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-dist-compat.mjs",
-    "sidecar:dev": "node runtime/sidecar.mjs",
-    "sidecar:sea": "node scripts/build-sea.mjs",
-    "sidecar:sea:smoke": "node scripts/smoke-sea.mjs",
     "mobile:runtime": "node scripts/build-mobile-runtime.mjs",
     "mobile:node:android": "node scripts/stage-mobile-node-android.mjs",
     "mobile:node:ios": "bash scripts/build-mobile-node-ios.sh",
@@ -48,13 +45,11 @@
     "i18n:check": "node scripts/check-i18n.mjs",
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check && npm run test:startup",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc -p tsconfig.jscheck.json",
-    "test": "tsx --test runtime/tests/*.test.mjs",
     "test:startup": "node scripts/check-sidecar-startup.mjs",
-    "preview": "node runtime/index.mjs --production",
-    "start": "node runtime/index.mjs --production",
     "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
-    "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs"
+    "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs",
+    "test": "cargo test --manifest-path runtime-rs/Cargo.toml"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",

@@ -1,3 +1,4 @@
+<<<<<<<< HEAD:shared/game/game-assets.d.mts
 import type { WorkflowMedia } from '../workflow/workflow-inputs.mjs'
 import type { ImageDirection, ImageOutput } from '../image/image-operations.mjs'
 import type { ImageFrameEdits } from '../image/image-frame-edits.mjs'
@@ -43,3 +44,7 @@ export function parseGameAssetProjectInput(value: unknown): GameAssetProjectInpu
 export function parseGameAssetProject(value: unknown): GameAssetProject
 export function parseGameAssetJob(value: unknown): GameAssetJob
 export function parseGameAssetsCatalog(value: unknown): GameAssetsCatalog
+========
+// 旧 Rust 分支构建脚本的兼容入口；业务协议以 release 的分域模块为唯一来源。
+export * from './game/game-assets.mjs'
+>>>>>>>> origin/develop-rust:shared/game-assets.d.mts

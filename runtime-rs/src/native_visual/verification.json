@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "referenceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+  "interfacesFrozen": true,
+  "productionSourcesFrozen": true,
+  "rustScopedTests": {
+    "passed": 40,
+    "failed": 0,
+    "ignored": 0,
+    "mode": "rustc frozen dependency rlibs; default parallel",
+    "platform": "Windows",
+    "seconds": 0.17
+  },
+  "nodeReleaseOracle": {
+    "passed": 13,
+    "failed": 0,
+    "sdkVersion": "6.49.0",
+    "paidRequests": 0,
+    "personalProfileRead": false
+  },
+  "cargoRun": false,
+  "existingProductSourcesChangedByThisAgent": false,
+  "sourceContainsTestExecutables": false,
+  "unixSymlinkTestExecuted": false,
+  "fullAgentSessionModelGatewayRoundtripVerified": false,
+  "packagedBinaryGuiVerified": false,
+  "pendingRoot": "production factory/router/canonical writer/archive, full Pi controlled model+provider HTTP roundtrip, UI and package acceptance",
+  "sources": [
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\catalog.rs",
+      "sha256": "b9dbb7f48f8a1d999d4a823622f1e1be1d18a3dfc5c0e5b1e9a6fa30b6c171f3"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\drivers.rs",
+      "sha256": "8d0d9e6eafc26346ab556fb35ece9182a6b646fec89821fed2de8882489e75c5"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\harness.rs",
+      "sha256": "f146cf22f226ca094838da239d30fe27af0120cf55dd976cdfa4710d98ff7400"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\input.rs",
+      "sha256": "1966106f56d60c7adc4c184d6cee30b5266dc874258633b2eccd94a7018c22f6"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\mod.rs",
+      "sha256": "b19269afc80f86aeb1fcb76663c4db6d17b7c52fa0181a476d44920d9e2bf156"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\output.rs",
+      "sha256": "6fd5b9d800b5112680049b97cd5396bac532331563ff2b920bd2a4a0c25c9c36"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\PARITY.md",
+      "sha256": "269e3aab43398b5bbcc74ba8a62bbb6068de8ef3f1f155a52d20963899a76d11"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\scoped-test.ps1",
+      "sha256": "1b1c3cb853198b0204c1befdc2a8131c096a4f39938853ed0b78c721f41f32a8"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\service.rs",
+      "sha256": "5fe67d6ef7e409b48f0f7d0223cc2575813aac41ec19717759d3444d24994571"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\tests.rs",
+      "sha256": "e89ea75b78f577ea8c20a047c87dcc7b7f593263ca2f39f71448a93d4bfd64bb"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\tools.rs",
+      "sha256": "83cdc961d58853e41055d851adf8323f6e18b5b871fa006c22d49669c41dcf82"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\transport.rs",
+      "sha256": "dac699285f4bec3c9f5edef6d95e4ef5d13a0c7ccd84077eb923789b7252593d"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\src\\native_visual\\types.rs",
+      "sha256": "b19121bfd0492f7a0164c908d2f66c143d77d13f75ec0929244d3186b0358ff0"
+    }
+  ],
+  "proofFiles": [
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\target-native-visual-scope\\scoped-tests.log",
+      "sha256": "b85adc4e98771b5266ef506f9a58ea523b327ae3dacb9a6a67e3421d8b99ec0f"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\target-native-visual-scope\\scoped-compile.log",
+      "sha256": "620e6ef1495023a6a450588a6f3d54692e508794937f4ea7209871feee2c6ad8"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\target-native-visual-scope\\node-header-oracle.log",
+      "sha256": "c0844ed5e15c844977b92a348fa085ac27dd3592e0e618abd1b8c3ae19666f01"
+    },
+    {
+      "path": "C:\\Users\\13063\\Desktop\\code\\agent work\\pisper\\runtime-rs\\target-native-visual-scope\\pisper-native-visual-tests.exe",
+      "sha256": "f40e8b0f25df48c0c62f822f01246a29215699f04b3d3cf029b755be3b0c6b39"
+    }
+  ]
+}

@@ -1,0 +1,2101 @@
+{
+	"provenance": {
+		"sourceSha256": "7ae7fe532fecdf90af48beeae1f0bb465f2f83123d5326e86a559fef4b1568c2",
+		"boundary": "Actual upstream shell.ts; injected platform/environment/path existence/spawnSync. Not an OS process integration test."
+	},
+	"cases": [
+		{
+			"id": "custom-posix",
+			"windows": false,
+			"custom": "/custom/bash",
+			"exists": [
+				"/custom/bash"
+			],
+			"outcome": {
+				"value": {
+					"shell": "/custom/bash",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/custom/bash"
+				]
+			]
+		},
+		{
+			"id": "missing-custom-posix",
+			"windows": false,
+			"custom": "/absent",
+			"outcome": {
+				"error": "Custom shell path not found: /absent"
+			},
+			"trace": [
+				[
+					"exists",
+					"/absent"
+				]
+			]
+		},
+		{
+			"id": "empty-custom-posix",
+			"windows": false,
+			"custom": "",
+			"exists": [
+				"/bin/bash"
+			],
+			"outcome": {
+				"value": {
+					"shell": "/bin/bash",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				]
+			]
+		},
+		{
+			"id": "default-posix",
+			"windows": false,
+			"outcome": {
+				"value": {
+					"shell": "sh",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "which-trust-posix",
+			"windows": false,
+			"lookup": {
+				"bash": "/special/bash\n"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/special/bash",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "first-match-posix",
+			"windows": false,
+			"exists": [
+				"/first",
+				"/second"
+			],
+			"lookup": {
+				"bash": " ﻿/first\r\n/second\n"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/first",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "bad-first-no-fallback-posix",
+			"windows": false,
+			"exists": [
+				"/second"
+			],
+			"lookup": {
+				"bash": "/absent\n/second\n"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/absent",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "double-cr-posix",
+			"windows": false,
+			"exists": [
+				"/first\r"
+			],
+			"lookup": {
+				"bash": "/first\r\r\n/second"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/first\r",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "failed-lookup-posix",
+			"windows": false,
+			"lookup": {
+				"bash": {
+					"status": 1,
+					"stdout": "/not-found"
+				}
+			},
+			"outcome": {
+				"value": {
+					"shell": "sh",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "empty-lookup-posix",
+			"windows": false,
+			"lookup": {
+				"bash": "﻿ \r\n "
+			},
+			"outcome": {
+				"value": {
+					"shell": "sh",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				],
+				[
+					"lookup",
+					"which",
+					[
+						"bash"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000
+					}
+				]
+			]
+		},
+		{
+			"id": "powershell-posix",
+			"windows": false,
+			"kind": "powershell",
+			"exists": [
+				"C:\\pwsh.exe",
+				"C:\\powershell.exe"
+			],
+			"lookup": {
+				"pwsh.exe": "C:\\pwsh.exe\r\n",
+				"powershell.exe": "C:\\powershell.exe\n"
+			},
+			"outcome": {
+				"error": "The powershell tool is only available on Windows."
+			},
+			"trace": []
+		},
+		{
+			"id": "custom-win",
+			"windows": true,
+			"custom": "/custom/bash",
+			"exists": [
+				"/custom/bash"
+			],
+			"outcome": {
+				"value": {
+					"shell": "/custom/bash",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/custom/bash"
+				]
+			]
+		},
+		{
+			"id": "missing-custom-win",
+			"windows": true,
+			"custom": "/absent",
+			"outcome": {
+				"error": "Custom shell path not found: /absent"
+			},
+			"trace": [
+				[
+					"exists",
+					"/absent"
+				]
+			]
+		},
+		{
+			"id": "empty-custom-win",
+			"windows": true,
+			"custom": "",
+			"exists": [
+				"/bin/bash"
+			],
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				]
+			]
+		},
+		{
+			"id": "default-win",
+			"windows": true,
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				]
+			]
+		},
+		{
+			"id": "which-trust-win",
+			"windows": true,
+			"lookup": {
+				"bash.exe": "/special/bash\n"
+			},
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"/special/bash"
+				]
+			]
+		},
+		{
+			"id": "first-match-win",
+			"windows": true,
+			"exists": [
+				"/first",
+				"/second"
+			],
+			"lookup": {
+				"bash.exe": " ﻿/first\r\n/second\n"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/first",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"/first"
+				]
+			]
+		},
+		{
+			"id": "bad-first-no-fallback-win",
+			"windows": true,
+			"exists": [
+				"/second"
+			],
+			"lookup": {
+				"bash.exe": "/absent\n/second\n"
+			},
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"/absent"
+				]
+			]
+		},
+		{
+			"id": "double-cr-win",
+			"windows": true,
+			"exists": [
+				"/first\r"
+			],
+			"lookup": {
+				"bash.exe": "/first\r\r\n/second"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/first\r",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"/first\r"
+				]
+			]
+		},
+		{
+			"id": "failed-lookup-win",
+			"windows": true,
+			"lookup": {
+				"bash.exe": {
+					"status": 1,
+					"stdout": "/not-found"
+				}
+			},
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				]
+			]
+		},
+		{
+			"id": "empty-lookup-win",
+			"windows": true,
+			"lookup": {
+				"bash.exe": "﻿ \r\n "
+			},
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				]
+			]
+		},
+		{
+			"id": "powershell-win",
+			"windows": true,
+			"kind": "powershell",
+			"exists": [
+				"C:\\pwsh.exe",
+				"C:\\powershell.exe"
+			],
+			"lookup": {
+				"pwsh.exe": "C:\\pwsh.exe\r\n",
+				"powershell.exe": "C:\\powershell.exe\n"
+			},
+			"outcome": {
+				"value": {
+					"shell": "C:\\pwsh.exe",
+					"args": [
+						"-NoProfile",
+						"-NonInteractive",
+						"-ExecutionPolicy",
+						"Bypass",
+						"-Command"
+					]
+				}
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"pwsh.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"C:\\pwsh.exe"
+				]
+			]
+		},
+		{
+			"id": "unix-bin-before-which",
+			"exists": [
+				"/bin/bash"
+			],
+			"lookup": {
+				"bash": "/custom"
+			},
+			"outcome": {
+				"value": {
+					"shell": "/bin/bash",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"/bin/bash"
+				]
+			]
+		},
+		{
+			"id": "git-primary",
+			"windows": true,
+			"env": [
+				[
+					"ProgramFiles",
+					"C:\\Programs"
+				],
+				[
+					"ProgramFiles(x86)",
+					"D:\\x86"
+				]
+			],
+			"exists": [
+				"C:\\Programs\\Git\\bin\\bash.exe",
+				"D:\\x86\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Programs\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Programs\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "git-secondary",
+			"windows": true,
+			"env": [
+				[
+					"ProgramFiles",
+					"C:\\Programs"
+				],
+				[
+					"ProgramFiles(x86)",
+					"D:\\x86"
+				]
+			],
+			"exists": [
+				"D:\\x86\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "D:\\x86\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Programs\\Git\\bin\\bash.exe"
+				],
+				[
+					"exists",
+					"D:\\x86\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "git-missing-error",
+			"windows": true,
+			"env": [
+				[
+					"ProgramFiles",
+					"C:\\Programs"
+				],
+				[
+					"ProgramFiles(x86)",
+					"D:\\x86"
+				]
+			],
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n  C:\\Programs\\Git\\bin\\bash.exe\n  D:\\x86\\Git\\bin\\bash.exe"
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Programs\\Git\\bin\\bash.exe"
+				],
+				[
+					"exists",
+					"D:\\x86\\Git\\bin\\bash.exe"
+				],
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				]
+			]
+		},
+		{
+			"id": "git-empty-env",
+			"windows": true,
+			"env": [
+				[
+					"ProgramFiles",
+					""
+				]
+			],
+			"outcome": {
+				"error": "No bash shell found. Options:\n  1. Install Git for Windows: https://git-scm.com/download/win\n  2. Add your bash to PATH (Cygwin, MSYS2, etc.)\n  3. Set shellPath in settings.json\n\nSearched Git Bash in:\n"
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"bash.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				]
+			]
+		},
+		{
+			"id": "git-case-PROGRAMFILES",
+			"windows": true,
+			"env": [
+				[
+					"PROGRAMFILES",
+					"C:\\Programs"
+				]
+			],
+			"exists": [
+				"C:\\Programs\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Programs\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Programs\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "git-case-programfiles",
+			"windows": true,
+			"env": [
+				[
+					"programfiles",
+					"C:\\Programs"
+				]
+			],
+			"exists": [
+				"C:\\Programs\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Programs\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Programs\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "git-case-pRoGrAmFiLeS",
+			"windows": true,
+			"env": [
+				[
+					"pRoGrAmFiLeS",
+					"C:\\Programs"
+				]
+			],
+			"exists": [
+				"C:\\Programs\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Programs\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Programs\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "git-secondary-uppercase",
+			"windows": true,
+			"env": [
+				[
+					"PROGRAMFILES(X86)",
+					"D:\\x86"
+				]
+			],
+			"exists": [
+				"D:\\x86\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "D:\\x86\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"D:\\x86\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "powershell-fallback",
+			"windows": true,
+			"kind": "powershell",
+			"exists": [
+				"C:\\powershell.exe"
+			],
+			"lookup": {
+				"pwsh.exe": "C:\\missing.exe",
+				"powershell.exe": "C:\\powershell.exe\r\n"
+			},
+			"outcome": {
+				"value": {
+					"shell": "C:\\powershell.exe",
+					"args": [
+						"-NoProfile",
+						"-NonInteractive",
+						"-ExecutionPolicy",
+						"Bypass",
+						"-Command"
+					]
+				}
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"pwsh.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"C:\\missing.exe"
+				],
+				[
+					"lookup",
+					"where",
+					[
+						"powershell.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"C:\\powershell.exe"
+				]
+			]
+		},
+		{
+			"id": "powershell-absent",
+			"windows": true,
+			"kind": "powershell",
+			"outcome": {
+				"error": "No PowerShell executable found. Install PowerShell or add powershell.exe/pwsh.exe to PATH."
+			},
+			"trace": [
+				[
+					"lookup",
+					"where",
+					[
+						"pwsh.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"lookup",
+					"where",
+					[
+						"powershell.exe"
+					],
+					{
+						"encoding": "utf-8",
+						"timeout": 5000,
+						"windowsHide": true
+					}
+				],
+				[
+					"exists",
+					"C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+				],
+				[
+					"exists",
+					"C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe"
+				],
+				[
+					"exists",
+					"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-0",
+			"windows": true,
+			"custom": "C:\\Windows\\System32\\bash.exe",
+			"exists": [
+				"C:\\Windows\\System32\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Windows\\System32\\bash.exe",
+					"args": [
+						"-s"
+					],
+					"commandTransport": "stdin"
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Windows\\System32\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-1",
+			"windows": true,
+			"custom": "d:/WINDOWS/sysnative/BASH.EXE",
+			"exists": [
+				"d:/WINDOWS/sysnative/BASH.EXE"
+			],
+			"outcome": {
+				"value": {
+					"shell": "d:/WINDOWS/sysnative/BASH.EXE",
+					"args": [
+						"-s"
+					],
+					"commandTransport": "stdin"
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"d:/WINDOWS/sysnative/BASH.EXE"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-2",
+			"windows": true,
+			"custom": "C:\\Windows\\System32\\bash.exe\n",
+			"exists": [
+				"C:\\Windows\\System32\\bash.exe\n"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Windows\\System32\\bash.exe\n",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Windows\\System32\\bash.exe\n"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-3",
+			"windows": true,
+			"custom": "C:\\Windows\\System32\\bash.exe\r\n",
+			"exists": [
+				"C:\\Windows\\System32\\bash.exe\r\n"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Windows\\System32\\bash.exe\r\n",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Windows\\System32\\bash.exe\r\n"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-4",
+			"windows": true,
+			"custom": "C:\\Windows\\System32\\bash.exe ",
+			"exists": [
+				"C:\\Windows\\System32\\bash.exe "
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Windows\\System32\\bash.exe ",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Windows\\System32\\bash.exe "
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-5",
+			"windows": true,
+			"custom": "C:/Windows/System32/bash.exe/",
+			"exists": [
+				"C:/Windows/System32/bash.exe/"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:/Windows/System32/bash.exe/",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:/Windows/System32/bash.exe/"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-6",
+			"windows": true,
+			"custom": "C:\\Git\\bin\\bash.exe",
+			"exists": [
+				"C:\\Git\\bin\\bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:\\Git\\bin\\bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:\\Git\\bin\\bash.exe"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-7",
+			"windows": true,
+			"custom": "1:/windows/system32/bash.exe",
+			"exists": [
+				"1:/windows/system32/bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "1:/windows/system32/bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"1:/windows/system32/bash.exe"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-8",
+			"windows": true,
+			"custom": "é:/windows/system32/bash.exe",
+			"exists": [
+				"é:/windows/system32/bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "é:/windows/system32/bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"é:/windows/system32/bash.exe"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-9",
+			"windows": true,
+			"custom": "C:/Windows//System32/bash.exe",
+			"exists": [
+				"C:/Windows//System32/bash.exe"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:/Windows//System32/bash.exe",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:/Windows//System32/bash.exe"
+				]
+			]
+		},
+		{
+			"id": "custom-wsl-10",
+			"windows": true,
+			"custom": "C:/Windows/System32/bash.exe\u0000",
+			"exists": [
+				"C:/Windows/System32/bash.exe\u0000"
+			],
+			"outcome": {
+				"value": {
+					"shell": "C:/Windows/System32/bash.exe\u0000",
+					"args": [
+						"-c"
+					]
+				}
+			},
+			"trace": [
+				[
+					"exists",
+					"C:/Windows/System32/bash.exe\u0000"
+				]
+			]
+		}
+	],
+	"environments": [
+		{
+			"windows": false,
+			"env": [],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"X",
+					"a"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"X",
+					"a"
+				],
+				[
+					"PATH",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"Path",
+					""
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"Path",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"PATH",
+					"$BIN"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"Path",
+					"$BIN:x"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"Path",
+					"$BIN:x"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"PATH",
+					"x::$BIN"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"x::$BIN"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"Path",
+					"lower"
+				],
+				[
+					"PATH",
+					"upper"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"Path",
+					"$BIN:lower"
+				],
+				[
+					"PATH",
+					"upper"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"PATH",
+					" $BIN"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"$BIN: $BIN"
+				]
+			]
+		},
+		{
+			"windows": false,
+			"env": [
+				[
+					"path",
+					"$bin"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"path",
+					"$BIN:$bin"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"X",
+					"a"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"X",
+					"a"
+				],
+				[
+					"PATH",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"Path",
+					""
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"Path",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"PATH",
+					"$BIN"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"$BIN"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"Path",
+					"$BIN;x"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"Path",
+					"$BIN;x"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"PATH",
+					"x;;$BIN"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"x;;$BIN"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"Path",
+					"lower"
+				],
+				[
+					"PATH",
+					"upper"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"Path",
+					"$BIN;lower"
+				],
+				[
+					"PATH",
+					"upper"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"PATH",
+					" $BIN"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"PATH",
+					"$BIN; $BIN"
+				]
+			]
+		},
+		{
+			"windows": true,
+			"env": [
+				[
+					"path",
+					"$bin"
+				]
+			],
+			"bin": "$BIN",
+			"value": [
+				[
+					"path",
+					"$BIN;$bin"
+				]
+			]
+		}
+	],
+	"sanitize": [
+		{
+			"units": [],
+			"value": []
+		},
+		{
+			"units": [
+				9,
+				10,
+				13,
+				31,
+				0,
+				32
+			],
+			"value": [
+				9,
+				10,
+				13,
+				32
+			]
+		},
+		{
+			"units": [
+				55296
+			],
+			"value": [
+				55296
+			]
+		},
+		{
+			"units": [
+				56320
+			],
+			"value": [
+				56320
+			]
+		},
+		{
+			"units": [
+				55357,
+				56898
+			],
+			"value": [
+				55357,
+				56898
+			]
+		},
+		{
+			"units": [
+				8203,
+				8206,
+				8234,
+				8288,
+				65279,
+				65529,
+				65530,
+				65531,
+				65532,
+				65535
+			],
+			"value": [
+				8203,
+				8206,
+				8234,
+				8288,
+				65279,
+				65532,
+				65535
+			]
+		},
+		{
+			"units": [
+				0,
+				1,
+				2,
+				3,
+				4,
+				5,
+				6,
+				7,
+				8,
+				9,
+				10,
+				11,
+				12,
+				13,
+				14,
+				15,
+				16,
+				17,
+				18,
+				19,
+				20,
+				21,
+				22,
+				23,
+				24,
+				25,
+				26,
+				27,
+				28,
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39,
+				40,
+				41,
+				42,
+				43,
+				44,
+				45,
+				46,
+				47,
+				48,
+				49,
+				50,
+				51,
+				52,
+				53,
+				54,
+				55,
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66,
+				67,
+				68,
+				69,
+				70,
+				71,
+				72,
+				73,
+				74,
+				75,
+				76,
+				77,
+				78,
+				79,
+				80,
+				81,
+				82,
+				83,
+				84,
+				85,
+				86,
+				87,
+				88,
+				89,
+				90,
+				91,
+				92,
+				93,
+				94,
+				95,
+				96,
+				97,
+				98,
+				99,
+				100,
+				101,
+				102,
+				103,
+				104,
+				105,
+				106,
+				107,
+				108,
+				109,
+				110,
+				111,
+				112,
+				113,
+				114,
+				115,
+				116,
+				117,
+				118,
+				119,
+				120,
+				121,
+				122,
+				123,
+				124,
+				125,
+				126,
+				127,
+				128,
+				129,
+				130,
+				131,
+				132,
+				133,
+				134,
+				135,
+				136,
+				137,
+				138,
+				139,
+				140,
+				141,
+				142,
+				143,
+				144,
+				145,
+				146,
+				147,
+				148,
+				149,
+				150,
+				151,
+				152,
+				153,
+				154,
+				155,
+				156,
+				157,
+				158,
+				159,
+				160,
+				161,
+				162,
+				163,
+				164,
+				165,
+				166,
+				167,
+				168,
+				169,
+				170,
+				171,
+				172,
+				173,
+				174,
+				175,
+				176,
+				177,
+				178,
+				179,
+				180,
+				181,
+				182,
+				183,
+				184,
+				185,
+				186,
+				187,
+				188,
+				189,
+				190,
+				191,
+				192,
+				193,
+				194,
+				195,
+				196,
+				197,
+				198,
+				199,
+				200,
+				201,
+				202,
+				203,
+				204,
+				205,
+				206,
+				207,
+				208,
+				209,
+				210,
+				211,
+				212,
+				213,
+				214,
+				215,
+				216,
+				217,
+				218,
+				219,
+				220,
+				221,
+				222,
+				223,
+				224,
+				225,
+				226,
+				227,
+				228,
+				229,
+				230,
+				231,
+				232,
+				233,
+				234,
+				235,
+				236,
+				237,
+				238,
+				239,
+				240,
+				241,
+				242,
+				243,
+				244,
+				245,
+				246,
+				247,
+				248,
+				249,
+				250,
+				251,
+				252,
+				253,
+				254,
+				255
+			],
+			"value": [
+				9,
+				10,
+				13,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39,
+				40,
+				41,
+				42,
+				43,
+				44,
+				45,
+				46,
+				47,
+				48,
+				49,
+				50,
+				51,
+				52,
+				53,
+				54,
+				55,
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66,
+				67,
+				68,
+				69,
+				70,
+				71,
+				72,
+				73,
+				74,
+				75,
+				76,
+				77,
+				78,
+				79,
+				80,
+				81,
+				82,
+				83,
+				84,
+				85,
+				86,
+				87,
+				88,
+				89,
+				90,
+				91,
+				92,
+				93,
+				94,
+				95,
+				96,
+				97,
+				98,
+				99,
+				100,
+				101,
+				102,
+				103,
+				104,
+				105,
+				106,
+				107,
+				108,
+				109,
+				110,
+				111,
+				112,
+				113,
+				114,
+				115,
+				116,
+				117,
+				118,
+				119,
+				120,
+				121,
+				122,
+				123,
+				124,
+				125,
+				126,
+				127,
+				128,
+				129,
+				130,
+				131,
+				132,
+				133,
+				134,
+				135,
+				136,
+				137,
+				138,
+				139,
+				140,
+				141,
+				142,
+				143,
+				144,
+				145,
+				146,
+				147,
+				148,
+				149,
+				150,
+				151,
+				152,
+				153,
+				154,
+				155,
+				156,
+				157,
+				158,
+				159,
+				160,
+				161,
+				162,
+				163,
+				164,
+				165,
+				166,
+				167,
+				168,
+				169,
+				170,
+				171,
+				172,
+				173,
+				174,
+				175,
+				176,
+				177,
+				178,
+				179,
+				180,
+				181,
+				182,
+				183,
+				184,
+				185,
+				186,
+				187,
+				188,
+				189,
+				190,
+				191,
+				192,
+				193,
+				194,
+				195,
+				196,
+				197,
+				198,
+				199,
+				200,
+				201,
+				202,
+				203,
+				204,
+				205,
+				206,
+				207,
+				208,
+				209,
+				210,
+				211,
+				212,
+				213,
+				214,
+				215,
+				216,
+				217,
+				218,
+				219,
+				220,
+				221,
+				222,
+				223,
+				224,
+				225,
+				226,
+				227,
+				228,
+				229,
+				230,
+				231,
+				232,
+				233,
+				234,
+				235,
+				236,
+				237,
+				238,
+				239,
+				240,
+				241,
+				242,
+				243,
+				244,
+				245,
+				246,
+				247,
+				248,
+				249,
+				250,
+				251,
+				252,
+				253,
+				254,
+				255
+			]
+		}
+	]
+}

@@ -1,0 +1,254 @@
+{
+  "release": "582160235671903d9f1c7034b457557b1df74b68",
+  "nodeVersion": "v24.19.0",
+  "messageCases": [
+    {
+      "type": "C2C_MESSAGE_CREATE",
+      "raw": {
+        "id": "message-C2C_MESSAGE_CREATE",
+        "group_openid": "group",
+        "channel_id": "channel",
+        "author": {
+          "user_openid": "user",
+          "username": "name"
+        },
+        "content": " content ",
+        "attachments": [
+          {
+            "url": "https://example.invalid/a.png"
+          }
+        ]
+      },
+      "value": {
+        "messageId": "message-C2C_MESSAGE_CREATE",
+        "peerId": "user",
+        "senderId": "user",
+        "senderName": "name",
+        "chatType": "p2p",
+        "content": "content",
+        "resources": []
+      }
+    },
+    {
+      "type": "GROUP_AT_MESSAGE_CREATE",
+      "raw": {
+        "id": "message-GROUP_AT_MESSAGE_CREATE",
+        "group_openid": "group",
+        "channel_id": "channel",
+        "author": {
+          "user_openid": "user",
+          "username": "name"
+        },
+        "content": " content ",
+        "attachments": [
+          {
+            "url": "https://example.invalid/a.png"
+          }
+        ]
+      },
+      "value": {
+        "messageId": "message-GROUP_AT_MESSAGE_CREATE",
+        "peerId": "group",
+        "senderId": "user",
+        "senderName": "name",
+        "chatType": "group",
+        "content": "content",
+        "resources": []
+      }
+    },
+    {
+      "type": "AT_MESSAGE_CREATE",
+      "raw": {
+        "id": "message-AT_MESSAGE_CREATE",
+        "group_openid": "group",
+        "channel_id": "channel",
+        "author": {
+          "user_openid": "user",
+          "username": "name"
+        },
+        "content": " content ",
+        "attachments": [
+          {
+            "url": "https://example.invalid/a.png"
+          }
+        ]
+      },
+      "value": {
+        "messageId": "message-AT_MESSAGE_CREATE",
+        "peerId": "group",
+        "senderId": "user",
+        "senderName": "name",
+        "chatType": "channel",
+        "content": "content",
+        "resources": []
+      }
+    },
+    {
+      "type": "READY",
+      "raw": {
+        "id": "message-READY",
+        "group_openid": "group",
+        "channel_id": "channel",
+        "author": {
+          "user_openid": "user",
+          "username": "name"
+        },
+        "content": " content ",
+        "attachments": [
+          {
+            "url": "https://example.invalid/a.png"
+          }
+        ]
+      },
+      "value": null
+    }
+  ],
+  "sendCases": [
+    {
+      "scope": {
+        "chatType": "p2p"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/users/peer%2Fa/messages",
+        "method": "POST",
+        "body": {
+          "content": "reply",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    },
+    {
+      "scope": {
+        "chatType": "group"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/groups/peer%2Fa/messages",
+        "method": "POST",
+        "body": {
+          "content": "reply",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    },
+    {
+      "scope": {
+        "chatType": "channel"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/channels/peer%2Fa/messages",
+        "method": "POST",
+        "body": {
+          "content": "reply",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    }
+  ],
+  "assetCases": [
+    {
+      "asset": {
+        "path": "ignored-image.png",
+        "mimeType": "image/png",
+        "name": "image.png"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/groups/peer/messages",
+        "method": "POST",
+        "body": {
+          "content": "图片附件暂不支持直接上传，请使用图片 URL。",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    },
+    {
+      "asset": {
+        "path": "ignored-file.txt",
+        "mimeType": "text/plain",
+        "name": "file.txt"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/groups/peer/messages",
+        "method": "POST",
+        "body": {
+          "content": "文件：file.txt",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    },
+    {
+      "asset": {
+        "mimeType": "image/png",
+        "url": "https://example.invalid/image.png"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/groups/peer/messages",
+        "method": "POST",
+        "body": {
+          "content": "https://example.invalid/image.png",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    },
+    {
+      "asset": {
+        "mimeType": "video/mp4",
+        "name": "video.mp4"
+      },
+      "value": {
+        "url": "http://127.0.0.1:1/v2/groups/peer/messages",
+        "method": "POST",
+        "body": {
+          "content": "文件：video.mp4",
+          "msg_type": 0
+        },
+        "headers": {
+          "authorization": "QQBot synthetic-token",
+          "content-type": "application/json"
+        }
+      }
+    }
+  ],
+  "frames": [
+    {
+      "op": 2,
+      "d": {
+        "token": "QQBot synthetic-token",
+        "intents": 123,
+        "shard": [
+          0,
+          1
+        ],
+        "properties": {
+          "$os": "win32",
+          "$browser": "pisper",
+          "$device": "pisper"
+        }
+      }
+    }
+  ],
+  "resourceDownloads": []
+}

@@ -1,0 +1,784 @@
+{
+  "schemaVersion": 1,
+  "registeredDriverCount": 9,
+  "driverContractEntries": 10,
+  "objective": "Implement the complete release generate_visual tool and /api/visual/models, /api/visual/models/:kind, /api/visual/test independently of workflow/game image-only restrictions.",
+  "audit": {
+    "referenceCommit": "582160235671903d9f1c7034b457557b1df74b68",
+    "referenceRoot": "C:/Users/13063/Desktop/code/agent work/pisper-release-parity-reference",
+    "workspaceRoot": "C:/Users/13063/Desktop/code/agent work/pisper",
+    "mode": "read-only product-source audit",
+    "productSourcesModified": false,
+    "cargoRun": false,
+    "paidProviderRequests": 0,
+    "personalProfileRead": false,
+    "protectedPid30488Touched": false,
+    "verification": "Source audit plus executable read-only pure Node oracle; no provider HTTP, file-generating oracle suite or GUI was run.",
+    "nodeVersion": "v24.19.0",
+    "lockedOpenaiSdk": "6.49.0",
+    "mainInstalledOpenaiSdk": "6.49.0"
+  },
+  "sourceEvidence": [
+    {
+      "file": "runtime/tools/app/visual-generate.mjs",
+      "lines": "5-14,18-82",
+      "supports": "manifest, full TypeBox schema, cwd binding, progress forwarding, generated-file callback semantics and exact returned content/details"
+    },
+    {
+      "file": "runtime/services/visual-generation/index.mjs",
+      "lines": "10-63,65-155",
+      "supports": "fallback predicate/statuses, per-driver request normalization, kind/source validation, candidates/explicit selection, attempts/progress, write-before-result"
+    },
+    {
+      "file": "runtime/services/visual-generation/model-selection.mjs",
+      "lines": "9-119,130-270",
+      "supports": "explicit capabilities/kind, credential/baseURL/header precedence, driver inference, ranking/dedup, private/client model projection, preference and selection"
+    },
+    {
+      "file": "runtime/services/provider-model-options.mjs",
+      "lines": "4-8",
+      "supports": "capabilities allowlist overrides inferred legacy kind; unknown/empty capabilities falls back to explicit kind or chat"
+    },
+    {
+      "file": "runtime/services/visual-generation/source-images.mjs",
+      "lines": "5-32",
+      "supports": "24MiB per source, resolve cwd+path, stat/follow-symlink, extension MIME, 8 source filtering, PNG mask"
+    },
+    {
+      "file": "runtime/services/visual-generation/driver-registry.mjs",
+      "lines": "5-44",
+      "supports": "nine drivers and xAI-only New API origin detection"
+    },
+    {
+      "file": "runtime/services/visual-generation/protocol-detection.mjs",
+      "lines": "3-46",
+      "supports": "GET origin root, Accept, 3500ms, three signatures, per-origin promise caching including false/errors"
+    },
+    {
+      "file": "runtime/services/visual-generation/openai-compatible.mjs",
+      "lines": "6-219",
+      "supports": "OpenAI/OpenRouter generation/edit/Responses fallback/video multipart, polls/download, retry and timeout configuration"
+    },
+    {
+      "file": "runtime/services/visual-generation/google.mjs",
+      "lines": "2-127",
+      "supports": "Google auth, Gemini image request/response and Veo long-running video poll/download"
+    },
+    {
+      "file": "runtime/services/visual-generation/xai.mjs",
+      "lines": "2-260",
+      "supports": "xAI image JSON/multipart/result variants, video endpoint negotiation and polling/content"
+    },
+    {
+      "file": "runtime/services/visual-generation/new-api.mjs",
+      "lines": "5-181",
+      "supports": "New API image delegation and video JSON protocol/fallback, error formatting, URL/job extraction"
+    },
+    {
+      "file": "runtime/services/visual-generation/output.mjs",
+      "lines": "5-21",
+      "supports": "Unicode safeName, timestamp-to-second filename, generated/visuals, writeFile semantics"
+    },
+    {
+      "file": "runtime/http/routes/config-settings.mjs",
+      "lines": "213-234",
+      "supports": "GET combined status, PUT kind filter/body.model, POST test body ignored"
+    },
+    {
+      "file": "runtime/runtime/agent-runtime-facade.mjs",
+      "lines": "385,1193-1233",
+      "supports": "visualGenerateToolV1 migration, status six-field envelope, preference service, test prompt/data-dir/6MiB preview"
+    },
+    {
+      "file": "runtime/runtime/agent-runtime.mjs",
+      "lines": "398-406,411-416,1332-1346,1680-1707,2353-2371",
+      "supports": "canonical paths/runtime getter, shared image generation port, actual-session generated-file archive and direct generated_asset projection"
+    },
+    {
+      "file": "runtime/services/asset-storage.mjs",
+      "lines": "216-247",
+      "supports": "generated asset indexes the original absolute file path, no copy/size cap here, duplicate by path, image/file kind"
+    },
+    {
+      "file": "runtime/services/image-operation-service.mjs",
+      "lines": "409-446",
+      "supports": "remaining directions only; paid consumer always passes allowFallback:false"
+    },
+    {
+      "file": "runtime/security/execution-mode.mjs",
+      "lines": "10-22,58-71",
+      "supports": "high-risk generate_visual remains discoverable in approval-required mode; authorization is per call"
+    },
+    {
+      "file": "runtime/services/openai-request-transport.mjs",
+      "lines": "6-15",
+      "supports": "strip x-stainless-* after SDK default headers, preserve auth/body/options"
+    },
+    {
+      "file": "runtime/tests/visual-generation.test.mjs",
+      "lines": "38-1032",
+      "supports": "14 existing loopback/catalog/fallback/driver/auth oracle tests"
+    },
+    {
+      "file": "runtime/tests/visual-status-api.test.mjs",
+      "lines": "54-133",
+      "supports": "four runtime status/preference/empty-catalog/test-preview oracle tests"
+    },
+    {
+      "file": "runtime-rs/src/native_image_runtime/visual.rs",
+      "side": "current",
+      "lines": "25-26,138-271,273-340,467-585,586-765,795-865",
+      "supports": "current image-only subset and strict workflow image bounds; reuse as an adapter, not a universal implementation"
+    }
+  ],
+  "publicTool": {
+    "name": "generate_visual",
+    "label": "Visual Generate",
+    "category": "visual",
+    "risk": "high",
+    "source": "app",
+    "description": "Generate or edit images, mockups, posters, logos, or videos.",
+    "scope": "Visual providers; workspace/generated/visuals",
+    "capability": "Generate or edit images and videos",
+    "actualVideoEditingSupport": "Text-to-video only in this release service; image/mask video editing inputs are rejected. Preserve the manifest wording without claiming implemented image-to-video editing.",
+    "promptSnippet": "Generate or edit visual media",
+    "promptGuidelines": [
+      "Call for image, mockup, poster, logo, animation, or video requests.",
+      "For edits, pass local paths in sourceImages.",
+      "Claim success only after a file path is returned."
+    ],
+    "required": [
+      "kind",
+      "prompt"
+    ],
+    "parameters": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "image",
+          "video"
+        ]
+      },
+      "prompt": {
+        "type": "string",
+        "minLength": 1,
+        "maximumLength": "not specified by release"
+      },
+      "model": {
+        "type": "string",
+        "optional": true,
+        "meaning": "provider/model or unqualified exact model id; empty for auto"
+      },
+      "sourceImages": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "maxItems": 8,
+        "optional": true
+      },
+      "maskPath": {
+        "type": "string",
+        "minLength": 1,
+        "optional": true
+      },
+      "outputName": {
+        "type": "string",
+        "optional": true
+      },
+      "aspectRatio": {
+        "type": "string",
+        "enum": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4"
+        ],
+        "optional": true
+      },
+      "size": {
+        "type": "string",
+        "enum": [
+          "1024x1024",
+          "1536x1024",
+          "1024x1536",
+          "1280x720",
+          "720x1280",
+          "1792x1024",
+          "1024x1792"
+        ],
+        "optional": true
+      },
+      "imageSize": {
+        "type": "string",
+        "enum": [
+          "1K",
+          "2K",
+          "4K"
+        ],
+        "optional": true
+      },
+      "resolution": {
+        "type": "string",
+        "enum": [
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "optional": true
+      },
+      "durationSeconds": {
+        "type": "number",
+        "enum": [
+          4,
+          8,
+          12
+        ],
+        "optional": true
+      },
+      "quality": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "low",
+          "medium",
+          "high",
+          "standard",
+          "hd"
+        ],
+        "optional": true
+      },
+      "outputFormat": {
+        "type": "string",
+        "enum": [
+          "png",
+          "jpeg",
+          "webp"
+        ],
+        "optional": true
+      }
+    },
+    "execution": "Use current native ctx.cwd() and actual session identity. Ignore any extra user-supplied cwd field. Keep optional/inactive in release hot loadout; discover_tools metadata and call_tool execute the real definition. Do not replace the image_assets tool.",
+    "content": "${operation==='edit'?'Image edited':kind==='video'?'Video generated':'Image generated'}.\\nFile: ${path}\\nProvider: ${providerName}\\nModel: ${modelName}",
+    "details": [
+      "path",
+      "kind",
+      "mimeType",
+      "size",
+      "provider",
+      "providerName",
+      "model",
+      "modelName",
+      "remoteId",
+      "operation",
+      "fallbackUsed",
+      "attemptedModels"
+    ],
+    "callback": "Await onGeneratedFile(result), swallow only archive callback failure so a successfully saved file is never discarded or regenerated.",
+    "migration": {
+      "enabledTools": [
+        "generate_visual"
+      ],
+      "marker": "visualGenerateToolV1",
+      "semantics": "Apply one-time default migration; preserve a user's later disabled state."
+    }
+  },
+  "api": {
+    "getModels": {
+      "method": "GET",
+      "path": "/api/visual/models",
+      "paid": false,
+      "response": {
+        "image": "clientModel|null",
+        "video": "clientModel|null",
+        "imageModels": "clientModel[]",
+        "videoModels": "clientModel[]",
+        "imageSelection": "valid stored reference or empty",
+        "videoSelection": "valid stored reference or empty"
+      }
+    },
+    "setPreference": {
+      "method": "PUT",
+      "path": "/api/visual/models/:kind",
+      "where": {
+        "kind": [
+          "image",
+          "video"
+        ]
+      },
+      "paid": false,
+      "body": "bodyJson; input?.model. String(requested||'').trim(); empty removes only that kind preference; explicit valid model stores canonical provider/id; invalid model does not write.",
+      "persist": "pisper.json.visualDefaultModels, shared canonical writer preserving unknown fields and concurrent writes",
+      "response": "same six-field combined image/video status envelope"
+    },
+    "test": {
+      "method": "POST",
+      "path": "/api/visual/test",
+      "paid": true,
+      "requestBody": "ignored",
+      "kind": "image",
+      "cwd": "dataDir/visual-test",
+      "outputName": "config-test",
+      "prompt": "a small friendly robot mascot waving, flat vector illustration, soft pastel colors, plain background",
+      "options": "default auto/model fallback, no explicit selected model or source inputs",
+      "response": "VisualResult plus previewDataUrl",
+      "preview": {
+        "maximumBytes": 6291456,
+        "format": "data:${result.mimeType};base64,${buffer.toString('base64')}",
+        "largeOrUnreadable": "empty string; file generation remains success"
+      },
+      "archive": "No tool onGeneratedFile callback in this API path; do not silently claim it is a workspace/chat generation."
+    },
+    "responseTransport": "Root existing same-origin/auth/error handler applies; release json responses use no-store and application/json; charset=utf-8. Invalid :kind should miss the where-constrained route."
+  },
+  "catalogue": {
+    "paths": [
+      "canonical models.json",
+      "canonical auth.json",
+      "canonical pisper.json",
+      "runtime provider/model snapshot"
+    ],
+    "readPolicy": "readJson only defaults ENOENT/ENOTDIR; corrupt JSON and other IO errors propagate. Current image-only reader accepts JSONC/BOM and imposes 16MiB/object-only limits; this is not the same reader.",
+    "kindPolicy": "Never infer image/video capability from model id. definition.kind || runtime.pisperKind -> inferModelKind; explicit valid capabilities ['chat','image','video'] override kind. The candidate's kind is the requested image/video kind.",
+    "providerUnion": "models.json provider keys, followed by runtime.getProviders ids; per provider models union configured definitions then runtime models. Preserve insertion ordering and stable sorting.",
+    "enabled": "Skip app.disabledProviders. Require nonempty credential from auth.json. No additional enabled/excludedModel checks appear directly in this catalog; do not invent a stronger filter without reconciling provider-runtime behavior.",
+    "credentials": "String credential as-is; type api_key returns key||'' only; other objects key||token||access_token||''. Model/provider apiKey fields are not used by this catalog. Never expose credentials or headers in HTTP client models.",
+    "resolutionOrder": {
+      "api": [
+        "definition.api",
+        "provider.api",
+        "runtimeModel.api",
+        "empty"
+      ],
+      "baseUrl": [
+        "definition.baseUrl",
+        "provider.baseUrl",
+        "runtimeModel.baseUrl",
+        "provider/api default"
+      ],
+      "headers": [
+        "provider.headers",
+        "runtimeModel.headers",
+        "definition.headers"
+      ],
+      "visualApi": [
+        "definition.visualApi",
+        "provider.visualApi",
+        "empty"
+      ],
+      "name": [
+        "definition.name",
+        "runtimeModel.name",
+        "id"
+      ],
+      "providerName": [
+        "provider.name",
+        "runtimeProvider.name",
+        "providerId"
+      ]
+    },
+    "defaultUrls": {
+      "google": "https://generativelanguage.googleapis.com/v1beta",
+      "xai": "https://api.x.ai/v1",
+      "openrouter": "https://openrouter.ai/api/v1",
+      "openai": "https://api.openai.com/v1",
+      "other": "empty; skip candidate"
+    },
+    "driverOrder": "explicit visualApi first; otherwise combined providerId/api/baseUrl/id text: google -> google-{kind}; xai/x.ai/grok -> xai-{kind}; openrouter -> image:openrouter-image or video:openai-video; otherwise openai-{kind}.",
+    "ranking": "modelScore: gpt-image-2|gpt-5.4-image +120 else gpt-image|gpt-\\d.*image +105; gemini-3|imagen-4 +100; grok-imagine +95; sora-2-pro|veo-3.1 +120 else sora-2|veo-3 +105; exact provider openai +8/google +7/xai +6. Add visualProvider25/configuredDefinition2 for selection sorting; tie name.localeCompare.",
+    "visualProvider": "Explicit providerTypes truthy entry is visual iff ==visual. Otherwise nonempty configured provider.models and every explicit/inferred kind !=chat; this test does not inspect capabilities.",
+    "dedup": "key=(baseUrl trimmed, trailing slashes stripped, lowercased) + id lowercase + requested kind + driver; winner priority visualProvider*10000 + configuredDefinition*1000 + score; ties keep first.",
+    "preference": "Case-insensitive full reference moves candidate to front. Invalid stored preference leaves it stored but returns selection empty and auto-selected first candidate.",
+    "explicitSelection": "Find qualified provider/model among raw candidates before dedup, so a caller can choose another credential on a shared endpoint. Otherwise unqualified exact id among ordered/deduplicated candidates, case-insensitive; invalid -> 未找到已启用的视觉模型：${requestedModel}.",
+    "publicProjection": "clientModel retains id,name,providerId,providerName,api,kind,baseUrl,visualApi,driver,score; removes apiKey,headers,visualProvider,configuredDefinition.",
+    "noModels": "没有已配置并启用的${kind==='video'?'视频':'图像'}生成模型。请先在配置页添加视觉模型。"
+  },
+  "sourceFiles": {
+    "operation": "kind=request.kind==='video'?'video':'image'; video rejects sourceImages?.length or truthy maskPath before catalog lookup. Image operation is edit iff loaded sourceImages.length>0, else generate.",
+    "paths": "resolve(cwd,String(input||'').trim()) yields an absolute path; relative paths are allowed. stat follows symlinks. Valid absolute files outside cwd are allowed by release, subject to Root's actual authorized tool/session permissions.",
+    "limits": {
+      "maximumSourceImages": 8,
+      "perFileBytes": 25165824,
+      "aggregateLimit": "none in generic service",
+      "fileKinds": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ]
+    },
+    "loading": "Non-array inputs -> []; filter(Boolean), slice(0,8), Promise.all. stat must be regular file, size <=24MiB, MIME inferred only by extension lowercased, read bytes without raster sniff/decode. Tool schema rejects >8; direct service truncates.",
+    "mask": "Falsy mask ->None; otherwise same source loader and only PNG MIME accepted. Mask without source is still loaded/validated, operation remains generate, some drivers ignore it.",
+    "forbiddenReuse": "Do not inherit workflow/game 8MiB/source,20MiB aggregate,cwd-containment/symlink rejection,4096px or raster-decoding restrictions into this generic loader."
+  },
+  "requestNormalization": {
+    "explicitSize": "Preserve truthy requested size.",
+    "videoAspectToSize": "If no size and aspectRatio, 9:16 ->720x1280; every other ratio ->1280x720.",
+    "nonGoogleImageAspectToSize": "If no size and aspectRatio, 9:16 or3:4 ->1024x1536;16:9 or4:3 ->1536x1024;else1024x1024.",
+    "googleImage": "Do not synthesize pixel size from aspectRatio; imageConfig gets aspectRatio/imageSize only.",
+    "googleVideoResolution": "For google-* video, absent resolution plus size derives 1080p iff size string includes1080, else720p."
+  },
+  "drivers": [
+    {
+      "name": "openai-image",
+      "request": "POST base/images/generations JSON {model,prompt,n:1,size?,quality?,output_format?}; output_format defaults png only if model id matches /gpt.*image|dall-e/i.",
+      "edit": "POST base/images/edits multipart; common fields, source images with original basename+MIME, one image key=image and multiple image[]=SDK array encoding; mask optional original basename+PNG.",
+      "response": "data[0].b64_json -> bytes/mime per requested outputFormat (jpeg/webp/elsepng), or data[0].url -> unauthenticated download; no image data -> exact error.",
+      "sources": "openai-compatible.mjs:63-115"
+    },
+    {
+      "name": "openrouter-image",
+      "request": "POST base/chat/completions JSON {model,messages:[{role:user,content:[text prompt,...image_url data URLs]}],modalities:[image],stream:false}",
+      "response": "choices[0].message.images[0].image_url string or .url; data URL first, else unauthenticated download. Mask/quality/imageSize are not forwarded.",
+      "sources": "openai-compatible.mjs:35-60"
+    },
+    {
+      "name": "openai-responses-image-fallback",
+      "eligibility": "Only model.api.lowercase==openai-responses, operation!=edit, Images error status404/405/501/502, and allowFallback !== false. Explicit model still allows this protocol fallback.",
+      "request": "POST base/responses JSON {model,input:prompt}; no extra image_generation tool/options in release.",
+      "response": "first output.type=image_generation_call. result data URL first; otherwise nonempty string interpreted as base64; otherwise image_url.url/image_url downloaded unauthenticated. remoteId=response.id.",
+      "progress": "Images 接口不可用，正在通过 Responses 接口生成图片…",
+      "sources": "openai-compatible.mjs:26-33,117-157,211-218"
+    },
+    {
+      "name": "openai-video",
+      "request": "SDK multipart POST base/videos fields model,prompt,seconds:String(durationSeconds)?,size?. Do not serialize this path as JSON.",
+      "poll": "GET base/videos/{encoded id} every5000ms until status completed/failed; progress 视频生成中：Math.round(progress||0)%; failed message video.error.message or视频生成失败。",
+      "download": "GET base/videos/{id}/content?variant=video; SDK Accept application/binary and bearer/custom headers; progress 视频已生成，正在下载…; MIME header orvideo/mp4, extension always.mp4, remoteId=id.",
+      "sources": "openai-compatible.mjs:160-193; locked SDK6.49.0 resources/videos.mjs create/downloadContent"
+    },
+    {
+      "name": "google-image",
+      "request": "POST base/models/{encodeURIComponent(id removing one leading models/)}:generateContent JSON {contents:[{role:user,parts:[...inlineData sources,{text:prompt}]}],generationConfig:{responseModalities:[TEXT,IMAGE],imageConfig?:{aspectRatio?,imageSize?}}}",
+      "auth": "Content-Type JSON,x-goog-api-key,model headers,then init headers.",
+      "response": "Flatten candidates.content.parts; first inlineData or inline_data with data; MIME mimeType/mime_type/elseimage/png; extension jpeg->jpg/webp->webp/elsepng. No mask/quality/outputFormat field in request.",
+      "sources": "google.mjs:2-15,35-68"
+    },
+    {
+      "name": "google-video",
+      "request": "POST base/models/{encoded id}:predictLongRunning JSON {instances:[{prompt}],parameters:{sampleCount:1,aspectRatio?,durationSeconds?,resolution?}}",
+      "poll": "Require operation.name; while !done progress GoogleVeo message,5000ms waits,GET base/{name stripping leading slash}; error.message orGoogle视频生成失败。",
+      "download": "Find first recursive object.uri containing video|files|download|googleapis; fetch with x-goog-api-key only; MIME header/elsevideo/mp4,extension.mp4,remoteId operation.name.",
+      "sources": "google.mjs:18-33,70-127"
+    },
+    {
+      "name": "xai-image",
+      "request": "POST base/images/generations JSON {model,prompt,n:1,response_format:b64_json,aspect_ratio?,output_format?}",
+      "edit": "POST base/images/edits multipart model,prompt,repeated image parts named image-1,image-2,...,mask asmask.png,size?,quality?; no n/output_format fields in xAI edit.",
+      "response": "data[0] || image || output[0] || output. b64_json/base64/image_base64 with MIME mime_type/mimeType/elsepng; else url/image_url including top-level; authenticated download bearer+model headers.",
+      "sources": "xai.mjs:47-125"
+    },
+    {
+      "name": "xai-video",
+      "request": "POST base/videos/generations JSON {model,prompt,duration?,aspect_ratio?,resolution?}; on404/405 only POST base/videos JSON {model,prompt,seconds?:String(duration),size defaultlandscape/portrait}.",
+      "poll": "ID task_id/request_id/id/data.task_id/data.id; recursive HTTP(S)url/video_url/download_url; status/status.state/data.status lowercase; failure states failed/error/cancelled/canceled; success completed/succeeded/done;5000ms waits; GET matching creation route, videos GET may fallback generations GET only404/405.",
+      "download": "URL if present -> authenticated fetch; else id -> GET base/videos/{id}/content; MIME header/mp4; extension jpeg/jpg,webp,mp4,webm or fallback.mp4; remoteId id|null.",
+      "sources": "xai.mjs:128-254"
+    },
+    {
+      "name": "new-api-image",
+      "request": "Delegates generateOpenAICompatible with same options; not xAI-image body.",
+      "sources": "new-api.mjs:179-181"
+    },
+    {
+      "name": "new-api-video",
+      "request": "POST base/videos JSON {model,prompt,seconds?:String(duration),size defaultlandscape/portrait}; on404/405 only POST base/video/generations JSON {model,prompt,duration?,width?,height?,response_format:url}.",
+      "poll": "Same recursive HTTP(S)URL/id/status family;GET base/{chosen route}/{id} every5000ms; job errors use New API error wrapper.",
+      "download": "URL or GET base/videos/{id}/content; bearer/custom headers; MIME header/mp4,webm extension iff MIME includeswebm elsemp4;remoteId id|null.",
+      "errors": "duplicate field duration -> New API 视频渠道转发失败：${upstream}。请检查中转站中该模型的渠道映射或协议适配。; HTTP errors carrystatus.",
+      "sources": "new-api.mjs:5-23,65-177"
+    }
+  ],
+  "detection": {
+    "trigger": "Only driver starts xai-; if detected choose new-api-${model.kind}; explicit new-api driver uses it directly.",
+    "request": "GET base URL origin root '/', remove query/hash; Accept:text/html,application/json; no provider auth headers.",
+    "timeoutMs": 3500,
+    "signatures": [
+      "<title>\\s*New API\\s*</title>",
+      "Unified AI API gateway",
+      "QuantumNous"
+    ],
+    "cache": "Lowercase origin -> shared detection promise, persistent successful/false/error result until explicit cache clear. This does not run in model-status API."
+  },
+  "retryAndBilling": {
+    "layers": "Keep SDK transport retry, Images->Responses protocol fallback, endpoint negotiation and model/provider fallback separate. They have different triggers.",
+    "defaults": "Unqualified auto generation uses ordered models; Generic OpenAI SDK maxRetries1; image timeout180000ms,video600000ms per SDK request. Non-SDK fetch drivers have no explicit global generation timeout; polling has no fixed overall deadline beyond caller signal/consumer budget.",
+    "explicitModel": "Select one model; prohibit changing model/provider, but still allow SDK retry1 and generation-only Images->Responses fallback unless allowFallback false.",
+    "noFallbackOption": "options.allowFallback === false disables all model/provider fallback, OpenAI SDK retries(maxRetries0) and OpenAI Images->Responses fallback. A same-named request/body extra field does not override options.",
+    "serviceRetryableStatuses": [
+      404,
+      408,
+      409,
+      425,
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
+    "unavailablePattern": "model_not_found/unknown provider for model/unsupported model/model unavailable/no available channel|provider|model/credential cannot access model and the exact bilingual regex in index.mjs:11-12.",
+    "safety": "Signal aborted or content policy/safety system/moderation/内容安全/安全策略/审核拒绝/违规内容 ->never model fallback, even retryable HTTP status.",
+    "auth": "401/403 ->cross-provider fallback iff next provider id differs; same-provider ordinary invalid-key fails. Same-provider model-specific unavailable/credential-access message can still satisfy unavailablePattern. Only examine next candidate; do not skip neighbors searching a later provider.",
+    "statusPropagation": "Use driver-specific status visibility: OpenAI SDK and xAI/New API jsonRequest errors carry status; Google JSON errors, xAI edit errors and download errors do not attach status in this source. Do not accidentally make every HTTP failure model-fallback eligible.",
+    "endpointFallback": "xAI/New API video404/405 route negotiation is implemented without an allowFallback gate. Report/reproduce this distinction; game paid consumers are image operations and still have no such POST negotiation path.",
+    "sdkRetryDetails": "LockedSDK6.49.0: x-should-retry true/false overrides;408/409/429/>=500 and non-aborted connection/timeout errors retry while budget remains; retry-after-ms then retry-after/date else exponential 0.5s initial,8s max,0-25% jitter. No x-stainless-* outgoing headers.",
+    "gameWorkflowAdapter": "Every paid sprite/action direction calls universal service with kind:image,qualified model if selected,PNG output,and allowFallback:false. Preserve completed directions and partial outputs; failed/canceled direction must not automatically generate again. Resume only remaining directions. Do not globally turn off generic tool fallback just to preserve this consumer boundary.",
+    "noReexecution": "Archive/preview failure never creates a second paid job. Cancellation/timeout after a paid request does not imply it was not accepted and must not trigger a new generation automatically."
+  },
+  "progressAndOutput": {
+    "firstProgress": "使用 ${providerName} / ${modelName} ${operation==='edit'?'编辑图片':`生成${kind==='video'?'视频':'图片'}`}…",
+    "fallbackProgress": "${providerName} / ${modelName} 当前不可用，尝试 ${nextProviderName} / ${nextModelName}…",
+    "directory": "cwd/generated/visuals",
+    "newDirectory": "mkdir recursive must allow a not-yet-existing cwd/dataDir/visual-test; do not require cwd.canonicalize before saving the general API test output.",
+    "safeName": "String(value||'').trim(); remove final .[a-z0-9]{2,5}; replace non Unicode L/N/dot/underscore/hyphen runs with '-'; trim leading/trailing hyphens; UTF16 slice80.",
+    "filename": "UTC ISO time replace ':'/'.' with '-' then slice19 + '-' +(safeName(outputName)||safeName(prompt).slice42||visual) + provider extension.",
+    "collision": "Despite the comment, timestamp is only to second and writeFile overwrites an identical path. Do not claim atomic exclusive/UUID naming is oracle-equivalent; decide any intentional safety correction explicitly.",
+    "buffers": "Generic service saves returned provider bytes and MIME/extension without workflow raster decode,4096px,8MiB or aggregate output limit. Do not force every output to PNG or reject valid4K/large output merely because existing workflow adapters do.",
+    "result": "Return only after file write succeeds; size is downloaded/decoded buffer length; remoteId empty ->null; fallbackUsed means catalog index>0 (protocol fallback alone false); attemptedModels lists one provider/id per catalog attempt, not SDK retries.",
+    "archive": "Tool calls Root generated-file port with actual session owner. Source asset-storage indexes absolute original path,kind image for recognized image extension elsefile,duplicate by path,no copy/size cap in this function. Archive callback failure is swallowed.",
+    "events": "Source direct tool end emits generated_asset when indexed. For call_tool, result.details.gatewayToolName preserves attribution; ensure Root gateway/archive projection can display the indexed output without falsely assuming outer event.toolName==generate_visual.",
+    "cancel": "Pass one caller cancellation signal through POST,poll sleeps,GET,download. Abort wait promptly and await target finalizers. No automatic remote job DELETE appears in oracle. Root dispose may cancel/await its own live jobs, preserving existing consumer no-reexecution policy."
+  },
+  "currentRustGaps": [
+    "Only image catalog,selected image preference and image generation exist; no universal generate_visual ToolDefinition or three visual API handlers.",
+    "ImageGenerationRequest lacks maskPath,quality,imageSize,explicit size,resolution,duration/output formats and kind/video fields needed by tool.",
+    "Current catalog filters image only, uses BTreeMap and byte name sort rather than source insertion/stable locale semantics; video ranking/dedup kind/preference/status missing.",
+    "Current source policy 8MiB/20MiB,cwd containment,no symlink,raster validation and4096px limit belongs to workflow/game; universal source policy is24MiB/file and path resolution.",
+    "Current HTTP generation selects one model and forbids implicit retry globally, suitable for paid game adapter but not default generic automatic/model/Responses fallback.",
+    "Current output returns GeneratedImage {path,mime_type}, uses UUID name and strict8MiB image validation; universal result/output naming/video bytes differ.",
+    "Existing protocol detection/signatures and some image request builders are reusable internals after extracting host ports; they cannot substitute for missing video/status/preference/tool contracts."
+  ],
+  "minimumIndependentImplementation": {
+    "module": "NEW runtime-rs/src/native_visual_generation/{mod,catalog,input,service,output,tools,drivers/*,tests/*}.rs + NEW visual_api.rs; Root assigns ownership after current milestone. This audit does not create product files.",
+    "privateTypes": [
+      "VisualKind{Image,Video}; VisualOperation{Generate,Edit}",
+      "VisualConfigSnapshot{models_json:Value,auth_json:private Value,app_json:Value,runtime_models:Vec<Value>,runtime_provider_names:Map<String,String>}",
+      "VisualModel(private key+headers+flags,public projection method); do not derive leaking Debug/Serialize for secrets",
+      "VisualRequest{kind,prompt,model?,source_images,mask_path?,output_name?,aspect_ratio?,size?,image_size?,resolution?,duration_seconds?,quality?,output_format?,cwd:PathBuf}",
+      "VisualOptions{cancellation:CancellationToken,on_progress:Arc<dyn Fn(String)+Send+Sync>,allow_fallback:bool defaulttrue}",
+      "VisualError{message,status:Option<u16>,cancelled:bool,phase}; driver-specific status attachment retained",
+      "VisualResult camelCase fields exactly matching publicTool.details"
+    ],
+    "ports": [
+      "VisualConfigPort.read:Arc<dyn Fn()->BoxFuture<'static,Result<VisualConfigSnapshot>>+Send+Sync> (canonical shared reader, runtime cached snapshot, no generation/network)",
+      "VisualConfigPort.update_preference:Arc<dyn Fn(VisualKind,Option<String>)->BoxFuture<'static,Result<()>>+Send+Sync> (Root canonical pisper writer; selected ref validated before mutation; preserve unknown fields/concurrent writes)",
+      "VisualGeneratedFilePort:Arc<dyn Fn(actual ToolContext,VisualResult)->BoxFuture<'static,Result<()>>+Send+Sync> (archive only, no paid retry)",
+      "Root actual ToolContext port resolves native ctx.session_manager ID to public/private owner and ctx.cwd; no AppState in domain",
+      "Root image-generator adapter to universal.generate maps existing workflow request+RunCancellation and always allow_fallback:false; retain downstream strict8MiB frame/media checks"
+    ],
+    "methods": [
+      "VisualGenerationService::new(config_port)->Arc<Self>",
+      "get_model_status(VisualKind)->Result<{model,models,selection}>",
+      "get_all_status()->Result<six-field combined API status>",
+      "set_preferred_model(kind,requested:String/Value)->Result<combined status>",
+      "generate(request:VisualRequest,options:VisualOptions)->Result<VisualResult>",
+      "test_visual(data_dir,options)->Result<VisualResult+previewDataUrl>",
+      "create_tool(service,context_port,generated_file_port)->Arc<ToolDefinition> or create_extension",
+      "visual_api::router<S>(service,data_dir)->Router<S>",
+      "shutdown/dispose cancels and joins only owned live work"
+    ],
+    "integrationSequence": [
+      "Implement pure catalog/normalization/source/output contract and exact schemas.",
+      "Implement nine driver/protocol paths with separate fallback layers and private credentials.",
+      "Connect shared canonical config reader/preference writer; expose three exact routes.",
+      "Register real optional/inactive generate_visual in every factory/reload and honor enabledTools/execution-mode/approval gates.",
+      "Connect generated-file archive/current ctx/session; stream updates and gateway attribution.",
+      "Route game/workflow/image_assets paid generation through adapter allowFallback:false without relaxing their stricter media boundary.",
+      "Validate full independent HTTP+Pi+API contracts before enabling visualGeneration/video flags or deleting unsupported route markers."
+    ]
+  },
+  "executableVerificationPlan": {
+    "referenceDependencies": "Reference package-lock pins openai6.49.0,matching main installed node_modules. Reference has no node_modules; use a scoped Node registerHooks resolver for bare dependencies to main's exact versions, never modify reference/source/package lock.",
+    "suggestedReferenceCommands": [
+      "node --test runtime/tests/visual-generation.test.mjs",
+      "node --test runtime/tests/visual-status-api.test.mjs runtime/tests/visual-tool-routing.test.mjs"
+    ],
+    "guard": "Run under temporary isolated cwd/dataDir with fictional credentials and a fetch/network guard allowing only test-owned loopback listener ports. Reject external hosts and existing local services. Runtime startup and metadata may otherwise make incidental calls; no real paid model or personal profile, no PID30488 contact. Oracle source test files stay read-only.",
+    "actualPureOracle": {
+      "referenceOpenaiVersion": "6.49.0",
+      "nodeVersion": "v24.19.0",
+      "kind": [
+        {
+          "input": "auto",
+          "output": "chat"
+        },
+        {
+          "input": "image",
+          "output": "image"
+        },
+        {
+          "input": "video",
+          "output": "video"
+        }
+      ],
+      "normalize": [
+        {
+          "driver": "openai-image",
+          "input": {
+            "kind": "image",
+            "aspectRatio": "16:9"
+          },
+          "expected": {
+            "kind": "image",
+            "aspectRatio": "16:9",
+            "size": "1536x1024"
+          }
+        },
+        {
+          "driver": "openai-image",
+          "input": {
+            "kind": "image",
+            "aspectRatio": "3:4"
+          },
+          "expected": {
+            "kind": "image",
+            "aspectRatio": "3:4",
+            "size": "1024x1536"
+          }
+        },
+        {
+          "driver": "google-image",
+          "input": {
+            "kind": "image",
+            "aspectRatio": "16:9"
+          },
+          "expected": {
+            "kind": "image",
+            "aspectRatio": "16:9"
+          }
+        },
+        {
+          "driver": "google-video",
+          "input": {
+            "kind": "video",
+            "aspectRatio": "9:16"
+          },
+          "expected": {
+            "kind": "video",
+            "aspectRatio": "9:16",
+            "size": "720x1280",
+            "resolution": "720p"
+          }
+        },
+        {
+          "driver": "xai-video",
+          "input": {
+            "kind": "video",
+            "aspectRatio": "4:3"
+          },
+          "expected": {
+            "kind": "video",
+            "aspectRatio": "4:3",
+            "size": "1280x720"
+          }
+        }
+      ],
+      "fallback": [
+        {
+          "status": 401,
+          "same": true,
+          "message": "Invalid API key",
+          "expected": false
+        },
+        {
+          "status": 401,
+          "same": false,
+          "message": "Invalid API key",
+          "expected": true
+        },
+        {
+          "status": 403,
+          "same": true,
+          "message": "该令牌无权访问模型 gpt-image-2",
+          "expected": true
+        },
+        {
+          "status": 503,
+          "same": false,
+          "message": "Content policy safety rejection",
+          "expected": false
+        },
+        {
+          "status": 503,
+          "same": true,
+          "message": "No available channel",
+          "expected": true
+        },
+        {
+          "status": 405,
+          "same": false,
+          "message": "Method not allowed",
+          "expected": false
+        },
+        {
+          "status": 501,
+          "same": false,
+          "message": "Not implemented",
+          "expected": false
+        },
+        {
+          "status": 429,
+          "same": true,
+          "message": "Rate limited",
+          "expected": true
+        }
+      ],
+      "safeNames": [
+        {
+          "input": " logo.png ",
+          "output": "logo"
+        },
+        {
+          "input": "../目录/图 logo.png",
+          "output": "..-目录-图-logo"
+        },
+        {
+          "input": "😀",
+          "output": ""
+        },
+        {
+          "input": "hello.tar.gz",
+          "output": "hello.tar"
+        }
+      ],
+      "scores": [
+        {
+          "providerId": "openai",
+          "id": "gpt-image-2",
+          "score": 128
+        },
+        {
+          "providerId": "google",
+          "id": "veo-3.1",
+          "score": 127
+        },
+        {
+          "providerId": "xai",
+          "id": "grok-imagine-video",
+          "score": 101
+        }
+      ]
+    },
+    "nativeFocus": "cargo test --locked --manifest-path runtime-rs/Cargo.toml --target-dir runtime-rs/target-visual-parity native_visual_generation:: -- --test-threads=1 --nocapture (only after source ownership/freeze; not run by this audit)",
+    "requiredCases": [
+      "Exact tool TypeBox schema/metadata/guidelines,strict gateway validation and actual ctx identity/cwd.",
+      "Catalog duplicate same endpoint/different credentials,explicit qualified selection before dedup,multi capabilities,both kinds,invalid/empty preferences,no secret/header leaks,stable locale ties and provider/runtime name precedence.",
+      "Shared writer preference preserves unrelated pisper keys and concurrent updates; invalid preference writes nothing.",
+      "Source relative/absolute outside cwd,valid symlink,24MiB boundary,8 inputs,direct-service truncation,extension-only PNG/JPEG/WebP,PNG mask,mask-alone and video editing rejection before provider traffic.",
+      "Capture OpenAI image generation JSON and edit multipart fields with two source images/mask/quality/output formats; no x-stainless headers.",
+      "Capture locked SDK video multipart fields,GET poll and content?variant=video; image180s/video600s per request config; live cancel closes HTTP and poll wait.",
+      "Google image imageSize/aspectRatio and source part order; Google video predictLongRunning,poll name,recursive URI and key-only download.",
+      "xAI image response variants/edit repeated image field; xAI video404/405 protocol negotiation/poll/content; status semantics retained.",
+      "New API detection cache per origin3500ms/signatures/false cache and no auth; New API primary/legacy video payload; duplicate duration422 exposes friendly error and does not try another route.",
+      "Images404/405/501/502->Responses only generation+openai-responses; exclude edit/otherapi/allowFallbackfalse; validate all response image representations andremoteId.",
+      "Auto model/provider fallback transient/unavailable/cross-provider401; ordinary same-provider401 stop; same-provider model-specific403 fallback; safety never switch; explicit model never switch.",
+      "allowFallback:false returns original error after exactly one paid create POST (game image consumers),no SDK retries,no Responses fallback,no second model; retain partial completed directions,resume remaining only,never duplicate after archive/cancel/timeout.",
+      "Output byte hash/size/MIME/provider/model/remoteId/operation/fallbackUsed/attemptedModels,UTC safe filename,large/4K generic output not workflow-capped,preview6MiB threshold,index callback failure leaves file+success.",
+      "Actual loopback Pi factory->discover_tools->call_tool->generate_visual image andvideo produce real file and feed model actual returned path/details,stream progress,archive correct session,remain optional/inactive; no fixed result stubs.",
+      "Actual API GET/PUT/test,status shape,preference persistence,testfixedprompt/bodyignored/data-dir output/preview,auth/same-origin guards and React settings after flags enabled."
+    ],
+    "noWeakening": "Do not accept validation error/empty output/fixed result as successful generation. Existing paid consumer/image bounds tests remain strict; add universal tests instead of weakening them."
+  }
+}
