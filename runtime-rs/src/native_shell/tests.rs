@@ -499,9 +499,19 @@ async fn cancellation_tree(timeout: bool) {
     let _owned = OwnedProcesses(pids.clone());
     let signal = Arc::new(AbortSignal::new());
     options.signal = Some(signal.clone());
-    // abort 变体的运行时超时必须盖过 CI runner 上 PowerShell 的冷启动
-    // (本地 ~1s,GitHub windows runner 可达 20s+),否则先触发 timeout:15。
-    options.timeout = if timeout { Some(8.0) } else { Some(90.0) };
+    // timeout 变体必须让解释器先打印 pid 再触发运行时超时,才能验证
+    // 「超时终止整棵进程树」。GH windows runner 的 PowerShell 冷启动可达
+    // 20s+,把 runner 上的超时放宽到 45s(本地 ~1s 启动,维持 8s)。
+    let timeout_secs = if std::env::var_os("RUNNER_ENVIRONMENT").is_some() {
+        45.0
+    } else {
+        8.0
+    };
+    options.timeout = if timeout {
+        Some(timeout_secs)
+    } else {
+        Some(90.0)
+    };
     let (operations, command) = interpreter_for_tree();
     let spawn = prepare(
         &command,
@@ -523,10 +533,12 @@ async fn cancellation_tree(timeout: bool) {
         }
     };
     let (result, ()) = tokio::join!(execution, cancel);
-    assert_eq!(
-        result.unwrap_err(),
-        if timeout { "timeout:8" } else { "aborted" }
-    );
+    let expected_error = if timeout {
+        format!("timeout:{timeout_secs:.0}")
+    } else {
+        "aborted".to_string()
+    };
+    assert_eq!(result.unwrap_err(), expected_error);
     assert_eq!(pids.lock().unwrap().len(), 2);
     let deadline = Instant::now() + Duration::from_secs(3);
     while pids.lock().unwrap().iter().copied().any(alive) && Instant::now() < deadline {
