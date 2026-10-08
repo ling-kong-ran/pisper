@@ -27,6 +27,8 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run test:mobile-shell
 
   windows-shell:
     name: Windows shell lifecycle

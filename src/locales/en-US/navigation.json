@@ -186,5 +186,6 @@
   "mobileShell.filesLoading": "Loading folder",
   "mobileShell.filesUp": "Parent folder",
   "mobileShell.workspaceRoot": "Workspace",
-  "mobileShell.noSessionChanges": "Open a chat to see file changes here"
+  "mobileShell.noSessionChanges": "Open a chat to see file changes here",
+  "mobileShell.changesOpenChat": "Open chat to view live changes"
 }

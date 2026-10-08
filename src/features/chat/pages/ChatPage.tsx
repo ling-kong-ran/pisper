@@ -72,6 +72,7 @@ type ChatPageProps = {
   navigate: (page: string, options?: { replace?: boolean }) => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
+  reportActiveSessionRun: (state: { sessionId: string; streaming: boolean } | null) => void
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -82,6 +83,7 @@ export function ChatPage({
   notify,
   navigate,
   browserNotify,
+  reportActiveSessionRun,
   registerPrimaryAction,
   pendingAsset,
   onAssetConsumed,
@@ -160,6 +162,11 @@ export function ChatPage({
   const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
   const activeSessionState = catalog.sessionStates[catalog.activeId]
   const activeStreaming = resolveSessionStreaming(activeSessionState, activeSession)
+  // 壳层仅持有只读投影；本地流和快照的协调仍由聊天目录负责。
+  useLayoutEffect(() => {
+    reportActiveSessionRun({ sessionId: catalog.activeId, streaming: activeStreaming })
+    return () => reportActiveSessionRun(null)
+  }, [activeStreaming, catalog.activeId, reportActiveSessionRun])
   const activeCompleted = Boolean(
     activeSessionState?.lifecycle?.phase === 'completed' &&
     !activeSessionState.error &&

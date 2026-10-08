@@ -6,16 +6,16 @@ import type { Notify } from '@/app/routes/route-context'
 import { SessionFilesPane } from '@/features/chat/components/files/SessionFilesPane'
 import type { TerminalPanelLabels } from '@/features/terminal/components/TerminalPanel'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
-import { apiJson } from '@/lib/http/api'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import type { ChatAttachment } from '@/types/chat'
 import {
   joinWorkspacePath,
-  normalizeWorkspaceEntries,
+  listWorkspaceEntries,
   parentWorkspacePath,
-  type MobileContextTab,
   type WorkspaceListEntry,
-} from '@/components/layout/mobile-shell-layout'
+} from '@/features/chat/api/workspace-entries'
+import type { MobileContextTab } from '@/components/layout/mobile-shell-layout'
 
 const AssetsPage = lazy(() =>
   import('@/features/assets/pages/AssetsPage').then((module) => ({ default: module.AssetsPage })),
@@ -40,6 +40,10 @@ const TABS: Array<{ id: MobileContextTab; icon: typeof FolderOpen }> = [
 ]
 
 type MobileContextScreenProps = {
+  visible: boolean
+  sessionStreaming: boolean | null
+  onCloseTerminal: () => void
+  onOpenChat: () => void
   tab: MobileContextTab
   onTabChange: (tab: MobileContextTab) => void
   activeSessionId: string
@@ -53,8 +57,14 @@ type MobileContextScreenProps = {
   resolveSessionCwd: (sessionId: string) => Promise<string>
 }
 
-function ignorePrimaryAction() {
-  return () => {}
+// 内嵌页面的操作独立注册，避免覆盖仍在中栏的聊天操作。
+function usePanelAction() {
+  const [action, setAction] = useState<(() => void) | null>(null)
+  const register = useCallback((next: () => void) => {
+    setAction(() => next)
+    return () => setAction((current) => (current === next ? null : current))
+  }, [])
+  return { action, register }
 }
 
 function WorkspaceFiles({ sessionId }: { sessionId: string }) {
@@ -68,11 +78,9 @@ function WorkspaceFiles({ sessionId }: { sessionId: string }) {
     const controller = new AbortController()
     setLoading(true)
     setError('')
-    void apiJson<unknown>(`/api/workspace-entries?path=${encodeURIComponent(path)}`, {
-      signal: controller.signal,
-    })
+    void listWorkspaceEntries(path, controller.signal)
       .then((data) => {
-        if (!controller.signal.aborted) setEntries(normalizeWorkspaceEntries(data))
+        if (!controller.signal.aborted) setEntries(data)
       })
       .catch((caught: unknown) => {
         if (controller.signal.aborted) return
@@ -145,6 +153,10 @@ function WorkspaceFiles({ sessionId }: { sessionId: string }) {
 }
 
 export function MobileContextScreen({
+  visible,
+  sessionStreaming,
+  onCloseTerminal,
+  onOpenChat,
   tab,
   onTabChange,
   activeSessionId,
@@ -165,7 +177,13 @@ export function MobileContextScreen({
     files: t('navigation:mobileShell.files'),
     terminal: t('navigation:mobileShell.terminal'),
   }
-  const keepChatPrimaryAction = useCallback(ignorePrimaryAction, [])
+  const assetsAction = usePanelAction()
+  const pluginsAction = usePanelAction()
+  const [visited, setVisited] = useState<Set<MobileContextTab>>(() => new Set([tab]))
+  useEffect(() => {
+    setVisited((current) => (current.has(tab) ? current : new Set([...current, tab])))
+  }, [tab])
+  const loaded = (id: MobileContextTab) => visited.has(id) || tab === id
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background" data-mobile-context-screen>
@@ -198,13 +216,24 @@ export function MobileContextScreen({
         })}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {tab === 'assets' && (
-          <div className="h-full overflow-auto px-3 py-3 [&_.asset-grid]:!grid-cols-1">
+        {loaded('assets') && (
+          <div
+            hidden={tab !== 'assets'}
+            className="h-full overflow-auto px-3 py-3 [&_.asset-grid]:!grid-cols-1"
+          >
+            <Button
+              className="mb-3"
+              disabled={!assetsAction.action}
+              onClick={() => assetsAction.action?.()}
+            >
+              {t('assets:assetsPage.addLink')}
+            </Button>
             <Suspense fallback={null}>
               <AssetsPage
+                key={activeSessionId}
                 query={query}
                 notify={notify}
-                registerPrimaryAction={keepChatPrimaryAction}
+                registerPrimaryAction={assetsAction.register}
                 requestConfirm={requestConfirm}
                 onUse={onUseAsset}
               />
@@ -213,23 +242,39 @@ export function MobileContextScreen({
         )}
         {tab === 'changes' &&
           (activeSessionId ? (
-            <SessionFilesPane
-              sessionId={activeSessionId}
-              streaming={false}
-              requestConfirm={requestConfirm}
-            />
+            sessionStreaming === null ? (
+              <Button className="m-3" variant="outline" onClick={onOpenChat}>
+                {t('navigation:mobileShell.changesOpenChat')}
+              </Button>
+            ) : (
+              <div className="flex h-full min-h-0 flex-col">
+                <SessionFilesPane
+                  key={activeSessionId}
+                  sessionId={activeSessionId}
+                  streaming={sessionStreaming}
+                  requestConfirm={requestConfirm}
+                />
+              </div>
+            )
           ) : (
             <p className="px-4 py-6 text-sm text-muted-foreground">
               {t('navigation:mobileShell.noSessionChanges')}
             </p>
           ))}
-        {tab === 'extensions' && (
-          <div className="h-full overflow-auto px-3 py-3">
+        {loaded('extensions') && (
+          <div hidden={tab !== 'extensions'} className="h-full overflow-auto px-3 py-3">
+            <Button
+              className="mb-3"
+              disabled={!pluginsAction.action}
+              onClick={() => pluginsAction.action?.()}
+            >
+              {t('plugins:pluginsPage.savePolicy')}
+            </Button>
             <Suspense fallback={null}>
               <PluginsPage
                 query={query}
                 notify={notify}
-                registerPrimaryAction={keepChatPrimaryAction}
+                registerPrimaryAction={pluginsAction.register}
                 requestText={requestText}
                 requestConfirm={requestConfirm}
               />
@@ -239,26 +284,31 @@ export function MobileContextScreen({
         {tab === 'files' && (
           <WorkspaceFiles key={activeSessionId || 'workspace'} sessionId={activeSessionId} />
         )}
-        {tab === 'terminal' &&
-          (terminalSupported ? (
-            <Suspense fallback={null}>
-              <TerminalPanel
-                layout="fill"
-                open
-                height={480}
-                labels={terminalLabels}
-                activeSessionId={activeSessionId}
-                resolveSessionCwd={resolveSessionCwd}
-                onOpenChange={() => {}}
-                onHeightChange={() => {}}
-              />
-            </Suspense>
-          ) : (
-            <div className="grid h-full place-content-center gap-2 px-6 text-center text-sm text-muted-foreground">
-              <TerminalSquare className="mx-auto" size={22} aria-hidden="true" />
-              <p>{t('navigation:mobileShell.terminalUnavailable')}</p>
-            </div>
-          ))}
+        {loaded('terminal') && (
+          <div hidden={tab !== 'terminal'} className="h-full min-h-0">
+            {terminalSupported ? (
+              <Suspense fallback={null}>
+                <TerminalPanel
+                  layout="fill"
+                  open={visible && tab === 'terminal'}
+                  height={480}
+                  labels={terminalLabels}
+                  activeSessionId={activeSessionId}
+                  resolveSessionCwd={resolveSessionCwd}
+                  onOpenChange={(open) => {
+                    if (!open) onCloseTerminal()
+                  }}
+                  onHeightChange={() => {}}
+                />
+              </Suspense>
+            ) : (
+              <div className="grid h-full place-content-center gap-2 px-6 text-center text-sm text-muted-foreground">
+                <TerminalSquare className="mx-auto" size={22} aria-hidden="true" />
+                <p>{t('navigation:mobileShell.terminalUnavailable')}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

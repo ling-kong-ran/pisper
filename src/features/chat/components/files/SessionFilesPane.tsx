@@ -1,3 +1,4 @@
+// @public 壳层可用的文件改动面板；调用方提供会话 ID、实时运行状态和确认能力。
 // 文件快照的读取、审批和撤销由当前面板持有；切换会话时整组状态重新挂载。
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, FileDiff, RefreshCw, Undo2 } from 'lucide-react'

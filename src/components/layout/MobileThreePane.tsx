@@ -11,7 +11,7 @@ import {
   type MobileShellPane,
 } from '@/components/layout/mobile-shell-layout'
 
-type MobileThreePaneProps = {
+export type MobileThreePaneProps = {
   enabled: boolean
   mode: MobileShellMode | 'off'
   pane: MobileShellPane
@@ -148,17 +148,14 @@ export function MobileThreePane({
           })}
         </div>
       )}
+      {/* 不用 transform 建立新的 fixed 包含块，页面内确认框仍以视口定位。 */}
       <div
         ref={trackRef}
         className={cn(
           'min-h-0 min-w-0 flex-1 touch-pan-y',
-          phone ? 'flex w-[300%] transition-transform duration-200 ease-out' : 'contents',
+          phone ? 'flex w-[300%] transition-[margin-left] duration-200 ease-out' : 'contents',
         )}
-        style={
-          phone
-            ? { transform: `translateX(-${mobileShellPaneIndex(pane) * (100 / 3)}%)` }
-            : undefined
-        }
+        style={phone ? { marginLeft: `-${mobileShellPaneIndex(pane) * 100}%` } : undefined}
       >
         {panes.map((item) => (
           <section

@@ -78,3 +78,11 @@
 ### 决策模型扩展
 
 决策服务通过静态注册表选择供应商、协议和型号能力，新增协议由窄适配器实现。自动审批策略按精确型号登记，阈值绑定供应商、型号、端点和策略版本；无策略或绑定不匹配时回落会话权限。现有 Jev 默认型号采用兼容策略，不代表新模型自动获得同样的概率解释。迁移、回滚及三端范围见[决策模型边界](architecture/decision-models.md)，测试入口为 `runtime/tests/decision-models.test.mjs` 及原决策协议测试。
+
+### macOS 原生浏览器验收脚本迁移项（2026-10-08）
+
+移动三屏修复验收时，`npm run check` 的类型、lint、i18n 和格式阶段通过，启动闸门在 `scripts/smoke-rust-browser.mjs` 的进程归属检查失败：`backendPid`、`processRows` 和 `assertGone` 无条件调用 `powershell.exe`。该脚本与 Rust 后端相对当时 release 基线 `60cf5548` 未变，不能把该失败记为移动界面回归，也不能记为完整检查通过。macOS 的 Chrome Dev 需以实际 App 可执行文件启动，直接软链接启动器可能无法定位 Framework；配置可用浏览器后仍会遇到上述 Windows 命令限制。
+
+责任范围为 Runtime 浏览器验收脚本。迁移完成条件：在 macOS/Linux 增加等价的监听端口归属、浏览器后代进程身份（含防 PID 复用）和退出回收检查，保留 Windows 验证，并实际通过原生浏览器与重启验收；不得跳过该用例或删除进程清理断言。当前移动端独立验证入口为 `npm run test:mobile-shell`，它不替代原生浏览器验收。
+
+同次 macOS Rust 单元测试需让 `TMPDIR` 指向不含符号链接的真实临时目录；默认 `/var` 或 `/tmp` 别名会触发既有存储路径拒绝策略。真实临时目录下 `npm test` 为 458 项通过、6 项忽略；不要通过放宽存储安全检查解决测试路径问题。

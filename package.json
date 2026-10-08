@@ -49,7 +49,8 @@
     "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
     "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs",
-    "test": "cargo test --manifest-path runtime-rs/Cargo.toml"
+    "test": "cargo test --manifest-path runtime-rs/Cargo.toml",
+    "test:mobile-shell": "node scripts/smoke-mobile-shell.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",

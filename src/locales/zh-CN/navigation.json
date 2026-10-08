@@ -186,5 +186,6 @@
   "mobileShell.filesLoading": "正在读取目录",
   "mobileShell.filesUp": "上级目录",
   "mobileShell.workspaceRoot": "工作区",
-  "mobileShell.noSessionChanges": "打开一个会话后，这里会显示文件改动"
+  "mobileShell.noSessionChanges": "打开一个会话后，这里会显示文件改动",
+  "mobileShell.changesOpenChat": "打开对话以查看实时改动"
 }
