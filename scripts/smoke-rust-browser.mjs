@@ -481,7 +481,7 @@ export async function checkBrowserParity({
         const discovered = (
           await invoke(parent.id, 'discover_tools', {
             query: 'browser_automation controlled browser',
-            limit: 10,
+            limit: 5,
           })
         ).result
         assert.ok(discovered.details.matches.some((match) => match.name === 'browser_automation'))

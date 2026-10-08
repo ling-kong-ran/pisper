@@ -132,7 +132,10 @@ jobs:
         if: inputs.component == 'desktop'
         run: |
           npm test
-          npm run check
+          npm run typecheck
+          npm run lint
+          npm run i18n:check
+          npm run format:check
           npm run build
           mkdir -p release/rust-runtime
           cargo fmt --manifest-path src-tui/Cargo.toml -- --check
