@@ -70,6 +70,8 @@ type TerminalPanelProps = {
   resolveSessionCwd: (sessionId: string) => Promise<string>
   onOpenChange: (open: boolean) => void
   onHeightChange: (height: number) => void
+  // fill 用于右侧屏：面板占满所在列，不再按底部停靠条计算高度。
+  layout?: 'dock' | 'fill'
 }
 
 const DEFAULT_COLS = 100
@@ -153,6 +155,7 @@ export function TerminalPanel({
   resolveSessionCwd,
   onOpenChange,
   onHeightChange,
+  layout = 'dock',
 }: TerminalPanelProps) {
   const bridge = window.pisperDesktop
   const [profiles, setProfiles] = useState<DesktopTerminalProfile[]>([])
@@ -511,14 +514,16 @@ export function TerminalPanel({
   }
 
   if (!supported) return null
+  const fill = layout === 'fill'
 
   return (
     <section
-      className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : '!hidden'}`}
-      style={open ? { height } : undefined}
+      className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : '!hidden'} ${fill ? '!h-full !min-h-0 !flex-1 ![flex:1_1_auto] !border-t-0' : ''}`}
+      style={!fill && open ? { height } : undefined}
       aria-label={labels.terminal}
+      data-swipe-ignore={fill ? true : undefined}
     >
-      {open && (
+      {open && !fill && (
         <div
           className="terminal-resize-handle after:absolute after:top-[3px] after:right-[47%] after:left-[47%] after:h-[2px] after:rounded-[1px] after:bg-transparent after:[content:''] [&:hover::after]:bg-[var(--brand-blue)] absolute z-[4] [top:-4px] right-0 left-0 h-[8px] [cursor:ns-resize]"
           role="separator"
@@ -597,7 +602,7 @@ export function TerminalPanel({
               )}
             </div>
           )}
-          {open && activeTab && (
+          {open && activeTab && !fill && (
             <Button
               variant="ghost"
               size="icon"

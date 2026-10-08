@@ -172,5 +172,19 @@
   "window.close": "Close window",
   "appSidebar.running": "Running",
   "navigation.gameAssetWorkbench": "Game Asset Workbench",
-  "navigation.gameAssetWorkbenchDescription": "Manage game assets, edit animation frames, and export atlases"
+  "navigation.gameAssetWorkbenchDescription": "Manage game assets, edit animation frames, and export atlases",
+  "mobileShell.sessions": "Sessions",
+  "mobileShell.chat": "Chat",
+  "mobileShell.context": "Workspace",
+  "mobileShell.pager": "Switch between sessions, chat, and workspace",
+  "mobileShell.changes": "Changes",
+  "mobileShell.extensions": "Extensions",
+  "mobileShell.files": "Files",
+  "mobileShell.terminal": "Terminal",
+  "mobileShell.terminalUnavailable": "No terminal is available on this device",
+  "mobileShell.filesEmpty": "This folder is empty",
+  "mobileShell.filesLoading": "Loading folder",
+  "mobileShell.filesUp": "Parent folder",
+  "mobileShell.workspaceRoot": "Workspace",
+  "mobileShell.noSessionChanges": "Open a chat to see file changes here"
 }

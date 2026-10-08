@@ -1,84 +1,13 @@
-// 移动端 App 导航：底部栏承载五个主入口，设置横滑条覆盖全部设置页。
-// 抽屉仍保留最近会话和完整导航，避免牺牲深层入口与会话切换能力。
+// 设置页横滑条。手机主入口已改成左中右三屏，不再使用底部主导航。
 import { useEffect, useMemo, useRef } from 'react'
-import { Settings } from 'lucide-react'
-import { getNavigation } from '@/app/routes/navigation'
 import {
   getSettingsNavigation,
-  SETTINGS_PAGES,
   settingsNavigationKey,
   type SettingsDestination,
 } from '@/app/routes/settings-navigation'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
-
-type MobilePrimaryNavigationProps = {
-  page: string
-  onNavigate: (page: string) => void
-}
-
-export function MobilePrimaryNavigation({ page, onNavigate }: MobilePrimaryNavigationProps) {
-  const { t } = useI18n()
-  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
-  const items = useMemo(
-    () => getNavigation(t, capabilities).flatMap(([, groupItems]) => groupItems),
-    [capabilities, t],
-  )
-  const activePage =
-    page === 'chatHistory' ? 'chat' : page === 'workflowCreate' ? 'workflows' : page
-
-  return (
-    <nav
-      aria-label={t('navigation:appSidebar.mainNavigation')}
-      className="[[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard='open']_&]:max-h-0 [[data-mobile-keyboard='open']_&]:border-t-transparent [[data-mobile-keyboard='open']_&]:opacity-0 [[data-mobile-keyboard='open']_&]:pb-0 flex h-[calc(58px_+_env(safe-area-inset-bottom))] max-h-[calc(58px_+_env(safe-area-inset-bottom))] flex-none items-stretch overflow-hidden border-t border-[var(--stroke)] bg-[var(--sidebar-bg)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-20px_var(--main-surface-shadow)] transition-[max-height,opacity,border-color,padding-bottom] duration-200 ease-out"
-      data-mobile-navigation="primary"
-    >
-      {items.map(([id, label, Icon]) => {
-        const active = activePage === id
-        return (
-          <button
-            aria-current={active ? 'page' : undefined}
-            className={cn(
-              'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
-              active ? 'text-[var(--star-strong)]' : 'text-[var(--text-muted)]',
-            )}
-            key={id}
-            onClick={() => onNavigate(id)}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                'absolute inset-x-[30%] top-0 h-0.5 rounded-full',
-                active ? 'bg-[var(--star-strong)]' : 'bg-transparent',
-              )}
-            />
-            <Icon aria-hidden="true" size={19} strokeWidth={active ? 2.2 : 1.8} />
-            <span className="max-w-full whitespace-nowrap">{label}</span>
-          </button>
-        )
-      })}
-      <button
-        aria-current={SETTINGS_PAGES.has(page) ? 'page' : undefined}
-        className={cn(
-          'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
-          SETTINGS_PAGES.has(page) ? 'text-[var(--star-strong)]' : 'text-[var(--text-muted)]',
-        )}
-        onClick={() => onNavigate('config')}
-      >
-        <span
-          aria-hidden="true"
-          className={cn(
-            'absolute inset-x-[30%] top-0 h-0.5 rounded-full',
-            SETTINGS_PAGES.has(page) ? 'bg-[var(--star-strong)]' : 'bg-transparent',
-          )}
-        />
-        <Settings aria-hidden="true" size={19} strokeWidth={SETTINGS_PAGES.has(page) ? 2.2 : 1.8} />
-        <span className="max-w-full whitespace-nowrap">{t('navigation:navigation.settings')}</span>
-      </button>
-    </nav>
-  )
-}
 
 type MobileSettingsNavigationProps = {
   page: string

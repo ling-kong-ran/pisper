@@ -13,6 +13,7 @@ import {
 } from '@/app/routes/settings-navigation'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from '@/components/common/BrandLogo'
@@ -98,9 +99,21 @@ export function AppSidebar({
       Blocks,
     ]),
   ]
+  const shell = useMobileShell()
   const runAndClose = (action: () => void) => {
     action()
     if (isMobile) setOpenMobile(false)
+  }
+  const openAssets = () => {
+    if (!shell.active) {
+      runAndClose(() => navigate('assets'))
+      return
+    }
+    if (shell.mode === 'phone' && shell.pane === 'context' && shell.tab === 'assets') {
+      shell.setPane('chat')
+      return
+    }
+    shell.openContext('assets')
   }
   const navButton = cn(
     'w-full gap-2 rounded-lg text-sm font-normal text-foreground shadow-none hover:bg-sidebar-accent',
@@ -221,19 +234,29 @@ export function AppSidebar({
                   {searchShortcut}
                 </kbd>
               </Button>
-              {workspaceItems.map(([id, label, Icon]) => (
-                <Button
-                  key={id}
-                  variant="ghost"
-                  className={cn(navButton, page === id && 'bg-sidebar-accent')}
-                  aria-current={page === id ? 'page' : undefined}
-                  onClick={() => runAndClose(() => navigate(id))}
-                  title={compact ? label : undefined}
-                >
-                  <Icon size={16} />
-                  <span className={navLabel}>{label}</span>
-                </Button>
-              ))}
+              {workspaceItems.map(([id, label, Icon]) => {
+                const assetsOpen =
+                  id === 'assets' &&
+                  shell.active &&
+                  shell.tab === 'assets' &&
+                  (shell.mode === 'pad' || shell.pane === 'context')
+                const current = id === 'assets' ? assetsOpen || page === id : page === id
+                return (
+                  <Button
+                    key={id}
+                    variant="ghost"
+                    className={cn(navButton, current && 'bg-sidebar-accent')}
+                    aria-current={current ? 'page' : undefined}
+                    onClick={() =>
+                      id === 'assets' ? openAssets() : runAndClose(() => navigate(id))
+                    }
+                    title={compact ? label : undefined}
+                  >
+                    <Icon size={16} />
+                    <span className={navLabel}>{label}</span>
+                  </Button>
+                )
+              })}
               {extraItems.length > 0 && (
                 <Suspense fallback={null}>
                   <SidebarMoreTools
