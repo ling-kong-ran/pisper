@@ -2,6 +2,7 @@
 // 移动端不打包 sidecar/外部资源，用 --config 覆盖掉桌面专属的产物声明。
 // 用法：node scripts/build-mobile-android.mjs [--release] [--target x86_64|aarch64|...]
 // 环境：需要 JAVA_HOME / ANDROID_HOME / NDK_HOME（Windows 上 symlink 需要开发者模式）。
+import { assertMobileRuntimeSource } from './mobile-runtime-preflight.mjs'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +15,7 @@ import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
 const env = resolveAndroidEnv()
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+assertMobileRuntimeSource(root)
 const release = process.argv.includes('--release')
 const mobileVersion = JSON.parse(
   readFileSync(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),

@@ -1,4 +1,8 @@
 import { constants } from 'node:fs'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { createGunzip } from 'node:zlib'
+import tar from 'tar-stream'
 import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { dirname, join, relative, resolve, sep } from 'node:path'
@@ -28,6 +32,31 @@ const PINNED = [
     license: 'MIT; see ONNXRUNTIME-THIRD-PARTY-NOTICES.txt',
   },
 ]
+// 各平台使用锁文件里的同版 sherpa 包；其 ONNX Runtime 动态库版本由原生 API 核验。
+const NATIVE_PROFILES = {
+  'win32-x64': { package: 'sherpa-onnx-win-x64', ortVersion: ORT_VERSION, files: PINNED },
+  'darwin-arm64': {
+    package: 'sherpa-onnx-darwin-arm64',
+    ortVersion: '1.28.1',
+    files: [
+      {
+        file: 'libsherpa-onnx-c-api.dylib',
+        bytes: 4256952,
+        sha256: '98cb9b42966bbe50ad8c49a6964cd4a039a0d7bc4a4d744e8b969bd048148915',
+        version: SHERPA_VERSION,
+        license: 'Apache-2.0; compiled dependency audit pending',
+      },
+      {
+        file: 'libonnxruntime.dylib',
+        bytes: 39365072,
+        sha256: 'a3504a59b3178c40a972772730a27eda06bf447fb6d4f26c88bf5df81746a167',
+        upstreamArchive: true,
+        version: '1.28.1',
+        license: 'MIT; see ONNXRUNTIME-THIRD-PARTY-NOTICES.txt',
+      },
+    ],
+  },
+}
 const TEXT = [
   {
     source: 'runtime-rs/src/native_speech/SHERPA-LICENSE',
@@ -167,9 +196,60 @@ async function atomicWrite(target, bytes) {
   }
 }
 
-/** Stage the pinned Windows x64 Rust speech closure; never copies a user's downloaded models. */
+// npm 预构建 ORT 的最低系统为 26.5；同版微软官方发行包为 14.0，不改变推理版本。
+const MAC_ORT_ARCHIVE = 'onnxruntime-osx-arm64-1.28.1.tgz'
+const MAC_ORT_ORIGIN = `https://github.com/microsoft/onnxruntime/releases/download/v1.28.1/${MAC_ORT_ARCHIVE}`
+const MAC_ORT_ARCHIVE_SHA256 = '18c853e5c5deba90e244e1b953a65121f23747ba2c04e6743885caa6ce1ea12f'
+async function macOnnxBytes(root) {
+  const cache = child(root, `release/cache/${MAC_ORT_ARCHIVE}`)
+  let archive
+  if (await inspect(cache)) {
+    archive = await readBounded(cache, 31484009)
+    if (sha256(archive) !== MAC_ORT_ARCHIVE_SHA256)
+      throw new Error('Cached macOS ONNX archive SHA256 mismatch.')
+  } else {
+    const response = await fetch(MAC_ORT_ORIGIN, { signal: AbortSignal.timeout(120000) })
+    if (!response.ok || !response.body) throw new Error('Official macOS ONNX download failed.')
+    const chunks = []
+    let total = 0
+    for await (const chunk of response.body) {
+      total += chunk.length
+      if (total > 31484009) throw new Error('Official macOS ONNX archive exceeds pinned size.')
+      chunks.push(chunk)
+    }
+    archive = Buffer.concat(chunks)
+    if (archive.length !== 31484009 || sha256(archive) !== MAC_ORT_ARCHIVE_SHA256)
+      throw new Error('Official macOS ONNX archive SHA256 mismatch.')
+    await atomicWrite(cache, archive)
+  }
+  const extract = tar.extract()
+  let library
+  extract.on('entry', (header, stream, next) => {
+    if (header.name !== './onnxruntime-osx-arm64-1.28.1/lib/libonnxruntime.1.28.1.dylib') {
+      stream.on('end', next)
+      stream.resume()
+      return
+    }
+    if (library || header.type !== 'file' || header.size !== 39365072) {
+      extract.destroy(new Error('Unexpected macOS ONNX archive entry.'))
+      return
+    }
+    const chunks = []
+    stream.on('data', (chunk) => chunks.push(chunk))
+    stream.on('end', () => {
+      library = Buffer.concat(chunks)
+      next()
+    })
+  })
+  await pipeline(Readable.from([archive]), createGunzip(), extract)
+  if (!library) throw new Error('Official macOS ONNX archive is missing the library.')
+  return library
+}
+
+/** 暂存已固定摘要的桌面语音依赖；不复制用户下载的模型。 */
 export async function stageRustSpeech({ root, targetDir }) {
-  if (process.platform !== 'win32') throw new Error('Rust speech staging supports Windows x64.')
+  const profile = NATIVE_PROFILES[`${process.platform}-${process.arch}`]
+  if (!profile) throw new Error('Rust speech staging supports Windows x64 and macOS Apple Silicon.')
   if (
     typeof root !== 'string' ||
     !root.trim() ||
@@ -182,24 +262,35 @@ export async function stageRustSpeech({ root, targetDir }) {
   if (root === targetDir) throw new Error('Speech staging root must differ from the source root.')
   await rejectLinks(root)
   await rejectLinks(targetDir)
-  const packagePath = join(root, 'node_modules/sherpa-onnx-win-x64/package.json')
+  const packagePath = join(root, 'node_modules', profile.package, 'package.json')
   const metadata = JSON.parse((await readBounded(packagePath, 64 * 1024)).toString('utf8'))
   if (
-    metadata.name !== 'sherpa-onnx-win-x64' ||
+    metadata.name !== profile.package ||
     metadata.version !== SHERPA_VERSION ||
-    !metadata.os?.includes('win32') ||
-    !metadata.cpu?.includes('x64')
+    !metadata.os?.includes(process.platform) ||
+    !metadata.cpu?.includes(process.arch)
   )
-    throw new Error('Native speech source must be sherpa-onnx-win-x64 1.13.7.')
+    throw new Error(`Native speech source must be ${profile.package} ${SHERPA_VERSION}.`)
 
   const definitions = [
-    ...PINNED.map((file) => ({
+    ...profile.files.map((file) => ({
       ...file,
-      source: `node_modules/sherpa-onnx-win-x64/${file.file}`,
+      source: file.upstreamArchive
+        ? MAC_ORT_ARCHIVE
+        : `node_modules/${profile.package}/${file.file}`,
       path: `speech-native/${file.file}`,
-      origin: 'sherpa-onnx-win-x64@1.13.7',
+      origin: file.upstreamArchive ? MAC_ORT_ORIGIN : `${profile.package}@${SHERPA_VERSION}`,
     })),
-    ...TEXT,
+    // 1.28.1 的 LICENSE/ThirdPartyNotices 与已存 1.27.1 文件逐字节相同，仍验证固定摘要。
+    ...TEXT.map((entry) =>
+      entry.version === ORT_VERSION
+        ? {
+            ...entry,
+            version: profile.ortVersion,
+            origin: entry.origin.replace(`v${ORT_VERSION}`, `v${profile.ortVersion}`),
+          }
+        : entry,
+    ),
     ...['speech-model-catalog.json', 'speech-resource-notices.json'].map((name) => ({
       source: `shared/speech/${name}`,
       path: `shared/speech/${name}`,
@@ -218,7 +309,9 @@ export async function stageRustSpeech({ root, targetDir }) {
     const existing = await inspect(destination)
     if (existing && (!existing.isFile() || existing.nlink !== 1n))
       throw new Error(`Speech staging destination is not an independent file: ${destination}`)
-    const bytes = await readBounded(source, definition.bytes ?? definition.limit)
+    const bytes = definition.upstreamArchive
+      ? await macOnnxBytes(root)
+      : await readBounded(source, definition.bytes ?? definition.limit)
     const digest = sha256(bytes)
     if (
       (definition.bytes !== undefined && bytes.length !== definition.bytes) ||
@@ -247,9 +340,10 @@ export async function stageRustSpeech({ root, targetDir }) {
     throw new Error('Shared speech catalog, BPE reference, or provenance notices are inconsistent.')
   const manifest = {
     schemaVersion: 1,
-    platform: 'win32',
-    arch: 'x64',
-    engine: { sherpa: SHERPA_VERSION, onnxruntime: ORT_VERSION },
+    platform: process.platform,
+    arch: process.arch,
+    ...(process.platform === 'darwin' ? { minimumSystemVersion: '14.0' } : {}),
+    engine: { sherpa: SHERPA_VERSION, onnxruntime: profile.ortVersion },
     resources: prepared.map(({ definition, bytes, digest }) => ({
       path: definition.path,
       source: definition.source,

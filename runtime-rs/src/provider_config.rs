@@ -1,9 +1,10 @@
 //! React Provider 配置契约与 Pi 模型运行时之间的适配。
 //!
-//! 保留原 Pisper 的四份 JSON 文档及未知字段；凭据只进入 auth.json，
+//! 保留原 Pisper 配置文档及未知字段；凭据只进入 auth.json 与私有 keyring，
 //! 配置响应只返回认证状态。文件读取错误必须阻止写入，避免损坏文档被空对象覆盖。
 
 mod discovery;
+mod upgrade_compat;
 
 use crate::{ApiError, AppState};
 use axum::{
@@ -56,6 +57,8 @@ struct Documents {
     app: Value,
     settings: Value,
     auth: Value,
+    catalog: Value,
+    keyrings: Value,
 }
 
 impl ProviderConfigStore {
@@ -170,12 +173,32 @@ impl ProviderConfigStore {
     }
 
     fn read(&self) -> Result<Documents, ApiError> {
-        Ok(Documents {
+        let documents = Documents {
             models: read_object(&self.agent_dir.join("models.json"))?,
             app: read_object(&self.agent_dir.join("pisper.json"))?,
             settings: read_object(&self.agent_dir.join("settings.json"))?,
             auth: read_object(&self.agent_dir.join("auth.json"))?,
-        })
+            catalog: read_object(&self.agent_dir.join("pisper-provider-models.json"))?,
+            keyrings: read_object(&self.agent_dir.join("pisper-provider-keyrings.json"))?,
+        };
+        if documents
+            .keyrings
+            .get("version")
+            .is_some_and(|version| version != 1)
+            || documents
+                .keyrings
+                .get("providers")
+                .is_some_and(|value| !value.is_object())
+            || documents
+                .catalog
+                .get("providers")
+                .is_some_and(|value| !value.is_object())
+        {
+            return Err(ApiError::bad_request(
+                "旧版 Provider 目录或 Keyring 格式无效，未修改文件。",
+            ));
+        }
+        Ok(documents)
     }
 
     fn persist(&self, old: &Documents, new: &Documents) -> Result<(), ApiError> {
@@ -184,6 +207,12 @@ impl ProviderConfigStore {
             ("pisper.json", &old.app, &new.app),
             ("settings.json", &old.settings, &new.settings),
             ("auth.json", &old.auth, &new.auth),
+            (
+                "pisper-provider-keyrings.json",
+                &old.keyrings,
+                &new.keyrings,
+            ),
+            ("pisper-provider-models.json", &old.catalog, &new.catalog),
         ] {
             if before != after {
                 write_object(&self.agent_dir.join(name), after)?;
@@ -358,6 +387,13 @@ fn definition<'a>(docs: &'a Documents, provider: &str, model: &str) -> Option<&'
         .get("models")
         .and_then(Value::as_array)
         .and_then(|models| models.iter().find(|item| string(item, "id") == model))
+        .or_else(|| {
+            upgrade_compat::catalog(docs, provider)?
+                .get("models")?
+                .as_array()?
+                .iter()
+                .find(|item| string(item, "id") == model)
+        })
 }
 fn kind(value: &Value) -> &str {
     match string(value, "kind") {
@@ -440,12 +476,17 @@ async fn reload_engine(runtime: &AgentSessionRuntime, docs: &Documents) -> Resul
     }
     for provider in engine.get_providers().await {
         let models = engine.get_models(Some(provider.id())).await;
-        let filtered: Vec<_> = models
+        let projected = upgrade_compat::project_models(docs, provider.id(), &models)?;
+        let filtered: Vec<_> = projected
             .iter()
             .filter(|model| model_allowed(docs, &model.provider, &model.id))
             .cloned()
+            .map(|mut model| {
+                upgrade_compat::adapt_thinking(&mut model);
+                model
+            })
             .collect();
-        if filtered.len() != models.len() {
+        if filtered != models {
             // Pisper 的 kind/excludedModels 是产品字段，Pi 不会自动应用这些过滤。
             engine
                 .register_provider_sync(
@@ -456,6 +497,21 @@ async fn reload_engine(runtime: &AgentSessionRuntime, docs: &Documents) -> Resul
                     },
                 )
                 .map_err(|e| ApiError::bad_request(e.to_string()))?;
+        }
+    }
+    if let Some(providers) = docs.models.get("providers").and_then(Value::as_object) {
+        for provider in providers.keys() {
+            if let Some(record) = upgrade_compat::records(docs, provider).first() {
+                engine
+                    .set_runtime_api_key(provider, string(record, "key"), None)
+                    .await
+                    .map_err(|_| ApiError::internal("无法恢复 Provider 凭据。"))?;
+            } else {
+                engine
+                    .remove_runtime_api_key(provider, None)
+                    .await
+                    .map_err(|_| ApiError::internal("无法清除 Provider 凭据。"))?;
+            }
         }
     }
     session.settings_manager.reload();
@@ -520,19 +576,31 @@ async fn snapshot(state: &AppState, docs: &Documents) -> Result<Value, ApiError>
             .and_then(Value::as_str);
         let provider_type = explicit_type.unwrap_or("chat");
         let excluded = array(connection, "excludedModels");
-        let mut models: Vec<Value> = engine
-            .get_models(Some(&id))
-            .await
+        // 配置页仍需展示被禁用连接的发现目录，便于重新启用和编辑。
+        let projected =
+            upgrade_compat::project_models(docs, &id, &engine.get_models(Some(&id)).await)?;
+        let mut models: Vec<Value> = projected
             .into_iter()
             .filter(|model| {
                 !excluded
                     .iter()
                     .any(|v| v.as_str() == Some(model.id.as_str()))
             })
-            .map(|model| model_view(&model, definition(docs, &id, &model.id)))
+            .map(|mut model| {
+                upgrade_compat::adapt_thinking(&mut model);
+                model_view(&model, definition(docs, &id, &model.id))
+            })
             .collect();
         // 已禁用的供应商和视觉定义仍需在配置页可见，才能再次启用、编辑或删除。
         for item in array(connection, "models") {
+            if upgrade_compat::catalog(docs, &id).is_some_and(|entry| {
+                item["userConfigured"] != true
+                    && !array(entry, "models")
+                        .iter()
+                        .any(|candidate| string(candidate, "id") == string(&item, "id"))
+            }) {
+                continue;
+            }
             if models
                 .iter()
                 .any(|model| string(model, "id") == string(&item, "id"))
@@ -622,7 +690,8 @@ async fn snapshot(state: &AppState, docs: &Documents) -> Result<Value, ApiError>
             "defaultModel": default_model, "baseUrl": base_url,
             "organization": connection.get("headers").and_then(|v| v.get("OpenAI-Organization")).and_then(Value::as_str).unwrap_or(""),
             "enabled": !array(&docs.app, "disabledProviders").iter().any(|v| v.as_str() == Some(id.as_str())),
-            "configured": docs.auth.get(&id).is_some() || engine.has_configured_auth(&id), "custom": !known(&id) }));
+            "configured": docs.auth.get(&id).is_some() || engine.has_configured_auth(&id), "custom": !known(&id),
+            "apiKeys": upgrade_compat::summaries(docs, &id) }));
     }
     let default_provider = string(&docs.settings, "defaultProvider");
     let default_model = string(&docs.settings, "defaultModel");
@@ -734,30 +803,29 @@ fn validate_connection(body: &Value, connection: &mut Value) -> Result<(), ApiEr
 }
 
 fn apply_api_key(docs: &mut Documents, id: &str, body: &Value) -> Result<bool, ApiError> {
-    let Some(value) = body.get("apiKey") else {
+    if body["clearApiKey"] == true {
+        upgrade_compat::replace_keys(docs, id, &[])?;
+        return Ok(true);
+    }
+    let values = if let Some(values) = body.get("apiKeys") {
+        values
+            .as_array()
+            .ok_or_else(|| ApiError::bad_request("apiKeys 必须是数组。"))?
+            .clone()
+    } else if let Some(value) = body.get("apiKey") {
+        vec![value.clone()]
+    } else {
         return Ok(false);
     };
-    let key = value
-        .as_str()
-        .ok_or_else(|| ApiError::bad_request("API Key 必须是文本。"))?
-        .trim();
-    // 空输入表示保留密钥，和 React 凭据编辑器的留空行为一致。
-    if key.is_empty() {
+    // 留空仍保留凭据；只有显式 clearApiKey 才清除。
+    if values.is_empty()
+        || values
+            .iter()
+            .all(|value| value.as_str().is_some_and(|key| key.trim().is_empty()))
+    {
         return Ok(false);
     }
-    if key.len() > 16_384 {
-        return Err(ApiError::bad_request("API Key 过长。"));
-    }
-    let key = key.strip_prefix("Bearer ").unwrap_or(key).trim();
-    let mut credential = docs
-        .auth
-        .get(id)
-        .cloned()
-        .filter(|v| string(v, "type") == "api_key")
-        .unwrap_or_else(|| json!({}));
-    credential["type"] = json!("api_key");
-    credential["key"] = json!(key);
-    docs.auth[id] = credential;
+    upgrade_compat::replace_keys(docs, id, &values)?;
     Ok(true)
 }
 
@@ -1232,7 +1300,18 @@ async fn create_provider_record(
     *connection_mut(&mut docs, id) = connection;
     let key_updated = apply_api_key(&mut docs, id, body)?;
     if let Some(source) = clone {
+        if let Some(entry) = upgrade_compat::catalog(&docs, source).cloned() {
+            docs.catalog["providers"][id] = entry;
+        }
         if !key_updated {
+            let keys: Vec<_> = upgrade_compat::records(&docs, source)
+                .iter()
+                .map(|record| record["key"].clone())
+                .collect();
+            if !keys.is_empty() {
+                upgrade_compat::replace_keys(&mut docs, id, &keys)?;
+            }
+
             if let Some(credential) = docs
                 .auth
                 .get(source)
@@ -1469,7 +1548,14 @@ async fn delete_provider(
         .as_object_mut()
         .unwrap()
         .remove(&id);
-    docs.auth.as_object_mut().unwrap().remove(&id);
+    upgrade_compat::replace_keys(&mut docs, &id, &[])?;
+    if let Some(entries) = docs
+        .catalog
+        .get_mut("providers")
+        .and_then(Value::as_object_mut)
+    {
+        entries.remove(&id);
+    }
     for field in ["providerTypes", "providerDefaultModels"] {
         if let Some(map) = docs.app.get_mut(field).and_then(Value::as_object_mut) {
             map.remove(&id);
@@ -1487,8 +1573,10 @@ async fn delete_provider(
 }
 
 /// release exportProviderConfig：桌面/移动配置导出视图。
-/// providerKeyrings 是移动端钥匙串（诚实接缝）：本后端无此存储，导出为空对象。
-async fn export_provider_config(State(state): State<Arc<AppState>>) -> Result<Json<Value>, ApiError> {
+/// 兼容 Node 导出结构；原始凭据只允许通过这个显式导出端点返回。
+async fn export_provider_config(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Value>, ApiError> {
     let docs = state.providers.read()?;
     Ok(Json(json!({
         "version": 1,
@@ -1499,7 +1587,8 @@ async fn export_provider_config(State(state): State<Arc<AppState>>) -> Result<Js
         "disabledProviders": docs.app.get("disabledProviders").cloned().unwrap_or(json!([])),
         "providers": docs.models.get("providers").cloned().unwrap_or(json!({})),
         "credentials": docs.auth.clone(),
-        "providerKeyrings": {},
+        "providerKeyrings": if docs.keyrings.get("providers").is_some() { docs.keyrings.clone() } else { json!({"version":1,"providers":{}}) },
+        "providerModels": if docs.catalog.get("providers").is_some() { docs.catalog.clone() } else { json!({"providers":{}}) },
     })))
 }
 
@@ -1511,6 +1600,12 @@ async fn import_provider_config(
     if input["version"] != 1 || !input["providers"].is_object() {
         return Err(ApiError::bad_request("桌面端模型配置格式无效。"));
     }
+    let _engine = state
+        .engine_mutation
+        .try_write()
+        .map_err(|_| engine_busy())?;
+    let _write = state.providers.write.lock().await;
+    ensure_idle(&state)?;
     let old = state.providers.read()?;
     let mut docs = old.clone();
     {
@@ -1520,23 +1615,45 @@ async fn import_provider_config(
             .ok_or_else(|| ApiError::internal("models.json 无效"))?
             .entry("providers")
             .or_insert_with(|| json!({}));
-        if let (Some(target), Some(source)) = (providers.as_object_mut(), input["providers"].as_object()) {
+        if let (Some(target), Some(source)) =
+            (providers.as_object_mut(), input["providers"].as_object())
+        {
             for (id, value) in source {
                 target.insert(id.clone(), value.clone());
             }
         }
     }
     if input["credentials"].is_object() {
-        if let (Some(target), Some(source)) = (docs.auth.as_object_mut(), input["credentials"].as_object()) {
+        if let (Some(target), Some(source)) =
+            (docs.auth.as_object_mut(), input["credentials"].as_object())
+        {
             for (id, value) in source {
                 target.insert(id.clone(), value.clone());
+            }
+        }
+    }
+    upgrade_compat::import_keyrings(&mut docs, &input)?;
+    if let Some(catalog) = input.get("providerModels") {
+        let source = catalog["providers"]
+            .as_object()
+            .ok_or_else(|| ApiError::bad_request("Provider 模型目录格式无效。"))?;
+        if !docs.catalog.get("providers").is_some_and(Value::is_object) {
+            docs.catalog["providers"] = json!({});
+        }
+        for id in input["providers"].as_object().unwrap().keys() {
+            if let Some(entry) = source.get(id) {
+                docs.catalog["providers"][id] = entry.clone();
             }
         }
     }
     if input.get("toolMode").and_then(Value::as_str).is_some() {
         docs.app["toolMode"] = input["toolMode"].clone();
     }
-    if input.get("disabledProviders").map(Value::is_array).unwrap_or(false) {
+    if input
+        .get("disabledProviders")
+        .map(Value::is_array)
+        .unwrap_or(false)
+    {
         docs.app["disabledProviders"] = input["disabledProviders"].clone();
     }
     let provider = string(&input, "provider").trim().to_string();
@@ -1549,15 +1666,14 @@ async fn import_provider_config(
     if !thinking.is_empty() {
         docs.settings["defaultThinkingLevel"] = json!(thinking);
     }
-    state.providers.persist(&old, &docs)?;
-    reload_engine(&state.runtime, &docs).await?;
+    let config = finish(&state, &old, &mut docs, None).await?;
     let imported: Vec<String> = input["providers"]
         .as_object()
         .map(|providers| providers.keys().cloned().collect())
         .unwrap_or_default();
     Ok(Json(json!({
         "imported": imported,
-        "config": snapshot(&state, &docs).await?,
+        "config": config,
     })))
 }
 
@@ -1905,6 +2021,8 @@ mod tests {
             app: json!({"disabledProviders":["disabled"]}),
             settings: json!({}),
             auth: json!({}),
+            catalog: json!({}),
+            keyrings: json!({}),
         };
         assert!(model_allowed(&docs, "local", "chat-test"));
         assert!(!model_allowed(&docs, "local", "image-test"));

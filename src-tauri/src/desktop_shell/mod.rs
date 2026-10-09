@@ -627,6 +627,11 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         prepare_desktop_directory(&directory)?;
         // 仅显式隔离测试允许发布构建的 WebView 自动化调试；普通启动保持关闭。
         builder = builder.data_directory(directory).devtools(true);
+        // WKWebView 不支持 data_directory；隔离验收使用非持久化 store，避免覆盖正式 App 的 Cookie。
+        #[cfg(target_os = "macos")]
+        {
+            builder = builder.incognito(true);
+        }
         #[cfg(target_os = "windows")]
         if let Some(value) = std::env::var_os("PISPER_DESKTOP_TEST_CDP_PORT") {
             let port = value

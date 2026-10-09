@@ -1,5 +1,12 @@
 # Pisper 移动端使用指南
 
+> **Rust 迁移分支状态（0.6.0）**：移动端桥接仍启动 embedded Node，而本分支已移除
+> `runtime/mobile-embedded.mjs`。Android/iOS 尚未接入 Rust 的进程内启动、停止和应用生命周期。
+> 当前 `mobile:runtime`、`build:android`、`build:ios` 会在构建前报
+> `MOBILE_RUNTIME_NOT_MIGRATED`，不会生成可用的本机 Runtime 包。
+> 下文 Node 构建步骤属于原移动端实现，不能据此宣称本分支已经完成 Android/iOS 验收。
+> 后续迁移必须保留相同的业务协议与共享语音资源，并补齐两端实际构建及设备运行测试。
+
 Pisper 移动端有两种使用方式：不依赖电脑、直接在手机运行 Node/Pisper Runtime 的本机模式，
 以及连接 Desktop Runtime 的远程模式。两种模式使用相同的 React、Provider、会话、标准 `/api/*`
 和 HTTP/SSE 契约，也都不把数据同步到 Pisper 云服务。

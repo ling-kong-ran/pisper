@@ -33,3 +33,15 @@ await run(process.execPath, [
   ),
   '--skip-ui',
 ])
+
+// 同一新编译产物还必须能原样承接旧 Node Provider 配置。
+await run(process.execPath, [
+  'scripts/smoke-rust-provider-upgrade.mjs',
+  path.join(
+    root,
+    'runtime-rs',
+    'target',
+    'debug',
+    process.platform === 'win32' ? 'pisper-server.exe' : 'pisper-server',
+  ),
+])

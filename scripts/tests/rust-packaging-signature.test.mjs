@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,8 +9,8 @@ import test from 'node:test'
 const repo = fileURLToPath(new URL('../../', import.meta.url))
 const preload = new URL('./fixtures/rust-packaging-command-fixture.mjs', import.meta.url).href
 
-async function runPackaging({ key, target = 'x86_64-pc-windows-msvc' } = {}) {
-  const temporaryRoot = path.resolve(tmpdir())
+async function runPackaging({ key, signingIdentity, target = 'x86_64-pc-windows-msvc' } = {}) {
+  const temporaryRoot = await realpath(tmpdir())
   const root = await mkdtemp(path.join(temporaryRoot, 'pisper-rust-packaging-'))
   try {
     async function put(relative, content) {
@@ -34,8 +34,10 @@ async function runPackaging({ key, target = 'x86_64-pc-windows-msvc' } = {}) {
       await copyFile(path.join(repo, 'src-tauri', file), path.join(root, 'src-tauri', file))
     }
     // 资源准备与编译均是外部边界；入口自身仍真实读写和暂存临时 root 中的文件。
-    await put('release/rust-build/pisper-server.exe', 'synthetic-runtime')
-    await put('src-tui/target/release/pisper.exe', 'synthetic-tui')
+    const suffix = target === 'aarch64-apple-darwin' ? '' : '.exe'
+    await put(`release/rust-build/pisper-server${suffix}`, 'synthetic-runtime')
+    await put(`src-tui/target/release/pisper${suffix}`, 'synthetic-tui')
+    if (!suffix) await put('runtime-rs/target/release/pisper-server', 'synthetic-runtime')
     await put(
       'runtime-rs/src/native_image_runtime/telea.rs',
       '/*\nIntel License Agreement\nSynthetic resource fixture\n*/\n',
@@ -49,6 +51,9 @@ async function runPackaging({ key, target = 'x86_64-pc-windows-msvc' } = {}) {
     delete env.TAURI_SIGNING_PRIVATE_KEY
     delete env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD
     delete env.RUNNER_ENVIRONMENT
+    delete env.CI
+    delete env.APPLE_SIGNING_IDENTITY
+    if (signingIdentity) env.APPLE_SIGNING_IDENTITY = signingIdentity
     if (key !== undefined) env.TAURI_SIGNING_PRIVATE_KEY = key
     if (key?.trim()) {
       env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD = 'synthetic-password'
@@ -89,12 +94,23 @@ async function runPackaging({ key, target = 'x86_64-pc-windows-msvc' } = {}) {
 
 function assertRustPackagingPreserved(result) {
   const { root, target, build, stage, commands, configs } = result
-  assert.deepEqual(build.args.slice(1, 4), ['build', '--bundles', 'nsis'])
+  assert.deepEqual(build.args.slice(1, 4), [
+    'build',
+    '--bundles',
+    target === 'aarch64-apple-darwin' ? 'app,dmg' : 'nsis',
+  ])
   const overlay = configs.find(
     ({ file }) => file === path.join(root, 'release/rust-build/tauri-rust.conf.json'),
   )
   assert.ok(overlay, 'Rust resource overlay must reach Tauri')
   assert.equal(overlay.value.bundle.resources['../release/sea/runtime/'], null)
+  assert.equal(
+    overlay.value.bundle.macOS?.minimumSystemVersion,
+    target === 'aarch64-apple-darwin' ? '14.0' : undefined,
+  )
+  assert.ok(
+    commands.some(({ args }) => path.basename(args[0]) === 'smoke-rust-provider-upgrade.mjs'),
+  )
   assert.equal(overlay.value.bundle.resources['../release/rust-runtime/'], 'sidecar-runtime/')
   const targetArgs = target.endsWith('-gnu') ? [target] : []
   assert.equal(
@@ -145,3 +161,40 @@ for (const key of [undefined, ' \t ']) {
     assert.equal(result.build.keyPresent, false)
   })
 }
+
+// 原生 Mac 包同样保留资源、启动与终端验收，不通过假装 Windows 绕过测试。
+test('macOS arm64 packaging stages native binaries and App/DMG bundles', async () => {
+  const result = await runPackaging({ target: 'aarch64-apple-darwin' })
+  assertRustPackagingPreserved(result)
+  assert.equal(result.build.ci, 'true')
+  assert.equal(result.build.deploymentTarget, '14.0')
+  assert.equal(result.configs[0].value.bundle.macOS.signingIdentity, '-')
+  assert.ok(result.commands.some(({ command }) => command === 'codesign'))
+  assert.ok(
+    result.commands
+      .filter(
+        ({ args }) =>
+          args.includes('desktop_terminal::tests') ||
+          args.includes('desktop_shell::startup_diagnostics::tests'),
+      )
+      .every(({ deploymentTarget }) => deploymentTarget === '14.0'),
+  )
+  assert.ok(
+    result.commands
+      .filter(({ command }) => command === 'fixture-cargo')
+      .every(({ ci }) => ci === undefined),
+  )
+  assert.equal(result.build.args.includes('--target'), false)
+  assert.ok(
+    result.commands.some(
+      ({ args }) => args.includes('desktop_terminal::tests') && args.includes('--release'),
+    ),
+  )
+})
+
+test('macOS packaging preserves an explicitly configured platform signing identity', async () => {
+  const identity = 'Developer ID Application: Synthetic Fixture'
+  const result = await runPackaging({ target: 'aarch64-apple-darwin', signingIdentity: identity })
+  assert.equal(result.configs[0].value.bundle.macOS.signingIdentity, identity)
+  assert.ok(result.commands.some(({ command }) => command === 'codesign'))
+})

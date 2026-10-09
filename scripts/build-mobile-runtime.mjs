@@ -1,5 +1,6 @@
 // 为 Android/iOS 嵌入式 Node 生成同一份可执行 Runtime 闭包；归档包含标准
 // Runtime、生产 React 资源及生产依赖；仅携带共享语音 catalog/BPE，权重由用户主动下载。
+import { assertMobileRuntimeSource } from './mobile-runtime-preflight.mjs'
 import { cp, mkdir, readFile, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +9,7 @@ import { createMobileRuntimeArchive } from './mobile-runtime-archive.mjs'
 import { smokeMobileRuntime } from './smoke-mobile-runtime.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+assertMobileRuntimeSource(root)
 const releaseDir = join(root, 'release')
 const workDir = join(releaseDir, 'mobile-runtime')
 const runtimeDir = join(workDir, 'runtime')

@@ -153,3 +153,80 @@ All scopes use four native jobs:
 | `linux-x86_64` | `ubuntu-22.04` | AppImage, DEB | `.tar.gz` |
 
 Existing Electron installations cannot consume Tauri's `latest.json`. Users of those historical builds must install a Tauri package manually; Pisper's Agent data directory remains independent from the application installation directory.
+
+## Rust desktop macOS local verification (2026-10-09)
+
+The published v0.6.0 source only packages Windows. The local macOS adaptation in
+`scripts/package-tauri-rust.mjs` additionally accepts an Apple Silicon host and
+produces App/DMG bundles. This does not enable macOS in the release workflow or
+claim Intel macOS support. The updater signature remains separate from local ad-hoc
+code signing; an ad-hoc DMG is a verification artifact, not a notarized distribution.
+Without `APPLE_SIGNING_IDENTITY`, local packaging explicitly seals the entire App
+with the ad-hoc identity (`-`); a linker-only Mach-O signature is insufficient.
+An explicit signing identity is preserved. `codesign --verify --deep --strict`
+must pass before staging the installer.
+
+The platform adapter stages the locked `sherpa-onnx-darwin-arm64@1.13.7` C API and
+the same-version ONNX Runtime 1.28.1 dylib from Microsoft’s official macOS arm64
+archive. Both versions were read through their native version APIs; sizes and SHA-256 digests are pinned in `stage-rust-speech.mjs`. ONNX Runtime
+1.28.1 LICENSE and ThirdPartyNotices were checked against the official v1.28.1 tag
+and are byte-identical to the already stored 1.27.1 notices. The resource manifest
+records the actual platform, library versions, digests, origins and licenses.
+The npm ONNX dylib required macOS 26.5; the official same-version archive declares
+macOS 14.0. Both the archive and extracted library are digest-pinned. The macOS
+bundle now declares 14.0 as its minimum version. Local execution is verified on
+macOS 26.6.2; macOS 14/15 and Intel hardware remain untested. This does not certify
+the older macOS baseline of previous releases.
+Windows retains its pinned DLL closure. All platforms use the same speech model
+catalog, model precision, model digests and BPE resource; no model policy is changed.
+
+`startup_diagnostics.rs` checks platform-native filenames instead of requiring
+Windows DLLs on macOS. Desktop commands, permissions and lifecycle remain owned by
+the existing Tauri bridge. Local acceptance must launch the generated App with
+`PISPER_DESKTOP_DATA_DIR`, `PISPER_AGENT_DIR` and `PISPER_WORKSPACE_DIR` pointing at
+isolated fixture directories, then verify actual WKWebView rendering, native IPC
+and streamed chat against a loopback-only model fixture. WKWebView uses a
+non-persistent store only for explicit isolated tests, since its data-directory
+option does not isolate cookies. The packaging entry also
+runs resource and real PTY tests. On macOS those tests reuse the release profile.
+Cargo tests use the canonical temporary directory so the system `/var` alias does
+not trigger the production symlink checks; those checks remain enabled.
+The macOS bundling subprocess alone uses the Tauri-supported CI layout mode to
+avoid Finder AppleEvent timeouts; test processes do not inherit this override.
+`npm run test:release` covers both Windows signature behavior and macOS packaging
+command boundaries; command-boundary fixtures do not replace a real App launch.
+
+Android/iOS remain blocked by a different migration: their build entries call
+`build-mobile-runtime.mjs`, which still copies the removed Node `runtime/` tree.
+Android release packaging was attempted and failed with ENOENT before producing
+an APK. Reintroducing an old Node payload is not equivalent to verifying the Rust
+backend. The mobile embedded-runtime lifecycle, native bridge and resource closure
+must be migrated before claiming mobile support or issuing mobile release assets.
+
+No version metadata or user data migration is part of this local packaging change.
+Rollback comprises the packaging/platform-resource adapters and their tests; it
+must not modify a user's agent data or replace their installed desktop application.
+
+## Provider upgrade and mobile migration gates
+
+The Rust provider adapter reads `pisper-provider-models.json` and
+`pisper-provider-keyrings.json` without deleting or rewriting them on startup.
+The discovered catalog applies only to the matching configured endpoint; manually
+configured models survive catalog refreshes. Keys remain private, with only hashes
+and masked hints in ordinary configuration responses. Explicit configuration
+export/import preserves the keyring and catalog, and serialized mutations update
+resident sessions. Opus 5.5 on Anthropic Messages uses adaptive thinking and effort;
+turning reasoning off omits the unsupported disabled parameter.
+
+`npm run test:startup` and Rust desktop packaging run
+`scripts/smoke-rust-provider-upgrade.mjs` against the newly built binary. The
+fixture covers an old catalog, multiple keys, masking, import/export, restart,
+replacement and explicit key removal, using isolated data and synthetic credentials.
+
+Android/iOS still require a Rust library with explicit start/stop ownership,
+platform paths, permissions and app lifecycle integration. Their current bridge
+starts Node and cannot run this Rust desktop executable on iOS. Until that migration
+is implemented and tested on both platforms, all three mobile build entry points
+fail before downloads, project generation or archive replacement with
+`MOBILE_RUNTIME_NOT_MIGRATED`. This is a build diagnostic, **not a working mobile
+package**. Existing release channel exclusion remains in place.

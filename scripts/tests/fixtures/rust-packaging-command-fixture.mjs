@@ -5,7 +5,9 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 // Linux quality job 也运行 Windows 入口；子进程边界只记录，不启动编译器或打包器。
-Object.defineProperty(process, 'platform', { value: 'win32' })
+const darwin = process.env.PISPER_PACKAGING_TEST_TARGET === 'aarch64-apple-darwin'
+Object.defineProperty(process, 'platform', { value: darwin ? 'darwin' : 'win32' })
+Object.defineProperty(process, 'arch', { value: darwin ? 'arm64' : 'x64' })
 const commands = []
 process.on('exit', () => {
   process.stdout.write(`\nRUST_PACKAGING_TEST_COMMANDS=${JSON.stringify(commands)}\n`)
@@ -15,6 +17,8 @@ childProcess.spawn = (command, args, options) => {
   commands.push({
     command,
     args,
+    ci: options.env.CI,
+    deploymentTarget: options.env.MACOSX_DEPLOYMENT_TARGET,
     keyPresent: Boolean(options.env.TAURI_SIGNING_PRIVATE_KEY?.trim()),
     passwordPresent: Boolean(options.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD?.trim()),
     bundleDir: options.env.PISPER_TAURI_BUNDLE_DIR,
@@ -30,12 +34,19 @@ childProcess.spawn = (command, args, options) => {
   } else if (command === 'fixture-cargo' && ['test', 'build', 'rustc'].includes(args[0])) {
     stdout = 'test result: ok. synthetic command boundary\n'
   } else if (
+    command === 'codesign' &&
+    darwin &&
+    args.slice(0, 3).join(' ') === '--verify --deep --strict'
+  ) {
+    stdout = ''
+  } else if (
     command !== process.execPath ||
     ![
       'build-frontend.mjs',
       'check-bundle-budget.mjs',
       'check-dist-compat.mjs',
       'smoke-rust-usability.mjs',
+      'smoke-rust-provider-upgrade.mjs',
       'tauri.js',
       'stage-tauri-artifacts.mjs',
     ].includes(path.basename(args[0]))

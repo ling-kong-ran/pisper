@@ -48,7 +48,7 @@ pub(super) fn missing_bundled_file<'a>(
             .as_ref()
             .is_some_and(|package| package.get("speechResources").is_some())
     {
-        for path in RUST_SPEECH_RESOURCES {
+        for path in RUST_SPEECH_RESOURCES.iter().copied() {
             if !resources.join(path).is_file() {
                 return Some(path);
             }
@@ -57,10 +57,21 @@ pub(super) fn missing_bundled_file<'a>(
     (!resources.join("desktop/dist/index.html").is_file()).then_some("desktop/dist/index.html")
 }
 
-const RUST_SPEECH_RESOURCES: [&str; 9] = [
+const RUST_SPEECH_RESOURCES: &[&str] = &[
+    #[cfg(windows)]
     "sidecar-runtime/speech-native/sherpa-onnx-c-api.dll",
+    #[cfg(windows)]
     "sidecar-runtime/speech-native/onnxruntime.dll",
+    #[cfg(windows)]
     "sidecar-runtime/speech-native/onnxruntime_providers_shared.dll",
+    #[cfg(target_os = "macos")]
+    "sidecar-runtime/speech-native/libsherpa-onnx-c-api.dylib",
+    #[cfg(target_os = "macos")]
+    "sidecar-runtime/speech-native/libonnxruntime.dylib",
+    #[cfg(target_os = "linux")]
+    "sidecar-runtime/speech-native/libsherpa-onnx-c-api.so",
+    #[cfg(target_os = "linux")]
+    "sidecar-runtime/speech-native/libonnxruntime.so",
     "sidecar-runtime/speech-native/SHERPA-LICENSE",
     "sidecar-runtime/speech-native/ONNXRUNTIME-LICENSE.txt",
     "sidecar-runtime/speech-native/ONNXRUNTIME-THIRD-PARTY-NOTICES.txt",
@@ -212,13 +223,13 @@ mod tests {
             r#"{"backend":"rust","speechResources":{"schemaVersion":1}}"#,
         )
         .unwrap();
-        for path in RUST_SPEECH_RESOURCES {
+        for path in RUST_SPEECH_RESOURCES.iter().copied() {
             let file = resources.join(path);
             std::fs::create_dir_all(file.parent().unwrap()).unwrap();
             std::fs::write(file, "resource").unwrap();
         }
         assert_eq!(install.missing(), None);
-        for path in RUST_SPEECH_RESOURCES {
+        for path in RUST_SPEECH_RESOURCES.iter().copied() {
             let file = resources.join(path);
             std::fs::remove_file(&file).unwrap();
             assert_eq!(install.missing(), Some(path));
