@@ -16,6 +16,7 @@ const tuiManifest = path.join(root, 'src-tui', 'Cargo.toml')
 const desktopManifest = path.join(root, 'src-tauri', 'Cargo.toml')
 const runtimeExecutable = path.join(buildDir, 'pisper-server.exe')
 const overlayPath = path.join(buildDir, 'tauri-rust.conf.json')
+const updaterConfig = path.join(root, 'src-tauri', 'tauri.updater.conf.json')
 const tauriCli = path.join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
 const cargo = process.env.CARGO || 'cargo'
 
@@ -75,6 +76,7 @@ delete cargoEnv.CARGO_BUILD_TARGET
 const runtimeEnv = { ...cargoEnv, CARGO_TARGET_DIR: path.join(root, 'runtime-rs', 'target') }
 const tuiEnv = { ...cargoEnv, CARGO_TARGET_DIR: path.join(root, 'src-tui', 'target') }
 const tauriEnv = { ...cargoEnv, CARGO_TARGET_DIR: path.join(root, 'src-tauri', 'target') }
+const signedUpdater = Boolean(tauriEnv.TAURI_SIGNING_PRIVATE_KEY?.trim())
 
 // 与现有桌面打包入口一致，先重建生产前端，再执行体积和 WebView 语法审计。
 for (const script of ['build-frontend.mjs', 'check-bundle-budget.mjs', 'check-dist-compat.mjs']) {
@@ -250,12 +252,24 @@ const usabilityArgs = [
 await run(process.execPath, usabilityArgs)
 await run(
   process.execPath,
-  [tauriCli, 'build', '--bundles', 'nsis', '--config', overlayPath, ...targetArgs],
+  [
+    tauriCli,
+    'build',
+    '--bundles',
+    'nsis',
+    ...(signedUpdater ? ['--config', updaterConfig] : []),
+    '--config',
+    overlayPath,
+    ...targetArgs,
+  ],
   {
     env: tauriEnv,
   },
 )
-await run(process.execPath, [path.join(root, 'scripts', 'stage-tauri-artifacts.mjs')], {
+const stageArgs = [path.join(root, 'scripts', 'stage-tauri-artifacts.mjs')]
+// 签名构建必须连同 .sig 暂存，避免到最终发布 manifest 阶段才发现漏签。
+if (signedUpdater) stageArgs.push('--require-signature')
+await run(process.execPath, stageArgs, {
   env: {
     ...tauriEnv,
     PISPER_TAURI_BUNDLE_DIR: bundleDir,
