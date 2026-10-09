@@ -203,6 +203,9 @@ jobs:
           workspaces: |
             src-tauri
             src-tui
+            runtime-rs
+          cache-on-failure: 'true'
+          cache-workspace-crates: 'true'
       - name: Install Linux Tauri prerequisites
         if: runner.os == 'Linux' && inputs.component == 'desktop'
         run: |
@@ -243,6 +246,18 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Preserve isolated desktop failure diagnostics
+        if: failure() && inputs.component == 'desktop' && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-diagnostics-${{ matrix.target }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            release/local-rust-build/usability/*/report.json
+            release/local-rust-build/usability/*/server.log
+            release/local-rust-build/usability/*/*failure*.json
+            release/local-rust-build/usability/*/*.png
       - name: Verify the Windows installer embeds a signed WebView2 bootstrapper
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         shell: pwsh

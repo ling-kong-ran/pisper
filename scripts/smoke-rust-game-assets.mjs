@@ -1037,6 +1037,21 @@ export async function checkGameAssetUiParity({
         await editor.locator('[data-e="discard"]').click()
         assert.equal(await editor.locator('#edit-opacity').inputValue(), '0.5')
         await page.setViewportSize({ width: 390, height: 844 })
+        // The phone shell remounts the component; reopen the saved project and editor.
+        await page.locator('[data-mobile-shell="phone"]').waitFor()
+        await widget.locator('#save:not(:disabled)').waitFor()
+        await widget.locator('#project').selectOption(saved.id)
+        await widget.locator('#export-png:not(:disabled)').waitFor()
+        if ((await editor.locator('details').getAttribute('open')) === null) {
+          await editor.locator('summary').click()
+        }
+        await editor.locator('#edit-opacity').waitFor()
+        assert.equal(await editor.locator('#edit-opacity').inputValue(), '0.5')
+        assert.equal(await editor.locator('#edit-durationMs').inputValue(), '240')
+        const reopened = parseGameAssetJob(await json(`/api/game-assets/jobs/${edited.id}`))
+        assert.equal(reopened.revision, 1)
+        assert.equal(reopened.edits.frames[0].opacity, 0.5)
+        assert.equal(reopened.edits.frames[0].durationMs, 240)
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
         assert.ok(
           await widget.locator('html').evaluate((html) => html.scrollWidth <= innerWidth + 1),
