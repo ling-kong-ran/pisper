@@ -94,7 +94,14 @@ async function rejectLinks(path) {
 async function readBounded(path, limit) {
   await rejectLinks(path)
   const before = await inspect(path)
-  if (!before?.isFile() || before.nlink !== 1n || before.size > BigInt(limit))
+  // nlink===1 在 POSIX 上是硬链接攻击面的护栏;Windows 卷(GH runner 的
+  // 工作区卷)可能对普通文件报 nlink>1,那里靠 O_NOFOLLOW + 打开后
+  // 身份比对(含 nlink)保证读取期间未被替换。
+  if (
+    !before?.isFile() ||
+    before.size > BigInt(limit) ||
+    (process.platform !== 'win32' && before.nlink !== 1n)
+  )
     throw new Error(`Speech resource is not a bounded, independent file: ${path}`)
   const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
   try {
