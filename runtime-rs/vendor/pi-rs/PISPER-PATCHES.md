@@ -90,15 +90,37 @@ headless session startup:
    queue window, force a real session-file I/O failure, and cancel awaited
    before_agent_start preflight without a model call.
 
+9. `ai/models/mod.rs` and `coding_agent/core/model_runtime.rs`: publish a
+   complete provider registry atomically during a full rebuild. The published
+   implementation clears the shared registry before composing each replacement,
+   so another runtime thread can report missing credentials while a configured
+   provider is temporarily absent. Composition and provider callbacks remain
+   outside the registry lock. A shared registry revision rejects a stale bulk
+   publication after concurrent registration, replacement or deletion; rebuild
+   retries against the current sources. Successful publication retains refresh
+   generation supersede/cancellation and existing shared `Models` clones.
+   Registry mutators bump generations and detach refresh controllers while
+   locked, then cancel their tokens and drop removed providers after unlocking.
+   Cancellation synchronously wakes user wakers, which can read the same registry.
+   `pisper_model_registry_regression` runs against the production library with
+   in-memory credentials and controlled provider callbacks on separate threads.
+   Its missing-auth regression was observed failing before the fix. Four
+   cancellation-waker reentry regressions also failed before cancellation was
+   moved outside the lock. The thirteen targeted regressions include the six
+   existing public shared-registry/reentry tests and rejection of late refresh persistence and
+   catalog updates after rebuild, replacement and deletion, and synchronous waker
+   reentry after set, delete, clear and full publication. No model requests,
+   user configuration, timing sleeps or production test hooks are involved.
+
 Run the targeted tests from Pisper's root:
 
 ```powershell
-cargo test --manifest-path runtime-rs/Cargo.toml --package pi-rs --test pisper_mcp_regression
+cargo test --locked --offline --manifest-path runtime-rs/Cargo.toml --package pi-rs --test pisper_mcp_regression --test pisper_model_registry_regression
 ```
 
 The crates.io package excludes much of `tests/fixtures` even though upstream
-library test modules reference those fixtures. The dedicated integration target
-avoids enabling the unrelated upstream library test modules.
+library test modules reference those fixtures. The dedicated integration targets
+avoid enabling the unrelated upstream library test modules.
 
 Read-only audit: `emit_change` invokes menu subscribers synchronously while its
 state guard is held, and a subscriber that rebuilds `servers_menu` can reenter

@@ -93,6 +93,8 @@ await run(
     'pi-rs',
     '--test',
     'pisper_mcp_regression',
+    '--test',
+    'pisper_model_registry_regression',
   ],
   { env: runtimeEnv },
 )

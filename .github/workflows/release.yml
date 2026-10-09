@@ -135,6 +135,7 @@ jobs:
         if: inputs.component == 'desktop'
         run: |
           npm test
+          cargo test --manifest-path runtime-rs/Cargo.toml --locked --package pi-rs --test pisper_mcp_regression --test pisper_model_registry_regression
           npm run typecheck
           npm run lint
           npm run i18n:check

@@ -65,6 +65,10 @@ path = "tests/coding_agent_cli.rs"
 name = "pisper_mcp_regression"
 path = "tests/pisper_mcp_regression.rs"
 
+[[test]]
+name = "pisper_model_registry_regression"
+path = "tests/pisper_model_registry_regression.rs"
+
 [dependencies.anyhow]
 version = "1.0.104"
 

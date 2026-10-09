@@ -301,6 +301,12 @@ pub struct ModelsRefreshResult {
 
 type ProviderEntries = Vec<(String, Arc<dyn Provider>)>;
 
+#[derive(Default)]
+struct ProviderRegistry {
+    entries: ProviderEntries,
+    revision: u64,
+}
+
 /// Upstream `Models` + `MutableModels` (models.ts:163-242): runtime collection
 /// of providers plus auth application and stream convenience. The upstream
 /// `Models`/`MutableModels` interface split (read surface vs registry
@@ -311,7 +317,7 @@ type ProviderEntries = Vec<(String, Arc<dyn Provider>)>;
 /// harness's injected `DeferredCancelFn` closure captures.
 #[derive(Clone)]
 pub struct Models {
-    providers: Arc<Mutex<ProviderEntries>>,
+    providers: Arc<Mutex<ProviderRegistry>>,
     credentials: Arc<dyn CredentialStore>,
     auth_context: Arc<dyn AuthContext>,
     models_store: Arc<dyn ModelsStore>,
@@ -361,6 +367,15 @@ impl RefreshShared {
     /// generation and cancel the in-flight refresh token, if any. Returns the
     /// new generation.
     fn supersede(&self, provider_id: &str) -> u64 {
+        let (generation, previous) = self.supersede_deferred(provider_id);
+        if let Some(token) = previous {
+            token.cancel();
+        }
+        generation
+    }
+
+    /// 锁内仅更新 bookkeeping；取消会同步唤醒可重入的用户 waker，必须延后。
+    fn supersede_deferred(&self, provider_id: &str) -> (u64, Option<CancellationToken>) {
         let generation = {
             let mut generations = Self::lock(&self.generations);
             let generation = generations.entry(provider_id.to_string()).or_insert(0);
@@ -368,10 +383,7 @@ impl RefreshShared {
             *generation
         };
         let previous = Self::lock(&self.controllers).remove(provider_id);
-        if let Some((_, token)) = previous {
-            token.cancel();
-        }
-        generation
+        (generation, previous.map(|(_, token)| token))
     }
 
     /// Upstream `beginProviderRefresh` (models.ts:343-348): supersede any
@@ -420,7 +432,7 @@ impl RefreshShared {
 /// Upstream `createModels` (models.ts:757-759).
 pub fn create_models(options: CreateModelsOptions) -> Models {
     Models {
-        providers: Arc::new(Mutex::new(Vec::new())),
+        providers: Arc::new(Mutex::new(ProviderRegistry::default())),
         credentials: options.credentials.unwrap_or_else(|| {
             Arc::new(InMemoryCredentialStore::default()) as Arc<dyn CredentialStore>
         }),
@@ -483,15 +495,28 @@ impl Models {
         // Never call provider code while holding the registry lock. Handles
         // captured by requests/lanes observe registrations through this shared map.
         let id = provider.id().to_string();
-        self.refresh.supersede(&id);
         let mut providers = self.provider_entries();
-        match providers.iter_mut().find(|(existing, _)| existing == &id) {
-            Some((_, existing)) => *existing = provider,
-            None => providers.push((id, provider)),
+        let (_, cancelled) = self.refresh.supersede_deferred(&id);
+        let previous = match providers
+            .entries
+            .iter_mut()
+            .find(|(existing, _)| existing == &id)
+        {
+            Some((_, existing)) => Some(std::mem::replace(existing, provider)),
+            None => {
+                providers.entries.push((id, provider));
+                None
+            }
+        };
+        providers.revision = providers.revision.wrapping_add(1);
+        drop(providers);
+        if let Some(token) = cancelled {
+            token.cancel();
         }
+        drop(previous);
     }
 
-    fn provider_entries(&self) -> std::sync::MutexGuard<'_, ProviderEntries> {
+    fn provider_entries(&self) -> std::sync::MutexGuard<'_, ProviderRegistry> {
         self.providers
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -501,27 +526,89 @@ impl Models {
     /// unknown ids, like `Map.delete`. Any in-flight refresh for the id is
     /// superseded first.
     pub fn delete_provider(&mut self, id: &str) {
-        self.refresh.supersede(id);
-        self.provider_entries()
-            .retain(|(existing, _)| existing != id);
+        let mut providers = self.provider_entries();
+        let (_, cancelled) = self.refresh.supersede_deferred(id);
+        let previous = providers
+            .entries
+            .iter()
+            .position(|(existing, _)| existing == id)
+            .map(|index| providers.entries.remove(index));
+        providers.revision = providers.revision.wrapping_add(1);
+        drop(providers);
+        if let Some(token) = cancelled {
+            token.cancel();
+        }
+        drop(previous);
     }
 
     /// Upstream `MutableModels.clearProviders` (models.ts:291-296): supersede
     /// bookkeeping for both the registered providers and any provider whose
     /// refresh is still tracked, then clear.
     pub fn clear_providers(&mut self) {
+        let mut providers = self.provider_entries();
         let mut ids: HashSet<String> = self.refresh.tracked_ids();
-        ids.extend(self.provider_entries().iter().map(|(id, _)| id.clone()));
-        for id in ids {
-            self.refresh.supersede(&id);
+        ids.extend(providers.entries.iter().map(|(id, _)| id.clone()));
+        let cancelled: Vec<_> = ids
+            .into_iter()
+            .filter_map(|id| self.refresh.supersede_deferred(&id).1)
+            .collect();
+        let previous = std::mem::take(&mut providers.entries);
+        providers.revision = providers.revision.wrapping_add(1);
+        drop(providers);
+        for token in cancelled {
+            token.cancel();
         }
-        self.provider_entries().clear();
+        drop(previous);
+    }
+
+    pub(crate) fn provider_revision(&self) -> u64 {
+        self.provider_entries().revision
+    }
+
+    /// 完整集合在锁外组合，按登记版本一次发布，保留旧 Clone 的共享可见性。
+    /// 版本失配时不改集合或 refresh generation，由调用方重新组合当前来源。
+    pub(crate) fn replace_providers_if_revision(
+        &mut self,
+        revision: u64,
+        replacements: Vec<Arc<dyn Provider>>,
+    ) -> bool {
+        let mut entries: ProviderEntries = Vec::with_capacity(replacements.len());
+        for provider in replacements {
+            // id 也是用户回调，不能在注册表锁内调用。
+            let id = provider.id().to_string();
+            match entries.iter_mut().find(|(existing, _)| existing == &id) {
+                Some((_, existing)) => *existing = provider,
+                None => entries.push((id, provider)),
+            }
+        }
+        let mut providers = self.provider_entries();
+        if providers.revision != revision {
+            return false;
+        }
+        // 和 clear + set 一样，使被替换或移除的 provider 刷新与迟到发布失效。
+        // 所有 mutator 都先取注册表锁；refresh bookkeeping 不反向持锁取注册表。
+        let mut ids = self.refresh.tracked_ids();
+        ids.extend(providers.entries.iter().map(|(id, _)| id.clone()));
+        ids.extend(entries.iter().map(|(id, _)| id.clone()));
+        let cancelled: Vec<_> = ids
+            .into_iter()
+            .filter_map(|id| self.refresh.supersede_deferred(&id).1)
+            .collect();
+        let previous = std::mem::replace(&mut providers.entries, entries);
+        providers.revision = providers.revision.wrapping_add(1);
+        drop(providers);
+        for token in cancelled {
+            token.cancel();
+        }
+        drop(previous);
+        true
     }
 
     /// Upstream `Models.getProviders` (models.ts:298-300), in provider
     /// registration order.
     pub fn get_providers(&self) -> Vec<Arc<dyn Provider>> {
         self.provider_entries()
+            .entries
             .iter()
             .map(|(_, provider)| Arc::clone(provider))
             .collect()
@@ -530,6 +617,7 @@ impl Models {
     /// Upstream `Models.getProvider` (models.ts:302-304).
     pub fn get_provider(&self, id: &str) -> Option<Arc<dyn Provider>> {
         self.provider_entries()
+            .entries
             .iter()
             .find(|(existing, _)| existing == id)
             .map(|(_, provider)| Arc::clone(provider))

@@ -518,13 +518,25 @@ impl ModelRuntime {
 
     /// Upstream `rebuildProviders`.
     fn rebuild_providers(&self) {
-        let provider_ids = self.provider_ids();
-        {
-            let mut models = self.models();
-            models.clear_providers();
+        let mut models = self.models();
+        loop {
+            let revision = models.provider_revision();
+            let provider_ids = self.provider_ids();
             lock(&self.0.composition_errors).clear();
-            for provider_id in &provider_ids {
-                self.recompose_with(provider_id, &mut models);
+            let mut providers = Vec::with_capacity(provider_ids.len());
+            for provider_id in provider_ids {
+                let provider = self.compose_provider(&provider_id);
+                let virtual_models = self.virtual_models_of(&provider_id);
+                if !virtual_models.is_empty() {
+                    providers.push(with_virtual_models(&provider_id, provider, virtual_models));
+                } else if let Some(provider) = provider {
+                    providers.push(provider);
+                }
+            }
+            // 保留上一份完整集合供认证和请求读取；并发登记/删除后重新组合，
+            // 不能把锁外取得的旧集合覆盖到更新后的共享注册表。
+            if models.replace_providers_if_revision(revision, providers) {
+                break;
             }
         }
         self.update_model_snapshot();
