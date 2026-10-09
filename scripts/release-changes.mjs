@@ -78,7 +78,8 @@ export function releaseComponentsForPath(input) {
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
   if (path.startsWith('crates/tauri-plugin-dns-sd/')) return ['desktop']
   if (path.startsWith('src-tauri/')) return ['desktop']
-  if (path.startsWith('src-tui/')) return ['tui']
+  // Desktop 安装包内置 TUI，入口、版本暂存和发布说明必须看到同一份变更。
+  if (path.startsWith('src-tui/')) return ['desktop', 'tui']
   if (path.startsWith('runtime-rs/')) return ['desktop']
   if (path.startsWith('runtime/')) return ['runtime']
   if (path.startsWith('src/') || path.startsWith('public/')) return ['desktop']

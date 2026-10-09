@@ -46,6 +46,8 @@
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check && npm run test:startup",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc -p tsconfig.jscheck.json",
     "test:startup": "node scripts/check-sidecar-startup.mjs",
+    "test:release": "node --test scripts/tests/release-rust-dispatch.test.mjs",
+    "test:project-directory": "node scripts/smoke-project-directory.mjs",
     "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
     "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs",

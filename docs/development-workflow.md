@@ -86,3 +86,11 @@
 责任范围为 Runtime 浏览器验收脚本。迁移完成条件：在 macOS/Linux 增加等价的监听端口归属、浏览器后代进程身份（含防 PID 复用）和退出回收检查，保留 Windows 验证，并实际通过原生浏览器与重启验收；不得跳过该用例或删除进程清理断言。当前移动端独立验证入口为 `npm run test:mobile-shell`，它不替代原生浏览器验收。
 
 同次 macOS Rust 单元测试需让 `TMPDIR` 指向不含符号链接的真实临时目录；默认 `/var` 或 `/tmp` 别名会触发既有存储路径拒绝策略。真实临时目录下 `npm test` 为 458 项通过、6 项忽略；不要通过放宽存储安全检查解决测试路径问题。
+
+### Rust 布局发布流程（2026-10-09）
+
+当前源码包含 `runtime-rs/Cargo.toml`，已移除 `runtime/index.mjs`。统一入口仍为 `npm run release -- <patch|minor|major|X.Y.Z>`，按 Desktop 最新标签自动检测实质性变更；Rust 布局只派发内置 Rust Runtime 和 TUI 的 Windows Desktop 安装包。TUI 源码也归属 Desktop，以保证仅 TUI 改动会更新安装包。独立 TUI、旧 Node Runtime、npm 和移动 App 发布通道尚未完成 Rust 迁移，因此此布局不派发这些通道，也不在发布前自动升级旧 Pi Node 依赖。仍保留 Node Runtime 入口的旧布局沿用原多渠道流程。
+
+发布前先确认本地 `release` 与 `origin/release` 同步、tracked 工作区干净、目标版本大于现有版本且标签未创建。入口运行既有质量检查后，派发 `.github/workflows/release.yml` 并等待结果；该工作流在资产验证完成后原子提交版本和标签、上传并公开 GitHub Release。运行期间冻结 `release`，失败或需要修正候选时先检查运行状态、日志与远端分支，确认原运行终止后再集成修正并从统一入口重试；不要手动改版本或创建标签。
+
+`npm run test:release` 在隔离临时布局中运行真实发布入口，拦截外部命令以验证 Rust/Node 渠道选择、版本与分支拒绝条件，不执行安装、Git 写入、构建或远端发布；发布质量阶段运行同一测试。Windows Desktop 构建前还运行 `npm run test:project-directory` 验证项目目录交互。当前资产清单只有 Windows NSIS 安装包、其签名和 `latest.json`；其他平台矩阵任务跳过打包不代表产物已经构建或验证。

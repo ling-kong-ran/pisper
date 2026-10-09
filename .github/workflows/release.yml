@@ -116,6 +116,9 @@ jobs:
       - name: Install Node dependencies
         if: inputs.component != 'tui'
         run: npm ci
+      - name: Check release dispatch behavior
+        if: inputs.component != 'tui'
+        run: npm run test:release
       - name: Check runtime and web
         if: inputs.component == 'runtime'
         run: |
@@ -207,6 +210,9 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
         if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
+      - name: Check native project directory flow
+        if: runner.os == 'Windows' && inputs.component == 'desktop'
+        run: npm run test:project-directory
       # Rust 桌面打包仅支持 Windows；desktop 的其余 matrix 行直接跳过。
       - name: Require component signing credentials
         if: inputs.component != 'runtime'

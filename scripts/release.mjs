@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,6 +20,10 @@ import {
 } from './release-components.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+// Rust 桌面打包已整合 Runtime 和 TUI；旧 SEA/npm/App 通道尚未迁移，不能自动派发。
+const rustRuntimeLayout =
+  existsSync(join(root, 'runtime-rs', 'Cargo.toml')) &&
+  !existsSync(join(root, 'runtime', 'index.mjs'))
 const npmCli = String(process.env.npm_execpath || '').trim()
 const rawArgs = process.argv.slice(2)
 const args = rawArgs.filter((value) => !value.startsWith('--'))
@@ -160,7 +165,13 @@ if (source !== remoteSource) {
   )
 }
 
-updateUpstreamPiDependency()
+if (rustRuntimeLayout) {
+  console.log(
+    '检测到 Rust Runtime 布局：仅发布 Windows desktop（内置 Runtime/TUI）；独立 TUI、Node Runtime、npm 和 App 通道尚未支持，跳过旧 Pi Node 依赖升级。',
+  )
+} else {
+  updateUpstreamPiDependency()
+}
 source = run('git', ['rev-parse', 'HEAD'], { capture: true })
 remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
 if (source !== remoteSource) {
@@ -174,7 +185,7 @@ const tags = run('git', ['tag', '--list', '--sort=-version:refname'], { capture:
   .split(/\r?\n/)
   .filter(Boolean)
 const runGit = (gitArgs) => run('git', gitArgs, { capture: true })
-const candidates = Object.keys(RELEASE_COMPONENTS)
+const candidates = rustRuntimeLayout ? ['desktop'] : Object.keys(RELEASE_COMPONENTS)
 const plans = []
 
 for (const component of candidates) {
@@ -210,37 +221,43 @@ for (const component of candidates) {
   plans.push({ component, nextVersion, tag })
 }
 
-const appCurrentVersion = JSON.parse(await readFile(join(root, APP_VERSION_FILE), 'utf8')).version
-const latestAppTag = tags.find((tag) => appTagPattern().test(tag)) || ''
-const appPaths = appReleasePaths(runGit, latestAppTag, source)
-if (appPaths.length > 0) {
-  console.log(`正在检查自 ${latestAppTag || '仓库初始提交'} 以来的 app 实质性提交…`)
-  const subjects = appReleaseSubjects(runGit, latestAppTag, source)
-  const substantive = subjects.filter(isSubstantiveReleaseCommit)
-  if (substantive.length === 0) {
-    console.log('app 只有非实质性变更，自动跳过。')
-  } else {
-    console.log(`已找到 ${substantive.length} 个 app 实质性提交、${appPaths.length} 个变更文件：`)
-    for (const subject of substantive) console.log(`  - ${subject}`)
+if (!rustRuntimeLayout) {
+  const appCurrentVersion = JSON.parse(await readFile(join(root, APP_VERSION_FILE), 'utf8')).version
+  const latestAppTag = tags.find((tag) => appTagPattern().test(tag)) || ''
+  const appPaths = appReleasePaths(runGit, latestAppTag, source)
+  if (appPaths.length > 0) {
+    console.log(`正在检查自 ${latestAppTag || '仓库初始提交'} 以来的 app 实质性提交…`)
+    const subjects = appReleaseSubjects(runGit, latestAppTag, source)
+    const substantive = subjects.filter(isSubstantiveReleaseCommit)
+    if (substantive.length === 0) {
+      console.log('app 只有非实质性变更，自动跳过。')
+    } else {
+      console.log(`已找到 ${substantive.length} 个 app 实质性提交、${appPaths.length} 个变更文件：`)
+      for (const subject of substantive) console.log(`  - ${subject}`)
 
-    const nextVersion = resolveVersion(appCurrentVersion, input)
-    if (compareVersions(nextVersion, appCurrentVersion) <= 0) {
-      throw new Error(`新版本 ${nextVersion} 必须高于当前 app 版本 ${appCurrentVersion}。`)
-    }
-    const tag = appReleaseTag(nextVersion)
-    if (runGit(['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
-    if (latestAppTag) {
-      const latestVersion = appVersionFromTag(latestAppTag)
-      if (latestVersion && compareVersions(nextVersion, latestVersion) <= 0) {
-        throw new Error(`新版本 ${nextVersion} 必须高于最新 app 标签 ${latestAppTag}。`)
+      const nextVersion = resolveVersion(appCurrentVersion, input)
+      if (compareVersions(nextVersion, appCurrentVersion) <= 0) {
+        throw new Error(`新版本 ${nextVersion} 必须高于当前 app 版本 ${appCurrentVersion}。`)
       }
+      const tag = appReleaseTag(nextVersion)
+      if (runGit(['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
+      if (latestAppTag) {
+        const latestVersion = appVersionFromTag(latestAppTag)
+        if (latestVersion && compareVersions(nextVersion, latestVersion) <= 0) {
+          throw new Error(`新版本 ${nextVersion} 必须高于最新 app 标签 ${latestAppTag}。`)
+        }
+      }
+      plans.push({ component: 'app', nextVersion, tag })
     }
-    plans.push({ component: 'app', nextVersion, tag })
   }
 }
 
 if (plans.length === 0) {
-  throw new Error('未检测到 desktop、tui、runtime 或 app 的待发布产品变更。')
+  throw new Error(
+    rustRuntimeLayout
+      ? '未检测到 Rust desktop 的待发布产品变更。'
+      : '未检测到 desktop、tui、runtime 或 app 的待发布产品变更。',
+  )
 }
 
 // Desktop 安装包内置最新 TUI/Runtime；任一组件发布时必须链式更新 Desktop，

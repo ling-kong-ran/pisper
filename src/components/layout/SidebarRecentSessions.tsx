@@ -7,6 +7,7 @@ import {
   Suspense,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PointerEvent,
   type ReactNode,
@@ -61,6 +62,7 @@ import { useWorkspaceOrderStore } from '@/features/chat/model/workspace-order-st
 import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup/startup-queries'
 import { pageStateStorage } from '@/lib/storage/page-state-storage'
 import { apiJson } from '@/lib/http/api'
+import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/platform/pick-system-directory'
 import { relativeTime, workspaceName } from '@/lib/format/format'
 import {
   ContextMenu,
@@ -151,7 +153,18 @@ export function SidebarRecentSessions({
   const [menuTargetKey, setMenuTargetKey] = useState('')
   const [menuTargetSessionId, setMenuTargetSessionId] = useState('')
   const [projectPickerOpen, setProjectPickerOpen] = useState(false)
+  const [nativePickerOpen, setNativePickerOpen] = useState(false)
+  const projectPickInFlight = useRef(false)
+  const projectPickerGeneration = useRef(0)
   const [deletingKey, setDeletingKey] = useState('')
+
+  useEffect(
+    () => () => {
+      // 系统对话框无法由 React 取消；离开侧栏后丢弃迟到的选择结果。
+      projectPickerGeneration.current += 1
+    },
+    [],
+  )
 
   const { data: sidebarSessionData } = useQuery({
     ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
@@ -247,6 +260,29 @@ export function SidebarRecentSessions({
     })
     navigate('chat')
     if (isMobile) setOpenMobile(false)
+  }
+
+  const createProject = async () => {
+    if (projectPickInFlight.current) return
+    if (!hasSystemDirectoryPicker()) {
+      setProjectPickerOpen(true)
+      return
+    }
+    // 同步锁覆盖同一事件批次的重复点击，文件夹创建由系统对话框提供。
+    projectPickInFlight.current = true
+    const generation = projectPickerGeneration.current
+    setNativePickerOpen(true)
+    try {
+      const path = await pickSystemDirectory()
+      if (generation === projectPickerGeneration.current && path) createSessionInWorkspace(path)
+    } catch (error) {
+      if (generation === projectPickerGeneration.current) {
+        notify(error instanceof Error ? error.message : String(error), 'error')
+      }
+    } finally {
+      projectPickInFlight.current = false
+      if (generation === projectPickerGeneration.current) setNativePickerOpen(false)
+    }
   }
 
   // 删除途中失败也刷新目录并重新选择活动会话；只有 API 确认成功的 id 算入已删除数。
@@ -502,8 +538,9 @@ export function SidebarRecentSessions({
           title={t('navigation:appSidebar.newProject')}
           aria-label={t('navigation:appSidebar.newProject')}
           aria-haspopup="dialog"
-          aria-expanded={projectPickerOpen}
-          onClick={() => setProjectPickerOpen(true)}
+          aria-expanded={projectPickerOpen || nativePickerOpen}
+          disabled={nativePickerOpen}
+          onClick={() => void createProject()}
         >
           <FolderPlus size={14} />
         </Button>
@@ -753,7 +790,7 @@ export function SidebarRecentSessions({
               </>
             ) : (
               <>
-                <ContextMenuItem onSelect={() => setProjectPickerOpen(true)}>
+                <ContextMenuItem disabled={nativePickerOpen} onSelect={() => void createProject()}>
                   <FolderPlus size={13} />
                   {t('navigation:appSidebar.newProject')}
                 </ContextMenuItem>
