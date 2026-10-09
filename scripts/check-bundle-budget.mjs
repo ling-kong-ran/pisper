@@ -12,7 +12,8 @@ export const BUNDLE_BUDGETS = {
   // 状态栏新增连接探针与重连提示（自适应轮询 + 内置 toast）后，入口文件小幅增长。
   entryFileGzip: 57 * KIB + 384,
   // 页面偏好恢复后无条件加载的 mount-app 也计入启动面；分块与恢复客户端增加约 7 KB。
-  entryStaticJsGzip: 292 * KIB,
+  // 界面/交互 UI/UX 设计优化（工作台面板恢复与移动端动作）再增约 0.6 KB。
+  entryStaticJsGzip: 292 * KIB + 768,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
   chunks: {
