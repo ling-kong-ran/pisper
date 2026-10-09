@@ -76,7 +76,7 @@ jobs:
         run: node scripts/prepare-release.mjs "$RELEASE_TAG" "$RELEASE_SOURCE_SHA" "$RELEASE_COMPONENT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: release-source
           if-no-files-found: error
@@ -267,7 +267,7 @@ jobs:
           } finally {
             Remove-Item $payloadDir -Recurse -Force
           }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
         with:
           name: pisper-${{ inputs.component }}-${{ matrix.target }}
