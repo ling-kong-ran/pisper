@@ -1270,7 +1270,8 @@ async function runUi(modelBaseUrl) {
     } else await route.continue()
   })
   const page = desktopExecutable ? desktopPage : await context.newPage()
-  page.setDefaultTimeout(12000)
+  // CI runner 的浏览器启动/UI 响应显著慢于桌面机;desktop 机维持 12s。
+  page.setDefaultTimeout(process.env.RUNNER_ENVIRONMENT ? 45000 : 12000)
   page.on('pageerror', (error) => report.pageErrors.push(error.message))
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text())
