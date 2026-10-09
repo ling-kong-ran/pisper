@@ -67,7 +67,7 @@ jobs:
         run: |
           git fetch origin release
           node scripts/verify-release-head.mjs "$RELEASE_SOURCE_SHA" origin/release
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Stage component version without committing or tagging
@@ -101,7 +101,7 @@ jobs:
         with:
           name: release-source
           path: .
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: inputs.component != 'tui'
         with:
           node-version: 24
@@ -191,7 +191,7 @@ jobs:
         with:
           name: release-source
           path: .
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -284,7 +284,7 @@ jobs:
         with:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - uses: actions/download-artifact@v5
