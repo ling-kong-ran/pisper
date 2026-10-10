@@ -123,6 +123,36 @@ try {
   const largeOriginal = encode(largeRows)
   await writeFile(largePath, largeOriginal)
   await start()
+  // 配置写入也不能丢失并发修改：多个技能开关共用同一个持久化文件。
+  for (let i = 0; i < 12; i++) {
+    const dir = join(agent, 'skills', `concurrent-${i}`)
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'SKILL.md'),
+      `---\nname: concurrent-${i}\ndescription: Synthetic concurrency probe\n---\nfixture`,
+    )
+  }
+  const skills = (await api('/api/skills')).skills.filter((skill) =>
+    skill.name.startsWith('concurrent-'),
+  )
+  assert.equal(skills.length, 12)
+  const updates = await Promise.allSettled(
+    skills.flatMap((skill) => [
+      api(`/api/skills/${skill.id}`, { method: 'PATCH', body: { enabled: false } }),
+      api(`/api/skills/${skill.id}`, { method: 'PATCH', body: { modelInvocationEnabled: false } }),
+    ]),
+  )
+  assert.ok(
+    updates.every((result) => result.status === 'fulfilled'),
+    'Concurrent skill updates must all succeed',
+  )
+  for (const skill of (await api('/api/skills')).skills.filter((skill) =>
+    skill.name.startsWith('concurrent-'),
+  )) {
+    assert.equal(skill.enabled, false)
+    assert.equal(skill.modelInvocationEnabled, false)
+  }
+  report.checks.push('concurrent skill preferences preserve both fields and every skill')
   const first = await api('/api/sessions/small/messages?limit=40', { measure: 'small-cold' })
   assert.equal(first.messages[0].text, 'before')
   assert.deepEqual(
@@ -144,6 +174,19 @@ try {
   )
   assert.equal(await readFile(smallPath, 'utf8'), smallOriginal)
   assert.equal(await readFile(largePath, 'utf8'), largeOriginal)
+  await mkdir(join(workspace, '.pisper/prompts'), { recursive: true })
+  await writeFile(
+    join(workspace, '.pisper/prompts/cache-probe.md'),
+    '---\ndescription: Fixture command\n---\nfixture',
+  )
+  await mkdir(join(workspace, '.pisper/skills/project-probe'), { recursive: true })
+  await writeFile(
+    join(workspace, '.pisper/skills/project-probe/SKILL.md'),
+    '---\nname: project-probe\ndescription: Fixture skill\n---\nfixture',
+  )
+  const commands = await api('/api/sessions/large/commands', { measure: 'large-session-commands' })
+  assert.ok(JSON.stringify(commands).includes('/cache-probe'))
+  assert.ok(JSON.stringify(commands).includes('/skill:project-probe'))
   report.checks.push('unchanged reads and pagination preserve exact messages and source files')
 
   await appendFile(smallPath, encode([entry('small-two', 'small-one', 'appended')]))
@@ -172,6 +215,86 @@ try {
   assert.equal((await api('/api/sessions/small/live')).cwd, second)
   assert.equal((await api('/api/sessions/small/file-changes')).cwd, second)
   report.checks.push('cwd changes refresh both live metadata and file-change directory')
+
+  const markedPath = join(sessions, 'marked.jsonl')
+  const markedOriginal = encode([
+    header('marked'),
+    {
+      type: 'model_change',
+      id: 'missing-model',
+      parentId: null,
+      timestamp: created,
+      provider: 'unconfigured-fixture',
+      modelId: 'missing',
+    },
+    entry('marked-user', 'missing-model', 'question'),
+    {
+      type: 'message',
+      id: 'answer',
+      parentId: 'marked-user',
+      timestamp: created,
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'bookmark answer' }],
+        api: 'openai-completions',
+        provider: 'unconfigured-fixture',
+        model: 'missing',
+        stopReason: 'stop',
+        timestamp: 1791676801000,
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      },
+    },
+  ])
+  await writeFile(markedPath, markedOriginal)
+  assert.equal((await api('/api/session-labels?limit=500')).labels.length, 0)
+  const tree = await api('/api/sessions/marked/tree/labels/answer', {
+    method: 'PUT',
+    body: { label: 'first mark' },
+    measure: 'cold-mark',
+  })
+  assert.equal(tree.nodes.find((node) => node.id === 'answer').label, 'first mark')
+  const appendedRows = (await readFile(markedPath, 'utf8'))
+    .slice(markedOriginal.length)
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  assert.deepEqual(
+    appendedRows.map((row) => row.type),
+    ['label'],
+    'Marking must not bootstrap an engine or append model defaults',
+  )
+  assert.equal(
+    (await api('/api/session-labels?limit=500', { measure: 'all-marks-cold' })).labels[0].label,
+    'first mark',
+  )
+  assert.equal(
+    (await api('/api/session-labels?limit=500', { measure: 'all-marks-warm' })).labels[0].label,
+    'first mark',
+  )
+  await Promise.all([
+    api('/api/sessions/marked/tree/labels/answer', { method: 'PUT', body: { label: 'updated' } }),
+    api('/api/sessions/marked', { method: 'PATCH', body: { name: 'marked title' } }),
+  ])
+  const marks = await api('/api/session-labels?query=updated')
+  assert.equal(marks.labels[0].sessionName, 'marked title')
+  assert.equal(marks.labels[0].label, 'updated')
+  await api('/api/sessions/marked/tree/labels/answer', { method: 'PUT', body: { label: '' } })
+  assert.equal((await api('/api/session-labels?limit=500')).labels.length, 0)
+  await api('/api/sessions/marked/tree/labels/missing', {
+    method: 'PUT',
+    body: { label: 'invalid' },
+    status: 400,
+  })
+  report.checks.push(
+    'cold marks and rename need no configured model; concurrent edits, tombstones and cached all-marks remain consistent',
+  )
 
   await rm(smallPath)
   await api('/api/sessions/small/messages?limit=40', { status: 404 })

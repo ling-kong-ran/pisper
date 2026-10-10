@@ -467,42 +467,134 @@ fn tree_entry_projection(entry: &Value) -> (String, String, String, String) {
     (kind.to_string(), role, bounded_text(&text, 320), status)
 }
 
-pub(crate) fn project_tree(manager: &SessionManager, streaming: bool) -> Result<Value, ApiError> {
-    let active_ids: std::collections::HashSet<_> = manager
-        .get_branch(None)
-        .iter()
-        .filter_map(|entry| entry.id().map(str::to_string))
-        .collect();
-    let leaf_id = manager.get_leaf_id();
-    let mut stack: Vec<_> = manager
-        .get_tree()
-        .into_iter()
-        .rev()
-        .map(|node| (node, None::<String>))
-        .collect();
-    let mut nodes = Vec::new();
-    let mut branch_count = 0;
-    while let Some((node, parent_id)) = stack.pop() {
-        let raw =
-            serde_json::to_value(&node.entry).map_err(|e| ApiError::internal(e.to_string()))?;
-        let Some(id) = node.entry.id().map(str::to_string) else {
-            continue;
+// 树视图只需要短文本与工具名，不序列化图片、思考和工具参数/输出。
+fn tree_projection_input(entry: &SessionEntry) -> Result<Value, ApiError> {
+    use pi_rust::{
+        agent_core::types::AgentMessage,
+        ai::types::{AssistantBlock, StringOrBlocks, TextOrImageBlock},
+    };
+    fn preview<'a>(parts: impl Iterator<Item = &'a str>) -> String {
+        let mut result = String::new();
+        let mut count = 0;
+        let mut space = false;
+        for character in parts.flat_map(str::chars) {
+            if character.is_whitespace() {
+                space = !result.is_empty();
+                continue;
+            }
+            if space {
+                result.push(' ');
+                count += 1;
+                space = false;
+            }
+            result.push(character);
+            count += 1;
+            if count > 320 {
+                return bounded_text(&result, 320);
+            }
+        }
+        result
+    }
+    if let SessionEntry::Message(entry) = entry {
+        let message = match &entry.message {
+            AgentMessage::ToolResult(tool) => {
+                json!({"role":"toolResult","toolName":tool.tool_name,"toolCallId":tool.tool_call_id,"isError":tool.is_error})
+            }
+            AgentMessage::User(user) => {
+                let text = match &user.content {
+                    StringOrBlocks::Text(text) => preview(std::iter::once(text.as_str())),
+                    StringOrBlocks::Blocks(parts) => {
+                        preview(parts.iter().filter_map(|part| match part {
+                            TextOrImageBlock::Text(text) => Some(text.text.as_str()),
+                            _ => None,
+                        }))
+                    }
+                };
+                json!({"role":"user","content":text})
+            }
+            AgentMessage::Assistant(assistant) => {
+                let text = preview(assistant.content.iter().filter_map(|part| match part {
+                    AssistantBlock::Text(text) => Some(text.text.as_str()),
+                    _ => None,
+                }));
+                let mut content = vec![json!({"type":"text","text":text})];
+                content.extend(assistant.content.iter().filter_map(|part| match part {
+                    AssistantBlock::ToolCall(tool) => {
+                        Some(json!({"type":"toolCall","name":tool.name}))
+                    }
+                    _ => None,
+                }));
+                json!({"role":"assistant","content":content,"stopReason":assistant.stop_reason,"errorMessage":assistant.error_message})
+            }
+            _ => serde_json::to_value(&entry.message)
+                .map_err(|error| ApiError::internal(error.to_string()))?,
         };
-        let (kind, role, text, status) = tree_entry_projection(&raw);
-        branch_count += node.children.len().saturating_sub(1);
-        nodes.push(json!({
-            "id":id, "parentId":parent_id,"type":raw["type"],"kind":kind,"role":role,
-            "text":text,"status":status,"label":bounded_text(node.label.as_deref().unwrap_or(""),80),
-            "timestamp":node.entry.timestamp(),"active":active_ids.contains(&id),
-            "leaf":leaf_id == Some(id.as_str()),"branchPoint":node.children.len() > 1,
-        }));
-        for child in node.children.into_iter().rev() {
-            stack.push((child, Some(id.clone())));
+        return Ok(json!({"type":"message","message":message}));
+    }
+    serde_json::to_value(entry).map_err(|error| ApiError::internal(error.to_string()))
+}
+
+pub(crate) fn project_tree(manager: &SessionManager, streaming: bool) -> Result<Value, ApiError> {
+    let active_ids: std::collections::HashSet<_> = branch(manager)
+        .iter()
+        .filter_map(|entry| entry.id())
+        .collect();
+    let entries = manager.get_entries();
+    let by_id: HashMap<_, _> = entries
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entry)| entry.id().map(|id| (id, index)))
+        .collect();
+    let mut children = vec![Vec::new(); entries.len()];
+    let mut roots = Vec::new();
+    for (index, entry) in entries.iter().enumerate() {
+        if let Some(parent) = entry
+            .parent_id()
+            .filter(|parent| Some(*parent) != entry.id())
+            .and_then(|parent| by_id.get(parent))
+        {
+            children[*parent].push(index);
+        } else {
+            roots.push(index);
         }
     }
+    for children in &mut children {
+        children.sort_by_key(|index| {
+            pi_rust::coding_agent::core::messages::parse_epoch_millis(entries[*index].timestamp())
+                .unwrap_or(0)
+        });
+    }
+    let mut stack: Vec<_> = roots
+        .into_iter()
+        .rev()
+        .map(|index| (index, None::<String>))
+        .collect();
+    let mut visited = std::collections::HashSet::new();
+    let mut nodes = Vec::new();
+    let mut branch_count = 0;
+    while let Some((index, parent_id)) = stack.pop() {
+        if !visited.insert(index) {
+            continue;
+        }
+        let entry = &entries[index];
+        let Some(id) = entry.id() else {
+            continue;
+        };
+        let raw = tree_projection_input(entry)?;
+        let (kind, role, text, status) = tree_entry_projection(&raw);
+        branch_count += children[index].len().saturating_sub(1);
+        nodes.push(json!({"id":id,"parentId":parent_id,"type":raw["type"],"kind":kind,"role":role,
+            "text":text,"status":status,"label":bounded_text(manager.get_label(id).unwrap_or(""),80),
+            "timestamp":entry.timestamp(),"active":active_ids.contains(id),"leaf":manager.get_leaf_id()==Some(id),"branchPoint":children[index].len()>1}));
+        stack.extend(
+            children[index]
+                .iter()
+                .rev()
+                .map(|child| (*child, Some(id.to_owned()))),
+        );
+    }
     Ok(
-        json!({"sessionId":manager.get_session_id(),"leafId":leaf_id,"nodeCount":nodes.len(),
-        "branchCount":branch_count,"streaming":streaming,"nodes":nodes,"lineage":null}),
+        json!({"sessionId":manager.get_session_id(),"leafId":manager.get_leaf_id(),"nodeCount":nodes.len(),"branchCount":branch_count,"streaming":streaming,"nodes":nodes,"lineage":null}),
     )
 }
 
@@ -510,21 +602,25 @@ pub(crate) async fn tree(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    let active = state
-        .sessions
-        .get(&id)
-        .map(|host| host.session())
-        .unwrap_or_else(|| state.runtime.session());
-    if active.session_id() == id {
-        let manager = active
-            .session_manager
-            .lock()
-            .map_err(|_| ApiError::internal("session manager lock poisoned"))?;
-        return Ok(Json(project_tree(&manager, active.is_streaming())?));
-    }
-    let manager = SessionManager::open(&find_session_path(&state, &id)?, None, None)
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(project_tree(&manager, false)?))
+    tokio::task::spawn_blocking(move || {
+        let active = state
+            .sessions
+            .get(&id)
+            .map(|host| host.session())
+            .unwrap_or_else(|| state.runtime.session());
+        if active.session_id() == id {
+            let manager = active
+                .session_manager
+                .lock()
+                .map_err(|_| ApiError::internal("session manager lock poisoned"))?;
+            return Ok(Json(project_tree(&manager, active.is_streaming())?));
+        }
+        let manager = SessionManager::open(&find_session_path(&state, &id)?, None, None)
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+        Ok(Json(project_tree(&manager, false)?))
+    })
+    .await
+    .map_err(|_| ApiError::internal("会话树读取任务失败。"))?
 }
 
 pub(crate) async fn labels(
@@ -538,31 +634,39 @@ pub(crate) async fn labels(
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(if query.is_empty() { 500 } else { 20 })
         .clamp(1, 500);
-    let mut labels = Vec::new();
-    for info in state.session_reads.infos(&state.agent_dir) {
-        let manager = SessionManager::open(&info.path, None, None)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        let tree = project_tree(&manager, false)?;
-        for node in tree["nodes"].as_array().into_iter().flatten() {
-            let label = node["label"].as_str().unwrap_or("");
-            if label.is_empty()
-                || node["kind"] != "assistant"
-                || node["status"] != "completed"
-                || (!query.is_empty() && !label.to_lowercase().contains(&query))
-            {
-                continue;
-            }
-            labels.push(json!({"sessionId":info.id,"sessionName":info.name.as_deref().unwrap_or(""),
-                "sessionCreated":info.created.map(pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc).unwrap_or_default(),
-                "sessionModified":pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc(info.modified),
-                "entryId":node["id"],"label":label,"summary":node["text"],
-                "nodeTimestamp":node["timestamp"],"active":node["active"]}));
-            if labels.len() >= limit {
-                return Ok(Json(json!({"labels":labels})));
+    tokio::task::spawn_blocking(move || {
+        let mut labels = Vec::new();
+        for info in state.session_reads.infos(&state.agent_dir) {
+            if !state.session_reads.has_labels(&info.path)? { continue; }
+            let nodes = state.session_reads.labels.read(std::path::Path::new(&info.path), 0, || {
+                let manager = SessionManager::open(&info.path, None, None).map_err(|error| ApiError::internal(error.to_string()))?;
+                let tree = project_tree(&manager, false)?;
+                let nodes: Vec<_> = tree["nodes"].as_array().into_iter().flatten()
+                    .filter(|node| node["label"].as_str().is_some_and(|label| !label.is_empty()) && node["kind"] == "assistant" && node["status"] == "completed").cloned().collect();
+                let bytes = nodes.iter().map(value_bytes).sum();
+                Ok((nodes, bytes))
+            })?;
+            for node in nodes.iter() {
+                let label = node["label"].as_str().unwrap_or("");
+                if label.is_empty()
+                    || node["kind"] != "assistant"
+                    || node["status"] != "completed"
+                    || (!query.is_empty() && !label.to_lowercase().contains(&query))
+                {
+                    continue;
+                }
+                labels.push(json!({"sessionId":info.id,"sessionName":info.name.as_deref().unwrap_or(""),
+                    "sessionCreated":info.created.map(pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc).unwrap_or_default(),
+                    "sessionModified":pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc(info.modified),
+                    "entryId":node["id"],"label":label,"summary":node["text"],
+                    "nodeTimestamp":node["timestamp"],"active":node["active"]}));
+                if labels.len() >= limit {
+                    return Ok(Json(json!({"labels":labels})));
+                }
             }
         }
-    }
-    Ok(Json(json!({"labels":labels})))
+        Ok(Json(json!({"labels":labels})))
+        }).await.map_err(|_| ApiError::internal("会话标记读取任务失败。"))?
 }
 
 pub(crate) fn model_state(state: &AppState, id: &str) -> Result<Value, ApiError> {
@@ -584,7 +688,7 @@ pub(crate) fn model_state(state: &AppState, id: &str) -> Result<Value, ApiError>
     };
     Ok(match model {
         Some(model) => json!({"provider":model.provider,"id":model.id,"name":model.name,
-        "baseUrl":model.base_url,"reasoning":model.reasoning,"model":format!("{}/{}",model.provider,model.id)}),
+            "baseUrl":model.base_url,"reasoning":model.reasoning,"model":format!("{}/{}",model.provider,model.id)}),
         None => Value::Null,
     })
 }
@@ -618,7 +722,7 @@ pub(crate) fn thinking_state(state: &AppState, id: &str) -> Result<Value, ApiErr
         (json!(level), levels)
     };
     Ok(json!({"thinkingLevel":level,"availableLevels":levels,
-        "supported":levels.as_array().is_some_and(|levels|levels.len()>1),"status":"ok"}))
+            "supported":levels.as_array().is_some_and(|levels|levels.len()>1),"status":"ok"}))
 }
 
 /// Pi 当前仅提供队列文本，没有可用于精确撤回的稳定标识；空 id 禁用撤回按钮。
@@ -645,7 +749,7 @@ pub(crate) fn queued_inputs(state: &AppState, id: &str) -> Vec<Value> {
 
 fn session_usage(manager: &SessionManager) -> Result<Value, ApiError> {
     let mut total = json!({"input":0.0,"output":0.0,"cacheRead":0.0,"cacheWrite":0.0,"reasoning":0.0,
-        "totalTokens":0.0,"processedTokens":0.0,"requests":0,"promptTokens":0.0,"cacheReported":false,"cacheHitRate":null,"cost":0.0});
+            "totalTokens":0.0,"processedTokens":0.0,"requests":0,"promptTokens":0.0,"cacheReported":false,"cacheHitRate":null,"cost":0.0});
     for entry in manager.get_entries() {
         let entry = serde_json::to_value(entry).map_err(|e| ApiError::internal(e.to_string()))?;
         let usage = if entry["type"] == "message" {
@@ -1135,7 +1239,7 @@ pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
         value["lifecycle"] = json!({"phase":"compacting","event":"compaction_start","updatedAt":value["lastActivityAt"]});
     } else if is_active && streaming && active.retry_attempt() > 0 {
         value["lifecycle"] = json!({"phase":"retrying","event":"auto_retry_start","updatedAt":value["lastActivityAt"],
-            "retry":{"attempt":active.retry_attempt()}});
+                "retry":{"attempt":active.retry_attempt()}});
         value["currentActivity"] =
             json!({"type":"retry","stage":"waiting_retry","updatedAt":value["lastActivityAt"]});
     }
@@ -1354,30 +1458,43 @@ pub(crate) async fn rename(
     Path(id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
-    let mutation = crate::session_runtime::mutation(&state, &id).await?;
     let name = body["name"]
         .as_str()
-        .ok_or_else(|| ApiError::bad_request("会话名称必须是字符串。"))?;
-    let path = find_session_path(&state, &id)?;
-    let active = mutation.hosted.session();
-    if active.session_id() == id {
-        let mut manager = active
-            .session_manager
-            .lock()
-            .map_err(|_| ApiError::internal("session manager lock poisoned"))?;
-        manager
-            .append_session_info(name)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-    } else {
-        let mut manager = SessionManager::open(&path, None, None)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        manager
-            .append_session_info(name)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-    }
-    let manager =
-        SessionManager::open(&path, None, None).map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(summary(&state, &manager, product::now_ms() as i64)?))
+        .ok_or_else(|| ApiError::bad_request("会话名称必须是字符串。"))?
+        .to_owned();
+    tokio::task::spawn_blocking(move || {
+        let guard = state.sessions.metadata_guard(&id, &state.engine_mutation)?;
+        if state.goals.busy(&id) {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                "session_busy",
+                "当前会话正在运行。",
+            ));
+        }
+        let update = |manager: &mut SessionManager| -> Result<StoredSummary, ApiError> {
+            manager
+                .append_session_info(&name)
+                .map_err(|error| ApiError::internal(error.to_string()))?;
+            Ok(StoredSummary::from_manager(manager))
+        };
+        let info = if let Some(hosted) = &guard.hosted {
+            let session = hosted.session();
+            let mut manager = session
+                .session_manager
+                .lock()
+                .map_err(|_| ApiError::internal("session manager lock poisoned"))?;
+            update(&mut manager)?
+        } else {
+            let path = find_session_path(&state, &id)?;
+            let mut manager = SessionManager::open(&path, None, None)
+                .map_err(|error| ApiError::internal(error.to_string()))?;
+            update(&mut manager)?
+        };
+        // 不持有 manager 锁查询实时模型，避免锁重入。
+        summary_from_stored(&state, &info, product::now_ms() as i64).map(Json)
+    })
+    .await
+    .map_err(|_| ApiError::internal("会话重命名任务失败。"))?
 }
 
 pub(crate) async fn delete_session(
@@ -1471,6 +1588,76 @@ mod tests {
             "stopReason":"stop","timestamp":2,"usage":usage,
         }))
         .unwrap()
+    }
+
+    fn reference_tree(manager: &SessionManager, streaming: bool) -> Result<Value, ApiError> {
+        let active_ids: std::collections::HashSet<_> = manager
+            .get_branch(None)
+            .iter()
+            .filter_map(|entry| entry.id().map(str::to_string))
+            .collect();
+        let leaf_id = manager.get_leaf_id();
+        let mut stack: Vec<_> = manager
+            .get_tree()
+            .into_iter()
+            .rev()
+            .map(|node| (node, None::<String>))
+            .collect();
+        let mut nodes = Vec::new();
+        let mut branch_count = 0;
+        while let Some((node, parent_id)) = stack.pop() {
+            let raw =
+                serde_json::to_value(&node.entry).map_err(|e| ApiError::internal(e.to_string()))?;
+            let Some(id) = node.entry.id().map(str::to_string) else {
+                continue;
+            };
+            let (kind, role, text, status) = tree_entry_projection(&raw);
+            branch_count += node.children.len().saturating_sub(1);
+            nodes.push(json!({
+            "id":id, "parentId":parent_id,"type":raw["type"],"kind":kind,"role":role,
+            "text":text,"status":status,"label":bounded_text(node.label.as_deref().unwrap_or(""),80),
+            "timestamp":node.entry.timestamp(),"active":active_ids.contains(&id),
+            "leaf":leaf_id == Some(id.as_str()),"branchPoint":node.children.len() > 1,
+        }));
+            for child in node.children.into_iter().rev() {
+                stack.push((child, Some(id.clone())));
+            }
+        }
+        Ok(
+            json!({"sessionId":manager.get_session_id(),"leafId":leaf_id,"nodeCount":nodes.len(),
+        "branchCount":branch_count,"streaming":streaming,"nodes":nodes,"lineage":null}),
+        )
+    }
+
+    #[test]
+    fn compact_tree_matches_engine_tree_with_large_tools_images_and_branches() {
+        let mut manager = SessionManager::in_memory("/fixture", None, None).unwrap();
+        manager.append_message(serde_json::from_value(json!({"role":"user","content":[{"type":"text","text":"hello  世界\n"},{"type":"image","mimeType":"image/png","data":"x".repeat(512*1024)}],"timestamp":1})).unwrap()).unwrap();
+        let first = manager.get_leaf_id().unwrap().to_string();
+        manager.append_message(serde_json::from_value(json!({"role":"assistant","content":[{"type":"text","text":"长  文\n".repeat(200)},{"type":"thinking","thinking":"private".repeat(10000)},{"type":"toolCall","id":"call","name":"read","arguments":{"payload":"x".repeat(512*1024)}}],"api":"openai-completions","provider":"fixture","model":"fixture","stopReason":"toolUse","timestamp":2,"usage":pi_rust::ai::types::Usage::default()})).unwrap()).unwrap();
+        manager.append_message(serde_json::from_value(json!({"role":"toolResult","toolCallId":"call","toolName":"read","content":[{"type":"text","text":"large-output".repeat(100000)}],"isError":false,"timestamp":3})).unwrap()).unwrap();
+        manager
+            .append_message(assistant("final answer", Default::default()))
+            .unwrap();
+        let marked = manager.get_leaf_id().unwrap().to_string();
+        manager.append_label_change(&marked, Some("mark")).unwrap();
+        manager.branch(&first).unwrap();
+        manager
+            .append_message(assistant("another branch", Default::default()))
+            .unwrap();
+        assert_eq!(
+            project_tree(&manager, false).unwrap(),
+            reference_tree(&manager, false).unwrap()
+        );
+        for entry in manager.get_entries() {
+            if let SessionEntry::Message(message) = &entry {
+                if message.message.role() == "toolResult" {
+                    let small = tree_projection_input(&entry).unwrap();
+                    assert!(small["message"].get("content").is_none());
+                    assert_eq!(small["message"]["toolName"], "read");
+                }
+            }
+        }
     }
 
     #[test]

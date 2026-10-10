@@ -135,6 +135,7 @@ pub(crate) struct AppState {
     pub(crate) plugin_integration: Arc<plugin_integration::PluginIntegration>,
     pub(crate) engine_mutation: Arc<tokio::sync::RwLock<()>>,
     pub(crate) ui: ui_contract::UiState,
+    pub(crate) skill_mutation: tokio::sync::Mutex<()>,
     pub(crate) notifications: Arc<native_notifications::NotificationService>,
     pub(crate) channels: Arc<native_channels::ChannelService>,
     pub(crate) file_changes: Arc<native_file_changes::FileChangesService>,
@@ -1297,6 +1298,7 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
         engine_mutation: Arc::new(tokio::sync::RwLock::new(())),
         cwd,
         ui: ui_contract::UiState::default(),
+        skill_mutation: tokio::sync::Mutex::new(()),
         notifications,
         channels,
         file_changes,
@@ -1815,9 +1817,7 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
                 Err(error) if error.status == StatusCode::NOT_FOUND => return Ok(None),
                 Err(error) => return Err(error),
             };
-            let manager = SessionManager::open(&path, None, None)
-                .map_err(|error| ApiError::internal(error.to_string()))?;
-            Ok(Some(std::path::PathBuf::from(manager.get_cwd())))
+            Ok(Some(std::path::PathBuf::from(state.session_reads.cwd(&path)?)))
         })
     });
     let schedules = state

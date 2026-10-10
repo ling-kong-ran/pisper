@@ -179,6 +179,12 @@ struct OutlineMessage {
 }
 #[derive(Deserialize)]
 struct Outline {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(rename = "targetId", default)]
+    target_id: Option<String>,
+    #[serde(default)]
+    label: Option<String>,
     #[serde(rename = "type", default)]
     kind: String,
     #[serde(default)]
@@ -236,9 +242,15 @@ fn paths(agent_dir: &str) -> Vec<PathBuf> {
     paths
 }
 
+struct CatalogInfo {
+    info: SessionInfo,
+    has_labels: bool,
+}
+
 pub(crate) struct SessionReadCache {
     headers: FileCache<Header>,
-    catalog: FileCache<SessionInfo>,
+    catalog: FileCache<CatalogInfo>,
+    pub(crate) labels: FileCache<Vec<Value>>,
     pub(crate) summaries: FileCache<StoredSummary>,
     pub(crate) projections: FileCache<StoredRead>,
 }
@@ -247,6 +259,7 @@ impl Default for SessionReadCache {
         Self {
             headers: FileCache::new(2048, 4 * 1024 * 1024),
             catalog: FileCache::new(2048, 4 * 1024 * 1024),
+            labels: FileCache::new(512, 4 * 1024 * 1024),
             summaries: FileCache::new(512, 4 * 1024 * 1024),
             // 与旧 Node 的消息投影缓存采用相同条目数和内存预算。
             projections: FileCache::new(8, 24 * 1024 * 1024),
@@ -281,17 +294,21 @@ impl SessionReadCache {
             .filter_map(|path| self.info(path).ok())
             .collect();
         infos.sort_by(|a, b| {
-            b.modified
-                .cmp(&a.modified)
-                .then_with(|| a.path.cmp(&b.path))
+            b.info
+                .modified
+                .cmp(&a.info.modified)
+                .then_with(|| a.info.path.cmp(&b.info.path))
         });
-        infos.first().map(|info| info.path.clone()).ok_or_else(|| {
-            ApiError::new(
-                axum::http::StatusCode::NOT_FOUND,
-                "session_not_found",
-                "会话不存在。",
-            )
-        })
+        infos
+            .first()
+            .map(|entry| entry.info.path.clone())
+            .ok_or_else(|| {
+                ApiError::new(
+                    axum::http::StatusCode::NOT_FOUND,
+                    "session_not_found",
+                    "会话不存在。",
+                )
+            })
     }
     pub(crate) fn cwd(&self, path: &str) -> Result<String, ApiError> {
         let header = self.header(Path::new(path))?;
@@ -300,7 +317,7 @@ impl SessionReadCache {
         )
         .map_err(|_| ApiError::bad_request("会话工作目录无效。"))
     }
-    fn info(&self, path: &Path) -> Result<Arc<SessionInfo>, ApiError> {
+    fn info(&self, path: &Path) -> Result<Arc<CatalogInfo>, ApiError> {
         self.catalog.read(path, 0, || {
             let header = self.header(path)?;
             let file = File::open(path).map_err(|_| ApiError::bad_request("会话文件不可读取。"))?;
@@ -308,6 +325,7 @@ impl SessionReadCache {
             let mut line = Vec::new();
             let mut name = None;
             let mut count = 0;
+            let mut labels = HashSet::new();
             let mut activity: Option<i64> = None;
             // serde 跳过未声明字段：统计目录不分配图片、工具输出和消息正文。
             while reader
@@ -318,6 +336,15 @@ impl SessionReadCache {
                 if let Ok(row) = serde_json::from_slice::<Outline>(
                     line.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&line),
                 ) {
+                    if row.kind == "label" && row.id.is_some() && row.timestamp.is_some() {
+                        if let Some(target) = row.target_id {
+                            if row.label.as_deref().is_some_and(|label| !label.is_empty()) {
+                                labels.insert(target);
+                            } else {
+                                labels.remove(&target);
+                            }
+                        }
+                    }
                     if row.kind == "session_info" {
                         name = row
                             .name
@@ -365,14 +392,23 @@ impl SessionReadCache {
             };
             let bytes =
                 512 + info.path.len() + info.cwd.len() + info.name.as_ref().map_or(0, String::len);
-            Ok((info, bytes))
+            Ok((
+                CatalogInfo {
+                    info,
+                    has_labels: !labels.is_empty(),
+                },
+                bytes,
+            ))
         })
+    }
+    pub(crate) fn has_labels(&self, path: &str) -> Result<bool, ApiError> {
+        Ok(self.info(Path::new(path))?.has_labels)
     }
     pub(crate) fn infos(&self, agent_dir: &str) -> Vec<SessionInfo> {
         let mut infos: Vec<_> = paths(agent_dir)
             .iter()
             .filter_map(|path| self.info(path).ok())
-            .map(|info| (*info).clone())
+            .map(|entry| entry.info.clone())
             .collect();
         infos.sort_by(|a, b| b.modified.cmp(&a.modified).then_with(|| a.id.cmp(&b.id)));
         let mut seen = HashSet::new();

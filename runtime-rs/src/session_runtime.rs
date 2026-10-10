@@ -164,6 +164,68 @@ impl SessionRuntimeRegistry {
             built_revisions: Mutex::new(HashMap::new()),
         }
     }
+    // 仅在 blocking 线程使用；复用创建/删除准入及运行租约，冷会话无需构造引擎。
+    pub(crate) fn metadata_guard<'a>(
+        &'a self,
+        id: &str,
+        configuration: &Arc<tokio::sync::RwLock<()>>,
+    ) -> Result<MetadataMutation<'a>, ApiError> {
+        let mut hosted = self.get(id);
+        // 已驻留会话复用自己的租约，不被其他会话的冷启动阻塞。
+        let creating = if hosted.is_none() {
+            let guard = self.creating.blocking_lock();
+            hosted = self.get(id);
+            Some(guard)
+        } else {
+            None
+        };
+        if self.closed.load(Ordering::Acquire) {
+            return Err(ApiError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "runtime_shutdown",
+                "运行时正在关闭。",
+            ));
+        }
+        let run = hosted
+            .as_ref()
+            .map(|host| host.run.clone().try_lock_owned())
+            .transpose()
+            .map_err(|_| {
+                ApiError::new(StatusCode::CONFLICT, "session_busy", "当前会话正在运行。")
+            })?;
+        let session = hosted
+            .as_ref()
+            .map(|host| host.mutation.clone().try_lock_owned())
+            .transpose()
+            .map_err(|_| {
+                ApiError::new(StatusCode::CONFLICT, "session_busy", "当前会话正在运行。")
+            })?;
+        let configuration = configuration.clone().try_read_owned().map_err(|_| {
+            ApiError::new(
+                StatusCode::CONFLICT,
+                "configuration_busy",
+                "模型配置正在更新，请稍后重试。",
+            )
+        })?;
+        if let Some(host) = &hosted {
+            host.ensure_present()?;
+            if host.session().is_streaming() || host.session().is_compacting() {
+                return Err(ApiError::new(
+                    StatusCode::CONFLICT,
+                    "session_busy",
+                    "当前会话正在运行。",
+                ));
+            }
+        }
+        Ok(MetadataMutation {
+            hosted,
+            _creating: creating,
+            _run: run,
+            _session: session,
+            _configuration: configuration,
+        })
+    }
+
     /// Observation doesn't extend the idle TTL; listing tabs must not retain every agent.
     pub(crate) fn get(&self, id: &str) -> Option<Arc<HostedSession>> {
         self.entries
@@ -553,6 +615,14 @@ pub(crate) fn asset_event_sink(state: &AppState) -> crate::asset_api::tracker::A
 
 pub(crate) async fn hosted(state: &AppState, id: &str) -> Result<Arc<HostedSession>, ApiError> {
     state.sessions.host(state, id).await
+}
+
+pub(crate) struct MetadataMutation<'a> {
+    pub(crate) hosted: Option<Arc<HostedSession>>,
+    _creating: Option<tokio::sync::MutexGuard<'a, ()>>,
+    _run: Option<tokio::sync::OwnedMutexGuard<()>>,
+    _session: Option<tokio::sync::OwnedMutexGuard<()>>,
+    _configuration: tokio::sync::OwnedRwLockReadGuard<()>,
 }
 
 pub(crate) struct SessionMutation {

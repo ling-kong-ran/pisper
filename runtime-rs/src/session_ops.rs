@@ -57,31 +57,13 @@ pub(crate) fn iso_timestamp(ms: u64) -> String {
 }
 
 pub(crate) fn parse_timestamp_ms(value: &str) -> Option<u64> {
-    // Parse the subset of RFC3339 this module itself produces.
-    if value.len() < 20 || !value.ends_with('Z') {
-        return None;
-    }
-    let year: i64 = value.get(0..4)?.parse().ok()?;
-    let month: i64 = value.get(5..7)?.parse().ok()?;
-    let day: i64 = value.get(8..10)?.parse().ok()?;
-    let hour: i64 = value.get(11..13)?.parse().ok()?;
-    let minute: i64 = value.get(14..16)?.parse().ok()?;
-    let second: i64 = value.get(17..19)?.parse().ok()?;
-    let millis: u64 = value.get(20..23).and_then(|v| v.parse().ok()).unwrap_or(0);
-    let leap = |y: i64| y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
-    let days_before_year = |y: i64| -> i64 {
-        let y = y - 1;
-        365 * y + y / 4 - y / 100 + y / 400
-    };
-    const CUMULATIVE: [i64; 12] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-    let month_index = (month - 1).clamp(0, 11) as usize;
-    let mut days = days_before_year(year) + CUMULATIVE[month_index];
-    if month > 2 && leap(year) {
-        days += 1;
-    }
-    days += day - 1;
-    let seconds = days * 86_400 + hour * 3600 + minute * 60 + second;
-    u64::try_from(seconds).ok().map(|s| s * 1000 + millis)
+    // 与持久化的 RFC3339 日期使用同一 Unix 毫秒基准，避免把公元起始天数当作 epoch。
+    u64::try_from(
+        chrono::DateTime::parse_from_rfc3339(value)
+            .ok()?
+            .timestamp_millis(),
+    )
+    .ok()
 }
 
 fn side_chat_meta(state: &AppState, id: &str) -> Option<Value> {
@@ -135,7 +117,11 @@ fn session_row(state: &AppState, id: &str) -> Result<(Value, String), ApiError> 
 
 /// release SideChatService.get：命中未过期的侧聊返回其会话摘要；
 /// `create` 时为父会话新建一个 24 小时 TTL 的临时会话。
-async fn respond_side_chat(state: Arc<AppState>, id: String, create: bool) -> Result<Json<Value>, ApiError> {
+async fn respond_side_chat(
+    state: Arc<AppState>,
+    id: String,
+    create: bool,
+) -> Result<Json<Value>, ApiError> {
     // 父会话必须存在（release getSummary(parent) 失败 → 404）。
     session_api::find_session_path(&state, &id)?;
     if is_side_chat_id(&id) || side_chat_meta(&state, &id).is_some() {
@@ -320,7 +306,10 @@ pub(crate) async fn tree_navigate(
     let mutation = session_runtime::mutation(&state, &id).await?;
     let session = mutation.hosted.session();
     {
-        let manager = session.session_manager.lock().expect("session manager lock");
+        let manager = session
+            .session_manager
+            .lock()
+            .expect("session manager lock");
         if manager.get_entry(&target).is_none() {
             return Err(ApiError::bad_request("会话树节点不存在。"));
         }
@@ -354,7 +343,10 @@ pub(crate) async fn tree_navigate(
     if body.get("includeTree") == Some(&json!(false)) {
         return Ok(Json(navigation));
     }
-    let manager = session.session_manager.lock().expect("session manager lock");
+    let manager = session
+        .session_manager
+        .lock()
+        .expect("session manager lock");
     let mut tree = session_api::project_tree(&manager, false)?;
     tree["cancelled"] = navigation["cancelled"].clone();
     tree["editorText"] = navigation["editorText"].clone();
@@ -375,22 +367,49 @@ pub(crate) async fn tree_label_set(
     if normalized.chars().count() > 80 {
         return Err(ApiError::bad_request("节点标签不能超过 80 个字符。"));
     }
-    let mutation = session_runtime::mutation(&state, &id).await?;
-    let session = mutation.hosted.session();
-    let mut manager = session.session_manager.lock().expect("session manager lock");
-    if manager.get_entry(&entry_id).is_none() {
-        return Err(ApiError::bad_request("会话树节点不存在。"));
-    }
-    if manager.get_label(&entry_id).unwrap_or("") == normalized {
-        return Ok(Json(session_api::project_tree(&manager, false)?));
-    }
-    manager
-        .append_label_change(
-            &entry_id,
-            if normalized.is_empty() { None } else { Some(&normalized) },
-        )
-        .map_err(|error| ApiError::internal(error.to_string()))?;
-    Ok(Json(session_api::project_tree(&manager, false)?))
+    tokio::task::spawn_blocking(move || {
+        let guard = state.sessions.metadata_guard(&id, &state.engine_mutation)?;
+        if state.goals.busy(&id) {
+            return Err(ApiError::new(
+                axum::http::StatusCode::CONFLICT,
+                "session_busy",
+                "当前会话正在运行。",
+            ));
+        }
+        let update = |manager: &mut SessionManager| {
+            if manager.get_entry(&entry_id).is_none() {
+                return Err(ApiError::bad_request("会话树节点不存在。"));
+            }
+            if manager.get_label(&entry_id).unwrap_or("") != normalized {
+                manager
+                    .append_label_change(
+                        &entry_id,
+                        if normalized.is_empty() {
+                            None
+                        } else {
+                            Some(normalized.as_str())
+                        },
+                    )
+                    .map_err(|error| ApiError::internal(error.to_string()))?;
+            }
+            session_api::project_tree(manager, false).map(Json)
+        };
+        if let Some(hosted) = &guard.hosted {
+            let session = hosted.session();
+            let mut manager = session
+                .session_manager
+                .lock()
+                .map_err(|_| ApiError::internal("session manager lock poisoned"))?;
+            update(&mut manager)
+        } else {
+            let path = session_api::find_session_path(&state, &id)?;
+            let mut manager = SessionManager::open(&path, None, None)
+                .map_err(|error| ApiError::internal(error.to_string()))?;
+            update(&mut manager)
+        }
+    })
+    .await
+    .map_err(|_| ApiError::internal("会话标记写入任务失败。"))?
 }
 
 // -------------------------------------------------------------- commands
@@ -442,9 +461,7 @@ pub(crate) async fn session_commands(
         Some(hosted) => hosted.runtime.cwd(),
         None => {
             let path = session_api::find_session_path(&state, &id)?;
-            let manager = SessionManager::open(&path, None, None)
-                .map_err(|error| ApiError::internal(error.to_string()))?;
-            manager.get_cwd().to_string()
+            state.session_reads.cwd(&path)?
         }
     };
     let services = state.runtime.services();
@@ -452,13 +469,13 @@ pub(crate) async fn session_commands(
     let prompts = load_prompt_templates(LoadPromptTemplatesOptions {
         cwd: cwd.clone(),
         agent_dir: agent_dir.clone(),
-        prompt_paths: vec![],
+        prompt_paths: crate::project_resources::paths(&cwd, "prompts"),
         include_defaults: true,
     });
     let skills = load_skills(LoadSkillsOptions {
         cwd: cwd.clone(),
         agent_dir,
-        skill_paths: vec![],
+        skill_paths: crate::project_resources::paths(&cwd, "skills"),
         include_defaults: true,
     });
     let mut commands: Vec<Value> = Vec::new();
@@ -472,8 +489,7 @@ pub(crate) async fn session_commands(
         if !seen.insert(invocation.clone()) {
             continue;
         }
-        let scope =
-            command_scope(&serde_json::to_value(&prompt.source_info).unwrap_or_default());
+        let scope = command_scope(&serde_json::to_value(&prompt.source_info).unwrap_or_default());
         commands.push(json!({
             "name": name,
             "invocation": invocation,
@@ -538,14 +554,14 @@ pub(crate) async fn session_commands(
 
 /// release prepareLastTurnRetry：沿活跃路径向上找最近的用户消息，
 /// 把叶子撤回到该轮之前的边界，取出文本与图片附件。
-async fn prepare_last_turn_retry(
-    state: &AppState,
-    id: &str,
-) -> Result<(String, Value), ApiError> {
+async fn prepare_last_turn_retry(state: &AppState, id: &str) -> Result<(String, Value), ApiError> {
     let mutation = session_runtime::mutation(state, id).await?;
     let session = mutation.hosted.session();
     let (message, attachments, parent_id) = {
-        let manager = session.session_manager.lock().expect("session manager lock");
+        let manager = session
+            .session_manager
+            .lock()
+            .expect("session manager lock");
         let mut entry_id = manager.get_leaf_id().map(str::to_string);
         let mut user_entry: Option<Value> = None;
         while let Some(current) = entry_id.clone() {
@@ -675,9 +691,7 @@ pub(crate) async fn session_cwd_for(state: &AppState, id: &str) -> Result<String
         return Ok(hosted.runtime.cwd());
     }
     let path = session_api::find_session_path(state, id)?;
-    let manager = SessionManager::open(&path, None, None)
-        .map_err(|error| ApiError::internal(error.to_string()))?;
-    Ok(manager.get_cwd().to_string())
+    state.session_reads.cwd(&path)
 }
 
 /// release getSessionFileDiff：单文件差异；非 VCS 工作区回退到会话内修改前快照。
@@ -702,7 +716,11 @@ pub(crate) async fn vcs_file_diff(
     if vcs["isRepo"] == true && vcs["diff"].as_str().map(str::trim).unwrap_or("") != "" {
         let vcs_kind = vcs["vcs"].as_str().unwrap_or("").to_string();
         let mut value = vcs;
-        value["source"] = json!(if vcs_kind.is_empty() { "vcs".to_string() } else { vcs_kind });
+        value["source"] = json!(if vcs_kind.is_empty() {
+            "vcs".to_string()
+        } else {
+            vcs_kind
+        });
         value["canRevert"] = json!(false);
         return Ok(Json(value));
     }
@@ -758,4 +776,31 @@ pub(crate) async fn mobile_operation(
 ) -> Result<Json<Value>, ApiError> {
     let _ = (&state, &id, &operation_id);
     Ok(Json(json!({"accepted": false})))
+}
+
+#[cfg(test)]
+mod timestamp_tests {
+    use super::{iso_timestamp, parse_timestamp_ms, SIDE_CHAT_TTL_MS};
+
+    #[test]
+    fn side_chat_expiration_uses_unix_milliseconds_and_round_trips() {
+        assert_eq!(parse_timestamp_ms("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(
+            parse_timestamp_ms("2023-11-14T22:13:20.5Z"),
+            Some(1_700_000_000_500)
+        );
+        for now in [0, 1_700_000_000_000, 1_709_164_800_123] {
+            let expires = parse_timestamp_ms(&iso_timestamp(now + SIDE_CHAT_TTL_MS)).unwrap();
+            assert_eq!(expires, now + SIDE_CHAT_TTL_MS);
+            assert!(expires < now + SIDE_CHAT_TTL_MS + 1);
+        }
+        for invalid in [
+            "invalid",
+            "2026-13-01T00:00:00Z",
+            "2026-02-30T00:00:00Z",
+            "1969-12-31T23:59:59Z",
+        ] {
+            assert_eq!(parse_timestamp_ms(invalid), None);
+        }
+    }
 }

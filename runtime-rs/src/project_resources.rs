@@ -15,19 +15,21 @@ pub(crate) fn extension() -> ExtensionFactory {
                     .get("cwd")
                     .and_then(serde_json::Value::as_str)
                     .ok_or("Missing resource workspace")?;
-                let paths = |name: &str| {
-                    let path = Path::new(cwd).join(".pisper").join(name);
-                    if path.is_dir() {
-                        vec![path.to_string_lossy().into_owned()]
-                    } else {
-                        Vec::new()
-                    }
-                };
                 Ok(Some(HandlerResult::Json(
-                    json!({"skillPaths":paths("skills"),"promptPaths":paths("prompts")}),
+                    json!({"skillPaths":paths(cwd, "skills"),"promptPaths":paths(cwd, "prompts")}),
                 )))
             }),
         )?;
         Ok(())
     })
+}
+
+// 引擎发现与会话命令目录共享同一来源，避免列表漏掉引擎已经加载的项目资源。
+pub(crate) fn paths(cwd: &str, name: &str) -> Vec<String> {
+    let path = Path::new(cwd).join(".pisper").join(name);
+    if path.is_dir() {
+        vec![path.to_string_lossy().into_owned()]
+    } else {
+        Vec::new()
+    }
 }

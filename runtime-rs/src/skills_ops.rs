@@ -590,6 +590,8 @@ pub(crate) async fn install(
             "一次最多安装 {MAX_SKILLS_PER_INSTALL} 个技能。"
         )));
     }
+    // 序列化读取—修改—原子替换，避免并发开关或安装覆盖彼此的字段与临时文件。
+    let _write = state.skill_mutation.lock().await;
     let skills_dir = StdPath::new(&state.agent_dir).join("skills");
     let mut skill_state = load_state(&state);
     let existing = discover(&state, &cwd);
@@ -748,6 +750,7 @@ pub(crate) async fn update(
     } else {
         crate::session_ops::session_cwd_for(&state, &session_id).await?
     };
+    let _write = state.skill_mutation.lock().await;
     let discovered = discover(&state, &cwd);
     let Some(skill) = find_skill(&discovered, &skill_name) else {
         return Err(ApiError::new(
@@ -794,6 +797,7 @@ pub(crate) async fn remove(
     } else {
         crate::session_ops::session_cwd_for(&state, &session_id).await?
     };
+    let _write = state.skill_mutation.lock().await;
     let discovered = discover(&state, &cwd);
     let Some(skill) = find_skill(&discovered, &skill_name) else {
         return Err(ApiError::new(

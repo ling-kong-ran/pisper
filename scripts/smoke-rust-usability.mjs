@@ -2220,6 +2220,23 @@ try {
             const duplicate = await open(first.id, 'same session concurrent request')
             assert.equal(duplicate.status, 409)
             assert.equal((await duplicate.json()).code, 'session_busy')
+            for (const [route, method, body] of [
+              [`/api/sessions/${first.id}`, 'PATCH', { name: 'must-not-rename-during-run' }],
+              [
+                `/api/sessions/${first.id}/tree/labels/fixture-entry`,
+                'PUT',
+                { label: 'busy mark' },
+              ],
+            ]) {
+              const mutation = await fetch(base + route, {
+                method,
+                headers: { Origin: base, Cookie: cookie, 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+              })
+              assert.equal(mutation.status, 409)
+              assert.equal((await mutation.json()).code, 'session_busy')
+            }
+
             const config = await fetch(base + '/api/config', {
               method: 'PUT',
               headers: { Origin: base, Cookie: cookie, 'Content-Type': 'application/json' },
