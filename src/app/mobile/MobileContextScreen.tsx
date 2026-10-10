@@ -1,6 +1,6 @@
-// 右侧屏承接原来底栏里的资产，以及改动、扩展、文件和终端，主屏因此可以一直留在对话。
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { Blocks, File, FileDiff, Folder, FolderOpen, FolderUp, TerminalSquare } from 'lucide-react'
+// 右侧屏承接原来底栏里的资产，以及改动、扩展和终端，主屏因此可以一直留在对话。
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Blocks, FileDiff, FolderOpen, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import type { Notify } from '@/app/routes/route-context'
 import { SessionFilesPane } from '@/features/chat/components/files/SessionFilesPane'
@@ -10,11 +10,10 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { ChatAttachment } from '@/types/chat'
 import {
-  joinWorkspacePath,
-  listWorkspaceEntries,
-  parentWorkspacePath,
-  type WorkspaceListEntry,
-} from '@/features/chat/api/workspace-entries'
+  LocalPathRevealError,
+  requestLocalPathReveal,
+  revealPathThroughRuntime,
+} from '@/lib/platform/local-path-reveal'
 import type { MobileContextTab } from '@/components/layout/mobile-shell-layout'
 
 const AssetsPage = lazy(() =>
@@ -35,7 +34,6 @@ const TABS: Array<{ id: MobileContextTab; icon: typeof FolderOpen }> = [
   { id: 'assets', icon: FolderOpen },
   { id: 'changes', icon: FileDiff },
   { id: 'extensions', icon: Blocks },
-  { id: 'files', icon: File },
   { id: 'terminal', icon: TerminalSquare },
 ]
 
@@ -67,91 +65,6 @@ function usePanelAction() {
   return { action, register }
 }
 
-function WorkspaceFiles({ sessionId }: { sessionId: string }) {
-  const { t } = useI18n()
-  const [path, setPath] = useState('')
-  const [entries, setEntries] = useState<WorkspaceListEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
-    setError('')
-    void listWorkspaceEntries(path, controller.signal)
-      .then((data) => {
-        if (!controller.signal.aborted) setEntries(data)
-      })
-      .catch((caught: unknown) => {
-        if (controller.signal.aborted) return
-        setEntries([])
-        setError(caught instanceof Error ? caught.message : String(caught))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-    return () => controller.abort()
-  }, [path, sessionId])
-
-  const parent = parentWorkspacePath(path)
-
-  return (
-    <div className="flex h-full min-h-0 flex-col" data-swipe-ignore>
-      <div className="flex flex-none items-center gap-2 border-b border-[var(--stroke-soft)] px-3 py-2">
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-md text-muted-foreground enabled:hover:bg-muted disabled:opacity-40"
-          disabled={!path}
-          aria-label={t('navigation:mobileShell.filesUp')}
-          onClick={() => setPath(parent)}
-        >
-          <FolderUp size={16} />
-        </button>
-        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {path || t('navigation:mobileShell.workspaceRoot')}
-        </p>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-2">
-        {loading ? (
-          <p className="px-2 py-3 text-sm text-muted-foreground">
-            {t('navigation:mobileShell.filesLoading')}
-          </p>
-        ) : error ? (
-          <p className="px-2 py-3 text-sm text-[var(--danger)]" role="alert">
-            {error}
-          </p>
-        ) : entries.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-muted-foreground">
-            {t('navigation:mobileShell.filesEmpty')}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {entries.map((entry) => (
-              <li key={`${entry.kind}:${entry.name}`}>
-                {entry.kind === 'directory' ? (
-                  <button
-                    type="button"
-                    className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted"
-                    onClick={() => setPath(joinWorkspacePath(path, entry.name))}
-                  >
-                    <Folder size={16} aria-hidden="true" />
-                    <span className="truncate">{entry.name}</span>
-                  </button>
-                ) : (
-                  <div className="flex h-10 items-center gap-2 px-2 text-sm text-muted-foreground">
-                    <File size={16} aria-hidden="true" />
-                    <span className="truncate">{entry.name}</span>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export function MobileContextScreen({
   visible,
   sessionStreaming,
@@ -174,8 +87,35 @@ export function MobileContextScreen({
     assets: t('navigation:navigation.assets'),
     changes: t('navigation:mobileShell.changes'),
     extensions: t('navigation:mobileShell.extensions'),
-    files: t('navigation:mobileShell.files'),
     terminal: t('navigation:mobileShell.terminal'),
+  }
+  const [openingFiles, setOpeningFiles] = useState(false)
+  const openingFilesRef = useRef(false)
+  const openWorkspace = async () => {
+    if (openingFilesRef.current || !activeSessionId) return
+    openingFilesRef.current = true
+    setOpeningFiles(true)
+    try {
+      // 必须使用会话目录，不能把 Runtime 的默认工作区当作当前项目。
+      const path = await resolveSessionCwd(activeSessionId)
+      if (!path.trim()) {
+        notify(t('navigation:mobileShell.workspaceUnavailable'), 'error')
+        return
+      }
+      await requestLocalPathReveal(path, revealPathThroughRuntime)
+    } catch (error) {
+      notify(
+        error instanceof LocalPathRevealError && error.reason === 'unavailable'
+          ? t('common:markdownMessage.revealLocalPathUnavailable')
+          : error instanceof LocalPathRevealError && error.reason === 'timeout'
+            ? t('common:markdownMessage.revealLocalPathTimeout')
+            : t('navigation:mobileShell.openWorkspaceFailed'),
+        'error',
+      )
+    } finally {
+      openingFilesRef.current = false
+      setOpeningFiles(false)
+    }
   }
   const assetsAction = usePanelAction()
   const pluginsAction = usePanelAction()
@@ -189,31 +129,44 @@ export function MobileContextScreen({
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background" data-mobile-context-screen>
       <div
         className="flex flex-none gap-1 overflow-x-auto border-b border-[var(--stroke-soft)] px-2 py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        role="tablist"
-        aria-label={t('navigation:mobileShell.context')}
         data-swipe-ignore
       >
-        {TABS.map(({ id, icon: Icon }) => {
-          const selected = tab === id
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              className={cn(
-                'flex h-8 flex-none items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium',
-                selected
-                  ? 'bg-[var(--star-soft)] text-[var(--star-strong)]'
-                  : 'text-[var(--text-muted)]',
-              )}
-              onClick={() => onTabChange(id)}
-            >
-              <Icon size={14} aria-hidden="true" />
-              {labels[id]}
-            </button>
-          )
-        })}
+        <div className="flex gap-1" role="tablist" aria-label={t('navigation:mobileShell.context')}>
+          {TABS.map(({ id, icon: Icon }) => {
+            const selected = tab === id
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                className={cn(
+                  'flex h-8 flex-none items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium',
+                  selected
+                    ? 'bg-[var(--star-soft)] text-[var(--star-strong)]'
+                    : 'text-[var(--text-muted)]',
+                )}
+                onClick={() => onTabChange(id)}
+              >
+                <Icon size={14} aria-hidden="true" />
+                {labels[id]}
+              </button>
+            )
+          })}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          disabled={openingFiles || !activeSessionId}
+          aria-busy={openingFiles}
+          aria-label={t('navigation:mobileShell.openWorkspace')}
+          title={t('navigation:mobileShell.openWorkspace')}
+          onClick={() => void openWorkspace()}
+        >
+          <FolderOpen size={14} aria-hidden="true" />
+          {t('navigation:mobileShell.files')}
+        </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {loaded('assets') && (
@@ -280,9 +233,6 @@ export function MobileContextScreen({
               />
             </Suspense>
           </div>
-        )}
-        {tab === 'files' && (
-          <WorkspaceFiles key={activeSessionId || 'workspace'} sessionId={activeSessionId} />
         )}
         {loaded('terminal') && (
           <div hidden={tab !== 'terminal'} className="h-full min-h-0">

@@ -182,10 +182,9 @@
   "mobileShell.files": "Files",
   "mobileShell.terminal": "Terminal",
   "mobileShell.terminalUnavailable": "No terminal is available on this device",
-  "mobileShell.filesEmpty": "This folder is empty",
-  "mobileShell.filesLoading": "Loading folder",
-  "mobileShell.filesUp": "Parent folder",
-  "mobileShell.workspaceRoot": "Workspace",
   "mobileShell.noSessionChanges": "Open a chat to see file changes here",
-  "mobileShell.changesOpenChat": "Open chat to view live changes"
+  "mobileShell.changesOpenChat": "Open chat to view live changes",
+  "mobileShell.openWorkspace": "Open workspace in system file manager",
+  "mobileShell.workspaceUnavailable": "No workspace is available for this session",
+  "mobileShell.openWorkspaceFailed": "Unable to open the system file manager"
 }

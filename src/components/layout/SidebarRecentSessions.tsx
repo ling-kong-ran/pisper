@@ -1,17 +1,8 @@
 // 侧边栏「最近会话」区块：搜索、按工作区分组的会话列表与右键菜单
 //（空白处新建项目/删除项目、分组上新建会话/重命名项目/删除项目）。
 // 从 AppSidebar 拆出并懒加载：应用壳属于 eager 入口、受打包预算约束，
-// 目录选择弹窗与 radix 右键菜单原语只在区块内按需加载。
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PointerEvent,
-  type ReactNode,
-} from 'react'
+// radix 右键菜单原语只在区块内按需加载。
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Archive,
@@ -62,7 +53,7 @@ import { useWorkspaceOrderStore } from '@/features/chat/model/workspace-order-st
 import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup/startup-queries'
 import { pageStateStorage } from '@/lib/storage/page-state-storage'
 import { apiJson } from '@/lib/http/api'
-import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/platform/pick-system-directory'
+import { pickSystemDirectory } from '@/lib/platform/pick-system-directory'
 import { relativeTime, workspaceName } from '@/lib/format/format'
 import {
   ContextMenu,
@@ -75,11 +66,6 @@ import {
 } from '@/components/ui/context-menu'
 import { useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-
-// 目录选择器只在「新建项目」时用到：按需加载。
-const WorkspacePicker = lazy(() =>
-  import('@/components/common/WorkspacePicker').then((m) => ({ default: m.WorkspacePicker })),
-)
 
 type SessionSummary = {
   id: string
@@ -149,10 +135,9 @@ export function SidebarRecentSessions({
   )
   // 右键菜单状态：menuTargetKey 记录右键落在哪个工作区分组（空串=空白区域），
   // menuTargetSessionId 记录右键落点是否为某个会话（优先级高于分组）；
-  // projectPickerOpen 控制新建项目的目录选择弹窗，deletingKey 防止重复提交删除。
+  // 系统目录选择和项目删除各自防止重复提交。
   const [menuTargetKey, setMenuTargetKey] = useState('')
   const [menuTargetSessionId, setMenuTargetSessionId] = useState('')
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false)
   const [nativePickerOpen, setNativePickerOpen] = useState(false)
   const projectPickInFlight = useRef(false)
   const projectPickerGeneration = useRef(0)
@@ -264,10 +249,6 @@ export function SidebarRecentSessions({
 
   const createProject = async () => {
     if (projectPickInFlight.current) return
-    if (!hasSystemDirectoryPicker()) {
-      setProjectPickerOpen(true)
-      return
-    }
     // 同步锁覆盖同一事件批次的重复点击，文件夹创建由系统对话框提供。
     projectPickInFlight.current = true
     const generation = projectPickerGeneration.current
@@ -538,7 +519,7 @@ export function SidebarRecentSessions({
           title={t('navigation:appSidebar.newProject')}
           aria-label={t('navigation:appSidebar.newProject')}
           aria-haspopup="dialog"
-          aria-expanded={projectPickerOpen || nativePickerOpen}
+          aria-expanded={nativePickerOpen}
           disabled={nativePickerOpen}
           onClick={() => void createProject()}
         >
@@ -815,19 +796,6 @@ export function SidebarRecentSessions({
             )}
           </ContextMenuContent>
         </ContextMenu>
-      )}
-      {projectPickerOpen && (
-        <Suspense fallback={null}>
-          <WorkspacePicker
-            open
-            description={t('navigation:appSidebar.newProjectPickerDescription')}
-            onOpenChange={setProjectPickerOpen}
-            onSelect={(path) => {
-              setProjectPickerOpen(false)
-              createSessionInWorkspace(path)
-            }}
-          />
-        </Suspense>
       )}
     </section>
   )

@@ -14,6 +14,7 @@ mod config_storage;
 mod execution_adapter;
 mod execution_modes;
 mod desktop_ops;
+mod system_dialogs;
 mod file_changes_api;
 mod firewall_ops;
 mod game_assets_api;
@@ -1822,6 +1823,11 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
         .ok_or_else(|| anyhow::anyhow!("Schedule service was not initialized"))?;
     Ok(Router::new()
         .merge(base_router())
+        .route(
+            "/api/desktop/pick-directory",
+            post(system_dialogs::pick_directory)
+                .layer(axum::Extension(state.shutdown.clone())),
+        )
         .merge(plugins_api::router(
             state.plugins.clone(),
             state.plugin_integration.http_hooks(),

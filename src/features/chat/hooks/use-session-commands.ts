@@ -1,11 +1,11 @@
 // 会话级命令：重命名/删除/清空等操作的确认与执行。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { workspaceName } from '@/lib/format/format'
 import { ApiError } from '@/lib/http/http'
-import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/platform/pick-system-directory'
+import { pickSystemDirectory } from '@/lib/platform/pick-system-directory'
 import type { SessionStateUpdate } from '@/lib/session/session-state'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from '@/features/chat/api/chat-api'
@@ -41,7 +41,6 @@ export function useSessionCommands({
   syncLiveSession,
 }: SessionCommandOptions) {
   const { t, language } = useI18n()
-  const [workspaceSession, setWorkspaceSession] = useState<SessionSummary | null>(null)
 
   const markRuntimeSelectionChanged = useCallback(
     (id: string) => {
@@ -504,7 +503,6 @@ export function useSessionCommands({
         const updated = await chatApi.updateCwd(session.id, cwd)
         updateSessionState(session.id, { cwd: updated.cwd, switchingCwd: false })
         updateSessionSummary(session.id, (current) => ({ ...current, cwd: updated.cwd }))
-        setWorkspaceSession(null)
         notify(
           t('chat:chatPage.workingDirectoryChangedToWorkspace', {
             workspace: workspaceName(updated.cwd, language),
@@ -526,10 +524,6 @@ export function useSessionCommands({
       if (!session?.id) return
       if (sessionStatesRef.current[session.id]?.streaming) {
         notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheWorkspace'), 'info')
-        return
-      }
-      if (!hasSystemDirectoryPicker()) {
-        setWorkspaceSession(session)
         return
       }
       try {
@@ -572,8 +566,6 @@ export function useSessionCommands({
   )
 
   return {
-    workspaceSession,
-    setWorkspaceSession,
     switchSessionCwd,
     selectSessionWorkspace,
     renameSession,

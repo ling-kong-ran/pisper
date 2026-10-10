@@ -13,7 +13,6 @@ import {
 import type { DockviewGroupPanel } from 'dockview-react'
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
-import { WorkspacePicker } from '@/components/common/WorkspacePicker'
 import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
@@ -580,19 +579,6 @@ export function ChatPage({
           )}
         </SessionContextLayout>
       </div>
-      {sessionCommands.workspaceSession && (
-        <WorkspacePicker
-          open
-          initialPath={sessionCommands.workspaceSession.cwd}
-          description={t('common:workspacePicker.selectWorkspaceForChat', {
-            name: sessionCommands.workspaceSession.name,
-          })}
-          onOpenChange={(open) => !open && sessionCommands.setWorkspaceSession(null)}
-          onSelect={(cwd) =>
-            sessionCommands.switchSessionCwd(sessionCommands.workspaceSession!, cwd)
-          }
-        />
-      )}
     </SideChatProvider>
   )
 }

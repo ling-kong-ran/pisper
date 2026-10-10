@@ -22,6 +22,7 @@ const mocks = {
     }`,
   '@/features/chat/model/session-change-summary-api': `export async function invalidateSessionChangeSummary() {}`,
   '@/lib/http/api': `export async function apiJson(url, options) {
+    if (url === '/api/desktop/reveal-path') { window.evidence.reveals.push(JSON.parse(options.body).path); return {revealed:true} }
     if (url.startsWith('/api/assets?')) return {assets:[]}
     if (url !== '/api/plugins') throw new Error('Unexpected fixture API '+url)
     if (options?.method === 'PUT') {
@@ -95,48 +96,32 @@ try {
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto(`http://127.0.0.1:${server.address().port}`)
-  await page.waitForFunction(() => window.workspaceEntries)
-  assert.deepEqual(
-    await page.evaluate(() =>
-      window.workspaceEntries.normalizeWorkspaceEntries({
-        entries: [
-          { name: 'z.txt', type: 'file' },
-          { name: 'folder', type: 'directory' },
-        ],
-      }),
-    ),
-    [
-      { name: 'folder', kind: 'directory' },
-      { name: 'z.txt', kind: 'file' },
-    ],
-  )
-  assert.deepEqual(
-    await page.evaluate(() =>
-      window.workspaceEntries.normalizeWorkspaceEntries({
-        directories: ['folder'],
-        files: ['z.txt'],
-      }),
-    ),
-    [
-      { name: 'folder', kind: 'directory' },
-      { name: 'z.txt', kind: 'file' },
-    ],
-  )
-  assert.deepEqual(
-    await page.evaluate(() => window.workspaceEntries.normalizeWorkspaceEntries({ entries: [] })),
-    [],
-  )
+  const openWorkspace = page.getByRole('button', {
+    name: 'navigation:mobileShell.openWorkspace',
+    exact: true,
+  })
+  await openWorkspace.click()
+  await page.waitForFunction(() => window.evidence.reveals.length === 1)
+  assert.deepEqual(await page.evaluate(() => window.evidence.reveals), ['/fixture'])
   assert.equal(
-    await page.evaluate(() => {
-      try {
-        window.workspaceEntries.normalizeWorkspaceEntries({})
-        return false
-      } catch (error) {
-        return error.kind === 'protocol'
-      }
-    }),
-    true,
+    await page.getByRole('tab', { name: 'navigation:mobileShell.files', exact: true }).count(),
+    0,
   )
+  await page.evaluate(() => {
+    window.evidence.cwd = ''
+  })
+  await openWorkspace.click()
+  await page.waitForFunction(() => window.evidence.notices.length === 1)
+  assert.equal(await page.evaluate(() => window.evidence.reveals.length), 1)
+  await page.evaluate(() => {
+    window.evidence.cwd = '/second-project'
+  })
+  await openWorkspace.click()
+  await page.waitForFunction(() => window.evidence.reveals.length === 2)
+  assert.deepEqual(await page.evaluate(() => window.evidence.reveals), [
+    '/fixture',
+    '/second-project',
+  ])
   await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
   await page.waitForFunction(() => window.evidence.created === 1)
   await page.evaluate(() => window.controls.setPane('chat'))

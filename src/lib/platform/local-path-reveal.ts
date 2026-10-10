@@ -1,19 +1,26 @@
+import { apiJson } from '@/lib/http/api'
+import { invalidResponseError } from '@/lib/http/http-response'
+
 export const LOCAL_PATH_REVEAL_TIMEOUT_MS = 8_000
 
 type RevealPath = (path: string) => Promise<boolean>
 
 export async function revealPathThroughRuntime(path: string): Promise<boolean> {
-  const response = await fetch('/api/desktop/reveal-path', {
+  if (window.__PISPER_MOBILE_APP__) throw new LocalPathRevealError('unavailable')
+  const payload = await apiJson<unknown>('/api/desktop/reveal-path', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ path }),
+    timeout: LOCAL_PATH_REVEAL_TIMEOUT_MS,
   })
-  let payload: { revealed?: boolean; error?: string } = {}
-  try {
-    payload = (await response.json()) as typeof payload
-  } catch {}
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`)
-  return payload.revealed === true
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !('revealed' in payload) ||
+    typeof payload.revealed !== 'boolean'
+  ) {
+    throw invalidResponseError()
+  }
+  return payload.revealed
 }
 
 export class LocalPathRevealError extends Error {

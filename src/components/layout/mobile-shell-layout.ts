@@ -3,7 +3,7 @@ export const MOBILE_SHELL_PANES = ['sessions', 'chat', 'context'] as const
 
 export type MobileShellPane = (typeof MOBILE_SHELL_PANES)[number]
 export type MobileShellMode = 'phone' | 'pad'
-export type MobileContextTab = 'assets' | 'changes' | 'extensions' | 'files' | 'terminal'
+export type MobileContextTab = 'assets' | 'changes' | 'extensions' | 'terminal'
 
 const PAD_MIN_WIDTH = 960
 const PAD_MIN_HEIGHT = 640

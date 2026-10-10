@@ -3,12 +3,6 @@ import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MobileThreePane } from '@/components/layout/MobileThreePane'
 import { MobileContextScreen } from '@/app/mobile/MobileContextScreen'
-import {
-  normalizeWorkspaceEntries,
-  joinWorkspacePath,
-  parentWorkspacePath,
-} from '@/features/chat/api/workspace-entries'
-window.workspaceEntries = { normalizeWorkspaceEntries, joinWorkspacePath, parentWorkspacePath }
 
 window.evidence = {
   closeAll: 0,
@@ -18,6 +12,9 @@ window.evidence = {
   reverts: 0,
   revision: 1,
   pluginWrites: 0,
+  reveals: [],
+  notices: [],
+  cwd: '/fixture',
 }
 window.pluginData = {
   plugins: [
@@ -94,7 +91,7 @@ export function Fixture() {
             onOpenChat={() => setStreaming(false)}
             activeSessionId={session}
             query=""
-            notify={() => {}}
+            notify={(message, tone) => window.evidence.notices.push({ message, tone })}
             requestConfirm={() =>
               new Promise((resolve) => {
                 window.confirmPending = true
@@ -105,7 +102,7 @@ export function Fixture() {
             onUseAsset={() => {}}
             terminalSupported
             terminalLabels={labels}
-            resolveSessionCwd={() => Promise.resolve('/fixture')}
+            resolveSessionCwd={() => Promise.resolve(window.evidence.cwd)}
           />
         }
       />

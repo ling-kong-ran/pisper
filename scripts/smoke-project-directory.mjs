@@ -17,10 +17,13 @@ await build({
       import React from 'react'
       import { createRoot } from 'react-dom/client'
       import { QueryClientProvider } from '@tanstack/react-query'
+      import { pickSystemDirectory } from './src/lib/platform/pick-system-directory.ts'
+      import { AttachmentPicker } from './src/features/chat/components/composer/AttachmentPicker.tsx'
       import { SidebarRecentSessions } from './src/components/layout/SidebarRecentSessions.tsx'
       import { SidebarProvider } from './src/components/ui/sidebar.tsx'
       import { queryClient } from './src/lib/startup/startup-queries.ts'
       const state = window.__projectSmoke
+      state.pickSystemDirectory = pickSystemDirectory
       window.addEventListener('pisper:session-create-requested', (event) => state.created.push(event.detail))
       window.addEventListener('pagehide', () => queryClient.clear(), { once: true })
       const reactRoot = createRoot(document.getElementById('root'))
@@ -28,6 +31,7 @@ await build({
       reactRoot.render(
         <QueryClientProvider client={queryClient}>
           <SidebarProvider mobile={false}>
+            <AttachmentPicker cwd="/fixture" selection={{ attachments: [], addFiles: async files => { state.uploaded = files.map(file => file.name); return true }, addAttachments: files => { state.attachments = files }, setError: error => state.notices.push({message:String(error),tone:'error'}) }} />
             <SidebarRecentSessions
               navigate={(value) => state.navigation.push(value)}
               requestText={async () => null}
@@ -59,7 +63,9 @@ await writeFile(join(output, 'fixture.html'), html)
 const report = { checks: [], failures: [], pageErrors: [], deniedRequests: [] }
 const executablePath = process.env.PISPER_SMOKE_BROWSER
 const browser = await chromium.launch({
-  ...(executablePath ? { executablePath: resolve(executablePath) } : { channel: 'msedge' }),
+  ...(executablePath
+    ? { executablePath: resolve(executablePath) }
+    : { executablePath: chromium.executablePath() }),
   headless: true,
 })
 let activePage
@@ -77,6 +83,9 @@ async function setup(native = true) {
         navigation: [],
         notices: [],
         directoryRequests: 0,
+        directoryOutcome: 'success',
+        uploaded: [],
+        attachments: [],
       }
       if (native) {
         window.pisperDesktop = {
@@ -107,11 +116,23 @@ async function setup(native = true) {
       return route.fulfill({ json: { sessions: [] } })
     if (
       url.origin === origin &&
-      url.pathname === '/api/directories' &&
-      request.method() === 'GET'
+      url.pathname === '/api/desktop/pick-directory' &&
+      request.method() === 'POST'
     ) {
       await page.evaluate(() => window.__projectSmoke.directoryRequests++)
-      return route.fulfill({ json: { path: selectedPath, parent: null, directories: [] } })
+      assert.deepEqual(request.postDataJSON(), { initialDirectory: '' })
+      const outcome = await page.evaluate(() => window.__projectSmoke.directoryOutcome)
+      if (outcome === 'error')
+        return route.fulfill({
+          status: 503,
+          json: { code: 'system_picker_unavailable', error: 'picker-fixture-error' },
+        })
+      return route.fulfill({
+        json:
+          outcome === 'invalid'
+            ? { path: 123 }
+            : { path: outcome === 'cancel' ? null : selectedPath },
+      })
     }
     if (url.origin === origin && url.pathname === '/favicon.ico')
       return route.fulfill({ status: 204 })
@@ -133,7 +154,7 @@ async function openEntry(page, entry) {
     await page.getByRole('menuitem', { name: '新建项目', exact: true }).click()
   }
   await page.waitForFunction(
-    () => window.__projectSmoke.calls.length > 0 || document.querySelector('[role="dialog"]'),
+    () => window.__projectSmoke.calls.length > 0 || window.__projectSmoke.directoryRequests > 0,
   )
 }
 
@@ -240,16 +261,105 @@ try {
   for (const entry of ['toolbar', 'context-menu']) {
     const { page, close } = await setup(false)
     await openEntry(page, entry)
-    const dialog = page.getByRole('dialog')
-    await dialog.waitFor()
+    assert.equal(await page.getByRole('dialog').count(), 0)
     await page.waitForFunction(() => window.__projectSmoke.directoryRequests === 1)
-    await dialog.getByRole('button', { name: '使用此目录', exact: true }).click()
     await page.waitForFunction(() => window.__projectSmoke.created.length === 1)
     assert.deepEqual(await page.evaluate(() => window.__projectSmoke.created), [
       { cwd: selectedPath },
     ])
     assert.deepEqual(await page.evaluate(() => window.__projectSmoke.calls), [])
-    report.checks.push(`${entry}: browser fallback selects a server directory`)
+    report.checks.push(
+      `${entry}: browser invokes the system directory endpoint without custom browsing`,
+    )
+    await close()
+  }
+  for (const outcome of ['cancel', 'error', 'invalid']) {
+    const { page, close } = await setup(false)
+    await page.evaluate((outcome) => {
+      window.__projectSmoke.directoryOutcome = outcome
+    }, outcome)
+    await openEntry(page, 'toolbar')
+    await page.waitForFunction(
+      () => !document.querySelector('button[aria-label="新建项目"]').disabled,
+    )
+    assert.deepEqual(await page.evaluate(() => window.__projectSmoke.created), [])
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    assert.equal(
+      await page.evaluate(() => window.__projectSmoke.notices.length),
+      outcome === 'cancel' ? 0 : 1,
+    )
+    report.checks.push(`browser ${outcome}: no chat creation or custom fallback`)
+    await close()
+  }
+  {
+    const { page, close } = await setup(false)
+    const chooser = page.waitForEvent('filechooser')
+    await page.locator('button.attach-trigger').click()
+    await (
+      await chooser
+    ).setFiles({ name: 'fixture.txt', mimeType: 'text/plain', buffer: Buffer.from('fixture') })
+    await page.waitForFunction(() => window.__projectSmoke.uploaded.length === 1)
+    assert.deepEqual(await page.evaluate(() => window.__projectSmoke.uploaded), ['fixture.txt'])
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    report.checks.push('browser attachments use the system file input and upload contents')
+    await close()
+  }
+  {
+    const { page, close } = await setup()
+    await page.evaluate(() => {
+      window.pisperDesktop.pickFiles = (cwd) => {
+        window.__projectSmoke.fileCwd = cwd
+        return Promise.resolve(['/fixture/a.txt'])
+      }
+    })
+    await page.locator('button.attach-trigger').click()
+    await page.waitForFunction(() => window.__projectSmoke.attachments.length === 1)
+    assert.equal(await page.evaluate(() => window.__projectSmoke.fileCwd), '/fixture')
+    assert.equal(
+      await page.evaluate(() => window.__projectSmoke.attachments[0].path),
+      '/fixture/a.txt',
+    )
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    report.checks.push('desktop attachments use native file selection and retain path references')
+    await close()
+  }
+  {
+    const { page, close } = await setup(false)
+    const result = await page.evaluate(async () => {
+      window.__PISPER_MOBILE_APP__ = true
+      window.__PISPER_MOBILE_PLATFORM__ = 'android'
+      const calls = []
+      let mode = 'local'
+      window.__TAURI__ = {
+        core: {
+          invoke: (command) => {
+            calls.push(command)
+            return Promise.resolve(
+              command === 'mobile_state'
+                ? { mode, onDevice: { running: true } }
+                : { path: '/mobile/imported' },
+            )
+          },
+        },
+      }
+      const path = await window.__projectSmoke.pickSystemDirectory()
+      mode = 'remote'
+      let denied = false
+      try {
+        await window.__projectSmoke.pickSystemDirectory()
+      } catch {
+        denied = true
+      }
+      return { path, denied, calls }
+    })
+    assert.deepEqual(result, {
+      path: '/mobile/imported',
+      denied: true,
+      calls: ['mobile_state', 'mobile_import_workspace_directory', 'mobile_state'],
+    })
+    report.checks.push(
+      'Android local selection invokes system import; remote mode never imports phone paths',
+    )
     await close()
   }
   assert.deepEqual(report.pageErrors, [])
