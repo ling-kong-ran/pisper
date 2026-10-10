@@ -16,6 +16,7 @@ use pi_rust::coding_agent::session_manager::{
 };
 use serde_json::{json, Value};
 
+use crate::session_read_cache::{branch, value_bytes, StoredRead, StoredSummary};
 use crate::{product, ApiError, AppState, SessionMeta};
 
 pub(crate) fn load_metadata(data_dir: &str) -> HashMap<String, SessionMeta> {
@@ -49,39 +50,11 @@ pub(crate) fn save_metadata(state: &AppState) -> Result<(), ApiError> {
 
 /// Node 把会话放在 sessions 根目录，Pi 放在工作目录对应子目录；兼容两者。
 pub(crate) fn session_infos(agent_dir: &str) -> Vec<SessionInfo> {
-    let root = std::path::Path::new(agent_dir).join("sessions");
-    let mut directories = vec![root.clone()];
-    if let Ok(entries) = std::fs::read_dir(&root) {
-        directories.extend(entries.filter_map(Result::ok).filter_map(|entry| {
-            entry
-                .file_type()
-                .ok()
-                .filter(|kind| kind.is_dir())
-                .map(|_| entry.path())
-        }));
-    }
-    let mut sessions: Vec<SessionInfo> = directories
-        .into_iter()
-        .flat_map(|dir| SessionManager::list_all(Some(&dir.to_string_lossy()), None))
-        .collect();
-    sessions.sort_by(|a, b| b.modified.cmp(&a.modified).then_with(|| a.id.cmp(&b.id)));
-    let mut seen = std::collections::HashSet::new();
-    sessions.retain(|session| seen.insert(session.id.clone()));
-    sessions
+    crate::session_read_cache::SessionReadCache::default().infos(agent_dir)
 }
 
 pub(crate) fn find_session_path(state: &AppState, id: &str) -> Result<String, ApiError> {
-    if let Some(info) = session_infos(&state.agent_dir)
-        .into_iter()
-        .find(|s| s.id == id)
-    {
-        return Ok(info.path);
-    }
-    Err(ApiError::new(
-        StatusCode::NOT_FOUND,
-        "session_not_found",
-        "会话不存在。",
-    ))
+    state.session_reads.find(&state.agent_dir, id)
 }
 
 /// 不能只写文件：必须重新载入管理器，避免下一条消息再次以 create_new 写同一文件。
@@ -360,13 +333,12 @@ pub(crate) fn message_page(messages: &[Value], before: Option<&str>, limit: usiz
 }
 
 fn manager_messages(manager: &SessionManager) -> (Vec<Value>, Vec<String>) {
-    manager
-        .get_branch(None)
+    branch(manager)
         .into_iter()
         .filter_map(|entry| match entry {
-            SessionEntry::Message(entry) => serde_json::to_value(entry.message)
+            SessionEntry::Message(entry) => serde_json::to_value(&entry.message)
                 .ok()
-                .map(|message| (message, entry.id)),
+                .map(|message| (message, entry.id.clone())),
             _ => None,
         })
         .unzip()
@@ -375,12 +347,12 @@ fn manager_messages(manager: &SessionManager) -> (Vec<Value>, Vec<String>) {
 fn model_and_thinking(manager: &SessionManager) -> (String, String) {
     let mut model = String::new();
     let mut thinking = "off".to_string();
-    for entry in manager.get_branch(None) {
+    for entry in branch(manager) {
         match entry {
             SessionEntry::ModelChange(entry) => {
                 model = format!("{}/{}", entry.provider, entry.model_id)
             }
-            SessionEntry::ThinkingLevelChange(entry) => thinking = entry.thinking_level,
+            SessionEntry::ThinkingLevelChange(entry) => thinking = entry.thinking_level.clone(),
             _ => {}
         }
     }
@@ -567,7 +539,7 @@ pub(crate) async fn labels(
         .unwrap_or(if query.is_empty() { 500 } else { 20 })
         .clamp(1, 500);
     let mut labels = Vec::new();
-    for info in session_infos(&state.agent_dir) {
+    for info in state.session_reads.infos(&state.agent_dir) {
         let manager = SessionManager::open(&info.path, None, None)
             .map_err(|e| ApiError::internal(e.to_string()))?;
         let tree = project_tree(&manager, false)?;
@@ -602,14 +574,13 @@ pub(crate) fn model_state(state: &AppState, id: &str) -> Result<Value, ApiError>
     let model = if active.session_id() == id {
         active.model()
     } else {
-        let manager = SessionManager::open(&find_session_path(state, id)?, None, None)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        let reference = model_and_thinking(&manager).0;
+        let stored = stored_summary(state, &find_session_path(state, id)?)?;
+        let reference = &stored.model;
         active
             .model_runtime()
             .get_available_snapshot()
             .into_iter()
-            .find(|model| format!("{}/{}", model.provider, model.id) == reference)
+            .find(|model| format!("{}/{}", model.provider, model.id) == *reference)
     };
     Ok(match model {
         Some(model) => json!({"provider":model.provider,"id":model.id,"name":model.name,
@@ -632,14 +603,13 @@ pub(crate) fn thinking_state(state: &AppState, id: &str) -> Result<Value, ApiErr
                 .map_err(|e| ApiError::internal(e.to_string()))?,
         )
     } else {
-        let manager = SessionManager::open(&find_session_path(state, id)?, None, None)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        let (reference, level) = model_and_thinking(&manager);
+        let stored = stored_summary(state, &find_session_path(state, id)?)?;
+        let (reference, level) = (&stored.model, &stored.thinking);
         let model = active
             .model_runtime()
             .get_available_snapshot()
             .into_iter()
-            .find(|model| format!("{}/{}", model.provider, model.id) == reference);
+            .find(|model| format!("{}/{}", model.provider, model.id) == *reference);
         let levels = model
             .as_ref()
             .map(pi_rust::ai::models::get_supported_thinking_levels)
@@ -731,7 +701,7 @@ pub(crate) async fn today_usage(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, ApiError> {
     let day = chrono::Local::now().format("%Y-%m-%d").to_string();
-    for session in session_infos(&state.agent_dir) {
+    for session in state.session_reads.infos(&state.agent_dir) {
         state
             .usage
             .scan_session(std::path::Path::new(&session.path), &session.id, &day)
@@ -745,7 +715,7 @@ pub(crate) async fn today_usage(
     ))
 }
 
-fn context_usage(state: &AppState, id: &str, manager: &SessionManager) -> Result<Value, ApiError> {
+fn live_context_usage(state: &AppState, id: &str, persisted: &Value) -> Result<Value, ApiError> {
     let active = state
         .sessions
         .get(id)
@@ -759,6 +729,11 @@ fn context_usage(state: &AppState, id: &str, manager: &SessionManager) -> Result
         )
         .map_err(|e| ApiError::internal(e.to_string()));
     }
+    Ok(persisted.clone())
+}
+
+fn persisted_context_usage(state: &AppState, manager: &SessionManager) -> Result<Value, ApiError> {
+    let active = state.runtime.session();
     let reference = model_and_thinking(manager).0;
     let Some(model) = active
         .model_runtime()
@@ -909,9 +884,21 @@ fn apply_run_activity(value: &mut Value, frames: &[product::Frame], streaming: b
     }
 }
 
-pub(crate) fn summary(state: &AppState, manager: &SessionManager, modified: i64) -> Result<Value, ApiError> {
-    let id = manager.get_session_id();
-    let (model, thinking) = model_and_thinking(manager);
+pub(crate) fn summary(
+    state: &AppState,
+    manager: &SessionManager,
+    modified: i64,
+) -> Result<Value, ApiError> {
+    summary_from_stored(state, &StoredSummary::from_manager(manager), modified)
+}
+
+fn summary_from_stored(
+    state: &AppState,
+    info: &StoredSummary,
+    modified: i64,
+) -> Result<Value, ApiError> {
+    let id = info.id.as_str();
+    let (model, thinking) = (info.model.clone(), info.thinking.clone());
     let active = state
         .sessions
         .get(id)
@@ -942,15 +929,13 @@ pub(crate) fn summary(state: &AppState, manager: &SessionManager, modified: i64)
         .get(id)
         .cloned()
         .unwrap_or_default();
-    let (messages, _) = manager_messages(manager);
     Ok(json!({
-        "id": id, "name": manager.get_session_name().unwrap_or_default(),
-        "cwd": manager.get_cwd(), "model": model, "thinkingLevel": thinking,
+        "id": id, "name": info.name,
+        "cwd": info.cwd, "model": model, "thinkingLevel": thinking,
         "modified": pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc(modified),
-        "created": manager.get_header().and_then(|h| h.timestamp),
-        "streaming": (is_active && active.is_streaming()) || state.goals.busy(id), "messageCount": messages.len(),
-        "firstMessage": messages.iter().find(|m| m["role"] == "user")
-            .map(|m| content_text(&m["content"])).unwrap_or_default(),
+        "created": info.created,
+        "streaming": (is_active && active.is_streaming()) || state.goals.busy(id), "messageCount": info.message_count,
+        "firstMessage": info.first_message,
         "executionMode": meta.execution_mode.as_deref().unwrap_or("approval-required"),
         "permissionMode": meta.permission_mode.as_deref().unwrap_or("ask"),
         "runMode": meta.run_mode.as_deref().unwrap_or("plan"),
@@ -961,6 +946,86 @@ pub(crate) fn summary(state: &AppState, manager: &SessionManager, modified: i64)
     }))
 }
 
+fn stored_summary(state: &AppState, path: &str) -> Result<Arc<StoredSummary>, ApiError> {
+    state
+        .session_reads
+        .summaries
+        .read(std::path::Path::new(path), 0, || {
+            let manager = SessionManager::open(path, None, None)
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+            let info = StoredSummary::from_manager(&manager);
+            let bytes = info.bytes();
+            Ok((info, bytes))
+        })
+}
+
+// 页外只保留资产归属所需的时间与角色，避免一个大历史占满缓存。
+// 只能按构建时的 before/limit 输出页面；这两个参数包含在缓存键内。
+fn windowed_transcript(
+    mut transcript: Vec<Value>,
+    before: Option<&str>,
+    limit: usize,
+) -> Vec<Value> {
+    let end = before
+        .and_then(|cursor| cursor.parse::<usize>().ok())
+        .unwrap_or(transcript.len())
+        .min(transcript.len());
+    let start = end.saturating_sub(limit.clamp(1, 200));
+    for (index, message) in transcript.iter_mut().enumerate() {
+        if index < start || index >= end {
+            *message = json!({"role":message["role"],"timestamp":message["timestamp"]});
+        }
+    }
+    transcript
+}
+
+fn stored_read(
+    state: &AppState,
+    path: &str,
+    before: Option<&str>,
+    limit: usize,
+) -> Result<Arc<StoredRead>, ApiError> {
+    use std::hash::{Hash, Hasher};
+    let mut models = std::collections::hash_map::DefaultHasher::new();
+    for model in state
+        .runtime
+        .session()
+        .model_runtime()
+        .get_available_snapshot()
+    {
+        (&model.provider, &model.id, model.context_window).hash(&mut models);
+    }
+    (
+        before.and_then(|cursor| cursor.parse::<usize>().ok()),
+        limit.clamp(1, 200),
+    )
+        .hash(&mut models);
+    state
+        .session_reads
+        .projections
+        .read(std::path::Path::new(path), models.finish(), || {
+            let manager = SessionManager::open(path, None, None)
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+            let (messages, ids) = manager_messages(&manager);
+            let value = StoredRead {
+                summary: StoredSummary::from_manager(&manager),
+                transcript: windowed_transcript(
+                    serialize_transcript(&messages, &ids),
+                    before,
+                    limit,
+                ),
+                session_usage: session_usage(&manager)?,
+                context_usage: persisted_context_usage(state, &manager)?,
+                entry_count: manager.get_entry_count(),
+            };
+            let bytes = value.summary.bytes()
+                + value.transcript.iter().map(value_bytes).sum::<usize>()
+                + value_bytes(&value.session_usage)
+                + value_bytes(&value.context_usage);
+            Ok((value, bytes))
+        })
+}
+
 pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
     let active = state
         .sessions
@@ -968,22 +1033,15 @@ pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
         .map(|host| host.session())
         .unwrap_or_else(|| state.runtime.session());
     let is_active = active.session_id() == id;
-    let (manager, modified) = {
-        let path = find_session_path(state, id)?;
-        let modified = std::fs::metadata(&path)
-            .ok()
-            .and_then(|m| m.modified().ok())
-            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|duration| duration.as_millis() as i64)
-            .unwrap_or(0);
-        (
-            SessionManager::open(&path, None, None)
-                .map_err(|e| ApiError::internal(e.to_string()))?,
-            modified,
-        )
-    };
-    let (mut messages, mut entry_ids) = manager_messages(&manager);
-    let mut transcript = serialize_transcript(&messages, &entry_ids);
+    let path = find_session_path(state, id)?;
+    let modified = std::fs::metadata(&path)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|time| time.as_millis() as i64)
+        .unwrap_or(0);
+    let stored = stored_read(state, &path, None, 80)?;
+    let mut transcript = stored.transcript.clone();
     let mut error = transcript
         .last()
         .and_then(|m| m["error"].as_str())
@@ -997,6 +1055,9 @@ pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
         if let Some(partial) = &agent_state.streaming_message {
             if let Ok(raw) = serde_json::to_value(partial) {
                 // 把工具中间轮与当前文本一起投影，避免恢复快照出现两个回复气泡。
+                let manager = SessionManager::open(&path, None, None)
+                    .map_err(|e| ApiError::internal(e.to_string()))?;
+                let (mut messages, mut entry_ids) = manager_messages(&manager);
                 messages.push(raw);
                 entry_ids.push(String::new());
                 transcript = serialize_transcript(&messages, &entry_ids);
@@ -1011,7 +1072,7 @@ pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
             }
         }
     }
-    let mut value = summary(state, &manager, modified)?;
+    let mut value = summary_from_stored(state, &stored.summary, modified)?;
     transcript = crate::asset_api::projection::attach_generated_assets(
         &transcript,
         &state
@@ -1054,15 +1115,15 @@ pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
     ] {
         value[key] = Value::Null;
     }
-    value["sessionTreeRevision"] = json!(manager.get_entry_count());
+    value["sessionTreeRevision"] = json!(stored.entry_count);
     value["queuedInputs"] = json!(queued_inputs(state, id));
     value["pendingMessageCount"] = json!(if is_active {
         active.pending_message_count()
     } else {
         0
     });
-    value["contextUsage"] = context_usage(state, id, &manager)?;
-    value["sessionUsage"] = session_usage(&manager)?;
+    value["contextUsage"] = live_context_usage(state, id, &stored.context_usage)?;
+    value["sessionUsage"] = stored.session_usage.clone();
     let frames = latest_run_frames(state, id)?;
     apply_run_activity(&mut value, &frames, streaming);
     if !frames.is_empty() {
@@ -1096,13 +1157,16 @@ pub(crate) fn snapshot(state: &AppState, id: &str) -> Result<Value, ApiError> {
 pub(crate) async fn list_sessions(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, ApiError> {
-    let mut sessions = Vec::new();
-    for info in session_infos(&state.agent_dir) {
-        let manager = SessionManager::open(&info.path, None, None)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        sessions.push(summary(&state, &manager, info.modified)?);
-    }
-    Ok(Json(json!({ "sessions": sessions })))
+    tokio::task::spawn_blocking(move || {
+        let mut sessions = Vec::new();
+        for info in state.session_reads.infos(&state.agent_dir) {
+            let stored = stored_summary(&state, &info.path)?;
+            sessions.push(summary_from_stored(&state, &stored, info.modified)?);
+        }
+        Ok(Json(json!({ "sessions": sessions })))
+    })
+    .await
+    .map_err(|_| ApiError::internal("会话目录读取任务失败。"))?
 }
 
 pub(crate) async fn create_session(
@@ -1171,26 +1235,34 @@ pub(crate) async fn get_messages(
     Path(id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, ApiError> {
-    let manager = SessionManager::open(&find_session_path(&state, &id)?, None, None)
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    let (messages, ids) = manager_messages(&manager);
-    let transcript = crate::asset_api::projection::attach_generated_assets(
-        &serialize_transcript(&messages, &ids),
-        &state
-            .assets
-            .lock()
-            .map_err(|_| ApiError::internal("Asset index lock failed"))?
-            .generated_for_session(&id),
-    );
-    let limit = params
-        .get("limit")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(40);
-    let mut page = message_page(&transcript, params.get("before").map(String::as_str), limit);
-    page["model"] = json!(model_and_thinking(&manager).0);
-    page["contextUsage"] = context_usage(&state, &id, &manager)?;
-    page["sessionUsage"] = session_usage(&manager)?;
-    Ok(Json(page))
+    tokio::task::spawn_blocking(move || {
+        let path = find_session_path(&state, &id)?;
+        let limit = params
+            .get("limit")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(40);
+        let stored = stored_read(
+            &state,
+            &path,
+            params.get("before").map(String::as_str),
+            limit,
+        )?;
+        let transcript = crate::asset_api::projection::attach_generated_assets(
+            &stored.transcript,
+            &state
+                .assets
+                .lock()
+                .map_err(|_| ApiError::internal("Asset index lock failed"))?
+                .generated_for_session(&id),
+        );
+        let mut page = message_page(&transcript, params.get("before").map(String::as_str), limit);
+        page["model"] = json!(stored.summary.model);
+        page["contextUsage"] = live_context_usage(&state, &id, &stored.context_usage)?;
+        page["sessionUsage"] = stored.session_usage.clone();
+        Ok(Json(page))
+    })
+    .await
+    .map_err(|_| ApiError::internal("会话消息读取任务失败。"))?
 }
 
 pub(crate) async fn live(
@@ -1198,7 +1270,11 @@ pub(crate) async fn live(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let value = snapshot(&state, &id)?;
+    let read_state = state.clone();
+    let read_id = id.clone();
+    let value = tokio::task::spawn_blocking(move || snapshot(&read_state, &read_id))
+        .await
+        .map_err(|_| ApiError::internal("会话快照读取任务失败。"))??;
     if !headers
         .get("accept")
         .and_then(|v| v.to_str().ok())
@@ -1626,5 +1702,49 @@ mod tests {
         assert_eq!(manager_messages(&reopened).0[0]["content"], "first");
         std::fs::remove_file(path).unwrap();
         std::fs::remove_dir(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod page_cache_tests {
+    use super::*;
+
+    #[test]
+    fn sparse_pages_keep_generated_assets_on_the_same_turn_as_full_history() {
+        let messages = vec![
+            json!({"role":"user","timestamp":50,"text":"question"}),
+            json!({"role":"agent","timestamp":100,"text":"first","attachments":[{"id":"existing","path":"/fixture/existing"}]}),
+            json!({"role":"user","timestamp":150,"text":"next"}),
+            json!({"role":"agent","timestamp":200,"text":"second"}),
+            json!({"role":"agent","timestamp":300,"text":"last"}),
+        ];
+        let assets = vec![
+            json!({"id":"before-all","created":1,"mimeType":"text/plain"}),
+            json!({"id":"first-asset","created":180,"mimeType":"image/png"}),
+            json!({"id":"middle-asset","created":250,"mimeType":"image/png"}),
+            json!({"id":"last-asset","created":900,"mimeType":"text/plain"}),
+        ];
+        let full = crate::asset_api::projection::attach_generated_assets(&messages, &assets);
+        for before in [None, Some("3"), Some("4")] {
+            let sparse = windowed_transcript(messages.clone(), before, 2);
+            let projected = crate::asset_api::projection::attach_generated_assets(&sparse, &assets);
+            assert_eq!(
+                message_page(&projected, before, 2),
+                message_page(&full, before, 2)
+            );
+        }
+    }
+
+    #[test]
+    fn page_cache_does_not_retain_large_off_page_payloads() {
+        let messages: Vec<_> = (0..40)
+            .map(|index| json!({"role":"user","timestamp":index,"text":"x".repeat(64 * 1024)}))
+            .collect();
+        let sparse = windowed_transcript(messages.clone(), None, 2);
+        assert_eq!(
+            message_page(&sparse, None, 2),
+            message_page(&messages, None, 2)
+        );
+        assert!(sparse.iter().map(value_bytes).sum::<usize>() < 160 * 1024);
     }
 }

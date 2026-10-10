@@ -57,3 +57,15 @@ await run(process.execPath, [
     process.platform === 'win32' ? 'pisper-server.exe' : 'pisper-server',
   ),
 ])
+
+// 会话读取缓存覆盖外部追加、改名、原子替换、分页与删除；不调用真实模型。
+await run(process.execPath, [
+  'scripts/smoke-rust-session-read-cache.mjs',
+  path.join(
+    root,
+    'runtime-rs',
+    'target',
+    'debug',
+    process.platform === 'win32' ? 'pisper-server.exe' : 'pisper-server',
+  ),
+])

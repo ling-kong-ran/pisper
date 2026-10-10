@@ -57,6 +57,7 @@ mod schedule_api;
 mod scheduled_jobs;
 mod security;
 mod session_api;
+mod session_read_cache;
 mod session_ops;
 mod session_runtime;
 mod session_workers;
@@ -124,6 +125,7 @@ fn extension_bindings() -> ExtensionBindings {
 pub(crate) struct AppState {
     pub(crate) runtime: Arc<AgentSessionRuntime>,
     pub(crate) sessions: session_runtime::SessionRuntimeRegistry,
+    pub(crate) session_reads: session_read_cache::SessionReadCache,
     pub(crate) agent_dir: String,
     pub(crate) providers: Arc<provider_config::ProviderConfigStore>,
     pub(crate) plugins: Arc<native_plugins::ToolPluginService>,
@@ -412,7 +414,8 @@ async fn get_session_model(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(session_api::model_state(&state, &id)?))
+    tokio::task::spawn_blocking(move || session_api::model_state(&state, &id).map(Json))
+        .await.map_err(|_| ApiError::internal("会话模型读取任务失败。"))?
 }
 
 async fn post_session_model(
@@ -452,7 +455,8 @@ async fn get_session_thinking_level(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(session_api::thinking_state(&state, &id)?))
+    tokio::task::spawn_blocking(move || session_api::thinking_state(&state, &id).map(Json))
+        .await.map_err(|_| ApiError::internal("会话思考设置读取任务失败。"))?
 }
 
 async fn post_session_thinking_level(
@@ -1282,6 +1286,7 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
     let state = Arc::new(AppState {
         runtime: Arc::new(runtime),
         sessions: session_runtime::SessionRuntimeRegistry::new(runtime_factory),
+        session_reads: session_read_cache::SessionReadCache::default(),
         agent_dir,
         providers,
         plugins,

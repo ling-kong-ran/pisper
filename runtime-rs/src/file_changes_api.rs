@@ -5,7 +5,6 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use pi_rust::coding_agent::session_manager::SessionManager;
 use serde_json::Value;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -20,9 +19,7 @@ pub(crate) fn router() -> Router<Arc<AppState>> {
 }
 fn cwd(state: &AppState, id: &str) -> Result<PathBuf, ApiError> {
     let path = crate::session_api::find_session_path(state, id)?;
-    let manager = SessionManager::open(&path, None, None)
-        .map_err(|error| ApiError::internal(error.to_string()))?;
-    Ok(PathBuf::from(manager.get_cwd()))
+    Ok(PathBuf::from(state.session_reads.cwd(&path)?))
 }
 async fn list(
     State(state): State<Arc<AppState>>,
