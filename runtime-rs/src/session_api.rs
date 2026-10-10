@@ -748,8 +748,15 @@ pub(crate) fn queued_inputs(state: &AppState, id: &str) -> Vec<Value> {
 }
 
 fn session_usage(manager: &SessionManager) -> Result<Value, ApiError> {
-    let mut total = json!({"input":0.0,"output":0.0,"cacheRead":0.0,"cacheWrite":0.0,"reasoning":0.0,
-            "totalTokens":0.0,"processedTokens":0.0,"requests":0,"promptTokens":0.0,"cacheReported":false,"cacheHitRate":null,"cost":0.0});
+    // Token 与请求次数在线协议中保持整数；JSON 的 0.0 会被 TUI 的 u64 解码拒绝。
+    let mut total = json!({"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"reasoning":0,
+            "totalTokens":0,"processedTokens":0,"requests":0,"promptTokens":0,"cacheReported":false,"cacheHitRate":null,"cost":0.0});
+    let count = |value: &Value| value.as_u64().unwrap_or(0);
+    let sum = |values: &[u64]| {
+        values
+            .iter()
+            .fold(0u64, |acc, value| acc.saturating_add(*value))
+    };
     for entry in manager.get_entries() {
         let entry = serde_json::to_value(entry).map_err(|e| ApiError::internal(e.to_string()))?;
         let usage = if entry["type"] == "message" {
@@ -761,42 +768,47 @@ fn session_usage(manager: &SessionManager) -> Result<Value, ApiError> {
             continue;
         }
         for key in ["input", "output", "cacheRead", "cacheWrite", "reasoning"] {
-            total[key] = json!(
-                total[key].as_f64().unwrap_or(0.0) + usage[key].as_f64().unwrap_or(0.0).max(0.0)
-            );
+            total[key] = json!(count(&total[key]).saturating_add(count(&usage[key])));
         }
-        let input = usage["input"].as_f64().unwrap_or(0.0).max(0.0);
-        let output = usage["output"].as_f64().unwrap_or(0.0).max(0.0);
-        let read = usage["cacheRead"].as_f64().unwrap_or(0.0).max(0.0);
-        let write = usage["cacheWrite"].as_f64().unwrap_or(0.0).max(0.0);
-        let reported = usage["totalTokens"]
-            .as_f64()
-            .or_else(|| usage["total"].as_f64())
-            .unwrap_or(0.0);
-        total["totalTokens"] = json!(
-            total["totalTokens"].as_f64().unwrap_or(0.0)
-                + if reported > 0.0 {
-                    reported
-                } else {
-                    input + output + read + write
-                }
+        let (input, output, read, write) = (
+            count(&usage["input"]),
+            count(&usage["output"]),
+            count(&usage["cacheRead"]),
+            count(&usage["cacheWrite"]),
         );
-        total["processedTokens"] =
-            json!(total["processedTokens"].as_f64().unwrap_or(0.0) + input + output + write);
-        total["requests"] = json!(total["requests"].as_u64().unwrap_or(0) + 1);
-        if read > 0.0 || write > 0.0 {
+        let reported = usage["totalTokens"]
+            .as_u64()
+            .or_else(|| usage["total"].as_u64())
+            .unwrap_or(0);
+        total["totalTokens"] = json!(count(&total["totalTokens"]).saturating_add(
+            if reported > 0 {
+                reported
+            } else {
+                sum(&[input, output, read, write])
+            }
+        ));
+        total["processedTokens"] = json!(sum(&[
+            count(&total["processedTokens"]),
+            input,
+            output,
+            write
+        ]));
+        total["requests"] = json!(count(&total["requests"]).saturating_add(1));
+        if read > 0 || write > 0 {
             total["cacheReported"] = json!(true);
         }
         total["cost"] = json!(
             total["cost"].as_f64().unwrap_or(0.0) + usage["cost"]["total"].as_f64().unwrap_or(0.0)
         );
     }
-    let prompt = total["input"].as_f64().unwrap_or(0.0)
-        + total["cacheRead"].as_f64().unwrap_or(0.0)
-        + total["cacheWrite"].as_f64().unwrap_or(0.0);
+    let prompt = sum(&[
+        count(&total["input"]),
+        count(&total["cacheRead"]),
+        count(&total["cacheWrite"]),
+    ]);
     total["promptTokens"] = json!(prompt);
-    if total["cacheReported"] == true && prompt > 0.0 {
-        total["cacheHitRate"] = json!(total["cacheRead"].as_f64().unwrap_or(0.0) / prompt * 100.0);
+    if total["cacheReported"] == true && prompt > 0 {
+        total["cacheHitRate"] = json!(count(&total["cacheRead"]) as f64 / prompt as f64 * 100.0);
     }
     Ok(total)
 }
@@ -1724,12 +1736,26 @@ mod tests {
             ))
             .unwrap();
         let usage = session_usage(&manager).unwrap();
-        assert_eq!(usage["input"], 30.0);
-        assert_eq!(usage["output"], 5.0);
-        assert_eq!(usage["reasoning"], 1.0);
-        assert_eq!(usage["processedTokens"], 36.0);
-        assert_eq!(usage["totalTokens"], 46.0);
+        assert_eq!(usage["input"], 30);
+        assert_eq!(usage["output"], 5);
+        assert_eq!(usage["reasoning"], 1);
+        assert_eq!(usage["processedTokens"], 36);
+        assert_eq!(usage["totalTokens"], 46);
         assert_eq!(usage["requests"], 2);
+        for key in [
+            "input",
+            "output",
+            "cacheRead",
+            "cacheWrite",
+            "reasoning",
+            "totalTokens",
+            "processedTokens",
+            "requests",
+            "promptTokens",
+        ] {
+            assert!(usage[key].is_u64(), "{key} must be an integer JSON token");
+        }
+
         assert_eq!(usage["cacheReported"], true);
         assert!((usage["cacheHitRate"].as_f64().unwrap() - 10.0 / 41.0 * 100.0).abs() < 1e-8);
     }

@@ -272,27 +272,43 @@ pub struct ContextUsage {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUsage {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub input: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub output: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub cache_read: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub cache_write: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub reasoning: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub total_tokens: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub prompt_tokens: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_token_count")]
     pub requests: u64,
     /// Runtime 是否确认上游上报过缓存用量；旧 Runtime 不发送该字段（None）。
     #[serde(default)]
     pub cache_reported: Option<bool>,
     #[serde(default)]
     pub cache_hit_rate: Option<f64>,
+}
+
+// 兼容早期 Rust Runtime 把整数计数输出成 0.0；拒绝分数、负数和字符串。
+fn deserialize_token_count<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    let value = Value::deserialize(deserializer)?;
+    if let Some(integer) = value.as_u64() {
+        return Ok(integer);
+    }
+    if let Some(number) = value.as_f64() {
+        if number.is_finite() && (0.0..u64::MAX as f64).contains(&number) && number.fract() == 0.0 {
+            return Ok(number as u64);
+        }
+    }
+    Err(serde::de::Error::custom(
+        "token count must be a non-negative integer",
+    ))
 }
 
 impl SessionUsage {
@@ -640,6 +656,33 @@ mod tests {
     use super::{MessagePage, SessionSummary, SessionUsage, VcsChanges};
 
     /// 验证历史工具时间戳兼容 ISO 字符串与毫秒整数两种格式（非法 ISO 归零）。
+    #[test]
+    fn history_usage_accepts_integer_valued_legacy_floats_but_rejects_invalid_counts() {
+        for count in [
+            serde_json::json!(0),
+            serde_json::json!(0.0),
+            serde_json::json!(12),
+            serde_json::json!(12.0),
+        ] {
+            let page: MessagePage = serde_json::from_value(serde_json::json!({"messages":[],"sessionUsage":{"input":count,"output":count,"requests":count,"totalTokens":count}})).unwrap();
+            assert_eq!(
+                page.session_usage.unwrap().input,
+                count.as_f64().unwrap() as u64
+            );
+        }
+        for count in [
+            serde_json::json!(-1),
+            serde_json::json!(0.5),
+            serde_json::json!("1"),
+            serde_json::json!(null),
+            serde_json::json!(1e30),
+        ] {
+            assert!(
+                serde_json::from_value::<SessionUsage>(serde_json::json!({"input":count})).is_err()
+            );
+        }
+    }
+
     #[test]
     fn historical_tool_timestamps_accept_iso_strings_and_milliseconds() {
         let page: MessagePage = serde_json::from_value(serde_json::json!({
