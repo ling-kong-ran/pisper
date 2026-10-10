@@ -59,6 +59,7 @@ export type TerminalPanelLabels = {
   usesActiveSessionWorkspace: string
   orphanedTerminal: string
   starting: string
+  workspaceUnavailable: string
   processExited: (code: number | null) => string
 }
 
@@ -163,6 +164,8 @@ export function TerminalPanel({
   const [activeIds, setActiveIds] = useState<Record<string, string>>({})
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [panelError, setPanelError] = useState('')
+  const [creating, setCreating] = useState(false)
+  const creatingIdRef = useRef('')
   const hostsRef = useRef<Map<string, HTMLDivElement>>(new Map())
   const runtimesRef = useRef<Map<string, TerminalRuntime>>(new Map())
   const outputBufferRef = useRef<Map<string, Uint8Array[]>>(new Map())
@@ -388,20 +391,21 @@ export function TerminalPanel({
   const createTerminal = useCallback(
     async (requestedProfile?: DesktopTerminalProfile) => {
       const profile = requestedProfile || profiles.find((item) => item.default) || profiles[0]
-      if (!profile || !bridge?.terminalCreate) return
+      if (!profile || !bridge?.terminalCreate || creatingIdRef.current) return
       const generation = generationRef.current
+      const id = terminalId()
+      const sessionId = activeSessionId
+      creatingIdRef.current = id
+      setCreating(true)
       setProfileMenuOpen(false)
       setPanelError('')
       onOpenChange(true)
-      const sessionId = activeSessionId
-      const cwd = await resolveSessionCwd(sessionId).catch(() => '')
-      if (generation !== generationRef.current) return
-      const id = terminalId()
+      // 目录请求可能很慢，先给出启动中的标签，避免重复点击和无反馈。
       const tab: TerminalTab = {
         id,
         profileId: profile.id,
-        title: terminalTitle(profile, cwd),
-        cwd,
+        title: terminalTitle(profile, ''),
+        cwd: '',
         sessionId,
         orphaned: false,
         status: 'starting',
@@ -409,11 +413,15 @@ export function TerminalPanel({
       liveTerminalIdsRef.current.add(id)
       setTabs((current) => [...current, tab])
       setActiveIds((current) => ({ ...current, [sessionId]: id }))
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      if (generation !== generationRef.current || !liveTerminalIdsRef.current.has(id)) return
-      const runtime = mountRuntime(id)
-      runtime?.terminal.write(`\x1b[90m${labels.starting}\x1b[0m\r\n`)
       try {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        if (generation !== generationRef.current || !liveTerminalIdsRef.current.has(id)) return
+        const runtime = mountRuntime(id)
+        runtime?.terminal.write(`\x1b[90m${labels.starting}\x1b[0m\r\n`)
+        const cwd = await resolveSessionCwd(sessionId)
+        if (generation !== generationRef.current || !liveTerminalIdsRef.current.has(id)) return
+        // 已选择会话时必须取得它的目录，不能吞掉错误后在默认目录启动。
+        if (sessionId && !cwd.trim()) throw new Error(labels.workspaceUnavailable)
         const created: DesktopTerminalCreated = await bridge.terminalCreate(
           {
             terminalId: id,
@@ -451,6 +459,11 @@ export function TerminalPanel({
           ),
         )
         runtimesRef.current.get(id)?.terminal.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`)
+      } finally {
+        if (creatingIdRef.current === id) {
+          creatingIdRef.current = ''
+          if (generation === generationRef.current) setCreating(false)
+        }
       }
     },
     [
@@ -458,6 +471,7 @@ export function TerminalPanel({
       bridge,
       handleTerminalEvent,
       labels.starting,
+      labels.workspaceUnavailable,
       mountRuntime,
       onOpenChange,
       profiles,
@@ -471,6 +485,10 @@ export function TerminalPanel({
   const closeTerminal = useCallback(
     async (id: string) => {
       liveTerminalIdsRef.current.delete(id)
+      if (creatingIdRef.current === id) {
+        creatingIdRef.current = ''
+        setCreating(false)
+      }
       await bridge?.terminalClose?.(id).catch(() => false)
       disposeRuntime(id)
       outputBufferRef.current.delete(id)
@@ -521,6 +539,7 @@ export function TerminalPanel({
       className={`terminal-panel [&.is-open]:min-h-[180px] [&.is-open]:basis-[auto] relative z-[3] flex min-h-[35px] [flex:0_0_35px] flex-col [border-top:1px_solid_var(--stroke)] bg-[var(--terminal-bg)] text-[var(--terminal-fg)] ${open ? 'is-open' : '!hidden'} ${fill ? '!h-full !min-h-0 !flex-1 ![flex:1_1_auto] !border-t-0' : ''}`}
       style={!fill && open ? { height } : undefined}
       aria-label={labels.terminal}
+      aria-busy={creating}
       data-swipe-ignore={fill ? true : undefined}
     >
       {open && !fill && (
@@ -559,7 +578,11 @@ export function TerminalPanel({
               >
                 <i data-status={tab.status} />
                 <span>
-                  {tab.orphaned ? `${labels.orphanedTerminal} · ${tab.title}` : tab.title}
+                  {tab.status === 'starting'
+                    ? labels.starting
+                    : tab.orphaned
+                      ? `${labels.orphanedTerminal} · ${tab.title}`
+                      : tab.title}
                 </span>
                 <X
                   size={13}
@@ -581,7 +604,7 @@ export function TerminalPanel({
                 size="icon"
                 title={labels.newTerminal}
                 aria-label={labels.newTerminal}
-                disabled={!profiles.length}
+                disabled={!profiles.length || creating}
                 onClick={() =>
                   profiles.length > 1
                     ? setProfileMenuOpen((value) => !value)
@@ -630,7 +653,7 @@ export function TerminalPanel({
             <button
               className="terminal-empty hover:text-[var(--terminal-fg)] [&_strong]:text-[13px] flex w-full h-full min-h-[120px] items-center justify-center flex-col gap-[7px] border-0 bg-transparent text-[var(--terminal-muted)] text-[12px]"
               onClick={() => void createTerminal()}
-              disabled={!profiles.length}
+              disabled={!profiles.length || creating}
             >
               <TerminalSquare size={22} />
               <strong>{labels.openTerminal}</strong>

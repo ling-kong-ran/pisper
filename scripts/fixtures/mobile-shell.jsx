@@ -1,6 +1,8 @@
 // 使用真实面板组件；接口与原生桥接由测试内存状态代替，不访问个人数据。
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SessionWorkflowRuns } from '@/features/chat/components/session/SessionWorkflowRuns'
 import { MobileThreePane } from '@/components/layout/MobileThreePane'
 import { MobileContextScreen } from '@/app/mobile/MobileContextScreen'
 
@@ -57,6 +59,7 @@ window.pisperDesktop = {
   terminalWrite: () => Promise.resolve(),
   onTerminalEvent: () => () => {},
 }
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const labels = new Proxy({}, { get: (_, key) => String(key) })
 export function Fixture() {
   const [pane, setPane] = useState('context')
@@ -67,6 +70,12 @@ export function Fixture() {
   const [mounted, setMounted] = useState(true)
   window.controls = { setPane, setTab, setMode, setSession, setStreaming, setMounted }
   if (!mounted) return null
+  if (mode === 'workflow')
+    return (
+      <QueryClientProvider client={queryClient}>
+        <SessionWorkflowRuns sessionId={session} />
+      </QueryClientProvider>
+    )
   return (
     <div style={{ height: '100dvh', display: 'flex' }}>
       <MobileThreePane
@@ -102,7 +111,16 @@ export function Fixture() {
             onUseAsset={() => {}}
             terminalSupported
             terminalLabels={labels}
-            resolveSessionCwd={() => Promise.resolve(window.evidence.cwd)}
+            resolveSessionCwd={() => {
+              if (window.evidence.holdCwd) {
+                window.evidence.cwdRequests = (window.evidence.cwdRequests || 0) + 1
+                return new Promise((resolve, reject) => {
+                  window.releaseCwd = resolve
+                  window.rejectCwd = reject
+                })
+              }
+              return Promise.resolve(window.evidence.cwd)
+            }}
           />
         }
       />

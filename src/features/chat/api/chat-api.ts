@@ -332,8 +332,8 @@ export const chatApi = {
       timeout: 180_000,
     }),
 
-  getSessionWorkflowRuns: (sessionId: string) =>
-    requestJson<{ runs: EntityRecord[] }>(`${sessionPath(sessionId)}/workflow-runs`),
+  getSessionWorkflowRuns: (sessionId: string, signal?: AbortSignal) =>
+    requestJson<{ runs: EntityRecord[] }>(`${sessionPath(sessionId)}/workflow-runs`, { signal }),
 
   resolveWorkflowApproval: (runId: string, nodeId: string, approved: boolean) =>
     requestJson<ApiRecord>(

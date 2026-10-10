@@ -1,5 +1,6 @@
 // 会话工作流运行记录：展示会话关联的工作流运行历史与状态。
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Check,
   ChevronDown,
@@ -30,21 +31,17 @@ function statusCopy(status: string, t: ReturnType<typeof useI18n>['t']) {
 
 export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
   const { t } = useI18n()
-  const [runs, setRuns] = useState<EntityRecord[]>([])
   const [expanded, setExpanded] = useState('')
-
-  const load = useCallback(async () => {
-    try {
-      const result = await chatApi.getSessionWorkflowRuns(sessionId)
-      setRuns(result.runs || [])
-    } catch {}
-  }, [sessionId])
-
-  useEffect(() => {
-    void load()
-    const timer = window.setInterval(load, 1500)
-    return () => window.clearInterval(timer)
-  }, [load])
+  // 查询所有者负责去重和取消，慢请求不能叠加或覆盖切换后的会话。
+  const query = useQuery({
+    queryKey: ['session-workflow-runs', sessionId],
+    queryFn: ({ signal }) => chatApi.getSessionWorkflowRuns(sessionId, signal),
+    enabled: Boolean(sessionId),
+    refetchInterval: 1500,
+    refetchIntervalInBackground: false,
+  })
+  const runs = query.data?.runs || []
+  const load = () => query.refetch()
 
   if (!runs.length) return null
   return (

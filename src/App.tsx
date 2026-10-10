@@ -289,6 +289,7 @@ function App() {
       usesActiveSessionWorkspace: t('terminal:terminalPanel.usesActiveSessionWorkspace'),
       orphanedTerminal: t('terminal:terminalPanel.orphanedTerminal'),
       starting: t('terminal:terminalPanel.starting'),
+      workspaceUnavailable: t('terminal:terminalPanel.workspaceUnavailable'),
       processExited: (code: number | null) =>
         t('terminal:terminalPanel.processExited', { code: code ?? '-' }),
     }),

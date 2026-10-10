@@ -16,6 +16,9 @@ const mocks = {
   '@/features/chat/api/chat-api': `
     const data = () => ({files:[{path:'sample.txt',pending:true,approved:false,reverted:false,canRevert:true,added:1,removed:0}],summary:{files:window.evidence.revision,pending:1,added:1,removed:0}})
     export const chatApi = {
+      getSessionWorkflowRuns: (id, signal) => new Promise(resolve => {
+        (window.workflowRequests ||= []).push({id,signal,resolve})
+      }),
       getSessionFileChanges:async () => { window.evidence.reads++; return data() },
       approveSessionFileChanges:async () => { window.evidence.approvals++; return data() },
       revertSessionFileChanges:async () => { window.evidence.reverts++; return data() },
@@ -122,8 +125,71 @@ try {
     '/fixture',
     '/second-project',
   ])
-  await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
+  await page.evaluate(() => {
+    window.evidence.holdCwd = true
+  })
+  await page.getByRole('button', { name: 'newTerminal', exact: true }).evaluate((button) => {
+    button.click()
+    button.click()
+  })
+  await page.waitForFunction(() => window.evidence.cwdRequests >= 1)
+  assert.equal(
+    await page.locator('.terminal-tab [data-status="starting"]').count(),
+    1,
+    'Directory lookup must show an immediate starting tab',
+  )
+  assert.equal(
+    await page.evaluate(() => window.evidence.cwdRequests),
+    1,
+    'Pending creation must coalesce repeated clicks',
+  )
+  await page.evaluate(() => {
+    window.releaseCwd('/second-project')
+    window.evidence.holdCwd = false
+  })
   await page.waitForFunction(() => window.evidence.created === 1)
+  await page.evaluate(() => {
+    window.evidence.holdCwd = true
+  })
+  await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
+  await page.waitForFunction(() => window.evidence.cwdRequests === 2)
+  await page.evaluate(() => {
+    window.rejectCwd(new Error('cwd-fixture-failed'))
+    window.evidence.holdCwd = false
+  })
+  await page.locator('.terminal-tab [data-status="error"]').waitFor()
+  assert.equal(
+    await page.evaluate(() => window.evidence.created),
+    1,
+    'A failed directory lookup must not launch a shell in another directory',
+  )
+  await page
+    .locator('.terminal-tab')
+    .filter({ has: page.locator('[data-status="error"]') })
+    .locator('svg[aria-label="closeTerminal"]')
+    .click()
+  await page.evaluate(() => {
+    window.evidence.holdCwd = true
+  })
+  await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
+  await page.waitForFunction(() => window.evidence.cwdRequests === 3)
+  await page
+    .locator('.terminal-tab')
+    .filter({ has: page.locator('[data-status="starting"]') })
+    .locator('svg[aria-label="closeTerminal"]')
+    .click()
+  await page.evaluate(() => {
+    window.releaseCwd('/cancelled-project')
+    window.evidence.holdCwd = false
+  })
+  await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
+  await page.waitForFunction(() => window.evidence.created === 2)
+  assert.equal(
+    await page.locator('.terminal-tab').count(),
+    2,
+    'Closed pending terminal must not return after its directory resolves',
+  )
+  await page.locator('.terminal-tab').last().locator('svg[aria-label="closeTerminal"]').click()
   await page.evaluate(() => window.controls.setPane('chat'))
   await page.waitForFunction(
     () => document.querySelector('section[aria-label="navigation:mobileShell.context"]').inert,
@@ -258,9 +324,39 @@ try {
   assert.equal(await page.evaluate(() => window.evidence.closeAll), 0)
   await page.evaluate(() => window.controls.setMounted(false))
   await page.waitForFunction(() => window.evidence.closeAll === 1)
+  await page.clock.install()
+  await page.evaluate(() => {
+    window.controls.setMounted(true)
+    window.controls.setMode('workflow')
+    window.controls.setSession('workflow-one')
+  })
+  await page.waitForFunction(() => window.workflowRequests?.length === 1)
+  await page.clock.fastForward(5000)
+  assert.equal(
+    await page.evaluate(() => window.workflowRequests.length),
+    1,
+    'Slow workflow requests must not overlap',
+  )
+  await page.evaluate(() => window.controls.setSession('workflow-two'))
+  await page.waitForFunction(() => window.workflowRequests.length === 2)
+  assert.equal(await page.evaluate(() => window.workflowRequests[0].signal.aborted), true)
+  await page.evaluate(() => {
+    const run = (name) => ({
+      runs: [{ id: name, workflowName: name, status: 'completed', nodes: [] }],
+    })
+    window.workflowRequests[1].resolve(run('current-workflow'))
+    window.workflowRequests[0].resolve(run('stale-workflow'))
+  })
+  await page.clock.fastForward(1)
+  await page.getByText('current-workflow', { exact: true }).waitFor()
+  assert.equal(await page.getByText('stale-workflow', { exact: true }).count(), 0)
+  await page.clock.fastForward(1600)
+  await page.waitForFunction(() => window.workflowRequests.length === 3)
+  await page.evaluate(() => window.controls.setMounted(false))
+  assert.equal(await page.evaluate(() => window.workflowRequests[2].signal.aborted), true)
   assert.deepEqual(errors, [])
   console.log(
-    'PASS mobile shell: terminal lifetime, independent save, run safety, refresh, layout and touch navigation',
+    'PASS mobile shell: terminal lifetime, independent save, run safety, refresh, layout, touch navigation and workflow polling isolation',
   )
 } finally {
   await browser?.close()

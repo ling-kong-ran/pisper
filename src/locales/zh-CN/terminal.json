@@ -10,5 +10,6 @@
   "terminalPanel.usesActiveSessionWorkspace": "新终端使用当前活动会话的工作目录",
   "terminalPanel.orphanedTerminal": "未关联",
   "terminalPanel.starting": "正在启动 Shell...",
-  "terminalPanel.processExited": "进程已退出，代码 {code}"
+  "terminalPanel.processExited": "进程已退出，代码 {code}",
+  "terminalPanel.workspaceUnavailable": "无法读取当前会话的工作目录，请刷新会话后重试。"
 }
