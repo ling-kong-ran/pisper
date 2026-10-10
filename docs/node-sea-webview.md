@@ -231,21 +231,27 @@ fail before downloads, project generation or archive replacement with
 `MOBILE_RUNTIME_NOT_MIGRATED`. This is a build diagnostic, **not a working mobile
 package**. Existing release channel exclusion remains in place.
 
-MCP upgrade uses the domain adapter in `runtime-rs/src/mcp_api/legacy.rs` before
-Pi loads its extensions. If `agent_dir/mcp.json` does not exist, it reads the
-Node v1 `data_dir/pisper-mcp.json` and publishes the complete new configuration
-atomically. Original service IDs, display names, enabled states, timeouts,
-credentials and per-tool restrictions are preserved. Existing `mcp.json` files,
-including deliberately emptied configurations, take precedence; the old file is
-never modified, so an older client can still read it. Cached tools and call
-history are not reported as live connections. Invalid inputs and legacy SSE
-transports fail explicitly without publishing a partial configuration.
+MCP keeps `data_dir/pisper-mcp.json` as its single authoritative document, using
+its original v1 `servers` array and `calls` history. The MCP dashboard and Pi
+extension receive the same in-memory projection through the engine's config
+hooks. Adding, removing, enabling servers and changing tool permissions all write
+back to the original document, preserving IDs, display names and unknown fields.
+Startup does not generate, migrate or read a replacement `mcp.json`. A previously
+generated test copy of that file is ignored. Legacy SSE transport support remains
+an engine limitation and is reported explicitly.
 
-The existing provider JSON writer now lives in `runtime-rs/src/config_storage.rs`.
-Providers retain their write lock and document ownership; MCP owns its migration.
-The shared module only handles private temporary files and atomic publication,
-including creation without overwriting a concurrently created target. Tests cover
-legacy conversion, restart, disabled tools, damaged input and concurrent writers.
+The shared atomic JSON writer in `runtime-rs/src/config_storage.rs` keeps writes
+private and atomic. Providers and MCP retain ownership of their formats and
+mutation locks. Tests verify direct reads, writes in the existing format, restart,
+invalid documents and preservation of unrelated fields and history.
+
+Project resources are discovered per session cwd via `resources_discover` in
+`runtime-rs/src/project_resources.rs`: `.pisper/skills` and `.pisper/prompts`
+feed the actual model resource loader as well as the UI. `AGENTS.md` discovery
+continues through the existing Pi project-context loader. Tests cover startup,
+reload, workspace switching and inclusion of the current project rules in
+Anthropic and OpenAI-compatible request assembly. This verifies delivery of the
+rules; it does not assert that every remote model follows every rule.
 
 Project skills remain owned by `<workspace>/.pisper/skills`, while global skills
 live under `<agent_dir>/skills`. A separate development workspace does not inherit

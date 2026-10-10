@@ -1768,8 +1768,8 @@ try {
   await writeFile(join(workspace, 'read-proof.txt'), sentinel + '\n')
   if (!legacyProbe)
     await writeFile(
-      join(agent, 'mcp.json'),
-      JSON.stringify({ fixtureRoot: { unknown: 'preserve' }, mcpServers: {} }),
+      join(agent, 'pisper-mcp.json'),
+      JSON.stringify({ version: 1, fixtureRoot: { unknown: 'preserve' }, servers: [], calls: [] }),
     )
   const modelBaseUrl = await createFixture()
   if (legacyProbe) {
@@ -2091,9 +2091,11 @@ try {
         const dashboard = await waitForMcp((result) =>
           result.tools.some((tool) => tool.piName === mcpTool && tool.enabled),
         )
-        const saved = JSON.parse(await readFile(join(agent, 'mcp.json'), 'utf8'))
+        const saved = JSON.parse(await readFile(join(agent, 'pisper-mcp.json'), 'utf8'))
         assert.deepEqual(saved.fixtureRoot, { unknown: 'preserve' })
-        assert.deepEqual(saved.mcpServers[mcpId].fixtureUnknown, { preserved: true })
+        assert.deepEqual(saved.servers.find((server) => server.id === mcpId).fixtureUnknown, {
+          preserved: true,
+        })
         return dashboard
       })
       await check(
@@ -2140,10 +2142,15 @@ try {
           await waitForMcp((result) =>
             result.tools.some((tool) => tool.piName === mcpTool && tool.enabled),
           )
-          const saved = JSON.parse(await readFile(join(agent, 'mcp.json'), 'utf8'))
+          const saved = JSON.parse(await readFile(join(agent, 'pisper-mcp.json'), 'utf8'))
           assert.deepEqual(saved.fixtureRoot, { unknown: 'preserve' })
-          assert.deepEqual(saved.mcpServers[mcpId].fixtureUnknown, { preserved: true })
-          assert.equal(saved.mcpServers[mcpId].toolExposure.echo, 'direct')
+          assert.deepEqual(saved.servers.find((server) => server.id === mcpId).fixtureUnknown, {
+            preserved: true,
+          })
+          assert.equal(
+            saved.servers.find((server) => server.id === mcpId).toolExposure.echo,
+            'direct',
+          )
         },
       )
       await check(
@@ -2919,9 +2926,9 @@ try {
               !result.services.some((service) => service.id === mcpId) &&
               !result.tools.some((tool) => tool.piName === mcpTool),
           )
-          const saved = JSON.parse(await readFile(join(agent, 'mcp.json'), 'utf8'))
+          const saved = JSON.parse(await readFile(join(agent, 'pisper-mcp.json'), 'utf8'))
           assert.deepEqual(saved.fixtureRoot, { unknown: 'preserve' })
-          assert.ok(!saved.mcpServers[mcpId])
+          assert.ok(!saved.servers.find((server) => server.id === mcpId))
           const plugins = await json('/api/plugins')
           assert.ok(!plugins.callableToolNames.includes(mcpTool))
         },

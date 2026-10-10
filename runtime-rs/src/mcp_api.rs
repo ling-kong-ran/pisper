@@ -1,8 +1,12 @@
 //! MCP 的配置管理、真实连接测试与前端投影。
 //! 原生扩展没有公开其连接表；只把本模块实际持有的测试连接报告为在线。
 
-mod legacy;
-pub(crate) use legacy::restore_legacy_config;
+mod store;
+pub(crate) fn extension_options(
+    data_dir: &str,
+) -> pi_rust::coding_agent::extensions::mcp::McpExtensionOptions {
+    store::options(PathBuf::from(data_dir).join("pisper-mcp.json"))
+}
 
 use std::{
     collections::HashMap,
@@ -23,11 +27,7 @@ use pi_rust::{
         core::mcp_servers::{mcp_namespace, validate_mcp_server_config, McpExposure},
         extensions::{
             mcp::{
-                config::{
-                    add_mcp_server_config, load_mcp_config, remove_mcp_server_config,
-                    update_mcp_server_config, LoadedMcpConfigOptions, McpServerConfigPatch,
-                    McpServerEntry,
-                },
+                config::{McpServerConfigPatch, McpServerEntry},
                 oauth::McpOAuthCredentialStore,
                 runtime::{
                     create_default_transport, McpServerConnection, McpServerConnectionOptions,
@@ -108,7 +108,7 @@ fn key(state: &AppState, id: &str) -> String {
     format!("{}\0{id}", state.agent_dir)
 }
 fn config_path(state: &AppState) -> PathBuf {
-    PathBuf::from(&state.agent_dir).join("mcp.json")
+    PathBuf::from(&state.data_dir).join("pisper-mcp.json")
 }
 fn session_cwd(state: &AppState) -> String {
     state
@@ -157,12 +157,7 @@ fn hex_digest(bytes: &[u8]) -> String {
         .collect()
 }
 fn entries(state: &AppState) -> Vec<McpServerEntry> {
-    load_mcp_config(LoadedMcpConfigOptions {
-        agent_dir: state.agent_dir.clone(),
-        cwd: session_cwd(state),
-        project_trusted: false,
-    })
-    .servers
+    store::load(&config_path(state)).servers
 }
 fn find(state: &AppState, id: &str) -> Result<McpServerEntry, ApiError> {
     entries(state)
@@ -226,7 +221,7 @@ fn snapshot(state: &AppState) -> Value {
         let display_name = entry
             .config
             .raw()
-            .get("pisperLegacyName")
+            .get("pisperName")
             .and_then(Value::as_str)
             .filter(|name| !name.is_empty())
             .unwrap_or(&entry.name);
@@ -477,19 +472,7 @@ async fn add(
             ));
         }
     }
-    let path = config_path(&state);
-    // 官方编辑器保留根文档和其他服务的未知字段；失败时恢复写入前的字节。
-    let previous = std::fs::read(&path).ok();
-    for (name, config) in &definitions {
-        if add_mcp_server_config(&path.to_string_lossy(), name, &ordered(config)?).is_err() {
-            if let Some(bytes) = &previous {
-                let _ = std::fs::write(&path, bytes);
-            } else {
-                let _ = std::fs::remove_file(&path);
-            }
-            return Err(ApiError::internal("无法保存 MCP 配置。"));
-        }
-    }
+    store::add(&config_path(&state), &definitions)?;
     reload(&state).await?;
     Ok(Json(snapshot(&state)))
 }
@@ -500,20 +483,18 @@ async fn set_enabled(
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
     let _guard = engine_guard(&state)?;
-    let entry = find(&state, &id)?;
+    find(&state, &id)?;
     let enabled = body["enabled"]
         .as_bool()
         .ok_or_else(|| ApiError::bad_request("enabled 必须是布尔值。"))?;
-    update_mcp_server_config(
-        &entry.source,
+    store::update(
+        &config_path(&state),
         &id,
         McpServerConfigPatch {
             enabled: Some(enabled),
             exposure: None,
         },
-        false,
-    )
-    .map_err(|_| ApiError::internal("无法保存 MCP 启停设置。"))?;
+    )?;
     invalidate_probe(&state, &id).await;
     reload(&state).await?;
     Ok(Json(snapshot(&state)))
@@ -556,41 +537,7 @@ async fn set_tool_enabled(
             "请先测试连接以确认工具原名，再修改工具权限。",
         )
     })?;
-    let bytes =
-        std::fs::read(&entry.source).map_err(|_| ApiError::internal("无法读取 MCP 配置。"))?;
-    let mut document: Value =
-        serde_json::from_slice(&bytes).map_err(|_| ApiError::internal("MCP 配置 JSON 无效。"))?;
-    let root = if document.get("mcpServers").is_some() {
-        &mut document["mcpServers"]
-    } else {
-        &mut document
-    };
-    let config = root
-        .get_mut(&id)
-        .and_then(Value::as_object_mut)
-        .ok_or_else(|| ApiError::internal("MCP 配置中缺少该服务。"))?;
-    let mut exposure = config
-        .get("toolExposure")
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    if enabled {
-        exposure.insert(
-            original_name,
-            json!(exposure_name(match entry.config.exposure() {
-                McpExposure::Hidden => McpExposure::Codemode,
-                exposure => exposure,
-            })),
-        );
-    } else {
-        exposure.insert(original_name, json!("hidden"));
-    }
-    config.insert("toolExposure".into(), Value::Object(exposure));
-    let config = Value::Object(config.clone());
-    validate_mcp_server_config(&id, &ordered(&config)?)
-        .map_err(|_| ApiError::bad_request("工具权限配置无效。"))?;
-    add_mcp_server_config(&entry.source, &id, &ordered(&config)?)
-        .map_err(|_| ApiError::internal("无法保存 MCP 工具设置。"))?;
+    store::set_tool(&config_path(&state), &id, &original_name, enabled)?;
     reload(&state).await?;
     Ok(Json(snapshot(&state)))
 }
@@ -600,9 +547,8 @@ async fn remove(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let _guard = engine_guard(&state)?;
-    let entry = find(&state, &id)?;
-    remove_mcp_server_config(&entry.source, &id)
-        .map_err(|_| ApiError::internal("无法删除 MCP 服务。"))?;
+    find(&state, &id)?;
+    store::remove(&config_path(&state), &id)?;
     invalidate_probe(&state, &id).await;
     reload(&state).await?;
     Ok(Json(snapshot(&state)))

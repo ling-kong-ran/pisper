@@ -49,6 +49,7 @@ mod plugins_api;
 mod product;
 mod product2;
 mod provider_config;
+mod project_resources;
 mod remote_ops;
 mod runtime_paths;
 mod schedule_api;
@@ -86,7 +87,7 @@ use tokio::sync::broadcast;
 use pi_rust::agent_core::types::ThinkingLevel;
 use pi_rust::coding_agent::core::resource_loader::InlineExtension;
 use pi_rust::coding_agent::core::skills::{load_skills, LoadSkillsOptions};
-use pi_rust::coding_agent::extensions::mcp::{create_mcp_extension, McpExtensionOptions};
+use pi_rust::coding_agent::extensions::mcp::create_mcp_extension;
 use pi_rust::coding_agent::{
     agent_session::{AgentSessionEvent, ExtensionBindings},
     cli::{args::Args, project_trust::AppMode},
@@ -785,8 +786,6 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
     let paths = runtime_paths::RuntimePaths::from_environment()?;
     let agent_dir = paths.agent_dir;
     let data_dir = paths.data_dir;
-    mcp_api::restore_legacy_config(&agent_dir, &data_dir)
-        .map_err(|error| anyhow::anyhow!("{}", error.message))?;
     let providers = Arc::new(provider_config::ProviderConfigStore::new(&agent_dir));
     let catalog = native_tool_catalog::release_catalog()?;
     let web_search = native_web_search::WebSearchService::new(
@@ -1105,8 +1104,9 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
                 .into_iter()
                 .map(|extension| InlineExtension::Factory(extension.factory))
                 .collect();
+            factories.push(InlineExtension::Factory(project_resources::extension()));
             factories.push(InlineExtension::Factory(create_mcp_extension(
-                McpExtensionOptions::default(),
+                mcp_api::extension_options(&data_dir),
             )));
             factories.push(memory_tasks.create_extension());
             factories.push(executor.extension());

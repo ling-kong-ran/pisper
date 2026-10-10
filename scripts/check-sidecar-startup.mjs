@@ -45,3 +45,15 @@ await run(process.execPath, [
     process.platform === 'win32' ? 'pisper-server.exe' : 'pisper-server',
   ),
 ])
+
+// 用真实 HTTP 请求核对两种供应商协议的项目规则上下文。
+await run(process.execPath, [
+  'scripts/smoke-rust-project-context.mjs',
+  path.join(
+    root,
+    'runtime-rs',
+    'target',
+    'debug',
+    process.platform === 'win32' ? 'pisper-server.exe' : 'pisper-server',
+  ),
+])
