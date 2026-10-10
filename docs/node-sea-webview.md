@@ -230,3 +230,24 @@ is implemented and tested on both platforms, all three mobile build entry points
 fail before downloads, project generation or archive replacement with
 `MOBILE_RUNTIME_NOT_MIGRATED`. This is a build diagnostic, **not a working mobile
 package**. Existing release channel exclusion remains in place.
+
+MCP upgrade uses the domain adapter in `runtime-rs/src/mcp_api/legacy.rs` before
+Pi loads its extensions. If `agent_dir/mcp.json` does not exist, it reads the
+Node v1 `data_dir/pisper-mcp.json` and publishes the complete new configuration
+atomically. Original service IDs, display names, enabled states, timeouts,
+credentials and per-tool restrictions are preserved. Existing `mcp.json` files,
+including deliberately emptied configurations, take precedence; the old file is
+never modified, so an older client can still read it. Cached tools and call
+history are not reported as live connections. Invalid inputs and legacy SSE
+transports fail explicitly without publishing a partial configuration.
+
+The existing provider JSON writer now lives in `runtime-rs/src/config_storage.rs`.
+Providers retain their write lock and document ownership; MCP owns its migration.
+The shared module only handles private temporary files and atomic publication,
+including creation without overwriting a concurrently created target. Tests cover
+legacy conversion, restart, disabled tools, damaged input and concurrent writers.
+
+Project skills remain owned by `<workspace>/.pisper/skills`, while global skills
+live under `<agent_dir>/skills`. A separate development workspace does not inherit
+the source repository's project skills. Local restoration may copy the skills to
+the development workspace; it must not silently move or delete the original files.

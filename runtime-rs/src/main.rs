@@ -10,6 +10,7 @@ mod channel_transport;
 mod channels_api;
 mod chat_stream;
 mod custom_ui_api;
+mod config_storage;
 mod execution_adapter;
 mod execution_modes;
 mod desktop_ops;
@@ -784,6 +785,8 @@ async fn boot() -> anyhow::Result<Arc<AppState>> {
     let paths = runtime_paths::RuntimePaths::from_environment()?;
     let agent_dir = paths.agent_dir;
     let data_dir = paths.data_dir;
+    mcp_api::restore_legacy_config(&agent_dir, &data_dir)
+        .map_err(|error| anyhow::anyhow!("{}", error.message))?;
     let providers = Arc::new(provider_config::ProviderConfigStore::new(&agent_dir));
     let catalog = native_tool_catalog::release_catalog()?;
     let web_search = native_web_search::WebSearchService::new(

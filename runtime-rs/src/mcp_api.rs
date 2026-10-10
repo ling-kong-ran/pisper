@@ -1,6 +1,9 @@
 //! MCP 的配置管理、真实连接测试与前端投影。
 //! 原生扩展没有公开其连接表；只把本模块实际持有的测试连接报告为在线。
 
+mod legacy;
+pub(crate) use legacy::restore_legacy_config;
+
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -220,6 +223,13 @@ fn snapshot(state: &AppState) -> Value {
     let mut tool_rows = Vec::new();
     let mut online = 0;
     for entry in &configured {
+        let display_name = entry
+            .config
+            .raw()
+            .get("pisperLegacyName")
+            .and_then(Value::as_str)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(&entry.name);
         let probe = probe_store
             .get(&key(state, &entry.name))
             .filter(|probe| probe.signature == signature(entry));
@@ -243,7 +253,7 @@ fn snapshot(state: &AppState) -> Value {
         let headers = entry.config.string_record("headers").unwrap_or_default();
         let environment = entry.config.string_record("env").unwrap_or_default();
         services.push(json!({
-            "id": entry.name, "name": entry.name, "status": status,
+            "id": entry.name, "name": display_name, "status": status,
             "transport": if entry.config.command().is_some() { "stdio" } else { "http" },
             "endpoint": entry.config.url().map(public_endpoint).unwrap_or_default(),
             "command": entry.config.command().unwrap_or(""),
@@ -272,7 +282,7 @@ fn snapshot(state: &AppState) -> Value {
             });
             let original_name = catalog_name.as_deref().unwrap_or(&tool.name);
             tool_rows.push(json!({
-                "serviceId": entry.name, "serviceName": entry.name, "name": original_name,
+                "serviceId": entry.name, "serviceName": display_name, "name": original_name,
                 "piName": tool.name, "description": safe_error(entry, &tool.description),
                 "enabled": enabled && tool.exposure != ToolExposure::Hidden,
                 "serviceEnabled": enabled, "risk": "unknown", "source": "engine-tool-catalog",
