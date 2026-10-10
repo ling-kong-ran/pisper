@@ -29,3 +29,15 @@ test('POSIX process inspection preserves app paths with spaces and only traverse
   )
   assert.deepEqual(stillOwnedProcesses([owned[0]], owned), [owned[0]])
 })
+
+test('browser cleanup retains plugins installed by later restart fixtures', async () => {
+  const { restoreBrowserTools } = await import('../smoke-rust-browser.mjs')
+  const current = ['read', 'browser_automation', 'later-plugin-tool', 'plugin_create']
+  assert.deepEqual(restoreBrowserTools(current, false), [
+    'read',
+    'later-plugin-tool',
+    'plugin_create',
+  ])
+  assert.deepEqual(new Set(restoreBrowserTools(current, true)), new Set(current))
+  assert.deepEqual(restoreBrowserTools(['read'], true), ['read', 'browser_automation'])
+})

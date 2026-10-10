@@ -136,13 +136,7 @@ export async function checkBrowserParity({
       'Owned browser configuration/session mutation must settle',
     )
   }
-  const setTools = (enabledTools) =>
-    idleJson('/api/plugins', 'PUT', {
-      enabledTools,
-      webSearch: initialPlugins.webSearch,
-      piExtensions: initialPlugins.piExtensions,
-      computerUseEnabled: initialPlugins.computerUseEnabled,
-    })
+  const setTools = (enabledTools) => idleJson('/api/plugins', 'PUT', { enabledTools })
   async function invoke(id, name, args, failed = false) {
     const index = fixtureRequests.length,
       rows = await chat(`${marker(name, args)} owned-browser-${nonce}`, id)
@@ -359,14 +353,27 @@ export async function checkBrowserParity({
     }
     if (toolsChanged) {
       try {
-        await setTools([
-          ...new Set([...(initialApp.enabledTools || []), ...initialPlugins.enabledTools]),
-        ])
-        assert.deepEqual((await json('/api/plugins')).enabledTools, initialPlugins.enabledTools)
+        // 只撤销本夹具添加的浏览器开关；其他夹具在重启前安装的插件必须保留。
+        const current = await json('/api/plugins')
+        const browserInitiallyEnabled = initialPlugins.enabledTools.includes('browser_automation')
+        await setTools(
+          restoreBrowserTools(
+            [...new Set([...((await app()).enabledTools || []), ...current.enabledTools])],
+            browserInitiallyEnabled,
+          ),
+        )
+        assert.deepEqual(
+          new Set((await json('/api/plugins')).enabledTools),
+          new Set(restoreBrowserTools(current.enabledTools, browserInitiallyEnabled)),
+        )
         assert.deepEqual(withoutOwn(await app()), withoutOwn(initialApp))
-        const current = await documents()
+        const currentDocuments = await documents()
         for (const name of ['models.json', 'auth.json', 'settings.json'])
-          assert.equal(current[name], initialDocuments[name], `Browser helper changed ${name}`)
+          assert.equal(
+            currentDocuments[name],
+            initialDocuments[name],
+            `Browser helper changed ${name}`,
+          )
       } catch (error) {
         failures.push(error)
       }
@@ -752,4 +759,11 @@ export async function checkBrowserParity({
     })
     throw error
   }
+}
+
+// 清理独占的能力开关，不回写整份旧目录快照。
+export function restoreBrowserTools(current, initiallyEnabled) {
+  const retained = current.filter((name) => name !== 'browser_automation')
+  if (initiallyEnabled) retained.push('browser_automation')
+  return [...new Set(retained)]
 }

@@ -102,3 +102,5 @@
 启动闸门新增 `scripts/smoke-rust-cli.mjs`，实际构建并启动 CLI，使用隔离 HOME 检查 doctor、工作目录、重启与错误路径。`scripts/smoke-rust-session-read-cache.mjs` 覆盖大日志分页、标记、并发元数据修改、原始 `.pisper` 项目命令发现及 Skill 开关并发写入。`npm run test:mobile-shell` 还覆盖终端目录等待/失败/取消，以及会话工作流慢请求去重、切换取消与迟到响应隔离。会话读取的测量方法、前后数据和回滚范围见[会话读取缓存](architecture/session-read-cache.md)。
 
 本轮 Runtime `cargo clippy --all-targets` 能完成，但存量源码与供应商依赖仍有大量警告；`cargo fmt --check` 也发现原有跨模块格式偏差。不能把“能构建”描述为 Runtime 全仓库零警告或格式闸门通过。修复范围内的新文件使用 rustfmt；不要通过一次全仓库格式化掩盖这批性能与生命周期修复。TUI 单独运行其格式、测试和 `clippy --all-targets -- -D warnings`。实际原生验收平台为 macOS arm64，Windows/Android/iOS 的设备运行不能由本机测试代替。
+
+浏览器原生验收现通过 `scripts/native-process-inspection.mjs` 在 POSIX 主机使用 `ps`/`lsof` 检查监听端口归属、浏览器后代 PID 与启动时间，保留 Windows CIM 路径。单元测试覆盖应用路径含空格、后代范围、PID 复用和进程换名；实际浏览器测试仍要求主机安装可发现的 Chrome/Edge/Chromium。macOS 本轮使用现有 Chrome Dev 的真实可执行文件，并以测试专用 PATH 启动器接入发现逻辑，不访问用户浏览器资料目录。浏览器夹具清理仅恢复它拥有的能力开关，保留后续插件重启夹具安装的工具，避免整份旧快照覆盖其他夹具状态。
