@@ -216,7 +216,7 @@ export async function checkBrowserParity({
       { windowsHide: true },
     )
     const pid = Number(stdout.trim())
-    assert.ok(Number.isInteger(pid) && pid > 0 && pid !== 30488)
+    assert.ok(Number.isInteger(pid) && pid > 0)
     return pid
   }
   async function processRows(pid) {
