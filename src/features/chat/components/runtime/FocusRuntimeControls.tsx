@@ -603,7 +603,7 @@ export function ModelThinkingControl({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="model-effort-pill inline-flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="model-effort-pill inline-flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-lg bg-foreground/5 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={label}
           title={label}
         >
@@ -850,7 +850,7 @@ export function ApprovalModeSelect({
       >
         <button
           type="button"
-          className={`permission-mode-trigger inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-transparent px-1.5 text-[13px] transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-55 ${showLabel ? 'max-w-[104px] min-[651px]:max-w-[124px]' : 'w-[38px]'} ${current[0] === 'full-access' ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'} mode-${current[0]}`}
+          className={`permission-mode-trigger inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-transparent px-1.5 text-[13px] transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-55 ${showLabel ? 'max-w-[104px] min-[651px]:max-w-[124px]' : 'w-[38px]'} ${current[0] === 'full-access' ? 'text-orange-600 dark:text-orange-400' : 'text-foreground'} mode-${current[0]}`}
           title={t('chat:focusSession.approvalModeModeDescription', {
             mode: current[1],
             description: current[2],

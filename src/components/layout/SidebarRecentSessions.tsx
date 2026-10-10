@@ -609,7 +609,7 @@ export function SidebarRecentSessions({
                     {!groupCollapsed &&
                       group.sessions.map((session) => (
                         <button
-                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}
+                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm text-foreground hover:bg-sidebar-accent ${session.id === activeSessionId ? 'active-session bg-sidebar-accent font-medium' : 'font-normal'}`}
                           aria-current={session.id === activeSessionId ? 'page' : undefined}
                           title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
                           onClick={() => openRecentSession(session.id)}

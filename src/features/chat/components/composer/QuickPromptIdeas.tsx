@@ -82,9 +82,9 @@ export default function QuickPromptIdeas({
             key={chip.label}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
-            className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-background px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border/70 bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <chip.icon size={14} className="text-muted-foreground" />
+            <chip.icon size={14} className="text-foreground" />
             {chip.label}
           </button>
         ))}

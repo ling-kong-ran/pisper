@@ -1,5 +1,6 @@
 // 视觉改编自 ZCode ConversationDraftEmptyState；来源和改动见 THIRD_PARTY_NOTICES.md。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { BrandLogo } from '@/components/common/BrandLogo'
 import { useI18n } from '@/app/i18n/use-i18n'
 import {
   greetingFontSize,
@@ -44,26 +45,11 @@ export function WorkbenchGreeting() {
   }, [greeting])
   return (
     <div
-      className="relative mx-auto translate-y-10 max-[650px]:translate-y-0 flex w-full max-w-2xl items-center justify-center text-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none"
+      className="relative mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-4 text-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none"
       data-testid="workbench-greeting"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-1/2 -mt-10 max-[650px]:mt-0 aspect-[5/4] w-[min(72vw,25rem)] -translate-x-1/2 -translate-y-1/2 text-foreground/40"
-      >
-        <svg
-          data-brand="Pisper"
-          className="h-full w-full opacity-70 [mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%)]"
-          width="400"
-          height="320"
-          viewBox="0 0 400 320"
-          fill="none"
-        >
-          <path
-            d="M88 319V1h135c76 0 121 43 121 110s-45 111-121 111h-76v97H88Zm59-153h72c43 0 65-19 65-55s-22-54-65-54h-72v109Z"
-            stroke="currentColor"
-          />
-        </svg>
+      <div aria-hidden="true">
+        <BrandLogo size={44} />
       </div>
       <h1
         ref={container}

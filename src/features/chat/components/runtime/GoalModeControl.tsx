@@ -144,7 +144,7 @@ export function ExecutionModeControl({
   return (
     <div
       ref={rootRef}
-      className={`task-execution-mode-select relative h-10 min-w-0 text-muted-foreground ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
+      className={`task-execution-mode-select relative h-10 min-w-0 text-foreground ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
     >
       <button
         ref={triggerRef}

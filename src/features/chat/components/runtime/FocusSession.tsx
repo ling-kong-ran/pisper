@@ -498,7 +498,7 @@ export const FocusSession = memo(function FocusSession({
   const workspaceBlock = (
     <button
       type="button"
-      className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 @max-[520px]:size-8 @max-[520px]:shrink-0 @max-[520px]:justify-center @max-[520px]:[&_span]:hidden"
+      className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground hover:bg-muted disabled:opacity-50 @max-[520px]:size-8 @max-[520px]:shrink-0 @max-[520px]:justify-center @max-[520px]:[&_span]:hidden"
       title={cwd}
       aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
         workspace: workspaceName(cwd, language),
@@ -639,7 +639,7 @@ export const FocusSession = memo(function FocusSession({
       <button
         ref={toolTrayAnchorRef}
         type="button"
-        className={`composer-tools-trigger grid size-9 min-w-9 max-[650px]:w-11 max-[650px]:min-w-11 h-10 flex-none place-items-center rounded-lg border-0 bg-transparent text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground ${toolsOpen ? 'active bg-foreground/5 text-foreground' : ''}`}
+        className={`composer-tools-trigger grid size-9 min-w-9 max-[650px]:w-11 max-[650px]:min-w-11 h-10 flex-none place-items-center rounded-lg border-0 bg-transparent text-foreground transition-colors hover:bg-foreground/5 hover:text-foreground ${toolsOpen ? 'active bg-foreground/5 text-foreground' : ''}`}
         title={quickActionsLabel}
         aria-label={quickActionsLabel}
         aria-expanded={toolsOpen}
