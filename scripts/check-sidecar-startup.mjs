@@ -15,6 +15,8 @@ function run(command, args) {
   })
 }
 
+await run(process.execPath, ['--test', 'scripts/tests/native-process-inspection.test.mjs'])
+
 // Rust 分支的启动闸门使用真实独立进程和隔离的本机模型，覆盖鉴权、配置、消息与重启。
 await run(process.env.CARGO || 'cargo', [
   'build',

@@ -9,6 +9,12 @@ import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promise
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PNG } from 'pngjs'
+import {
+  posixProcesses,
+  browserDescendants,
+  stillOwnedProcesses,
+  posixListenerPid,
+} from './native-process-inspection.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const execute = promisify(execFile)
@@ -204,6 +210,7 @@ export async function checkBrowserParity({
     assert.equal(url.hostname, '127.0.0.1')
     assert.equal(url.protocol, 'http:')
     assert.ok(url.port)
+    if (process.platform !== 'win32') return posixListenerPid(Number(url.port))
     const { stdout } = await execute(
       'powershell.exe',
       [
@@ -219,6 +226,7 @@ export async function checkBrowserParity({
     return pid
   }
   async function processRows(pid) {
+    if (process.platform !== 'win32') return browserDescendants(await posixProcesses(), pid)
     const script = `$queue=[Collections.Generic.Queue[int]]::new();$queue.Enqueue(${pid});$rows=@();while($queue.Count){$parent=$queue.Dequeue();foreach($p in @(Get-CimInstance Win32_Process -Filter ('ParentProcessId = '+$parent))){$queue.Enqueue([int]$p.ProcessId);if($p.Name -match '^(msedge|chrome|chromium|brave)\\.exe$'){$rows+=@{pid=[int]$p.ProcessId;parent=[int]$p.ParentProcessId;path=$p.ExecutablePath;createdUtc=$p.CreationDate.ToUniversalTime().ToString('o')}}}};ConvertTo-Json -InputObject @($rows) -Compress`
     const { stdout } = await execute(
       'powershell.exe',
@@ -236,6 +244,15 @@ export async function checkBrowserParity({
   }
   async function assertGone(rows, label) {
     if (!rows.length) return
+    if (process.platform !== 'win32') {
+      await poll(
+        async () => stillOwnedProcesses(await posixProcesses(), rows),
+        (rows) => rows.length === 0,
+        label,
+        10000,
+      )
+      return
+    }
     const ids = [...new Set(rows.map((row) => row.pid))]
     await poll(
       async () => {
