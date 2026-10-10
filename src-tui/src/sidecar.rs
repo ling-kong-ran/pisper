@@ -6,7 +6,7 @@
 //! 3. 本进程 spawn 的 TUI sidecar（独立 TUI 发行）。
 //!
 //! 独立发行时优先使用已安装的签名 Runtime 组件，失败后回退到随二进制
-//! 捆绑的 sidecar；两种都没有才在开发模式下用 `node runtime/sidecar.mjs`。
+//! 捆绑的 sidecar；源码开发优先使用已构建的 Rust Runtime，旧 Node 入口仅兼容旧源码树。
 
 use std::{
     fs,
@@ -409,6 +409,20 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, SidecarCo
             .map(|(command, root)| (command, root, SidecarCommandKind::Other));
     }
 
+    // 开发构建必须与当前源码的 Runtime 配对，不能静默回退到旧安装组件。
+    let source_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .context("src-tui must have a project parent")?;
+    if cfg!(debug_assertions) {
+        if let Some(runtime) = development_rust_runtime(source_root)? {
+            return Ok((
+                Command::new(runtime),
+                source_root.to_path_buf(),
+                SidecarCommandKind::Other,
+            ));
+        }
+    }
+
     if allow_installed {
         if let Some(installed) = installed_runtime() {
             return Ok((
@@ -443,6 +457,9 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, SidecarCo
         .parent()
         .context("src-tui must have a project parent")?
         .to_path_buf();
+    if let Some(runtime) = development_rust_runtime(&root)? {
+        return Ok((Command::new(runtime), root, SidecarCommandKind::Other));
+    }
     let entry = root.join("runtime").join("sidecar.mjs");
     if !entry.is_file() {
         return Err(anyhow!(
@@ -452,6 +469,31 @@ fn sidecar_command(allow_installed: bool) -> Result<(Command, PathBuf, SidecarCo
     let mut command = Command::new("node");
     command.arg(entry);
     Ok((command, root, SidecarCommandKind::Other))
+}
+
+/// 返回当前源码的 Rust 二进制；源码存在但未构建时给出操作指引，不触发下载旧 Runtime。
+fn development_rust_runtime(root: &Path) -> Result<Option<PathBuf>> {
+    if !root.join("runtime-rs/Cargo.toml").is_file() {
+        return Ok(None);
+    }
+    let name = if cfg!(windows) {
+        "pisper-server.exe"
+    } else {
+        "pisper-server"
+    };
+    let target = root.join("runtime-rs/target");
+    let profiles = if cfg!(debug_assertions) {
+        ["debug", "release"]
+    } else {
+        ["release", "debug"]
+    };
+    for profile in profiles {
+        let candidate = target.join(profile).join(name);
+        if candidate.is_file() {
+            return Ok(Some(candidate));
+        }
+    }
+    Err(anyhow!("Rust Runtime is not built. Run cargo build --locked --manifest-path runtime-rs/Cargo.toml before starting the CLI."))
 }
 
 /// 由 `PISPER_SIDECAR_PATH` 指向的 SEA 可执行文件构造命令。
@@ -497,13 +539,24 @@ pub fn installed_frontend() -> Option<pisper_component_updater::InstalledCompone
         .filter(|installed| installed.executable().is_file())
 }
 
-/// 前端静态资源根目录：环境变量显式指定优先，其次用已安装组件；
+/// 前端静态资源根目录：环境变量优先，其次捆绑资源，最后已安装组件；
 /// 必须含 `index.html` 才算有效，否则视为未配置。
 pub fn configured_frontend_root() -> Option<PathBuf> {
     std::env::var_os("PISPER_FRONTEND_ROOT")
         .map(PathBuf::from)
+        .or_else(|| bundled_frontend(&std::env::current_exe().ok()?))
         .or_else(|| installed_frontend()?.frontend_root())
         .filter(|root| root.join("index.html").is_file())
+}
+
+fn bundled_frontend(executable: &Path) -> Option<PathBuf> {
+    let dir = executable.parent()?;
+    [
+        dir.join("sidecar-runtime/dist"),
+        dir.join("../Resources/dist"),
+    ]
+    .into_iter()
+    .find(|root| root.join("index.html").is_file())
 }
 
 /// 已安装的签名 Runtime 组件；仅当其版本高于捆绑版本时才采用，
@@ -561,7 +614,8 @@ pub fn needs_runtime_install() -> bool {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap_or_else(|| Path::new("."));
-    !root.join("runtime").join("sidecar.mjs").is_file()
+    !root.join("runtime-rs").join("Cargo.toml").is_file()
+        && !root.join("runtime").join("sidecar.mjs").is_file()
 }
 
 /// 读取捆绑（或仓库根目录）Runtime 的版本号，用于与已安装组件比较。
@@ -579,14 +633,29 @@ pub fn bundled_runtime_version() -> Option<String> {
             .parent()?
             .join("package.json"),
     ];
-    candidates.into_iter().find_map(|path| {
-        let value = fs::read(path).ok()?;
-        serde_json::from_slice::<serde_json::Value>(&value)
-            .ok()?
-            .get("version")?
-            .as_str()
-            .map(str::to_owned)
-    })
+    candidates[..2]
+        .iter()
+        .find_map(|path| {
+            let value = fs::read(path).ok()?;
+            serde_json::from_slice::<serde_json::Value>(&value)
+                .ok()?
+                .get("version")?
+                .as_str()
+                .map(str::to_owned)
+        })
+        .or_else(|| {
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent()?;
+            let package = fs::read(root.join("src-tauri/desktop-package.json")).ok()?;
+            serde_json::from_slice::<serde_json::Value>(&package).ok()?["bundled"]["runtime"]
+                .as_str()
+                .map(str::to_owned)
+        })
+        .or_else(|| {
+            let package = fs::read(&candidates[2]).ok()?;
+            serde_json::from_slice::<serde_json::Value>(&package).ok()?["version"]
+                .as_str()
+                .map(str::to_owned)
+        })
 }
 
 /// 与 sidecar 可执行文件同目录的 `sidecar-runtime` 应用根目录。
@@ -617,7 +686,10 @@ fn secure_token() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{runtime_is_externally_managed, runtime_node_command, spawn_sidecar};
+    use super::{
+        bundled_frontend, development_rust_runtime, runtime_is_externally_managed,
+        runtime_node_command, spawn_sidecar,
+    };
     use std::{fs, path::PathBuf, process::Command, time::Instant};
 
     /// 构造临时运行时目录（含一个占位 sidecar.mjs 入口），测试后由调用方清理。
@@ -648,6 +720,58 @@ mod tests {
             command.get_args().collect::<Vec<_>>(),
             vec![root.join("runtime").join("sidecar.mjs").as_os_str()]
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rust_source_requires_a_native_build_and_prefers_the_current_profile() {
+        let root = temporary_runtime();
+        assert!(development_rust_runtime(&root).unwrap().is_none());
+        fs::create_dir_all(root.join("runtime-rs")).unwrap();
+        fs::write(
+            root.join("runtime-rs/Cargo.toml"),
+            "[package]\nname=\"fixture\"\n",
+        )
+        .unwrap();
+        assert!(development_rust_runtime(&root)
+            .unwrap_err()
+            .to_string()
+            .contains("cargo build --locked"));
+        let name = if cfg!(windows) {
+            "pisper-server.exe"
+        } else {
+            "pisper-server"
+        };
+        for profile in ["debug", "release"] {
+            fs::create_dir_all(root.join("runtime-rs/target").join(profile)).unwrap();
+            fs::write(
+                root.join("runtime-rs/target").join(profile).join(name),
+                "fixture",
+            )
+            .unwrap();
+        }
+        let preferred = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        };
+        assert_eq!(
+            development_rust_runtime(&root).unwrap().unwrap(),
+            root.join("runtime-rs/target").join(preferred).join(name)
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bundled_web_frontend_requires_an_index() {
+        let root = temporary_runtime();
+        let exe = root.join("pisper");
+        assert!(bundled_frontend(&exe).is_none());
+        let web = root.join("sidecar-runtime/dist");
+        fs::create_dir_all(&web).unwrap();
+        assert!(bundled_frontend(&exe).is_none());
+        fs::write(web.join("index.html"), "fixture").unwrap();
+        assert_eq!(bundled_frontend(&exe), Some(web));
         fs::remove_dir_all(root).unwrap();
     }
 

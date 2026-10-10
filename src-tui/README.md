@@ -69,3 +69,9 @@ Windows 桌面版安装到 `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe
 | :--- | :--- |
 | `/<tool> [请求]` | 请求 Runtime Tool，例如 `/read README.md`、`/bash npm test` 或 `/web_search Pisper`。Agent 仍负责生成参数并调用 Tool，当前执行模式与 Tool 开关继续生效。 |
 | `/skill:<name> [请求]` | 请求已启用 Skill，例如 `/skill:docs-search 查找签名要求`。Runtime 按需加载 Skill 资源，其中触发的 Tool 继续经过同一权限链。 |
+
+## Rust 源码与本地包
+
+先执行 `cargo build --locked --manifest-path runtime-rs/Cargo.toml`，再运行 `npm run tui:dev -- doctor` 或 `npm run tui:dev`。开发 CLI 优先使用同一源码树的 Rust Runtime；未构建时会报出构建命令，不下载旧 Node Runtime。
+
+`npm run tui:build` 构建独立 CLI、Rust Runtime、原生资源及 Web 前端，产物在 `release/tui/`。目前资源打包覆盖 macOS Apple Silicon 和 Windows x64；其他目标未验收。`pisper web` 和 `/web` 打开模型配置页。npm 和移动端发布仍使用各自尚未完成 Rust 迁移的通道，本地打包不会发布版本。

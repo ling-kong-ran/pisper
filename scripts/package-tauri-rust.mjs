@@ -1,12 +1,11 @@
 import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { copyFile, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { stageRustSpeech } from './stage-rust-speech.mjs'
+import { stageRustRuntime } from './stage-rust-runtime.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const buildDir = path.join(root, 'release', 'rust-build')
@@ -140,17 +139,17 @@ if (process.platform === 'darwin') {
     { env: runtimeEnv },
   )
 }
-// 准备原生资源，后续桌面资源检查与生产验收使用同一目录。
-await mkdir(runtimeDir, { recursive: true })
-const speechResources = await stageRustSpeech({ root, targetDir: runtimeDir })
-const teleaSource = await readFile(
-  path.join(root, 'runtime-rs/src/native_image_runtime/telea.rs'),
-  'utf8',
-)
-const teleaLicense = teleaSource.match(/\/\*\r?\n(Intel License Agreement[\s\S]*?)\r?\n\*\//)?.[1]
-if (!teleaLicense) throw new Error('Native Telea license must accompany binary distributions.')
-await mkdir(path.join(runtimeDir, 'licenses'), { recursive: true })
-await writeFile(path.join(runtimeDir, 'licenses/OPENCV-TELEA.txt'), `${teleaLicense}\n`)
+// 桌面与独立 CLI 使用同一套资源和审计元数据。
+await stageRustRuntime({
+  root,
+  runtimeDir,
+  runtimeExecutable,
+  runtimeVersion,
+  sourceCommit,
+  sourceDirty: Boolean(
+    await run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true }),
+  ),
+})
 await run(cargo, ['build', '--release', '--locked', '--manifest-path', tuiManifest], {
   env: tuiEnv,
 })
@@ -163,32 +162,6 @@ await copyFile(
 await copyFile(
   path.join(root, 'src-tui', 'target', 'release', `pisper${executableSuffix}`),
   path.join(binariesDir, `pisper-cli-${rustTarget}${executableSuffix}`),
-)
-await mkdir(runtimeDir, { recursive: true })
-await writeFile(
-  path.join(runtimeDir, 'package.json'),
-  `${JSON.stringify(
-    {
-      name: 'pisper-runtime',
-      version: runtimeVersion,
-      backend: 'rust',
-      sourceCommit,
-      sourceDirty: Boolean(
-        await run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true }),
-      ),
-      executableSha256: createHash('sha256')
-        .update(await readFile(runtimeExecutable))
-        .digest('hex'),
-      speechResources,
-      nativeImageLicense: {
-        path: 'licenses/OPENCV-TELEA.txt',
-        source: 'https://github.com/opencv/opencv/blob/5.0.0/modules/photo/src/inpaint.cpp',
-        sha256: createHash('sha256').update(`${teleaLicense}\n`).digest('hex'),
-      },
-    },
-    null,
-    2,
-  )}\n`,
 )
 
 await run(process.execPath, [

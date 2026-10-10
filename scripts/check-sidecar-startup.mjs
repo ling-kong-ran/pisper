@@ -69,3 +69,12 @@ await run(process.execPath, [
     process.platform === 'win32' ? 'pisper-server.exe' : 'pisper-server',
   ),
 ])
+
+// CLI 与 Runtime 的进程握手必须一起验证，不能只运行协议模型单元测试。
+await run(process.env.CARGO || 'cargo', [
+  'build',
+  '--locked',
+  '--manifest-path',
+  'src-tui/Cargo.toml',
+])
+await run(process.execPath, ['scripts/smoke-rust-cli.mjs'])

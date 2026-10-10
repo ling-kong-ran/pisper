@@ -94,3 +94,11 @@
 发布前先确认本地 `release` 与 `origin/release` 同步、tracked 工作区干净、目标版本大于现有版本且标签未创建。入口运行既有质量检查后，派发 `.github/workflows/release.yml` 并等待结果；该工作流在资产验证完成后原子提交版本和标签、上传并公开 GitHub Release。运行期间冻结 `release`，失败或需要修正候选时先检查运行状态、日志与远端分支，确认原运行终止后再集成修正并从统一入口重试；不要手动改版本或创建标签。
 
 `npm run test:release` 在隔离临时布局中运行真实发布入口，拦截外部命令以验证 Rust/Node 渠道选择、版本与分支拒绝条件，不执行安装、Git 写入、构建或远端发布；发布质量阶段运行同一测试。Windows Desktop 构建前还运行 `npm run test:project-directory` 验证项目目录交互。当前资产清单只有 Windows NSIS 安装包、其签名和 `latest.json`；其他平台矩阵任务跳过打包不代表产物已经构建或验证。
+
+### Rust 会话、CLI 与标记验收补充（2026-10-11）
+
+当前 Rust 源码的独立 CLI 本地构建入口为 `npm run tui:build`（等同 `tui:package`），不再调用已删除的 `sidecar:sea`。macOS arm64 和 Windows x64 共用桌面的原生语音资源及许可证暂存函数，同时包含 Web 前端；尚未启用独立 CLI、npm 或移动端发布通道。开发 CLI 需先构建 `runtime-rs`；具体命令见 `src-tui/README.md`。此前文档中的 SEA 流程只适用于仍保留 Node Runtime 的旧布局。
+
+启动闸门新增 `scripts/smoke-rust-cli.mjs`，实际构建并启动 CLI，使用隔离 HOME 检查 doctor、工作目录、重启与错误路径。`scripts/smoke-rust-session-read-cache.mjs` 覆盖大日志分页、标记、并发元数据修改、原始 `.pisper` 项目命令发现及 Skill 开关并发写入。`npm run test:mobile-shell` 还覆盖终端目录等待/失败/取消，以及会话工作流慢请求去重、切换取消与迟到响应隔离。会话读取的测量方法、前后数据和回滚范围见[会话读取缓存](architecture/session-read-cache.md)。
+
+本轮 Runtime `cargo clippy --all-targets` 能完成，但存量源码与供应商依赖仍有大量警告；`cargo fmt --check` 也发现原有跨模块格式偏差。不能把“能构建”描述为 Runtime 全仓库零警告或格式闸门通过。修复范围内的新文件使用 rustfmt；不要通过一次全仓库格式化掩盖这批性能与生命周期修复。TUI 单独运行其格式、测试和 `clippy --all-targets -- -D warnings`。实际原生验收平台为 macOS arm64，Windows/Android/iOS 的设备运行不能由本机测试代替。

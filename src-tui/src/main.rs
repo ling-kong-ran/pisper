@@ -138,6 +138,15 @@ async fn run() -> Result<()> {
         return Ok(());
     }
     let options = launch_options()?;
+    // 在创建 Runtime 和启用原始输入前拒绝管道，避免 crossterm 在无事件源时 panic。
+    {
+        use std::io::IsTerminal;
+        if !options.doctor && (!std::io::stdin().is_terminal() || !std::io::stdout().is_terminal())
+        {
+            anyhow::bail!("Pisper requires an interactive terminal. Use `pisper doctor` for non-interactive diagnostics.");
+        }
+    }
+
     if options.web && sidecar::configured_frontend_root().is_none() {
         component_update::ensure_web().await?;
     }
@@ -158,8 +167,7 @@ async fn run() -> Result<()> {
     };
     let api = ApiClient::new(&sidecar.url, &sidecar.token)?;
     if options.web {
-        webbrowser::open(&api.bootstrap_url("/config")?)
-            .context("failed to open the default browser")?;
+        webbrowser::open(&api.bootstrap_url()?).context("failed to open the default browser")?;
     }
     if options.doctor {
         startup.set_message("Loading conversations");
@@ -1419,7 +1427,7 @@ async fn execute_action(
                 app.status_error = true;
             } else {
                 match api
-                    .bootstrap_url("/config")
+                    .bootstrap_url()
                     .and_then(|url| webbrowser::open(&url).map(|_| ()).map_err(Into::into))
                 {
                     Ok(()) => {

@@ -30,6 +30,10 @@ async function runPackaging({ key, signingIdentity, target = 'x86_64-pc-windows-
       path.join(repo, 'scripts/package-tauri-rust.mjs'),
       path.join(root, 'scripts/package-tauri-rust.mjs'),
     )
+    await copyFile(
+      path.join(repo, 'scripts/stage-rust-runtime.mjs'),
+      path.join(root, 'scripts/stage-rust-runtime.mjs'),
+    )
     for (const file of ['tauri.conf.json', 'tauri.updater.conf.json', 'updater.pubkey']) {
       await copyFile(path.join(repo, 'src-tauri', file), path.join(root, 'src-tauri', file))
     }
@@ -197,4 +201,63 @@ test('macOS packaging preserves an explicitly configured platform signing identi
   const result = await runPackaging({ target: 'aarch64-apple-darwin', signingIdentity: identity })
   assert.equal(result.configs[0].value.bundle.macOS.signingIdentity, identity)
   assert.ok(result.commands.some(({ command }) => command === 'codesign'))
+})
+
+test('standalone Rust CLI ships the native runtime, frontend and matching component version', async () => {
+  const root = await mkdtemp(path.join(await realpath(tmpdir()), 'pisper-cli-package-'))
+  try {
+    const put = async (name, value) => {
+      await mkdir(path.dirname(path.join(root, name)), { recursive: true })
+      await writeFile(path.join(root, name), value)
+    }
+    await put('src-tui/Cargo.toml', '[package]\nname = "pisper"\nversion = "1.2.3"\n')
+    await put('src-tauri/desktop-package.json', JSON.stringify({ bundled: { runtime: '4.5.6' } }))
+    await put('src-tui/target/release/pisper', 'fixture-cli')
+    await put('runtime-rs/target/release/pisper-server', 'fixture-runtime')
+    await put(
+      'runtime-rs/src/native_image_runtime/telea.rs',
+      '/*\nIntel License Agreement\nfixture\n*/\n',
+    )
+    await put('dist/index.html', '<title>fixture frontend</title>')
+    await put(
+      'scripts/stage-rust-speech.mjs',
+      'export async function stageRustSpeech() { return [] }\n',
+    )
+    for (const file of ['package-tui.mjs', 'stage-rust-runtime.mjs']) {
+      await copyFile(path.join(repo, 'scripts', file), path.join(root, 'scripts', file))
+    }
+    const result = spawnSync(
+      process.execPath,
+      ['--import', preload, path.join(root, 'scripts/package-tui.mjs')],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 15000,
+        env: {
+          ...process.env,
+          CARGO: 'fixture-cargo',
+          RUSTC: 'fixture-rustc',
+          PISPER_PACKAGING_TEST_TARGET: 'aarch64-apple-darwin',
+          PISPER_TUI_STAGE_DIR: path.join(root, 'stage'),
+        },
+      },
+    )
+    assert.equal(result.status, 0, result.stderr || result.stdout)
+    const manifest = JSON.parse(await readFile(path.join(root, 'stage/manifest.json'), 'utf8'))
+    assert.equal(manifest.runtimeVersion, '4.5.6')
+    assert.equal(manifest.backend, 'rust')
+    assert.equal(await readFile(path.join(root, 'stage/pisper-sidecar'), 'utf8'), 'fixture-runtime')
+    assert.match(
+      await readFile(path.join(root, 'stage/sidecar-runtime/dist/index.html'), 'utf8'),
+      /fixture frontend/,
+    )
+    const runtime = JSON.parse(
+      await readFile(path.join(root, 'stage/sidecar-runtime/package.json'), 'utf8'),
+    )
+    assert.equal(runtime.version, '4.5.6')
+    assert.equal(runtime.executableSha256.length, 64)
+    assert.equal(runtime.nativeImageLicense.sha256.length, 64)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })
