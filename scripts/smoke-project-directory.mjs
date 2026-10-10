@@ -31,7 +31,7 @@ await build({
       reactRoot.render(
         <QueryClientProvider client={queryClient}>
           <SidebarProvider mobile={false}>
-            <AttachmentPicker cwd="/fixture" selection={{ attachments: [], addFiles: async files => { state.uploaded = files.map(file => file.name); return true }, addAttachments: files => { state.attachments = files }, setError: error => state.notices.push({message:String(error),tone:'error'}) }} />
+            <AttachmentPicker menu={state.menu} cwd="/fixture" selection={{ attachments: [], addFiles: async files => { state.uploaded = files.map(file => file.name); return true }, addAttachments: files => { state.attachments = files }, setError: error => state.notices.push({message:String(error),tone:'error'}) }} />
             <SidebarRecentSessions
               navigate={(value) => state.navigation.push(value)}
               requestText={async () => null}
@@ -70,14 +70,15 @@ const browser = await chromium.launch({
 })
 let activePage
 
-async function setup(native = true) {
+async function setup(native = true, menu = false) {
   const context = await browser.newContext({
     viewport: { width: 1100, height: 800 },
     serviceWorkers: 'block',
   })
   await context.addInitScript(
-    ({ native }) => {
+    ({ native, menu }) => {
       window.__projectSmoke = {
+        menu,
         calls: [],
         created: [],
         navigation: [],
@@ -99,7 +100,7 @@ async function setup(native = true) {
         }
       }
     },
-    { native },
+    { native, menu },
   )
   const page = await context.newPage()
   activePage = page
@@ -292,7 +293,7 @@ try {
     await close()
   }
   {
-    const { page, close } = await setup(false)
+    const { page, close } = await setup(false, true)
     const chooser = page.waitForEvent('filechooser')
     await page.locator('button.attach-trigger').click()
     await (

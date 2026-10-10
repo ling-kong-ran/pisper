@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
+import { ComposerActionButton } from '@/features/chat/components/composer/ComposerActionButton'
 import { AttachmentPicker } from '@/features/chat/components/composer/AttachmentPicker'
 import { AttachmentTray } from '@/features/chat/components/composer/AttachmentTray'
 import { ChatResourcePicker } from '@/features/chat/components/composer/ChatResourcePicker'
@@ -364,26 +365,30 @@ export const FocusSession = memo(function FocusSession({
     'compact-context': t('chat:focusSession.compactContextNow'),
   }
   const composerTools = {
-    attachment: <AttachmentPicker cwd={cwd} selection={selection} />,
-    resource: (
-      <button
-        type="button"
-        className="resource-picker-trigger grid size-9 min-w-9 place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
+    attachment: (menu: boolean) => <AttachmentPicker cwd={cwd} selection={selection} menu={menu} />,
+    resource: (menu: boolean) => (
+      <ComposerActionButton
+        menu={menu}
+        label={t('chat:focusSession.resourcesAndTools')}
+        className="resource-picker-trigger"
         title={t('chat:resourcePicker.open')}
         aria-label={t('chat:resourcePicker.open')}
         onClick={() => setResourcePickerOpen(true)}
       >
         <Braces size={16} />
-      </button>
+      </ComposerActionButton>
     ),
-    visual: visualAvailable ? (
-      <VisualComposerEntry
-        notify={notify}
-        onOpenModelSettings={onOpenModelSettings}
-        onInsertPrompt={applyWelcomeChip}
-      />
-    ) : null,
-    model: (
+    visual: visualAvailable
+      ? (menu: boolean) => (
+          <VisualComposerEntry
+            menu={menu}
+            notify={notify}
+            onOpenModelSettings={onOpenModelSettings}
+            onInsertPrompt={applyWelcomeChip}
+          />
+        )
+      : null,
+    model: () => (
       <ModelThinkingControl
         model={pendingRuntimeSelection?.model || model}
         models={availableModels}
@@ -399,7 +404,7 @@ export const FocusSession = memo(function FocusSession({
         pendingModel={Boolean(pendingRuntimeSelection?.model)}
       />
     ),
-    permission: (
+    permission: () => (
       <ExecutionModeSelect
         showLabel
         value={executionMode}
@@ -407,29 +412,32 @@ export const FocusSession = memo(function FocusSession({
         disabled={switchingPermission}
       />
     ),
-    'run-mode': goalsAvailable ? (
-      <ExecutionModeControl
-        mode={composerExecutionMode}
-        goal={goal}
-        teamAvailable={teamAvailable}
-        disabled={streaming}
-        tokenBudget={composerExecutionMode === 'team' ? teamTokenBudget : goalTokenBudget}
-        onTokenBudgetChange={
-          composerExecutionMode === 'team' ? setTeamTokenBudget : setGoalTokenBudget
-        }
-        onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
-        onChange={(nextMode) => {
-          if (goal?.status === 'active' && (nextMode === 'plan' || nextMode !== goal.mode))
-            void requestGoalPause().catch(() => {})
-          setComposerExecutionMode(nextMode)
-          void onRunModeChange(nextMode)
-        }}
-      />
-    ) : null,
-    commands: (
-      <button
-        type="button"
-        className="command-palette-trigger relative grid size-9 min-w-9 place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] [&_kbd]:sr-only"
+    'run-mode': goalsAvailable
+      ? () => (
+          <ExecutionModeControl
+            mode={composerExecutionMode}
+            goal={goal}
+            teamAvailable={teamAvailable}
+            disabled={streaming}
+            tokenBudget={composerExecutionMode === 'team' ? teamTokenBudget : goalTokenBudget}
+            onTokenBudgetChange={
+              composerExecutionMode === 'team' ? setTeamTokenBudget : setGoalTokenBudget
+            }
+            onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
+            onChange={(nextMode) => {
+              if (goal?.status === 'active' && (nextMode === 'plan' || nextMode !== goal.mode))
+                void requestGoalPause().catch(() => {})
+              setComposerExecutionMode(nextMode)
+              void onRunModeChange(nextMode)
+            }}
+          />
+        )
+      : null,
+    commands: (menu: boolean) => (
+      <ComposerActionButton
+        menu={menu}
+        label={t('chat:focusSession.commands')}
+        className="command-palette-trigger"
         title={
           COMMAND_PALETTE_SHORTCUT
             ? t('chat:focusSession.openCommandPaletteShortcut', {
@@ -447,11 +455,11 @@ export const FocusSession = memo(function FocusSession({
         onClick={requestCommandPalette}
       >
         <Command size={16} />
-        <kbd>{COMMAND_PALETTE_SHORTCUT}</kbd>
-      </button>
+      </ComposerActionButton>
     ),
-    'compact-context': (
+    'compact-context': (menu: boolean) => (
       <CompactContextButton
+        menu={menu}
         streaming={streaming}
         compactingManually={compactingManually}
         compactionActive={Boolean(compaction?.active)}
@@ -476,23 +484,20 @@ export const FocusSession = memo(function FocusSession({
       ? { permission: 2.3, 'run-mode': 1.8, model: 3.6 }
       : { permission: 2.6, 'run-mode': 2, model: 3.9 },
   )
-  const renderComposerTool = (id: ComposerToolId) => (
+  const renderComposerTool = (id: ComposerToolId, menu = false) => (
     <div
       className={cn(
-        'composer-toolbar-slot flex min-w-0 flex-none items-center gap-2',
+        'composer-toolbar-slot flex min-w-0 flex-none items-center',
+        menu && 'w-full [&>div]:w-full [&>div>button]:w-full [&>div>button]:justify-start',
         id === 'model' && 'ml-auto [.composer-tool-tray_&]:ml-0',
-        !['model', 'permission', 'run-mode'].includes(id) &&
+        !menu &&
+          !['model', 'permission', 'run-mode'].includes(id) &&
           'h-10 [&>button]:!size-10 [&>div]:!size-10 [&>div>button]:!size-10',
       )}
       data-composer-tool-id={id}
       key={id}
     >
-      {composerTools[id]}
-      {!['model', 'permission', 'run-mode'].includes(id) && (
-        <span className="hidden text-xs text-muted-foreground [.composer-tool-tray_&]:block">
-          {composerToolLabels[id]}
-        </span>
-      )}
+      {composerTools[id]?.(menu)}
     </div>
   )
   const workspaceBlock = (
@@ -649,7 +654,7 @@ export const FocusSession = memo(function FocusSession({
         {toolsOpen ? <X size={17} /> : <Plus size={18} />}
       </button>
       <div className="focus-composer-visible-tools flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
-        {toolbarAllocation.inline.map(renderComposerTool)}
+        {toolbarAllocation.inline.map((id) => renderComposerTool(id))}
       </div>
       <ComposerToolTray
         placement="top"
@@ -659,10 +664,11 @@ export const FocusSession = memo(function FocusSession({
         anchorRef={toolTrayAnchorRef}
         menuRef={toolTrayMenuRef}
       >
-        {toolbarAllocation.overflow.map(renderComposerTool)}
-        <button
-          type="button"
-          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
+        {toolbarAllocation.overflow.map((id) => renderComposerTool(id, true))}
+        <div className="my-1 border-t border-border/60" />
+        <ComposerActionButton
+          menu
+          label={detailsOpen ? t('chat:focusSession.hideDetails') : t('chat:focusSession.details')}
           aria-expanded={detailsOpen}
           onClick={() => {
             setDetailsOpen((open) => !open)
@@ -670,11 +676,8 @@ export const FocusSession = memo(function FocusSession({
           }}
         >
           <SlidersHorizontal size={15} />
-          {detailsOpen ? t('chat:focusSession.hideDetails') : t('chat:focusSession.details')}
-        </button>
-        <div className="w-full border-t border-[var(--stroke-soft)] pt-1">
-          <ComposerToolbarSettings labels={composerToolLabels} labeled />
-        </div>
+        </ComposerActionButton>
+        <ComposerToolbarSettings labels={composerToolLabels} labeled />
       </ComposerToolTray>
     </div>
   )

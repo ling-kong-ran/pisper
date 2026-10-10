@@ -2,6 +2,7 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Paperclip } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
+import { ComposerActionButton } from '@/features/chat/components/composer/ComposerActionButton'
 import { useIsMobileApp } from '@/stores/client-store'
 import type { ChatAttachment } from '@/types/chat'
 import { CHAT_ATTACHMENT_ACCEPT, pathAttachments } from '@/features/chat/model/attachments'
@@ -16,8 +17,10 @@ type AttachmentPickerSelection = {
 export function AttachmentPicker({
   cwd,
   selection,
+  menu = false,
 }: {
   cwd?: string
+  menu?: boolean
   selection: AttachmentPickerSelection
 }) {
   const { t } = useI18n()
@@ -67,17 +70,20 @@ export function AttachmentPicker({
         aria-label={t('chat:focusSession.addAttachment')}
         onChange={addDeviceFiles}
       />
-      <button
-        type="button"
-        className="attach-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] [&_i]:absolute [&_i]:top-[-4px] [&_i]:right-[-4px] [&_i]:grid [&_i]:min-w-[14px] [&_i]:h-[14px] [&_i]:place-items-center [&_i]:[border:2px_solid_var(--solid)] [&_i]:rounded-[var(--r-pill)] [&_i]:bg-[var(--blue)] [&_i]:text-[var(--on-accent)] [&_i]:p-[0_3px] [&_i]:text-[13px] [&_i]:[font-style:normal]"
-        title={t('chat:focusSession.addAttachment')}
-        aria-label={t('chat:focusSession.addAttachment')}
+      <ComposerActionButton
+        menu={menu}
+        label={t('chat:focusSession.addAttachment')}
+        className="attach-trigger"
         disabled={picking}
         onClick={() => void chooseAttachments()}
       >
         <Paperclip size={17} />
-        {selection.attachments.length > 0 && <i>{selection.attachments.length}</i>}
-      </button>
+        {selection.attachments.length > 0 && (
+          <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+            {selection.attachments.length}
+          </span>
+        )}
+      </ComposerActionButton>
     </>
   )
 }

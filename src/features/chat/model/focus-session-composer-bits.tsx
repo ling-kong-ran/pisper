@@ -5,6 +5,7 @@ import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 
 import { useI18n } from '@/app/i18n/use-i18n'
 import { useShortcutLabel } from '@/lib/ui/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
+import { ComposerActionButton } from '@/features/chat/components/composer/ComposerActionButton'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
@@ -144,12 +145,14 @@ export function ComposerStatusPill({
 }
 
 export function CompactContextButton({
+  menu = false,
   streaming,
   compactingManually,
   compactionActive,
   disabled,
   onCompact,
 }: {
+  menu?: boolean
   streaming?: boolean
   compactingManually: boolean
   compactionActive: boolean
@@ -158,9 +161,10 @@ export function CompactContextButton({
 }) {
   const { t } = useI18n()
   return (
-    <button
-      type="button"
-      className="compact-context-trigger [&:hover:not(:disabled)]:border-[var(--accent-border)] [&:hover:not(:disabled)]:bg-[var(--accent-soft)] [&:hover:not(:disabled)]:text-[var(--star-strong)] disabled:[cursor:not-allowed] disabled:opacity-[.5] [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] grid w-[38px] h-[38px] flex-none place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-tertiary)] cursor-pointer"
+    <ComposerActionButton
+      menu={menu}
+      label={t('chat:focusSession.compactContextNow')}
+      className="compact-context-trigger"
       title={
         streaming
           ? t('chat:focusSession.manualCompactionWaitForRun')
@@ -177,7 +181,7 @@ export function CompactContextButton({
       ) : (
         <Minimize2 size={14} />
       )}
-    </button>
+    </ComposerActionButton>
   )
 }
 

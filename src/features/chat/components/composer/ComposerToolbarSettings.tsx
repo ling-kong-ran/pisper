@@ -1,6 +1,6 @@
 // 快捷栏布局编辑器：用户可在输入框与收纳区之间移动工具，并调整各区顺序。
 import { useLayoutEffect, useRef } from 'react'
-import { Archive, ArrowDown, ArrowUp, Pin, RotateCcw, SlidersHorizontal, X } from 'lucide-react'
+import { Archive, ArrowDown, ArrowUp, Pin, RotateCcw, Settings2, X } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
+import { ComposerActionButton } from '@/features/chat/components/composer/ComposerActionButton'
 import {
   DEFAULT_COMPOSER_TOOLBAR_LAYOUT,
   type ComposerToolbarLayout,
@@ -143,19 +143,9 @@ export function ComposerToolbarSettings({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(
-            'h-11 gap-2 text-[var(--text-muted)]',
-            labeled ? 'w-full justify-start px-2 text-xs' : 'w-11 px-0',
-          )}
-          title={t('chat:focusSession.customizeShortcuts')}
-          aria-label={t('chat:focusSession.customizeShortcuts')}
-        >
-          <SlidersHorizontal />
-          {labeled && <span>{t('chat:focusSession.customizeShortcuts')}</span>}
-        </Button>
+        <ComposerActionButton menu={labeled} label={t('chat:focusSession.customizeShortcuts')}>
+          <Settings2 />
+        </ComposerActionButton>
       </DialogTrigger>
       <DialogContent
         showCloseButton={false}

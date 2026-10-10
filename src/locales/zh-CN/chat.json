@@ -742,5 +742,6 @@
   "sideChat.message": "临时聊天消息",
   "sideChat.placeholder": "聊点别的…",
   "sideChat.send": "发送临时消息",
-  "sideChat.stop": "停止临时回复"
+  "sideChat.stop": "停止临时回复",
+  "focusSession.resourcesAndTools": "资源与工具"
 }

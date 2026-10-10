@@ -742,5 +742,6 @@
   "sideChat.message": "Temporary chat message",
   "sideChat.placeholder": "Explore a side topic…",
   "sideChat.send": "Send temporary message",
-  "sideChat.stop": "Stop temporary response"
+  "sideChat.stop": "Stop temporary response",
+  "focusSession.resourcesAndTools": "Resources & tools"
 }

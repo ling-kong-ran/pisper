@@ -2,16 +2,19 @@
 // 直接描述生图/生视频需求；未配置时通知并跳转模型设置页，形成配置闭环。
 import { ImagePlus } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
+import { ComposerActionButton } from '@/features/chat/components/composer/ComposerActionButton'
 import { apiJson } from '@/lib/http/api'
 import type { Notify } from '@/app/routes/route-context'
 
 type VisualComposerEntryProps = {
+  menu?: boolean
   notify?: Notify
   onOpenModelSettings?: () => void
   onInsertPrompt: (prompt: string) => void
 }
 
 export function VisualComposerEntry({
+  menu = false,
   notify,
   onOpenModelSettings,
   onInsertPrompt,
@@ -34,14 +37,13 @@ export function VisualComposerEntry({
     }
   }
   return (
-    <button
-      type="button"
-      className="visual-entry-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
-      title={t('chat:focusSession.generateImage')}
-      aria-label={t('chat:focusSession.generateImage')}
+    <ComposerActionButton
+      menu={menu}
+      label={t('chat:focusSession.generateImage')}
+      className="visual-entry-trigger"
       onClick={() => void handleClick()}
     >
       <ImagePlus size={16} />
-    </button>
+    </ComposerActionButton>
   )
 }

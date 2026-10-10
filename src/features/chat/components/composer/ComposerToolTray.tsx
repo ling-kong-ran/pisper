@@ -26,13 +26,13 @@ export function ComposerToolTray({
       menuRef={menuRef}
       placement={placement}
       align="start"
-      className="composer-tool-tray-shell w-[272px] max-w-[calc(100vw-16px)] overflow-visible rounded-[var(--r-md)] border border-[var(--stroke)] bg-[var(--solid)] p-1.5 shadow-[0_18px_42px_-18px_var(--menu-shadow)] motion-safe:animate-in motion-safe:fade-in-0 data-[side=top]:motion-safe:slide-in-from-bottom-1 data-[side=bottom]:motion-safe:slide-in-from-top-1"
+      className="composer-tool-tray-shell w-[248px] max-w-[calc(100vw-16px)] overflow-visible rounded-[var(--r-md)] border border-[var(--stroke)] bg-[var(--solid)] p-1.5 shadow-[0_18px_42px_-18px_var(--menu-shadow)] motion-safe:animate-in motion-safe:fade-in-0 data-[side=top]:motion-safe:slide-in-from-bottom-1 data-[side=bottom]:motion-safe:slide-in-from-top-1"
       role="toolbar"
       ariaLabel={label}
     >
       <div
         id={trayId}
-        className="composer-tool-tray flex max-h-[min(52vh,360px)] min-h-9 w-full min-w-0 flex-col items-stretch gap-1 [&>.composer-toolbar-slot]:w-full overflow-x-hidden overflow-y-auto overscroll-contain"
+        className="composer-tool-tray flex max-h-[min(52vh,360px)] min-h-9 w-full min-w-0 flex-col items-stretch gap-0.5 [&>.composer-toolbar-slot]:w-full overflow-x-hidden overflow-y-auto overscroll-contain"
       >
         {children}
       </div>
