@@ -173,9 +173,16 @@ export function ChatPage({
   )
   const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
   const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
-  const shell = useMobileShell()
+  const {
+    active: shellActive,
+    mode: shellMode,
+    pane: shellPane,
+    tab: shellTab,
+    openContext,
+    setPane,
+  } = useMobileShell()
   // 手机壳的右屏已经承载文件改动，主屏不再叠一层会话抽屉。
-  const contextPresentation = shell.active
+  const contextPresentation = shellActive
     ? 'closed'
     : resolveSessionContextPresentation({
         availableWidth: contextWidth,
@@ -201,9 +208,9 @@ export function ChatPage({
   const toggleSessionContext = useCallback(
     (sessionId: string, open: boolean) => {
       if (!sessionId) return
-      if (shell.active) {
-        if (shell.mode === 'pad' || open) shell.openContext('changes')
-        else shell.setPane('chat')
+      if (shellActive) {
+        if (shellMode === 'pad' || open) openContext('changes')
+        else setPane('chat')
         return
       }
       if (open) {
@@ -213,7 +220,7 @@ export function ChatPage({
         setContextOpen(false)
       }
     },
-    [setActiveId, setContextOpen, shell],
+    [openContext, setActiveId, setContextOpen, setPane, shellActive, shellMode],
   )
 
   const createSessionRecord = catalog.createSessionRecord
@@ -387,6 +394,14 @@ export function ChatPage({
   )
 
   const openModelSettings = useCallback(() => navigate('config'), [navigate])
+  // 普通切屏不改变聊天业务状态；只把实际的上下文开关变化传入会话面板。
+  const dockContextTab = shellActive
+    ? shellMode === 'phone' && shellPane === 'context' && shellTab === 'changes'
+      ? 'files'
+      : null
+    : contextPresentation === 'closed'
+      ? null
+      : contextTab
   // 会话状态不进 context：流式期间 sessionStates 每帧变化，
   // 若随 context 广播会让所有 Dock 面板每帧重渲染。面板改为按会话订阅，
   // context 只携带低频数据与稳定回调，配合 useMemo 保持引用稳定。
@@ -400,13 +415,7 @@ export function ChatPage({
       globalError: catalog.globalError,
       activeId: catalog.activeId,
       compactDock: dock.compactDock,
-      contextTab: shell.active
-        ? shell.mode === 'phone' && shell.pane === 'context' && shell.tab === 'changes'
-          ? 'files'
-          : null
-        : contextPresentation === 'closed'
-          ? null
-          : contextTab,
+      contextTab: dockContextTab,
       contextCompact,
       contextPanelId: SESSION_CONTEXT_PANEL_ID,
       toggleSessionContext,
@@ -450,10 +459,8 @@ export function ChatPage({
       catalog.globalError,
       catalog.activeId,
       dock.compactDock,
-      contextPresentation,
-      contextTab,
+      dockContextTab,
       contextCompact,
-      shell,
       toggleSessionContext,
       dock.splitDockPanel,
       dock.closeDockPanel,

@@ -6,7 +6,6 @@ import { useI18n } from '@/app/i18n/use-i18n'
 import { cn } from '@/lib/utils'
 import {
   mobileShellPaneIndex,
-  moveMobileShellPane,
   type MobileShellMode,
   type MobileShellPane,
 } from '@/components/layout/mobile-shell-layout'
@@ -33,7 +32,7 @@ export function MobileThreePane({
 }: MobileThreePaneProps) {
   const { t } = useI18n()
   const phone = enabled && mode === 'phone'
-  const trackRef = useMobilePaneTransition(phone, pane, onPaneChange)
+  const { trackRef, requestPane, stepPane } = useMobilePaneTransition(phone, pane, onPaneChange)
   const panelId = useId()
 
   if (!enabled || mode === 'off') {
@@ -71,7 +70,7 @@ export function MobileThreePane({
             aria-label={t('navigation:mobileShell.previousPane')}
             title={t('navigation:mobileShell.previousPane')}
             disabled={pane === 'sessions'}
-            onClick={() => onPaneChange(moveMobileShellPane(pane, -1))}
+            onClick={() => stepPane(-1)}
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </Button>
@@ -91,7 +90,7 @@ export function MobileThreePane({
                   aria-controls={`${panelId}-${item.id}`}
                   tabIndex={selected ? 0 : -1}
                   onKeyDown={(event) => {
-                    const index = mobileShellPaneIndex(pane)
+                    const index = mobileShellPaneIndex(item.id)
                     const next =
                       event.key === 'ArrowRight'
                         ? (index + 1) % panes.length
@@ -104,7 +103,7 @@ export function MobileThreePane({
                               : -1
                     if (next < 0) return
                     event.preventDefault()
-                    onPaneChange(panes[next].id)
+                    requestPane(panes[next].id)
                     const tabs = event.currentTarget.parentElement?.querySelectorAll('button')
                     tabs?.[next]?.focus()
                   }}
@@ -114,7 +113,7 @@ export function MobileThreePane({
                       ? 'bg-[var(--star-soft)] text-[var(--star-strong)]'
                       : 'text-[var(--text-muted)]',
                   )}
-                  onClick={() => onPaneChange(item.id)}
+                  onClick={() => requestPane(item.id)}
                 >
                   {item.label}
                 </button>
@@ -129,7 +128,7 @@ export function MobileThreePane({
             aria-label={t('navigation:mobileShell.nextPane')}
             title={t('navigation:mobileShell.nextPane')}
             disabled={pane === 'context'}
-            onClick={() => onPaneChange(moveMobileShellPane(pane, 1))}
+            onClick={() => stepPane(1)}
           >
             <ChevronRight size={18} aria-hidden="true" />
           </Button>

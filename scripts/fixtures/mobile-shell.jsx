@@ -1,5 +1,5 @@
 // 使用真实面板组件；接口与原生桥接由测试内存状态代替，不访问个人数据。
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SessionWorkflowRuns } from '@/features/chat/components/session/SessionWorkflowRuns'
@@ -61,14 +61,28 @@ window.pisperDesktop = {
 }
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const labels = new Proxy({}, { get: (_, key) => String(key) })
+const StressRows = memo(function StressRows() {
+  return (
+    <div>
+      {Array.from({ length: 1200 }, (_, i) => (
+        <div key={i} data-stress-row style={{ display: 'flex', gap: 8, padding: 4 }}>
+          <span>Item {i}</span>
+          <span>Fixture content with a variable line length {i % 7}</span>
+          <button>Action</button>
+        </div>
+      ))}
+    </div>
+  )
+})
 export function Fixture() {
   const [pane, setPane] = useState('context')
+  const [stress, setStress] = useState(false)
   const [tab, setTab] = useState('terminal')
   const [mode, setMode] = useState('phone')
   const [session, setSession] = useState('one')
   const [streaming, setStreaming] = useState(false)
   const [mounted, setMounted] = useState(true)
-  window.controls = { setPane, setTab, setMode, setSession, setStreaming, setMounted }
+  window.controls = { setPane, setTab, setMode, setSession, setStreaming, setMounted, setStress }
   if (!mounted) return null
   if (mode === 'workflow')
     return (
@@ -82,11 +96,28 @@ export function Fixture() {
         enabled
         mode={mode}
         pane={pane}
-        onPaneChange={setPane}
-        sessions={<div>sessions</div>}
+        onPaneChange={(next) => {
+          const panels = [...document.querySelectorAll('[data-mobile-shell] > div > section')]
+          window.evidence.flipStartedBeforePaneUpdate = [...panels, panels[0]?.parentElement]
+            .filter(Boolean)
+            .some((node) =>
+              node
+                .getAnimations()
+                .some((animation) =>
+                  animation.effect.getKeyframes().some((frame) => 'transform' in frame),
+                ),
+            )
+          if (window.evidence.holdPaneUpdates) {
+            window.evidence.pendingPane = next
+            return
+          }
+          setPane(next)
+        }}
+        sessions={<div>sessions{stress && <StressRows />}</div>}
         chat={
           <div>
             chat
+            {stress && <StressRows />}
             <textarea aria-label="composer" />
             <div
               aria-label="horizontal-content"

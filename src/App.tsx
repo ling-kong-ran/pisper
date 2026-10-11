@@ -260,6 +260,7 @@ function App() {
       ? requestedConfigSection
       : 'models'
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
+  const consumeAsset = useCallback(() => setPendingAsset(null), [])
   const {
     data: configData,
     isPending: configPending,
@@ -749,7 +750,7 @@ function App() {
     browserNotify,
     registerPrimaryAction,
     pendingAsset,
-    onAssetConsumed: () => setPendingAsset(null),
+    onAssetConsumed: consumeAsset,
     onUseAsset: useAsset,
     requestText: appDialog.prompt,
     requestConfirm: appDialog.confirm,

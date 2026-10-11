@@ -1,7 +1,7 @@
 // 移动壳回归：真实 React 组件、隔离接口/桥接和本机浏览器，不启动模型或读取用户配置。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { readFile, readdir, mkdir } from 'node:fs/promises'
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -99,6 +99,63 @@ try {
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto(`http://127.0.0.1:${server.address().port}`)
+  if (process.env.PISPER_MOBILE_PERF_REPORT) {
+    const client = await page.context().newCDPSession(page)
+    await client.send('Performance.enable')
+    await page.evaluate(() => window.controls.setStress(true))
+    await page.waitForFunction(() => document.querySelectorAll('[data-stress-row]').length === 2400)
+    await client.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+    const samples = []
+    for (let round = 0; round < 3; round++) {
+      for (const target of ['sessions', 'context']) {
+        await page.waitForFunction(() => document.getAnimations().length === 0)
+        const before = (await client.send('Performance.getMetrics')).metrics
+        await page.evaluate(() => {
+          window.firstFlipFrame = null
+          document.addEventListener(
+            'click',
+            () => {
+              const start = performance.now()
+              requestAnimationFrame(() => {
+                window.firstFlipFrame = performance.now() - start
+              })
+            },
+            { once: true, capture: true },
+          )
+        })
+        const start = performance.now()
+        await page
+          .getByRole('tab', { name: `navigation:mobileShell.${target}`, exact: true })
+          .click()
+        await page.waitForFunction(
+          () => document.getAnimations().length === 0 && window.firstFlipFrame !== null,
+        )
+        const after = (await client.send('Performance.getMetrics')).metrics
+        const metric = (name) =>
+          after.find((m) => m.name === name).value - before.find((m) => m.name === name).value
+        samples.push({
+          target,
+          firstFrameMs: await page.evaluate(() => window.firstFlipFrame),
+          elapsedMs: performance.now() - start,
+          layouts: metric('LayoutCount'),
+          layoutMs: metric('LayoutDuration') * 1000,
+        })
+      }
+    }
+    await writeFile(
+      process.env.PISPER_MOBILE_PERF_REPORT,
+      JSON.stringify(
+        { browser: browser.version(), viewport: '390x844', rows: 2400, cpuThrottle: 4, samples },
+        null,
+        2,
+      ),
+    )
+    console.log(JSON.stringify(samples))
+    await client.send('Emulation.setCPUThrottlingRate', { rate: 1 })
+    await client.send('Performance.disable')
+    await page.evaluate(() => window.controls.setStress(false))
+    await page.waitForFunction(() => document.querySelectorAll('[data-stress-row]').length === 0)
+  }
   const openWorkspace = page.getByRole('button', {
     name: 'navigation:mobileShell.openWorkspace',
     exact: true,
@@ -565,6 +622,102 @@ try {
       .locator('[data-mobile-shell] > div > section')
       .evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).transform === 'none')),
   )
+  await page.evaluate(() => {
+    window.controls.setMode('phone')
+    window.controls.setPane('context')
+  })
+  await page.waitForFunction(() => document.querySelector('[data-mobile-shell="phone"]'))
+  await settle()
+  for (const target of ['sessions', 'chat', 'context', 'chat', 'sessions', 'context', 'sessions']) {
+    await page.getByRole('tab', { name: `navigation:mobileShell.${target}`, exact: true }).click()
+    assert.equal(
+      await page.evaluate(() => window.evidence.flipStartedBeforePaneUpdate),
+      true,
+      'Click must start the flip before notifying the parent React tree',
+    )
+    assert.ok(
+      await page.evaluate(() => {
+        const panels = [...document.querySelectorAll('[data-mobile-shell] > div > section')]
+        return [...panels, panels[0]?.parentElement]
+          .filter(Boolean)
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => Number(animation.effect.getTiming().duration) > 1)
+          .every((animation) =>
+            animation.effect
+              .getKeyframes()
+              .every(
+                (frame) => !('marginLeft' in frame) && !('left' in frame) && !('width' in frame),
+              ),
+          )
+      }),
+      'Flip frames must not animate layout properties',
+    )
+    await settle()
+    assert.equal(await currentPane(), `navigation:mobileShell.${target}`)
+    assert.ok(
+      await page.evaluate(() => {
+        const panels = [...document.querySelectorAll('[data-mobile-shell] > div > section')]
+        return [...panels, panels[0]?.parentElement].every(
+          (node) =>
+            getComputedStyle(node).transform === 'none' &&
+            getComputedStyle(node).willChange === 'auto',
+        )
+      }),
+      'Finished flips must release layers and fixed-position containing blocks',
+    )
+  }
+  await page.getByRole('tab', { name: 'navigation:mobileShell.context', exact: true }).click()
+  await page.evaluate(() => {
+    document.querySelectorAll('[role=tabpanel]').forEach((node) =>
+      node
+        .getAnimations()
+        .filter((animation) =>
+          animation.effect.getKeyframes().some((frame) => 'transform' in frame),
+        )
+        .forEach((animation) => {
+          animation.pause()
+          animation.currentTime = 1
+        }),
+    )
+  })
+  await page.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).click()
+  assert.ok(
+    await page.evaluate(() => {
+      const track = document.querySelector('[role=tabpanel]').parentElement
+      const animation = track
+        .getAnimations()
+        .find((a) => a.effect.getKeyframes().some((frame) => 'transform' in frame))
+      return new DOMMatrixReadOnly(animation.effect.getKeyframes()[0].transform).m41 > 0
+    }),
+    'An early interrupted cross-pane flip starts from the visible source, not the unseen destination',
+  )
+  await settle()
+  await page.getByRole('tab', { name: 'navigation:mobileShell.context', exact: true }).click()
+  await settle()
+  await page.evaluate(() => {
+    window.evidence.holdPaneUpdates = true
+  })
+  await previousPane.click()
+  await settle()
+  await swipe([300, 450], [80, 450])
+  assert.equal(
+    await page.evaluate(() => window.evidence.pendingPane),
+    'context',
+    'Reversing a flip before the parent commits must supersede the previous request',
+  )
+  await previousPane.click()
+  await previousPane.click()
+  assert.equal(
+    await page.evaluate(() => window.evidence.pendingPane),
+    'sessions',
+    'Rapid arrows must advance from the pending target',
+  )
+  await page.evaluate(() => {
+    window.evidence.holdPaneUpdates = false
+    window.controls.setPane(window.evidence.pendingPane)
+  })
+  await settle()
+  assert.equal(await currentPane(), 'navigation:mobileShell.sessions')
   assert.equal(await page.evaluate(() => window.evidence.closeAll), 0)
   await page.evaluate(() => window.controls.setMounted(false))
   await page.waitForFunction(() => window.evidence.closeAll === 1)
