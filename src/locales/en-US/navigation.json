@@ -181,7 +181,7 @@
   "mobileShell.pager": "Switch between sessions, chat, and workspace",
   "mobileShell.changes": "Changes",
   "mobileShell.extensions": "Extensions",
-  "mobileShell.files": "Files",
+  "mobileShell.files": "Open folder",
   "mobileShell.terminal": "Terminal",
   "mobileShell.terminalUnavailable": "No terminal is available on this device",
   "mobileShell.noSessionChanges": "Open a chat to see file changes here",
