@@ -4,15 +4,7 @@
 // - Wry 媒体授权的实际代理来源校验，并保留原生文件选择等完整回调
 // - WebView renderer 崩溃接管、宿主重建与当前路由恢复
 // gen/ 不入库，定制必须可重放——本脚本是幂等的，可重复运行。
-import {
-  copyFileSync,
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -23,6 +15,8 @@ import {
 } from './patch-wry-android.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
+import { ANDROID_WEBVIEW_RECOVERY } from './mobile-rust-env.mjs'
+import { stageAndroidTls } from './stage-android-tls.mjs'
 
 const env = resolveAndroidEnv()
 
@@ -86,9 +80,6 @@ const rustWebChromeClientPath = join(
   'generated',
   'RustWebChromeClient.kt',
 )
-const nodeMobileDir = process.env.PISPER_NODE_MOBILE_ANDROID_DIR
-  ? join(process.env.PISPER_NODE_MOBILE_ANDROID_DIR)
-  : ''
 const sherpaAar = join(
   root,
   'src-tauri',
@@ -97,26 +88,6 @@ const sherpaAar = join(
   'libs',
   'sherpa-onnx.aar',
 )
-const requireEmbeddedNode = process.env.PISPER_REQUIRE_EMBEDDED_NODE === '1'
-
-function resolveAndroidCppRuntime(ndkHome) {
-  const prebuiltRoot = join(ndkHome || '', 'toolchains', 'llvm', 'prebuilt')
-  if (!existsSync(prebuiltRoot)) return ''
-  for (const entry of readdirSync(prebuiltRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const candidate = join(
-      prebuiltRoot,
-      entry.name,
-      'sysroot',
-      'usr',
-      'lib',
-      'aarch64-linux-android',
-      'libc++_shared.so',
-    )
-    if (existsSync(candidate)) return candidate
-  }
-  return ''
-}
 
 if (!existsSync(sherpaAar)) {
   // CI 的干净检出没有本地缓存的 AAR；使用与发布构建相同的下载和校验路径。
@@ -259,20 +230,19 @@ if (
 writeFileSync(rustPluginPath, rustPlugin, 'utf8')
 
 // Wry 的扩展点在 Rust 构建时生成 WebViewClient；必须把环境变量放进 Gradle 启动 cargo 的进程。
-const webViewClientExtension = `override fun onRenderProcessGone(
-    view: WebView,
-    detail: RenderProcessGoneDetail
-): Boolean {
-    return MainActivity.recoverFromRendererCrash(view, currentUrl, detail.didCrash())
-}`
+const webViewClientExtension = ANDROID_WEBVIEW_RECOVERY
 const rustBuildTask = readFileSync(rustBuildTaskPath, 'utf8')
 const rustBuildTaskEol = rustBuildTask.includes('\r\n') ? '\r\n' : '\n'
 const rustPageSizeBlock = [
   '            // Pisper：确保 Rust 宿主兼容 Android 16 KB 内存页。',
   '            environment(',
   '                "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS",',
-  '                ("-C link-arg=-Wl,-z,max-page-size=16384 " +',
-  '                    System.getenv("CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS").orEmpty()).trim(),',
+  '                System.getenv("CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS").orEmpty().let { flags ->',
+  '                    val pageFlags = if (flags.contains("-Wl,-z,max-page-size=16384")) flags else ("-C link-arg=-Wl,-z,max-page-size=16384 " + flags).trim()',
+  '                    listOf("-Clink-arg=-landroid", "-Clink-arg=-llog", "-Clink-arg=-lOpenSLES").fold(pageFlags) { result, flag ->',
+  '                        if (result.split(" ").contains(flag)) result else "$result $flag"',
+  '                    }',
+  '                },',
   '            )',
 ].join(rustBuildTaskEol)
 const existingRustPageSizeBlock =
@@ -357,69 +327,48 @@ if (existsSync(rustWebViewClientPath)) {
 mkdirSync(dirname(mainActivityTargetPath), { recursive: true })
 copyFileSync(mainActivitySourcePath, mainActivityTargetPath)
 
-// gen/ 不入库；只有固定产物已经过校验并 staged 时才接入 C++ Node 宿主。
-const nodeLibrary = nodeMobileDir ? join(nodeMobileDir, 'arm64-v8a', 'libnode.so') : ''
-const nodeHeaders = nodeMobileDir ? join(nodeMobileDir, 'include') : ''
-if (nodeLibrary && existsSync(nodeLibrary) && existsSync(nodeHeaders)) {
-  const cppRuntime = resolveAndroidCppRuntime(env.NDK_HOME)
-  if (!cppRuntime) {
-    throw new Error('固定 Android NDK 缺少 arm64 libc++_shared.so。')
-  }
-  const appDir = join(androidDir, 'app')
-  const mainDir = join(appDir, 'src', 'main')
-  const hostSource = join(root, 'src-tauri', 'mobile', 'node-host', 'android')
-  const hostTarget = join(mainDir, 'cpp', 'pisper-node-host')
-  const headersTarget = join(mainDir, 'cpp', 'node-mobile', 'include')
-  const jniTarget = join(mainDir, 'jniLibs', 'arm64-v8a')
-  const kotlinTarget = join(mainDir, 'java', 'com', 'lingkongran', 'pisper')
-  const assetsTarget = join(mainDir, 'assets')
-  for (const directory of [hostTarget, headersTarget, jniTarget, kotlinTarget, assetsTarget]) {
-    mkdirSync(directory, { recursive: true })
-  }
-  cpSync(nodeHeaders, headersTarget, { recursive: true, force: true })
-  for (const name of ['CMakeLists.txt', 'node_host.cpp']) {
-    copyFileSync(join(hostSource, name), join(hostTarget, name))
-  }
-  copyFileSync(join(hostSource, 'EmbeddedNodeHost.kt'), join(kotlinTarget, 'EmbeddedNodeHost.kt'))
-  // Rust 通过 JNI 字符串查找入口，R8 无法静态发现；release 构建必须保留类名和方法签名。
-  copyFileSync(join(hostSource, 'pisper-node-host.pro'), join(appDir, 'pisper-node-host.pro'))
-  copyFileSync(nodeLibrary, join(jniTarget, 'libnode.so'))
-  // Node Mobile 动态依赖 NDK libc++；Android 系统镜像不会提供这个 App 私有 ABI 库。
-  copyFileSync(cppRuntime, join(jniTarget, 'libc++_shared.so'))
-  for (const [source, target] of [
-    ['pisper-node-artifact.json', 'pisper-embedded-node-android.json'],
-    ['LICENSE.nodejs', 'LICENSE.nodejs-mobile'],
-  ]) {
-    copyFileSync(join(nodeMobileDir, source), join(assetsTarget, target))
-  }
-
-  const buildGradlePath = join(appDir, 'build.gradle.kts')
-  let buildGradle = readFileSync(buildGradlePath, 'utf8')
-  if (!buildGradle.includes('src/main/cpp/pisper-node-host/CMakeLists.txt')) {
-    const eol = buildGradle.includes('\r\n') ? '\r\n' : '\n'
-    buildGradle = buildGradle.replace(
-      /    buildFeatures \{\r?\n        buildConfig = true\r?\n    \}\r?\n\}/,
-      [
-        '    buildFeatures {',
-        '        buildConfig = true',
-        '    }',
-        '    externalNativeBuild {',
-        '        cmake {',
-        '            path = file("src/main/cpp/pisper-node-host/CMakeLists.txt")',
-        '            version = "3.22.1"',
-        '        }',
-        '    }',
-        '}',
-      ].join(eol),
-    )
-  }
-  if (!buildGradle.includes('src/main/cpp/pisper-node-host/CMakeLists.txt')) {
-    throw new Error('无法把嵌入式 Node CMake 宿主接入 Android Gradle 工程。')
-  }
-  writeFileSync(buildGradlePath, buildGradle, 'utf8')
-  console.log('已接入固定 Node 24 Android arm64 宿主。')
-} else if (requireEmbeddedNode) {
-  throw new Error('缺少已校验的 Android embedded Node staging。')
+// 清理旧生成工程的 Node 接线，保留原生语音与 WebView 配置。
+const oldGradlePath = join(androidDir, 'app/build.gradle.kts')
+await stageAndroidTls(root, join(androidDir, 'app'))
+// 保留 Android 原生 C++ 运行库；其来源是当前 NDK，与已移除的 Node 宿主无关。
+const ndkHost =
+  process.platform === 'darwin'
+    ? 'darwin-x86_64'
+    : process.platform === 'win32'
+      ? 'windows-x86_64'
+      : 'linux-x86_64'
+const cppRuntime = join(
+  env.NDK_HOME,
+  'toolchains/llvm/prebuilt',
+  ndkHost,
+  'sysroot/usr/lib/aarch64-linux-android/libc++_shared.so',
+)
+if (!existsSync(cppRuntime)) throw new Error('Android NDK is missing the arm64 C++ runtime')
+const jniDirectory = join(androidDir, 'app/src/main/jniLibs/arm64-v8a')
+mkdirSync(jniDirectory, { recursive: true })
+copyFileSync(cppRuntime, join(jniDirectory, 'libc++_shared.so'))
+let oldGradle = readFileSync(oldGradlePath, 'utf8')
+const tlsDependency = '    implementation(files("libs/rustls-platform-verifier.aar"))'
+if (!oldGradle.includes(tlsDependency))
+  oldGradle = oldGradle.replace('dependencies {', `dependencies {\n${tlsDependency}`)
+const proguardPath = join(androidDir, 'app/proguard-rules.pro')
+const tlsKeep = '-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }'
+const proguard = existsSync(proguardPath) ? readFileSync(proguardPath, 'utf8') : ''
+if (!proguard.includes(tlsKeep)) writeFileSync(proguardPath, `${proguard}\n${tlsKeep}\n`)
+oldGradle = oldGradle.replace(
+  /\n\s*externalNativeBuild\s*\{\s*cmake\s*\{[^{}]*pisper-node-host[^{}]*\}\s*\}/g,
+  '',
+)
+oldGradle = oldGradle.replace(/,?\s*"pisper-node-host\.pro"/g, '')
+writeFileSync(oldGradlePath, oldGradle)
+for (const relative of [
+  'app/src/main/cpp/pisper-node-host',
+  'app/src/main/cpp/node-mobile',
+  'app/src/main/java/com/lingkongran/pisper/EmbeddedNodeHost.kt',
+  'app/src/main/jniLibs/arm64-v8a/libnode.so',
+  'app/src/main/jniLibs/arm64-v8a/libpisper_node_host.so',
+]) {
+  rmSync(join(androidDir, relative), { recursive: true, force: true })
 }
 
 const speechGradlePath = join(androidDir, 'app', 'build.gradle.kts')
@@ -427,30 +376,6 @@ const speechGradle = readFileSync(speechGradlePath, 'utf8')
 const compatibleSpeechGradle = enableAndroidSpeechDesugaring(speechGradle)
 if (speechGradle !== compatibleSpeechGradle)
   writeFileSync(speechGradlePath, compatibleSpeechGradle, 'utf8')
-
-// gen/ 不入库，重复构建时也要同步宿主入口，避免 Rust 调用到旧的 Kotlin ABI。
-const hostSourcePath = join(
-  root,
-  'src-tauri',
-  'mobile',
-  'node-host',
-  'android',
-  'EmbeddedNodeHost.kt',
-)
-const hostTargetPath = join(
-  androidDir,
-  'app',
-  'src',
-  'main',
-  'java',
-  'com',
-  'lingkongran',
-  'pisper',
-  'EmbeddedNodeHost.kt',
-)
-if (existsSync(hostSourcePath) && existsSync(hostTargetPath)) {
-  copyFileSync(hostSourcePath, hostTargetPath)
-}
 
 console.log('Android 工程已就绪（权限、网络安全与 WebView renderer 恢复已应用）。')
 console.log('下一步：node scripts/build-mobile-android.mjs [--release] [--target aarch64]')

@@ -58,11 +58,19 @@ fn unsupported(feature: &str) -> ApiError {
 }
 
 pub(crate) fn capabilities() -> Value {
+    capabilities_for_profile(if cfg!(any(target_os = "android", target_os = "ios")) {
+        "mobile-embedded"
+    } else {
+        "desktop"
+    })
+}
+
+fn capabilities_for_profile(profile: &str) -> Value {
     let terminal = terminal_available(
         std::env::var("PISPER_RUNTIME_PROFILE").ok().as_deref(),
         std::env::var("PISPER_RUNTIME_PLATFORM").ok().as_deref(),
     );
-    json!({
+    let mut value = json!({
         "version": 1, "profile": "desktop", "engine": "pi-rs", "degraded": true,
         "modules": {"childProcess": true, "workerThreads": false, "sqlite": true, "wasm": false},
         "features": {
@@ -76,7 +84,28 @@ pub(crate) fn capabilities() -> Value {
             "desktopPet": false,
         },
         "tools": ["read", "bash", "edit", "write"],
-    })
+    });
+    value["profile"] = json!(profile);
+    if profile != "desktop" {
+        value["modules"]["childProcess"] = json!(false);
+        for feature in [
+            "shell",
+            "terminal",
+            "vcs",
+            "mcp",
+            "goals",
+            "plans",
+            "multiAgent",
+            "channels",
+            "workflows",
+            "schedules",
+            "imageAssets",
+        ] {
+            value["features"][feature] = json!(false);
+        }
+        value["tools"] = json!(crate::runtime_host::MOBILE_TOOLS);
+    }
+    value
 }
 
 // The PTY lives in the Tauri host. A plain Web client still requires the real
@@ -99,11 +128,11 @@ pub(crate) fn router() -> Router<std::sync::Arc<AppState>> {
     Router::new()
         .route(
             "/api/client-info",
-            get(|| async { Json(json!({"client":"web"})) }),
+            get(|State(state): State<std::sync::Arc<AppState>>| async move { Json(json!({"client": if state.runtime_profile == "desktop" { "web" } else { "mobile-app" }})) }),
         )
         .route(
             "/api/runtime/capabilities",
-            get(|| async { Json(capabilities()) }),
+            get(|State(state): State<std::sync::Arc<AppState>>| async move { Json(capabilities_for_profile(state.runtime_profile)) }),
         )
         .route(
             "/api/local/browser-preferences",
@@ -381,9 +410,10 @@ fn normalize_compaction_threshold_percent(value: f64) -> f64 {
     if !value.is_finite() {
         return DEFAULT_COMPACTION_THRESHOLD_PERCENT;
     }
-    value
-        .round()
-        .clamp(MIN_COMPACTION_THRESHOLD_PERCENT, MAX_COMPACTION_THRESHOLD_PERCENT)
+    value.round().clamp(
+        MIN_COMPACTION_THRESHOLD_PERCENT,
+        MAX_COMPACTION_THRESHOLD_PERCENT,
+    )
 }
 
 async fn compaction_preference(
@@ -410,9 +440,7 @@ async fn update_compaction_preference(
     let requested = input
         .get("thresholdPercent")
         .and_then(|value| value.as_f64())
-        .ok_or_else(|| {
-            crate::ApiError::bad_request("自动压缩阈值必须在 10% 到 95% 之间。")
-        })?;
+        .ok_or_else(|| crate::ApiError::bad_request("自动压缩阈值必须在 10% 到 95% 之间。"))?;
     if !requested.is_finite()
         || requested < MIN_COMPACTION_THRESHOLD_PERCENT
         || requested > MAX_COMPACTION_THRESHOLD_PERCENT
@@ -529,7 +557,7 @@ mod tests {
         // release saveChatDockLayout 只要求 JSON 对象（任意结构，不能是数组）。
         assert!(validate_dock_layout(&json!({"version":1,"engine":"dockview","activePanelId":"session:a","layout":{"grid":{},"panels":{}}})).is_ok());
         assert!(validate_dock_layout(&json!({"panels":{}})).is_ok());
-        assert!(validate_dock_layout(&json!(["not","an","object"])).is_err());
+        assert!(validate_dock_layout(&json!(["not", "an", "object"])).is_err());
         assert!(validate_dock_layout(&json!("string")).is_err());
         assert!(validate_dock_layout(&json!(null)).is_err());
     }

@@ -107,6 +107,14 @@ export function transformWryAndroidWebChromeClient(source) {
 }
 
 export function transformWryAndroidWebViewClient(source) {
+  // 新 WebView 已在 document-start 注入桥接；回调兜底再执行一次会重定义只读属性。
+  const fallback = 'if (interceptedState[url] == false) {'
+  const guarded =
+    'if (!(view as RustWebView).isDocumentStartScriptEnabled && interceptedState[url] == false) {'
+  if (!source.includes(guarded)) {
+    if (source.split(fallback).length !== 2) throw new Error('Wry 初始化脚本回调结构已变化。')
+    source = source.replace(fallback, guarded)
+  }
   const eol = source.includes('\r\n') ? '\r\n' : '\n'
   const stock = [
     '    override fun onPageFinished(view: WebView, url: String) {',

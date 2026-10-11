@@ -1392,6 +1392,8 @@ pub fn run_mobile() {
     });
     let builder = builder
         .setup(|app| {
+            #[cfg(target_os = "android")]
+            android_bridge::initialize_network_context()?;
             let data_dir = app
                 .path()
                 .app_data_dir()

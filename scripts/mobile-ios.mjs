@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stageIosSpeechResources } from './stage-ios-speech-resources.mjs'
+import { mobileRustEnv } from './mobile-rust-env.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const command = process.argv[2]
@@ -40,7 +41,11 @@ const args = [
 ]
 
 await stageIosSpeechResources({ root })
-const result = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit' })
+const result = spawnSync(process.execPath, args, {
+  cwd: root,
+  stdio: 'inherit',
+  env: mobileRustEnv('ios'),
+})
 if (result.status !== 0) process.exit(result.status ?? 1)
 
 if (command === 'init') {

@@ -20,7 +20,7 @@ import {
 } from './release-components.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-// Rust 桌面打包已整合 Runtime 和 TUI；旧 SEA/npm/App 通道尚未迁移，不能自动派发。
+// Rust 的桌面、Runtime、TUI 与 npm 共享发布源；移动端仍由独立接入门禁保护。
 const rustRuntimeLayout =
   existsSync(join(root, 'runtime-rs', 'Cargo.toml')) &&
   !existsSync(join(root, 'runtime', 'index.mjs'))
@@ -167,7 +167,7 @@ if (source !== remoteSource) {
 
 if (rustRuntimeLayout) {
   console.log(
-    '检测到 Rust Runtime 布局：仅发布 Windows desktop（内置 Runtime/TUI）；独立 TUI、Node Runtime、npm 和 App 通道尚未支持，跳过旧 Pi Node 依赖升级。',
+    '检测到 Rust Runtime 布局：发布跨平台 desktop、TUI、Rust Runtime 和 npm；移动 App 由独立渠道发布，跳过旧 Pi Node 依赖升级。',
   )
 } else {
   updateUpstreamPiDependency()
@@ -185,7 +185,7 @@ const tags = run('git', ['tag', '--list', '--sort=-version:refname'], { capture:
   .split(/\r?\n/)
   .filter(Boolean)
 const runGit = (gitArgs) => run('git', gitArgs, { capture: true })
-const candidates = rustRuntimeLayout ? ['desktop'] : Object.keys(RELEASE_COMPONENTS)
+const candidates = Object.keys(RELEASE_COMPONENTS)
 const plans = []
 
 for (const component of candidates) {
@@ -221,7 +221,7 @@ for (const component of candidates) {
   plans.push({ component, nextVersion, tag })
 }
 
-if (!rustRuntimeLayout) {
+{
   const appCurrentVersion = JSON.parse(await readFile(join(root, APP_VERSION_FILE), 'utf8')).version
   const latestAppTag = tags.find((tag) => appTagPattern().test(tag)) || ''
   const appPaths = appReleasePaths(runGit, latestAppTag, source)
@@ -255,7 +255,7 @@ if (!rustRuntimeLayout) {
 if (plans.length === 0) {
   throw new Error(
     rustRuntimeLayout
-      ? '未检测到 Rust desktop 的待发布产品变更。'
+      ? '未检测到 desktop、tui、Rust runtime 或 app 的待发布产品变更。'
       : '未检测到 desktop、tui、runtime 或 app 的待发布产品变更。',
   )
 }
@@ -351,7 +351,9 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
       `version=${nextVersion}`,
       '-f',
       `source_sha=${source}`,
-      ...(component === 'desktop' && (desktopTuiVersion || desktopRuntimeVersion)
+      ...(component !== 'app' &&
+      index !== npmDispatchIndex &&
+      (desktopTuiVersion || desktopRuntimeVersion)
         ? [
             '-f',
             `tui_version=${desktopTuiVersion}`,

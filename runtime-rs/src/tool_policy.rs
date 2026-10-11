@@ -35,6 +35,18 @@ fn policy_hook(
         let cwd = cwd.clone();
         let owned_files = owned_files.clone();
         Box::pin(async move {
+            if cfg!(any(target_os = "android", target_os = "ios"))
+                && !crate::runtime_host::mobile_tool_allowed(&context.tool_call.name)
+            {
+                return BeforeToolCallOutcome {
+                    result: Some(pi_rust::agent_core::types::BeforeToolCallResult {
+                        block: Some(true),
+                        reason: Some("unsupported: 当前移动宿主不支持此工具。".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                };
+            }
             let mut outcome = match previous {
                 Some(previous) => previous(context.clone()).await,
                 None => BeforeToolCallOutcome::default(),

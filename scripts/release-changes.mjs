@@ -24,6 +24,11 @@ const SCRIPT_COMPONENTS = new Map([
   ['scripts/create-tauri-update-manifest.mjs', ['desktop']],
   ['scripts/package-tauri-release.mjs', ['desktop']],
   ['scripts/package-tui.mjs', ['tui']],
+  ['scripts/package-rust-runtime.mjs', ['runtime']],
+  ['scripts/package-tauri-rust.mjs', ['desktop']],
+  ['scripts/rust-desktop-platforms.mjs', ['desktop', 'tui', 'runtime']],
+  ['scripts/stage-rust-runtime.mjs', ['desktop', 'tui', 'runtime']],
+  ['scripts/stage-rust-speech.mjs', ['desktop', 'tui', 'runtime']],
   ['scripts/sea-bootstrap.cjs', ['runtime']],
   ['scripts/sea-runtime.mjs', ['desktop', 'runtime']],
   ['scripts/patch-pi-mobile-compat.mjs', ['desktop', 'runtime']],
@@ -80,7 +85,7 @@ export function releaseComponentsForPath(input) {
   if (path.startsWith('src-tauri/')) return ['desktop']
   // Desktop 安装包内置 TUI，入口、版本暂存和发布说明必须看到同一份变更。
   if (path.startsWith('src-tui/')) return ['desktop', 'tui']
-  if (path.startsWith('runtime-rs/')) return ['desktop']
+  if (path.startsWith('runtime-rs/')) return ['desktop', 'runtime']
   if (path.startsWith('runtime/')) return ['runtime']
   if (path.startsWith('src/') || path.startsWith('public/')) return ['desktop']
   if (path.startsWith('shared/')) return ['desktop', 'runtime']

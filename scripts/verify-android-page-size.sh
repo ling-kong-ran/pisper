@@ -35,12 +35,17 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 unzip -q "$APK_PATH" 'lib/arm64-v8a/*.so' -d "$WORK_DIR"
 
-for required in libnode.so libpisper_node_host.so libpisper_webview_lib.so; do
+# Rust Runtime 已链接进 Tauri；保留对所有实际 native 库的 ELF 与 ZIP 对齐检查。
+for required in libpisper_webview_lib.so; do
   if [[ ! -f "$WORK_DIR/lib/arm64-v8a/$required" ]]; then
     echo "APK 缺少 arm64 native 库：$required" >&2
     exit 1
   fi
 done
+if [[ -e "$WORK_DIR/lib/arm64-v8a/libnode.so" || -e "$WORK_DIR/lib/arm64-v8a/libpisper_node_host.so" ]]; then
+  echo "Rust APK contains a stale Node host." >&2
+  exit 1
+fi
 
 LIBRARIES=()
 while IFS= read -r -d '' library; do

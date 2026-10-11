@@ -20,11 +20,11 @@
     "mobile:runtime": "node scripts/build-mobile-runtime.mjs",
     "mobile:node:android": "node scripts/stage-mobile-node-android.mjs",
     "mobile:node:ios": "bash scripts/build-mobile-node-ios.sh",
-    "desktop:webview:dev": "npm run build && tauri dev",
+    "desktop:webview:dev": "node scripts/dev-desktop-rust.mjs",
     "desktop:webview:smoke": "node scripts/smoke-tauri-dev.mjs",
     "desktop:webview:package": "node scripts/package-tauri-rust.mjs",
     "desktop:webview:build": "npm run desktop:webview:package",
-    "tauri": "tauri",
+    "tauri": "node scripts/tauri.mjs",
     "init:android": "node scripts/setup-mobile-android.mjs",
     "build:android": "node scripts/build-mobile-android.mjs",
     "init:ios": "node scripts/mobile-ios.mjs init",
@@ -46,7 +46,7 @@
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check && npm run test:startup",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc -p tsconfig.jscheck.json",
     "test:startup": "node scripts/check-sidecar-startup.mjs",
-    "test:release": "node --test scripts/tests/release-rust-dispatch.test.mjs scripts/tests/rust-packaging-signature.test.mjs scripts/tests/mobile-runtime-preflight.test.mjs",
+    "test:release": "node --test scripts/tests/release-rust-dispatch.test.mjs scripts/tests/rust-packaging-signature.test.mjs scripts/tests/mobile-runtime-preflight.test.mjs scripts/tests/rust-desktop-platforms.test.mjs scripts/tests/rust-distribution.test.mjs",
     "test:project-directory": "node scripts/smoke-project-directory.mjs",
     "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
@@ -56,7 +56,8 @@
     "test:chat-dock": "node scripts/smoke-chat-dock.mjs && node scripts/smoke-rust-chat-dock.mjs",
     "test:ui-ux": "node scripts/smoke-ux-chat.mjs && node scripts/smoke-ux-settings.mjs && node scripts/smoke-ux-features.mjs",
     "test:thinking": "node scripts/smoke-thinking-control.mjs && node scripts/smoke-rust-thinking.mjs",
-    "test:sidebar-projects": "node scripts/smoke-sidebar-projects.mjs"
+    "test:sidebar-projects": "node scripts/smoke-sidebar-projects.mjs",
+    "test:android:runtime": "node scripts/smoke-android-runtime.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",

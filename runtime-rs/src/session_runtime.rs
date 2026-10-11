@@ -81,8 +81,10 @@ impl HostedSession {
     }
     pub(crate) fn rebind(&self, state: &AppState) {
         let session = self.session();
-        if let Err(error) = state.plugin_integration.apply_loadout(session.clone()) {
-            tracing::warn!(error=%crate::security::redact_secret_text(&error.message), "Tool configuration could not be restored");
+        if state.runtime_profile == "desktop" {
+            if let Err(error) = state.plugin_integration.apply_loadout(session.clone()) {
+                tracing::warn!(error=%crate::security::redact_secret_text(&error.message), "Tool configuration could not be restored");
+            }
         }
         crate::tool_policy::install(
             session.clone(),

@@ -76,10 +76,11 @@ jobs:
           npm run build
           npm run mobile:runtime
           tar -xOzf release/pisper-embedded-runtime.tar.gz ./embedded-runtime.json |
-            jq -e '.appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-embedded"'
+            jq -e '.schemaVersion == 2 and .appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-embedded"'
           RUNTIME_CONTENTS=/tmp/pisper-embedded-runtime-contents.txt
           tar -tzf release/pisper-embedded-runtime.tar.gz > "$RUNTIME_CONTENTS"
-          grep -Fx './runtime/mobile-embedded.mjs' "$RUNTIME_CONTENTS"
+          grep -Fx './runtime.json' "$RUNTIME_CONTENTS"
+          tar -xOzf release/pisper-embedded-runtime.tar.gz ./runtime.json | jq -e '.backend == "rust"'
           grep -Fx './dist/index.html' "$RUNTIME_CONTENTS"
           grep -Fx './shared/speech-model-catalog.json' "$RUNTIME_CONTENTS"
           grep -Fx './shared/speech-resources/xasr-bpe.vocab' "$RUNTIME_CONTENTS"
@@ -138,13 +139,9 @@ jobs:
         run: npm run build
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
-      - name: Verify and stage fixed Android Node 24
-        run: node scripts/stage-mobile-node-android.mjs release/mobile-node-android --require-sigstore
-      - name: Prepare Android project with embedded Node
+      - name: Prepare Android project with embedded Rust
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
-          PISPER_NODE_MOBILE_ANDROID_DIR: ${{ github.workspace }}/release/mobile-node-android
-          PISPER_REQUIRE_EMBEDDED_NODE: '1'
         run: node scripts/setup-mobile-android.mjs
       - uses: actions/download-artifact@v5
         with:
@@ -169,7 +166,7 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
         run: |
-          node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci --target aarch64 \
+          node scripts/run-mobile-rust.mjs android node node_modules/@tauri-apps/cli/tauri.js android build --apk --ci --target aarch64 \
             --config '{"version":"${{ inputs.version }}","bundle":{"externalBin":[],"resources":[]}}'
       - name: Sign APK
         env:
@@ -211,18 +208,13 @@ jobs:
             '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
           test "$(unzip -p "$UNSIGNED" assets/pisper-embedded-runtime.tgz | sha256sum | awk '{print $1}')" = \
             "$(sha256sum embedded-runtime/pisper-embedded-runtime.tar.gz | awk '{print $1}')"
-          unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-node-android.json'
-          unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libnode.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
-          unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_node_host.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libpisper_webview_lib.so'
           if grep -E '^lib/' /tmp/pisper-apk-contents.txt | grep -Ev '^lib/arm64-v8a/'; then
             echo 'APK contains a non-arm64 native library.' >&2
             exit 1
           fi
           apkanalyzer dex packages --defined-only "$UNSIGNED" > /tmp/pisper-apk-dex.txt
-          grep -F 'com.lingkongran.pisper.EmbeddedNodeHost java.lang.String start(java.lang.String[])' \
-            /tmp/pisper-apk-dex.txt
           grep -F 'com.k2fsa.sherpa.onnx.OnlineRecognizerConfig java.lang.String decodingMethod' \
             /tmp/pisper-apk-dex.txt
           grep -F 'com.k2fsa.sherpa.onnx.FeatureConfig int sampleRate' /tmp/pisper-apk-dex.txt
@@ -281,34 +273,8 @@ jobs:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - name: Install Node dependencies
         run: npm ci
-      - name: Materialize fixed iOS Node smoke source
-        run: bash scripts/build-mobile-node-ios.sh --materialize-only
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
-      - name: Verify and stage fixed iOS Node 24 framework
-        run: node scripts/stage-mobile-node-ios.mjs release/mobile-node-ios --require-sigstore
-      - name: Sign, verify, and restage iOS Node framework
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -Eeuo pipefail
-          brew install minisign
-          (
-            cd release/mobile-node-ios
-            shasum -a 256 -c SHA256SUMS
-          )
-          tar -czf release/pisper-node-mobile-ios.tar.gz -C release/mobile-node-ios .
-          npx tauri signer sign release/pisper-node-mobile-ios.tar.gz
-          mv release/pisper-node-mobile-ios.tar.gz.sig \
-            release/pisper-node-mobile-ios.tar.gz.minisig
-          node scripts/verify-tauri-signature.mjs \
-            release/pisper-node-mobile-ios.tar.gz \
-            release/pisper-node-mobile-ios.tar.gz.minisig
-          rm -rf release/mobile-node-ios
-          mkdir -p release/mobile-node-ios
-          tar -xzf release/pisper-node-mobile-ios.tar.gz -C release/mobile-node-ios
-          test -d release/mobile-node-ios/NodeMobile.xcframework
       - uses: actions/download-artifact@v5
         with:
           name: app-embedded-runtime
@@ -322,17 +288,11 @@ jobs:
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/pisper-embedded-runtime.tar.gz
-      - name: Smoke embedded Pisper Runtime in iOS Simulator
-        run: |
-          bash scripts/smoke-mobile-node-ios.sh \
-            "$PWD/release/mobile-node-ios-work/materialized" \
-            "$PWD/release/mobile-node-ios/NodeMobile.xcframework" \
-            "$PWD/release/pisper-embedded-runtime.tar.gz"
       - name: Build frontend
         run: npm run build
       - name: Generate shared mobile icons
         run: node scripts/sync-mobile-icons.mjs
-      - name: Prepare iOS project with embedded Node
+      - name: Prepare iOS project with embedded Rust
         run: |
           node scripts/stage-ios-speech-resources.mjs
           npx tauri ios init --config src-tauri/tauri.mobile-ios.conf.json
@@ -344,7 +304,7 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           VERSION_CONFIG='{"version":"${{ inputs.version }}"}'
-          npx tauri ios build --ci --no-sign \
+          node scripts/run-mobile-rust.mjs ios node node_modules/@tauri-apps/cli/tauri.js ios build --ci --no-sign \
             --config src-tauri/tauri.mobile-ios.conf.json \
             --config "$VERSION_CONFIG"
       - name: Package iOS artifacts
@@ -371,20 +331,16 @@ jobs:
             exit 1
           }
           require_ipa_entry \
-            '^Payload/[^/]+\.app/Frameworks/NodeMobile\.framework/NodeMobile$' \
-            'NodeMobile framework'
-          require_ipa_entry \
             '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' \
             'App 根目录 PrivacyInfo.xcprivacy'
           require_ipa_entry \
             '^Payload/[^/]+\.app/(.*/)?pisper-embedded-runtime\.tar\.gz$' \
             'embedded Runtime archive'
           cp "$IPA_PATH" pisper-ios-unsigned.ipa
-          cp release/pisper-node-mobile-ios.tar.gz* .
           npx tauri signer sign pisper-ios-unsigned.ipa
           mv pisper-ios-unsigned.ipa.sig pisper-ios-unsigned.ipa.minisig
           cat > README-ios.txt <<'EOF'
-          该 IPA 为未签名产物（不含 provisioning profile），已内置同源 Node/Pisper Runtime。
+          该 IPA 为未签名产物（不含 provisioning profile），已内置同源 Rust/Pisper Runtime。
           安装到真机需自行重签名：AltStore / Sideloadly / 自有开发者账号。
           EOF
       - uses: actions/upload-artifact@v4
@@ -393,7 +349,6 @@ jobs:
           if-no-files-found: error
           path: |
             pisper-ios-*
-            pisper-node-mobile-ios.tar.gz*
             README-ios.txt
 
   publish:
@@ -436,8 +391,6 @@ jobs:
           test -f artifacts/README-ios.txt
           test -f artifacts/pisper-embedded-runtime.tar.gz
           test -f artifacts/pisper-embedded-runtime.tar.gz.minisig
-          test -f artifacts/pisper-node-mobile-ios.tar.gz
-          test -f artifacts/pisper-node-mobile-ios.tar.gz.minisig
           ls -la artifacts
       - name: Commit app version, upload a draft, and publish atomically
         shell: bash

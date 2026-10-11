@@ -7,6 +7,8 @@ import {
   NPM_PLATFORM_TARGETS,
   npmPlatformAlias,
   npmPlatformVersion,
+  npmRuntimeBackend,
+  npmRuntimeAsset,
 } from '../packages/pisper/lib/npm-platform.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -36,6 +38,7 @@ async function requireArtifact(name, maximum = MAX_COMPONENT_BYTES) {
 
 export async function packageNpmPlatforms() {
   const launcherManifest = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
+  const runtimeBackend = npmRuntimeBackend(launcherManifest.pisper.runtimeBackend)
   const npmVersion = String(process.env.PISPER_NPM_VERSION || launcherManifest.version)
   const tuiVersion = String(
     process.env.PISPER_NPM_TUI_VERSION || launcherManifest.pisper.tuiVersion,
@@ -60,7 +63,7 @@ export async function packageNpmPlatforms() {
     const version = npmPlatformVersion(npmVersion, target.platform, target.arch)
     const stage = join(stageRoot, alias)
     const tuiAsset = `Pisper_TUI_Component_${tuiVersion}_${target.release}.tar.gz`
-    const runtimeAsset = `Pisper_Runtime_Node_${runtimeVersion}_${target.release}.tar.gz`
+    const runtimeAsset = npmRuntimeAsset(runtimeVersion, target.release, runtimeBackend)
     const files = [
       [await requireArtifact(tuiAsset), join(stage, 'components', 'tui', tuiAsset)],
       [
@@ -85,7 +88,7 @@ export async function packageNpmPlatforms() {
     const manifest = {
       name: 'pisper',
       version,
-      description: `Pisper signed TUI and Node Runtime bundle for ${target.slug}.`,
+      description: `Pisper signed TUI and ${runtimeBackend} Runtime bundle for ${target.slug}.`,
       license: 'MIT',
       author: launcherManifest.author,
       repository: launcherManifest.repository,
@@ -97,6 +100,7 @@ export async function packageNpmPlatforms() {
         target: target.release,
         tuiVersion,
         runtimeVersion,
+        runtimeBackend,
       },
     }
     await writeFile(join(stage, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')

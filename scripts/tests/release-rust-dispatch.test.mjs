@@ -78,27 +78,19 @@ function dispatches(result) {
   return result.commands.filter(({ command, args }) => command === 'gh' && args[0] === 'workflow')
 }
 
-test('Rust release dispatches only the Windows desktop workflow without updating Node Pi', async () => {
+test('Rust release dispatches native components in dependency order without updating Node Pi', async () => {
   const result = await runRelease()
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(
-    dispatches(result).map(({ args }) => args),
-    [
-      [
-        'workflow',
-        'run',
-        'release.yml',
-        '--ref',
-        'release',
-        '-f',
-        'component=desktop',
-        '-f',
-        'version=0.6.0',
-        '-f',
-        `source_sha=${sourceSha}`,
-      ],
-    ],
+    dispatches(result).map(({ args }) => args.find((v) => v.startsWith('component=')) || args[2]),
+    ['component=tui', 'component=runtime', 'component=desktop', 'release-app.yml'],
   )
+  assert.ok(
+    dispatches(result)
+      .find(({ args }) => args.includes('component=runtime'))
+      .args.includes('publish_npm=true'),
+  )
+  for (const { args } of dispatches(result)) assert.ok(args.includes(`source_sha=${sourceSha}`))
   assert.equal(
     result.commands.some(({ args }) => args.includes('install')),
     false,
@@ -109,7 +101,7 @@ test('Rust release dispatches only the Windows desktop workflow without updating
   assert.ok(npmCommands.includes('test'))
   assert.ok(npmCommands.includes('run check'))
   assert.ok(npmCommands.includes('run build'))
-  assert.equal(npmCommands.includes('run npm:pack:check'), false)
+  assert.equal(npmCommands.includes('run npm:pack:check'), true)
   assert.ok(
     result.commands.some(
       ({ command, args }) => command === 'gh' && args.join(' ') === 'run watch 100 --exit-status',
@@ -122,7 +114,7 @@ test('a TUI-only change also releases the desktop installer that bundles it', as
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(
     dispatches(result).map(({ args }) => args.find((value) => value.startsWith('component='))),
-    ['component=desktop'],
+    ['component=tui', 'component=desktop'],
   )
 })
 
@@ -156,7 +148,6 @@ for (const [name, fixture, message] of [
   ['non-increasing version', { version: '0.5.81' }, /必须高于当前 desktop 版本/],
   ['no product changes', { paths: [] }, /未检测到/],
   ['metadata-only commits', { subject: 'chore(release): metadata' }, /未检测到/],
-  ['unsupported mobile-only changes', { paths: ['src-tauri/src/mobile/lib.rs'] }, /未检测到/],
 ]) {
   test(`Rust release rejects ${name} before dispatch`, async () => {
     const result = await runRelease(fixture)
@@ -165,3 +156,12 @@ for (const [name, fixture, message] of [
     assert.deepEqual(dispatches(result), [])
   })
 }
+
+test('mobile-only Rust changes dispatch the App channel', async () => {
+  const result = await runRelease({ paths: ['src-tauri/src/mobile/lib.rs'] })
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(
+    dispatches(result).map(({ args }) => args[2]),
+    ['release-app.yml'],
+  )
+})

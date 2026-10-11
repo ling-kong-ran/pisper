@@ -24,7 +24,8 @@ async function runPackaging({ key, signingIdentity, target = 'x86_64-pc-windows-
     )
     await put(
       'scripts/stage-rust-speech.mjs',
-      'export async function stageRustSpeech() { return [] }\n',
+      `import {mkdir,writeFile} from 'node:fs/promises'; import {join} from 'node:path';
+export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,'speech-native'),{recursive:true}); await writeFile(join(targetDir,'speech-native/resources.json'),JSON.stringify({engine:{sherpa:'1.13.7',onnxruntime:process.platform==='darwin'?'1.28.1':'1.27.1'}})); return [] }`,
     )
     await copyFile(
       path.join(repo, 'scripts/package-tauri-rust.mjs'),
@@ -34,11 +35,21 @@ async function runPackaging({ key, signingIdentity, target = 'x86_64-pc-windows-
       path.join(repo, 'scripts/stage-rust-runtime.mjs'),
       path.join(root, 'scripts/stage-rust-runtime.mjs'),
     )
-    for (const file of ['tauri.conf.json', 'tauri.updater.conf.json', 'updater.pubkey']) {
+    await copyFile(
+      path.join(repo, 'scripts/rust-desktop-platforms.mjs'),
+      path.join(root, 'scripts/rust-desktop-platforms.mjs'),
+    )
+    await put('scripts/stage-search-tools.mjs', 'export async function stageSearchTools() {}')
+    for (const file of [
+      'tauri.conf.json',
+      'tauri.updater.conf.json',
+      'tauri.windows-offline.conf.json',
+      'updater.pubkey',
+    ]) {
       await copyFile(path.join(repo, 'src-tauri', file), path.join(root, 'src-tauri', file))
     }
     // 资源准备与编译均是外部边界；入口自身仍真实读写和暂存临时 root 中的文件。
-    const suffix = target === 'aarch64-apple-darwin' ? '' : '.exe'
+    const suffix = target.includes('windows') ? '.exe' : ''
     await put(`release/rust-build/pisper-server${suffix}`, 'synthetic-runtime')
     await put(`src-tui/target/release/pisper${suffix}`, 'synthetic-tui')
     if (!suffix) await put('runtime-rs/target/release/pisper-server', 'synthetic-runtime')
@@ -77,8 +88,12 @@ async function runPackaging({ key, signingIdentity, target = 'x86_64-pc-windows-
     const stages = commands.filter(
       ({ args }) => path.basename(args[0]) === 'stage-tauri-artifacts.mjs',
     )
-    assert.equal(builds.length, 1, 'Full entry must invoke the Tauri build exactly once')
-    assert.equal(stages.length, 1, 'Full entry must stage the resulting installer exactly once')
+    assert.equal(builds.length, target.includes('windows') ? 2 : 1)
+    if (target.includes('windows')) {
+      assert.ok(builds[1].args.some((value) => value.endsWith('tauri.windows-offline.conf.json')))
+      assert.ok(stages[1].args.includes('--windows-offline'))
+    }
+    assert.equal(stages.length, builds.length)
     const build = builds[0]
     const configs = []
     for (let index = 0; index < build.args.length; index++) {
@@ -101,7 +116,13 @@ function assertRustPackagingPreserved(result) {
   assert.deepEqual(build.args.slice(1, 4), [
     'build',
     '--bundles',
-    target === 'aarch64-apple-darwin' ? 'app,dmg' : 'nsis',
+    target === 'aarch64-apple-darwin'
+      ? 'app,dmg'
+      : target === 'x86_64-apple-darwin'
+        ? 'app'
+        : target.includes('linux')
+          ? 'appimage,deb'
+          : 'nsis',
   ])
   const overlay = configs.find(
     ({ file }) => file === path.join(root, 'release/rust-build/tauri-rust.conf.json'),
@@ -110,13 +131,17 @@ function assertRustPackagingPreserved(result) {
   assert.equal(overlay.value.bundle.resources['../release/sea/runtime/'], null)
   assert.equal(
     overlay.value.bundle.macOS?.minimumSystemVersion,
-    target === 'aarch64-apple-darwin' ? '14.0' : undefined,
+    target === 'aarch64-apple-darwin'
+      ? '14.0'
+      : target === 'x86_64-apple-darwin'
+        ? '15.5'
+        : undefined,
   )
   assert.ok(
     commands.some(({ args }) => path.basename(args[0]) === 'smoke-rust-provider-upgrade.mjs'),
   )
   assert.equal(overlay.value.bundle.resources['../release/rust-runtime/'], 'sidecar-runtime/')
-  const targetArgs = target.endsWith('-gnu') ? [target] : []
+  const targetArgs = target.endsWith('-windows-gnu') ? [target] : []
   assert.equal(
     stage.bundleDir,
     path.join(root, 'src-tauri/target', ...targetArgs, 'release/bundle'),
@@ -210,6 +235,8 @@ test('standalone Rust CLI ships the native runtime, frontend and matching compon
       await mkdir(path.dirname(path.join(root, name)), { recursive: true })
       await writeFile(path.join(root, name), value)
     }
+    await put('package.json', JSON.stringify({ version: '4.5.6' }))
+    await put('scripts/stage-search-tools.mjs', 'export async function stageSearchTools() {}')
     await put('src-tui/Cargo.toml', '[package]\nname = "pisper"\nversion = "1.2.3"\n')
     await put('src-tauri/desktop-package.json', JSON.stringify({ bundled: { runtime: '4.5.6' } }))
     await put('src-tui/target/release/pisper', 'fixture-cli')
@@ -221,9 +248,14 @@ test('standalone Rust CLI ships the native runtime, frontend and matching compon
     await put('dist/index.html', '<title>fixture frontend</title>')
     await put(
       'scripts/stage-rust-speech.mjs',
-      'export async function stageRustSpeech() { return [] }\n',
+      `import {mkdir,writeFile} from 'node:fs/promises'; import {join} from 'node:path';
+export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,'speech-native'),{recursive:true}); await writeFile(join(targetDir,'speech-native/resources.json'),JSON.stringify({engine:{sherpa:'1.13.7',onnxruntime:process.platform==='darwin'?'1.28.1':'1.27.1'}})); return [] }`,
     )
-    for (const file of ['package-tui.mjs', 'stage-rust-runtime.mjs']) {
+    for (const file of [
+      'package-tui.mjs',
+      'stage-rust-runtime.mjs',
+      'rust-desktop-platforms.mjs',
+    ]) {
       await copyFile(path.join(repo, 'scripts', file), path.join(root, 'scripts', file))
     }
     const result = spawnSync(
@@ -261,3 +293,11 @@ test('standalone Rust CLI ships the native runtime, frontend and matching compon
     await rm(root, { recursive: true, force: true })
   }
 })
+
+for (const target of ['x86_64-apple-darwin', 'x86_64-unknown-linux-gnu']) {
+  test(`Rust packaging preserves signing and resources on ${target}`, async () => {
+    const result = await runPackaging({ target, key: 'synthetic-signing-key' })
+    assertRustPackagingPreserved(result)
+    assert.ok(result.stage.args.includes('--require-signature'))
+  })
+}

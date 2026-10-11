@@ -122,6 +122,8 @@ struct ComponentManifest {
     platform: String,
     arch: String,
     command: String,
+    #[serde(default)]
+    backend: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -689,7 +691,7 @@ pub fn component_asset_name(component: Component, version: &str) -> String {
             architecture_name()
         ),
         Component::Runtime => format!(
-            "Pisper_Runtime_{}_{}_{}.tar.gz",
+            "Pisper_Runtime_Rust_{}_{}_{}.tar.gz",
             version,
             platform_name(),
             architecture_name()
@@ -968,9 +970,17 @@ fn validate_layout(component: Component, root: &Path, version: &Version) -> Resu
         bail!("component manifest does not match the requested platform and version");
     }
     if component == Component::Runtime {
+        // Rust 客户端不能激活旧 Node 闭包；旧 current.json 保留供旧版本回退。
+        if manifest.backend.as_deref() != Some("rust") {
+            bail!("runtime component backend is incompatible; expected rust");
+        }
         let package = root.join("sidecar-runtime").join("package.json");
         if !package.is_file() {
             bail!("runtime payload is missing: {}", package.display());
+        }
+        let metadata: serde_json::Value = serde_json::from_slice(&fs::read(package)?)?;
+        if metadata.get("backend").and_then(|value| value.as_str()) != Some("rust") {
+            bail!("runtime payload backend does not match its manifest");
         }
     }
     Ok(())
@@ -1369,6 +1379,36 @@ mod tests {
         let tui = component_asset_name(Component::Tui, "1.2.3");
         assert!(tui.starts_with("Pisper_TUI_Component_1.2.3_"));
         assert!(tui.ends_with(".tar.gz"));
+        assert!(component_asset_name(Component::Runtime, "1.2.3")
+            .starts_with("Pisper_Runtime_Rust_1.2.3_"));
+    }
+
+    #[test]
+    fn runtime_layout_rejects_legacy_and_mismatched_backends() {
+        let directory = TestDirectory::new();
+        let root = &directory.0;
+        let version = Version::parse("1.2.3").unwrap();
+        fs::create_dir_all(root.join("sidecar-runtime")).unwrap();
+        fs::write(root.join(Component::Runtime.executable_name()), b"fixture").unwrap();
+        for (backend, payload, valid) in [
+            (None, "node", false),
+            (Some("rust"), "node", false),
+            (Some("rust"), "rust", true),
+        ] {
+            fs::write(root.join("manifest.json"), serde_json::to_vec(&serde_json::json!({
+                "version": "1.2.3", "platform": super::platform_name(), "arch": super::architecture_name(),
+                "command": Component::Runtime.executable_name(), "backend": backend,
+            })).unwrap()).unwrap();
+            fs::write(
+                root.join("sidecar-runtime/package.json"),
+                serde_json::to_vec(&serde_json::json!({"backend":payload})).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                super::validate_layout(Component::Runtime, root, &version).is_ok(),
+                valid
+            );
+        }
     }
 
     #[test]
@@ -1423,7 +1463,10 @@ mod tests {
         assert_eq!(info.version, "1.2.3");
         assert_eq!(info.archive_url, "https://api.example.test/archive");
         assert_eq!(info.signature_url, "https://api.example.test/signature");
-        assert_eq!(info.archive_fallback_url, "https://github.example.test/archive");
+        assert_eq!(
+            info.archive_fallback_url,
+            "https://github.example.test/archive"
+        );
         assert_eq!(
             info.signature_fallback_url,
             "https://github.example.test/signature"
@@ -1495,7 +1538,9 @@ mod tests {
             let mut request = [0_u8; 1024];
             let _ = stream.read(&mut request).unwrap();
             stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef")
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef",
+                )
                 .unwrap();
         });
         let directory = TestDirectory::new();

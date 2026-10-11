@@ -4,23 +4,17 @@ import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { stageRustRuntime } from './stage-rust-runtime.mjs'
+import { resolveRustDesktopPlatform } from './rust-desktop-platforms.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tuiManifest = await readFile(join(root, 'src-tui', 'Cargo.toml'), 'utf8')
 const tuiVersion = tuiManifest.match(/\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/)?.[1]
 if (!tuiVersion) throw new Error('Unable to resolve the Pisper TUI version.')
-const desktop = JSON.parse(await readFile(join(root, 'src-tauri/desktop-package.json'), 'utf8'))
-const runtimeVersion = desktop.bundled?.runtime
-if (typeof runtimeVersion !== 'string' || !runtimeVersion.trim()) {
-  throw new Error('desktop-package.json must declare bundled.runtime before packaging.')
-}
-if (!(
-  (process.platform === 'win32' && process.arch === 'x64') ||
-  (process.platform === 'darwin' && process.arch === 'arm64')
-)) {
-  throw new Error('Rust CLI resources currently support Windows x64 and macOS Apple Silicon.')
-}
-const platform = process.platform === 'win32' ? 'windows' : 'darwin'
+const runtimeVersion =
+  process.env.RELEASE_RUNTIME_VERSION ||
+  JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version
+const platform =
+  process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'darwin' : 'linux'
 const arch = process.arch === 'x64' ? 'x86_64' : 'aarch64'
 const suffix = process.platform === 'win32' ? '.exe' : ''
 const cliSource = join(root, 'src-tui/target/release', `pisper${suffix}`)
@@ -54,16 +48,15 @@ function run(command, args, { env = process.env, capture = false } = {}) {
 const cargo = process.env.CARGO || 'cargo'
 const host = await run(process.env.RUSTC || 'rustc', ['-vV'], { capture: true })
 const target = host.match(/^host:\s*(\S+)$/m)?.[1]
-if (
-  !(process.platform === 'darwin'
-    ? target === 'aarch64-apple-darwin'
-    : /^x86_64-.*-windows-(msvc|gnu)$/.test(target || ''))
-) {
-  throw new Error('Rust host target does not match the CLI packaging platform.')
-}
+const profile = resolveRustDesktopPlatform({
+  platform: process.platform,
+  arch: process.arch,
+  rustTarget: target,
+})
 for (const component of ['runtime-rs', 'src-tui']) {
   const env = { ...process.env, CARGO_TARGET_DIR: join(root, component, 'target') }
   delete env.CARGO_BUILD_TARGET
+  if (profile.minimumSystemVersion) env.MACOSX_DEPLOYMENT_TARGET = profile.minimumSystemVersion
   await run(
     cargo,
     ['build', '--locked', '--release', '--manifest-path', join(root, component, 'Cargo.toml')],
@@ -85,6 +78,11 @@ await stageRustRuntime({
     await run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true }),
   ),
 })
+await run(process.execPath, [
+  join(root, 'scripts/verify-rust-runtime-resources.mjs'),
+  runtimeExecutable,
+  join(stage, 'sidecar-runtime'),
+])
 await copyFile(cliSource, join(stage, `pisper${suffix}`))
 await copyFile(runtimeExecutable, join(stage, `pisper-sidecar${suffix}`))
 if (process.platform !== 'win32') {

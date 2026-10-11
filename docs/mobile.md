@@ -1,18 +1,13 @@
 # Pisper 移动端使用指南
 
-> **Rust 迁移分支状态（0.6.0）**：移动端桥接仍启动 embedded Node，而本分支已移除
-> `runtime/mobile-embedded.mjs`。Android/iOS 尚未接入 Rust 的进程内启动、停止和应用生命周期。
-> 当前 `mobile:runtime`、`build:android`、`build:ios` 会在构建前报
-> `MOBILE_RUNTIME_NOT_MIGRATED`，不会生成可用的本机 Runtime 包。
-> 下文 Node 构建步骤属于原移动端实现，不能据此宣称本分支已经完成 Android/iOS 验收。
-> 后续迁移必须保留相同的业务协议与共享语音资源，并补齐两端实际构建及设备运行测试。
+> 当前源码已接入共享 Rust 进程内 Runtime；构建命令及验收层级见 [本机 Runtime 设计](./mobile-local-runtime.md)。源码检查不等于 APK/IPA 安装及真机验收。
 
-Pisper 移动端有两种使用方式：不依赖电脑、直接在手机运行 Node/Pisper Runtime 的本机模式，
+Pisper 移动端有两种使用方式：不依赖电脑、直接在手机运行 Rust/Pisper Runtime 的本机模式，
 以及连接 Desktop Runtime 的远程模式。两种模式使用相同的 React、Provider、会话、标准 `/api/*`
 和 HTTP/SSE 契约，也都不把数据同步到 Pisper 云服务。
 
 本机模式把会话、Provider 配置和工作区保存在手机 App 私有目录。Android/iOS 统一由签名包内的
-embedded Node 24 承载，并按实际 Node 模块清单关闭宿主不支持的系统能力。公开 APK、AAB 与 IPA
+嵌入式 Rust 库承载，并按宿主能力清单关闭宿主不支持的系统能力。公开 APK、AAB 与 IPA
 都不包含 rootfs、`su`、`chroot` 或运行时下载的替代载体。详见
 [移动端本机 Runtime 设计](./mobile-local-runtime.md)。
 
@@ -51,11 +46,11 @@ Release 同时提供资产的 Minisign 签名文件。iOS IPA 的“未签名”
 首次启动会直接进入本机 Runtime，无需先配对电脑；之后可以从 **设置 -> 服务器** 在本机与已配对的
 Desktop 之间切换。App 只记忆 `local` 或 `remote`，不会显示 root/embedded 等内部载体。
 
-本机 Runtime 只监听随机 `127.0.0.1` 端口。它完成 Agent Runtime 初始化后才向壳层写入带随机
-bootstrap token 的 READY 文件，然后打开正常 Pisper React 界面。Provider、模型发现、会话、
+本机 Runtime 只监听随机 `127.0.0.1` 端口。它完成 Agent Runtime 初始化后才通过进程内通道向壳层返回带随机
+bootstrap token 的就绪地址，然后打开正常 Pisper React 界面。Provider、模型发现、会话、
 流式回复、工作区读写、Skill、内置工具和 Web Search 继续使用标准 Runtime 实现。
 
-Android/iOS embedded Node 没有 `child_process` 等宿主能力时，终端、VCS、MCP stdio、工作流、
+Android/iOS 本机 Runtime 缺少子进程等宿主能力时，终端、VCS、MCP stdio、工作流、
 计划任务、多 Agent 和第三方插件执行会按 `/api/runtime/capabilities` 从导航与 API 中同时关闭；
 内置工具目录与 Web Search 设置不会因 plugin worker 缺失而消失。
 
@@ -300,5 +295,5 @@ xcrun simctl launch booted com.lingkongran.pisper
 ## 后续方向
 
 后续硬化包括 Provider 与远程设备凭据迁入系统 Keystore/Keychain、arm64 Android/iOS 真机持续验证、
-系统级后台通知，以及用户自托管 Iroh relay。它们不改变统一 Node/Pisper Runtime、`local`/`remote`
+系统级后台通知，以及用户自托管 Iroh relay。它们不改变统一 Rust/Pisper Runtime、`local`/`remote`
 模式或现有 TLS 指纹与设备 Bearer 模型。

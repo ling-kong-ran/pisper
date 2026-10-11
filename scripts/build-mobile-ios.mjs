@@ -94,6 +94,7 @@ copyFileSync(runtimeArchive, sourceRuntimeArchive)
 // GitHub 流程先生成图标再初始化工程；已有工程也要直接覆盖资源，避免沿用 Tauri 默认图标。
 run(['scripts/sync-mobile-icons.mjs'])
 if (!existsSync(generatedProject)) run(['scripts/mobile-ios.mjs', 'init'])
+else run(['scripts/setup-mobile-ios.mjs'])
 restoreRustBuildPhase()
 run(['scripts/sync-mobile-icons.mjs'])
 mkdirSync(dirname(generatedRuntimeArchive), { recursive: true })

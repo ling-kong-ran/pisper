@@ -6,6 +6,7 @@ import tar from 'tar-stream'
 import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { dirname, join, relative, resolve, sep } from 'node:path'
+import { resolveRustDesktopPlatform } from './rust-desktop-platforms.mjs'
 
 const SHERPA_VERSION = '1.13.7'
 const ORT_VERSION = '1.27.1'
@@ -52,6 +53,46 @@ const NATIVE_PROFILES = {
         sha256: 'a3504a59b3178c40a972772730a27eda06bf447fb6d4f26c88bf5df81746a167',
         upstreamArchive: true,
         version: '1.28.1',
+        license: 'MIT; see ONNXRUNTIME-THIRD-PARTY-NOTICES.txt',
+      },
+    ],
+  },
+  'darwin-x64': {
+    package: 'sherpa-onnx-darwin-x64',
+    ortVersion: '1.28.1',
+    files: [
+      {
+        file: 'libsherpa-onnx-c-api.dylib',
+        bytes: 4575224,
+        sha256: '19230ca4fcad98d1a6d1801a5ba885d58441b3cb99879c066f885f8ac2e2cd59',
+        version: SHERPA_VERSION,
+        license: 'Apache-2.0; compiled dependency audit pending',
+      },
+      {
+        file: 'libonnxruntime.dylib',
+        bytes: 32172656,
+        sha256: '8dc3d87827183d659f65fc526bd9ea06ad7e9bd906b16bdae26338d3ef26863e',
+        version: '1.28.1',
+        license: 'MIT; see ONNXRUNTIME-THIRD-PARTY-NOTICES.txt',
+      },
+    ],
+  },
+  'linux-x64': {
+    package: 'sherpa-onnx-linux-x64',
+    ortVersion: ORT_VERSION,
+    files: [
+      {
+        file: 'libsherpa-onnx-c-api.so',
+        bytes: 5102560,
+        sha256: 'a60caa179b70c04d57295f834f1c64de641960fa7bed0f9cefe95d60afdd0571',
+        version: SHERPA_VERSION,
+        license: 'Apache-2.0; compiled dependency audit pending',
+      },
+      {
+        file: 'libonnxruntime.so',
+        bytes: 26407985,
+        sha256: 'c85f471e1bd5059a4556038f7f5288fa41141647613688452ae7de4879150903',
+        version: ORT_VERSION,
         license: 'MIT; see ONNXRUNTIME-THIRD-PARTY-NOTICES.txt',
       },
     ],
@@ -247,9 +288,15 @@ async function macOnnxBytes(root) {
 }
 
 /** 暂存已固定摘要的桌面语音依赖；不复制用户下载的模型。 */
-export async function stageRustSpeech({ root, targetDir }) {
-  const profile = NATIVE_PROFILES[`${process.platform}-${process.arch}`]
-  if (!profile) throw new Error('Rust speech staging supports Windows x64 and macOS Apple Silicon.')
+export async function stageRustSpeech({
+  root,
+  targetDir,
+  platform = process.platform,
+  arch = process.arch,
+}) {
+  const desktop = resolveRustDesktopPlatform({ platform, arch })
+  const profile = NATIVE_PROFILES[`${platform}-${arch}`]
+  if (!profile) throw new Error(`Rust speech resources are unavailable for ${platform}-${arch}.`)
   if (
     typeof root !== 'string' ||
     !root.trim() ||
@@ -267,8 +314,8 @@ export async function stageRustSpeech({ root, targetDir }) {
   if (
     metadata.name !== profile.package ||
     metadata.version !== SHERPA_VERSION ||
-    !metadata.os?.includes(process.platform) ||
-    !metadata.cpu?.includes(process.arch)
+    !metadata.os?.includes(platform) ||
+    !metadata.cpu?.includes(arch)
   )
     throw new Error(`Native speech source must be ${profile.package} ${SHERPA_VERSION}.`)
 
@@ -279,7 +326,9 @@ export async function stageRustSpeech({ root, targetDir }) {
         ? MAC_ORT_ARCHIVE
         : `node_modules/${profile.package}/${file.file}`,
       path: `speech-native/${file.file}`,
-      origin: file.upstreamArchive ? MAC_ORT_ORIGIN : `${profile.package}@${SHERPA_VERSION}`,
+      origin: file.upstreamArchive
+        ? MAC_ORT_ORIGIN
+        : `https://registry.npmjs.org/${profile.package}/-/${profile.package}-${SHERPA_VERSION}.tgz`,
     })),
     // 1.28.1 的 LICENSE/ThirdPartyNotices 与已存 1.27.1 文件逐字节相同，仍验证固定摘要。
     ...TEXT.map((entry) =>
@@ -340,9 +389,9 @@ export async function stageRustSpeech({ root, targetDir }) {
     throw new Error('Shared speech catalog, BPE reference, or provenance notices are inconsistent.')
   const manifest = {
     schemaVersion: 1,
-    platform: process.platform,
-    arch: process.arch,
-    ...(process.platform === 'darwin' ? { minimumSystemVersion: '14.0' } : {}),
+    platform,
+    arch,
+    ...(desktop.minimumSystemVersion ? { minimumSystemVersion: desktop.minimumSystemVersion } : {}),
     engine: { sherpa: SHERPA_VERSION, onnxruntime: profile.ortVersion },
     resources: prepared.map(({ definition, bytes, digest }) => ({
       path: definition.path,

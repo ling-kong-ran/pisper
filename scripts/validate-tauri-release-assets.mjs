@@ -12,12 +12,25 @@ if (!match) {
 }
 
 const version = match[1]
-// Rust 桌面流水线当前只在 Windows 产出 NSIS 安装包；其余平台恢复打包时
-// 在这里补回对应资产（darwin .app.tar.gz/.dmg、linux .AppImage/.deb）。
+// 安装包和 updater 缺少任一已支持平台，都不能发布不完整的 latest.json。
 const tauriAssets = [
   'latest.json',
   `Pisper_${version}_windows_x86_64-setup.exe`,
   `Pisper_${version}_windows_x86_64-setup.exe.sig`,
+  `Pisper_${version}_windows_x86_64-offline-setup.exe`,
+  `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
+  ...['aarch64', 'x86_64'].flatMap((arch) => [
+    `Pisper_${version}_darwin_${arch}.dmg`,
+    `Pisper_${version}_darwin_${arch}.app.tar.gz`,
+    `Pisper_${version}_darwin_${arch}.app.tar.gz.sig`,
+  ]),
+  `Pisper_${version}_linux_x86_64.AppImage`,
+  `Pisper_${version}_linux_x86_64.AppImage.sig`,
+  `Pisper_${version}_linux_x86_64.deb`,
+  ...['windows_x86_64', 'darwin_aarch64', 'darwin_x86_64', 'linux_x86_64'].flatMap((target) => [
+    `Pisper_Desktop_${version}_${target}.tar.gz`,
+    `Pisper_Desktop_${version}_${target}.tar.gz.sig`,
+  ]),
 ]
 const expected = new Set(tauriAssets)
 

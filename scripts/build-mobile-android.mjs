@@ -11,8 +11,9 @@ import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
 import { stageAndroidSpeechResources } from './stage-android-speech-model.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
+import { mobileRustEnv } from './mobile-rust-env.mjs'
 
-const env = resolveAndroidEnv()
+const env = mobileRustEnv('android', resolveAndroidEnv())
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 assertMobileRuntimeSource(root)

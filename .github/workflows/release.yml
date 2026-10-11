@@ -102,22 +102,18 @@ jobs:
           name: release-source
           path: .
       - uses: actions/setup-node@v5
-        if: inputs.component != 'tui'
         with:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        if: inputs.component != 'runtime'
       - name: Install Linux Tauri prerequisites
         if: inputs.component == 'desktop'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - name: Install Node dependencies
-        if: inputs.component != 'tui'
         run: npm ci
       - name: Check release dispatch behavior
-        if: inputs.component != 'tui'
         run: npm run test:release
       - name: Check runtime and web
         if: inputs.component == 'runtime'
@@ -197,9 +193,7 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        if: inputs.component != 'runtime' && (inputs.component != 'desktop' || matrix.target == 'windows-x86_64')
       - uses: Swatinem/rust-cache@v2
-        if: inputs.component != 'runtime' && (inputs.component != 'desktop' || matrix.target == 'windows-x86_64')
         with:
           workspaces: |
             src-tauri
@@ -213,34 +207,35 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
-        if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
       - name: Check native project directory flow
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         run: npm run test:project-directory
-      # Rust 桌面打包仅支持 Windows；desktop 的其余 matrix 行直接跳过。
       - name: Require component signing credentials
-        if: inputs.component != 'runtime'
         shell: bash
         run: |
           test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not configured." >&2; exit 1; }
           test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured." >&2; exit 1; }
       - name: Build scoped release artifacts
         shell: bash
-        if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
         run: |
           case "$RELEASE_COMPONENT" in
             desktop)
               npm run build
               node scripts/package-tauri-rust.mjs
+              node scripts/archive-component-release.mjs desktop --require-signature
               ;;
             tui)
               npm run tui:package
-              node scripts/archive-component-release.mjs tui
+              node scripts/archive-component-release.mjs tui --require-signature
               ;;
             runtime)
-              npm run sidecar:sea
-              npm run sidecar:sea:smoke
-              node scripts/archive-component-release.mjs runtime
+              if [ -f runtime-rs/Cargo.toml ] && [ ! -f runtime/index.mjs ]; then
+                node scripts/package-rust-runtime.mjs
+              else
+                npm run sidecar:sea
+                npm run sidecar:sea:smoke
+              fi
+              node scripts/archive-component-release.mjs runtime --require-signature
               ;;
             *)
               echo "Unsupported release component: $RELEASE_COMPONENT" >&2
@@ -264,32 +259,36 @@ jobs:
         shell: pwsh
         run: |
           $installers = @(Get-ChildItem release/tauri-rust-artifacts -Recurse -File -Filter '*-setup.exe')
-          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer.' }
-          $installer = $installers[0]
-          $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
-          New-Item -ItemType Directory -Path $payloadDir | Out-Null
-          try {
-            & 7z x $installer.FullName "-o$payloadDir" '*MicrosoftEdgeWebview2Setup.exe' -r -y | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
-            $payloads = @(Get-ChildItem $payloadDir -Recurse -File -Filter 'MicrosoftEdgeWebview2Setup.exe')
-            if ($payloads.Count -ne 1) { throw 'Installer does not embed the WebView2 bootstrapper.' }
-            $payload = $payloads[0]
-            $signature = Get-AuthenticodeSignature $payload.FullName
-            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
-              throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
+          if ($installers.Count -ne 2) { throw 'Expected ordinary and offline Windows installers.' }
+          if (@($installers | Where-Object { $_.Name -like '*-offline-setup.exe' }).Count -ne 1) { throw 'Expected exactly one offline installer.' }
+          foreach ($installer in $installers) {
+            $offline = $installer.Name -like '*-offline-setup.exe'
+            $payloadName = if ($offline) { 'MicrosoftEdgeWebView2RuntimeInstaller.exe' } else { 'MicrosoftEdgeWebview2Setup.exe' }
+            $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
+            New-Item -ItemType Directory -Path $payloadDir | Out-Null
+            try {
+              & 7z x $installer.FullName "-o$payloadDir" "*$payloadName" -r -y | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
+              $payloads = @(Get-ChildItem $payloadDir -Recurse -File -Filter $payloadName)
+              if ($payloads.Count -ne 1) { throw "Installer does not embed $payloadName." }
+              $payload = $payloads[0]
+              $signature = Get-AuthenticodeSignature $payload.FullName
+              if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
+                throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
+              }
+              $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
+              Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2 version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
+            } finally {
+              Remove-Item $payloadDir -Recurse -Force
             }
-            $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
-            Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2 version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
-          } finally {
-            Remove-Item $payloadDir -Recurse -Force
           }
       - uses: actions/upload-artifact@v4
-        if: inputs.component != 'desktop' || matrix.target == 'windows-x86_64'
         with:
           name: pisper-${{ inputs.component }}-${{ matrix.target }}
           if-no-files-found: error
           path: |
             release/tauri-rust-artifacts
+            release/component-artifacts
 
   release:
     name: Finalize ${{ inputs.component }} version and publish release
@@ -314,13 +313,17 @@ jobs:
           merge-multiple: true
       - name: Create multi-platform updater manifest
         if: inputs.component == 'desktop'
-        run: node scripts/create-tauri-update-manifest.mjs "$RELEASE_TAG" artifacts --output artifacts/latest.json
+        run: node scripts/create-tauri-update-manifest.mjs "$RELEASE_TAG" artifacts --require-all --output artifacts/latest.json
       - name: Validate exact desktop release asset set
         if: inputs.component == 'desktop'
         run: node scripts/validate-tauri-release-assets.mjs "$RELEASE_TAG" artifacts
       - name: Validate exact component release asset set
         if: inputs.component != 'desktop'
-        run: node scripts/validate-component-release-assets.mjs "$RELEASE_COMPONENT" "$RELEASE_TAG" artifacts
+        shell: bash
+        run: |
+          backend_args=()
+          if [ -f runtime/index.mjs ]; then backend_args+=(--node); fi
+          node scripts/validate-component-release-assets.mjs "$RELEASE_COMPONENT" "$RELEASE_TAG" artifacts "${backend_args[@]}"
       - name: Commit component version, upload a draft, and publish atomically
         shell: bash
         env:

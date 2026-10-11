@@ -5,8 +5,8 @@
 ## 环境与可复现性
 
 - 源码开发和 Web/Runtime 验证以 Node.js 24 为基线，补丁版本必须满足 `package-lock.json` 中实际依赖的 `engines`。2026-09-18 审阅使用 Node 24.21.0；该版本是复现参考，不代表其他版本已通过验收。npm 版本以根目录 `package.json` 的 `packageManager` 字段为准，安装使用 `package-lock.json`，不引入第二套包管理器或锁文件。
-- 分别核验宿主环境：桌面和独立 TUI 的 SEA 包自带 Node；移动端使用 `scripts/mobile-node-artifacts.json` 固定的嵌入式 Node；npm 启动器通过 `PISPER_RUNTIME_NODE` 使用当前宿主 Node 运行下载的 Runtime 闭包。启动器自身能够安装不代表完整 Runtime 可以在同一 Node 版本运行。
-- 当前根清单和 `packages/pisper/package.json` 仍声明 Node ≥20，但锁定 Pi 依赖要求 ≥22.19，构建依赖另有补丁版本限制。这是待修正的兼容声明，不能据此宣称 Node 20 支持。调整最低版本时同步清单、生成的 npm 产物、文档和最低支持版本的 CI；只在 Node 24 上通过检查不能证明更低版本受支持。
+- 当前 Rust 布局的桌面与 CLI 交付原生 Runtime，移动端静态链接同一 Rust 库；Node 24 用于构建和 npm 启动器。历史 Node 分发仍按旧 backend 元数据处理，不可与新 Runtime_Rust 归档混用。
+- 当前根清单和 `packages/pisper/package.json` 声明 Node ≥22.19，但源码构建仍按 Node 24 验证，构建依赖另有补丁版本限制。不能据此宣称 Node 20 支持。调整最低版本时同步清单、生成的 npm 产物、文档和最低支持版本的 CI；只在 Node 24 上通过检查不能证明更低版本受支持。
 - 构建、测试和发布脚本不得依赖开发者机器上的全局包、个人路径、未声明的环境变量或临时目录。需要特殊工具链时，在命令、脚本或对应平台文档中明确记录。
 - 构建产物应能够追溯到源提交、工具版本、构建目标和关键输入。发现两个环境产物不一致时，先记录这些信息，再判断是源码、依赖、工具链还是环境差异。
 - Android、iOS、Tauri 和 TUI 的额外环境要求分别见 `docs/mobile.md`、`docs/node-sea-webview.md` 和仓库中的平台脚本。缺少设备、签名、Xcode 或 Rust 工具链时，报告未验证项，不要把交由其他人执行的步骤写成已通过。
@@ -61,7 +61,7 @@
 
 | 责任范围 | 当前偏差 | 完成条件 |
 | --- | --- | --- |
-| 环境与打包 | 根清单、npm 启动器的 Node ≥20 声明低于当前 Runtime 依赖要求 | 分别核验各宿主，统一清单、生成产物与文档，并验证声明的最低支持版本 |
+| 环境与打包 | 清单已声明 Node ≥22.19；源码构建目前按 Node 24 验证，最低声明版本仍需独立验收 | 分别核验构建宿主与 npm 启动器，统一清单、生成产物与文档，并验证声明的最低支持版本 |
 | 架构守卫 | 聊天行数断言已由编排检查和真实导入图检查替代，Runtime/路由已有依赖与动态导入检查 | 新增领域沿用依赖/行为检查；动态计算路径仍需人工核对，详见[客户端边界记录](architecture/frontend-boundaries.md) |
 | Runtime 类型与公共协议 | JS 类型检查只覆盖少量文件，`src/types/chat.ts` 仍有宽泛 `EntityRecord` | 按领域补充 JSDoc/checkJs、边界校验、明确字段及 Web/TUI 契约测试，未知扩展限制在独立区域 |
 | HTTP 与错误契约 | JSON/文本解析已分离，JSON/SSE 共用 HTTP 错误解析，MCP 使用字段校验；其他旧泛型调用尚未普遍校验字段，Web/TUI 仍匹配部分错误文案 | 逐域迁移 unknown 解码；以兼容方式补齐稳定错误码及旧客户端契约 |
@@ -89,15 +89,14 @@
 
 ### Rust 布局发布流程（2026-10-09）
 
-当前源码包含 `runtime-rs/Cargo.toml`，已移除 `runtime/index.mjs`。统一入口仍为 `npm run release -- <patch|minor|major|X.Y.Z>`，按 Desktop 最新标签自动检测实质性变更；Rust 布局只派发内置 Rust Runtime 和 TUI 的 Windows Desktop 安装包。TUI 源码也归属 Desktop，以保证仅 TUI 改动会更新安装包。独立 TUI、旧 Node Runtime、npm 和移动 App 发布通道尚未完成 Rust 迁移，因此此布局不派发这些通道，也不在发布前自动升级旧 Pi Node 依赖。仍保留 Node Runtime 入口的旧布局沿用原多渠道流程。
-
+当前源码包含 `runtime-rs/Cargo.toml`，已移除 Node Runtime 入口。统一入口仍为 `npm run release -- <patch|minor|major|X.Y.Z>`，按各渠道标签和实质性变更检测 Desktop、TUI、Rust Runtime、npm 与移动 App。依次发布 TUI、Runtime、Desktop、App；Runtime/TUI 改动会链式更新安装包和 npm。Rust 布局不再自动升级旧 Pi Node 依赖。Windows x64、Mac ARM/Intel、Linux x64 共用平台表与原生资源暂存。
 发布前先确认本地 `release` 与 `origin/release` 同步、tracked 工作区干净、目标版本大于现有版本且标签未创建。入口运行既有质量检查后，派发 `.github/workflows/release.yml` 并等待结果；该工作流在资产验证完成后原子提交版本和标签、上传并公开 GitHub Release。运行期间冻结 `release`，失败或需要修正候选时先检查运行状态、日志与远端分支，确认原运行终止后再集成修正并从统一入口重试；不要手动改版本或创建标签。
 
-`npm run test:release` 在隔离临时布局中运行真实发布入口，拦截外部命令以验证 Rust/Node 渠道选择、版本与分支拒绝条件，不执行安装、Git 写入、构建或远端发布；发布质量阶段运行同一测试。Windows Desktop 构建前还运行 `npm run test:project-directory` 验证项目目录交互。当前资产清单只有 Windows NSIS 安装包、其签名和 `latest.json`；其他平台矩阵任务跳过打包不代表产物已经构建或验证。
+`npm run test:release` 在隔离临时布局中运行真实发布入口，拦截外部命令以验证 Rust/Node 渠道选择、版本与分支拒绝条件，不执行安装、Git 写入、构建或远端发布；发布质量阶段运行同一测试。Windows Desktop 构建前还运行 `npm run test:project-directory` 验证项目目录交互。桌面资产清单恢复四平台安装包、Windows 离线包、签名、四平台前端组件和完整 `latest.json`。独立 Runtime 使用 `Runtime_Rust` 资产名；npm 发布源显式记录 backend，旧 Node 元数据仍按旧布局读取。新更新器拒绝激活旧 Node Runtime。
 
 ### Rust 会话、CLI 与标记验收补充（2026-10-11）
 
-当前 Rust 源码的独立 CLI 本地构建入口为 `npm run tui:build`（等同 `tui:package`），不再调用已删除的 `sidecar:sea`。macOS arm64 和 Windows x64 共用桌面的原生语音资源及许可证暂存函数，同时包含 Web 前端；尚未启用独立 CLI、npm 或移动端发布通道。开发 CLI 需先构建 `runtime-rs`；具体命令见 `src-tui/README.md`。此前文档中的 SEA 流程只适用于仍保留 Node Runtime 的旧布局。
+当前 Rust 源码的独立 CLI 本地构建入口为 `npm run tui:build`（等同 `tui:package`），不再调用已删除的 `sidecar:sea`。四个平台共用桌面的语音、rg/fd 与许可证暂存函数，同时包含 Web 前端；发布渠道已接入相应原生包。Mac ARM 最低 14.0；Intel 受锁定 ONNX Runtime 二进制约束，最低 15.5，不能将其声明为兼容更旧系统。开发 CLI 需先构建 `runtime-rs`；具体命令见 `src-tui/README.md`。此前文档中的 SEA 流程只适用于仍保留 Node Runtime 的旧布局。
 
 启动闸门新增 `scripts/smoke-rust-cli.mjs`，实际构建并启动 CLI，使用隔离 HOME 检查 doctor、工作目录、重启与错误路径。`scripts/smoke-rust-session-read-cache.mjs` 覆盖大日志分页、标记、并发元数据修改、原始 `.pisper` 项目命令发现及 Skill 开关并发写入。`npm run test:mobile-shell` 还覆盖终端目录等待/失败/取消，以及会话工作流慢请求去重、切换取消与迟到响应隔离。会话读取的测量方法、前后数据和回滚范围见[会话读取缓存](architecture/session-read-cache.md)。
 
@@ -152,4 +151,10 @@
 
 新增 `npm run test:thinking` 和 `npm run test:sidebar-projects` 并接入 CI。前者包含真实控件/命令 Hook 的浏览器回归和隔离 Rust HTTP 的模型切换、非法写入、冷读及重启契约；后者覆盖最后会话删除、空项目新建、显式删除、搜索、排序、折叠与跨端口恢复。协议改动同时运行 Runtime 与 TUI 检查。本轮没有调用真实外部模型，用户开发页只读确认 K3 的五个档位已可选择，保持其原等级。
 
-打包审查范围为 v0.5.81、v0.6.0 与本地修复后的脚本：Rust 桌面及独立 CLI 本地入口支持 Windows x64/Mac arm64，但统一发布与资产清单仍只交付 Windows Desktop；Mac Intel、Linux、独立 CLI/npm 和移动渠道尚未完整接入。移动构建由 preflight 明确拒绝缺失的 Node embedded 入口。桌面 debug 仍引用旧 Node sidecar，Rust 资源闭包也尚未恢复旧版内置 rg/fd；干净/离线机器需单独补验。现存 Mac 验证包早于近期 UI 与思考修复，不能代表当前源码产物。本次只比较代码、公开发布清单及已有产物，没有重新生成安装包。
+修复前的打包审查记录：审查范围为 v0.5.81、v0.6.0 与当时本地脚本，Rust 桌面及独立 CLI 本地入口支持 Windows x64/Mac arm64，但统一发布与资产清单只交付 Windows Desktop；Mac Intel、Linux、独立 CLI/npm 和移动渠道未完整接入。移动构建由 preflight 拒绝缺失的 Node embedded 入口，桌面 debug 仍引用旧 Node sidecar，Rust 资源闭包也未恢复旧版内置 rg/fd。当时仅比较源码与既有产物；后续修复与验证见下节。
+
+### Rust 移动库与发布资源修复（2026-10-11）
+
+二进制 main 的领域装配迁入 lib；CLI 仍有独立入口，移动端只消费显式启动/关闭接口。状态、目录、生命周期、能力限制与回滚见 [移动本机 Runtime](mobile-local-runtime.md)。桌面开发入口先构建 Rust 并暂存资源，不再调用不存在的 Node sidecar。资源暂存每次清除自己拥有的生成目录；签名打包前验证真实语音 worker 和 rg/fd。现有发布源码守卫改为多渠道和移动资源 v2 行为合同，保留失败前不覆盖旧资源、签名要求、严格资产数量和脏工作区拒绝保护。
+
+Android 宿主在创建 Iroh/DNS/TLS 任务前初始化进程级 Application/JavaVM 上下文，并配套固定摘要的 rustls Java AAR 与 ProGuard 保留规则。系统容器目录的别名只在壳入口解析，领域内部仍拒绝链接。`scripts/tauri.mjs` 使 Gradle 回调使用相同的移动编译环境，C 编译基线保持 Android API 24。模拟器验收入口为 `npm run test:android:runtime -- emulator-5562`，只接受名为 `pisper-rust-release-validation` 的独立 AVD，使用虚拟 Provider 配置。

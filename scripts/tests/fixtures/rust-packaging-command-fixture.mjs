@@ -5,9 +5,12 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 // Linux quality job 也运行 Windows 入口；子进程边界只记录，不启动编译器或打包器。
-const darwin = process.env.PISPER_PACKAGING_TEST_TARGET === 'aarch64-apple-darwin'
-Object.defineProperty(process, 'platform', { value: darwin ? 'darwin' : 'win32' })
-Object.defineProperty(process, 'arch', { value: darwin ? 'arm64' : 'x64' })
+const target = process.env.PISPER_PACKAGING_TEST_TARGET
+const darwin = target.endsWith('apple-darwin')
+Object.defineProperty(process, 'platform', {
+  value: darwin ? 'darwin' : target.includes('linux') ? 'linux' : 'win32',
+})
+Object.defineProperty(process, 'arch', { value: target.startsWith('aarch64') ? 'arm64' : 'x64' })
 const commands = []
 process.on('exit', () => {
   process.stdout.write(`\nRUST_PACKAGING_TEST_COMMANDS=${JSON.stringify(commands)}\n`)
@@ -33,6 +36,14 @@ childProcess.spawn = (command, args, options) => {
     stdout = ''
   } else if (command === 'fixture-cargo' && ['test', 'build', 'rustc'].includes(args[0])) {
     stdout = 'test result: ok. synthetic command boundary\n'
+  } else if (args.includes('--pisper-speech-worker')) {
+    stdout = JSON.stringify({
+      id: 'packaging-version',
+      ok: true,
+      result: { sherpa: '1.13.7', onnxruntime: darwin ? '1.28.1' : '1.27.1' },
+    })
+  } else if (darwin && ['ditto', 'hdiutil'].includes(command)) {
+    stdout = ''
   } else if (
     command === 'codesign' &&
     darwin &&
@@ -43,6 +54,7 @@ childProcess.spawn = (command, args, options) => {
     command !== process.execPath ||
     ![
       'build-frontend.mjs',
+      'verify-rust-runtime-resources.mjs',
       'check-bundle-budget.mjs',
       'check-dist-compat.mjs',
       'smoke-rust-usability.mjs',
@@ -55,6 +67,7 @@ childProcess.spawn = (command, args, options) => {
   }
 
   const child = new EventEmitter()
+  child.stdin = new PassThrough()
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
   queueMicrotask(() => {

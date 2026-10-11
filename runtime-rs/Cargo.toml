@@ -12,6 +12,8 @@ resolver = "2"
 
 [dependencies]
 pi-rs = "0.2.2"
+# rsa rc.18 的编码接口尚不兼容 pkcs1 rc.5；两个宿主复用 Runtime 已验证的版本。
+pkcs1 = "=0.8.0-rc.4"
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
@@ -69,6 +71,10 @@ tract = { version = "0.23.8", default-features = false, features = ["onnx"] }
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 tokio = { version = "1", features = ["test-util"] }
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+# QuickJS 未提供所有 Apple simulator 的预生成 ABI，按目标 SDK 生成。
+rquickjs = { version = "=0.14.0", features = ["loader", "bindgen"] }
 
 [[bin]]
 name = "pisper-server"

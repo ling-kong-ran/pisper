@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { stageRustSpeech } from './stage-rust-speech.mjs'
+import { stageSearchTools } from './stage-search-tools.mjs'
 
 // 桌面与独立 CLI 共用资源清单和许可证，防止两种原生产物发生漂移。
 export async function stageRustRuntime({
@@ -12,8 +13,16 @@ export async function stageRustRuntime({
   sourceCommit,
   sourceDirty,
 }) {
+  // 该目录仅由构建器拥有，避免跨版本/跨平台复用旧 Node 或原生资源。
+  await rm(runtimeDir, { recursive: true, force: true })
   await mkdir(runtimeDir, { recursive: true })
   const speechResources = await stageRustSpeech({ root, targetDir: runtimeDir })
+  await stageSearchTools({
+    root,
+    runtimeDir,
+    target: { platform: process.platform, arch: process.arch },
+    toolRoot: 'bin',
+  })
   const teleaSource = await readFile(
     path.join(root, 'runtime-rs/src/native_image_runtime/telea.rs'),
     'utf8',

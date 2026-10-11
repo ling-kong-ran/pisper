@@ -214,7 +214,11 @@ fn frontend_root(app: &tauri::App, app_root: &Path) -> Result<PathBuf, String> {
             return Ok(packaged);
         }
     }
-    Ok(app_root.join("dist"))
+    Ok(if cfg!(debug_assertions) {
+        development_root().join("dist")
+    } else {
+        app_root.join("dist")
+    })
 }
 
 fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, bool), String> {
@@ -224,10 +228,22 @@ fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, 
 
     if cfg!(debug_assertions) {
         using_installed = false;
-        app_root = development_root();
-        command = Command::new("node");
-        command.arg(app_root.join("runtime").join("sidecar.mjs"));
-        command.current_dir(&app_root);
+        let source_root = development_root();
+        app_root = source_root.join("release/rust-dev");
+        let binary = source_root
+            .join("runtime-rs/target/debug")
+            .join(if cfg!(windows) {
+                "pisper-server.exe"
+            } else {
+                "pisper-server"
+            });
+        if !binary.is_file() || !app_root.join("package.json").is_file() {
+            return Err(
+                "Rust development runtime is missing; run npm run desktop:webview:dev.".into(),
+            );
+        }
+        command = Command::new(binary);
+        command.current_dir(source_root);
     } else if allow_installed {
         let installed = component_updates::installed_component(
             app.handle(),

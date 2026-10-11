@@ -1,121 +1,41 @@
-# 移动端本机 Runtime 设计
+# 移动端本机 Runtime
 
-Pisper 移动端本机模式运行与 Desktop、Runtime 发行包相同的 Node/Pisper Agent Runtime、
-标准 `/api/*`、Provider、会话、HTTP/SSE 协议和 React 界面。它不再包含独立的 Rust 对话
-Runtime、`/api/local/*` 协议或移动端专用业务 UI。
+当前 Rust 源码由同一个 `runtime-rs` 库提供桌面、CLI 与 Android/iOS 的 HTTP/SSE 业务服务。移动 App 在后台线程建立 Tokio Runtime，直接调用 `start_embedded`；不再启动 Node、JNI Node 宿主或 NodeMobile framework。
 
-用户只选择两种产品模式：
+## 状态与依赖
 
-- **本机**：会话、Provider 配置和工作区保存在 App 私有目录，由手机内的 Node Runtime 持有。
-- **远程**：App 通过 LAN 或 Iroh 连接已配对的 Desktop Runtime。
+- 原 `runtime-rs/src/main.rs` 的路由、状态与领域装配移入 `lib.rs`；二进制入口仅调用 CLI 生命周期。`runtime_host.rs` 暴露显式目录、认证 token、启动结果及异步关闭句柄。库入口不修改进程环境变量，不调用 `process::exit`。
+- Tauri 移动壳通过目标专属 Cargo 依赖使用此库；桌面仍启动独立 `pisper-sidecar`。移动后台线程归 `EmbeddedRuntime` 所有，失败、重试和释放时取消并等待线程结束。
+- 保留原 App 私有目录 `local-runtime-data/agent`、`local-runtime-data/workspace`。不迁移或复制用户配置、会话和凭据。
+- 同源 UI 仍由随机回环端口提供，随机 token 经进程内启动通道交给壳。认证 bootstrap、`/api/ready`、配对、TLS 指纹及远程代理保持原协议；不再轮询 READY 文件。
+- 切换远程模式时本机服务继续提供包内前端。远程服务的能力由远程 Runtime 决定。
 
-公开发布的 GitHub APK、Google Play AAB 和 iOS IPA 都只使用 embedded Node，不包含 rootfs、
-`su`、`chroot` 或 rooted Runtime 资产。
+## 资源与宿主能力
 
-## 载体选择
+`npm run mobile:runtime` 生成 `pisper-embedded-runtime.tar.gz`，只包含 React 产物、`runtime.json` 和共享语音 catalog/BPE/许可证资料。`embedded-runtime.json` 使用 schema 2，将 App 版本、宿主 profile、前端和完整资源摘要绑定。旧 schema 1 Node 归档不能被新宿主接受；重装资源不会清理用户数据。
 
-Android 使用 APK/AAB 内置的 `libnode.so`，iOS 使用 App 内置的 `NodeMobile.xcframework`。
-两种宿主都在专用后台线程调用 Node，不能占用 WebView 或 iOS 主线程。
+语音模型目录、版本与精度仍采用共享 catalog；原生插件继续管理下载、录音和播放。QuickJS 的移动 ABI 用目标 SDK 的 bindgen 生成，RSA 间接依赖沿用 Runtime 已验证的 `pkcs1 0.8.0-rc.4`，避免新宿主解析到不兼容的 rc.5。
 
-壳层始终向 UI 返回同一个 `onDevice` 状态和 `runtimeKind: "node"`。用户从本机切到远程时，
-同进程 embedded Node 保持驻留，只改变 WebView 路由；Node embedding 不支持在一个 App 进程中
-反复初始化。本机 Provider、会话和工作区始终位于同一 App 私有数据目录。
+本机移动 profile 提供聊天、模型配置、会话、文件、Skill、Web Search、视觉请求及记忆。Shell/PTY、VCS、MCP、第三方插件执行、多代理、工作流和计划任务不在本机移动开放；导航能力、API 拒绝和工具执行前检查共同实施边界。不能仅靠隐藏按钮关闭后台能力，也不能把电脑子进程工具复制进 iOS 包当成支持。
 
-## 统一架构
+## 构建与验证
 
-```text
-Normal Pisper React App
-          |
-          | standard HTTP + SSE + /api/*
-          v
-http://127.0.0.1:<random-port>
-          |
-          v
-Shared Node/Pisper Runtime (mobile-embedded profile)
-          |
-          +-- Pi AgentSession / Providers / sessions
-          +-- workspace files / skills / built-in tools
-          +-- runtime-derived capability manifest
+使用 Node 24、Rust、Xcode/iOS SDK 或 Android SDK/NDK。Apple bindgen 显式使用 Xcode libclang 和对应 SDK，Android 使用 NDK 工具链；由 `mobile-rust-env.mjs` 装配，避免继承其他平台残留的编译环境。
 
-Android carrier: JNI/C++ -> node::Start(...) -> libnode.so
- iOS carrier: background thread -> node_start(...) -> NodeMobile.xcframework
+```bash
+npm run build
+npm run mobile:runtime
+node scripts/check-mobile-rust.mjs ios
+node scripts/check-mobile-rust.mjs android
+npm run build:android -- --release
+npm run build:ios
+npm run test:android:runtime -- emulator-5562
 ```
 
-嵌入式 Runtime 使用随机回环端口和随机 bootstrap token。Node 完成真实 Agent Runtime 初始化后，
-以 `0600` 权限原子写入 READY 文件；壳层只接受带 token 的
-`http://127.0.0.1:<port>/_pisper/desktop/bootstrap` 地址。READY 不通过 stdout 解析，也不暴露到
-共享存储。
+`check-mobile-rust` 检查库及整个 Tauri 壳，不能代替 APK/IPA 链接、安装或真机验收。`cargo test --manifest-path runtime-rs/Cargo.toml --lib runtime_host::tests` 在隔离目录检查认证、就绪合同、端口释放、重启及会话保留；移动资源和发布合同由 `npm run test:release` 覆盖。设备验收还应覆盖首启、后台恢复、本机/远程切换、语音与原生权限。
 
-## 能力清单
+## 回滚
 
-同一 Runtime 不等于所有宿主都能提供同一系统能力。`GET /api/runtime/capabilities` 返回实际宿主
-清单；`node:child_process`、`node:worker_threads`、`node:sqlite` 和 WASM 等底层能力来自真实探测。
-宿主 profile 可以保守关闭不适合该载体生命周期或缺少壳层 bridge 的服务，但不能伪造缺失模块。
+按完整源码提交回滚 Runtime 库、移动壳、资源 schema、Cargo 锁文件和 CI 接线；不能只回滚归档或复制旧 Node framework。发布仍只经统一发布脚本，禁止手动推进 App 版本或标签。本次不改变用户数据目录；旧版本能否读取新业务数据仍需按对应协议验证，资源可由旧安装包重新展开。
 
-| 能力 | Android / iOS embedded |
-| --- | --- |
-| React、Provider、标准会话、流式聊天 | 支持 |
-| 工作区读写、资源与 Skill | 支持 |
-| 内置工具目录与 Web Search | 支持 |
-| Shell、Git/SVN | `child_process` 缺失或受渠道限制时关闭 |
-| Desktop PTY 终端与浏览器自动化 | 关闭 |
-| 记忆 | `node:sqlite` 缺失时关闭 |
-| 第三方插件执行 | 关闭；内置工具设置仍保留 |
-| MCP stdio | 关闭 |
-| Goal、Plan、多 Agent、工作流、计划任务、渠道 | 关闭 |
-| 图片处理 | 由实际 WASM 探测决定 |
-| Desktop 远程访问管理、桌面宠物 | 关闭 |
-
-React 导航、请求发起、工具目录和服务端 API 都只对清单中**明确为 `false`** 的能力执行隐藏或
-HTTP 409 拒绝。没有能力端点的旧 Runtime 保留原有导航行为，避免破坏远程兼容性。
-
-## Runtime 闭包
-
-embedded Node 不能执行 SEA 内嵌的 JavaScript blob，因此 App 单独打包可由 Node 直接执行的
-Runtime 闭包。`scripts/stage-runtime-closure.mjs` 与 SEA 共用依赖裁剪和关键闭包审计，移动闭包额外
-移除桌面 clipboard、TUI 和不适用的原生包，并包含：
-
-- `runtime/mobile-embedded.mjs`；
-- 完整的 Pisper Runtime、Pi Coding Agent 依赖和共享模块；
-- 生产 React `dist/`；
-- 与 App 版本绑定的 `embedded-runtime.json`。
-
-安装使用临时文件、staging 目录和原子目录替换。入口或 React 资源缺失、归档过大、版本不匹配时
-不会替换已安装版本。
-
-## Node 供应链
-
-移动 Node 24 固定到 `ChamHerry/nodejs-mobile` commit
-`8a995e179bb2c224029a560ae9c4f9460631b94d`，Node `24.18.1`，modules ABI `137`。
-`scripts/mobile-node-artifacts.json` 记录 recipe/materialized tree、Android Release 归档、Sigstore bundle
-和 `libnode.so` SHA256。
-
-- Android 发布构建必须验证归档摘要、Sigstore workflow 身份、内部 manifest 和 `libnode.so` 摘要，
-  再把 headers 与 arm64 库交给 CMake。
-- iOS 在 macOS 从固定 commit 和固定 materialized tree 构建 `NodeMobile.xcframework`，记录 Xcode
-  版本与逐文件 SHA256。
-- embedded Runtime、iOS Node framework 归档、APK 和 unsigned IPA 都使用项目 Minisign 密钥
-  签名。任一 Android/iOS 构建、签名或资产检查失败时，不发布 `app-v*`。
-
-`npm run release -- patch` 会按 App 独立路径和最新 `app-v*` 标签自动检测是否需要发布，并在同批
-TUI、Runtime、npm 与 Desktop 工作流全部成功后，最后派发 App 工作流。
-
-## 数据与安全边界
-
-本机会话、Provider 配置、工作区和 Runtime 状态位于 App 私有数据目录。Node/Pisper 使用标准数据
-格式，因此不是旧移动 Runtime 的 `providers.json` / `sessions.json` 私有协议。当前 Provider 凭据和
-远程配对令牌依赖 App 沙箱与系统文件权限保护，尚未迁入 Android Keystore 或 iOS Keychain；不要
-导出 App 私有目录，设备丢失时应立即在 Desktop 端吊销对应远程设备。
-
-Runtime 仅监听 `127.0.0.1`，bootstrap token 不经普通 API 回显。模型请求仍会把完成任务所需内容
-发送给用户选择的 Provider；本机运行不等于模型调用端到端加密，也不能替代设备锁屏、系统更新、
-可信侧载来源和可靠备份。
-
-## 已知平台边界
-
-- Node.js Mobile 不提供 `child_process` / `cluster`；缺少这些模块时 Shell、终端、VCS 和 MCP stdio
-  会从 UI 与 API 中同时关闭。
-- iOS 不能在 WebView/main thread 运行 Node，且操作系统可能冻结后台 App；READY 和 SSE 恢复不能
-  绕过系统生命周期限制。
-- 生产内置 Runtime 目前仅支持 arm64。x86_64 Android 模拟器不能代替 arm64 真机启动验证。
-- iOS IPA 不含 Apple 分发签名，必须由使用者自行重签名后安装。
+Android 额外接入 `ndk-context` 与平台证书校验器的 Application/JavaVM 上下文；Java AAR 必须匹配 Cargo 锁定的 `rustls-platform-verifier-android` 版本，暂存脚本校验摘要并附带许可证。依据：[平台校验器 Android 接入说明](https://github.com/rustls/rustls-platform-verifier#android)。禁止通过关闭 TLS 校验绕过初始化失败。Android 系统目录别名由原生壳解析为同一真实目录，内部快照路径仍执行拒绝链接策略，不迁移数据。

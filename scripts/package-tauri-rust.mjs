@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process'
-import { copyFile, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { stageRustRuntime } from './stage-rust-runtime.mjs'
+import { resolveRustDesktopPlatform } from './rust-desktop-platforms.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const buildDir = path.join(root, 'release', 'rust-build')
@@ -21,25 +22,33 @@ const updaterConfig = path.join(root, 'src-tauri', 'tauri.updater.conf.json')
 const tauriCli = path.join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
 const cargo = process.env.CARGO || 'cargo'
 
-if (process.platform !== 'win32' && !(process.platform === 'darwin' && process.arch === 'arm64')) {
-  throw new Error('Rust desktop packaging supports Windows x64 and macOS Apple Silicon.')
-}
+// 先拒绝未知平台，不能把缺少原生资源的平台误当成可构建。
+resolveRustDesktopPlatform()
 
-function run(command, args, { env = process.env, capture = false } = {}) {
+function run(command, args, { env = process.env, capture = false, input, timeoutMs } = {}) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, args, {
       cwd: root,
       env,
-      stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+      stdio: capture ? [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] : 'inherit',
     })
+    const timer = timeoutMs ? setTimeout(() => child.kill('SIGKILL'), timeoutMs) : undefined
     let stdout = ''
     let stderr = ''
     if (capture) {
       child.stdout.setEncoding('utf8').on('data', (chunk) => (stdout += chunk))
       child.stderr.setEncoding('utf8').on('data', (chunk) => (stderr += chunk))
     }
-    child.once('error', rejectRun)
+    child.once('error', (error) => {
+      clearTimeout(timer)
+      rejectRun(error)
+    })
+    if (input !== undefined) {
+      child.stdin.once('error', rejectRun)
+      child.stdin.end(input)
+    }
     child.once('close', (code, signal) => {
+      clearTimeout(timer)
       if (code === 0) resolveRun(stdout.trim())
       else {
         rejectRun(
@@ -63,14 +72,8 @@ if (typeof runtimeVersion !== 'string' || !runtimeVersion.trim()) {
 }
 const rustVersion = await run(process.env.RUSTC || 'rustc', ['-vV'], { capture: true })
 const rustTarget = rustVersion.match(/^host:\s*(\S+)$/m)?.[1]
-if (
-  !rustTarget ||
-  !(process.platform === 'win32'
-    ? /-windows-(msvc|gnu)$/.test(rustTarget)
-    : rustTarget === 'aarch64-apple-darwin')
-) {
-  throw new Error('Rust host target does not match the desktop packaging platform.')
-}
+if (!rustTarget) throw new Error('Unable to resolve the Rust host target from rustc -vV.')
+const desktop = resolveRustDesktopPlatform({ rustTarget })
 const sourceCommit = await run('git', ['rev-parse', 'HEAD'], { capture: true })
 if (!/^[0-9a-f]{40,64}$/i.test(sourceCommit)) {
   throw new Error('Unable to resolve the source commit from git rev-parse HEAD.')
@@ -85,7 +88,37 @@ const runtimeEnv = { ...cargoEnv, CARGO_TARGET_DIR: path.join(root, 'runtime-rs'
 const tuiEnv = { ...cargoEnv, CARGO_TARGET_DIR: path.join(root, 'src-tui', 'target') }
 const tauriEnv = { ...cargoEnv, CARGO_TARGET_DIR: path.join(root, 'src-tauri', 'target') }
 // 资源/PTY 测试与最终 App 使用同一部署目标，避免验证较低目标后再替换原生依赖。
-if (process.platform === 'darwin') tauriEnv.MACOSX_DEPLOYMENT_TARGET = '14.0'
+if (desktop.minimumSystemVersion) {
+  // 运行时、CLI 和桌面壳的最低系统必须与打包原生依赖一致。
+  for (const env of [runtimeEnv, tuiEnv, tauriEnv])
+    env.MACOSX_DEPLOYMENT_TARGET = desktop.minimumSystemVersion
+}
+for (const name of [
+  'APPLE_API_ISSUER',
+  'APPLE_API_KEY',
+  'APPLE_API_KEY_PATH',
+  'APPLE_CERTIFICATE',
+  'APPLE_CERTIFICATE_PASSWORD',
+  'APPLE_SIGNING_IDENTITY',
+  'TAURI_SIGNING_PRIVATE_KEY',
+  'TAURI_SIGNING_PRIVATE_KEY_PASSWORD',
+]) {
+  if (!tauriEnv[name]?.trim()) delete tauriEnv[name]
+}
+// 保留旧桌面入口从忽略目录读取本机更新签名凭据的行为，不输出密钥。
+if (!tauriEnv.TAURI_SIGNING_PRIVATE_KEY) {
+  for (const [name, file] of [
+    ['TAURI_SIGNING_PRIVATE_KEY', 'tauri-updater.key'],
+    ['TAURI_SIGNING_PRIVATE_KEY_PASSWORD', 'tauri-updater-key.password'],
+  ]) {
+    try {
+      const value = (await readFile(path.join(root, 'release', file), 'utf8')).trim()
+      if (value) tauriEnv[name] = value
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
+  }
+}
 const signedUpdater = Boolean(tauriEnv.TAURI_SIGNING_PRIVATE_KEY?.trim())
 // macOS 本地资源验收复用即将打包的 release 产物，避免维护第二套大型编译缓存。
 const desktopTestProfileArgs = process.platform === 'darwin' ? ['--release'] : []
@@ -113,9 +146,11 @@ await run(
   { env: runtimeEnv },
 )
 await mkdir(buildDir, { recursive: true })
+const terminalEvidencePath = path.join(buildDir, 'terminal-test-evidence.json')
+await rm(terminalEvidencePath, { force: true })
 // Windows 不覆盖可能运行中的默认 exe；macOS 使用 Cargo 的标准命名，
 // 避免 rustc -o 在多 emit 类型下附加 crate hash 后找不到暂存入口。
-if (process.platform === 'darwin') {
+if (process.platform !== 'win32') {
   await run(cargo, ['build', '--release', '--locked', '--manifest-path', runtimeManifest], {
     env: runtimeEnv,
   })
@@ -128,6 +163,8 @@ if (process.platform === 'darwin') {
     cargo,
     [
       'rustc',
+      '--bin',
+      'pisper-server',
       '--release',
       '--locked',
       '--manifest-path',
@@ -150,6 +187,11 @@ await stageRustRuntime({
     await run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true }),
   ),
 })
+await run(process.execPath, [
+  path.join(root, 'scripts/verify-rust-runtime-resources.mjs'),
+  runtimeExecutable,
+  runtimeDir,
+])
 await run(cargo, ['build', '--release', '--locked', '--manifest-path', tuiManifest], {
   env: tuiEnv,
 })
@@ -178,8 +220,8 @@ await writeFile(
         ...(process.platform === 'darwin'
           ? {
               macOS: {
-                minimumSystemVersion: '14.0',
-                signingIdentity: process.env.APPLE_SIGNING_IDENTITY?.trim() || '-',
+                minimumSystemVersion: desktop.minimumSystemVersion,
+                signingIdentity: tauriEnv.APPLE_SIGNING_IDENTITY || '-',
               },
             }
           : {}),
@@ -194,7 +236,7 @@ await writeFile(
   )}\n`,
 )
 
-const targetArgs = rustTarget.endsWith('-windows-gnu') ? ['--target', rustTarget] : []
+const targetArgs = desktop.targetArgs
 const bundleDir = path.join(
   root,
   'src-tauri',
@@ -222,7 +264,7 @@ await run(
 // 使用真实 PTY 检查退出、关闭和子进程回收，失败时禁止生成安装包。
 // GH windows runner 的会话环境会让 PTY 测试进程无声崩溃(无任何测试输出),
 // 那是 runner 基础设施而非产品行为;真实桌面环境的验证在开发机打包时完成。
-if (process.env.RUNNER_ENVIRONMENT) {
+if (process.platform === 'win32' && process.env.RUNNER_ENVIRONMENT) {
   console.log('Skipping desktop_terminal PTY tests on CI runners (no interactive desktop session).')
 } else {
   const terminalTestArgs = [
@@ -240,7 +282,6 @@ if (process.env.RUNNER_ENVIRONMENT) {
     capture: true,
   })
   console.log(terminalTestOutput)
-  const terminalEvidencePath = path.join(buildDir, 'terminal-test-evidence.json')
   await writeFile(
     terminalEvidencePath,
     `${JSON.stringify(
@@ -258,7 +299,6 @@ if (process.env.RUNNER_ENVIRONMENT) {
 }
 // 真实 PTY 通过后才把本轮证据交给终端 UI 验收(runner 上无证据,跳过该验收)；
 // 所有验收仍先于 NSIS。
-const terminalEvidencePath = path.join(buildDir, 'terminal-test-evidence.json')
 const usabilityArgs = [
   path.join(root, 'scripts', 'smoke-rust-usability.mjs'),
   runtimeExecutable,
@@ -267,23 +307,21 @@ const usabilityArgs = [
   ...(existsSync(terminalEvidencePath) ? ['--native-terminal-evidence', terminalEvidencePath] : []),
 ]
 await run(process.execPath, usabilityArgs)
-await run(
-  process.execPath,
-  [
-    tauriCli,
-    'build',
-    '--bundles',
-    process.platform === 'win32' ? 'nsis' : 'app,dmg',
-    ...(signedUpdater ? ['--config', updaterConfig] : []),
-    '--config',
-    overlayPath,
-    ...targetArgs,
-  ],
-  {
-    // 仅打包子进程禁用 Finder 美化，验收进程仍使用真实本机环境，不跳过 PTY 或行为测试。
-    env: process.platform === 'darwin' ? { ...tauriEnv, CI: 'true' } : tauriEnv,
-  },
-)
+const buildArgs = [
+  tauriCli,
+  'build',
+  '--bundles',
+  desktop.bundles,
+  ...(signedUpdater ? ['--config', updaterConfig] : []),
+  '--config',
+  overlayPath,
+  ...targetArgs,
+]
+await rm(bundleDir, { recursive: true, force: true })
+await run(process.execPath, buildArgs, {
+  // 仅打包子进程禁用 Finder 美化，验收进程仍使用真实本机环境，不跳过 PTY 或行为测试。
+  env: process.platform === 'darwin' ? { ...tauriEnv, CI: 'true' } : tauriEnv,
+})
 // 本地无证书时仍密封整个 App 的资源；Mach-O 链接器的临时签名不等于有效的 App 签名。
 if (process.platform === 'darwin') {
   await run('codesign', [
@@ -293,13 +331,45 @@ if (process.platform === 'darwin') {
     path.join(bundleDir, 'macos', 'Pisper.app'),
   ])
 }
+if (desktop.simpleIntelMacDmg) {
+  // Intel CI 的 Finder 美化会卡住；从已签名 App 直接生成 DMG，保留原资源签名。
+  const sourceDir = path.join(bundleDir, 'dmg-source')
+  const dmgDir = path.join(bundleDir, 'dmg')
+  await mkdir(sourceDir, { recursive: true })
+  await mkdir(dmgDir, { recursive: true })
+  await run('ditto', [
+    path.join(bundleDir, 'macos', 'Pisper.app'),
+    path.join(sourceDir, 'Pisper.app'),
+  ])
+  await symlink('/Applications', path.join(sourceDir, 'Applications'))
+  await run('hdiutil', [
+    'create',
+    '-volname',
+    'Pisper',
+    '-srcfolder',
+    sourceDir,
+    '-ov',
+    '-format',
+    'UDZO',
+    path.join(dmgDir, `Pisper_${desktopPackage.version}_x64.dmg`),
+  ])
+}
 const stageArgs = [path.join(root, 'scripts', 'stage-tauri-artifacts.mjs')]
 // 签名构建必须连同 .sig 暂存，避免到最终发布 manifest 阶段才发现漏签。
 if (signedUpdater) stageArgs.push('--require-signature')
-await run(process.execPath, stageArgs, {
-  env: {
-    ...tauriEnv,
-    PISPER_TAURI_BUNDLE_DIR: bundleDir,
-    PISPER_TAURI_STAGE_DIR: path.join(root, 'release', 'tauri-rust-artifacts'),
-  },
-})
+const stageEnv = {
+  ...tauriEnv,
+  PISPER_TAURI_BUNDLE_DIR: bundleDir,
+  PISPER_TAURI_STAGE_DIR: path.join(root, 'release', 'tauri-rust-artifacts'),
+}
+await run(process.execPath, stageArgs, { env: stageEnv })
+if (desktop.windowsOffline) {
+  // 普通包先归档；清除同名 NSIS 输出后再构建离线包，不能把旧包混入本次发布。
+  await rm(bundleDir, { recursive: true, force: true })
+  await run(
+    process.execPath,
+    [...buildArgs, '--config', path.join(root, 'src-tauri', 'tauri.windows-offline.conf.json')],
+    { env: tauriEnv },
+  )
+  await run(process.execPath, [...stageArgs, '--windows-offline'], { env: stageEnv })
+}

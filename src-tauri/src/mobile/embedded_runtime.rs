@@ -1,15 +1,9 @@
-#[cfg(target_os = "ios")]
-use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
 use std::io::Read;
-#[cfg(target_os = "ios")]
-use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(target_os = "ios")]
-use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use flate2::read::GzDecoder;
@@ -18,9 +12,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 #[cfg(target_os = "android")]
-use super::android_bridge::{
-    android_asset_exists, android_copy_asset, android_read_asset_prefix, with_android_env,
-};
+use super::android_bridge::{android_asset_exists, android_copy_asset, android_read_asset_prefix};
 use super::runtime_status::OnDeviceRuntimeStatus;
 
 // Android 的 aapt 会自动解压并改名 `.gz` 资产；使用 `.tgz` 才能让 Rust 收到原始 gzip。
@@ -32,6 +24,13 @@ const START_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_ARCHIVE_BYTES: u64 = 180 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024;
 const ARCHIVE_PROBE_BYTES: usize = 16 * 1024;
+
+#[cfg(any(target_os = "android", target_os = "ios", test))]
+fn trusted_host_directory(path: &Path) -> Result<PathBuf, String> {
+    // Android /data/user/0 与 iOS 容器前缀可能是系统别名。这里只处理壳拥有的根目录；
+    // 领域存储仍会拒绝根目录内部的链接，不放宽快照、归档或用户输入的路径检查。
+    std::fs::canonicalize(path).map_err(|error| error.to_string())
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,10 +48,10 @@ struct EmbeddedManifest {
 
 impl EmbeddedManifest {
     fn matches_app(&self, app_version: &str) -> bool {
-        self.schema_version == 1
+        self.schema_version == 2
             && self.app_version == app_version
             && self.runtime_profile == runtime_profile()
-            && self.entry == "runtime/mobile-embedded.mjs"
+            && self.entry == "runtime.json"
             && valid_sha256(&self.build_sha256)
             && valid_sha256(&self.entry_sha256)
             && valid_sha256(&self.frontend_sha256)
@@ -72,6 +71,22 @@ struct EmbeddedReady {
     error: String,
 }
 
+// 线程只归当前宿主所有；失败、重试和 Drop 都先取消再 join。
+struct RuntimeThread {
+    stop: Option<tokio::sync::oneshot::Sender<()>>,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+impl Drop for RuntimeThread {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
+    }
+}
+
 pub struct EmbeddedRuntime {
     root: PathBuf,
     data_root: PathBuf,
@@ -79,8 +94,7 @@ pub struct EmbeddedRuntime {
     resource_archive: Option<PathBuf>,
     status: Mutex<OnDeviceRuntimeStatus>,
     started: AtomicBool,
-    #[cfg(target_os = "ios")]
-    node_thread_alive: Arc<AtomicBool>,
+    thread: Mutex<Option<RuntimeThread>>,
     token: Mutex<Option<String>>,
 }
 
@@ -109,14 +123,14 @@ impl EmbeddedRuntime {
                 "unavailable".into()
             },
             message: if !supported {
-                "当前平台或架构不支持嵌入式 Node Runtime。".into()
+                "当前平台或架构不支持嵌入式 Rust Runtime。".into()
             } else if !packaged && !installed {
-                "安装包未包含嵌入式 Node Runtime。".into()
+                "安装包未包含嵌入式 Rust Runtime。".into()
             } else {
                 String::new()
             },
             url: String::new(),
-            runtime_kind: "node-embedded".into(),
+            runtime_kind: "rust-embedded".into(),
         };
         Self {
             root,
@@ -125,8 +139,7 @@ impl EmbeddedRuntime {
             resource_archive,
             status: Mutex::new(status),
             started: AtomicBool::new(false),
-            #[cfg(target_os = "ios")]
-            node_thread_alive: Arc::new(AtomicBool::new(false)),
+            thread: Mutex::new(None),
             token: Mutex::new(None),
         }
     }
@@ -141,36 +154,17 @@ impl EmbeddedRuntime {
     pub fn ensure_started(&self) -> Result<OnDeviceRuntimeStatus, String> {
         let current = self.status();
         if current.running {
-            if self.node_is_alive()? {
+            if self.runtime_is_alive()? {
                 super::startup_trace("embedded-healthy-reuse");
                 return Ok(current);
             }
             self.reset_after_exit();
         }
-        if self.started.load(Ordering::Acquire) {
-            if !self.node_is_alive()? {
-                self.reset_after_exit();
-            } else {
-                let token = self
-                    .token
-                    .lock()
-                    .expect("embedded Runtime token mutex poisoned")
-                    .clone()
-                    .ok_or_else(|| "嵌入式 Node 已启动，但缺少 READY 认证上下文。".to_string())?;
-                return match self.wait_until_ready(&token) {
-                    Ok(ready) => Ok(self.mark_ready(ready)),
-                    Err(error) => {
-                        self.fail(&error);
-                        Err(error)
-                    }
-                };
-            }
-        }
         if !current.supported {
             return Err(current.message);
         }
         if !current.packaged && !current.installed {
-            return Err("安装包未包含嵌入式 Node Runtime。".into());
+            return Err("安装包未包含嵌入式 Rust Runtime。".into());
         }
 
         self.update_status("starting", "正在准备本机 Runtime…");
@@ -186,29 +180,11 @@ impl EmbeddedRuntime {
         } else {
             super::startup_trace("embedded-install-reuse");
         }
-        let token = if !self.started.swap(true, Ordering::AcqRel) {
-            match self.start_node() {
-                Ok(token) => token,
-                Err(error) => {
-                    self.started.store(false, Ordering::Release);
-                    self.token
-                        .lock()
-                        .expect("embedded Runtime token mutex poisoned")
-                        .take();
-                    self.fail(&error);
-                    return Err(error);
-                }
+        match self.start_runtime() {
+            Ok(ready) => {
+                self.started.store(true, Ordering::Release);
+                Ok(self.mark_ready(ready))
             }
-        } else {
-            return Err("嵌入式 Node 已启动，但本机 Runtime 尚未就绪。".into());
-        };
-
-        *self
-            .token
-            .lock()
-            .expect("embedded Runtime token mutex poisoned") = Some(token.clone());
-        match self.wait_until_ready(&token) {
-            Ok(ready) => Ok(self.mark_ready(ready)),
             Err(error) => {
                 self.fail(&error);
                 Err(error)
@@ -292,80 +268,94 @@ impl EmbeddedRuntime {
         Ok(())
     }
 
-    fn start_node(&self) -> Result<String, String> {
-        super::startup_trace("embedded-node-start-begin");
-        std::fs::create_dir_all(&self.data_root)
-            .map_err(|error| format!("无法创建本机 Runtime 数据目录：{error}"))?;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    fn start_runtime(&self) -> Result<EmbeddedReady, String> {
         let agent_dir = self.data_root.join("agent");
-        let workspace_dir = self.data_root.join("workspace");
+        let workspace = self.data_root.join("workspace");
         std::fs::create_dir_all(&agent_dir)
-            .and_then(|_| std::fs::create_dir_all(&workspace_dir))
-            .map_err(|error| format!("无法创建本机 Runtime 工作目录：{error}"))?;
-        let ready_file = self.data_root.join("embedded-ready.json");
-        let _ = std::fs::remove_file(&ready_file);
-        let _ = std::fs::remove_file(ready_file.with_extension("json.tmp"));
-
-        let mut token = [0u8; 32];
-        OsRng.fill_bytes(&mut token);
-        let token = URL_SAFE_NO_PAD.encode(token);
-        set_runtime_env("PISPER_APP_ROOT", &self.root)?;
-        set_runtime_env("PISPER_FRONTEND_ROOT", &self.root.join("dist"))?;
-        set_runtime_env("PISPER_AGENT_DIR", &agent_dir)?;
-        set_runtime_env("PISPER_WORKSPACE_DIR", &workspace_dir)?;
-        set_runtime_env("PISPER_MOBILE_READY_FILE", &ready_file)?;
-        std::env::set_var("PISPER_RUNTIME_PROFILE", runtime_profile());
-        #[cfg(target_os = "ios")]
-        std::env::set_var("PISPER_RUNTIME_PLATFORM", "ios");
-        // Node Mobile 不保证 argv[1] 保留入口路径，由宿主显式声明启动语义。
-        std::env::set_var("PISPER_MOBILE_AUTOSTART", "1");
-        std::env::set_var("PISPER_DESKTOP_TOKEN", &token);
-        std::env::set_var("PI_SKIP_VERSION_CHECK", "1");
-        std::env::set_var("PI_TELEMETRY", "0");
-
-        let entry = self.root.join("runtime/mobile-embedded.mjs");
-        let entry = entry
-            .to_str()
-            .ok_or_else(|| "嵌入式 Runtime 入口路径不是 UTF-8。".to_string())?;
-        #[cfg(target_os = "ios")]
-        launch_node(
-            vec!["node".into(), "--no-warnings".into(), entry.into()],
-            self.node_thread_alive.clone(),
-        )?;
-        #[cfg(not(target_os = "ios"))]
-        launch_node(vec!["node".into(), "--no-warnings".into(), entry.into()])?;
-        super::startup_trace("embedded-node-start-end");
-        Ok(token)
+            .and_then(|_| std::fs::create_dir_all(&workspace))
+            .map_err(|error| error.to_string())?;
+        let mut random = [0u8; 32];
+        OsRng.fill_bytes(&mut random);
+        let token = URL_SAFE_NO_PAD.encode(random);
+        let options = pisper_server::EmbeddedOptions {
+            agent_dir: trusted_host_directory(&agent_dir)?,
+            workspace: trusted_host_directory(&workspace)?,
+            resource_dir: trusted_host_directory(&self.root)?,
+            token: token.clone(),
+            store: runtime_profile() == "mobile-store",
+        };
+        let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
+        let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
+        let join = std::thread::Builder::new()
+            .name("pisper-embedded-rust".into())
+            .spawn(move || {
+                let runtime = match tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(2)
+                    .enable_all()
+                    .build()
+                {
+                    Ok(runtime) => runtime,
+                    Err(error) => {
+                        let _ = ready_tx.send(Err(error.to_string()));
+                        return;
+                    }
+                };
+                runtime.block_on(async move {
+                    match tokio::time::timeout(
+                        START_TIMEOUT,
+                        pisper_server::start_embedded(options),
+                    )
+                    .await
+                    {
+                        Ok(Ok(mut server)) => {
+                            if ready_tx.send(Ok(server.bootstrap_url.clone())).is_ok() {
+                                tokio::select! {
+                                    _ = stop_rx => {},
+                                    _ = server.wait() => {},
+                                }
+                            }
+                            let _ = server.shutdown().await;
+                        }
+                        Ok(Err(error)) => {
+                            let _ = ready_tx.send(Err(error.to_string()));
+                        }
+                        Err(_) => {
+                            let _ = ready_tx.send(Err("Embedded runtime startup timed out".into()));
+                        }
+                    }
+                });
+            })
+            .map_err(|error| error.to_string())?;
+        let thread = RuntimeThread {
+            stop: Some(stop_tx),
+            join: Some(join),
+        };
+        let url = ready_rx
+            .recv_timeout(START_TIMEOUT + Duration::from_secs(1))
+            .map_err(|_| "Embedded runtime startup timed out".to_string())??;
+        if !trusted_bootstrap_url(&url, &token) {
+            return Err("Invalid embedded bootstrap address".into());
+        }
+        *self
+            .thread
+            .lock()
+            .map_err(|_| "Embedded runtime lock poisoned")? = Some(thread);
+        *self
+            .token
+            .lock()
+            .map_err(|_| "Embedded runtime lock poisoned")? = Some(token);
+        Ok(EmbeddedReady {
+            bootstrap_url: url,
+            pid: std::process::id(),
+            runtime_profile: runtime_profile().into(),
+            error: String::new(),
+        })
     }
 
-    fn wait_until_ready(&self, token: &str) -> Result<EmbeddedReady, String> {
-        super::startup_trace("embedded-ready-wait-begin");
-        let ready_file = self.data_root.join("embedded-ready.json");
-        let started_at = Instant::now();
-        while started_at.elapsed() < START_TIMEOUT {
-            match std::fs::read(&ready_file) {
-                Ok(contents) => {
-                    let ready: EmbeddedReady = serde_json::from_slice(&contents)
-                        .map_err(|error| format!("嵌入式 Runtime READY 数据无效：{error}"))?;
-                    if !ready.error.is_empty() {
-                        return Err(format!("嵌入式 Runtime 启动失败：{}", ready.error));
-                    }
-                    if ready.pid == 0
-                        || ready.runtime_profile != runtime_profile()
-                        || !trusted_bootstrap_url(&ready.bootstrap_url, token)
-                    {
-                        return Err("嵌入式 Runtime 返回了不受信任的启动地址。".into());
-                    }
-                    super::startup_trace("embedded-ready-wait-end");
-                    return Ok(ready);
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    std::thread::sleep(Duration::from_millis(100));
-                }
-                Err(error) => return Err(format!("无法读取嵌入式 Runtime READY：{error}")),
-            }
-        }
-        super::startup_trace("embedded-ready-wait-timeout");
-        Err("嵌入式 Runtime 启动超时。".into())
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn start_runtime(&self) -> Result<EmbeddedReady, String> {
+        Err("Embedded runtime requires a mobile host".into())
     }
 
     fn mark_ready(&self, ready: EmbeddedReady) -> OnDeviceRuntimeStatus {
@@ -402,22 +392,19 @@ impl EmbeddedRuntime {
         status.url.clear();
     }
 
-    fn node_is_alive(&self) -> Result<bool, String> {
-        #[cfg(target_os = "android")]
-        {
-            return android_node_started();
-        }
-        #[cfg(target_os = "ios")]
-        {
-            return Ok(self.node_thread_alive.load(Ordering::Acquire));
-        }
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        {
-            Ok(true)
-        }
+    fn runtime_is_alive(&self) -> Result<bool, String> {
+        Ok(self
+            .thread
+            .lock()
+            .map_err(|_| "Embedded runtime lock poisoned")?
+            .as_ref()
+            .is_some_and(|thread| thread.join.as_ref().is_some_and(|join| !join.is_finished())))
     }
 
     fn reset_after_exit(&self) {
+        if let Ok(mut thread) = self.thread.lock() {
+            thread.take();
+        }
         self.started.store(false, Ordering::Release);
         self.token
             .lock()
@@ -527,7 +514,7 @@ fn read_installed_manifest(root: &Path, app_version: &str) -> Option<EmbeddedMan
     if !manifest.matches_app(app_version)
         || !manifest.archive_sha256.as_deref().is_some_and(valid_sha256)
         || ![
-            ("runtime/mobile-embedded.mjs", &manifest.entry_sha256),
+            ("runtime.json", &manifest.entry_sha256),
             ("dist/index.html", &manifest.frontend_sha256),
         ]
         .iter()
@@ -640,14 +627,6 @@ fn runtime_profile() -> &'static str {
     }
 }
 
-fn set_runtime_env(name: &str, value: &Path) -> Result<(), String> {
-    let value = value
-        .to_str()
-        .ok_or_else(|| format!("{name} 路径不是 UTF-8。"))?;
-    std::env::set_var(name, value);
-    Ok(())
-}
-
 #[cfg(target_os = "android")]
 fn platform_supported() -> bool {
     std::env::consts::ARCH == "aarch64"
@@ -696,247 +675,41 @@ fn copy_packaged_archive(_resource_archive: Option<&Path>, _target: &Path) -> Re
     Err("当前平台不支持嵌入式 Runtime。".into())
 }
 
-#[cfg(target_os = "android")]
-fn android_node_started() -> Result<bool, String> {
-    with_android_env(|env, context| {
-        let class_loader = env
-            .call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
-            .and_then(|value| value.l())
-            .map_err(|error| android_jni_error(env, "无法获取 Android App ClassLoader", error))?;
-        let class_name = env
-            .new_string("com.lingkongran.pisper.EmbeddedNodeHost")
-            .map(jni::objects::JObject::from)
-            .map_err(|error| format!("无法构造 embedded Node 宿主类名：{error}"))?;
-        let host_class = env
-            .call_method(
-                &class_loader,
-                "loadClass",
-                "(Ljava/lang/String;)Ljava/lang/Class;",
-                &[jni::objects::JValue::Object(&class_name)],
-            )
-            .and_then(|value| value.l())
-            .map(jni::objects::JClass::from)
-            .map_err(|error| android_jni_error(env, "无法加载 embedded Node 宿主类", error))?;
-        env.call_static_method(&host_class, "isStarted", "()Z", &[])
-            .and_then(|value| value.z())
-            .map_err(|error| android_jni_error(env, "无法读取 embedded Node 宿主状态", error))
-    })
-}
-
-#[cfg(target_os = "android")]
-fn launch_node(arguments: Vec<String>) -> Result<(), String> {
-    with_android_env(|env, context| {
-        let string_class = env
-            .find_class("java/lang/String")
-            .map_err(|error| format!("无法加载 Java String：{error}"))?;
-        let empty = env
-            .new_string("")
-            .map_err(|error| format!("无法创建 Node 参数：{error}"))?;
-        let array = env
-            .new_object_array(arguments.len() as i32, string_class, empty)
-            .map_err(|error| format!("无法创建 Node 参数数组：{error}"))?;
-        for (index, argument) in arguments.iter().enumerate() {
-            let value = env
-                .new_string(argument)
-                .map_err(|error| format!("无法创建 Node 参数：{error}"))?;
-            env.set_object_array_element(&array, index as i32, value)
-                .map_err(|error| format!("无法写入 Node 参数：{error}"))?;
-        }
-
-        // 附加的 Rust 工作线程没有 App ClassLoader；必须从当前 Context 显式加载宿主类。
-        let class_loader = env
-            .call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])
-            .and_then(|value| value.l())
-            .map_err(|error| android_jni_error(env, "无法获取 Android App ClassLoader", error))?;
-        let class_name = env
-            .new_string("com.lingkongran.pisper.EmbeddedNodeHost")
-            .map(jni::objects::JObject::from)
-            .map_err(|error| format!("无法构造 embedded Node 宿主类名：{error}"))?;
-        let host_class = env
-            .call_method(
-                &class_loader,
-                "loadClass",
-                "(Ljava/lang/String;)Ljava/lang/Class;",
-                &[jni::objects::JValue::Object(&class_name)],
-            )
-            .and_then(|value| value.l())
-            .map(jni::objects::JClass::from)
-            .map_err(|error| android_jni_error(env, "无法加载 embedded Node 宿主类", error))?;
-        let result = env
-            .call_static_method(
-                &host_class,
-                "start",
-                "([Ljava/lang/String;)Ljava/lang/String;",
-                &[jni::objects::JValue::Object(array.as_ref())],
-            )
-            .and_then(|value| value.l())
-            .map_err(|error| android_jni_error(env, "无法启动 Android embedded Node", error))?;
-        if result.is_null() {
-            return Ok(());
-        }
-        let message: String = env
-            .get_string((&result).into())
-            .map_err(|error| format!("无法读取 embedded Node 错误：{error}"))?
-            .into();
-        Err(format!("无法加载 Android embedded Node：{message}"))
-    })
-}
-
-#[cfg(target_os = "android")]
-fn android_jni_error(
-    env: &mut jni::JNIEnv<'_>,
-    context: &str,
-    error: jni::errors::Error,
-) -> String {
-    let detail = if env.exception_check().unwrap_or(false) {
-        let throwable = env.exception_occurred().ok();
-        let _ = env.exception_clear();
-        throwable.and_then(|throwable| {
-            let value = env
-                .call_method(&throwable, "toString", "()Ljava/lang/String;", &[])
-                .and_then(|value| value.l())
-                .ok()?;
-            if value.is_null() {
-                return None;
-            }
-            let value: String = env.get_string((&value).into()).ok()?.into();
-            Some(value)
-        })
-    } else {
-        None
-    };
-    match detail {
-        Some(detail) => format!("{context}：{detail}"),
-        None => format!("{context}：{error}"),
-    }
-}
-
-#[cfg(target_os = "ios")]
-type NodeStart = unsafe extern "C" fn(i32, *mut *mut c_char) -> i32;
-
-#[cfg(target_os = "ios")]
-extern "C" {
-    fn dlopen(path: *const c_char, mode: i32) -> *mut c_void;
-    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-    fn dlclose(handle: *mut c_void) -> i32;
-    fn dlerror() -> *const c_char;
-}
-
-#[cfg(any(target_os = "ios", test))]
-fn ios_node_mobile_binary(executable: &Path) -> Option<PathBuf> {
-    Some(
-        executable
-            .parent()?
-            .join("Frameworks/NodeMobile.framework/NodeMobile"),
-    )
-}
-
-#[cfg(target_os = "ios")]
-fn ios_dynamic_link_error() -> String {
-    let message = unsafe { dlerror() };
-    if message.is_null() {
-        return "未知动态链接错误".into();
-    }
-    unsafe { CStr::from_ptr(message) }
-        .to_string_lossy()
-        .into_owned()
-}
-
-#[cfg(target_os = "ios")]
-fn load_ios_node_start() -> Result<NodeStart, String> {
-    let executable =
-        std::env::current_exe().map_err(|error| format!("无法定位 iOS App 可执行文件：{error}"))?;
-    let binary = ios_node_mobile_binary(&executable)
-        .ok_or_else(|| "无法定位 iOS NodeMobile framework。".to_string())?;
-    if !binary.is_file() {
-        return Err(format!(
-            "iOS App 缺少 NodeMobile framework：{}",
-            binary.display()
-        ));
-    }
-    let path = binary
-        .to_str()
-        .ok_or_else(|| "iOS NodeMobile framework 路径不是 UTF-8。".to_string())?;
-    let path =
-        CString::new(path).map_err(|_| "iOS NodeMobile framework 路径包含空字符。".to_string())?;
-    let symbol = CString::new("node_start").expect("static NodeMobile symbol is valid");
-
-    unsafe {
-        dlerror();
-        let handle = dlopen(path.as_ptr(), 0x2 | 0x4);
-        if handle.is_null() {
-            return Err(format!(
-                "无法加载 iOS NodeMobile framework：{}",
-                ios_dynamic_link_error()
-            ));
-        }
-        dlerror();
-        let address = dlsym(handle, symbol.as_ptr());
-        if address.is_null() {
-            let error = ios_dynamic_link_error();
-            dlclose(handle);
-            return Err(format!("iOS NodeMobile framework 缺少 node_start：{error}"));
-        }
-        // Node 在 App 生命周期内常驻，保留 framework handle，不能提前 dlclose。
-        Ok(std::mem::transmute::<*mut c_void, NodeStart>(address))
-    }
-}
-
-#[cfg(target_os = "ios")]
-fn launch_node(arguments: Vec<String>, node_thread_alive: Arc<AtomicBool>) -> Result<(), String> {
-    let node_start = load_ios_node_start()?;
-    node_thread_alive.store(true, Ordering::Release);
-    let alive = node_thread_alive.clone();
-    std::thread::Builder::new()
-        .name("pisper-embedded-node".into())
-        .spawn(move || {
-            let owned = arguments
-                .into_iter()
-                .map(CString::new)
-                .collect::<Result<Vec<_>, _>>();
-            let Ok(mut owned) = owned else {
-                alive.store(false, Ordering::Release);
-                return;
-            };
-            let mut argv = owned
-                .iter_mut()
-                .map(|value| value.as_ptr().cast_mut())
-                .collect::<Vec<_>>();
-            // NodeMobile 明确要求在非 WebView 线程进入 node_start。
-            unsafe {
-                node_start(argv.len() as i32, argv.as_mut_ptr());
-            }
-            alive.store(false, Ordering::Release);
-        })
-        .map(|_| ())
-        .map_err(|error| {
-            node_thread_alive.store(false, Ordering::Release);
-            format!("无法创建 iOS embedded Node 线程：{error}")
-        })
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn launch_node(_arguments: Vec<String>) -> Result<(), String> {
-    Err("当前平台不支持嵌入式 Node。".into())
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, Read, Write};
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     use flate2::{write::GzEncoder, Compression};
     use serde_json::{json, Value};
     use sha2::{Digest, Sha256};
 
     use super::{
-        archive_manifest, archive_sha256, ios_node_mobile_binary, publish_installation,
-        read_installed_manifest, runtime_profile, trusted_bootstrap_url, EmbeddedRuntime,
-        ARCHIVE_PROBE_BYTES, MAX_MANIFEST_BYTES,
+        archive_manifest, archive_sha256, publish_installation, read_installed_manifest,
+        runtime_profile, trusted_bootstrap_url, EmbeddedRuntime, ARCHIVE_PROBE_BYTES,
+        MAX_MANIFEST_BYTES,
     };
 
     const ENTRY: &[u8] = b"export const runtime = true;";
     const FRONTEND: &[u8] = b"<!doctype html><div id='root'></div>";
+
+    #[cfg(unix)]
+    #[test]
+    fn trusted_system_directory_alias_keeps_existing_data_without_migration() {
+        let fixture = Fixture::new();
+        let original = fixture.0.join("original");
+        std::fs::create_dir(&original).unwrap();
+        std::fs::write(original.join("existing-data"), "fixture").unwrap();
+        let alias = fixture.0.join("system-alias");
+        std::os::unix::fs::symlink(&original, &alias).unwrap();
+        let resolved = super::trusted_host_directory(&alias).unwrap();
+        assert_eq!(resolved, original.canonicalize().unwrap());
+        assert_eq!(
+            std::fs::read_to_string(resolved.join("existing-data")).unwrap(),
+            "fixture"
+        );
+        assert!(std::fs::symlink_metadata(alias).unwrap().is_symlink());
+    }
 
     struct Fixture(PathBuf);
 
@@ -975,10 +748,10 @@ mod tests {
 
     fn manifest() -> Value {
         json!({
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "appVersion": "1.2.3",
             "runtimeProfile": runtime_profile(),
-            "entry": "runtime/mobile-embedded.mjs",
+            "entry": "runtime.json",
             "buildSha256": "a".repeat(64),
             "entrySha256": format!("{:x}", Sha256::digest(ENTRY)),
             "frontendSha256": format!("{:x}", Sha256::digest(FRONTEND)),
@@ -1005,7 +778,7 @@ mod tests {
             ("dist/index.html", FRONTEND),
         ];
         if with_entry {
-            entries.push(("runtime/mobile-embedded.mjs", ENTRY));
+            entries.push(("runtime.json", ENTRY));
         }
         tar_bytes(&entries)
     }
@@ -1086,7 +859,7 @@ mod tests {
         assert!(!fixture.0.join("embedded-runtime.previous").exists());
         for (field, value) in [
             ("buildSha256", json!("b".repeat(64))),
-            ("schemaVersion", json!(2)),
+            ("schemaVersion", json!(1)),
             ("appVersion", json!("2.0.0")),
             ("runtimeProfile", json!("desktop")),
             ("entry", json!("runtime/other.mjs")),
@@ -1127,7 +900,7 @@ mod tests {
 
     #[test]
     fn fast_path_rejects_missing_empty_and_nonempty_corrupted_entries() {
-        for relative in ["runtime/mobile-embedded.mjs", "dist/index.html"] {
+        for relative in ["runtime.json", "dist/index.html"] {
             let fixture = Fixture::new();
             let archive = fixture.archive(&manifest());
             let runtime = fixture.runtime(archive.clone());
@@ -1183,7 +956,7 @@ mod tests {
                 old_marker
             );
             assert_eq!(
-                std::fs::read(runtime.root.join("runtime/mobile-embedded.mjs")).unwrap(),
+                std::fs::read(runtime.root.join("runtime.json")).unwrap(),
                 ENTRY
             );
             assert!(!fixture.0.join("embedded-runtime.staging").exists());
@@ -1223,14 +996,6 @@ mod tests {
             .write_all(&vec![b' '; MAX_MANIFEST_BYTES as usize])
             .unwrap();
         assert!(!runtime.installed_matches_packaged_runtime(true));
-    }
-
-    #[test]
-    fn ios_node_mobile_binary_resolves_inside_the_app_frameworks_directory() {
-        assert_eq!(
-            ios_node_mobile_binary(Path::new("/tmp/Pisper.app/Pisper")),
-            Some(Path::new("/tmp/Pisper.app/Frameworks/NodeMobile.framework/NodeMobile").into()),
-        );
     }
 
     #[test]

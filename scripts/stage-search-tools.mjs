@@ -66,11 +66,17 @@ async function archiveBytes(asset, cachePath, fetchImpl) {
 }
 
 // 下载仅发生在构建机。交付闭包使用固定版本与摘要，不依赖用户缓存、PATH 或公网。
-export async function stageSearchTools({ root, runtimeDir, target, fetchImpl = globalThis.fetch }) {
+export async function stageSearchTools({
+  root,
+  runtimeDir,
+  target,
+  fetchImpl = globalThis.fetch,
+  toolRoot = TOOL_ROOT,
+}) {
   const entries = searchToolEntries(target)
   if (!entries.length) return
   const cacheDir = join(root, 'release', 'cache', 'search-tools')
-  const destination = join(runtimeDir, TOOL_ROOT)
+  const destination = join(runtimeDir, toolRoot)
   await mkdir(cacheDir, { recursive: true })
   await mkdir(destination, { recursive: true })
   for (const { name, version, source, license, licenseFiles, asset, filename } of entries) {
