@@ -24,6 +24,7 @@ import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/routes/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
+import { ChatRequestNotice } from '@/features/chat/components/ChatRequestNotice'
 import { SingleSessionPanel } from '@/features/chat/components/ChatDock'
 import { chatApi } from '@/features/chat/api/chat-api'
 import { ChatDockContext, type ChatDockContextValue } from '@/features/chat/model/chat-dock-context'
@@ -583,33 +584,44 @@ export function ChatPage({
           context={contextPanel}
           side="right"
         >
-          {catalog.loading ? (
-            <AppEmptyState>
-              <RefreshCw className="animate-spin" size={24} />
-              <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
-              <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-            </AppEmptyState>
-          ) : (
-            <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
-              <ChatDockContext.Provider value={dockContextValue}>
-                {clientLoaded &&
-                  (mobileLayout ? (
-                    <SingleSessionPanel onCreateSession={createSession} />
-                  ) : (
-                    <Suspense
-                      fallback={<RefreshCw className="m-4 animate-spin" aria-hidden="true" />}
-                    >
-                      <LazyChatDockView
-                        compactDock={dock.compactDock}
-                        onDockReady={dock.onDockReady}
-                        getTabContextMenuItems={dock.getTabContextMenuItems}
-                        createSession={createSession}
-                      />
-                    </Suspense>
-                  ))}
-              </ChatDockContext.Provider>
-            </div>
-          )}
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+            {catalog.initializationError && (
+              <ChatRequestNotice
+                title={t('chat:chatPage.initializationFailed')}
+                error={catalog.initializationError}
+                pending={catalog.initializing}
+                onRetry={catalog.retryInitialization}
+                className="m-3 w-auto shrink-0"
+              />
+            )}
+            {catalog.loading ? (
+              <AppEmptyState>
+                <RefreshCw className="animate-spin" size={24} />
+                <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
+                <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
+              </AppEmptyState>
+            ) : catalog.initializationError && !catalog.sessions.length ? null : (
+              <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
+                <ChatDockContext.Provider value={dockContextValue}>
+                  {clientLoaded &&
+                    (mobileLayout ? (
+                      <SingleSessionPanel onCreateSession={createSession} />
+                    ) : (
+                      <Suspense
+                        fallback={<RefreshCw className="m-4 animate-spin" aria-hidden="true" />}
+                      >
+                        <LazyChatDockView
+                          compactDock={dock.compactDock}
+                          onDockReady={dock.onDockReady}
+                          getTabContextMenuItems={dock.getTabContextMenuItems}
+                          createSession={createSession}
+                        />
+                      </Suspense>
+                    ))}
+                </ChatDockContext.Provider>
+              </div>
+            )}
+          </div>
         </SessionContextLayout>
       </div>
     </SideChatProvider>

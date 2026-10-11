@@ -1,4 +1,7 @@
 {
+  "chatPage.initializationFailed": "聊天加载失败，请重试。",
+  "chatDock.creatingChat": "正在创建…",
+  "chatDock.retryNewChat": "重试创建会话",
   "sessionContext.title": "会话上下文",
   "sessionContext.open": "打开会话上下文",
   "sessionContext.close": "关闭会话上下文",

@@ -1,4 +1,7 @@
 {
+  "chatPage.initializationFailed": "Chat could not load. Please try again.",
+  "chatDock.creatingChat": "Creating…",
+  "chatDock.retryNewChat": "Retry creating chat",
   "sessionContext.title": "Session context",
   "sessionContext.open": "Open session context",
   "sessionContext.close": "Close session context",

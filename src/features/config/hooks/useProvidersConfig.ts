@@ -31,6 +31,7 @@ type UseProvidersConfigOptions = {
 export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersConfigOptions) {
   const [config, setConfig] = useState<ConfigData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
   const [toggling, setToggling] = useState('')
   const [settingDefault, setSettingDefault] = useState('')
@@ -38,37 +39,51 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
   const [deletingModel, setDeletingModel] = useState('')
   const configRevision = useRef(0)
   const mounted = useRef(false)
+  const configRequest = useRef<{ controller: AbortController; promise: Promise<void> } | null>(null)
 
-  // 首次加载配置，随后后台刷新各 Provider 的模型目录（结果回来后更新视图）。
-  useEffect(() => {
-    let active = true
-    mounted.current = true
+  // 首次加载和用户重试共用请求；已有配置留在页面上，避免刷新时卸载编辑草稿。
+  const retryConfig = useCallback(() => {
+    if (configRequest.current) return configRequest.current.promise
+    const controller = new AbortController()
     const revision = configRevision.current
-    apiJson<ConfigData>('/api/config')
+    setLoading(true)
+    const promise = apiJson<ConfigData>('/api/config', { signal: controller.signal })
       .then((data) => {
-        if (!active) return undefined
+        if (controller.signal.aborted) return undefined
         if (configRevision.current === revision) setConfig(data)
-        setLoading(false)
         return apiJson<{ config?: ConfigData }>('/api/providers/models/refresh', {
           method: 'POST',
           body: '{}',
+          signal: controller.signal,
         })
       })
       .then((result) => {
-        if (!active || configRevision.current !== revision || !result?.config) return
-        setConfig(result.config)
+        if (controller.signal.aborted || configRevision.current !== revision) return
+        if (result?.config) setConfig(result.config)
+        setLoadError('')
       })
       .catch((caught: unknown) => {
-        if (!active || configRevision.current !== revision) return
-        setError(errorMessage(caught))
-        setLoading(false)
+        if (controller.signal.aborted || configRevision.current !== revision) return
+        setLoadError(errorMessage(caught))
       })
+      .finally(() => {
+        if (configRequest.current?.controller === controller) configRequest.current = null
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    configRequest.current = { controller, promise }
+    return promise
+  }, [])
+
+  useEffect(() => {
+    mounted.current = true
+    void retryConfig()
     return () => {
-      active = false
       mounted.current = false
+      configRequest.current?.controller.abort()
+      configRequest.current = null
       configRevision.current += 1
     }
-  }, [])
+  }, [retryConfig])
 
   // 配置更新统一入口：向导完成、视觉模型增删、策略保存后整份回写。
   const applyConfig = useCallback((data: ConfigData) => {
@@ -76,6 +91,7 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     configRevision.current += 1
     setConfig(data)
     setLoading(false)
+    setLoadError('')
     setError('')
   }, [])
 
@@ -202,6 +218,8 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
   return {
     config,
     loading,
+    loadError,
+    retryConfig,
     error,
     toggling,
     settingDefault,

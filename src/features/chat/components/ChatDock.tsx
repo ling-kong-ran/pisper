@@ -2,7 +2,7 @@
 // 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { AlertTriangle, History, MessageSquare, Plus, X } from 'lucide-react'
+import { AlertTriangle, History, LoaderCircle, MessageSquare, Plus, X } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/storage/page-state-storage'
 import { useI18n } from '@/app/i18n/use-i18n'
@@ -12,6 +12,7 @@ import {
   resolveSessionPlan,
 } from '@/lib/session/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
+import { ChatRequestNotice } from '@/features/chat/components/ChatRequestNotice'
 import { FocusSession } from '@/features/chat/components/runtime/FocusSession'
 import { resolveSessionStreaming } from '@/features/chat/model/session-streaming-state'
 import { ChatDockContext } from '@/features/chat/model/chat-dock-context'
@@ -480,6 +481,27 @@ type ChatDockWatermarkProps = {
 
 export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDockWatermarkProps) {
   const { t } = useI18n()
+  const context = useContext(ChatDockContext)
+  const [creating, setCreating] = useState(false)
+  const creatingRef = useRef(false)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+  const create = async () => {
+    if (!onNewSession || creatingRef.current) return
+    creatingRef.current = true
+    setCreating(true)
+    try {
+      await onNewSession()
+    } finally {
+      creatingRef.current = false
+      if (mountedRef.current) setCreating(false)
+    }
+  }
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
       <MessageSquare size={34} />
@@ -489,14 +511,30 @@ export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDock
       <span className="max-w-[320px] leading-[1.55]">
         {t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}
       </span>
+      {context?.globalError && (
+        <ChatRequestNotice
+          error={context.globalError}
+          className="w-[min(420px,calc(100%_-_32px))]"
+        />
+      )}
       {onNewSession ? (
         <button
           type="button"
           className="mt-[10px] inline-flex cursor-pointer items-center gap-[6px] rounded-[var(--r-sm)] border-0 bg-[var(--brand-blue)] px-[16px] py-[8px] text-[length:var(--app-font-size)] font-medium text-white transition-colors duration-[var(--d1)] hover:bg-[var(--brand-blue-hover)] focus-visible:outline-[2px] focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
-          onClick={() => void onNewSession()}
+          disabled={creating}
+          aria-busy={creating}
+          onClick={() => void create()}
         >
-          <Plus size={14} aria-hidden="true" />
-          {t('chat:chatDock.newChat')}
+          {creating ? (
+            <LoaderCircle size={14} aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Plus size={14} aria-hidden="true" />
+          )}
+          {creating
+            ? t('chat:chatDock.creatingChat')
+            : context?.globalError
+              ? t('chat:chatDock.retryNewChat')
+              : t('chat:chatDock.newChat')}
           {newSessionShortcut ? (
             <kbd className="ml-[2px] rounded-[4px] border border-white/35 bg-white/10 px-[5px] py-[1px] font-sans text-[length:var(--app-small-size)] font-medium leading-[1.4]">
               {newSessionShortcut}

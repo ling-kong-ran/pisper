@@ -10,6 +10,7 @@ import {
   StatusBadge as Badge,
   AppCardHeader,
   AppEmptyState,
+  AppError,
 } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
@@ -111,10 +112,11 @@ export function SkillsPage({
   const [filter, setFilter] = useState<SkillFilter>('all')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [, setError] = useState('')
+  const [error, setError] = useState('')
 
   // 加载技能列表（按活动会话作用域取项目技能），失效选中回退首项。
   const load = useCallback(async () => {
+    setLoading(true)
     setError('')
     try {
       const result = await apiJson<SkillsData>(skillsApiPath('/api/skills', activeSessionId))
@@ -180,6 +182,16 @@ export function SkillsPage({
 
   usePagePrimaryAction(registerPrimaryAction, installSkill)
 
+  const errorNotice = error && (
+    <AppError className="items-center justify-between">
+      <span>{error}</span>
+      <Button variant="outline" disabled={loading || busy} onClick={() => void load()}>
+        <RefreshCw size={14} />
+        {t('skills:skillsPage.retry')}
+      </Button>
+    </AppError>
+  )
+
   if (loading && !data) {
     return (
       <div className="skills-page flex min-h-[100%] flex-col gap-[12px]">
@@ -189,6 +201,15 @@ export function SkillsPage({
           <p>{t('skills:skillsPage.scanningSkillDirectoriesAndConfiguredPackages')}</p>
         </AppEmptyState>
       </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <AppEmptyState>
+        <h2>{t('skills:skillsPage.loadFailed')}</h2>
+        {errorNotice}
+      </AppEmptyState>
     )
   }
 
@@ -343,7 +364,7 @@ export function SkillsPage({
               </button>
               <Toggle
                 value={skill.enabled}
-                disabled={busy}
+                disabled={busy || loading}
                 ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
                 onChange={(enabled) => void updateSkill(skill, { enabled })}
               />
@@ -362,6 +383,7 @@ export function SkillsPage({
 
   return (
     <div className="skills-page flex min-h-[100%] flex-col gap-[12px]">
+      {errorNotice}
       <Segmented
         options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
         value={skillFilterLabel(filter, t)}
@@ -461,7 +483,7 @@ export function SkillsPage({
               variant={selected?.removable ? 'destructive' : 'default'}
               size="lg"
               className="w-full"
-              disabled={busy}
+              disabled={busy || loading}
               onClick={selected?.removable ? uninstallSkill : saveSettings}
             >
               {selected?.removable ? <Trash2 size={14} /> : <Save size={14} />}
@@ -504,7 +526,7 @@ export function SkillsPage({
                 <input
                   type="checkbox"
                   checked={checked}
-                  disabled={!selected || busy || disabled}
+                  disabled={!selected || busy || loading || disabled}
                   onChange={(event) => onChange?.(event.target.checked)}
                 />
                 <span>{item}</span>

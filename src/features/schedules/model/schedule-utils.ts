@@ -49,7 +49,7 @@ export function workflowInputDefaults(workflow?: ScheduleWorkflow) {
   const values: Record<string, unknown> = {}
   if (!workflow) return values
   for (const input of workflow.inputs) {
-    values[input.id] = input.defaultValue
+    values[input.name] = input.defaultValue
   }
   return values
 }
@@ -68,7 +68,7 @@ export function scheduleTargetValid(
   return workflow.inputs
     .filter((input) => input.required)
     .every((input) => {
-      const value = workflowInputs[input.id]
+      const value = workflowInputs[input.name]
       return value !== undefined && value !== null && String(value).trim() !== ''
     })
 }

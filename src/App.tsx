@@ -695,6 +695,12 @@ function App() {
     setPane('chat')
   }, [mobileLayout])
 
+  // 设置等路由显示在主屏；从工作区打开链接或浏览器后退时也必须露出目标页面。
+  // 资产仍由下面的专用映射进入右侧工作区，手动切屏不触发此导航同步。
+  useEffect(() => {
+    if (mobileLayout && page !== 'chat' && page !== 'assets') setPane('chat')
+  }, [location.pathname, mobileLayout, page])
+
   // 资产不再占一整页：手机和 Pad 上从任何入口进来都落到右侧工作区。
   useEffect(() => {
     if (!mobileLayout || page !== 'assets') return

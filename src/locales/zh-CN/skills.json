@@ -1,4 +1,6 @@
 {
+  "skillsPage.loadFailed": "技能加载失败",
+  "skillsPage.retry": "重新加载",
   "skillsPage.all": "全部",
   "skillsPage.installed": "已安装",
   "skillsPage.design": "设计",

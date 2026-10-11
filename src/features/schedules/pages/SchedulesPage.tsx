@@ -418,29 +418,27 @@ export function SchedulesPage({
                   </AppSelect>
                 </FieldLabel>
               )}
-              {draft.targetType === 'prompt' && (
-                <div className="[margin-top:10px]">
-                  <Button
-                    size="lg"
-                    disabled={
-                      saving ||
-                      !scheduleTargetValid(
-                        draft.targetType,
-                        draft.prompt,
-                        draft.workflowId,
-                        draft.workflowInputs,
-                        availableWorkflows,
-                      )
-                    }
-                    onClick={save}
-                  >
-                    {saving ? <RefreshCw className="animate-spin" size={14} /> : null}
-                    {saving
-                      ? t('schedules:schedulesPage.saving')
-                      : t('schedules:schedulesPage.saveTask')}
-                  </Button>
-                </div>
-              )}
+              <div className="[margin-top:10px]">
+                <Button
+                  size="lg"
+                  disabled={
+                    saving ||
+                    !scheduleTargetValid(
+                      draft.targetType,
+                      draft.prompt,
+                      draft.workflowId,
+                      draft.workflowInputs,
+                      availableWorkflows,
+                    )
+                  }
+                  onClick={save}
+                >
+                  {saving ? <RefreshCw className="animate-spin" size={14} /> : null}
+                  {saving
+                    ? t('schedules:schedulesPage.saving')
+                    : t('schedules:schedulesPage.saveTask')}
+                </Button>
+              </div>
             </Panel>
             <Panel>
               <SectionTitle title={t('schedules:schedulesPage.recentRuns')} />

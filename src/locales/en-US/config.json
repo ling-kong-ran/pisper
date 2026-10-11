@@ -647,5 +647,10 @@
   "providerWorkbench.addConnectionHint": "Use Quick setup at the top of this page to enter an endpoint, choose a protocol, and select a model.",
   "providerWorkbench.scanningLocal": "Connecting local Claude Code / Codex settings…",
   "providerWorkbench.localImportStatus": "Local configuration · {imported} imported · {skipped} need review",
-  "remoteWorkspace.title": "Connect to a Linux workspace"
+  "remoteWorkspace.title": "Connect to a Linux workspace",
+  "loadState.loading": "Loading settings…",
+  "loadState.failed": "Could not load settings",
+  "loadState.retry": "Retry",
+  "loadState.retrying": "Retrying…",
+  "loadState.stale": "Refresh failed. Showing the last successfully loaded data."
 }

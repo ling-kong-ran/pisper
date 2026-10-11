@@ -87,11 +87,24 @@ export function ModelsSettings({
 
   if (!config) {
     return (
-      <AppEmptyState>
-        <RefreshCw className="animate-spin" size={24} />
-        <h2>{t('config:configPage.loadingModelCatalog')}</h2>
-        <p>{t('config:configPage.readingProvidersAndAuthenticationStatus')}</p>
-        {settings.error && <AppError>{settings.error}</AppError>}
+      <AppEmptyState aria-busy={settings.loading}>
+        {settings.loading && <RefreshCw className="animate-spin" size={24} />}
+        <h2>
+          {settings.loading
+            ? t('config:configPage.loadingModelCatalog')
+            : t('config:loadState.failed')}
+        </h2>
+        {settings.loading && (
+          <p>{t('config:configPage.readingProvidersAndAuthenticationStatus')}</p>
+        )}
+        {settings.loadError && (
+          <>
+            <AppError role="alert">{settings.loadError}</AppError>
+            <Button disabled={settings.loading} onClick={() => void settings.retryConfig()}>
+              {settings.loading ? t('config:loadState.retrying') : t('config:loadState.retry')}
+            </Button>
+          </>
+        )}
       </AppEmptyState>
     )
   }
@@ -113,6 +126,21 @@ export function ModelsSettings({
 
   return (
     <>
+      {settings.loadError && (
+        <AppError role="alert" className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p>{t('config:loadState.stale')}</p>
+            <p>{settings.loadError}</p>
+          </div>
+          <Button
+            variant="outline"
+            disabled={settings.loading}
+            onClick={() => void settings.retryConfig()}
+          >
+            {settings.loading ? t('config:loadState.retrying') : t('config:loadState.retry')}
+          </Button>
+        </AppError>
+      )}
       {defaultProvider && defaultModel && (
         <div className="mb-4 text-sm">
           <p className="min-w-0 truncate text-muted-foreground">

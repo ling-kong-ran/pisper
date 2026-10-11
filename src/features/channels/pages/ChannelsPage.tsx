@@ -1,6 +1,6 @@
 // 通道页：管理飞书/微信/QQ/Telegram 的双向连接和会话路由。
 // 仅负责状态编排和数据请求，引导流程委托给 OnboardingModal。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Bot,
@@ -69,6 +69,8 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedPlatform, setSelectedPlatform] = useState<ChannelPlatform>('feishu')
+  const selectedPlatformRef = useRef(selectedPlatform)
+  selectedPlatformRef.current = selectedPlatform
   const [onboarding, setOnboarding] = useState<OnboardingJob | null>(null)
   const [starting, setStarting] = useState<ChannelPlatform | ''>('')
   const [saving, setSaving] = useState(false)
@@ -201,14 +203,27 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
   // 提交手动凭据（Telegram 等）。
   const submitManualCredentials = async (credentials: ManualCredentials) => {
     if (!onboarding) return
+    const job = onboarding
     try {
-      await apiJson(`/api/channels/${onboarding.platform}/onboarding/manual`, {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      })
-      notify(t('channels:channelsPage.connecting'))
+      // 手动接入与扫码共用入口；返回连接目录，不是可轮询的扫码任务。
+      const result = await apiJson<Pick<ChannelsData, 'providers' | 'connections' | 'scopes'>>(
+        `/api/channels/${job.platform}/onboarding`,
+        { method: 'POST', body: JSON.stringify(credentials) },
+      )
+      setData((current) => ({ ...current, ...result }))
+      if (selectedPlatformRef.current === job.platform) {
+        setCwd(result.connections[job.platform]?.defaultCwd || '')
+      }
+      setOnboarding((current) => (current === job ? null : current))
+      notify(
+        t('channels:channelsPage.nameTwoWayConnectionEstablished', {
+          name: providerName(job.platform, t),
+        }),
+      )
     } catch (caught) {
-      setOnboarding({ ...onboarding, status: 'failed', error: errorMessage(caught) })
+      setOnboarding((current) =>
+        current === job ? { ...job, status: 'failed', error: errorMessage(caught) } : current,
+      )
     }
   }
 

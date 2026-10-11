@@ -54,6 +54,10 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   )
   const [sessionStates, setSessionStates] = useState<Record<string, SessionState>>({})
   const [loading, setLoading] = useState(true)
+  const [initializing, setInitializing] = useState(true)
+  const [initializationError, setInitializationError] = useState('')
+  const [initializationAttempt, setInitializationAttempt] = useState(0)
+  const initializationInFlightRef = useRef(true)
   const [globalError, setGlobalError] = useState('')
   const [defaultModel, setDefaultModel] = useState(() => t('chat:chatPage.waitingForConfiguration'))
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
@@ -317,11 +321,26 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [notify, queryClient, t, updateSessionState, updateSessions],
   )
 
+  const retryInitialization = useCallback(() => {
+    if (initializationInFlightRef.current) return
+    initializationInFlightRef.current = true
+    setInitializing(true)
+    setInitializationAttempt((attempt) => attempt + 1)
+  }, [])
+
   useEffect(() => {
     let active = true
+    initializationInFlightRef.current = true
+    setInitializing(true)
+    setInitializationError('')
+    // 重试只在没有已加载目录时替换为空态，避免临时故障卸载仍可用的分屏。
+    setLoading(!sessionsRef.current.length)
     let titleRevision = titleReconciler.getRevision()
     // 懒加载聊天页可能晚于壳层请求完成，首次读取也须复用尚未失效的共享快照。
-    Promise.all([chatApi.listSessions({ refresh: false }), chatApi.getConfig()])
+    Promise.all([
+      chatApi.listSessions({ refresh: initializationAttempt > 0 }),
+      chatApi.getConfig({ refresh: initializationAttempt > 0 }),
+    ])
       .then(async ([sessionData, configData]) => {
         if (!active) return
         setDefaultModel(
@@ -408,13 +427,19 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           }
         }
         if (!active) return
-        setGlobalError(chatErrorMessage(error))
+        setInitializationError(chatErrorMessage(error))
       })
-      .finally(() => active && setLoading(false))
+      .finally(() => {
+        if (!active) return
+        initializationInFlightRef.current = false
+        setInitializing(false)
+        setLoading(false)
+      })
     return () => {
       active = false
+      initializationInFlightRef.current = false
     }
-  }, [notify, t, titleReconciler, updateSessionState, updateSessions])
+  }, [initializationAttempt, notify, t, titleReconciler, updateSessionState, updateSessions])
 
   useEffect(() => {
     if (activeId) pageStateStorage.setItem(STORAGE_KEYS.activeSession, activeId)
@@ -444,6 +469,9 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     sessionStates,
     sessionStatesRef,
     loading,
+    initializing,
+    initializationError,
+    retryInitialization,
     globalError,
     setGlobalError,
     defaultModel,

@@ -1,7 +1,7 @@
 import '@/features/config/model/remote-workspace-messages'
 // 远程访问设置：开关局域网监听、展示接入地址与证书指纹、
 // 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Check,
   LoaderCircle,
@@ -90,34 +90,64 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
   const [approvalBusy, setApprovalBusy] = useState('')
   const [busy, setBusy] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const refreshRequest = useRef<{ controller: AbortController; promise: Promise<void> } | null>(
+    null,
+  )
 
-  const refresh = useCallback(async () => {
-    try {
-      const [nextStatus, nextDevices, nextApprovals, nextFirewall] = await Promise.all([
-        apiJson<RemoteStatus>('/api/remote/status'),
-        apiJson<{ devices: RemoteDevice[] }>('/api/remote/devices'),
-        apiJson<{ requests: PairingApproval[] }>('/api/remote/pairing-requests').catch(() => ({
-          requests: [],
-        })),
-        apiJson<FirewallStatus>('/api/remote/firewall').catch((error: unknown) => {
-          // 远程设备没有本机策略管理权限，保持普通远程访问设置可用。
-          if (error && typeof error === 'object' && 'status' in error && error.status === 403)
-            return null
-          throw error
-        }),
-      ])
-      setStatus(nextStatus)
-      setFirewall(nextFirewall)
-      setDevices(nextDevices.devices.filter((device) => !device.revokedAt))
-      setApprovals(nextApprovals.requests)
-      setLoadError('')
-    } catch {
-      setLoadError(t('config:remoteAccess.loadFailed'))
-    }
-  }, [t])
+  const refresh = useCallback(
+    (afterMutation = false) => {
+      // 手动重试与轮询共用正在进行的请求，慢响应不会清空上次成功的数据。
+      // 写入完成后必须重新读取，不能采用写入前已开始的轮询快照。
+      if (afterMutation) {
+        refreshRequest.current?.controller.abort()
+        refreshRequest.current = null
+      }
+      if (refreshRequest.current) return refreshRequest.current.promise
+      const controller = new AbortController()
+      const options = { signal: controller.signal }
+      setLoading(true)
+      const promise = (async () => {
+        try {
+          const [nextStatus, nextDevices, nextApprovals, nextFirewall] = await Promise.all([
+            apiJson<RemoteStatus>('/api/remote/status', options),
+            apiJson<{ devices: RemoteDevice[] }>('/api/remote/devices', options),
+            apiJson<{ requests: PairingApproval[] }>('/api/remote/pairing-requests', options).catch(
+              () => ({ requests: [] }),
+            ),
+            apiJson<FirewallStatus>('/api/remote/firewall', options).catch((error: unknown) => {
+              // 远程设备没有本机策略管理权限，保持普通远程访问设置可用。
+              if (error && typeof error === 'object' && 'status' in error && error.status === 403)
+                return null
+              throw error
+            }),
+          ])
+          if (controller.signal.aborted) return
+          setStatus(nextStatus)
+          setFirewall(nextFirewall)
+          setDevices(nextDevices.devices.filter((device) => !device.revokedAt))
+          setApprovals(nextApprovals.requests)
+          setLoadError('')
+        } catch {
+          if (!controller.signal.aborted) setLoadError(t('config:remoteAccess.loadFailed'))
+        } finally {
+          if (refreshRequest.current?.controller === controller) refreshRequest.current = null
+          if (!controller.signal.aborted) setLoading(false)
+          controller.abort()
+        }
+      })()
+      refreshRequest.current = { controller, promise }
+      return promise
+    },
+    [t],
+  )
 
   useEffect(() => {
     void refresh()
+    return () => {
+      refreshRequest.current?.controller.abort()
+      refreshRequest.current = null
+    }
   }, [refresh])
 
   useEffect(() => {
@@ -143,7 +173,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         setPairingOpen(false)
         setPairingError('')
       }
-      await refresh()
+      await refresh(true)
     } catch (error) {
       notify(t('config:remoteAccess.toggleFailed', { message: String(error) }), 'error')
     } finally {
@@ -159,7 +189,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         body: {},
         timeout: 150_000,
       })
-      await refresh()
+      await refresh(true)
     } catch (error) {
       notify(t('config:remoteAccess.firewallRetryFailed', { message: String(error) }), 'error')
     } finally {
@@ -222,7 +252,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         method: 'POST',
         body: { approved },
       })
-      await refresh()
+      await refresh(true)
     } catch (error) {
       notify(t('config:remoteAccess.approvalFailed', { message: String(error) }), 'error')
     } finally {
@@ -236,19 +266,46 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       await apiJson(`/api/remote/devices/${encodeURIComponent(device.id)}/revoke`, {
         method: 'POST',
       })
-      await refresh()
+      await refresh(true)
     } catch (error) {
       notify(t('config:remoteAccess.revokeFailed', { message: String(error) }), 'error')
     }
   }
 
-  if (loadError) {
-    return <Panel className="p-4 text-[13px] text-[var(--text-muted)]">{loadError}</Panel>
+  if (!status) {
+    return (
+      <Panel className="flex flex-col items-start gap-3 p-4 text-sm" aria-busy={loading}>
+        {loading ? (
+          <p role="status" className="flex items-center gap-2">
+            <LoaderCircle size={16} className="animate-spin" />
+            {t('config:loadState.loading')}
+          </p>
+        ) : null}
+        {loadError ? (
+          <>
+            <p role="alert">{loadError}</p>
+            <Button disabled={loading} onClick={() => void refresh()}>
+              {loading ? t('config:loadState.retrying') : t('config:loadState.retry')}
+            </Button>
+          </>
+        ) : null}
+      </Panel>
+    )
   }
-  if (!status) return null
 
   return (
     <div className="flex flex-col gap-4">
+      {loadError && (
+        <Panel role="alert" className="flex flex-wrap items-center gap-3 p-4 text-sm">
+          <div className="min-w-0 flex-1">
+            <p>{t('config:loadState.stale')}</p>
+            <p>{loadError}</p>
+          </div>
+          <Button variant="outline" disabled={loading} onClick={() => void refresh()}>
+            {loading ? t('config:loadState.retrying') : t('config:loadState.retry')}
+          </Button>
+        </Panel>
+      )}
       <Dialog open={pairingOpen && pairing !== null} onOpenChange={setPairingOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -470,10 +527,11 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
           <Button
             size="sm"
             variant="ghost"
+            disabled={loading}
             onClick={() => void refresh()}
             aria-label={t('config:remoteAccess.refresh')}
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={14} className={loading ? 'animate-spin' : undefined} />
           </Button>
         </div>
         {devices.length === 0 ? (
