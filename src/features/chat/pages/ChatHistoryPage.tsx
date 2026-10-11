@@ -65,7 +65,7 @@ import {
 } from '@/features/chat/api/session-organization-api'
 import { SessionChangeIndicator } from '@/features/chat/components/session/SessionChangeIndicator'
 import { useClientStore } from '@/stores/client-store'
-import { useCompactChatDock } from '@/features/chat/hooks/useCompactChatDock'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import type { SessionOpenDisposition } from '@/features/chat/model/dock-layout'
 
 type ChatHistoryPageProps = {
@@ -85,7 +85,7 @@ export function ChatHistoryPage({
 }: ChatHistoryPageProps) {
   const { t, language } = useI18n()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
-  const compactDock = useCompactChatDock()
+  const phoneViewport = useIsPhoneViewport()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [historyView, setHistoryView] = useState<HistoryView>('active')
   const filterKey = `${historyView}\0${query}`
@@ -395,7 +395,7 @@ export function ChatHistoryPage({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-48">
-                    {canSplitHistorySessions(compactDock, mobileApp) && (
+                    {canSplitHistorySessions(phoneViewport, mobileApp) && (
                       <>
                         {(
                           [

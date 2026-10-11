@@ -167,6 +167,23 @@ try {
     if (direction === 'above') assert.ok(beta.y + beta.height <= alpha.y + 2)
     if (direction === 'below') assert.ok(alpha.y + alpha.height <= beta.y + 2)
   }
+  const checkBounds = async () => {
+    const overflow = await page.evaluate(() => {
+      const container = document.querySelector('main').getBoundingClientRect()
+      return [...document.querySelectorAll('[data-session-id]')]
+        .filter((node) => {
+          const rect = node.getBoundingClientRect()
+          return (
+            rect.left < container.left - 1 ||
+            rect.right > container.right + 1 ||
+            rect.top < container.top - 1 ||
+            rect.bottom > container.bottom + 1
+          )
+        })
+        .map((node) => node.dataset.sessionId)
+    })
+    assert.deepEqual(overflow, [], 'Each split stays fully inside the chat area')
+  }
 
   for (const direction of ['left', 'right', 'above', 'below']) {
     await fresh()
@@ -296,13 +313,32 @@ try {
   assert.ok((await saved()).layout.panels['session:gamma'])
   console.log('PASS: session selected while saved layout loads is replayed')
 
-  await page.setViewportSize({ width: 800, height: 900 })
-  await fresh()
+  await page.setViewportSize({ width: 825, height: 712 })
+  for (const direction of ['left', 'right', 'above', 'below']) {
+    await fresh(null, '?sidebar=1')
+    await expectIds(['alpha'])
+    await open('Beta')
+    await expectIds(['beta'])
+    await page.getByRole('button', { name: 'chat:focusSession.chatActions', exact: true }).click()
+    const suffix = { left: 'Left', right: 'Right', above: 'Top', below: 'Bottom' }[direction]
+    await page
+      .getByRole('menuitem', { name: `chat:chatPage.splitTo${suffix}`, exact: true })
+      .click()
+    await checkDirection(direction)
+    await checkBounds()
+  }
+  await fresh(null, '?sidebar=1')
   await expectIds(['alpha'])
   await open('Beta', 'right')
-  await expectIds(['beta'])
-  assert.equal(await page.locator('.dv-groupview').count(), 1)
-  console.log('PASS: compact desktop keeps a single tab group')
+  const oldConstraints = await saved()
+  for (const panel of Object.values(oldConstraints.layout.panels)) {
+    panel.minimumWidth = 300
+    panel.minimumHeight = 240
+  }
+  await fresh(oldConstraints, '?sidebar=1')
+  await checkDirection('right')
+  await checkBounds()
+  console.log('PASS: narrow desktop retains four-way split actions and two visible panels')
   assert.deepEqual(errors, [], 'No browser exceptions')
   console.log('Chat Dock smoke passed')
 } finally {

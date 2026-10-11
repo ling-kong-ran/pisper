@@ -141,7 +141,15 @@ function DockFixture() {
         <button onClick={() => deleteSession('alpha')}>Delete Alpha</button>
         <output data-active-id={activeId}>Active: {activeId}</output>
       </nav>
-      <main style={{ flex: 1, minHeight: 0, minWidth: 0 }} data-mode={phone ? 'phone' : 'desktop'}>
+      <main
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          marginLeft: location.search.includes('sidebar') ? 264 : 0,
+        }}
+        data-mode={phone ? 'phone' : 'desktop'}
+      >
         {phone ? (
           <SingleSessionPanel onCreateSession={createSession} />
         ) : (

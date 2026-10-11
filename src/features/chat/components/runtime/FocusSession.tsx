@@ -67,6 +67,7 @@ import {
 import type { FocusSessionProps } from '@/features/chat/model/focus-session-props'
 import { useFocusSessionStatusLabel } from '@/features/chat/model/focus-session-status'
 import { useComposerToolbarCapacity } from '@/features/chat/hooks/use-composer-toolbar-capacity'
+import { useSessionViewport } from '@/features/chat/hooks/useSessionViewport'
 import { useFocusComposer } from '@/features/chat/hooks/use-focus-composer'
 import { useComposerToolbarStore } from '@/features/chat/model/composer-toolbar-store'
 import { useShortcutStore } from '@/stores/shortcut-store'
@@ -222,7 +223,9 @@ export const FocusSession = memo(function FocusSession({
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
-  const centeredWelcome = !hasConversation
+  const sessionViewport = useSessionViewport()
+  const compactWelcome = !hasConversation && sessionViewport.compact
+  const centeredWelcome = !hasConversation && !compactWelcome
   const composerStatusLabel = useFocusSessionStatusLabel(
     {
       streaming,
@@ -478,8 +481,8 @@ export const FocusSession = memo(function FocusSession({
   const toolbarAllocation = allocateComposerToolbar(
     toolbarLayout,
     availableComposerToolIds,
-    // Respect the actual composer width; small layouts may move secondary settings into +.
-    Math.max(toolbarCapacity, mobileLayout ? 5 : 8.5),
+    // 分屏后的实际可用宽度决定常驻项，多余设置仍可从“+”打开。
+    toolbarCapacity,
     mobileLayout
       ? { permission: 2.3, 'run-mode': 1.8, model: 3.6 }
       : { permission: 2.6, 'run-mode': 2, model: 3.9 },
@@ -603,6 +606,7 @@ export const FocusSession = memo(function FocusSession({
   const transcriptBlock = (
     <FocusTranscript
       key="transcript"
+      emptyState={compactWelcome ? false : undefined}
       layoutMeasurementKey="fixed"
       sessionId={session.id}
       messages={messages}
@@ -844,7 +848,7 @@ export const FocusSession = memo(function FocusSession({
           </>
         </div>
       </div>
-      {!hasConversation && !streaming && (
+      {!hasConversation && !compactWelcome && !streaming && (
         <Suspense fallback={null}>
           <QuickPromptIdeas plansAvailable={plansAvailable} onPromptSelect={applyWelcomeChip} />
         </Suspense>
@@ -853,10 +857,11 @@ export const FocusSession = memo(function FocusSession({
   )
   return (
     <Panel
+      ref={sessionViewport.ref}
       className={cn(
         `focus-session [--chat-content-width:768px] [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
         centeredWelcome &&
-          '[&_[data-chat-region=messages]]:!flex-none [&_[data-chat-region=messages]]:mt-[max(48px,calc((100dvh-560px)/2))] [&_[data-chat-region=messages]]:h-[160px] [&_[data-chat-region=messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-chat-region=messages]]:mt-8 max-[650px]:[&_[data-chat-region=messages]]:h-[150px]',
+          '[&_[data-chat-region=messages]]:!flex-none [&_[data-chat-region=messages]]:mt-[max(48px,calc((var(--session-viewport-height,100dvh)-560px)/2))] [&_[data-chat-region=messages]]:h-[160px] [&_[data-chat-region=messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-chat-region=messages]]:mt-8 max-[650px]:[&_[data-chat-region=messages]]:h-[150px]',
       )}
       data-chat-message-style="bubble"
     >

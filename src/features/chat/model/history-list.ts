@@ -4,8 +4,8 @@ import { orderVisibleSessions } from '@/features/chat/model/session-list'
 export const HISTORY_BATCH_SIZE = 50
 export type HistoryView = 'active' | 'archived'
 
-export function canSplitHistorySessions(compactDock: boolean, mobileApp: boolean): boolean {
-  return !compactDock && !mobileApp
+export function canSplitHistorySessions(phoneViewport: boolean, mobileApp: boolean): boolean {
+  return !phoneViewport && !mobileApp
 }
 
 export function selectHistorySessions(

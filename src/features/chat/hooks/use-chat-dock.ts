@@ -39,7 +39,9 @@ import {
   type WebPreviewOpenRequest,
 } from '@/features/chat/model/web-preview-events'
 import { WEB_PREVIEW_PANEL_ID, webPreviewPanelTitle } from '@/features/chat/model/web-preview-panel'
-import { useCompactChatDock } from '@/features/chat/hooks/useCompactChatDock'
+
+// 使用 Dockview 的默认最小尺寸，让窄桌面内的左右/上下分屏仍留在可见容器中。
+const SESSION_PANEL_CONSTRAINTS = { minimumWidth: 100, minimumHeight: 100 }
 
 type DockOptions = {
   sessions: SessionSummary[]
@@ -76,7 +78,8 @@ export function useChatDock({
   // 手机布局不渲染 Dock：打开会话时只切换活动 id。
   const singleSessionLayoutRef = useRef(singleSessionLayout)
   singleSessionLayoutRef.current = singleSessionLayout
-  const compactDock = useCompactChatDock()
+  // 桌面内嵌窗口也可分屏；不能在手机断点之外再按窗口宽度隐藏桌面操作。
+  const compactDock = singleSessionLayout
   const dockApiRef = useRef<DockviewApi | null>(null)
   const dockInitializedRef = useRef(false)
   const dockDisposablesRef = useRef<DockviewIDisposable[]>([])
@@ -278,8 +281,7 @@ export function useChatDock({
         title: session.name || t('chat:chatPage.untitledChat'),
         params: { sessionId },
         renderer: 'always',
-        minimumWidth: 300,
-        minimumHeight: 240,
+        ...SESSION_PANEL_CONSTRAINTS,
         ...(position ? { position } : {}),
       })
       setActiveId(sessionId)
@@ -391,6 +393,8 @@ export function useChatDock({
           scheduleDockLayoutSave(api)
         }),
         api.onDidLayoutChange(() => scheduleDockLayoutSave(api)),
+        // 拆分/拖动完成时立即保存结构，避免后续缩放重置防抖，让刷新仍恢复旧标签组。
+        api.onDidMovePanel(() => persistDockLayout(api)),
         api.onDidAddPanel((panel) => {
           const sessionId = sessionIdFromPanel(panel)
           if (sessionId) void loadSessionMessages(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
@@ -402,7 +406,7 @@ export function useChatDock({
       )
       setDockReady((generation) => generation + 1)
     },
-    [loadSessionMessages, releaseIfClosed, scheduleDockLayoutSave, setActiveId],
+    [loadSessionMessages, persistDockLayout, releaseIfClosed, scheduleDockLayoutSave, setActiveId],
   )
 
   useEffect(() => {
@@ -502,7 +506,18 @@ export function useChatDock({
     const storedLayout = latestDockLayoutRef.current
     if (storedLayout) {
       try {
-        api.fromJSON(storedLayout.layout)
+        // 先调整旧面板约束再恢复，避免旧 300px 下限把整个网格撑出窄容器。
+        api.fromJSON({
+          ...storedLayout.layout,
+          panels: Object.fromEntries(
+            Object.entries(storedLayout.layout.panels).map(([id, panel]) => [
+              id,
+              panel.contentComponent === 'session'
+                ? { ...panel, ...SESSION_PANEL_CONSTRAINTS }
+                : panel,
+            ]),
+          ),
+        })
         for (const panel of [...api.panels]) {
           if (panel.api.component !== 'session') continue
           const sessionId = sessionIdFromPanel(panel)
@@ -529,7 +544,7 @@ export function useChatDock({
           title: session.name || t('chat:chatPage.untitledChat'),
           params: { sessionId },
           renderer: 'always',
-          minimumWidth: 300,
+          ...SESSION_PANEL_CONSTRAINTS,
           ...(referenceGroup ? { position: { referenceGroup } } : {}),
           inactive: Boolean(referenceGroup),
         })
