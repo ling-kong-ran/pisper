@@ -46,7 +46,7 @@
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check && npm run test:startup",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc -p tsconfig.jscheck.json",
     "test:startup": "node scripts/check-sidecar-startup.mjs",
-    "test:release": "node --test scripts/tests/release-rust-dispatch.test.mjs scripts/tests/rust-packaging-signature.test.mjs scripts/tests/mobile-runtime-preflight.test.mjs scripts/tests/rust-desktop-platforms.test.mjs scripts/tests/rust-distribution.test.mjs",
+    "test:release": "node --test scripts/tests/release-rust-dispatch.test.mjs scripts/tests/rust-packaging-signature.test.mjs scripts/tests/mobile-runtime-preflight.test.mjs scripts/tests/rust-desktop-platforms.test.mjs scripts/tests/rust-distribution.test.mjs scripts/tests/pi-upstream-update.test.mjs",
     "test:project-directory": "node scripts/smoke-project-directory.mjs",
     "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
@@ -57,7 +57,9 @@
     "test:ui-ux": "node scripts/smoke-ux-chat.mjs && node scripts/smoke-ux-settings.mjs && node scripts/smoke-ux-features.mjs",
     "test:thinking": "node scripts/smoke-thinking-control.mjs && node scripts/smoke-rust-thinking.mjs",
     "test:sidebar-projects": "node scripts/smoke-sidebar-projects.mjs",
-    "test:android:runtime": "node scripts/smoke-android-runtime.mjs"
+    "test:android:runtime": "node scripts/smoke-android-runtime.mjs",
+    "models:update": "node scripts/update-pi-model-catalog.mjs",
+    "pi:rust:update": "node scripts/update-pi-rust.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",

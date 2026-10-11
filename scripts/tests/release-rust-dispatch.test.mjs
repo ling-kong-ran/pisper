@@ -95,6 +95,8 @@ test('Rust release dispatches native components in dependency order without upda
     result.commands.some(({ args }) => args.includes('install')),
     false,
   )
+  for (const script of ['scripts/update-pi-rust.mjs', 'scripts/update-pi-model-catalog.mjs'])
+    assert(result.commands.some(({ args }) => args.includes(script)))
   const npmCommands = result.commands
     .filter(({ args }) => args[0] === 'fixture-npm-cli')
     .map(({ args }) => args.slice(1).join(' '))
@@ -108,6 +110,34 @@ test('Rust release dispatches native components in dependency order without upda
     ),
   )
 })
+
+test('catalog changes are checked before committing and all channels use the frozen updated source', async () => {
+  const result = await runRelease({ catalogChanged: true, paths: [] })
+  assert.equal(result.status, 0, result.stderr)
+  const check = result.commands.findIndex(
+    ({ args }) => args.includes('fixture-npm-cli') && args.includes('check'),
+  )
+  const push = result.commands.findIndex(
+    ({ command, args }) => command === 'git' && args[0] === 'push',
+  )
+  assert(check >= 0 && push > check)
+  for (const dispatch of dispatches(result))
+    assert(dispatch.args.includes('source_sha=3333333333333333333333333333333333333333'))
+  assert(dispatches(result).some(({ args }) => args[2] === 'release-app.yml'))
+})
+
+for (const fixture of [{ catalogFailure: true }, { catalogChanged: true, checkFailure: true }]) {
+  test(`upstream update failure stops before source push and dispatch: ${JSON.stringify(fixture)}`, async () => {
+    const result = await runRelease(fixture)
+    assert.notEqual(result.status, 0)
+    assert.deepEqual(dispatches(result), [])
+    assert(
+      !result.commands.some(
+        ({ command, args }) => command === 'git' && ['commit', 'push'].includes(args[0]),
+      ),
+    )
+  })
+}
 
 test('a TUI-only change also releases the desktop installer that bundles it', async () => {
   const result = await runRelease({ paths: ['src-tui/src/main.rs'] })
@@ -144,6 +174,7 @@ for (const [name, fixture, message] of [
   ['dirty tracked files', { dirty: true }, /tracked 工作区必须保持干净/],
   ['wrong branch', { branch: 'feature' }, /只能从 release 分支发布/],
   ['remote divergence', { remoteSha: '2222222222222222222222222222222222222222' }, /完全同步/],
+  ['active release workflow', { activeRelease: true }, /冻结的发布源/],
   ['existing tag', { existingTag: 'v0.6.0' }, /标签 v0.6.0 已经存在/],
   ['non-increasing version', { version: '0.5.81' }, /必须高于当前 desktop 版本/],
   ['no product changes', { paths: [] }, /未检测到/],

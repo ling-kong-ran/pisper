@@ -52,6 +52,80 @@ function runNpm(commandArgs, options) {
 
 const PI_CODING_AGENT_PACKAGE = '@earendil-works/pi-coding-agent'
 
+function assertReleaseIdle() {
+  for (const workflow of [
+    'release.yml',
+    'release-app.yml',
+    'publish-npm.yml',
+    'build-store-app.yml',
+  ]) {
+    const runs = JSON.parse(
+      run(
+        'gh',
+        [
+          'run',
+          'list',
+          '--workflow',
+          workflow,
+          '--branch',
+          releaseBranch,
+          '--limit',
+          '100',
+          '--json',
+          'status',
+        ],
+        { capture: true },
+      ),
+    )
+    if (!Array.isArray(runs) || runs.some((item) => item.status !== 'completed'))
+      throw new Error(`发布工作流仍在运行或状态无法确认：${workflow}；不能推进冻结的发布源。`)
+  }
+}
+
+function updateRustUpstreams() {
+  run(process.execPath, ['scripts/update-pi-rust.mjs'])
+  run(process.execPath, ['scripts/update-pi-model-catalog.mjs'])
+  const allowed = [
+    'runtime-rs/vendor/pi-rs/',
+    'runtime-rs/pi-rs-source.json',
+    'runtime-rs/assets/pi-model-catalog.json',
+    'runtime-rs/Cargo.toml',
+    'runtime-rs/Cargo.lock',
+    'src-tauri/Cargo.lock',
+  ]
+  const changes = run('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
+    capture: true,
+  })
+    .split('\0')
+    .filter(Boolean)
+  if (!changes.length) return false
+  for (const line of changes) {
+    const file = line.slice(3)
+    if (!allowed.some((path) => (path.endsWith('/') ? file.startsWith(path) : file === path)))
+      throw new Error(`Pi 自动更新产生了非预期修改：${file}`)
+  }
+  // 先验证新目录能被固定的 Rust SDK 解析，并重跑本地补丁保护，再允许发布源前进。
+  runNpm(['run', 'test:release'])
+  run('cargo', [
+    'test',
+    '--locked',
+    '--manifest-path',
+    'runtime-rs/Cargo.toml',
+    '--package',
+    'pi-rs',
+    '--test',
+    'pisper_mcp_regression',
+    '--test',
+    'pisper_model_registry_regression',
+  ])
+  runComponentChecks(['desktop', 'tui', 'runtime', 'app'])
+  assertReleaseIdle()
+  run('git', ['add', '--', ...allowed])
+  run('git', ['commit', '-m', 'build(deps): refresh Pi Rust and official model catalog'])
+  run('git', ['push', 'origin', releaseBranch])
+  return true
+}
+
 function updateUpstreamPiDependency() {
   console.log(`正在检查 ${PI_CODING_AGENT_PACKAGE} 的最新版本…`)
   // 只更新清单和锁文件，避免发布前安装依赖改变 node_modules 或引入未跟踪文件。
@@ -165,10 +239,13 @@ if (source !== remoteSource) {
   )
 }
 
+assertReleaseIdle()
+let upstreamChecksComplete = false
 if (rustRuntimeLayout) {
   console.log(
-    '检测到 Rust Runtime 布局：发布跨平台 desktop、TUI、Rust Runtime 和 npm；移动 App 由独立渠道发布，跳过旧 Pi Node 依赖升级。',
+    '检测到 Rust Runtime 布局：发布前检查 pi-rs 稳定版与 Pi 官方模型目录，保持 Desktop、TUI、Runtime、npm 和移动 App 的独立发布渠道。',
   )
+  upstreamChecksComplete = updateRustUpstreams()
 } else {
   updateUpstreamPiDependency()
 }
@@ -322,7 +399,7 @@ if (chainNpm) {
       `（TUI ${npmTuiVersion} / Runtime ${npmRuntimeVersion}）。`,
   )
 }
-runComponentChecks(selectedComponents)
+if (!upstreamChecksComplete) runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
 // Desktop 派发携带同批次的新 TUI/Runtime 版本，使安装包 staging 能把组件清单

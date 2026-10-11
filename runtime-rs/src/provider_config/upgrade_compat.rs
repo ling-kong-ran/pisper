@@ -2,7 +2,7 @@
 use super::*;
 use sha2::{Digest, Sha256};
 
-fn canonical_base(value: &str, api: &str) -> String {
+pub(super) fn canonical_base(value: &str, api: &str) -> String {
     let mut value = value.trim().trim_end_matches('/').to_owned();
     if api == "anthropic-messages" {
         if let Ok(mut url) = reqwest::Url::parse(&value) {
@@ -46,7 +46,12 @@ pub(super) fn project_models(
         let base_id = id.rsplit('/').next().unwrap_or(id);
         let mut matches = original.iter().filter(|model| model.id == base_id);
         let base_model = matches.next().filter(|_| matches.next().is_none());
-        let template = original.iter().find(|model| model.id == id).or(base_model);
+        let official = pi_catalog::canonical_model(base_id);
+        let template = original
+            .iter()
+            .find(|model| model.id == id)
+            .or(base_model)
+            .or(official.as_ref());
         let mut value = template
             .map(|model| serde_json::to_value(model).expect("serializable model"))
             .unwrap_or_else(|| {
@@ -63,6 +68,13 @@ pub(super) fn project_models(
             value["name"] = json!(id);
         }
         value["id"] = json!(id);
+        value["provider"] = json!(provider);
+        if !string(connection, "baseUrl").is_empty() {
+            value["baseUrl"] = json!(canonical_base(
+                string(connection, "baseUrl"),
+                string(connection, "api")
+            ));
+        }
         if template.is_none() {
             if let Some((context, output)) = catalog_token_limits(base_id) {
                 value["contextWindow"] = json!(context);
@@ -103,7 +115,7 @@ pub(super) fn project_models(
                 "headers",
             ] {
                 if let Some(item) = configured.get(field) {
-                    value[field] = item.clone();
+                    pi_catalog::override_field(&mut value, field, item);
                 }
             }
         }
@@ -171,13 +183,15 @@ pub(super) fn adapt_thinking(model: &mut Model) {
         *compat = json!({});
     }
     compat["forceAdaptiveThinking"] = json!(true);
+    compat["supportsTemperature"] = json!(false);
     let map = model
         .thinking_level_map
         .get_or_insert_with(Default::default);
     map.insert("off".into(), None);
-    map.insert("minimal".into(), Some("low".into()));
+    map.insert("minimal".into(), None);
     for level in ["low", "medium", "high", "xhigh", "max"] {
-        map.insert(level.into(), Some(level.into()));
+        map.entry(level.into())
+            .or_insert_with(|| Some(level.into()));
     }
 }
 
@@ -348,8 +362,9 @@ mod tests {
             ["claude-opus-5-5", "manual"]
         );
         assert_eq!(models[0].name, "Opus");
-        assert_eq!(models[0].max_tokens, original[0].max_tokens);
-        assert_eq!(models[0].cost, original[0].cost);
+        let official = pi_catalog::canonical_model("claude-opus-5-5").unwrap();
+        assert_eq!(models[0].max_tokens, official.max_tokens);
+        assert_eq!(models[0].cost, official.cost);
         assert_eq!(models[0].base_url, "https://fixture.invalid");
         docs.models["providers"]["fixture"]["baseUrl"] = json!("https://fixture.invalid");
         assert_eq!(project_models(&docs, "fixture", &original).unwrap(), models);
@@ -406,7 +421,7 @@ mod tests {
         assert_eq!(opus.compat.as_ref().unwrap()["supportsCacheControl"], false);
         let map = opus.thinking_level_map.as_ref().unwrap();
         assert_eq!(map["off"], None);
-        assert_eq!(map["minimal"].as_deref(), Some("low"));
+        assert_eq!(map["minimal"], None);
         assert_eq!(map["max"].as_deref(), Some("max"));
         for (id, api) in [
             ("claude-opus-4-1", "anthropic-messages"),
@@ -440,19 +455,21 @@ mod tests {
         };
         for level in [
             None,
-            Some(ThinkingLevel::Minimal),
+            Some(ThinkingLevel::Low),
             Some(ThinkingLevel::Medium),
             Some(ThinkingLevel::Xhigh),
             Some(ThinkingLevel::Max),
         ] {
-            let simple = SimpleStreamOptions {
+            let mut simple = SimpleStreamOptions {
                 reasoning: level,
                 ..Default::default()
             };
+            simple.stream.temperature = Some(0.7);
             let options = options_from_simple(&model, &context, &simple);
             let request = build_request(&model, &config, &context, &options)
                 .unwrap()
                 .body;
+            assert!(request.get("temperature").is_none());
             if level.is_none() {
                 assert!(request.get("thinking").is_none());
             } else {

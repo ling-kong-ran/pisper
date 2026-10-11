@@ -97,6 +97,7 @@ export function isAppExclusivePath(input) {
 
 export function isAppOwnedPath(input) {
   const path = normalizeRepoPath(input)
+  if (path === 'runtime-rs/pi-rs-source.json') return false
   if (isAppExclusivePath(path) || APP_SHARED_FILES.has(path)) return true
   if (path.startsWith('runtime/tests/')) return false
   return APP_SHARED_PREFIXES.some((prefix) => path.startsWith(prefix))

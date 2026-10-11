@@ -1184,7 +1184,13 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
             factories
         },
         extension_module_loader: None,
-        model_runtime_factory: None,
+        model_runtime_factory: Some({
+            let providers = providers.clone();
+            Arc::new(move |_, agent_dir, signal| {
+                let providers = providers.clone();
+                Box::pin(async move { providers.create_engine(&agent_dir, signal).await })
+            })
+        }),
         custom_tool_factory: Some(Arc::new(move |cwd, _settings| {
             let web_search = tool_web_search.clone();
             let visual = tool_visual.clone();

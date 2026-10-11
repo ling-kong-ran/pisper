@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "crate": "pi-rs",
+  "version": "0.2.2",
+  "checksum": "efaa8ab7e7d928f480a277fc848636301b51db1d069efc5e193fb28803c53cf7",
+  "repository": "https://github.com/xiaotubaobiu/pi-rust",
+  "license": "MIT"
+}

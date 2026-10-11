@@ -166,3 +166,14 @@ Web 普通“新任务”不再继承最近项目；项目与分屏内的明确�
 模型目录保留发现接口明确返回的容量，未知容量不再在发现阶段写入固定值；路由前缀参与同 Provider 定义匹配，聚合网关也可回退到无歧义的内置原厂容量，但保留实际请求型号、协议、地址和凭据。手动配置优先于发现值，再回退到已有模型定义。会话保存了已移除的型号时，控件明确标记不可用并保留重新选择入口，不自动映射到另一个可能计费不同的型号；新会话只绑定当前可用的默认型号。`test:thinking` 覆盖控件恢复与真实 HTTP 契约，Rust Provider 测试覆盖 1M、手动覆盖、前缀与缺失容量。
 
 默认型号保留但凭据已清除时，恢复过程不再调用需要认证的模型绑定，Runtime 必须仍能启动配置界面；发送时继续执行可用模型校验。iOS 26.5 arm64 模拟器实际覆盖无凭据启动、三视图导航、无目录新建、冷启动恢复以及本机模拟模型的认证与流式回复。Mac ARM 原生 App 完成 WKWebView、IPC、流式对话和终端入口验证；Intel Runtime/TUI 使用 x86_64 目标在 Rosetta 下运行测试，这不等同于 Intel 真机 App 或 iOS 真机验收。Windows/Linux 按本轮范围排除。
+
+### 发布前 Pi Rust 与官方目录更新（2026-10-12）
+
+Rust 布局的统一 `npm run release -- patch` 在校验干净工作区、release 分支、远端同步及没有进行中的发布工作流后，依次执行 `scripts/update-pi-rust.mjs` 和 `scripts/update-pi-model-catalog.mjs`。若上游内容改变，先运行发布脚本测试、Pi 本地补丁回归与全部受影响渠道的检查，再确认发布未被并发任务冻结，提交并推送一次 `build(deps)` 源码更新；渠道检测使用该新提交，后续构建固定同一个 SHA。各平台工作流不独立请求浮动目录，避免同一版本内数据不同。网络、校验、补丁合并或检查失败均停止派发。检查失败后的源码变更保留在本地供审查，不创建版本或标签。
+
+- 模型目录来源为 [Pi 官方 typed catalog](https://pi.dev/api/models?types=chat,image,classifier)，按官方 `x-pi-model-catalog-revision` 的 SHA-256 校验完整响应；协议见 [Pi catalog protocol](https://github.com/earendil-works/pi/blob/main/scripts/model-catalog-protocol.ts)。`runtime-rs/assets/pi-model-catalog.json` 记录来源、revision、MIT 许可证和完整数据，编译进同一 Runtime 库。API、容量、思考映射与兼容参数一起覆盖旧目录；用户显式配置与代理连接优先，未实现的新 API 不自动开放。联网只发生在更新脚本中，App、CLI 和移动端启动保持离线能力。
+- Rust 引擎来源为独立维护的 [pi-rs](https://github.com/xiaotubaobiu/pi-rust)，不将其描述成 Pi 官方 Rust 发行。`runtime-rs/pi-rs-source.json` 固定 crates.io 版本与归档摘要。更新只选择未撤回的稳定版本，拒绝降级；旧原版、当前 Pisper 修订、新原版按文件三方合并，保留新增回归测试和补丁。修改 Runtime 依赖后更新 Runtime/Tauri 两份锁文件；Cargo 失败会恢复原目录、清单、锁文件和来源记录，冲突不会覆盖现有代码。下一次更新以新的原版为基准，继续保留仍存在的本地差异。
+
+可独立运行 `npm run models:update` 和 `npm run pi:rust:update` 生成可审查的本地变更；这两条命令不提交、不推送、不发布。`npm run test:release` 包含断网、错误摘要、非法目录、幂等更新、稳定版本选择、补丁冲突、回滚及派发顺序测试。Runtime 测试验证目录可被当前 SDK 解析，`scripts/smoke-rust-provider-upgrade.mjs` 的本机 Anthropic 模拟服务拒绝非 adaptive、缺少 effort 或携带 temperature 的 Opus 5.5 请求；不得将模拟服务通过描述成真实供应商账号已验证。
+
+`ProviderConfigStore` 通过 SDK 的模型运行时工厂接口在会话型号解析前注入新目录，避免新型号被旧表回退并写入历史。初始化阶段保留旧型号身份，会话建立后才应用发现目录与禁用过滤；禁用型号恢复后仍阻止发送，不静默切换到另一个可能计费的型号。无认证、无自定义连接的供应商只在配置页投影目录，避免为每次会话初始化重组所有不可用模型。该适配不修改供应商源码，桌面和移动端共用同一生命周期入口。

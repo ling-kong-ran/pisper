@@ -4,6 +4,7 @@
 //! 配置响应只返回认证状态。文件读取错误必须阻止写入，避免损坏文档被空对象覆盖。
 
 mod discovery;
+mod pi_catalog;
 mod upgrade_compat;
 
 use crate::{config_storage::write_object, ApiError, AppState};
@@ -17,6 +18,7 @@ use pi_rust::{
     ai::{models::ModelsRefreshOptions, types::Model},
     coding_agent::core::{
         agent_session_runtime::AgentSessionRuntime,
+        model_runtime::{CreateModelRuntimeOptions, ModelRuntime},
         provider_composer::{ExtensionModelDefinition, ProviderConfigInput},
     },
 };
@@ -62,6 +64,42 @@ struct Documents {
 }
 
 impl ProviderConfigStore {
+    /// 在 SDK 解析历史会话型号之前装配目录，避免新版型号被旧内置目录回退并写入历史。
+    pub(crate) async fn create_engine(
+        &self,
+        agent_dir: &str,
+        signal: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<ModelRuntime> {
+        let docs = self
+            .read()
+            .map_err(|error| anyhow::anyhow!(error.message))?;
+        let engine = ModelRuntime::create(CreateModelRuntimeOptions {
+            auth_path: Some(
+                PathBuf::from(agent_dir)
+                    .join("auth.json")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            models_path: Some(Some(
+                PathBuf::from(agent_dir)
+                    .join("models.json")
+                    .to_string_lossy()
+                    .into_owned(),
+            )),
+            signal: Some(signal.clone()),
+            ..Default::default()
+        })
+        .await
+        .map_err(anyhow::Error::msg)?;
+        if let Err(error) = restore_model_catalog(&engine, &docs, true).await {
+            signal.cancel();
+            return Err(anyhow::anyhow!(error.message));
+        }
+        if signal.is_cancelled() {
+            anyhow::bail!("Model catalog initialization cancelled")
+        }
+        Ok(engine)
+    }
     /// 所有 pisper.json 领域变更共用写入锁，并只持久化真正改变的文档。
     pub(crate) async fn mutate_app_preferences<F>(&self, mutation: F) -> Result<Value, ApiError>
     where
@@ -424,7 +462,16 @@ fn engine_definition(model: Model) -> ExtensionModelDefinition {
 
 async fn reload_engine(runtime: &AgentSessionRuntime, docs: &Documents) -> Result<(), ApiError> {
     let session = runtime.session();
-    let engine = session.model_runtime();
+    restore_model_catalog(&session.model_runtime(), docs, false).await?;
+    session.settings_manager.reload();
+    Ok(())
+}
+
+async fn restore_model_catalog(
+    engine: &ModelRuntime,
+    docs: &Documents,
+    before_session_selection: bool,
+) -> Result<(), ApiError> {
     // 先移除上次用于过滤的注册，避免被旧注册覆盖刚保存的模型参数。
     for id in engine.get_registered_provider_ids() {
         engine.unregister_provider(&id).await;
@@ -441,10 +488,29 @@ async fn reload_engine(runtime: &AgentSessionRuntime, docs: &Documents) -> Resul
     }
     for provider in engine.get_providers().await {
         let models = engine.get_models(Some(provider.id())).await;
-        let projected = upgrade_compat::project_models(docs, provider.id(), &models)?;
+        // 未连接的供应商只在配置页投影新目录，避免每次打开会话重组数千个不可用模型。
+        let configured = engine.has_configured_auth(provider.id())
+            || !upgrade_compat::records(docs, provider.id()).is_empty()
+            || docs.models["providers"].get(provider.id()).is_some();
+        let refreshed = if configured {
+            pi_catalog::overlay(provider.id(), &models, overlay(docs, provider.id()))?
+        } else {
+            models.clone()
+        };
+        let mut projected = upgrade_compat::project_models(docs, provider.id(), &refreshed)?;
+        if before_session_selection {
+            // 恢复阶段仍保留旧型号的身份；会话建好后再过滤禁用项，避免 SDK 悄悄改用另一个模型。
+            for original in &models {
+                if !projected.iter().any(|model| model.id == original.id) {
+                    projected.push(original.clone());
+                }
+            }
+        }
         let filtered: Vec<_> = projected
             .iter()
-            .filter(|model| model_allowed(docs, &model.provider, &model.id))
+            .filter(|model| {
+                before_session_selection || model_allowed(docs, &model.provider, &model.id)
+            })
             .cloned()
             .map(|mut model| {
                 upgrade_compat::adapt_thinking(&mut model);
@@ -479,7 +545,11 @@ async fn reload_engine(runtime: &AgentSessionRuntime, docs: &Documents) -> Resul
             }
         }
     }
-    session.settings_manager.reload();
+    // 注册目录会异步刷新认证快照；恢复完成前等待它，避免首条消息读到重组中的旧可用列表。
+    engine
+        .get_available(None, None)
+        .await
+        .map_err(|_| ApiError::internal("模型可用状态刷新失败。"))?;
     Ok(())
 }
 
@@ -542,8 +612,8 @@ async fn snapshot(state: &AppState, docs: &Documents) -> Result<Value, ApiError>
         let provider_type = explicit_type.unwrap_or("chat");
         let excluded = array(connection, "excludedModels");
         // 配置页仍需展示被禁用连接的发现目录，便于重新启用和编辑。
-        let projected =
-            upgrade_compat::project_models(docs, &id, &engine.get_models(Some(&id)).await)?;
+        let refreshed = pi_catalog::overlay(&id, &engine.get_models(Some(&id)).await, connection)?;
+        let projected = upgrade_compat::project_models(docs, &id, &refreshed)?;
         let mut models: Vec<Value> = projected
             .into_iter()
             .filter(|model| {
