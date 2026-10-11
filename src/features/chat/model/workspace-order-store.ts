@@ -1,4 +1,4 @@
-// @public 侧栏组合边界使用的目录顺序和显示名称偏好，不修改实际目录或服务端会话。
+// @public 侧栏组合边界使用的保留项目、顺序、显示名称和折叠偏好，不修改实际目录或服务端会话。
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { pageStateStorage } from '@/lib/storage/page-state-storage'
@@ -12,11 +12,14 @@ import {
 type WorkspacePreferences = {
   order: string[]
   names: Record<string, string>
+  collapsed: string[]
 }
 
 type WorkspaceOrderState = WorkspacePreferences & {
   rememberWorkspaces: (keys: readonly string[]) => void
   setWorkspaceName: (cwd: string, name: string) => void
+  forgetWorkspace: (key: string) => void
+  setWorkspacesCollapsed: (keys: readonly string[], collapsed: boolean) => void
 }
 
 function validWorkspaceKey(cwd: string) {
@@ -44,12 +47,33 @@ export const useWorkspaceOrderStore = create<WorkspaceOrderState>()(
     (set, get) => ({
       order: [],
       names: normalizeWorkspaceNames(undefined),
+      collapsed: [],
       rememberWorkspaces: (keys) => {
         const current = get().order
         const order = reconcileWorkspaceOrder(current, keys)
         if (order.length === current.length && order.every((key, index) => key === current[index]))
           return
         set({ order })
+      },
+      forgetWorkspace: (key) => {
+        const current = get()
+        const names = normalizeWorkspaceNames(current.names)
+        delete names[key]
+        set({
+          order: current.order.filter((item) => item !== key),
+          names,
+          collapsed: current.collapsed.filter((item) => item !== key),
+        })
+      },
+      setWorkspacesCollapsed: (keys, collapsed) => {
+        const current = get().collapsed
+        const targets = new Set(normalizeWorkspaceOrder(keys))
+        const next = collapsed
+          ? normalizeWorkspaceOrder([...current, ...targets])
+          : current.filter((key) => !targets.has(key))
+        if (next.length === current.length && next.every((key, index) => key === current[index]))
+          return
+        set({ collapsed: next })
       },
       setWorkspaceName: (cwd, value) => {
         const key = typeof cwd === 'string' ? validWorkspaceKey(cwd) : null
@@ -78,9 +102,9 @@ export const useWorkspaceOrderStore = create<WorkspaceOrderState>()(
     {
       name: 'pisper-workspace-order',
       storage,
-      // v1 增量增加可选 names，旧数据只含 order 时仍保留顺序并使用默认目录名。
+      // v1 增量字段保持旧 order/names 可读；项目默认展开，已有目录无需迁移。
       version: 1,
-      partialize: ({ order, names }) => ({ order, names }),
+      partialize: ({ order, names, collapsed }) => ({ order, names, collapsed }),
       merge: (persisted, current) => ({
         ...current,
         order: normalizeWorkspaceOrder(
@@ -91,6 +115,11 @@ export const useWorkspaceOrderStore = create<WorkspaceOrderState>()(
         names: normalizeWorkspaceNames(
           persisted && typeof persisted === 'object' && 'names' in persisted
             ? persisted.names
+            : undefined,
+        ),
+        collapsed: normalizeWorkspaceOrder(
+          persisted && typeof persisted === 'object' && 'collapsed' in persisted
+            ? persisted.collapsed
             : undefined,
         ),
       }),

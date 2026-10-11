@@ -449,7 +449,17 @@ async fn post_session_model(
         .set_model(model, None)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "ok": true })))
+    let mut response = session_api::thinking_state(&state, &id)?;
+    response["ok"] = serde_json::json!(true);
+    response["provider"] = serde_json::json!(provider);
+    response["modelId"] = serde_json::json!(model_id);
+    response["contextUsage"] = serde_json::to_value(
+        session
+            .get_context_usage()
+            .map_err(|e| ApiError::internal(e.to_string()))?,
+    )
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(response))
 }
 
 async fn get_session_thinking_level(
@@ -470,12 +480,15 @@ async fn post_session_thinking_level(
     let level: ThinkingLevel =
         serde_json::from_value(body.get("level").cloned().unwrap_or(body))
             .map_err(|e| ApiError::bad_request(format!("invalid thinking level: {e}")))?;
+    if !session.get_available_thinking_levels().contains(&level) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "unsupported_thinking_level",
+            "当前模型不支持该思考等级。",
+        ));
+    }
     session.set_thinking_level(level, None);
-    Ok(Json(serde_json::json!({
-        "thinkingLevel": serde_json::to_value(level).expect("level serializes"),
-        "availableLevels": session.get_available_thinking_levels(),
-        "status": "ok",
-    })))
+    Ok(Json(session_api::thinking_state(&state, &id)?))
 }
 fn format_diagnostic(d: &pi_rust::coding_agent::core::diagnostics::ResourceDiagnostic) -> String {
     format!(

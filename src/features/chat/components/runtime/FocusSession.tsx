@@ -158,6 +158,7 @@ export const FocusSession = memo(function FocusSession({
   onLoadOlder,
   onModelChange,
   onThinkingLevelChange,
+  onLoadThinkingLevel,
   onExecutionModeChange,
   onRunModeChange,
   onCompact,
@@ -401,6 +402,7 @@ export const FocusSession = memo(function FocusSession({
         status={thinkingStatus}
         message={thinkingMessage}
         onThinkingChange={onThinkingLevelChange}
+        onRefreshThinking={onLoadThinkingLevel}
         modelDisabled={switchingModel || switchingThinking}
         thinkingDisabled={switchingThinking || switchingModel}
         deferred={streaming}

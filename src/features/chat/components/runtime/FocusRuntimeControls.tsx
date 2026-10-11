@@ -542,6 +542,7 @@ export function ModelThinkingControl({
   status,
   message,
   onThinkingChange,
+  onRefreshThinking,
   modelDisabled,
   thinkingDisabled,
   deferred = false,
@@ -555,6 +556,7 @@ export function ModelThinkingControl({
   status?: string
   message?: string
   onThinkingChange: (level: string) => Promise<void> | void
+  onRefreshThinking?: () => Promise<void> | void
   modelDisabled?: boolean
   thinkingDisabled?: boolean
   deferred?: boolean
@@ -567,7 +569,8 @@ export function ModelThinkingControl({
   const currentModel = models.find((item) => item.key === model)
   const modelLabel =
     currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
-  const supported = status !== 'unsupported' && levels.length > 0
+  const loading = status === 'loading' || (!status && levels.length === 0)
+  const supported = !loading && status !== 'error' && status !== 'unsupported' && levels.length > 0
   const index = Math.max(0, levels.indexOf(thinkingLevel))
   const selected = draft ?? index
   const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
@@ -599,7 +602,12 @@ export function ModelThinkingControl({
     }
   }
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        // 设置页可能在不切模型的情况下更新能力；每次打开都读一次当前会话的真实状态。
+        if (open && !pendingModel && !thinkingDisabled) void onRefreshThinking?.()
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -608,9 +616,7 @@ export function ModelThinkingControl({
           title={label}
         >
           <span className="min-w-0 truncate">{modelLabel}</span>
-          <span className="shrink-0">
-            {supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'}
-          </span>
+          <span className="shrink-0">{effortLabel}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent

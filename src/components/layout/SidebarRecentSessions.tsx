@@ -8,6 +8,8 @@ import {
   Archive,
   ArchiveRestore,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   CircleAlert,
   FolderClosed,
   FolderPlus,
@@ -44,6 +46,7 @@ import {
   groupSessionsByWorkspace,
   orderWorkspaceGroups,
   recentWorkspaceGroups,
+  retainWorkspaceGroups,
   replacementActiveSessionId,
   sessionWorkspaceKey,
   sessionsInWorkspace,
@@ -125,11 +128,14 @@ export function SidebarRecentSessions({
   const [historyExpanded, setHistoryExpanded] = useState(true)
   const [sessionQuery, setSessionQuery] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
+  const collapsed = useWorkspaceOrderStore((state) => state.collapsed)
+  const collapsedWorkspaces = useMemo(() => new Set(collapsed), [collapsed])
+  const setWorkspacesCollapsed = useWorkspaceOrderStore((state) => state.setWorkspacesCollapsed)
   const workspaceOrder = useWorkspaceOrderStore((state) => state.order)
   const rememberWorkspaces = useWorkspaceOrderStore((state) => state.rememberWorkspaces)
   const workspaceNames = useWorkspaceOrderStore((state) => state.names)
   const setWorkspaceName = useWorkspaceOrderStore((state) => state.setWorkspaceName)
+  const forgetWorkspace = useWorkspaceOrderStore((state) => state.forgetWorkspace)
   const [activeSessionId, setActiveSessionId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
@@ -187,19 +193,41 @@ export function SidebarRecentSessions({
   useEffect(() => {
     rememberWorkspaces(allSessionGroups.map((group) => group.key))
   }, [allSessionGroups, rememberWorkspaces])
-  const sessionGroups = useMemo(
+  const allWorkspaceGroups = useMemo(
     () =>
-      orderWorkspaceGroups(
-        recentWorkspaceGroups(visibleSessions, RECENT_SESSION_LIMIT, activeSessionId),
-        workspaceOrder,
-      ),
-    [visibleSessions, workspaceOrder, activeSessionId],
+      orderWorkspaceGroups(retainWorkspaceGroups(allSessionGroups, workspaceOrder), workspaceOrder),
+    [allSessionGroups, workspaceOrder],
   )
+  const sessionGroups = useMemo(() => {
+    const recent = recentWorkspaceGroups(visibleSessions, RECENT_SESSION_LIMIT, activeSessionId)
+    const needle = sessionQuery.trim().toLocaleLowerCase(language)
+    const retained = allWorkspaceGroups
+      .filter(
+        (group) =>
+          !needle ||
+          `${group.cwd} ${workspaceNames[group.key] || workspaceName(group.cwd, language)}`
+            .toLocaleLowerCase(language)
+            .includes(needle),
+      )
+      .map((group) => group.key)
+    return orderWorkspaceGroups(retainWorkspaceGroups(recent, retained), workspaceOrder)
+  }, [
+    visibleSessions,
+    workspaceOrder,
+    activeSessionId,
+    allWorkspaceGroups,
+    sessionQuery,
+    language,
+    workspaceNames,
+  ])
+  const allProjectsCollapsed =
+    allWorkspaceGroups.length > 0 &&
+    allWorkspaceGroups.every((group) => collapsedWorkspaces.has(group.key))
   const workspaceCounts = useMemo(
     () => new Map(allSessionGroups.map((group) => [group.key, group.sessions.length])),
     [allSessionGroups],
   )
-  const menuTargetGroup = allSessionGroups.find((group) => group.key === menuTargetKey) || null
+  const menuTargetGroup = allWorkspaceGroups.find((group) => group.key === menuTargetKey) || null
   const menuTargetSession = sessions.find((session) => session.id === menuTargetSessionId) || null
   const workspaceLabel = (group: SessionGroup) =>
     group.cwd
@@ -236,13 +264,11 @@ export function SidebarRecentSessions({
 
   const createSessionInWorkspace = (cwd: string) => {
     if (!requestSessionCreation(cwd)) return
+    const key = sessionWorkspaceKey({ id: '', cwd })
+    rememberWorkspaces([key])
     setSessionQuery('')
     setHistoryExpanded(true)
-    setCollapsedWorkspaces((current) => {
-      const next = new Set(current)
-      next.delete(sessionWorkspaceKey({ id: '', cwd }))
-      return next
-    })
+    setWorkspacesCollapsed([key], false)
     navigate('chat')
     if (isMobile) setOpenMobile(false)
   }
@@ -313,10 +339,6 @@ export function SidebarRecentSessions({
         await fetchStartupQuery<{ sessions: SessionSummary[] }>('sessions', true)
       ).sessions
       const targets = sessionsInWorkspace(freshSessions, group.key)
-      if (!targets.length) {
-        notify(t('navigation:appSidebar.projectNoChats', { project: label }), 'info')
-        return
-      }
       const approved = await requestConfirm({
         title: t('navigation:appSidebar.deleteProject'),
         message: t('navigation:appSidebar.deleteProjectConfirm', {
@@ -349,6 +371,7 @@ export function SidebarRecentSessions({
         )
         return
       }
+      forgetWorkspace(group.key)
       notify(t('navigation:appSidebar.projectDeleted', { project: label }))
     } catch (error) {
       notify(
@@ -463,12 +486,7 @@ export function SidebarRecentSessions({
   }
 
   const toggleWorkspace = (key: string) => {
-    setCollapsedWorkspaces((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
+    setWorkspacesCollapsed([key], !collapsedWorkspaces.has(key))
   }
 
   const setContextMenuTarget = (key = '', sessionId = '') => {
@@ -501,6 +519,33 @@ export function SidebarRecentSessions({
           <span>{t('navigation:workbench.projects')}</span>
           <ChevronRight className={historyExpanded ? 'rotate-90' : ''} size={12} />
         </button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 text-muted-foreground"
+          title={
+            allProjectsCollapsed
+              ? t('navigation:appSidebar.expandAllProjects')
+              : t('navigation:appSidebar.collapseAllProjects')
+          }
+          aria-label={
+            allProjectsCollapsed
+              ? t('navigation:appSidebar.expandAllProjects')
+              : t('navigation:appSidebar.collapseAllProjects')
+          }
+          aria-controls="sidebar-recent-sessions"
+          aria-expanded={!allProjectsCollapsed}
+          disabled={!allWorkspaceGroups.length}
+          onClick={() => {
+            setHistoryExpanded(true)
+            setWorkspacesCollapsed(
+              allWorkspaceGroups.map((group) => group.key),
+              !allProjectsCollapsed,
+            )
+          }}
+        >
+          {allProjectsCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -657,10 +702,17 @@ export function SidebarRecentSessions({
                           )}
                         </button>
                       ))}
+                    {!groupCollapsed && !group.sessions.length && (
+                      <p className="m-0 px-8 py-1 text-xs text-muted-foreground">
+                        {workspaceCounts.get(group.key)
+                          ? t('navigation:appSidebar.noActiveChats')
+                          : t('navigation:appSidebar.projectEmpty')}
+                      </p>
+                    )}
                   </div>
                 )
               })}
-              {!visibleSessions.length && (
+              {!sessionGroups.length && (
                 <span className="[padding:8px] text-[var(--text-muted)] text-xs font-normal">
                   {sessionQuery.trim()
                     ? t('navigation:appSidebar.noMatchingChats')
@@ -762,7 +814,7 @@ export function SidebarRecentSessions({
                 )}
                 <ContextMenuItem
                   variant="destructive"
-                  disabled={Boolean(deletingKey) || !menuTargetGroup.sessions.length}
+                  disabled={Boolean(deletingKey)}
                   onSelect={() => void deleteProject(menuTargetGroup)}
                 >
                   <Trash2 size={13} />
@@ -777,13 +829,13 @@ export function SidebarRecentSessions({
                 </ContextMenuItem>
                 <ContextMenuSub>
                   <ContextMenuSubTrigger
-                    disabled={!allSessionGroups.length || Boolean(deletingKey)}
+                    disabled={!allWorkspaceGroups.length || Boolean(deletingKey)}
                   >
                     <Trash2 size={13} />
                     {t('navigation:appSidebar.deleteProject')}
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent className="max-h-[70vh] max-w-[280px] overflow-y-auto">
-                    {allSessionGroups.map((group) => (
+                    {allWorkspaceGroups.map((group) => (
                       <ContextMenuItem key={group.key} onSelect={() => void deleteProject(group)}>
                         <span className="truncate" title={group.cwd || workspaceLabel(group)}>
                           {workspaceLabel(group)}

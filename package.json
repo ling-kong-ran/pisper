@@ -54,7 +54,9 @@
     "test": "cargo test --manifest-path runtime-rs/Cargo.toml",
     "test:mobile-shell": "node scripts/smoke-mobile-shell.mjs",
     "test:chat-dock": "node scripts/smoke-chat-dock.mjs && node scripts/smoke-rust-chat-dock.mjs",
-    "test:ui-ux": "node scripts/smoke-ux-chat.mjs && node scripts/smoke-ux-settings.mjs && node scripts/smoke-ux-features.mjs"
+    "test:ui-ux": "node scripts/smoke-ux-chat.mjs && node scripts/smoke-ux-settings.mjs && node scripts/smoke-ux-features.mjs",
+    "test:thinking": "node scripts/smoke-thinking-control.mjs && node scripts/smoke-rust-thinking.mjs",
+    "test:sidebar-projects": "node scripts/smoke-sidebar-projects.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",

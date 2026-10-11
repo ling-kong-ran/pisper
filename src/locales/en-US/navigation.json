@@ -188,5 +188,8 @@
   "mobileShell.changesOpenChat": "Open chat to view live changes",
   "mobileShell.openWorkspace": "Open workspace in system file manager",
   "mobileShell.workspaceUnavailable": "No workspace is available for this session",
-  "mobileShell.openWorkspaceFailed": "Unable to open the system file manager"
+  "mobileShell.openWorkspaceFailed": "Unable to open the system file manager",
+  "appSidebar.collapseAllProjects": "Collapse all projects",
+  "appSidebar.expandAllProjects": "Expand all projects",
+  "appSidebar.projectEmpty": "No chats yet. Use + to start one."
 }

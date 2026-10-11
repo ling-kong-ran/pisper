@@ -33,6 +33,21 @@ export function groupSessionsByWorkspace<T extends WorkspaceSession>(sessions: r
   return [...groups.values()]
 }
 
+// 项目目录独立于会话数量；只有显式删除项目才会从保存的目录中移除。
+// “无工作区”是临时分组，不保留成一个没有目录可打开的空项目。
+export function retainWorkspaceGroups<T extends WorkspaceSession>(
+  groups: readonly WorkspaceSessionGroup<T>[],
+  order: readonly string[],
+) {
+  const known = new Set(groups.map((group) => group.key))
+  return [
+    ...groups,
+    ...normalizeWorkspaceOrder(order)
+      .filter((key) => key !== NO_WORKSPACE_KEY && !known.has(key))
+      .map((key) => ({ key, cwd: key, sessions: [] as T[] })),
+  ]
+}
+
 // 最近条数限制只裁剪会话行；每个项目保留首条会话，避免新项目被置顶会话挤掉。
 export function recentWorkspaceGroups<T extends WorkspaceSession>(
   sessions: readonly T[],

@@ -302,7 +302,8 @@ function SessionPanel({
     context?.sessionTreePulseSessionId === sessionId ? context.sessionTreePulseToken : 0
   const loadMessages = context?.loadSessionMessages
   const loadThinkingLevel = context?.loadSessionThinkingLevel
-  const thinkingRequestedRef = useRef('')
+  const model = state.model || session?.model || context?.defaultModel || ''
+  const thinkingCurrent = state.thinkingModel === model
 
   useEffect(() => {
     if (sessionId) void loadMessages?.(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
@@ -311,13 +312,15 @@ function SessionPanel({
   // Self-heal thinking state for sessions loaded while streaming or after page remounts.
   useEffect(() => {
     if (!sessionId || !session || !loadThinkingLevel) return
-    if (state.thinkingStatus) return
-    if ((state.availableThinkingLevels || []).length) return
-    if (thinkingRequestedRef.current === sessionId) return
-    thinkingRequestedRef.current = sessionId
-    void loadThinkingLevel(sessionId)
+    if (state.switchingModel || state.switchingThinking) return
+    if (thinkingCurrent && state.thinkingStatus) return
+    void loadThinkingLevel(sessionId, model)
   }, [
     loadThinkingLevel,
+    model,
+    thinkingCurrent,
+    state.switchingModel,
+    state.switchingThinking,
     session,
     sessionId,
     state.availableThinkingLevels,
@@ -335,6 +338,7 @@ function SessionPanel({
       onModelChange: (nextModel: string) => context?.switchSessionModel(sessionId, nextModel),
       onThinkingLevelChange: (nextLevel: string) =>
         context?.switchSessionThinkingLevel(sessionId, nextLevel),
+      onLoadThinkingLevel: () => loadThinkingLevel?.(sessionId, model),
       onExecutionModeChange: (nextMode: string) =>
         context?.switchSessionExecutionMode(sessionId, nextMode) ?? false,
       onRunModeChange: (nextMode: string) =>
@@ -388,7 +392,7 @@ function SessionPanel({
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onAbort: () => context?.abort(sessionId),
     }),
-    [context, sessionId, session, panelId],
+    [context, sessionId, session, panelId, loadThinkingLevel, model],
   )
 
   if (!context || !session) {
@@ -420,10 +424,12 @@ function SessionPanel({
         hasOlder={state.hasOlder}
         loadingOlder={state.loadingOlder}
         olderError={state.olderError}
-        model={state.model || session.model || context.defaultModel}
+        model={model}
         thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
-        availableThinkingLevels={state.availableThinkingLevels || EMPTY_LIST}
-        thinkingStatus={state.thinkingStatus || ''}
+        availableThinkingLevels={
+          thinkingCurrent ? state.availableThinkingLevels || EMPTY_LIST : EMPTY_LIST
+        }
+        thinkingStatus={thinkingCurrent ? state.thinkingStatus || '' : ''}
         thinkingMessage={state.thinkingMessage || ''}
         executionMode={state.executionMode || session.executionMode || 'approval-required'}
         runMode={state.runMode || session.runMode || 'plan'}

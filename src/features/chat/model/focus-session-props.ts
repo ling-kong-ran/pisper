@@ -72,6 +72,7 @@ export type FocusSessionProps = {
   onLoadOlder?: () => Promise<boolean> | boolean
   onModelChange: (model: string) => Promise<void> | void
   onThinkingLevelChange: (level: string) => Promise<void> | void
+  onLoadThinkingLevel?: () => Promise<void> | void
   onExecutionModeChange: (mode: string) => Promise<boolean> | boolean
   onRunModeChange: (mode: string) => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void

@@ -1,5 +1,5 @@
 // 会话级命令：重命名/删除/清空等操作的确认与执行。
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import type { Notify } from '@/app/routes/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
@@ -41,6 +41,9 @@ export function useSessionCommands({
   syncLiveSession,
 }: SessionCommandOptions) {
   const { t, language } = useI18n()
+  const thinkingReads = useRef(
+    new Map<string, { model: string; revision: number; promise: Promise<void> }>(),
+  )
 
   const markRuntimeSelectionChanged = useCallback(
     (id: string) => {
@@ -159,8 +162,8 @@ export function useSessionCommands({
   // 应用思考强度状态：模型不匹配时忽略（响应来自已切换的模型），
   // 兼容新旧字段名并同步摘要。
   const applyThinkingState = useCallback(
-    (sessionId: string, payload: Record<string, unknown> = {}) => {
-      const responseModel = String(payload.model || '')
+    (sessionId: string, payload: Record<string, unknown> = {}, expectedModel = '') => {
+      const responseModel = String(payload.model || expectedModel)
       const currentModel = String(sessionStatesRef.current[sessionId]?.model || '')
       if (responseModel && currentModel && responseModel !== currentModel) return
 
@@ -172,6 +175,7 @@ export function useSessionCommands({
       const thinkingLevel = String(payload.thinkingLevel || '')
       updateSessionState(sessionId, {
         thinkingLevel: thinkingLevel || undefined,
+        thinkingModel: responseModel || currentModel,
         availableThinkingLevels,
         thinkingStatus: String(payload.thinkingStatus || payload.status || ''),
         thinkingMessage: String(payload.thinkingMessage || payload.message || ''),
@@ -186,22 +190,47 @@ export function useSessionCommands({
 
   // 只读查询可以在生成时加载；档位仍以当前模型的后端能力为准。
   const loadSessionThinkingLevel = useCallback(
-    async (sessionId: string) => {
-      if (!sessionId) return
-      const revision = sessionStatesRef.current[sessionId]?.runtimeSelectionRevision
+    (sessionId: string, expectedModel = '') => {
+      if (!sessionId) return Promise.resolve()
+      const revision = sessionStatesRef.current[sessionId]?.runtimeSelectionRevision || 0
       const current = sessionStatesRef.current[sessionId]
-      if (current?.switchingModel || current?.switchingThinking) return
-      try {
-        const state = await chatApi.getThinkingLevel(sessionId)
-        if (sessionStatesRef.current[sessionId]?.runtimeSelectionRevision !== revision) return
-        applyThinkingState(sessionId, state)
-      } catch {
-        if (sessionStatesRef.current[sessionId]?.runtimeSelectionRevision !== revision) return
-        updateSessionState(sessionId, {
-          thinkingStatus: 'error',
-          thinkingMessage: t('chat:focusSession.thinkingLevelsLoadFailed'),
-        })
+      if (current?.switchingModel || current?.switchingThinking) return Promise.resolve()
+      const model = expectedModel || current?.model || ''
+      const pending = thinkingReads.current.get(sessionId)
+      if (pending && pending.model === model && pending.revision === revision)
+        return pending.promise
+      updateSessionState(sessionId, {
+        thinkingModel: model,
+        thinkingStatus: 'loading',
+        thinkingMessage: '',
+      })
+      const isCurrent = () => {
+        const latest = sessionStatesRef.current[sessionId]
+        return (
+          (latest?.runtimeSelectionRevision || 0) === revision &&
+          (!model || !latest?.model || latest.model === model)
+        )
       }
+      const promise = (async () => {
+        try {
+          const state = await chatApi.getThinkingLevel(sessionId)
+          if (isCurrent()) applyThinkingState(sessionId, state, model)
+        } catch {
+          if (isCurrent())
+            updateSessionState(sessionId, {
+              thinkingModel: model,
+              availableThinkingLevels: [],
+              thinkingStatus: 'error',
+              thinkingMessage: t('chat:focusSession.thinkingLevelsLoadFailed'),
+            })
+        } finally {
+          const latest = thinkingReads.current.get(sessionId)
+          if (latest && latest.model === model && latest.revision === revision)
+            thinkingReads.current.delete(sessionId)
+        }
+      })()
+      thinkingReads.current.set(sessionId, { model, revision, promise })
+      return promise
     },
     [applyThinkingState, sessionStatesRef, t, updateSessionState],
   )
@@ -229,6 +258,10 @@ export function useSessionCommands({
       updateSessionState(sessionId, {
         switchingModel: true,
         model: selected.key,
+        thinkingModel: '',
+        availableThinkingLevels: [],
+        thinkingStatus: '',
+        thinkingMessage: '',
         error: '',
       })
       updateSessionSummary(sessionId, (session) => ({ ...session, model: selected.key }))
@@ -244,7 +277,15 @@ export function useSessionCommands({
           ...session,
           model: updated.model || selected.key,
         }))
-        applyThinkingState(sessionId, updated)
+        if (
+          Array.isArray(updated.availableThinkingLevels) ||
+          Array.isArray(updated.availableLevels)
+        ) {
+          applyThinkingState(sessionId, updated, selected.key)
+        } else {
+          // 兼容仍只返回 ok 的旧 Runtime；不能把空响应当作模型不支持思考。
+          await loadSessionThinkingLevel(sessionId, selected.key)
+        }
         notify(t('chat:chatPage.switchedToModel', { model: selected.label }))
         if (shouldOfferCompaction) {
           const confirmed = await requestConfirm({
@@ -269,6 +310,7 @@ export function useSessionCommands({
     },
     [
       applyThinkingState,
+      loadSessionThinkingLevel,
       availableModels,
       compactSession,
       markRuntimeSelectionChanged,

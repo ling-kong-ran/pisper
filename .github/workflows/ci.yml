@@ -31,6 +31,8 @@ jobs:
       - run: npm run test:mobile-shell
       - run: npm run test:chat-dock
       - run: npm run test:ui-ux
+      - run: npm run test:thinking
+      - run: npm run test:sidebar-projects
 
   windows-shell:
     name: Windows shell lifecycle

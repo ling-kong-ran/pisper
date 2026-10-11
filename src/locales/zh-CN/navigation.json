@@ -188,5 +188,8 @@
   "mobileShell.changesOpenChat": "打开对话以查看实时改动",
   "mobileShell.openWorkspace": "在系统文件管理器中打开工作目录",
   "mobileShell.workspaceUnavailable": "当前会话没有可用的工作目录",
-  "mobileShell.openWorkspaceFailed": "无法打开系统文件管理器"
+  "mobileShell.openWorkspaceFailed": "无法打开系统文件管理器",
+  "appSidebar.collapseAllProjects": "收起所有项目",
+  "appSidebar.expandAllProjects": "展开所有项目",
+  "appSidebar.projectEmpty": "暂无会话，可点击 ＋ 新建"
 }

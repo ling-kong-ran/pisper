@@ -699,8 +699,12 @@ pub(crate) fn thinking_state(state: &AppState, id: &str) -> Result<Value, ApiErr
         .get(id)
         .map(|host| host.session())
         .unwrap_or_else(|| state.runtime.session());
-    let (level, levels) = if active.session_id() == id {
+    let (reference, level, levels) = if active.session_id() == id {
         (
+            active
+                .model()
+                .map(|model| format!("{}/{}", model.provider, model.id))
+                .unwrap_or_default(),
             serde_json::to_value(active.thinking_level())
                 .map_err(|e| ApiError::internal(e.to_string()))?,
             serde_json::to_value(active.get_available_thinking_levels())
@@ -719,10 +723,52 @@ pub(crate) fn thinking_state(state: &AppState, id: &str) -> Result<Value, ApiErr
             .map(pi_rust::ai::models::get_supported_thinking_levels)
             .map(|levels| json!(levels))
             .unwrap_or_else(|| json!(["off"]));
-        (json!(level), levels)
+        (reference.clone(), json!(level), levels)
     };
-    Ok(json!({"thinkingLevel":level,"availableLevels":levels,
-            "supported":levels.as_array().is_some_and(|levels|levels.len()>1),"status":"ok"}))
+    Ok(thinking_payload(id, &reference, level, levels))
+}
+
+fn thinking_payload(id: &str, model: &str, level: Value, levels: Value) -> Value {
+    let available: Vec<_> = levels
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let requested = level.as_str().unwrap_or("off");
+    // 冷会话读取不能启动引擎或改写日志，但必须与 Pi 恢复后的有效档位一致。
+    let order = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+    let effective = if available.contains(&requested) {
+        requested
+    } else {
+        order
+            .iter()
+            .position(|candidate| *candidate == requested)
+            .and_then(|index| {
+                order[index..]
+                    .iter()
+                    .chain(order[..index].iter().rev())
+                    .find(|candidate| available.contains(*candidate))
+                    .copied()
+            })
+            .or_else(|| available.first().copied())
+            .unwrap_or("off")
+    };
+    let status = if available.is_empty() {
+        "unsupported"
+    } else {
+        "supported"
+    };
+    let message = if available.is_empty() {
+        "The current model does not expose configurable thinking levels."
+    } else {
+        ""
+    };
+    // 保留 Rust 客户端的旧字段，同时恢复 Web 用于拒绝过期模型响应的身份和能力字段。
+    json!({"id":id,"model":model,"thinkingLevel":effective,
+        "availableLevels":levels,"availableThinkingLevels":levels,
+        "supported":available.len()>1,"status":"ok","message":message,
+        "thinkingStatus":status,"thinkingMessage":message})
 }
 
 /// Pi 当前仅提供队列文本，没有可用于精确撤回的稳定标识；空 id 禁用撤回按钮。
@@ -1959,5 +2005,40 @@ mod page_cache_tests {
             message_page(&messages, None, 2)
         );
         assert!(sparse.iter().map(value_bytes).sum::<usize>() < 160 * 1024);
+    }
+}
+
+#[cfg(test)]
+mod thinking_contract_tests {
+    use super::*;
+
+    #[test]
+    fn cold_thinking_state_matches_supported_levels_and_preserves_response_aliases() {
+        for (requested, levels, expected) in [
+            ("medium", json!(["off"]), "off"),
+            ("medium", json!(["low", "high"]), "high"),
+            ("max", json!(["low", "high"]), "high"),
+            ("low", json!(["low", "high"]), "low"),
+            ("legacy-unknown", json!(["off", "low"]), "off"),
+            ("medium", json!([]), "off"),
+        ] {
+            let response = thinking_payload("session", "fixture/model", json!(requested), levels);
+            assert_eq!(response["thinkingLevel"], expected);
+            assert_eq!(
+                response["availableLevels"],
+                response["availableThinkingLevels"]
+            );
+            assert_eq!(response["id"], "session");
+            assert_eq!(response["model"], "fixture/model");
+            assert_eq!(response["status"], "ok");
+            assert_eq!(
+                response["thinkingStatus"],
+                if response["availableLevels"].as_array().unwrap().is_empty() {
+                    "unsupported"
+                } else {
+                    "supported"
+                }
+            );
+        }
     }
 }
