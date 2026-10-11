@@ -1,10 +1,15 @@
 // 完整生产入口验收，防止仅测试 Dock 组件而漏掉 ChatPage 不再挂载它的回归。
 import assert from 'node:assert/strict'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { chromium } from 'playwright-core'
+import { verifyChatDockCreation } from './smoke-chat-dock-creation.mjs'
 
 export async function verifyProductionChatDock({ base, token, workspace }) {
   const sessions = []
   for (const name of ['Dock Alpha', 'Dock Beta', 'Dock Gamma']) {
+    const cwd = join(workspace, name.replace('Dock ', '').toLowerCase())
+    await mkdir(cwd)
     const response = await fetch(base + '/api/sessions', {
       method: 'POST',
       headers: {
@@ -12,7 +17,7 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
         Cookie: `__pisper_desktop=${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, cwd: workspace }),
+      body: JSON.stringify({ name, cwd }),
       signal: AbortSignal.timeout(15000),
     })
     assert.equal(response.status, 201)
@@ -199,6 +204,8 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await expectPanels(phone, 1)
     assert.equal(await phone.locator('.dockview-theme-pisper').count(), 0)
     assert.deepEqual(dockRequests, [])
+    await phone.context().close()
+    await verifyChatDockCreation({ page, sessions })
     assert.deepEqual(errors, [])
   } finally {
     await browser.close()

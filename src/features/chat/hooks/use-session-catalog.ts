@@ -42,6 +42,7 @@ type SessionCatalogOptions = {
 
 type CreateSessionOptions = {
   inheritRecentCwd?: boolean
+  creationKey?: string
 }
 
 export function useSessionCatalog({ notify }: SessionCatalogOptions) {
@@ -61,7 +62,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 面板级订阅：每个 Dock 面板只关心自己会话的 state，
   // 流式帧只通知引用发生变化的会话，避免扇出到所有面板。
   const sessionStateListenersRef = useRef(new Map<string, Set<() => void>>())
-  const creatingSessionRef = useRef<Promise<string> | null>(null)
+  const creatingSessionsRef = useRef(new Map<string, Promise<string>>())
   const retainedSessionStatesRef = useRef(new Map<string, number>())
   const discardedSessionStatesRef = useRef(new Set<string>())
   const [titleReconciler] = useState(createSessionTitleReconciler)
@@ -253,10 +254,11 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   )
 
   // 创建会话记录：按调用方决定是否继承最近会话的工作目录；
-  // 用 ref 去重并发创建，成功后初始化会话状态并合并进列表。
+  // 同一入口的重复点击去重，不同分屏各自创建；POST 成功即可打开，不等待目录刷新。
   const createSessionRecord = useCallback(
-    (cwd = '', { inheritRecentCwd = true }: CreateSessionOptions = {}) => {
-      if (creatingSessionRef.current) return creatingSessionRef.current
+    (cwd = '', { inheritRecentCwd = true, creationKey = 'global' }: CreateSessionOptions = {}) => {
+      const pending = creatingSessionsRef.current.get(creationKey)
+      if (pending) return pending
       const request = (async () => {
         try {
           setGlobalError('')
@@ -266,6 +268,12 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           )
           setActiveId(created.id)
           updateSessions((current) => mergeSessionLists(current, [created]))
+          // 写接口已使查询失效；先合并权威创建响应，侧栏可立即展示，后台查询照常校准。
+          queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (current) =>
+            current
+              ? { ...current, sessions: mergeSessionLists(current.sessions, [created]) }
+              : current,
+          )
           updateSessionState(created.id, {
             messages: [],
             tools: [],
@@ -292,15 +300,6 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
             runStopped: false,
             runNotice: '',
           })
-          try {
-            await refreshSessions(created.id)
-          } catch (error) {
-            setGlobalError(
-              t('chat:chatPage.theChatWasCreatedButTheListCouldNotBeRefreshedError', {
-                error: chatErrorMessage(error),
-              }),
-            )
-          }
           notify(t('chat:chatPage.newChatCreated'))
           return created.id
         } catch (error) {
@@ -308,13 +307,14 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           return ''
         }
       })()
-      creatingSessionRef.current = request
+      creatingSessionsRef.current.set(creationKey, request)
       void request.finally(() => {
-        if (creatingSessionRef.current === request) creatingSessionRef.current = null
+        if (creatingSessionsRef.current.get(creationKey) === request)
+          creatingSessionsRef.current.delete(creationKey)
       })
       return request
     },
-    [notify, refreshSessions, t, updateSessionState, updateSessions],
+    [notify, queryClient, t, updateSessionState, updateSessions],
   )
 
   useEffect(() => {
@@ -347,9 +347,9 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
         let list = sessionData.sessions
         if (
           !list.length &&
-          (creatingSessionRef.current || Object.keys(sessionStatesRef.current).length)
+          (creatingSessionsRef.current.size || Object.keys(sessionStatesRef.current).length)
         ) {
-          await creatingSessionRef.current
+          await Promise.all(creatingSessionsRef.current.values())
           if (!active) return
           titleRevision = titleReconciler.getRevision()
           list = (await chatApi.listSessions()).sessions

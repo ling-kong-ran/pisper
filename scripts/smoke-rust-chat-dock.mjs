@@ -243,6 +243,9 @@ try {
   report.checks.push(
     'production ChatPage splits independent drafts, restores after reload, opens history in a split, and keeps mobile Dockview-free',
   )
+  report.checks.push(
+    'group + creates tabs without waiting for catalog refresh, inherits its cwd, and handles concurrent responses and a closed target group',
+  )
 
   await stop()
   console.log(JSON.stringify({ status: 'passed', ...report }, null, 2))

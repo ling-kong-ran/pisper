@@ -46,6 +46,7 @@ import { SessionContextLayout } from '@/features/chat/components/session/Session
 import { SideChatProvider } from '@/features/chat/components/session/SideChatProvider'
 import type { SideChatRuntime } from '@/features/chat/model/side-chat-context'
 import { resolveSessionStreaming } from '@/features/chat/model/session-streaming-state'
+import { sessionIdFromPanel } from '@/features/chat/model/dock-layout'
 
 const LazySessionContextPanel = lazy(() =>
   import('@/features/chat/components/session/SessionContextPanel').then((module) => ({
@@ -234,25 +235,32 @@ export function ChatPage({
   const syncLiveSession = liveSync.syncLiveSession
   const setGlobalError = catalog.setGlobalError
   const openSessionInDock = dock.openSessionInDock
-  const moveSessionToGroup = dock.moveSessionToGroup
+  const sessionsRef = catalog.sessionsRef
   const [recallPulse, setRecallPulse] = useState({ sessionId: '', token: 0 })
-  // 新建会话：先创建记录（带可选 cwd），再在 Dock 打开，
-  // 若指定了目标分组则把面板移动到该组。
+  // 在等待创建响应之前捕获分组和目录，避免用户切换分屏后新页签落到别处。
   const createSession = useCallback(
     async (targetGroup?: DockviewGroupPanel, cwd = '') => {
+      const targetGroupId = targetGroup?.id
+      const targetSessionId =
+        sessionIdFromPanel(targetGroup?.activePanel) ||
+        targetGroup?.panels.map(sessionIdFromPanel).find(Boolean)
+      const requestedCwd =
+        cwd || sessionsRef.current.find((session) => session.id === targetSessionId)?.cwd || ''
       let mobileState: MobileRuntimeState | null = null
       if (mobileApp) {
         // 手机本机模式不能使用桌面会话路径；只有已配对且明确处于远程模式才继承它。
         mobileState = await invokeMobile<MobileRuntimeState>('mobile_state').catch(() => null)
       }
       const inheritRecentCwd = shouldInheritRecentSessionCwd(mobileApp, mobileState)
-      const sessionId = await createSessionRecord(cwd, { inheritRecentCwd })
+      const sessionId = await createSessionRecord(requestedCwd, {
+        inheritRecentCwd,
+        creationKey: targetGroupId ? `group:${targetGroupId}` : 'global',
+      })
       if (!sessionId) return ''
-      const opened = openSessionInDock(sessionId)
-      if (opened) moveSessionToGroup(sessionId, targetGroup)
+      openSessionInDock(sessionId, 'open', targetGroupId)
       return sessionId
     },
-    [createSessionRecord, mobileApp, moveSessionToGroup, openSessionInDock],
+    [createSessionRecord, mobileApp, openSessionInDock, sessionsRef],
   )
   usePagePrimaryAction(registerPrimaryAction, createSession)
 

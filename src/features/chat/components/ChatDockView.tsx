@@ -1,6 +1,6 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
 // 移动端走单会话视图，不下载/执行本模块。
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
@@ -11,7 +11,7 @@ import {
   type IDockviewHeaderActionsProps,
   type ReactContextMenuItemConfig,
 } from 'dockview-react'
-import { MoreHorizontal, Plus } from 'lucide-react'
+import { LoaderCircle, MoreHorizontal, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -84,19 +84,36 @@ export function ChatDockView({
     () =>
       function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
         const label = t('navigation:pageHeader.newChat')
+        const [creating, setCreating] = useState(false)
+        const creatingRef = useRef(false)
+        const mountedRef = useRef(true)
+        useEffect(() => {
+          mountedRef.current = true
+          return () => {
+            mountedRef.current = false
+          }
+        }, [])
         return (
           <button
             type="button"
             className="dock-new-session hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:relative focus-visible:z-[1] focus-visible:[outline:2px_solid_var(--focus)] focus-visible:[outline-offset:-2px] grid w-[36px] h-[35px] flex-none place-items-center border-0 [border-left:1px_solid_var(--stroke-soft)] bg-transparent text-[var(--text-muted)] cursor-pointer"
             title={label}
             aria-label={label}
+            aria-busy={creating}
+            disabled={creating}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation()
-              void createSession(group)
+              if (creatingRef.current) return
+              creatingRef.current = true
+              setCreating(true)
+              void createSession(group).finally(() => {
+                creatingRef.current = false
+                if (mountedRef.current) setCreating(false)
+              })
             }}
           >
-            <Plus size={15} />
+            {creating ? <LoaderCircle size={15} className="animate-spin" /> : <Plus size={15} />}
           </button>
         )
       },

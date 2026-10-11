@@ -42,6 +42,7 @@ import { WEB_PREVIEW_PANEL_ID, webPreviewPanelTitle } from '@/features/chat/mode
 
 // 使用 Dockview 的默认最小尺寸，让窄桌面内的左右/上下分屏仍留在可见容器中。
 const SESSION_PANEL_CONSTRAINTS = { minimumWidth: 100, minimumHeight: 100 }
+type DockOpenRequest = SessionOpenRequest & { targetGroupId?: string }
 
 type DockOptions = {
   sessions: SessionSummary[]
@@ -85,7 +86,7 @@ export function useChatDock({
   const dockDisposablesRef = useRef<DockviewIDisposable[]>([])
   const layoutSaveTimerRef = useRef<number | undefined>(undefined)
   const pendingDockLayoutRef = useRef<string | null>(null)
-  const pendingDockRequestRef = useRef<SessionOpenRequest | null>(null)
+  const pendingDockRequestRef = useRef<DockOpenRequest | null>(null)
   const pendingWebPreviewRef = useRef<WebPreviewOpenRequest | null>(null)
   const compactDockRef = useRef(compactDock)
   compactDockRef.current = compactDock
@@ -226,7 +227,7 @@ export function useChatDock({
   // 在 Dock 打开会话：不存在则新建面板，存在则聚焦并（可选）加载消息；
   // 返回是否新开了面板，供调用方决定是否移动分组。
   const openSessionInDock = useCallback(
-    (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
+    (sessionId: string, disposition: SessionOpenDisposition = 'open', targetGroupId?: string) => {
       // 单会话布局无 Dock：记录打开顺序并直接切换活动会话。
       if (singleSessionLayoutRef.current) {
         // 返回桌面时保留分屏几何结构，同时重放手机上最后一次明确选择。
@@ -242,14 +243,20 @@ export function useChatDock({
       const session = sessionsRef.current.find((item) => item.id === sessionId)
       const api = dockApiRef.current
       if (!session || !api || !dockInitializedRef.current) {
-        pendingDockRequestRef.current = { sessionId, disposition }
+        pendingDockRequestRef.current = { sessionId, disposition, targetGroupId }
         return false
       }
       const effectiveDisposition = compactDockRef.current ? 'open' : disposition
       const panelId = panelIdForSession(sessionId)
       const existing = api.getPanel(panelId)
       const referencePanel = api.activePanel
+      // 异步创建期间活动组可能变化，按点击时的目标定位；目标已关闭则回落到当前组。
+      const targetGroup = targetGroupId
+        ? api.groups.find((group) => group.id === targetGroupId)
+        : undefined
       if (existing) {
+        if (targetGroup && existing.group !== targetGroup)
+          existing.api.moveTo({ group: targetGroup })
         if (effectiveDisposition !== 'open') {
           if (referencePanel && existing.id !== referencePanel.id) {
             existing.api.moveTo({
@@ -267,10 +274,11 @@ export function useChatDock({
         setActiveId(sessionId)
         return true
       }
+      const destinationGroup = targetGroup || api.activeGroup
       const position =
         effectiveDisposition === 'open'
-          ? api.activeGroup
-            ? { referenceGroup: api.activeGroup }
+          ? destinationGroup
+            ? { referenceGroup: destinationGroup }
             : undefined
           : referencePanel
             ? { referencePanel, direction: effectiveDisposition }
@@ -356,13 +364,6 @@ export function useChatDock({
   // 关闭 Dock 面板。
   const closeDockPanel = useCallback((panelId: string) => {
     dockApiRef.current?.getPanel(panelId)?.api.close()
-  }, [])
-
-  // 把会话面板移动到指定分组（无目标或已在同组时忽略）。
-  const moveSessionToGroup = useCallback((sessionId: string, group?: DockviewGroupPanel) => {
-    if (!group) return
-    const panel = dockApiRef.current?.getPanel(panelIdForSession(sessionId))
-    if (panel && panel.group !== group) panel.api.moveTo({ group })
   }, [])
 
   // 面板关闭时释放会话状态：告知目录该面板已关（且未持有本地流），
@@ -557,10 +558,11 @@ export function useChatDock({
     }
     dockInitializedRef.current = true
     localStorage.removeItem(STORAGE_KEYS.chatMode)
-    const request = pendingDockRequestRef.current || consumeSessionSelectionRequest()
+    const request: DockOpenRequest | null =
+      pendingDockRequestRef.current || consumeSessionSelectionRequest()
     pendingDockRequestRef.current = null
     if (request) {
-      openSessionInDock(request.sessionId, request.disposition)
+      openSessionInDock(request.sessionId, request.disposition, request.targetGroupId)
       if (request.targetEntryId) {
         void loadSessionMessages(request.sessionId, {
           force: true,
@@ -641,7 +643,6 @@ export function useChatDock({
     openSessionInDock,
     splitDockPanel,
     closeDockPanel,
-    moveSessionToGroup,
     onDockReady,
     getTabContextMenuItems,
   }
