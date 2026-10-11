@@ -1,6 +1,6 @@
 // 聊天 Dock hook：基于 dockview 的多会话分屏容器，
 // 管理面板开/关/切换/聚焦与会话的映射，并持久化布局到 Runtime 用户目录。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   BuiltInContextMenuItem,
   DockviewApi,
@@ -39,6 +39,7 @@ import {
   type WebPreviewOpenRequest,
 } from '@/features/chat/model/web-preview-events'
 import { WEB_PREVIEW_PANEL_ID, webPreviewPanelTitle } from '@/features/chat/model/web-preview-panel'
+import { useCompactChatDock } from '@/features/chat/hooks/useCompactChatDock'
 
 type DockOptions = {
   sessions: SessionSummary[]
@@ -75,9 +76,7 @@ export function useChatDock({
   // 手机布局不渲染 Dock：打开会话时只切换活动 id。
   const singleSessionLayoutRef = useRef(singleSessionLayout)
   singleSessionLayoutRef.current = singleSessionLayout
-  const [compactDock, setCompactDock] = useState(
-    () => window.matchMedia('(max-width: 900px)').matches,
-  )
+  const compactDock = useCompactChatDock()
   const dockApiRef = useRef<DockviewApi | null>(null)
   const dockInitializedRef = useRef(false)
   const dockDisposablesRef = useRef<DockviewIDisposable[]>([])
@@ -86,10 +85,15 @@ export function useChatDock({
   const pendingDockRequestRef = useRef<SessionOpenRequest | null>(null)
   const pendingWebPreviewRef = useRef<WebPreviewOpenRequest | null>(null)
   const compactDockRef = useRef(compactDock)
+  compactDockRef.current = compactDock
   const pendingLayoutWriteRef = useRef<string | null>(null)
   const layoutWriteRunningRef = useRef(false)
   const [storedDockLayout, setStoredDockLayout] = useState<DockLayoutEnvelope | null>(null)
+  const latestDockLayoutRef = useRef<DockLayoutEnvelope | null>(null)
   const [dockLayoutLoaded, setDockLayoutLoaded] = useState(false)
+  const layoutReadableRef = useRef(false)
+  const [layoutReadFailed, setLayoutReadFailed] = useState(false)
+  const layoutWarningShownRef = useRef(false)
   const [mobileOpenedSessionIds, setMobileOpenedSessionIds] = useState<string[]>([])
   useEffect(() => {
     if (!singleSessionLayout || !activeId) return
@@ -112,11 +116,18 @@ export function useChatDock({
     void apiJson<unknown>('/api/settings/chat-dock-layout')
       .then((value) => {
         if (!mounted) return
-        setStoredDockLayout(parseDockLayoutEnvelope(value))
+        const layout = parseDockLayoutEnvelope(value)
+        layoutReadableRef.current = value == null || layout !== null
+        setLayoutReadFailed(!layoutReadableRef.current)
+        latestDockLayoutRef.current = layout
+        setStoredDockLayout(layout)
         setDockLayoutLoaded(true)
       })
       .catch(() => {
-        if (mounted) setDockLayoutLoaded(true)
+        if (mounted) {
+          setLayoutReadFailed(true)
+          setDockLayoutLoaded(true)
+        }
       })
     return () => {
       mounted = false
@@ -124,15 +135,10 @@ export function useChatDock({
   }, [])
 
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 900px)')
-    const update = () => {
-      compactDockRef.current = media.matches
-      setCompactDock(media.matches)
-    }
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
+    if (singleSessionLayout || !layoutReadFailed || layoutWarningShownRef.current) return
+    layoutWarningShownRef.current = true
+    notify(t('chat:chatPage.layoutReadFailed'), 'error')
+  }, [layoutReadFailed, notify, singleSessionLayout, t])
 
   // 只保留最新布局快照，由后台消费者异步写入，避免保存请求阻塞交互。
   const consumeDockLayoutWrites = useCallback(() => {
@@ -175,10 +181,12 @@ export function useChatDock({
       if (api) {
         try {
           const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+          latestDockLayoutRef.current = envelope
           serialized = JSON.stringify(envelope)
         } catch {}
       }
-      if (!serialized) return false
+      // 未读到原布局时允许临时聊天，但不能用默认空布局覆盖用户之前的分屏。
+      if (!serialized || !layoutReadableRef.current) return false
       queueDockLayoutWrite(serialized)
       pendingDockLayoutRef.current = null
       return true
@@ -193,12 +201,13 @@ export function useChatDock({
       if (!api || !dockInitializedRef.current) return
       let serialized: string
       try {
-        serialized = JSON.stringify(
-          createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || ''),
-        )
+        const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+        latestDockLayoutRef.current = envelope
+        serialized = JSON.stringify(envelope)
       } catch {
         return
       }
+      if (!layoutReadableRef.current) return
       pendingDockLayoutRef.current = serialized
       window.clearTimeout(layoutSaveTimerRef.current)
       layoutSaveTimerRef.current = window.setTimeout(() => {
@@ -217,6 +226,8 @@ export function useChatDock({
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
       // 单会话布局无 Dock：记录打开顺序并直接切换活动会话。
       if (singleSessionLayoutRef.current) {
+        // 返回桌面时保留分屏几何结构，同时重放手机上最后一次明确选择。
+        pendingDockRequestRef.current = { sessionId, disposition: 'open' }
         if (sessionId) {
           setMobileOpenedSessionIds((current) =>
             current.includes(sessionId) ? current : [...current, sessionId],
@@ -376,7 +387,7 @@ export function useChatDock({
       dockDisposablesRef.current.push(
         api.onDidActivePanelChange(({ panel }) => {
           const sessionId = sessionIdFromPanel(panel)
-          if (sessionId) setActiveId(sessionId)
+          if (sessionId || !panel) setActiveId(sessionId)
           scheduleDockLayoutSave(api)
         }),
         api.onDidLayoutChange(() => scheduleDockLayoutSave(api)),
@@ -460,7 +471,9 @@ export function useChatDock({
     }
   }, [persistDockLayout])
 
-  useEffect(
+  // 在 Dockview 的被动卸载之前保存快照并解绑，避免销毁面板把布局写成空白。
+  // 同一聊天页会在手机/桌面断点间切换，不能只在页面整体卸载时清理。
+  useLayoutEffect(
     () => () => {
       const api = dockApiRef.current
       persistDockLayout(api)
@@ -471,12 +484,13 @@ export function useChatDock({
       dockDisposablesRef.current = []
       dockApiRef.current = null
     },
-    [persistDockLayout],
+    [persistDockLayout, singleSessionLayout],
   )
 
   useEffect(() => {
     if (
       !dockReady ||
+      singleSessionLayout ||
       !dockLayoutLoaded ||
       loading ||
       dockInitializedRef.current ||
@@ -485,7 +499,7 @@ export function useChatDock({
       return
     const api = dockApiRef.current
     const validIds = new Set(sessions.map((session) => session.id))
-    const storedLayout = storedDockLayout
+    const storedLayout = latestDockLayoutRef.current
     if (storedLayout) {
       try {
         api.fromJSON(storedLayout.layout)
@@ -495,6 +509,8 @@ export function useChatDock({
           if (!validIds.has(sessionId)) api.removePanel(panel)
         }
       } catch {
+        layoutReadableRef.current = false
+        setLayoutReadFailed(true)
         api.clear()
       }
     }
@@ -555,6 +571,7 @@ export function useChatDock({
     openWebPreviewInDock,
     scheduleDockLayoutSave,
     sessions,
+    singleSessionLayout,
     storedDockLayout,
     t,
   ])
@@ -571,7 +588,7 @@ export function useChatDock({
   const getTabContextMenuItems = useCallback(
     ({
       panel,
-    }: GetTabContextMenuItemsParams): Array<
+    }: Pick<GetTabContextMenuItemsParams, 'panel'>): Array<
       BuiltInContextMenuItem | ReactContextMenuItemConfig
     > => {
       const closeItem: ReactContextMenuItemConfig = {

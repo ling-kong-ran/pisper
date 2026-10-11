@@ -363,6 +363,7 @@
   "chatPage.pleaseAnalyzeTheseAttachments": "Please analyze these attachments.",
   "chatPage.renameChat": "Rename chat",
   "chatPage.save": "Save",
+  "chatPage.layoutReadFailed": "Could not restore the split layout. Current changes will not overwrite the saved layout. Reopen chat to retry.",
   "chatPage.splitToBottom": "Split below",
   "chatPage.splitToLeft": "Split to left",
   "chatPage.splitToRight": "Split to right",

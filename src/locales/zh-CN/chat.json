@@ -363,6 +363,7 @@
   "chatPage.pleaseAnalyzeTheseAttachments": "请分析这些附件。",
   "chatPage.renameChat": "重命名会话",
   "chatPage.save": "保存",
+  "chatPage.layoutReadFailed": "未能恢复分屏布局。当前调整不会覆盖已保存的布局，请重新进入聊天页面重试。",
   "chatPage.splitToBottom": "拆分到下方",
   "chatPage.splitToLeft": "拆分到左侧",
   "chatPage.splitToRight": "拆分到右侧",

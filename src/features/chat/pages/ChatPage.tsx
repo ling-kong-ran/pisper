@@ -1,5 +1,4 @@
-// 聊天主页面：保留会话目录、实时同步与辅助面板，仅挂载当前活动会话。
-// 此 UI 不挂载 Dockview；历史分屏布局不会恢复，其他会话仍可在后台运行。
+// 聊天页面拥有会话目录与实时同步；桌面按需加载分屏，移动端只挂载活动会话。
 import {
   lazy,
   Suspense,
@@ -54,6 +53,11 @@ const LazySessionContextPanel = lazy(() =>
   })),
 )
 const SESSION_CONTEXT_PANEL_ID = 'chat-session-context-panel'
+const LazyChatDockView = lazy(() =>
+  import('@/features/chat/components/ChatDockView').then((module) => ({
+    default: module.ChatDockView,
+  })),
+)
 
 function invokeMobile<T>(command: string): Promise<T> {
   const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
@@ -155,7 +159,7 @@ export function ChatPage({
     localStreamSessionsRef,
     loadSessionMessages: liveSync.loadSessionMessages,
     releaseSessionState: catalog.releaseSessionState,
-    singleSessionLayout: true,
+    singleSessionLayout: mobileLayout,
     notify,
   })
   const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
@@ -580,7 +584,21 @@ export function ChatPage({
           ) : (
             <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
               <ChatDockContext.Provider value={dockContextValue}>
-                {clientLoaded && <SingleSessionPanel onCreateSession={createSession} />}
+                {clientLoaded &&
+                  (mobileLayout ? (
+                    <SingleSessionPanel onCreateSession={createSession} />
+                  ) : (
+                    <Suspense
+                      fallback={<RefreshCw className="m-4 animate-spin" aria-hidden="true" />}
+                    >
+                      <LazyChatDockView
+                        compactDock={dock.compactDock}
+                        onDockReady={dock.onDockReady}
+                        getTabContextMenuItems={dock.getTabContextMenuItems}
+                        createSession={createSession}
+                      />
+                    </Suspense>
+                  ))}
               </ChatDockContext.Provider>
             </div>
           )}

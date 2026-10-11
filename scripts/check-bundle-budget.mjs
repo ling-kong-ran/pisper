@@ -212,8 +212,13 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     check(`${name} gzip`, report.fileMetrics.get(report.manifest[key].file).gzip, limit)
   }
 
-  // PI 单会话界面不装载分屏 vendor；这比仅验证懒加载更严格。
-  if (report.keyByName.has('vendor-dockview')) failures.push('unused split-view vendor is bundled')
+  // 分屏恢复后只允许由桌面按需加载；手机聊天的静态依赖仍不能包含 Dockview。
+  const dockSource = 'src/features/chat/components/ChatDockView.tsx'
+  if (!report.manifest[dockSource]?.isDynamicEntry) failures.push('desktop dock is not lazy')
+  const chatClosure = staticClosure(report.manifest, 'src/features/chat/pages/ChatPage.tsx')
+  if ([...chatClosure].some((key) => report.manifest[key]?.name === 'vendor-dockview')) {
+    failures.push('desktop dock vendor is eager in mobile chat')
+  }
   const welcomeCss = report.manifest['src/features/chat/components/WelcomeEffects.tsx']?.css || []
   if (welcomeCss.some((file) => file.includes('react-bits')))
     failures.push('PI welcome must not load decorative React Bits CSS')

@@ -8,6 +8,10 @@ import {
   History,
   MessageSquare,
   MoreHorizontal,
+  PanelBottom,
+  PanelLeft,
+  PanelRight,
+  PanelTop,
   Pencil,
   Pin,
   PinOff,
@@ -46,6 +50,7 @@ import {
 } from '@/features/chat/model/events'
 import {
   HISTORY_BATCH_SIZE,
+  canSplitHistorySessions,
   selectHistorySessions,
   type HistoryView,
 } from '@/features/chat/model/history-list'
@@ -59,6 +64,9 @@ import {
   type SessionOrganizationPatch,
 } from '@/features/chat/api/session-organization-api'
 import { SessionChangeIndicator } from '@/features/chat/components/session/SessionChangeIndicator'
+import { useClientStore } from '@/stores/client-store'
+import { useCompactChatDock } from '@/features/chat/hooks/useCompactChatDock'
+import type { SessionOpenDisposition } from '@/features/chat/model/dock-layout'
 
 type ChatHistoryPageProps = {
   query: string
@@ -76,6 +84,8 @@ export function ChatHistoryPage({
   requestText,
 }: ChatHistoryPageProps) {
   const { t, language } = useI18n()
+  const mobileApp = useClientStore((state) => state.client === 'mobile-app')
+  const compactDock = useCompactChatDock()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [historyView, setHistoryView] = useState<HistoryView>('active')
   const filterKey = `${historyView}\0${query}`
@@ -176,8 +186,8 @@ export function ChatHistoryPage({
     completedBatchStatusRef.current?.focus()
   }, [visible.items.length, visible.total])
 
-  const openSession = (id: string) => {
-    requestSessionSelection(id)
+  const openSession = (id: string, disposition: SessionOpenDisposition = 'open') => {
+    requestSessionSelection(id, disposition)
     navigate('chat')
   }
 
@@ -385,6 +395,27 @@ export function ChatHistoryPage({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-48">
+                    {canSplitHistorySessions(compactDock, mobileApp) && (
+                      <>
+                        {(
+                          [
+                            ['left', PanelLeft, t('chat:chatHistoryPage.splitToLeft')],
+                            ['right', PanelRight, t('chat:chatHistoryPage.splitToRight')],
+                            ['above', PanelTop, t('chat:chatHistoryPage.splitToTop')],
+                            ['below', PanelBottom, t('chat:chatHistoryPage.splitToBottom')],
+                          ] as const
+                        ).map(([direction, Icon, label]) => (
+                          <DropdownMenuItem
+                            key={direction}
+                            onSelect={() => openSession(session.id, direction)}
+                          >
+                            <Icon />
+                            {label}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem
                       className="min-h-11"
                       onSelect={() => void renameSession(session)}

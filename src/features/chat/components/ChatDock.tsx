@@ -52,8 +52,7 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   )
 }
 
-// 简约工作台只挂载活动会话；切换、历史和并行后台运行仍由会话目录负责。
-// 不挂载 Dockview，因此旧的分屏持久化数据不会再次打开无法关闭的窗口。
+// 移动布局只挂载活动会话；桌面分屏的持久化布局保持原样。
 export function SingleSessionPanel({
   onCreateSession,
 }: {

@@ -1,5 +1,5 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
-// 移动端 App 走单会话视图（MobileSessionPanel），不下载/执行本模块。
+// 移动端走单会话视图，不下载/执行本模块。
 import { useMemo } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {
@@ -11,7 +11,15 @@ import {
   type IDockviewHeaderActionsProps,
   type ReactContextMenuItemConfig,
 } from 'dockview-react'
-import { Plus } from 'lucide-react'
+import { MoreHorizontal, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { useShortcutLabel } from '@/lib/ui/shortcuts'
 import { ChatDockWatermark, SessionDockPanel } from '@/features/chat/components/ChatDock'
@@ -21,7 +29,7 @@ type ChatDockViewProps = {
   compactDock: boolean
   onDockReady: (event: DockviewReadyEvent) => void
   getTabContextMenuItems: (
-    params: GetTabContextMenuItemsParams,
+    params: Pick<GetTabContextMenuItemsParams, 'panel'>,
   ) => Array<BuiltInContextMenuItem | ReactContextMenuItemConfig>
   createSession: (targetGroup?: DockviewGroupPanel) => Promise<string>
 }
@@ -34,6 +42,44 @@ export function ChatDockView({
 }: ChatDockViewProps) {
   const { t } = useI18n()
   const primaryShortcut = useShortcutLabel('primaryAction')
+  const DockGroupActions = useMemo(
+    () =>
+      function DockGroupActions({ activePanel }: IDockviewHeaderActionsProps) {
+        const items = activePanel ? getTabContextMenuItems({ panel: activePanel }) : []
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-none"
+                aria-label={t('chat:focusSession.chatActions')}
+                title={t('chat:focusSession.chatActions')}
+                disabled={!activePanel}
+              >
+                <MoreHorizontal size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {items.map((item, index) =>
+                item === 'separator' ? (
+                  <DropdownMenuSeparator key={index} />
+                ) : typeof item === 'object' ? (
+                  <DropdownMenuItem
+                    key={item.label}
+                    disabled={item.disabled}
+                    onSelect={item.action}
+                  >
+                    {item.label}
+                  </DropdownMenuItem>
+                ) : null,
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      },
+    [getTabContextMenuItems, t],
+  )
   const DockNewSessionAction = useMemo(
     () =>
       function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
@@ -80,6 +126,7 @@ export function ChatDockView({
       components={dockComponents}
       watermarkComponent={Watermark}
       leftHeaderActionsComponent={DockNewSessionAction}
+      rightHeaderActionsComponent={DockGroupActions}
       onReady={onDockReady}
       getTabContextMenuItems={getTabContextMenuItems}
       disableFloatingGroups

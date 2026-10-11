@@ -52,7 +52,8 @@
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
     "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs",
     "test": "cargo test --manifest-path runtime-rs/Cargo.toml",
-    "test:mobile-shell": "node scripts/smoke-mobile-shell.mjs"
+    "test:mobile-shell": "node scripts/smoke-mobile-shell.mjs",
+    "test:chat-dock": "node scripts/smoke-chat-dock.mjs && node scripts/smoke-rust-chat-dock.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1",
