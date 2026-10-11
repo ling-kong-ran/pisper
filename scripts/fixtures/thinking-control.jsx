@@ -22,6 +22,7 @@ const requestConfirm = () => Promise.resolve(false)
 window.evidence = { notices: [], completedReads: 0, refreshFinished: false }
 
 export function Fixture() {
+  const [availableModels, setAvailableModels] = useState(models)
   const [sessions, setSessions] = useState([
     { id, name: 'Thinking fixture', model: 'fixture/reasoner', thinkingLevel: 'medium' },
   ])
@@ -62,7 +63,7 @@ export function Fixture() {
     notify,
     requestText,
     requestConfirm,
-    availableModels: models,
+    availableModels,
     sessionStatesRef: states,
     updateSessionState,
     updateSessions,
@@ -75,7 +76,7 @@ export function Fixture() {
       sessions,
       activeId: id,
       defaultModel: 'fixture/reasoner',
-      availableModels: models,
+      availableModels,
       subscribeSessionState,
       getSessionState,
       loadSessionMessages: asyncNoop,
@@ -85,10 +86,12 @@ export function Fixture() {
       notify,
       ...commands,
     }),
-    [commands, getSessionState, sessions, subscribeSessionState],
+    [availableModels, commands, getSessionState, sessions, subscribeSessionState],
   )
   window.controls = {
     inspect: () => states.current[id],
+    removeModel: () =>
+      setAvailableModels(models.filter((item) => item.key !== states.current[id].model)),
     patch: (update) => updateSessionState(id, update),
     switchModel: (model) => commands.switchSessionModel(id, model),
     refreshTwice: () => {

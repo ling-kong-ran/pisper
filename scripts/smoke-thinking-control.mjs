@@ -315,6 +315,17 @@ try {
     writes.some(({ kind }) => kind === 'invalid-thinking'),
     false,
   )
+  await close()
+  await page.evaluate(() => window.controls.removeModel())
+  await page.waitForFunction(() =>
+    document.querySelector('.model-effort-pill').textContent.includes('Unavailable'),
+  )
+  await open()
+  assert.match(await popup.textContent(), /Select an available model/)
+  assert.equal(await slider.count(), 0, 'Removed model must not advertise usable thinking controls')
+  await picker.selectOption('fixture/fixed')
+  await waitState('fixture/fixed', 'off', ['off'])
+  assert.doesNotMatch(await pill.textContent(), /Unavailable/)
   assert.deepEqual(errors, [])
   console.log(
     'PASS thinking controls: mounted panel refresh, model changes, legacy response, stale reads, same-model refresh, retry, slider, labels and deduplication',

@@ -747,5 +747,8 @@
   "sideChat.placeholder": "聊点别的…",
   "sideChat.send": "发送临时消息",
   "sideChat.stop": "停止临时回复",
-  "focusSession.resourcesAndTools": "资源与工具"
+  "focusSession.resourcesAndTools": "资源与工具",
+  "focusSession.modelUnavailable": "不可用",
+  "focusSession.selectAvailableModel": "请重新选择可用模型",
+  "focusSession.noWorkspace": "未设置工作目录"
 }

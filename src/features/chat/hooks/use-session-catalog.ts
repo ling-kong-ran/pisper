@@ -260,7 +260,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   // 创建会话记录：按调用方决定是否继承最近会话的工作目录；
   // 同一入口的重复点击去重，不同分屏各自创建；POST 成功即可打开，不等待目录刷新。
   const createSessionRecord = useCallback(
-    (cwd = '', { inheritRecentCwd = true, creationKey = 'global' }: CreateSessionOptions = {}) => {
+    (cwd = '', { inheritRecentCwd = false, creationKey = 'global' }: CreateSessionOptions = {}) => {
       const pending = creatingSessionsRef.current.get(creationKey)
       if (pending) return pending
       const request = (async () => {

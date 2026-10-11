@@ -445,7 +445,11 @@ export function SessionModelSelect({
         disabled={disabled || models.length === 0}
         aria-label={t('chat:focusSession.currentChatModel')}
       >
-        {!currentModel && <option value={value}>{value.split('/').at(-1)}</option>}
+        {!currentModel && (
+          <option value={value} disabled>
+            {t('chat:focusSession.selectAvailableModel')}
+          </option>
+        )}
         {models.map((model) => (
           <option key={model.key} value={model.key}>
             {model.providerName} · {model.label}
@@ -567,21 +571,29 @@ export function ModelThinkingControl({
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const currentModel = models.find((item) => item.key === model)
+  const unavailable = !currentModel && !pendingModel
   const modelLabel =
     currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
   const loading = status === 'loading' || (!status && levels.length === 0)
-  const supported = !loading && status !== 'error' && status !== 'unsupported' && levels.length > 0
+  const supported =
+    !unavailable && !loading && status !== 'error' && status !== 'unsupported' && levels.length > 0
   const index = Math.max(0, levels.indexOf(thinkingLevel))
   const selected = draft ?? index
-  const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
-  const effortHint = pendingModel
-    ? t('chat:focusSession.thinkingAfterModelSwitch')
+  const effortLabel = unavailable
+    ? t('chat:focusSession.modelUnavailable')
     : supported
-      ? effortLabel
-      : message ||
-        (status === 'unsupported'
-          ? t('chat:focusSession.thinkingLevelUnsupported')
-          : t('chat:focusSession.loadingThinkingLevels'))
+      ? thinkingLevelLabel(t, levels[selected] || thinkingLevel)
+      : '—'
+  const effortHint = unavailable
+    ? t('chat:focusSession.selectAvailableModel')
+    : pendingModel
+      ? t('chat:focusSession.thinkingAfterModelSwitch')
+      : supported
+        ? effortLabel
+        : message ||
+          (status === 'unsupported'
+            ? t('chat:focusSession.thinkingLevelUnsupported')
+            : t('chat:focusSession.loadingThinkingLevels'))
   const disabled = thinkingDisabled || saving || !supported || levels.length < 2
   const label = `${t('chat:focusSession.modelAndThinking')} · ${resolveModelLabel(model, models)} · ${effortHint}`
   const levelsKey = levels.join('|')
@@ -605,7 +617,7 @@ export function ModelThinkingControl({
     <Popover
       onOpenChange={(open) => {
         // 设置页可能在不切模型的情况下更新能力；每次打开都读一次当前会话的真实状态。
-        if (open && !pendingModel && !thinkingDisabled) void onRefreshThinking?.()
+        if (open && !unavailable && !pendingModel && !thinkingDisabled) void onRefreshThinking?.()
       }}
     >
       <PopoverTrigger asChild>

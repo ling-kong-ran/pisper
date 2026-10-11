@@ -326,6 +326,8 @@ fn permission_mode_for_execution_mode(mode: &str) -> &'static str {
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct SessionMeta {
+    /// 新客户端显式传 cwd:null；旧会话缺省仍保留原目录语义。
+    workspace_unset: bool,
     execution_mode: Option<String>,
     permission_mode: Option<String>,
     goal: Option<String>,
@@ -619,6 +621,11 @@ async fn set_session_cwd(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     session_api::persist_session_cwd(&file, &cwd_input)?;
+    {
+        let mut metadata = state.session_meta.lock().expect("session metadata");
+        metadata.entry(id.clone()).or_default().workspace_unset = false;
+    }
+    session_api::save_metadata(&state)?;
     mutation
         .hosted
         .runtime

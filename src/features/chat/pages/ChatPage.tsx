@@ -252,9 +252,9 @@ export function ChatPage({
         // 手机本机模式不能使用桌面会话路径；只有已配对且明确处于远程模式才继承它。
         mobileState = await invokeMobile<MobileRuntimeState>('mobile_state').catch(() => null)
       }
-      const inheritRecentCwd = shouldInheritRecentSessionCwd(mobileApp, mobileState)
-      const sessionId = await createSessionRecord(requestedCwd, {
-        inheritRecentCwd,
+      const allowProjectCwd = shouldInheritRecentSessionCwd(mobileApp, mobileState)
+      const sessionId = await createSessionRecord(allowProjectCwd ? requestedCwd : '', {
+        inheritRecentCwd: false,
         creationKey: targetGroupId ? `group:${targetGroupId}` : 'global',
       })
       if (!sessionId) return ''

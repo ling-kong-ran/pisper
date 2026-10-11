@@ -262,6 +262,8 @@ impl ProviderConfigStore {
             && !provider.is_empty()
             && !model.is_empty()
             && model_allowed(&docs, provider, model)
+            // 缺少凭据时仍须启动配置界面；真正发送前由可用模型校验拒绝请求。
+            && session.model_runtime().has_configured_auth(provider)
         {
             if let Some(model) = runtime
                 .session()

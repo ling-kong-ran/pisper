@@ -511,13 +511,15 @@ export const FocusSession = memo(function FocusSession({
       className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground hover:bg-muted disabled:opacity-50 @max-[520px]:size-8 @max-[520px]:shrink-0 @max-[520px]:justify-center @max-[520px]:[&_span]:hidden"
       title={cwd}
       aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
-        workspace: workspaceName(cwd, language),
+        workspace: cwd ? workspaceName(cwd, language) : t('chat:focusSession.noWorkspace'),
       })}
       onClick={onWorkspace}
       disabled={streaming || switchingCwd}
     >
       <FolderOpen size={12} />
-      <span className="truncate">{workspaceName(cwd, language)}</span>
+      <span className="truncate">
+        {cwd ? workspaceName(cwd, language) : t('chat:focusSession.noWorkspace')}
+      </span>
     </button>
   )
   const headerBlock = (

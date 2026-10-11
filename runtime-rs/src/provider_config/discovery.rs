@@ -383,7 +383,7 @@ fn candidate_model(item: &Value, api: &str) -> Option<Value> {
             "chat"
         }
     });
-    let mut model = json!({"id":id,"name":name,"kind":model_kind,"capabilities":[model_kind],"input":["text"],"reasoning":item.get("reasoning").and_then(Value::as_bool).unwrap_or(false),"contextWindow":128000,"maxTokens":8192});
+    let mut model = json!({"id":id,"name":name,"kind":model_kind,"capabilities":[model_kind],"input":["text"],"reasoning":item.get("reasoning").and_then(Value::as_bool).unwrap_or(false)});
     for field in [
         "input",
         "reasoning",
@@ -401,6 +401,20 @@ fn candidate_model(item: &Value, api: &str) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_keeps_explicit_capacity_without_inventing_unknown_limits() {
+        let unknown = candidate_model(&json!({"id":"unknown"}), "openai-completions").unwrap();
+        assert!(unknown.get("contextWindow").is_none());
+        assert!(unknown.get("maxTokens").is_none());
+        let known = candidate_model(
+            &json!({"id":"long-context", "contextWindow":1_000_000, "maxTokens":64000}),
+            "openai-completions",
+        )
+        .unwrap();
+        assert_eq!(known["contextWindow"], 1_000_000);
+        assert_eq!(known["maxTokens"], 64000);
+    }
 
     #[test]
     fn model_urls_preserve_version_paths_and_reject_embedded_credentials() {

@@ -1093,7 +1093,7 @@ fn summary_from_stored(
         .unwrap_or_default();
     Ok(json!({
         "id": id, "name": info.name,
-        "cwd": info.cwd, "model": model, "thinkingLevel": thinking,
+        "cwd": if meta.workspace_unset { "" } else { &info.cwd }, "model": model, "thinkingLevel": thinking,
         "modified": pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc(modified),
         "created": info.created,
         "streaming": (is_active && active.is_streaming()) || state.goals.busy(id), "messageCount": info.message_count,
@@ -1336,10 +1336,30 @@ pub(crate) async fn create_session(
     body: Option<Json<Value>>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     let body = body.map(|Json(value)| value).unwrap_or_else(|| json!({}));
+    if body
+        .get("cwd")
+        .is_some_and(|cwd| !cwd.is_null() && !cwd.is_string())
+    {
+        return Err(ApiError::bad_request("cwd must be a path string or null"));
+    }
+    let workspace_unset = body.get("cwd").is_some_and(Value::is_null);
+    // 无项目会话使用独立空间，避免继承启动目录的项目规则和文件权限。
+    let private_workspace = std::path::Path::new(&state.data_dir)
+        .join("chat-workspaces")
+        .join(uuid::Uuid::new_v4().to_string());
+    if workspace_unset {
+        std::fs::create_dir_all(&private_workspace)
+            .map_err(|error| ApiError::internal(error.to_string()))?;
+    }
+    let fallback_cwd = if workspace_unset {
+        private_workspace.to_string_lossy().into_owned()
+    } else {
+        state.cwd.clone()
+    };
     let cwd = body["cwd"]
         .as_str()
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or(&state.cwd);
+        .unwrap_or(&fallback_cwd);
     let cwd = std::fs::canonicalize(cwd).map_err(|_| ApiError::bad_request("工作目录不存在。"))?;
     if !cwd.is_dir() {
         return Err(ApiError::bad_request("工作目录必须是文件夹。"));
@@ -1357,7 +1377,26 @@ pub(crate) async fn create_session(
         .append_session_info(name)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let active = state.runtime.session();
-    if let Some(model) = active.model() {
+    let available = crate::provider_config::available_models(&state).await?;
+    let default_provider = active
+        .settings_manager
+        .get_default_provider()
+        .unwrap_or_default();
+    let default_model = active
+        .settings_manager
+        .get_default_model()
+        .unwrap_or_default();
+    let selected = available
+        .iter()
+        .find(|model| model.provider == default_provider && model.id == default_model)
+        .or_else(|| {
+            available.iter().find(|model| {
+                active.model().as_ref().is_some_and(|selected| {
+                    selected.provider == model.provider && selected.id == model.id
+                })
+            })
+        });
+    if let Some(model) = selected {
         manager
             .append_model_change(&model.provider, &model.id)
             .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -1368,6 +1407,16 @@ pub(crate) async fn create_session(
         .append_thinking_level_change(thinking.as_str().unwrap_or("off"))
         .map_err(|e| ApiError::internal(e.to_string()))?;
     persist_empty_session(&mut manager)?;
+    if workspace_unset {
+        state
+            .session_meta
+            .lock()
+            .map_err(|_| ApiError::internal("session metadata lock poisoned"))?
+            .entry(manager.get_session_id().to_owned())
+            .or_default()
+            .workspace_unset = true;
+        save_metadata(&state)?;
+    }
     if let Err(error) = state
         .file_changes
         .mark_session_tracked(

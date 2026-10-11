@@ -157,7 +157,30 @@ try {
     await writeFile(join(agent, name), JSON.stringify(data), { mode: 0o600 })
 
   await start()
+  const unassigned = await json(
+    '/api/sessions',
+    'POST',
+    { name: 'No project fixture', cwd: null },
+    201,
+  )
+  assert.equal(unassigned.cwd, '')
+  const unassignedPath = await sessionPath(unassigned.id)
+  const privateCwd = JSON.parse((await readFile(unassignedPath, 'utf8')).split('\n')[0]).cwd
+  assert.notEqual(
+    privateCwd,
+    workspace,
+    'No-project chats must not inherit the configured workspace',
+  )
+  assert(privateCwd.includes('chat-workspaces'))
+  const explicit = await json(
+    '/api/sessions',
+    'POST',
+    { name: 'Project fixture', cwd: workspace },
+    201,
+  )
+  assert.equal(explicit.cwd, workspace)
   const created = await json('/api/sessions', 'POST', { name: 'Thinking fixture' }, 201)
+  assert.equal(created.cwd, workspace, 'Omitted cwd keeps legacy client behavior')
   const id = created.id
   const endpoint = `/api/sessions/${id}`
   verifyState(await json(`${endpoint}/thinking-level`), id, 'fixed', 'off', ['off'])
@@ -194,6 +217,15 @@ try {
   await start()
   verifyState(await json(`${endpoint}/thinking-level`), id, 'reasoner', 'high', reasoningLevels)
   assert.equal(await readFile(path, 'utf8'), beforeRejected, 'Cold reads must preserve history')
+  assert.equal(
+    (await json('/api/sessions')).sessions.find((session) => session.id === unassigned.id).cwd,
+    '',
+  )
+  await json(`/api/sessions/${unassigned.id}/cwd`, 'PUT', { cwd: workspace })
+  assert.equal(
+    (await json('/api/sessions')).sessions.find((session) => session.id === unassigned.id).cwd,
+    workspace,
+  )
   verifyState(
     await json(`${endpoint}/model`, 'POST', { provider, model: 'fixed' }),
     id,
@@ -232,6 +264,25 @@ try {
   await start()
   verifyState(await json(`${endpoint}/thinking-level`), id, 'fixed', 'off', ['off'])
   assert.equal(await readFile(path, 'utf8'), legacyBytes)
+  await json(`/api/providers/${provider}/enabled`, 'PUT', { enabled: false })
+  const unavailable = await json(
+    '/api/chat',
+    'POST',
+    { sessionId: id, message: 'Unavailable model fixture' },
+    400,
+  )
+  assert.equal(unavailable.code, 'model_not_available')
+  assert.match(unavailable.error || unavailable.message, /模型选择器/)
+  await json(`/api/providers/${provider}/enabled`, 'PUT', { enabled: true })
+  const fresh = await json('/api/sessions', 'POST', { cwd: null }, 201)
+  assert.equal(fresh.model, `${provider}/fixed`)
+  await stop()
+  await writeFile(join(agent, 'auth.json'), '{}')
+  await start()
+  const unauthenticated = await json('/api/config')
+  assert.equal(unauthenticated.providers.find((item) => item.id === provider).configured, false)
+  assert.equal((await json('/api/ready')).ready, true)
+
   console.log(
     'PASS thinking contract: model response, capability aliases, effective levels, rejected writes, cold reads and restart',
   )

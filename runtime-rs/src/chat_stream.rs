@@ -323,7 +323,7 @@ pub(crate) async fn chat_owned(
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "model_not_available",
-            "当前模型已禁用或没有配置凭据，请重新选择可用模型。",
+            "当前会话保存的模型不在可用列表中，可能已被移除或禁用。请在输入框的模型选择器中重新选择；若列表为空，请检查连接凭据。",
         ));
     }
     let mut goal = state.goals.goals.get(&session_id);

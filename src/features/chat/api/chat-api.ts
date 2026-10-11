@@ -208,7 +208,7 @@ export const chatApi = {
   createSession: (name: string, cwd = '') =>
     requestJson<SessionSummary>('/api/sessions', {
       method: 'POST',
-      data: { name, ...(cwd ? { cwd } : {}) },
+      data: { name, cwd: cwd || null },
     }),
 
   deriveSession: (sessionId: string, boundaryEntryId: string, name: string) =>

@@ -42,9 +42,12 @@ pub(super) fn project_models(
         if id.is_empty() || result.iter().any(|model: &Model| model.id == id) {
             continue;
         }
-        let mut value = original
-            .iter()
-            .find(|model| model.id == id)
+        // 路由前缀不改变模型容量；只复用同一 Provider 下无歧义的目录参数，不改写请求型号。
+        let base_id = id.rsplit('/').next().unwrap_or(id);
+        let mut matches = original.iter().filter(|model| model.id == base_id);
+        let base_model = matches.next().filter(|_| matches.next().is_none());
+        let template = original.iter().find(|model| model.id == id).or(base_model);
+        let mut value = template
             .map(|model| serde_json::to_value(model).expect("serializable model"))
             .unwrap_or_else(|| {
                 json!({
@@ -56,6 +59,16 @@ pub(super) fn project_models(
                     "thinkingLevelMap": {"xhigh":null,"max":null}
                 })
             });
+        if value["id"] != id {
+            value["name"] = json!(id);
+        }
+        value["id"] = json!(id);
+        if template.is_none() {
+            if let Some((context, output)) = catalog_token_limits(base_id) {
+                value["contextWindow"] = json!(context);
+                value["maxTokens"] = json!(output);
+            }
+        }
         if !string(&candidate, "name").is_empty() {
             value["name"] = candidate["name"].clone();
         }
@@ -64,6 +77,15 @@ pub(super) fn project_models(
         }
         if string(&value, "api").is_empty() {
             value["api"] = json!("openai-responses");
+        }
+        // 发现接口携带的真实容量优先于回退值；缺失字段不能伪装成统一的 200k。
+        for field in ["contextWindow", "maxTokens"] {
+            if candidate[field]
+                .as_u64()
+                .is_some_and(|limit| limit > 0 && limit <= 100_000_000)
+            {
+                value[field] = candidate[field].clone();
+            }
         }
         // 手动配置的模型字段优先；目录只决定发现范围，不覆盖用户能力设置。
         if let Some(configured) = array(connection, "models")
@@ -107,6 +129,33 @@ pub(super) fn project_models(
         }
     }
     Ok(result)
+}
+
+// 聚合网关可能通过任意协议转发模型；只借用无歧义的原厂容量，不复制协议、地址或凭据。
+fn catalog_token_limits(id: &str) -> Option<(u64, u64)> {
+    type Limits = BTreeMap<String, Option<(u64, u64)>>;
+    static LIMITS: std::sync::OnceLock<Limits> = std::sync::OnceLock::new();
+    LIMITS
+        .get_or_init(|| {
+            let mut result: Limits = BTreeMap::new();
+            for provider in ["anthropic", "openai", "google", "deepseek", "xai"] {
+                for model in pi_rust::ai::models::catalog::embedded_provider_catalog(provider) {
+                    let limits = (model.context_window as u64, model.max_tokens as u64);
+                    result
+                        .entry(model.id)
+                        .and_modify(|previous| {
+                            if *previous != Some(limits) {
+                                *previous = None;
+                            }
+                        })
+                        .or_insert(Some(limits));
+                }
+            }
+            result
+        })
+        .get(id)
+        .copied()
+        .flatten()
 }
 
 pub(super) fn adapt_thinking(model: &mut Model) {
@@ -310,6 +359,44 @@ mod tests {
             original
         );
     }
+    #[test]
+    fn context_limits_preserve_discovery_manual_overrides_and_prefixed_identity() {
+        let mut docs = docs();
+        docs.catalog["providers"]["fixture"]["models"] = json!([
+            {"id":"route/long-context", "contextWindow":1_000_000, "maxTokens":64000},
+            {"id":"route/known"}
+        ]);
+        let mut known = model("known");
+        known.context_window = 1_000_000;
+        let original = vec![known];
+        let projected = project_models(&docs, "fixture", &original).unwrap();
+        assert_eq!(projected[0].context_window, 1_000_000);
+        assert_eq!(projected[0].max_tokens, 64000);
+        assert_eq!(projected[1].context_window, 1_000_000);
+        assert_eq!(projected[1].id, "route/known");
+        docs.models["providers"]["fixture"]["models"] = json!([
+            {"id":"route/long-context", "contextWindow":256000, "maxTokens":32000}
+        ]);
+        let projected = project_models(&docs, "fixture", &original).unwrap();
+        assert_eq!(projected[0].context_window, 256000);
+        assert_eq!(projected[0].max_tokens, 32000);
+    }
+
+    #[test]
+    fn routed_opus_48_keeps_the_embedded_catalog_million_token_window() {
+        let mut docs = docs();
+        docs.catalog["providers"]["fixture"]["models"] =
+            json!([{ "id": "baidu_overseas/claude-opus-4-8" }]);
+        let original = pi_rust::ai::models::catalog::embedded_provider_catalog("anthropic");
+        let projected = project_models(&docs, "fixture", &original).unwrap();
+        assert_eq!(projected[0].id, "baidu_overseas/claude-opus-4-8");
+        assert_eq!(projected[0].context_window, 1_000_000);
+        let gateway = project_models(&docs, "fixture", &[]).unwrap();
+        assert_eq!(gateway[0].context_window, 1_000_000);
+        assert_eq!(gateway[0].api, "anthropic-messages");
+        assert_eq!(gateway[0].provider, "fixture");
+    }
+
     #[test]
     fn adaptive_thinking_is_protocol_scoped_and_keeps_unrelated_compatibility() {
         let mut opus = model("claude-opus-5-5");

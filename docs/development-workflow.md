@@ -158,3 +158,11 @@
 二进制 main 的领域装配迁入 lib；CLI 仍有独立入口，移动端只消费显式启动/关闭接口。状态、目录、生命周期、能力限制与回滚见 [移动本机 Runtime](mobile-local-runtime.md)。桌面开发入口先构建 Rust 并暂存资源，不再调用不存在的 Node sidecar。资源暂存每次清除自己拥有的生成目录；签名打包前验证真实语音 worker 和 rg/fd。现有发布源码守卫改为多渠道和移动资源 v2 行为合同，保留失败前不覆盖旧资源、签名要求、严格资产数量和脏工作区拒绝保护。
 
 Android 宿主在创建 Iroh/DNS/TLS 任务前初始化进程级 Application/JavaVM 上下文，并配套固定摘要的 rustls Java AAR 与 ProGuard 保留规则。系统容器目录的别名只在壳入口解析，领域内部仍拒绝链接。`scripts/tauri.mjs` 使 Gradle 回调使用相同的移动编译环境，C 编译基线保持 Android API 24。模拟器验收入口为 `npm run test:android:runtime -- emulator-5562`，只接受名为 `pisper-rust-release-validation` 的独立 AVD，使用虚拟 Provider 配置。
+
+### 无项目会话与模型目录容量（2026-10-12）
+
+Web 普通“新任务”不再继承最近项目；项目与分屏内的明确目录仍保留。创建协议以 `cwd: null` 表示未绑定目录，省略字段保留旧客户端的 Runtime 默认目录行为。Runtime 在数据目录内建立独立的 `chat-workspaces`，`session-meta.json` 的增量 `workspaceUnset` 字段控制摘要中的空目录；旧记录默认 false，不迁移、不改写原目录。用户选择目录后通过原 cwd 接口重新绑定并清除该标记。领域内部仍使用真实目录，避免向文件工具传入空路径或隐式使用上一个项目。验证覆盖创建、显式目录、旧客户端、重启与后续绑定。
+
+模型目录保留发现接口明确返回的容量，未知容量不再在发现阶段写入固定值；路由前缀参与同 Provider 定义匹配，聚合网关也可回退到无歧义的内置原厂容量，但保留实际请求型号、协议、地址和凭据。手动配置优先于发现值，再回退到已有模型定义。会话保存了已移除的型号时，控件明确标记不可用并保留重新选择入口，不自动映射到另一个可能计费不同的型号；新会话只绑定当前可用的默认型号。`test:thinking` 覆盖控件恢复与真实 HTTP 契约，Rust Provider 测试覆盖 1M、手动覆盖、前缀与缺失容量。
+
+默认型号保留但凭据已清除时，恢复过程不再调用需要认证的模型绑定，Runtime 必须仍能启动配置界面；发送时继续执行可用模型校验。iOS 26.5 arm64 模拟器实际覆盖无凭据启动、三视图导航、无目录新建、冷启动恢复以及本机模拟模型的认证与流式回复。Mac ARM 原生 App 完成 WKWebView、IPC、流式对话和终端入口验证；Intel Runtime/TUI 使用 x86_64 目标在 Rosetta 下运行测试，这不等同于 Intel 真机 App 或 iOS 真机验收。Windows/Linux 按本轮范围排除。

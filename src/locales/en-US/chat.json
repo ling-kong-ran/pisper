@@ -747,5 +747,8 @@
   "sideChat.placeholder": "Explore a side topic…",
   "sideChat.send": "Send temporary message",
   "sideChat.stop": "Stop temporary response",
-  "focusSession.resourcesAndTools": "Resources & tools"
+  "focusSession.resourcesAndTools": "Resources & tools",
+  "focusSession.modelUnavailable": "Unavailable",
+  "focusSession.selectAvailableModel": "Select an available model",
+  "focusSession.noWorkspace": "No working directory"
 }
