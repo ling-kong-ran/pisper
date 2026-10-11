@@ -176,6 +176,8 @@
   "mobileShell.sessions": "会话列表",
   "mobileShell.chat": "对话",
   "mobileShell.context": "工作区",
+  "mobileShell.previousPane": "上一视图",
+  "mobileShell.nextPane": "下一视图",
   "mobileShell.pager": "切换会话列表、对话和工作区",
   "mobileShell.changes": "改动",
   "mobileShell.extensions": "扩展",

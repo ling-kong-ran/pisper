@@ -88,6 +88,25 @@ export function Fixture() {
           <div>
             chat
             <textarea aria-label="composer" />
+            <div
+              aria-label="horizontal-content"
+              style={{ width: 240, overflowX: 'auto', whiteSpace: 'nowrap' }}
+            >
+              <div style={{ width: 1000 }}>Horizontal content</div>
+            </div>
+            <div
+              aria-label="vertical-content"
+              style={{ width: 280, height: 160, overflowY: 'auto' }}
+            >
+              <div style={{ height: 700 }}>Vertical content</div>
+            </div>
+            <div data-swipe-ignore aria-label="embedded-control" style={{ width: 280, height: 40 }}>
+              Embedded control
+            </div>
+            <div
+              data-fixed-probe
+              style={{ position: 'fixed', right: 0, bottom: 0, width: 10, height: 10 }}
+            />
           </div>
         }
         context={

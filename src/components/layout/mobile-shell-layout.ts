@@ -32,9 +32,19 @@ export function swipeDeltaToDirection(dx: number, dy: number): -1 | 1 | 0 {
 
 export function shouldIgnoreMobileSwipe(target: EventTarget | null) {
   if (!(target instanceof Element)) return false
-  return Boolean(
+  if (
     target.closest(
       'input, textarea, select, [contenteditable="true"], [data-swipe-ignore], [role="dialog"], [role="slider"]',
-    ),
+    )
   )
+    return true
+  // 横向滚动容器优先处理自己的手势，例如代码块和资源卡片列表。
+  for (let node: Element | null = target; node; node = node.parentElement) {
+    if (
+      node.scrollWidth > node.clientWidth + 1 &&
+      /^(auto|scroll)$/.test(getComputedStyle(node).overflowX)
+    )
+      return true
+  }
+  return false
 }

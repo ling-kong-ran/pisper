@@ -176,6 +176,8 @@
   "mobileShell.sessions": "Sessions",
   "mobileShell.chat": "Chat",
   "mobileShell.context": "Workspace",
+  "mobileShell.previousPane": "Previous view",
+  "mobileShell.nextPane": "Next view",
   "mobileShell.pager": "Switch between sessions, chat, and workspace",
   "mobileShell.changes": "Changes",
   "mobileShell.extensions": "Extensions",

@@ -128,10 +128,14 @@ export function MobileContextScreen({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background" data-mobile-context-screen>
       <div
-        className="flex flex-none gap-1 overflow-x-auto border-b border-[var(--stroke-soft)] px-2 py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 flex-none items-center gap-1 border-b border-[var(--stroke-soft)] px-2 py-1.5"
         data-swipe-ignore
       >
-        <div className="flex gap-1" role="tablist" aria-label={t('navigation:mobileShell.context')}>
+        <div
+          className="flex min-w-0 flex-1 gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label={t('navigation:mobileShell.context')}
+        >
           {TABS.map(({ id, icon: Icon }) => {
             const selected = tab === id
             return (
@@ -157,7 +161,7 @@ export function MobileContextScreen({
         <Button
           variant="ghost"
           size="sm"
-          className="shrink-0"
+          className="h-8 shrink-0"
           disabled={openingFiles || !activeSessionId}
           aria-busy={openingFiles}
           aria-label={t('navigation:mobileShell.openWorkspace')}

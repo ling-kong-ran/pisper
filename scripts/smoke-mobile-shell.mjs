@@ -1,7 +1,7 @@
 // 移动壳回归：真实 React 组件、隔离接口/桥接和本机浏览器，不启动模型或读取用户配置。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, mkdir } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -103,6 +103,31 @@ try {
     name: 'navigation:mobileShell.openWorkspace',
     exact: true,
   })
+  const workspaceTabs = page.getByRole('tablist', {
+    name: 'navigation:mobileShell.context',
+    exact: true,
+  })
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    const before = await openWorkspace.boundingBox()
+    assert.ok(
+      before.x >= 0 && before.x + before.width <= width,
+      'File action stays inside the viewport',
+    )
+    await workspaceTabs.evaluate((node) => {
+      node.scrollLeft = node.scrollWidth
+    })
+    const after = await openWorkspace.boundingBox()
+    assert.equal(
+      Math.round(after.x),
+      Math.round(before.x),
+      'Scrolling workspace tabs must not move the file action',
+    )
+    await workspaceTabs.evaluate((node) => {
+      node.scrollLeft = 0
+    })
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
   await openWorkspace.click()
   await page.waitForFunction(() => window.evidence.reveals.length === 1)
   assert.deepEqual(await page.evaluate(() => window.evidence.reveals), ['/fixture'])
@@ -312,14 +337,233 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-mobile-shell="phone"]'))
   const cdp = await page.context().newCDPSession(page)
   for (const [type, points] of [
-    ['touchStart', [{ x: 270, y: 300 }]],
-    ['touchMove', [{ x: 150, y: 300 }]],
-    ['touchMove', [{ x: 80, y: 300 }]],
+    ['touchStart', [{ x: 270, y: 450 }]],
+    ['touchMove', [{ x: 150, y: 450 }]],
+    ['touchMove', [{ x: 80, y: 450 }]],
     ['touchEnd', []],
   ])
     await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points })
   await page.waitForFunction(
     () => !document.querySelector('section[aria-label="navigation:mobileShell.context"]').inert,
+  )
+  const currentPane = () =>
+    page.evaluate(() =>
+      document.querySelector('[role="tabpanel"]:not([inert])')?.getAttribute('aria-label'),
+    )
+  const settle = () => page.waitForFunction(() => document.getAnimations().length === 0)
+  const swipe = async (start, end) => {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: start[0], y: start[1] }],
+    })
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: (start[0] + end[0]) / 2, y: (start[1] + end[1]) / 2 }],
+    })
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: end[0], y: end[1] }],
+    })
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await settle()
+  }
+  await settle()
+  const previousPane = page.getByRole('button', {
+    name: 'navigation:mobileShell.previousPane',
+    exact: true,
+  })
+  const nextPane = page.getByRole('button', {
+    name: 'navigation:mobileShell.nextPane',
+    exact: true,
+  })
+  assert.equal(await nextPane.isDisabled(), true)
+  assert.equal(await previousPane.textContent(), '', 'Navigation arrows have no visible text')
+  assert.equal(await nextPane.textContent(), '')
+  await previousPane.click()
+  await settle()
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat')
+  await previousPane.click()
+  await settle()
+  assert.equal(await currentPane(), 'navigation:mobileShell.sessions')
+  assert.equal(await previousPane.isDisabled(), true)
+  await nextPane.click()
+  await settle()
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat')
+  await page.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).click()
+  await settle()
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: 300, y: 450 }],
+  })
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: 180, y: 450 }],
+  })
+  await page.waitForFunction(() => {
+    const panel = document.querySelector(
+      '[aria-label="navigation:mobileShell.chat"][role="tabpanel"]',
+    )
+    return getComputedStyle(panel).transform.startsWith('matrix3d(')
+  })
+  const during = await page
+    .locator('[aria-label="navigation:mobileShell.chat"][role="tabpanel"]')
+    .boundingBox()
+  assert.ok(during.x < 0, 'Horizontal drag must visibly follow the finger')
+  await mkdir(join(root, 'release/mobile-flip-verification'), { recursive: true })
+  await page.screenshot({ path: join(root, 'release/mobile-flip-verification/dragging.png') })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await settle()
+  assert.equal(await currentPane(), 'navigation:mobileShell.context')
+  await swipe([80, 450], [290, 450])
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat')
+  await swipe([80, 450], [290, 450])
+  assert.equal(await currentPane(), 'navigation:mobileShell.sessions')
+  await swipe([80, 450], [290, 450])
+  assert.equal(await currentPane(), 'navigation:mobileShell.sessions', 'First pane does not wrap')
+  await swipe([300, 450], [80, 450])
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat')
+  await swipe([220, 450], [195, 450])
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat', 'Short swipes snap back')
+
+  for (const label of ['composer', 'horizontal-content', 'embedded-control']) {
+    const box = await page.getByLabel(label, { exact: true }).boundingBox()
+    await swipe(
+      [box.x + Math.min(box.width - 10, 180), box.y + box.height / 2],
+      [box.x + 20, box.y + box.height / 2],
+    )
+    assert.equal(await currentPane(), 'navigation:mobileShell.chat', `${label} owns its gesture`)
+  }
+  await page.getByLabel('composer').blur()
+  const scroll = await page.getByLabel('vertical-content').boundingBox()
+  await swipe([scroll.x + 100, scroll.y + 130], [scroll.x + 100, scroll.y + 20])
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat')
+  assert.ok(
+    await page.getByLabel('vertical-content').evaluate((node) => node.scrollTop > 0),
+    'Vertical scrolling remains native',
+  )
+
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: 300, y: 450 }],
+  })
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: 180, y: 450 }],
+  })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+  await settle()
+  assert.equal(
+    await currentPane(),
+    'navigation:mobileShell.chat',
+    'Cancelled gestures do not navigate',
+  )
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: 300, y: 450, id: 0 }],
+  })
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [
+      { x: 300, y: 450, id: 0 },
+      { x: 280, y: 480, id: 1 },
+    ],
+  })
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [
+      { x: 100, y: 450, id: 0 },
+      { x: 80, y: 480, id: 1 },
+    ],
+  })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await settle()
+  assert.equal(await currentPane(), 'navigation:mobileShell.chat', 'Pinch gestures do not navigate')
+
+  await page.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).focus()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await settle()
+  assert.equal(
+    await currentPane(),
+    'navigation:mobileShell.context',
+    'Rapid keyboard changes settle on the latest pane',
+  )
+  await page.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).click()
+  await settle()
+  const fixed = await page.locator('[data-fixed-probe]').boundingBox()
+  assert.equal(Math.round(fixed.x), 380)
+  assert.equal(Math.round(fixed.y), 834)
+  assert.ok(
+    await page
+      .locator('[role="tabpanel"]')
+      .evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).transform === 'none')),
+    'Resting panels do not create fixed-position containing blocks',
+  )
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByRole('tab', { name: 'navigation:mobileShell.context', exact: true }).click()
+  assert.equal(
+    await page.evaluate(() => {
+      const panels = [...document.querySelectorAll('[data-mobile-shell] > div > section')]
+      return [...panels, panels[0]?.parentElement]
+        .filter(Boolean)
+        .flatMap((node) => node.getAnimations())
+        .filter(
+          (animation) =>
+            Number(animation.effect.getTiming().duration) > 1 &&
+            animation.effect
+              .getKeyframes()
+              .some((frame) => 'transform' in frame || 'marginLeft' in frame),
+        ).length
+    }),
+    0,
+    'Reduced motion skips flip transforms',
+  )
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.evaluate(() => (document.documentElement.dataset.motion = 'reduced'))
+  await page.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).click()
+  assert.equal(
+    await page.evaluate(() => {
+      const panels = [...document.querySelectorAll('[data-mobile-shell] > div > section')]
+      return [...panels, panels[0]?.parentElement]
+        .filter(Boolean)
+        .flatMap((node) => node.getAnimations())
+        .filter(
+          (animation) =>
+            Number(animation.effect.getTiming().duration) > 1 &&
+            animation.effect
+              .getKeyframes()
+              .some((frame) => 'transform' in frame || 'marginLeft' in frame),
+        ).length
+    }),
+    0,
+    'App motion preference skips flips',
+  )
+  await page.evaluate(() => delete document.documentElement.dataset.motion)
+  await page.getByRole('tab', { name: 'navigation:mobileShell.context', exact: true }).click()
+  await page.evaluate(() => window.controls.setMode('pad'))
+  await page.waitForFunction(() => document.querySelector('[data-mobile-shell="pad"]'))
+  assert.equal(
+    await page.evaluate(() => {
+      const panels = [...document.querySelectorAll('[data-mobile-shell] > div > section')]
+      return [...panels, panels[0]?.parentElement]
+        .filter(Boolean)
+        .flatMap((node) => node.getAnimations())
+        .filter(
+          (animation) =>
+            Number(animation.effect.getTiming().duration) > 1 &&
+            animation.effect
+              .getKeyframes()
+              .some((frame) => 'transform' in frame || 'marginLeft' in frame),
+        ).length
+    }),
+    0,
+    'Layout changes cancel pending flips',
+  )
+  assert.ok(
+    await page
+      .locator('[data-mobile-shell] > div > section')
+      .evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).transform === 'none')),
   )
   assert.equal(await page.evaluate(() => window.evidence.closeAll), 0)
   await page.evaluate(() => window.controls.setMounted(false))
@@ -356,7 +600,7 @@ try {
   assert.equal(await page.evaluate(() => window.workflowRequests[2].signal.aborted), true)
   assert.deepEqual(errors, [])
   console.log(
-    'PASS mobile shell: terminal lifetime, independent save, run safety, refresh, layout, touch navigation and workflow polling isolation',
+    'PASS mobile shell: terminal lifetime, independent save, run safety, refresh, layout, swipe/flip gestures, reduced motion and workflow polling isolation',
   )
 } finally {
   await browser?.close()
