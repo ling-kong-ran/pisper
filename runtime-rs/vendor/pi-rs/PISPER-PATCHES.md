@@ -112,6 +112,25 @@ headless session startup:
    reentry after set, delete, clear and full publication. No model requests,
    user configuration, timing sleeps or production test hooks are involved.
 
+10. `coding_agent/core/model_runtime.rs`: read `configured_providers` under the
+    existing snapshot mutex in `has_configured_auth`. Initial CLI and SDK model
+    selection probe every catalog entry; cloning the complete snapshot for each
+    boolean probe copied both model lists and made a catalog scan quadratic.
+    The borrowed set lookup allocates nothing and retains the same atomically
+    published auth state. The existing refresh, provider registration, runtime
+    API key, login and logout publication paths are unchanged.
+    `tests/pisper_auth_lookup_regression.rs` is included by the existing
+    `pisper_model_registry_regression` target. Its test-only allocator counts
+    actual allocations on the synchronous probe's current thread, excluding
+    other parallel tests, and protects zero-allocation scans over the built-in
+    catalog and configured/missing providers at two catalog sizes. Behavioral
+    tests cover explicit refresh after in-memory credential changes,
+    provisional registration/removal, and runtime key/login/logout results
+    visible through an older handle on another thread. Availability fixtures
+    replace all built-ins before refresh and never read ambient auth or dispatch
+    model requests. The allocation assertions were observed failing before the
+    change; elapsed times are diagnostic only, without machine timing limits.
+
 Run the targeted tests from Pisper's root:
 
 ```powershell
@@ -137,3 +156,37 @@ Pisper regression lives in `src/host_factory_tests.rs` and exercises native
 creation, reload and two session switches without enabling unpublished vendor
 oracle fixtures. The asset execution wrapper composes archival and file-change
 capture around the same final tool registry.
+
+Native extension invalidation retires the core action, context, MCP-change and
+provider routing bindings after cancelling event-bus subscriptions. Those
+callbacks can retain the runner that owns their runtime, forming an Arc cycle
+that keeps registered tool resources, including Pisper's SQLite memory store,
+alive after embedded shutdown. Bindings are moved out under the state lock and
+dropped after unlock, so resource destructors can re-enter the runtime safely.
+Empty invalidation messages remain active; the first nonempty/default stale
+message still wins, including the `create_context` error. Runtime bindings,
+runner core/command actions, UI and diagnostic listener commits are coordinated
+atomically with staleness; rebind cannot recreate the retired cycle. The private
+lifecycle tracks bound runners weakly, including several runners sharing one
+runtime. Once cancellation completes, runner callbacks are taken/defaulted and
+dropped outside every lifecycle/state/runner lock. Constructor dependencies and
+extension registrations keep their existing ownership. Invalidation, explicit tracked unsubscribe and late stale
+subscriptions share cancellation-batch accounting. A concurrent invalidation
+marks the API stale immediately and returns without waiting on an earlier
+batch; its bindings retire when the final batch finishes. Without concurrent
+cancellation, retirement completes before invalidation returns. Subscription
+and resource cleanup run outside lifecycle/state/slot locks, finish after a
+panic, then resume the call's first panic. Public-API lifetime, empty/default
+stale, multiple runners, binding/cancellation interleaving, panic and reentrant
+destructor regressions are included from
+`tests/support/extension_lifecycle_regression.rs` by the existing
+`pisper_model_registry_regression` integration target without unpublished oracle
+fixtures. The runtime's embedded restart test continues using its real SQLite
+file and verifies deletion after complete shutdown.
+
+SDK-owned action and provider/virtual-routing aggregates retire each independent
+callback separately: catching a whole aggregate cannot intercept a second
+destructor panic during unwinding. Actions use `Arc::into_inner` to preserve any
+external shared owner. The integration target verifies real double-panic aborts
+and complete cleanup in three isolated test subprocesses, then checks that the
+first unsubscribe panic still propagates after every callback is released.

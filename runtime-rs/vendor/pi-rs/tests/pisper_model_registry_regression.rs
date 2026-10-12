@@ -33,6 +33,12 @@ const ASYNC_DEADLINE: Duration = Duration::from_secs(5);
 #[path = "../src/ai/models/shared_registry_tests.rs"]
 mod shared_registry_tests;
 
+#[path = "pisper_auth_lookup_regression.rs"]
+mod auth_lookup_regressions;
+
+#[path = "support/extension_lifecycle_regression.rs"]
+mod extension_lifecycle_regressions;
+
 fn on_current_thread(test: impl Future<Output = ()> + Send + 'static) {
     let (done, completed) = std::sync::mpsc::sync_channel(1);
     let worker = std::thread::Builder::new()

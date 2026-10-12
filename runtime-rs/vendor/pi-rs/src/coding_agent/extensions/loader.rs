@@ -26,7 +26,8 @@
 //!   vendored here with `stripBom` from the ported text utils.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use serde_json::Value;
 
@@ -386,20 +387,190 @@ struct TrackedEntry {
 
 impl TrackedEntry {
     fn unsubscribe(&self) {
-        if let Some(handle) = self
+        let handle = self
             .slot
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take()
-        {
+            .take();
+        if let Some(handle) = handle {
             handle.unsubscribe();
+        }
+    }
+}
+
+#[derive(Default)]
+struct InvalidationState {
+    message: Option<String>,
+    // API staleness is immediate. Retirement never blocks on a concurrent
+    // cancellation batch (whose destructor can re-enter invalidate); the
+    // last batch retires bindings. Without concurrency, invalidate retires
+    // them before returning. All nested locks follow lifecycle -> state/slot.
+    pending_unsubscribe_batches: usize,
+    bindings_retired: bool,
+    bound_runners: Vec<Weak<super::runner::RunnerInner>>,
+}
+
+impl InvalidationState {
+    fn is_stale(&self) -> bool {
+        self.message
+            .as_ref()
+            .is_some_and(|message| !message.is_empty())
+    }
+}
+
+pub(crate) type PanicPayload = Box<dyn std::any::Any + Send>;
+
+pub(crate) fn catch_cleanup(first_panic: &mut Option<PanicPayload>, cleanup: impl FnOnce()) {
+    if let Err(panic) = catch_unwind(AssertUnwindSafe(cleanup)) {
+        if first_panic.is_none() {
+            *first_panic = Some(panic);
+        }
+    }
+}
+
+struct RetiredBindings {
+    message: String,
+    runners: Vec<Weak<super::runner::RunnerInner>>,
+    actions: Option<Arc<super::types::ExtensionActions>>,
+    create_context:
+        Option<Arc<dyn Fn() -> Result<super::types::ExtensionContext, String> + Send + Sync>>,
+    mcp_change_sink: Option<Arc<McpChangeSink>>,
+    provider_routing: Option<ProviderRouting>,
+    virtual_model_routing: Option<VirtualModelRouting>,
+}
+
+impl RetiredBindings {
+    fn drop_catching(self, first_panic: &mut Option<PanicPayload>) {
+        let Self {
+            message,
+            runners,
+            actions,
+            create_context,
+            mcp_change_sink,
+            provider_routing,
+            virtual_model_routing,
+        } = self;
+        // Upgrade only after lifecycle/state unlock. Core, command, UI and
+        // diagnostic bindings can own their runner independently of runtime
+        // callbacks, including when several runners share this runtime.
+        for runner in runners {
+            if let Some(runner) = runner.upgrade() {
+                runner.retire_bindings(&message).drop_catching(first_panic);
+                catch_cleanup(first_panic, || drop(runner));
+            }
+        }
+        // Catch each owning callback separately: an unsubscribe or resource
+        // panic must not strand the remaining bindings or mask the first error.
+        macro_rules! retire {
+            ($($callback:ident),+ $(,)?) => {
+                $(catch_cleanup(first_panic, || drop($callback));)+
+            };
+        }
+        // Only the last SDK action owner can dismantle this aggregate. A
+        // separately retained Arc keeps its existing external ownership.
+        if let Some(actions) = actions.and_then(Arc::into_inner) {
+            let super::types::ExtensionActions {
+                send_message,
+                send_user_message,
+                append_entry,
+                set_session_name,
+                get_session_name,
+                set_label,
+                get_active_tools,
+                get_all_tools,
+                get_settings,
+                set_active_tools,
+                refresh_tools,
+                get_commands,
+                set_model,
+                get_thinking_level,
+                set_thinking_level,
+            } = actions;
+            retire!(
+                send_message,
+                send_user_message,
+                append_entry,
+                set_session_name,
+                get_session_name,
+                set_label,
+                get_active_tools,
+                get_all_tools,
+                get_settings,
+                set_active_tools,
+                refresh_tools,
+                get_commands,
+                set_model,
+                get_thinking_level,
+                set_thinking_level
+            );
+        }
+        catch_cleanup(first_panic, || drop(create_context));
+        catch_cleanup(first_panic, || drop(mcp_change_sink));
+        if let Some(ProviderRouting {
+            register_provider,
+            register_native_provider,
+            unregister_provider,
+        }) = provider_routing
+        {
+            retire!(
+                register_provider,
+                register_native_provider,
+                unregister_provider
+            );
+        }
+        if let Some(VirtualModelRouting {
+            register,
+            unregister,
+        }) = virtual_model_routing
+        {
+            retire!(register, unregister);
+        }
+    }
+}
+
+struct UnsubscribeBatch {
+    runtime: ExtensionRuntime,
+    completed: bool,
+}
+
+impl UnsubscribeBatch {
+    fn cancel(mut self, entries: Vec<TrackedEntry>) {
+        let mut first_panic = None;
+        for entry in entries {
+            catch_cleanup(&mut first_panic, || entry.unsubscribe());
+        }
+        let retired = self.runtime.finish_unsubscribe_batch();
+        self.completed = true;
+        if let Some(retired) = retired {
+            retired.drop_catching(&mut first_panic);
+        }
+        if let Some(panic) = first_panic {
+            resume_unwind(panic);
+        }
+    }
+}
+
+impl Drop for UnsubscribeBatch {
+    fn drop(&mut self) {
+        if !self.completed {
+            // Keep the count exception-safe even if internal work unwinds.
+            // During unwinding, preserve the original panic after cleanup.
+            let mut panic = None;
+            if let Some(retired) = self.runtime.finish_unsubscribe_batch() {
+                retired.drop_catching(&mut panic);
+            }
+            if !std::thread::panicking() {
+                if let Some(panic) = panic {
+                    resume_unwind(panic);
+                }
+            }
         }
     }
 }
 
 pub(crate) struct RuntimeInner {
     state: Mutex<RuntimeState>,
-    stale: Mutex<Option<String>>,
+    lifecycle: Mutex<InvalidationState>,
     event_bus_unsubscribers: Mutex<Vec<TrackedEntry>>,
 }
 
@@ -436,7 +607,7 @@ impl ExtensionRuntime {
                     create_context: None,
                     mcp_change_sink: None,
                 }),
-                stale: Mutex::new(None),
+                lifecycle: Mutex::new(InvalidationState::default()),
                 event_bus_unsubscribers: Mutex::new(Vec::new()),
             }),
         }
@@ -538,13 +709,68 @@ impl ExtensionRuntime {
         f(&mut state)
     }
 
+    /// Commit a core binding atomically with staleness. The installer only
+    /// moves a prepared binding into state and returns its previous owner;
+    /// rejected inputs and replaced callbacks are dropped after both locks.
+    pub(crate) fn install_if_active<T>(
+        &self,
+        install: impl FnOnce(&mut RuntimeState) -> T,
+    ) -> bool {
+        let replaced = self.commit_if_active(None, || self.with_state(install));
+        let accepted = replaced.is_some();
+        drop(replaced);
+        accepted
+    }
+
+    pub(crate) fn commit_runner_if_active<T>(
+        &self,
+        runner: &Arc<super::runner::RunnerInner>,
+        commit: impl FnOnce() -> T,
+    ) -> Option<T> {
+        self.commit_if_active(Some(Arc::downgrade(runner)), commit)
+    }
+
+    fn commit_if_active<T>(
+        &self,
+        runner: Option<Weak<super::runner::RunnerInner>>,
+        commit: impl FnOnce() -> T,
+    ) -> Option<T> {
+        let mut commit = Some(commit);
+        let committed = {
+            let mut lifecycle = self
+                .inner
+                .lifecycle
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if lifecycle.is_stale() {
+                None
+            } else {
+                if let Some(runner) = runner {
+                    if !lifecycle
+                        .bound_runners
+                        .iter()
+                        .any(|bound| bound.ptr_eq(&runner))
+                    {
+                        lifecycle.bound_runners.push(runner);
+                    }
+                }
+                commit.take().map(|commit| commit())
+            }
+        };
+        // An uncalled closure owns rejected inputs. Both it and any returned
+        // previous binding must outlive the lifecycle/target mutex guards.
+        drop(commit);
+        committed
+    }
+
     /// Upstream `assertActive()`.
     pub fn assert_active(&self) -> Result<(), String> {
         match self
             .inner
-            .stale
+            .lifecycle
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .message
             .clone()
         {
             Some(message) if !message.is_empty() => Err(message),
@@ -555,27 +781,76 @@ impl ExtensionRuntime {
     /// Upstream `invalidate(message?)` — first nonempty message wins; unsubscribes
     /// tracked event-bus subscriptions.
     pub fn invalidate(&self, message: Option<&str>) {
-        {
-            let mut stale = self
+        let unsubs = {
+            let mut lifecycle = self
                 .inner
-                .stale
+                .lifecycle
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if stale.as_ref().is_some_and(|message| !message.is_empty()) {
+            if lifecycle.is_stale() {
                 return;
             }
-            *stale = Some(message.unwrap_or(DEFAULT_STALE_MESSAGE).to_string());
+            let message = message.unwrap_or(DEFAULT_STALE_MESSAGE);
+            lifecycle.message = Some(message.to_string());
+            lifecycle.pending_unsubscribe_batches += 1;
+            self.inner
+                .event_bus_unsubscribers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .drain(..)
+                .collect::<Vec<_>>()
+        };
+        self.unsubscribe_batch().cancel(unsubs);
+    }
+
+    // The caller registers this batch under lifecycle before releasing it.
+    fn unsubscribe_batch(&self) -> UnsubscribeBatch {
+        UnsubscribeBatch {
+            runtime: self.clone(),
+            completed: false,
         }
-        let unsubs = self
+    }
+
+    fn finish_unsubscribe_batch(&self) -> Option<RetiredBindings> {
+        let mut lifecycle = self
             .inner
-            .event_bus_unsubscribers
+            .lifecycle
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .drain(..)
-            .collect::<Vec<_>>();
-        for entry in unsubs {
-            entry.unsubscribe();
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        lifecycle.pending_unsubscribe_batches -= 1;
+        if lifecycle.pending_unsubscribe_batches != 0
+            || !lifecycle.is_stale()
+            || lifecycle.bindings_retired
+        {
+            return None;
         }
+        lifecycle.bindings_retired = true;
+        let mut state = self
+            .inner
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Some(RetiredBindings {
+            message: lifecycle.message.clone().unwrap_or_default(),
+            runners: std::mem::take(&mut lifecycle.bound_runners),
+            actions: state.actions.take(),
+            create_context: state.create_context.take(),
+            mcp_change_sink: state.mcp_change_sink.take(),
+            provider_routing: state.provider_routing.take(),
+            virtual_model_routing: state.virtual_model_routing.take(),
+        })
+    }
+
+    fn unsubscribe_entry(&self, entry: TrackedEntry) {
+        {
+            let mut lifecycle = self
+                .inner
+                .lifecycle
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            lifecycle.pending_unsubscribe_batches += 1;
+        }
+        self.unsubscribe_batch().cancel(vec![entry]);
     }
 
     /// Upstream `trackEventBusSubscription(unsubscribe)`: retain the
@@ -585,14 +860,32 @@ impl ExtensionRuntime {
         handle: EventBusUnsubscribe,
     ) -> TrackedEventBusUnsubscribe {
         let slot = Arc::new(Mutex::new(Some(handle)));
-        self.inner
-            .event_bus_unsubscribers
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push(TrackedEntry {
-                slot: Arc::clone(&slot),
-            });
-        TrackedEventBusUnsubscribe { slot }
+        let rejected = {
+            let mut lifecycle = self
+                .inner
+                .lifecycle
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if lifecycle.is_stale() {
+                lifecycle.pending_unsubscribe_batches += 1;
+                true
+            } else {
+                self.inner
+                    .event_bus_unsubscribers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(TrackedEntry { slot: slot.clone() });
+                false
+            }
+        };
+        if rejected {
+            self.unsubscribe_batch()
+                .cancel(vec![TrackedEntry { slot: slot.clone() }]);
+        }
+        TrackedEventBusUnsubscribe {
+            slot,
+            runtime: Arc::downgrade(&self.inner),
+        }
     }
 
     fn actions(&self) -> Result<Arc<super::types::ExtensionActions>, String> {
@@ -789,6 +1082,7 @@ impl ExtensionRuntime {
 
     /// Upstream `runtime.createContext()`: a throwing stub until `bindCore`.
     pub fn create_context(&self) -> Result<super::types::ExtensionContext, String> {
+        self.assert_active()?;
         let create = self
             .with_state(|state| state.create_context.clone())
             .ok_or_else(|| RUNTIME_NOT_INITIALIZED.to_string())?;
@@ -927,17 +1221,18 @@ impl Default for ExtensionRuntime {
 #[derive(Clone)]
 pub struct TrackedEventBusUnsubscribe {
     slot: Arc<Mutex<Option<EventBusUnsubscribe>>>,
+    runtime: Weak<RuntimeInner>,
 }
 
 impl TrackedEventBusUnsubscribe {
     pub fn unsubscribe(&self) {
-        if let Some(handle) = self
-            .slot
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take()
-        {
-            handle.unsubscribe();
+        let entry = TrackedEntry {
+            slot: self.slot.clone(),
+        };
+        if let Some(inner) = self.runtime.upgrade() {
+            ExtensionRuntime { inner }.unsubscribe_entry(entry);
+        } else {
+            entry.unsubscribe();
         }
     }
 }
@@ -1099,7 +1394,8 @@ impl ExtensionApi {
             .lifecycle
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .phase == ApiPhase::Active;
+            .phase
+            == ApiPhase::Active;
         let registered = RegisteredTool {
             definition: Arc::new(tool),
             source_info,

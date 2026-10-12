@@ -198,6 +198,7 @@ pub struct ProviderActions {
     pub unregister_virtual_model: Option<super::types::UnregisterVirtualModelHandler>,
 }
 
+#[derive(Clone)]
 pub(crate) struct CoreActions {
     pub get_model: super::types::GetModelHandler,
     pub get_scoped_models: super::types::GetScopedModelsHandler,
@@ -221,6 +222,124 @@ pub(crate) struct CoreActions {
     pub execute_tool: Option<super::types::ExecuteToolFn>,
     /// Backs `ExtensionToolContext.tools` (upstream `getCallableToolsFn`).
     pub get_callable_tools: Option<super::types::CallableToolsFn>,
+}
+
+impl CoreActions {
+    fn defaults(cwd: String) -> Self {
+        Self {
+            get_model: Arc::new(|| None),
+            get_scoped_models: Arc::new(Vec::new),
+            is_idle: Arc::new(|| true),
+            is_project_trusted: Arc::new(|| true),
+            get_signal: Arc::new(|| None),
+            abort: Arc::new(|| {}),
+            has_pending_messages: Arc::new(|| false),
+            shutdown: Arc::new(|| {}),
+            get_context_usage: Arc::new(|| None),
+            compact: Arc::new(|_| {}),
+            get_system_prompt: Arc::new(String::new),
+            get_system_prompt_options: Arc::new(move || BuildSystemPromptOptions::with_cwd(&cwd)),
+            wait_for_idle: Arc::new(|| Ok(CommandFuture::resolved(()))),
+            new_session: Arc::new(|_| {
+                Ok(CommandFuture::resolved(super::types::Cancelled {
+                    cancelled: false,
+                }))
+            }),
+            fork: Arc::new(|_, _| {
+                Ok(CommandFuture::resolved(super::types::Cancelled {
+                    cancelled: false,
+                }))
+            }),
+            navigate_tree: Arc::new(|_, _| {
+                Ok(CommandFuture::resolved(super::types::Cancelled {
+                    cancelled: false,
+                }))
+            }),
+            switch_session: Arc::new(|_, _| {
+                Ok(CommandFuture::resolved(super::types::Cancelled {
+                    cancelled: false,
+                }))
+            }),
+            reload: Arc::new(|| Ok(CommandFuture::resolved(()))),
+            execute_tool: None,
+            get_callable_tools: None,
+        }
+    }
+
+    fn drop_catching(self, first_panic: &mut Option<super::loader::PanicPayload>) {
+        let Self {
+            get_model,
+            get_scoped_models,
+            is_idle,
+            is_project_trusted,
+            get_signal,
+            abort,
+            has_pending_messages,
+            shutdown,
+            get_context_usage,
+            compact,
+            get_system_prompt,
+            get_system_prompt_options,
+            wait_for_idle,
+            new_session,
+            fork,
+            navigate_tree,
+            switch_session,
+            reload,
+            execute_tool,
+            get_callable_tools,
+        } = self;
+        // Catch each callback separately so one destructor cannot strand the
+        // remaining captures or replace an earlier unsubscribe panic.
+        macro_rules! retire {
+            ($($callback:ident),+ $(,)?) => {
+                $(super::loader::catch_cleanup(first_panic, || drop($callback));)+
+            };
+        }
+        retire!(
+            get_model,
+            get_scoped_models,
+            is_idle,
+            is_project_trusted,
+            get_signal,
+            abort,
+            has_pending_messages,
+            shutdown,
+            get_context_usage,
+            compact,
+            get_system_prompt,
+            get_system_prompt_options,
+            wait_for_idle,
+            new_session,
+            fork,
+            navigate_tree,
+            switch_session,
+            reload,
+            execute_tool,
+            get_callable_tools
+        );
+    }
+}
+
+pub(crate) struct RetiredRunnerBindings {
+    core: CoreActions,
+    ui: Option<Arc<dyn super::types::ExtensionUI>>,
+    listeners: Vec<(u64, ExtensionErrorListener)>,
+}
+
+impl RetiredRunnerBindings {
+    pub(crate) fn drop_catching(self, first_panic: &mut Option<super::loader::PanicPayload>) {
+        let Self {
+            core,
+            ui,
+            listeners,
+        } = self;
+        core.drop_catching(first_panic);
+        super::loader::catch_cleanup(first_panic, || drop(ui));
+        for (_, listener) in listeners {
+            super::loader::catch_cleanup(first_panic, || drop(listener));
+        }
+    }
 }
 
 pub(crate) struct RunnerInner {
@@ -247,6 +366,46 @@ pub(crate) struct RunnerInner {
     pub reported_mcp_servers: Mutex<std::collections::HashSet<String>>,
 }
 
+impl RunnerInner {
+    pub(crate) fn retire_bindings(&self, message: &str) -> RetiredRunnerBindings {
+        {
+            let mut stale = self
+                .stale
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if stale.as_ref().is_none_or(|message| message.is_empty()) {
+                *stale = Some(message.to_string());
+            }
+        }
+        // Runtime retirement has already committed stale under lifecycle.
+        // No binding can write now; take each owner without running its Drop.
+        let core = {
+            let mut actions = self
+                .actions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            std::mem::replace(&mut *actions, CoreActions::defaults(self.cwd.clone()))
+        };
+        let ui = self
+            .ui
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        let listeners = std::mem::take(
+            &mut self
+                .error_listeners
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .listeners,
+        );
+        RetiredRunnerBindings {
+            core,
+            ui,
+            listeners,
+        }
+    }
+}
+
 pub(crate) struct ErrorListeners {
     next_id: u64,
     listeners: Vec<(u64, ExtensionErrorListener)>,
@@ -261,11 +420,18 @@ pub struct ErrorListenerUnsubscribe {
 
 impl ErrorListenerUnsubscribe {
     pub fn unsubscribe(&self) {
-        let mut listeners = self
-            .listeners
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        listeners.listeners.retain(|(id, _)| *id != self.id);
+        let removed = {
+            let mut listeners = self
+                .listeners
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            listeners
+                .listeners
+                .iter()
+                .position(|(id, _)| *id == self.id)
+                .map(|index| listeners.listeners.remove(index))
+        };
+        drop(removed);
     }
 }
 
@@ -301,46 +467,7 @@ impl ExtensionRunner {
                     next_id: 0,
                     listeners: Vec::new(),
                 })),
-                actions: Mutex::new(CoreActions {
-                    get_model: Arc::new(|| None),
-                    get_scoped_models: Arc::new(Vec::new),
-                    is_idle: Arc::new(|| true),
-                    is_project_trusted: Arc::new(|| true),
-                    get_signal: Arc::new(|| None),
-                    abort: Arc::new(|| {}),
-                    has_pending_messages: Arc::new(|| false),
-                    shutdown: Arc::new(|| {}),
-                    get_context_usage: Arc::new(|| None),
-                    compact: Arc::new(|_| {}),
-                    get_system_prompt: Arc::new(String::new),
-                    get_system_prompt_options: Arc::new(move || {
-                        BuildSystemPromptOptions::with_cwd(&cwd)
-                    }),
-                    wait_for_idle: Arc::new(|| Ok(CommandFuture::resolved(()))),
-                    new_session: Arc::new(|_| {
-                        Ok(CommandFuture::resolved(super::types::Cancelled {
-                            cancelled: false,
-                        }))
-                    }),
-                    fork: Arc::new(|_, _| {
-                        Ok(CommandFuture::resolved(super::types::Cancelled {
-                            cancelled: false,
-                        }))
-                    }),
-                    navigate_tree: Arc::new(|_, _| {
-                        Ok(CommandFuture::resolved(super::types::Cancelled {
-                            cancelled: false,
-                        }))
-                    }),
-                    switch_session: Arc::new(|_, _| {
-                        Ok(CommandFuture::resolved(super::types::Cancelled {
-                            cancelled: false,
-                        }))
-                    }),
-                    reload: Arc::new(|| Ok(CommandFuture::resolved(()))),
-                    execute_tool: None,
-                    get_callable_tools: None,
-                }),
+                actions: Mutex::new(CoreActions::defaults(cwd)),
                 shortcut_diagnostics: Mutex::new(Vec::new()),
                 command_diagnostics: Mutex::new(Vec::new()),
                 stale: Mutex::new(None),
@@ -360,46 +487,68 @@ impl ExtensionRunner {
     ) {
         // Copy actions into the shared runtime (all extension APIs reference
         // this).
-        self.inner
+        let runtime_actions = Arc::clone(&actions);
+        if !self
+            .inner
             .runtime
-            .with_state(|state| state.actions = Some(Arc::clone(&actions)));
+            .install_if_active(move |state| state.actions.replace(runtime_actions))
+        {
+            return;
+        }
 
         // Context actions (required).
-        {
+        let replaced_core = self.inner.runtime.commit_runner_if_active(&self.inner, || {
             let mut core = self
                 .inner
                 .actions
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            core.get_model = Arc::clone(&context_actions.get_model);
-            core.get_scoped_models = Arc::clone(&context_actions.get_scoped_models);
-            core.is_idle = Arc::clone(&context_actions.is_idle);
-            core.is_project_trusted = Arc::clone(&context_actions.is_project_trusted);
-            core.get_signal = Arc::clone(&context_actions.get_signal);
-            core.abort = Arc::clone(&context_actions.abort);
-            core.has_pending_messages = Arc::clone(&context_actions.has_pending_messages);
-            core.shutdown = Arc::clone(&context_actions.shutdown);
-            core.get_context_usage = Arc::clone(&context_actions.get_context_usage);
-            core.compact = Arc::clone(&context_actions.compact);
-            core.get_system_prompt = Arc::clone(&context_actions.get_system_prompt);
-            core.get_system_prompt_options = match &context_actions.get_system_prompt_options {
+            // Keep the original owners until after unlock, so replacing a
+            // context callback cannot invoke its resource destructor here.
+            let mut replacement = core.clone();
+            replacement.get_model = Arc::clone(&context_actions.get_model);
+            replacement.get_scoped_models = Arc::clone(&context_actions.get_scoped_models);
+            replacement.is_idle = Arc::clone(&context_actions.is_idle);
+            replacement.is_project_trusted = Arc::clone(&context_actions.is_project_trusted);
+            replacement.get_signal = Arc::clone(&context_actions.get_signal);
+            replacement.abort = Arc::clone(&context_actions.abort);
+            replacement.has_pending_messages = Arc::clone(&context_actions.has_pending_messages);
+            replacement.shutdown = Arc::clone(&context_actions.shutdown);
+            replacement.get_context_usage = Arc::clone(&context_actions.get_context_usage);
+            replacement.compact = Arc::clone(&context_actions.compact);
+            replacement.get_system_prompt = Arc::clone(&context_actions.get_system_prompt);
+            replacement.get_system_prompt_options = match &context_actions.get_system_prompt_options
+            {
                 Some(get) => Arc::clone(get),
                 None => Arc::new({
                     let cwd = self.inner.cwd.clone();
                     move || BuildSystemPromptOptions::with_cwd(&cwd)
                 }),
             };
-            core.execute_tool = context_actions.execute_tool.clone();
-            core.get_callable_tools = context_actions.get_callable_tools.clone();
+            replacement.execute_tool = context_actions.execute_tool.clone();
+            replacement.get_callable_tools = context_actions.get_callable_tools.clone();
+            std::mem::replace(&mut *core, replacement)
+        });
+        let accepted = replaced_core.is_some();
+        drop(replaced_core);
+        if !accepted {
+            return;
         }
 
         // `runtime.createContext` becomes live (upstream: `() =>
         // this.createContext()`); before this it throws `notInitialized`.
         {
             let runner = self.clone();
-            self.inner.runtime.with_state(|state| {
-                state.create_context = Some(Arc::new(move || Ok(runner.create_context())));
-            });
+            let create_context: Arc<
+                dyn Fn() -> Result<super::types::ExtensionContext, String> + Send + Sync,
+            > = Arc::new(move || Ok(runner.create_context()));
+            if !self
+                .inner
+                .runtime
+                .install_if_active(move |state| state.create_context.replace(create_context))
+            {
+                return;
+            }
         }
 
         // Servers registered from now on reach the extension that connects
@@ -409,9 +558,13 @@ impl ExtensionRunner {
             let sink = Arc::new(super::loader::McpChangeSink {
                 runner: self.clone(),
             });
-            self.inner
+            if !self
+                .inner
                 .runtime
-                .with_state(|state| state.mcp_change_sink = Some(sink));
+                .install_if_active(move |state| state.mcp_change_sink.replace(sink))
+            {
+                return;
+            }
         }
 
         // Flush provider registrations queued during extension loading.
@@ -497,22 +650,27 @@ impl ExtensionRunner {
         let registry = Arc::clone(&self.inner.model_registry);
         let fallback_unregister: super::types::UnregisterProviderHandler =
             Arc::new(move |name| registry.unregister_provider(name));
-        self.inner.runtime.with_state(|state| {
-            state.provider_routing = Some(ProviderRouting {
-                register_provider: provider_actions
-                    .as_ref()
-                    .and_then(|actions| actions.register_provider.clone())
-                    .unwrap_or(fallback_register),
-                register_native_provider: provider_actions
-                    .as_ref()
-                    .and_then(|actions| actions.register_native_provider.clone())
-                    .unwrap_or(fallback_register_native),
-                unregister_provider: provider_actions
-                    .as_ref()
-                    .and_then(|actions| actions.unregister_provider.clone())
-                    .unwrap_or(fallback_unregister),
-            });
-        });
+        let routing = ProviderRouting {
+            register_provider: provider_actions
+                .as_ref()
+                .and_then(|actions| actions.register_provider.clone())
+                .unwrap_or(fallback_register),
+            register_native_provider: provider_actions
+                .as_ref()
+                .and_then(|actions| actions.register_native_provider.clone())
+                .unwrap_or(fallback_register_native),
+            unregister_provider: provider_actions
+                .as_ref()
+                .and_then(|actions| actions.unregister_provider.clone())
+                .unwrap_or(fallback_unregister),
+        };
+        if !self
+            .inner
+            .runtime
+            .install_if_active(move |state| state.provider_routing.replace(routing))
+        {
+            return;
+        }
 
         // Virtual-model registration/unregistration takes effect immediately.
         let provider_register = provider_actions
@@ -527,55 +685,46 @@ impl ExtensionRunner {
         let registry = Arc::clone(&self.inner.model_registry);
         let fallback_unregister_vm: super::types::UnregisterVirtualModelHandler =
             Arc::new(move |provider, id| registry.unregister_virtual_model(provider, id));
-        self.inner.runtime.with_state(|state| {
-            state.virtual_model_routing = Some(super::loader::VirtualModelRouting {
-                register: provider_register.unwrap_or(fallback_register_vm),
-                unregister: provider_unregister.unwrap_or(fallback_unregister_vm),
-            });
-        });
+        let routing = super::loader::VirtualModelRouting {
+            register: provider_register.unwrap_or(fallback_register_vm),
+            unregister: provider_unregister.unwrap_or(fallback_unregister_vm),
+        };
+        self.inner
+            .runtime
+            .install_if_active(move |state| state.virtual_model_routing.replace(routing));
     }
 
     /// Upstream `bindCommandContext(actions?)`.
     pub fn bind_command_context(&self, actions: Option<ExtensionCommandContextActions>) {
-        let mut core = self
-            .inner
-            .actions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        match actions {
-            Some(actions) => {
-                core.wait_for_idle = Arc::clone(&actions.wait_for_idle);
-                core.new_session = Arc::clone(&actions.new_session);
-                core.fork = Arc::clone(&actions.fork);
-                core.navigate_tree = Arc::clone(&actions.navigate_tree);
-                core.switch_session = Arc::clone(&actions.switch_session);
-                core.reload = Arc::clone(&actions.reload);
+        let replaced = self.inner.runtime.commit_runner_if_active(&self.inner, || {
+            let mut core = self
+                .inner
+                .actions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut replacement = core.clone();
+            match &actions {
+                Some(actions) => {
+                    replacement.wait_for_idle = Arc::clone(&actions.wait_for_idle);
+                    replacement.new_session = Arc::clone(&actions.new_session);
+                    replacement.fork = Arc::clone(&actions.fork);
+                    replacement.navigate_tree = Arc::clone(&actions.navigate_tree);
+                    replacement.switch_session = Arc::clone(&actions.switch_session);
+                    replacement.reload = Arc::clone(&actions.reload);
+                }
+                None => {
+                    let defaults = CoreActions::defaults(self.inner.cwd.clone());
+                    replacement.wait_for_idle = defaults.wait_for_idle;
+                    replacement.new_session = defaults.new_session;
+                    replacement.fork = defaults.fork;
+                    replacement.navigate_tree = defaults.navigate_tree;
+                    replacement.switch_session = defaults.switch_session;
+                    replacement.reload = defaults.reload;
+                }
             }
-            None => {
-                core.wait_for_idle = Arc::new(|| Ok(CommandFuture::resolved(())));
-                core.new_session = Arc::new(|_| {
-                    Ok(CommandFuture::resolved(super::types::Cancelled {
-                        cancelled: false,
-                    }))
-                });
-                core.fork = Arc::new(|_, _| {
-                    Ok(CommandFuture::resolved(super::types::Cancelled {
-                        cancelled: false,
-                    }))
-                });
-                core.navigate_tree = Arc::new(|_, _| {
-                    Ok(CommandFuture::resolved(super::types::Cancelled {
-                        cancelled: false,
-                    }))
-                });
-                core.switch_session = Arc::new(|_, _| {
-                    Ok(CommandFuture::resolved(super::types::Cancelled {
-                        cancelled: false,
-                    }))
-                });
-                core.reload = Arc::new(|| Ok(CommandFuture::resolved(())));
-            }
-        }
+            std::mem::replace(&mut *core, replacement)
+        });
+        drop(replaced);
     }
 
     /// Upstream `setUIContext(uiContext?, mode = "print")`.
@@ -584,16 +733,23 @@ impl ExtensionRunner {
         ui_context: Option<Arc<dyn super::types::ExtensionUI>>,
         mode: ExtensionMode,
     ) {
-        *self
-            .inner
-            .ui
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = ui_context;
-        *self
-            .inner
-            .mode
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = mode;
+        let replaced = self.inner.runtime.commit_runner_if_active(&self.inner, || {
+            let replaced = std::mem::replace(
+                &mut *self
+                    .inner
+                    .ui
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                ui_context,
+            );
+            *self
+                .inner
+                .mode
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = mode;
+            replaced
+        });
+        drop(replaced);
     }
 
     /// Upstream `getUIContext()`.
@@ -787,32 +943,45 @@ impl ExtensionRunner {
     }
 
     fn assert_active(&self) -> Result<(), String> {
-        match self
+        let message = self
             .inner
             .stale
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone()
-        {
+            .clone();
+        match message {
             Some(message) if !message.is_empty() => Err(message),
-            _ => Ok(()),
+            _ => self.inner.runtime.assert_active(),
         }
     }
 
     /// Upstream `onError(listener)`; returns the unsubscribe closure.
     pub fn on_error(&self, listener: ExtensionErrorListener) -> ErrorListenerUnsubscribe {
-        let mut listeners = self
-            .inner
-            .error_listeners
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let id = listeners.next_id;
-        listeners.next_id += 1;
-        listeners.listeners.push((id, listener));
-        ErrorListenerUnsubscribe {
-            listeners: Arc::clone(&self.inner.error_listeners),
-            id,
-        }
+        self.inner
+            .runtime
+            .commit_runner_if_active(&self.inner, || {
+                let mut listeners = self
+                    .inner
+                    .error_listeners
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let id = listeners.next_id;
+                listeners.next_id += 1;
+                listeners.listeners.push((id, listener));
+                ErrorListenerUnsubscribe {
+                    listeners: Arc::clone(&self.inner.error_listeners),
+                    id,
+                }
+            })
+            .unwrap_or_else(|| ErrorListenerUnsubscribe {
+                // A rejected observer still receives an idempotent noop handle,
+                // never an id that could cancel an earlier listener.
+                listeners: Arc::new(Mutex::new(ErrorListeners {
+                    next_id: 0,
+                    listeners: Vec::new(),
+                })),
+                id: 0,
+            })
     }
 
     /// Upstream `emitError(error)`.
@@ -2109,15 +2278,15 @@ fn trust_context_shim(ctx: &ProjectTrustContext) -> ExtensionContext {
 
 impl ExtensionContext {
     fn assert_active(&self) -> Result<(), String> {
-        match self
+        let message = self
             .inner
             .stale
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone()
-        {
+            .clone();
+        match message {
             Some(message) if !message.is_empty() => Err(message),
-            _ => Ok(()),
+            _ => self.inner.runtime.assert_active(),
         }
     }
 
@@ -2270,17 +2439,7 @@ impl ExtensionContext {
 
 impl ExtensionCommandContext {
     fn assert_active(&self) -> Result<(), String> {
-        match self
-            .base
-            .inner
-            .stale
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone()
-        {
-            Some(message) if !message.is_empty() => Err(message),
-            _ => Ok(()),
-        }
+        self.base.assert_active()
     }
 
     /// Upstream `ctx.getSystemPromptOptions()`.

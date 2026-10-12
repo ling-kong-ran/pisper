@@ -1002,7 +1002,11 @@ impl ModelRuntime {
 
     /// Upstream `hasConfiguredAuth`.
     pub fn has_configured_auth(&self, provider_id: &str) -> bool {
-        self.snapshot().configured_providers.contains(provider_id)
+        // Initial model selection probes every catalog entry; cloning the full
+        // snapshot here would turn one scan into quadratic model copies.
+        lock(&self.0.snapshot)
+            .configured_providers
+            .contains(provider_id)
     }
 
     /// Upstream `getAuth(providerId | model, overrides)`.
