@@ -62,6 +62,7 @@ async function runRelease(overrides = {}) {
         env: {
           ...process.env,
           PISPER_RELEASE_BRANCH: 'release',
+          PISPER_RELEASE_POLL_SECONDS: fixture.pollSeconds || '',
           PISPER_RELEASE_TEST_FIXTURE: JSON.stringify(fixture),
           npm_execpath: 'fixture-npm-cli',
         },
@@ -112,6 +113,27 @@ test('Rust release dispatches native components in dependency order without upda
       ({ command, args }) => command === 'gh' && args.join(' ') === 'run watch 100 --exit-status',
     ),
   )
+})
+
+test('a configured release poll interval applies to each frozen channel watch', async () => {
+  const result = await runRelease({ pollSeconds: '600' })
+  assert.equal(result.status, 0, result.stderr)
+  const watches = result.commands.filter(
+    ({ command, args }) => command === 'gh' && args[0] === 'run' && args[1] === 'watch',
+  )
+  assert.equal(watches.length, dispatches(result).length)
+  for (const { args } of watches) {
+    assert.ok(args.includes('--interval'))
+    assert.equal(args[args.indexOf('--interval') + 1], '600')
+    assert.ok(args.includes('--exit-status'))
+  }
+})
+
+test('a zero poll interval is rejected before release commands can run', async () => {
+  const result = await runRelease({ pollSeconds: '0' })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /PISPER_RELEASE_POLL_SECONDS/)
+  assert.equal(result.commands.length, 0)
 })
 
 test('catalog changes are checked before committing and all channels use the frozen updated source', async () => {

@@ -207,6 +207,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
+      - name: Install and verify locked desktop test browsers
+        if: inputs.component == 'desktop'
+        shell: bash
+        run: |
+          node node_modules/playwright-core/cli.js install --with-deps chromium
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright-core'
+          for (const options of [{ headless: true }, { headless: true, executablePath: chromium.executablePath() }]) {
+            const browser = await chromium.launch(options)
+            try {
+              console.log(`Desktop test browser ready: ${browser.version()}`)
+            } finally {
+              await browser.close()
+            }
+          }
+          NODE
       - name: Check native project directory flow
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         run: npm run test:project-directory
@@ -243,7 +259,7 @@ jobs:
               ;;
           esac
       - name: Preserve isolated desktop failure diagnostics
-        if: failure() && inputs.component == 'desktop' && runner.os == 'Windows'
+        if: failure() && inputs.component == 'desktop'
         uses: actions/upload-artifact@v4
         with:
           name: release-diagnostics-${{ matrix.target }}-${{ github.run_attempt }}
@@ -254,6 +270,8 @@ jobs:
             release/local-rust-build/usability/*/server.log
             release/local-rust-build/usability/*/*failure*.json
             release/local-rust-build/usability/*/*.png
+            release/project-directory-smoke/report.json
+            release/project-directory-smoke/*.png
       - name: Verify the Windows installer embeds a signed WebView2 bootstrapper
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         shell: pwsh

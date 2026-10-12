@@ -27,6 +27,15 @@ const rustRuntimeLayout =
   !existsSync(join(root, 'runtime', 'index.mjs'))
 const npmCli = String(process.env.npm_execpath || '').trim()
 const rawArgs = process.argv.slice(2)
+const releasePollSeconds = String(process.env.PISPER_RELEASE_POLL_SECONDS || '').trim()
+if (
+  releasePollSeconds &&
+  (!/^\d+$/.test(releasePollSeconds) ||
+    !Number.isSafeInteger(Number(releasePollSeconds)) ||
+    Number(releasePollSeconds) < 1)
+) {
+  throw new Error('PISPER_RELEASE_POLL_SECONDS 必须是正整数秒数。')
+}
 const args = rawArgs.filter((value) => !value.startsWith('--'))
 if (RELEASE_COMPONENTS[args[0]] || args[0] === 'app') {
   throw new Error('发布通道由变更路径自动检测，无需指定 desktop、tui、runtime 或 app。')
@@ -481,7 +490,13 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
   console.log(output)
   console.log(`已请求构建 ${tag}（源提交 ${source}，run ${runId}）。`)
   console.log(`等待 ${tag} 完成后再继续，避免全局发布队列取消排队任务…`)
-  run('gh', ['run', 'watch', runId, '--exit-status'])
+  run('gh', [
+    'run',
+    'watch',
+    runId,
+    '--exit-status',
+    ...(releasePollSeconds ? ['--interval', String(Number(releasePollSeconds))] : []),
+  ])
 }
 
 console.log(`已完成 ${selectedComponents.join('、')} 对应的质量门禁和平台产物发布。`)

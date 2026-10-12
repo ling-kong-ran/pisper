@@ -94,6 +94,8 @@
 
 `npm run test:release` 在隔离临时布局中运行真实发布入口，拦截外部命令以验证 Rust/Node 渠道选择、版本与分支拒绝条件，不执行安装、Git 写入、构建或远端发布；发布质量阶段运行同一测试。Windows Desktop 构建前还运行 `npm run test:project-directory` 验证项目目录交互。桌面资产清单恢复四平台安装包、Windows 离线包、签名、四平台前端组件和完整 `latest.json`。独立 Runtime 使用 `Runtime_Rust` 资产名；npm 发布源显式记录 backend，旧 Node 元数据仍按旧布局读取。新更新器拒绝激活旧 Node Runtime。
 
+Desktop 构建在 `npm ci` 后通过当前锁定的 `playwright-core` CLI 安装 Chromium，并验证普通 Chromium 和 headless shell 均可启动，再执行目录交互与长时间 Rust 打包检查。桌面构建失败时，各平台仅上传隔离测试报告、服务日志与失败截图，诊断资产不参与发布清单。长构建可设置 `PISPER_RELEASE_POLL_SECONDS=600`，使统一发布入口每十分钟检查当前渠道；未设置时保留 GitHub CLI 的默认间隔，任何渠道失败仍停止后续派发。
+
 ### Rust 会话、CLI 与标记验收补充（2026-10-11）
 
 当前 Rust 源码的独立 CLI 本地构建入口为 `npm run tui:build`（等同 `tui:package`），不再调用已删除的 `sidecar:sea`。四个平台共用桌面的语音、rg/fd 与许可证暂存函数，同时包含 Web 前端；发布渠道已接入相应原生包。Mac ARM 最低 14.0；Intel 受锁定 ONNX Runtime 二进制约束，最低 15.5，不能将其声明为兼容更旧系统。开发 CLI 需先构建 `runtime-rs`；具体命令见 `src-tui/README.md`。此前文档中的 SEA 流程只适用于仍保留 Node Runtime 的旧布局。
