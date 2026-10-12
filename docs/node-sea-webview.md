@@ -1,6 +1,17 @@
 # Node SEA + System WebView Desktop Target
 
-Pisper ships a Tauri 2 desktop application that uses each operating system's WebView plus a supervised Node SEA sidecar. New releases no longer build or publish Electron applications.
+Pisper 0.6.x ships a Tauri 2 desktop application with the operating system's WebView and a native Rust Runtime. The Node SEA layout below describes the historical 0.5.x packages; current build commands and validation are documented in [development-workflow.md](development-workflow.md). New releases do not build or publish Electron applications.
+
+## Upgrade from 0.5.x to the Rust desktop
+
+1. Back up `~/.pisper/agent`, or the original directory selected by `PISPER_AGENT_DIR`.
+2. Download the complete installer for the target version, operating system and architecture from [Desktop Releases](https://github.com/ling-kong-ran/pisper/releases?q=v). Quit Pisper before replacing the application. On Windows, run the installer over the existing installation. On macOS, open the appropriate Apple Silicon or Intel DMG and replace Pisper in the same Applications location. On Linux, replace the AppImage or install the newer DEB using the same installation method.
+3. Keep the original Agent directory and any `PISPER_AGENT_DIR` setting. The Rust Runtime reads the existing session, model, MCP and Skill paths directly; uninstalling or deleting data is not part of the upgrade.
+4. Start Pisper, confirm the application version in settings, and check the original sessions and model configuration. The new Shell rejects obsolete Node Runtime components and uses its bundled Rust Runtime.
+
+The 0.5.80 and 0.5.81 Shells can update only components. Their Desktop component contains frontend files and cannot replace the native Shell or complete the transition to Rust. Those versions require the complete installer for this upgrade. Their in-app Desktop update now receives a static notice stating that the upgrade is incomplete, with links to the matching complete installer and Release page. The legacy `Pisper_Desktop_<version>_<platform>_<arch>.tar.gz` asset contains this notice only, not the Rust application's frontend. A `latest.json` entry alone does not make their component updater capable of replacing the application. Subsequent Rust Desktop components use `Pisper_Desktop_Rust_<version>_<platform>_<arch>.tar.gz` and their `.sig` files. This independent asset name prevents an old Node Shell from installing a new frontend without its required Runtime.
+
+The installer replaces application files; the Agent directory remains independent. After the new Rust Runtime starts and passes its health check, Pisper removes only obsolete Node Runtime and upgrade-notice caches in the managed components directory. It does not delete Agent data, project workspaces or user-downloaded files. Cleanup skips packages with unknown metadata, installations in progress and failed health checks; valid Rust components and their required resources are retained. Keep a backup until the upgraded application has read the original data successfully.
 
 ## Layout
 

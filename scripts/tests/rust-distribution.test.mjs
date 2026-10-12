@@ -15,7 +15,10 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { c as createTar } from 'tar'
+import vm from 'node:vm'
+import { c as createTar, t as listTar } from 'tar'
+import { desktopUpgradeNotice } from '../desktop-upgrade-notice.mjs'
+import { RUST_DESKTOP_PLATFORMS } from '../rust-desktop-platforms.mjs'
 import {
   npmPlatformAlias,
   npmPlatformVersion,
@@ -70,6 +73,8 @@ async function fixture(fn) {
     await mkdir(join(root, 'scripts'))
     for (const name of [
       'archive-component-release.mjs',
+      'desktop-upgrade-notice.mjs',
+      'rust-desktop-platforms.mjs',
       'release-components.mjs',
       'verify-tauri-signature.mjs',
     ]) {
@@ -100,6 +105,171 @@ function runArchive(root, component, env) {
     { cwd: root, env, encoding: 'utf8' },
   )
 }
+
+for (const backend of ['node', 'rust']) {
+  test(`Desktop ${backend} packaging publishes a signed frontend under the matching backend identity`, async () => {
+    await fixture(async ({ root, put, signingEnv }) => {
+      await put(backend === 'rust' ? 'runtime-rs/Cargo.toml' : 'runtime/index.mjs', 'fixture')
+      await put('src-tauri/desktop-package.json', JSON.stringify({ version }))
+      await put('dist/index.html', '<!doctype html><title>Desktop fixture</title>')
+      const result = runArchive(root, 'desktop', signingEnv)
+      assert.equal(result.status, 0, result.stderr)
+      const legacyName = `Pisper_Desktop_${version}_${target}.tar.gz`
+      const rustName = `Pisper_Desktop_Rust_${version}_${target}.tar.gz`
+      const expectedName = backend === 'rust' ? rustName : legacyName
+      assert.deepEqual(
+        (await readdir(join(root, 'release/component-artifacts'))).sort(),
+        [
+          expectedName,
+          `${expectedName}.sig`,
+          ...(backend === 'rust' ? [legacyName, `${legacyName}.sig`] : []),
+        ].sort(),
+      )
+      const manifest = JSON.parse(
+        await readFile(
+          join(
+            root,
+            `release/component-stage/pisper-desktop-${version}-${platform}-${arch}/manifest.json`,
+          ),
+          'utf8',
+        ),
+      )
+      assert.equal(manifest.command, 'dist/index.html')
+      assert.equal(manifest.backend, backend === 'rust' ? 'rust' : undefined)
+      if (backend === 'rust') {
+        const noticeRoot = join(
+          root,
+          `release/component-stage/pisper-desktop-upgrade-notice-${version}-${platform}-${arch}`,
+        )
+        const noticeManifest = JSON.parse(await readFile(join(noticeRoot, 'manifest.json'), 'utf8'))
+        assert.equal(noticeManifest.name, 'pisper-desktop')
+        assert.equal(noticeManifest.backend, 'upgrade-notice')
+        assert.equal(noticeManifest.upgradeNotice, true)
+        assert.equal(noticeManifest.version, version)
+        assert.equal(noticeManifest.command, 'dist/index.html')
+        const html = await readFile(join(noticeRoot, 'dist/index.html'), 'utf8')
+        assert.ok(html.includes('当前应用尚未完成 Rust 升级'))
+        assert.ok(html.includes(`Please install the full Pisper ${version} package.`))
+        assert.equal(
+          html.includes('Desktop fixture'),
+          false,
+          'Legacy component must not receive the Rust frontend',
+        )
+        const paths = []
+        await listTar({
+          file: join(root, 'release/component-artifacts', legacyName),
+          strict: true,
+          onReadEntry(entry) {
+            if (entry.type === 'File') paths.push(entry.path.split('/').slice(1).join('/'))
+          },
+        })
+        assert.deepEqual(paths.sort(), [
+          'dist/index.html',
+          'dist/notice.css',
+          'dist/notice.js',
+          'manifest.json',
+        ])
+      }
+    })
+  })
+}
+
+test('legacy upgrade notices link exact signed full installers and reject unsafe versions or targets', () => {
+  for (const [platform, arch, suffix] of [
+    ['windows', 'x86_64', '-setup.exe'],
+    ['darwin', 'aarch64', '.dmg'],
+    ['darwin', 'x86_64', '.dmg'],
+    ['linux', 'x86_64', '.AppImage'],
+  ]) {
+    const notice = desktopUpgradeNotice({ version: '0.6.1', platform, arch })
+    assert.equal(
+      notice.downloadUrl,
+      `https://github.com/ling-kong-ran/pisper/releases/download/v0.6.1/Pisper_0.6.1_${platform}_${arch}${suffix}`,
+    )
+    assert.equal(notice.releaseUrl, 'https://github.com/ling-kong-ran/pisper/releases/tag/v0.6.1')
+    assert.equal(notice.manifest.backend, 'upgrade-notice')
+    assert.equal(notice.manifest.upgradeNotice, true)
+    assert.ok(
+      notice.files['index.html'].includes(
+        `<a class="primary" href="${notice.downloadUrl}" data-external-link>`,
+      ),
+    )
+    assert.match(notice.files['index.html'], /lang="en"/)
+    assert.match(notice.files['notice.css'], /:focus-visible/)
+    assert.match(notice.files['index.html'], /Downloading does not automatically install/)
+    assert.ok(notice.files['index.html'].includes('原会话、模型配置、MCP 和技能保留在原位置'))
+    assert.ok(notice.files['index.html'].includes('覆盖安装时不要先卸载，也不要删除应用数据'))
+    assert.ok(
+      notice.files['index.html'].includes(
+        'Your sessions, model configuration, MCP, and skills remain in their original locations.',
+      ),
+    )
+    assert.ok(
+      notice.files['index.html'].includes(
+        'without uninstalling first or deleting application data',
+      ),
+    )
+    const profile = Object.values(RUST_DESKTOP_PLATFORMS).find(
+      (entry) => entry.assetTarget === `${platform}-${arch}`,
+    )
+    if (profile.minimumSystemVersion)
+      assert.ok(
+        notice.files['index.html'].includes(`macOS ${profile.minimumSystemVersion} or later`),
+      )
+  }
+  for (const input of [
+    { version: '0.6.1/<script>', platform: 'darwin', arch: 'aarch64' },
+    { version: '0.6.1', platform: 'linux', arch: 'aarch64' },
+    { version: 'latest', platform: 'windows', arch: 'x86_64' },
+  ])
+    assert.throws(() => desktopUpgradeNotice(input), /exact|Unsupported/)
+})
+
+test('legacy upgrade notice uses the delivered Tauri external URL command and ordinary link fallback', async () => {
+  const notice = desktopUpgradeNotice({ version: '0.6.1', platform: 'darwin', arch: 'aarch64' })
+  for (const result of [true, false, 'error', 'missing']) {
+    let handler
+    let prevented = false
+    const calls = []
+    const navigations = []
+    const link = {
+      href: notice.downloadUrl,
+      addEventListener: (_, fn) => {
+        handler = fn
+      },
+    }
+    const invoke = async (command, input) => {
+      calls.push({ command, input: { ...input } })
+      if (result === 'error') throw new Error('Fixture bridge unavailable')
+      return result
+    }
+    vm.runInNewContext(notice.files['notice.js'], {
+      window: {
+        ...(result === 'missing' ? {} : { __TAURI__: { core: { invoke } } }),
+        location: { assign: (url) => navigations.push(url) },
+      },
+      document: { querySelectorAll: () => [link] },
+    })
+    if (result === 'missing') {
+      assert.equal(
+        handler,
+        undefined,
+        'Without native bridge, normal accessible anchors retain their behavior',
+      )
+      continue
+    }
+    handler({
+      button: 0,
+      preventDefault: () => {
+        prevented = true
+      },
+    })
+    await new Promise(setImmediate)
+    assert.equal(prevented, true)
+    assert.deepEqual(calls, [{ command: 'desktop_open_url', input: { url: notice.downloadUrl } }])
+    assert.deepEqual(navigations, result === true ? [] : [notice.downloadUrl])
+  }
+})
 
 test('Rust component packaging produces signed native Runtime and finds the actual Darwin CLI stage', async () => {
   await fixture(async ({ root, put, signingEnv }) => {
@@ -332,6 +502,8 @@ test('desktop release requires installers, offline installer, updates and fronte
       `Pisper_${version}_linux_x86_64.AppImage.sig`,
       `Pisper_${version}_linux_x86_64.deb`,
       ...['windows_x86_64', 'darwin_aarch64', 'darwin_x86_64', 'linux_x86_64'].flatMap((target) => [
+        `Pisper_Desktop_Rust_${version}_${target}.tar.gz`,
+        `Pisper_Desktop_Rust_${version}_${target}.tar.gz.sig`,
         `Pisper_Desktop_${version}_${target}.tar.gz`,
         `Pisper_Desktop_${version}_${target}.tar.gz.sig`,
       ]),
@@ -344,10 +516,22 @@ test('desktop release requires installers, offline installer, updates and fronte
         { encoding: 'utf8' },
       )
     assert.equal(validate().status, 0)
+    assert.equal(
+      names.length,
+      30,
+      'Every platform requires both Rust frontend and legacy installation notice',
+    )
+    const noticeName = `Pisper_Desktop_${version}_linux_x86_64.tar.gz`
+    await rm(join(root, noticeName))
+    assert.match(validate().stderr, /Missing release assets.*Pisper_Desktop_/)
+    await writeFile(join(root, noticeName), 'fixture')
+    await writeFile(join(root, 'unexpected.tar.gz'), 'fixture')
+    assert.match(validate().stderr, /Unexpected release assets.*unexpected/)
+    await rm(join(root, 'unexpected.tar.gz'))
     await rm(join(root, `Pisper_${version}_darwin_x86_64.dmg`))
     assert.match(validate().stderr, /Missing release assets.*darwin_x86_64/)
     await writeFile(join(root, `Pisper_${version}_darwin_x86_64.dmg`), 'fixture')
-    await rm(join(root, `Pisper_Desktop_${version}_linux_x86_64.tar.gz.sig`))
+    await rm(join(root, `Pisper_Desktop_Rust_${version}_linux_x86_64.tar.gz.sig`))
     assert.match(validate().stderr, /Missing release assets.*Desktop.*linux_x86_64/)
   } finally {
     await rm(root, { recursive: true, force: true })

@@ -28,6 +28,8 @@ const tauriAssets = [
   `Pisper_${version}_linux_x86_64.AppImage.sig`,
   `Pisper_${version}_linux_x86_64.deb`,
   ...['windows_x86_64', 'darwin_aarch64', 'darwin_x86_64', 'linux_x86_64'].flatMap((target) => [
+    `Pisper_Desktop_Rust_${version}_${target}.tar.gz`,
+    `Pisper_Desktop_Rust_${version}_${target}.tar.gz.sig`,
     `Pisper_Desktop_${version}_${target}.tar.gz`,
     `Pisper_Desktop_${version}_${target}.tar.gz.sig`,
   ]),

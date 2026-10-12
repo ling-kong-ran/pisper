@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -195,4 +195,115 @@ test('mobile-only Rust changes dispatch the App channel', async () => {
     dispatches(result).map(({ args }) => args[2]),
     ['release-app.yml'],
   )
+})
+
+async function generateReleaseNotes({ channel = 'desktop', layout = 'rust' } = {}) {
+  const root = await mkdtemp(path.join(tmpdir(), 'pisper-release-notes-'))
+  try {
+    async function put(relative, contents) {
+      const target = path.join(root, relative)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, contents)
+    }
+    await mkdir(path.join(root, 'scripts'))
+    for (const name of [
+      'prepare-release.mjs',
+      'prepare-app-release.mjs',
+      'release-changes.mjs',
+      'release-components.mjs',
+      'app-paths.mjs',
+    ])
+      await copyFile(path.join(repo, 'scripts', name), path.join(root, 'scripts', name))
+    await put('package.json', JSON.stringify({ version: '0.6.1' }))
+    await put('src-tauri/desktop-package.json', JSON.stringify({ version: '0.6.1' }))
+    await put('src-tauri/mobile-package.json', JSON.stringify({ version: '0.1.55' }))
+    await put('src-tui/Cargo.toml', '[package]\nname = "pisper-tui"\nversion = "0.6.1"\n')
+    await put(layout === 'rust' ? 'runtime-rs/Cargo.toml' : 'runtime/index.mjs', 'fixture')
+    const fixturePath = {
+      desktop: 'src/features/chat/page.tsx',
+      runtime: 'runtime-rs/src/lib.rs',
+      tui: 'src-tui/src/main.rs',
+      app: 'src-tauri/src/mobile/runtime.rs',
+    }[channel]
+    const prefix = channel === 'desktop' ? 'v' : `${channel}-v`
+    const script = channel === 'app' ? 'prepare-app-release.mjs' : 'prepare-release.mjs'
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        new URL('./fixtures/release-notes-command-fixture.mjs', import.meta.url).href,
+        path.join(root, 'scripts', script),
+        `${prefix}0.6.1`,
+        sourceSha,
+        ...(channel === 'app' ? [] : [channel]),
+      ],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_REPOSITORY: 'ling-kong-ran/pisper',
+          PISPER_RELEASE_NOTES_FIXTURE: JSON.stringify({ path: fixturePath }),
+        },
+      },
+    )
+    if (result.error) throw result.error
+    assert.equal(result.status, 0, result.stderr)
+    const body = await readFile(
+      path.join(root, channel === 'app' ? 'release-body-app.md' : 'release-body.md'),
+      'utf8',
+    )
+    const manifest =
+      channel === 'tui'
+        ? null
+        : JSON.parse(
+            await readFile(
+              path.join(
+                root,
+                channel === 'app' ? 'docs/latest-app.json' : 'public/release-notes.json',
+              ),
+              'utf8',
+            ),
+          )
+    return { body, manifest }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+test('Rust Desktop release notes explain complete 0.5.x upgrades and preserved data paths', async () => {
+  const { body, manifest } = await generateReleaseNotes()
+  assert.match(body, /从 0\.5\.x 升级到 Rust 版本/)
+  assert.match(body, /0\.5\.80\/0\.5\.81.*Desktop 组件只替换前端/)
+  assert.match(body, /releases\/tag\/v0\.6\.1/)
+  assert.match(body, /Windows 安装器、macOS DMG 或 Linux AppImage\/DEB/)
+  assert.match(body, /~\/\.pisper\/agent/)
+  assert.match(body, /PISPER_AGENT_DIR.*保留原设置/)
+  assert.match(body, /不要删除.*不需要先卸载/)
+  assert.match(body, /尚未完成升级.*完整安装包入口/)
+  assert.match(body, /Rust Runtime.*健康检查后.*受管理组件目录.*旧 Node Runtime 和升级提示缓存/)
+  assert.match(body, /不删除 Agent 数据、项目工作区或用户下载文件/)
+  assert.equal(manifest.notes, body.trim())
+})
+
+for (const options of [{ layout: 'node' }, { channel: 'runtime' }, { channel: 'tui' }]) {
+  test(`complete Desktop upgrade instructions stay scoped: ${JSON.stringify(options)}`, async () => {
+    const { body } = await generateReleaseNotes(options)
+    assert.doesNotMatch(body, /从 0\.5\.x 升级到 Rust 版本/)
+  })
+}
+
+test('App release notes describe embedded Rust and data-preserving installation limits', async () => {
+  const { body, manifest } = await generateReleaseNotes({ channel: 'app' })
+  for (const notes of [body, manifest.notes]) {
+    assert.match(notes, /内置同源 Rust\/Pisper Runtime/)
+    assert.doesNotMatch(notes, /Node\/Pisper Runtime|rooted|chroot/)
+    assert.match(notes, /相同应用标识、相同签名.*覆盖安装/)
+    assert.match(notes, /不要先卸载旧版本/)
+    assert.match(notes, /未签名 IPA.*重新签名/)
+    assert.match(notes, /不能在 App 内静默覆盖/)
+    assert.match(notes, /原应用标识和签名身份/)
+  }
+  assert.equal(manifest.version, '0.6.1')
+  assert.equal(manifest.ipa, 'pisper-ios-unsigned.ipa')
 })

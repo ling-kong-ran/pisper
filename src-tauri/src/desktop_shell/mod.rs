@@ -1050,6 +1050,14 @@ pub fn run() {
                     stop_sidecar(app.handle());
                     return Err(error.into());
                 }
+                if !cfg!(debug_assertions) {
+                    component_updates::cleanup_after_successful_startup(
+                        app.handle().clone(),
+                        &ready.url,
+                        &ready.bootstrap_url,
+                        ready.pid,
+                    );
+                }
                 Ok(())
             })();
             if result.is_err() {

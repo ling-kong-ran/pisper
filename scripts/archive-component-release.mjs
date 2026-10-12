@@ -20,6 +20,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { c as createTar, t as listTar } from 'tar'
 import { assertReleaseComponent, readComponentVersion } from './release-components.mjs'
+import { desktopUpgradeNotice } from './desktop-upgrade-notice.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const component = assertReleaseComponent(process.argv[2])
@@ -37,7 +38,9 @@ const rustRuntime =
 const requireSignature = process.argv.includes('--require-signature')
 const label =
   component === 'desktop'
-    ? 'Desktop'
+    ? rustRuntime
+      ? 'Desktop_Rust'
+      : 'Desktop'
     : component === 'tui'
       ? 'TUI'
       : rustRuntime
@@ -89,6 +92,7 @@ async function stageDesktop() {
     `${JSON.stringify(
       {
         name: 'pisper-desktop',
+        ...(rustRuntime ? { backend: 'rust' } : {}),
         version,
         platform,
         arch,
@@ -99,6 +103,26 @@ async function stageDesktop() {
       2,
     )}\n`,
     'utf8',
+  )
+}
+
+async function archiveDesktopUpgradeNotice() {
+  const notice = desktopUpgradeNotice({ version, platform, arch })
+  const noticeDirectoryName = `pisper-desktop-upgrade-notice-${version}-${platform}-${arch}`
+  const noticeStage = join(stageRoot, noticeDirectoryName)
+  await rm(noticeStage, { recursive: true, force: true })
+  await mkdir(join(noticeStage, 'dist'), { recursive: true })
+  for (const [name, content] of Object.entries(notice.files))
+    await writeFile(join(noticeStage, 'dist', name), content, 'utf8')
+  await writeFile(
+    join(noticeStage, 'manifest.json'),
+    `${JSON.stringify(notice.manifest, null, 2)}\n`,
+    'utf8',
+  )
+  // 旧 Node 更新器只识别旧名字；该资产必须是提示页，绝不能放入 Rust 主前端。
+  await createArchive(
+    noticeDirectoryName,
+    join(outputDir, `Pisper_Desktop_${version}_${platform}_${arch}.tar.gz`),
   )
 }
 
@@ -226,6 +250,7 @@ if (component === 'desktop') await stageDesktop()
 else if (component === 'runtime') await stageRuntime()
 else await stageTui()
 await createArchive(directoryName, archive)
+if (component === 'desktop' && rustRuntime) await archiveDesktopUpgradeNotice()
 
 if (component === 'runtime' && !rustRuntime) {
   const nodeDirectoryName = `pisper-runtime-node-${version}-${platform}-${arch}`

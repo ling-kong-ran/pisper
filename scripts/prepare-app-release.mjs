@@ -55,6 +55,11 @@ for (const commit of commits) {
 }
 
 const date = new Date().toISOString().slice(0, 10)
+const installationNotes = [
+  '> Android 与 iOS App 内置同源 Rust/Pisper Runtime，无需另行安装 Node.js。',
+  '> Android 请使用与已安装版本相同应用标识、相同签名的官方 APK 覆盖安装，保留 App 私有目录中的会话和配置；不要先卸载旧版本。',
+  '> iOS 产物为未签名 IPA，需通过 AltStore、Sideloadly 或 Apple 开发者账号重新签名后安装，不能在 App 内静默覆盖。继续使用原应用标识和签名身份，并按重签工具支持的更新方式保留已有数据；更换标识或卸载会影响数据保留。',
+]
 const body = [
   `## Pisper App ${tag}（${date}）`,
   '',
@@ -63,8 +68,7 @@ const body = [
   '',
   ...subjects.map((subject) => `- ${subject}`),
   '',
-  '> Android 与 iOS App 内置同源 Node/Pisper Runtime；rooted Android 会自动使用能力更完整的 chroot 载体，并始终降权到 App UID 运行。',
-  '> iOS 产物当前为未签名构建，需自行重签名（AltStore/Sideloadly/开发者账号）后安装。',
+  ...installationNotes,
   '',
 ].join('\n')
 await writeFile(join(root, 'release-body-app.md'), body, 'utf8')
@@ -75,7 +79,7 @@ const latestApp = {
   url: `https://github.com/ling-kong-ran/pisper/releases/tag/${tag}`,
   apk: 'app-universal-release-signed.apk',
   ipa: 'pisper-ios-unsigned.ipa',
-  notes: subjects.map((subject) => `- ${subject}`).join('\n'),
+  notes: [...subjects.map((subject) => `- ${subject}`), '', ...installationNotes].join('\n'),
   releaseDate: date,
 }
 await mkdir(join(root, 'docs'), { recursive: true })

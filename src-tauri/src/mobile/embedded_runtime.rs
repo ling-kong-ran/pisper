@@ -5,8 +5,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
+#[cfg(any(target_os = "android", target_os = "ios"))]
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use flate2::read::GzDecoder;
+#[cfg(any(target_os = "android", target_os = "ios"))]
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
