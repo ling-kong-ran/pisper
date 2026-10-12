@@ -16,6 +16,7 @@ import {
   fallbackReleaseTag,
   readComponentVersion,
   releaseTag,
+  releaseTagPattern,
   releaseVersionFromTag,
 } from './release-components.mjs'
 
@@ -370,6 +371,33 @@ const releaseOrder = { tui: 0, runtime: 1, desktop: 2, app: 3 }
 plans.sort((left, right) => releaseOrder[left.component] - releaseOrder[right.component])
 
 const selectedComponents = plans.map(({ component }) => component)
+// 部分渠道成功后续发时，旧 npm 清单仍未同步；复用已正式发布的独立组件。
+const publishedComponentVersions = new Map()
+const bundledComponentVersion = (component, fallback = '') => {
+  const planned = plans.find((plan) => plan.component === component)?.nextVersion
+  if (planned) return planned
+  if (!publishedComponentVersions.has(component)) {
+    const latest = tags
+      .filter((tag) => releaseTagPattern(component).test(tag))
+      .sort((left, right) =>
+        compareVersions(
+          releaseVersionFromTag(component, right),
+          releaseVersionFromTag(component, left),
+        ),
+      )[0]
+    let publishedVersion = ''
+    if (latest) {
+      const release = JSON.parse(
+        run('gh', ['release', 'view', latest, '--json', 'isDraft,isPrerelease'], { capture: true }),
+      )
+      if (release.isDraft !== false || release.isPrerelease !== false)
+        throw new Error(`内置组件 ${latest} 尚未正式发布，不能用于 npm 或 Desktop。`)
+      publishedVersion = releaseVersionFromTag(component, latest)
+    }
+    publishedComponentVersions.set(component, publishedVersion)
+  }
+  return publishedComponentVersions.get(component) || fallback
+}
 const npmComponents = plans.filter(
   ({ component }) => component === 'runtime' || component === 'tui',
 )
@@ -385,12 +413,8 @@ if (chainNpm) {
   if (compareVersions(npmReleaseVersion, manifest.version) <= 0) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }
-  npmTuiVersion =
-    npmComponents.find(({ component }) => component === 'tui')?.nextVersion ||
-    manifest.pisper.tuiVersion
-  npmRuntimeVersion =
-    npmComponents.find(({ component }) => component === 'runtime')?.nextVersion ||
-    manifest.pisper.runtimeVersion
+  npmTuiVersion = bundledComponentVersion('tui', manifest.pisper.tuiVersion)
+  npmRuntimeVersion = bundledComponentVersion('runtime', manifest.pisper.runtimeVersion)
 }
 console.log(`自动发布通道：${selectedComponents.join('、')}`)
 if (chainNpm) {
@@ -404,10 +428,9 @@ if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
 // Desktop 派发携带同批次的新 TUI/Runtime 版本，使安装包 staging 能把组件清单
 // 更新视为实质性变更；依赖已在派发前同步，发布版本与标签仍由远端 workflow 原子提交。
-const tuiPlan = plans.find(({ component }) => component === 'tui')
-const runtimePlan = plans.find(({ component }) => component === 'runtime')
-const desktopTuiVersion = tuiPlan?.nextVersion || ''
-const desktopRuntimeVersion = runtimePlan?.nextVersion || ''
+const hasDesktopPlan = plans.some(({ component }) => component === 'desktop')
+const desktopTuiVersion = hasDesktopPlan ? bundledComponentVersion('tui') : ''
+const desktopRuntimeVersion = hasDesktopPlan ? bundledComponentVersion('runtime') : ''
 
 const npmDispatchIndex = npmComponents.length
   ? plans.findLastIndex(({ component }) => component === 'runtime' || component === 'tui')

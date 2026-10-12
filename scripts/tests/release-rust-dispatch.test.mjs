@@ -40,7 +40,10 @@ async function runRelease(overrides = {}) {
       JSON.stringify({ version: '0.5.81', bundled: { tui: '0.5.38', runtime: '0.5.62' } }),
     )
     await put('src-tauri/mobile-package.json', JSON.stringify({ version: '0.1.55' }))
-    await put('src-tui/Cargo.toml', '[package]\nname = "pisper-tui"\nversion = "0.5.38"\n')
+    await put(
+      'src-tui/Cargo.toml',
+      `[package]\nname = "pisper-tui"\nversion = "${fixture.tuiVersion || '0.5.38'}"\n`,
+    )
     await put(
       'packages/pisper/package.json',
       JSON.stringify({
@@ -147,6 +150,65 @@ test('a TUI-only change also releases the desktop installer that bundles it', as
     ['component=tui', 'component=desktop'],
   )
 })
+
+test('resuming after TUI publication pins the published version in npm and Desktop without republishing TUI', async () => {
+  const result = await runRelease({
+    version: '0.6.1',
+    tuiVersion: '0.6.1',
+    paths: ['runtime-rs/src/main.rs', 'src/project.tsx'],
+    tags: ['tui-v0.5.38', 'v0.5.81', 'tui-v0.6.1', 'runtime-v0.5.62', 'app-v0.1.55'],
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const published = dispatches(result)
+  assert.deepEqual(
+    published.map(({ args }) => args.find((value) => value.startsWith('component=')) || args[2]),
+    ['component=runtime', 'component=desktop', 'release-app.yml'],
+  )
+  for (const { args } of published.filter(({ args }) => args[2] === 'release.yml')) {
+    assert(args.includes('tui_version=0.6.1'))
+    assert(args.includes('runtime_version=0.6.1'))
+  }
+  assert(published[0].args.includes('publish_npm=true'))
+})
+
+test('single-component publication retains the newest published sibling instead of stale npm bindings', async () => {
+  const result = await runRelease({
+    version: '0.6.1',
+    paths: ['src-tui/src/main.rs'],
+    tags: ['runtime-v0.6.0', 'v0.5.81', 'tui-v0.5.38', 'app-v0.1.55'],
+  })
+  assert.equal(result.status, 0, result.stderr)
+  for (const { args } of dispatches(result)) {
+    assert(args.includes('tui_version=0.6.1'))
+    assert(args.includes('runtime_version=0.6.0'))
+  }
+})
+
+test('legacy Desktop tags never substitute for an independently published sibling component', async () => {
+  const result = await runRelease({
+    version: '0.6.1',
+    paths: ['src-tui/src/main.rs'],
+    tags: ['v0.5.81', 'tui-v0.5.38', 'app-v0.1.55'],
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const npmDispatch = dispatches(result).find(({ args }) => args.includes('publish_npm=true'))
+  assert(npmDispatch.args.includes('runtime_version=0.5.62'))
+  assert(!npmDispatch.args.includes('runtime_version=0.5.81'))
+})
+
+for (const unavailable of ['draftRelease', 'prerelease', 'missingRelease']) {
+  test(`resumed release refuses an unavailable sibling component: ${unavailable}`, async () => {
+    const result = await runRelease({
+      version: '0.6.1',
+      tuiVersion: '0.6.1',
+      paths: ['runtime-rs/src/main.rs'],
+      tags: ['tui-v0.6.1', 'v0.5.81', 'runtime-v0.5.62', 'app-v0.1.55'],
+      [unavailable]: 'tui-v0.6.1',
+    })
+    assert.notEqual(result.status, 0)
+    assert.deepEqual(dispatches(result), [])
+  })
+}
 
 test('legacy Node layout retains channel order, npm chaining and the dependency update', async () => {
   const result = await runRelease({ layout: 'node' })

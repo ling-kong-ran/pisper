@@ -35,7 +35,9 @@ childProcess.execFileSync = (command, args) => {
     }
     if (operation === 'tag') {
       if (args.includes('--sort=-version:refname')) {
-        return 'v0.5.81\ntui-v0.5.38\nruntime-v0.5.62\napp-v0.1.55'
+        return (fixture.tags || ['v0.5.81', 'tui-v0.5.38', 'runtime-v0.5.62', 'app-v0.1.55']).join(
+          '\n',
+        )
       }
       return fixture.existingTag === args[2] ? fixture.existingTag : ''
     }
@@ -44,6 +46,7 @@ childProcess.execFileSync = (command, args) => {
       ...(committed ? ['runtime-rs/assets/pi-model-catalog.json'] : []),
     ]
     if (operation === 'diff') return args.includes('--') ? '' : paths.join('\n')
+    if (operation === 'ls-tree') return paths.join('\n')
     if (operation === 'log') return paths.length ? 'test-commit' : ''
     if (operation === 'diff-tree') return paths.join('\n')
     if (operation === 'show')
@@ -62,6 +65,13 @@ childProcess.execFileSync = (command, args) => {
     throw new Error(`Unexpected Git mutation in release entry: ${args.join(' ')}`)
   }
   if (command === 'gh') {
+    if (args[0] === 'release' && args[1] === 'view') {
+      if (fixture.missingRelease === args[2]) throw new Error('Release not found')
+      return JSON.stringify({
+        isDraft: fixture.draftRelease === args[2],
+        isPrerelease: fixture.prerelease === args[2],
+      })
+    }
     if (args[0] === 'run' && args[1] === 'list')
       return JSON.stringify(fixture.activeRelease ? [{ status: 'in_progress' }] : [])
     if (args[0] === 'workflow' && args[1] === 'run') {
