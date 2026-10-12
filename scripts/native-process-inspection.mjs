@@ -41,6 +41,36 @@ export function browserDescendants(rows, parent) {
       /chrome|chromium|msedge|brave|microsoft edge/i.test(basename(row.path)),
   )
 }
+const sameProcess = (one, two) => one.pid === two.pid && one.createdUtc === two.createdUtc
+
+export function browserProcessRoots(rows, parent) {
+  return browserDescendants(rows, parent).filter((row) => row.parent === parent)
+}
+
+export function browserProcessTree(rows, root) {
+  const currentRoot = rows.find((row) => sameProcess(row, root))
+  if (!currentRoot) return []
+  return [currentRoot, ...browserDescendants(rows, root.pid)]
+}
+
+export function newBrowserProcessTree(before, current, parent) {
+  const previous = browserProcessRoots(before, parent)
+  const roots = browserProcessRoots(current, parent).filter(
+    (row) => !previous.some((owned) => sameProcess(row, owned)),
+  )
+  // 驱动直接启动独立的浏览器根进程；渲染器后生子进程不能决定会话归属。
+  if (roots.length !== 1)
+    throw new Error(`Expected one newly owned browser root; found ${roots.length}.`)
+  return { root: roots[0], rows: browserProcessTree(current, roots[0]) }
+}
+
+export function mergeOwnedProcesses(...snapshots) {
+  const identities = new Map()
+  for (const rows of snapshots)
+    for (const row of rows) identities.set(`${row.pid}:${row.createdUtc}`, row)
+  return [...identities.values()]
+}
+
 export function stillOwnedProcesses(current, owned) {
   return current.filter((row) =>
     owned.some((previous) => previous.pid === row.pid && previous.createdUtc === row.createdUtc),

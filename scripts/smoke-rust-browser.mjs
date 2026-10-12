@@ -12,6 +12,9 @@ import { PNG } from 'pngjs'
 import {
   posixProcesses,
   browserDescendants,
+  browserProcessTree,
+  newBrowserProcessTree,
+  mergeOwnedProcesses,
   stillOwnedProcesses,
   posixListenerPid,
 } from './native-process-inspection.mjs'
@@ -76,6 +79,7 @@ export async function checkBrowserParity({
     steps: [],
     screenshots: [],
     browserProcesses: [],
+    browserRoots: [],
     remainingOwnedBrowserProcesses: [],
     idleProof:
       'Exact600000ms/injected-clock genuine-browser oracle and native service clock tests; no wall-clock10-minute claim in this smoke',
@@ -219,9 +223,9 @@ export async function checkBrowserParity({
     assert.ok(Number.isInteger(pid) && pid > 0)
     return pid
   }
-  async function processRows(pid) {
-    if (process.platform !== 'win32') return browserDescendants(await posixProcesses(), pid)
-    const script = `$queue=[Collections.Generic.Queue[int]]::new();$queue.Enqueue(${pid});$rows=@();while($queue.Count){$parent=$queue.Dequeue();foreach($p in @(Get-CimInstance Win32_Process -Filter ('ParentProcessId = '+$parent))){$queue.Enqueue([int]$p.ProcessId);if($p.Name -match '^(msedge|chrome|chromium|brave)\\.exe$'){$rows+=@{pid=[int]$p.ProcessId;parent=[int]$p.ParentProcessId;path=$p.ExecutablePath;createdUtc=$p.CreationDate.ToUniversalTime().ToString('o')}}}};ConvertTo-Json -InputObject @($rows) -Compress`
+  async function processSnapshot(pid) {
+    if (process.platform !== 'win32') return posixProcesses()
+    const script = `$queue=[Collections.Generic.Queue[int]]::new();$queue.Enqueue(${pid});$rows=@();while($queue.Count){$parent=$queue.Dequeue();foreach($p in @(Get-CimInstance Win32_Process -Filter ('ParentProcessId = '+$parent))){$queue.Enqueue([int]$p.ProcessId);$path=if($p.ExecutablePath){$p.ExecutablePath}else{$p.Name};$rows+=@{pid=[int]$p.ProcessId;parent=[int]$p.ParentProcessId;path=$path;createdUtc=$p.CreationDate.ToUniversalTime().ToString('o')}}};ConvertTo-Json -InputObject @($rows) -Compress`
     const { stdout } = await execute(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', script],
@@ -229,14 +233,30 @@ export async function checkBrowserParity({
     )
     return JSON.parse(stdout.trim() || '[]')
   }
-  async function rememberProcesses() {
-    const rows = await processRows(await backendPid())
-    assert.ok(rows.length, 'Browser must be an actual owned Chrome/Edge process')
+  async function processRows(pid) {
+    return browserDescendants(await processSnapshot(pid), pid)
+  }
+  function rememberRows(rows) {
     for (const row of rows) ownedRows.set(`${row.pid}:${row.createdUtc}`, row)
     evidence.browserProcesses = [...ownedRows.values()]
     return rows
   }
-  async function assertGone(rows, label) {
+  function rememberRoot(sessionId, root) {
+    const { pid, parent, createdUtc } = root
+    evidence.browserRoots.push({ sessionId, pid, parent, createdUtc })
+  }
+  async function rememberProcesses() {
+    const rows = await processRows(await backendPid())
+    assert.ok(rows.length, 'Browser must be an actual owned Chrome/Edge process')
+    return rememberRows(rows)
+  }
+  async function refreshBrowserTree(root, previous) {
+    const rows = browserProcessTree(await processSnapshot(await backendPid()), root)
+    assert.ok(rows.length, 'The session browser root must remain owned before cleanup')
+    return rememberRows(mergeOwnedProcesses(previous, rows))
+  }
+  async function assertGone(rows, label, roots) {
+    if (roots) label += ` (${JSON.stringify(roots)})`
     if (!rows.length) return
     if (process.platform !== 'win32') {
       await poll(
@@ -516,6 +536,8 @@ export async function checkBrowserParity({
           })
         ).result
         assert.ok(discovered.details.matches.some((match) => match.name === 'browser_automation'))
+        const browserOwnerPid = await backendPid()
+        const beforeFirst = await processSnapshot(browserOwnerPid)
         let opened
         try {
           opened = await browser(parent.id, {
@@ -531,7 +553,14 @@ export async function checkBrowserParity({
           return
         }
         assert.equal(opened.details.title, 'Owned Browser Fixture')
-        const firstProcesses = await rememberProcesses()
+        const firstBrowser = newBrowserProcessTree(
+          beforeFirst,
+          await processSnapshot(browserOwnerPid),
+          browserOwnerPid,
+        )
+        const firstRoot = firstBrowser.root
+        let firstProcesses = rememberRows(firstBrowser.rows)
+        rememberRoot(parent.id, firstRoot)
         const inspected = await browser(parent.id, { action: 'inspect' })
         assert.equal(inspected.details.url, base + '/')
         assert.ok(inspected.details.text.includes('Owned browser contract'))
@@ -645,15 +674,17 @@ export async function checkBrowserParity({
           'Native same/cross-origin iframe selectors must deliver trusted click/fill',
         )
         evidence.framesTrusted = true
+        // 导航与跨源 iframe 会让第一浏览器继续生成渲染器；会话只绑定新根的子树。
+        const beforeSecond = await processSnapshot(browserOwnerPid)
         await browser(second.id, { action: 'inspect' })
-        const rowsWithSecond = await rememberProcesses()
-        const secondProcesses = rowsWithSecond.filter(
-          (row) =>
-            !firstProcesses.some(
-              (first) => first.pid === row.pid && first.createdUtc === row.createdUtc,
-            ),
+        const secondBrowser = newBrowserProcessTree(
+          beforeSecond,
+          await processSnapshot(browserOwnerPid),
+          browserOwnerPid,
         )
-        assert.ok(secondProcesses.length)
+        const secondRoot = secondBrowser.root
+        let secondProcesses = rememberRows(secondBrowser.rows)
+        rememberRoot(second.id, secondRoot)
         const secondBlank = await browser(second.id, { action: 'inspect' })
         assert.equal(secondBlank.details.url, 'about:blank')
         await browser(second.id, { action: 'open', url: base })
@@ -703,16 +734,25 @@ export async function checkBrowserParity({
           realToolRejection: true,
           noNavigation: true,
         }
+        secondProcesses = await refreshBrowserTree(secondRoot, secondProcesses)
         await browser(second.id, { action: 'close' })
-        await assertGone(secondProcesses, 'Explicit close must reap the second session browser')
-        const beforeReopen = await processRows(await backendPid())
+        await assertGone(secondProcesses, 'Explicit close must reap the second session browser', {
+          closedRoot: { pid: secondRoot.pid, createdUtc: secondRoot.createdUtc },
+          retainedRoot: { pid: firstRoot.pid, createdUtc: firstRoot.createdUtc },
+        })
+        const firstAfterClose = await browser(parent.id, { action: 'inspect' })
+        assert.equal(firstAfterClose.details.url, base + '/')
+        firstProcesses = await refreshBrowserTree(firstRoot, firstProcesses)
+        evidence.firstBrowserSurvivedSecondClose = true
+        const beforeReopen = await processSnapshot(browserOwnerPid)
         await browser(second.id, { action: 'open', url: base })
-        const reopened = await rememberProcesses()
-        const deletedProcesses = reopened.filter(
-          (row) =>
-            !beforeReopen.some((old) => old.pid === row.pid && old.createdUtc === row.createdUtc),
+        const reopened = newBrowserProcessTree(
+          beforeReopen,
+          await processSnapshot(browserOwnerPid),
+          browserOwnerPid,
         )
-        assert.ok(deletedProcesses.length)
+        rememberRoot(second.id, reopened.root)
+        const deletedProcesses = await refreshBrowserTree(reopened.root, reopened.rows)
         const deleted = await idleJson(`/api/sessions/${second.id}`, 'DELETE')
         assert.equal(deleted.deleted, true)
         sessions.delete(second.id)
@@ -721,6 +761,7 @@ export async function checkBrowserParity({
           'Deleting an active browser-owning session must reap its browser',
         )
         evidence.activeDeletionProcessesReaped = true
+        firstProcesses = await refreshBrowserTree(firstRoot, firstProcesses)
         await browser(parent.id, { action: 'close' })
         await assertGone(firstProcesses, 'Primary browser close must reap its actual processes')
         await browser(parent.id, { action: 'open', url: base })
@@ -743,6 +784,7 @@ export async function checkBrowserParity({
           isolatedPrimarySessions: true,
           primaryOnlyChildDenied: true,
           explicitCloseProcessesReaped: true,
+          firstBrowserSurvivedSecondClose: true,
           activeDeletionProcessesReaped: true,
           remainingBrowserReservedForRestart: true,
         }
