@@ -967,6 +967,19 @@ fn file_mtime_ms_f64(path: &str) -> Option<f64> {
 /// Upstream `getDefaultSessionDirPath`.
 fn get_default_session_dir_path(cwd: &str, agent_dir: &str) -> String {
     let resolved_cwd = resolve_path_auto_base(cwd).unwrap_or_else(|_| cwd.to_string());
+    // Rust canonicalization adds a Windows verbatim prefix. It belongs to the
+    // filesystem path, not the session directory key (where `?` is illegal).
+    // Preserve cwd itself for IO, but use the existing ordinary disk/UNC key
+    // so both spellings discover the same sessions without a migration.
+    #[cfg(windows)]
+    let resolved_cwd = match std::path::Path::new(&resolved_cwd).components().next() {
+        Some(std::path::Component::Prefix(prefix)) => match prefix.kind() {
+            std::path::Prefix::VerbatimDisk(_) => resolved_cwd[4..].to_owned(),
+            std::path::Prefix::VerbatimUNC(..) => format!(r"\\{}", &resolved_cwd[8..]),
+            _ => resolved_cwd,
+        },
+        _ => resolved_cwd,
+    };
     let resolved_agent_dir =
         resolve_path_auto_base(agent_dir).unwrap_or_else(|_| agent_dir.to_string());
     let stripped = resolved_cwd

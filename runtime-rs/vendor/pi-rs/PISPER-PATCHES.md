@@ -190,3 +190,12 @@ destructor panic during unwinding. Actions use `Arc::into_inner` to preserve any
 external shared owner. The integration target verifies real double-panic aborts
 and complete cleanup in three isolated test subprocesses, then checks that the
 first unsubscribe panic still propagates after every callback is released.
+
+`coding_agent/session_manager.rs` maps Windows verbatim disk/UNC cwd spellings
+to their ordinary counterparts only when deriving the default session directory
+key. Rust CLI canonicalization produces these paths; encoding the literal `?`
+in that key caused Windows error 123 on a fresh agent directory. Existing keys
+for ordinary paths and the original cwd used for filesystem IO are unchanged.
+The Windows runtime path regression exercises real directory and session-manager
+creation plus disk/UNC key equivalence; the isolated CLI smoke covers ordinary
+and native-prefixed launches, spaces, shutdown and restart.

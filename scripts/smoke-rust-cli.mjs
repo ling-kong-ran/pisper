@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, resolve, toNamespacedPath } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const cli = resolve(
@@ -12,7 +12,8 @@ const cli = resolve(
 )
 const sandbox = await mkdtemp(join(await realpath(tmpdir()), 'pisper-cli-smoke-'))
 const agent = join(sandbox, 'agent')
-const workspace = join(sandbox, 'workspace')
+const workspace = join(sandbox, 'workspace with spaces')
+const canonicalWorkspace = toNamespacedPath(workspace)
 const environment = {
   ...Object.fromEntries(
     Object.entries(process.env).filter(([key]) =>
@@ -66,9 +67,9 @@ try {
   const first = await run(['doctor', '--cwd', workspace])
   assert.match(first, /Pisper TUI ready/)
   assert.match(first, /connection: TUI sidecar/)
-  assert.ok(first.includes(`launch workspace: ${workspace}`))
-  assert.ok(first.includes(`runtime fallback: ${workspace}`))
-  const second = await run(['doctor', '--cwd', workspace])
+  assert.ok(first.includes(`launch workspace: ${canonicalWorkspace}`))
+  assert.ok(first.includes(`runtime fallback: ${canonicalWorkspace}`))
+  const second = await run(['doctor', '--cwd', canonicalWorkspace])
   assert.match(second, /Pisper TUI ready/)
   // 两次独立启动能退出并重开同一个隔离存储，覆盖 Runtime 清理与恢复。
   report.checks.push(
