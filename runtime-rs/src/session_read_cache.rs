@@ -603,12 +603,23 @@ mod tests {
                 expected.cwd
             )
         );
+        let changed_workspace = fixture.0.join("changed-workspace");
+        std::fs::create_dir(&changed_workspace).unwrap();
+        let changed_workspace = std::fs::canonicalize(changed_workspace).unwrap();
+        let changed_cwd = changed_workspace.to_str().unwrap();
         let content = std::fs::read_to_string(&path).unwrap();
-        std::fs::write(&path, content.replace(root, "/changed-workspace")).unwrap();
-        assert_eq!(
-            cache.cwd(path.to_str().unwrap()).unwrap(),
-            "/changed-workspace"
-        );
+        let (header, records) = content.split_once('\n').unwrap();
+        let mut header: Value = serde_json::from_str(header).unwrap();
+        // Windows 的路径在 JSON 中含转义反斜杠；只改字段，保留后续记录原字节。
+        header["cwd"] = serde_json::json!(changed_cwd);
+        std::fs::write(&path, format!("{header}\n{records}")).unwrap();
+        assert_eq!(cache.cwd(path.to_str().unwrap()).unwrap(), changed_cwd);
+        let reopened = SessionManager::open(path.to_str().unwrap(), None, None).unwrap();
+        assert_eq!(reopened.get_cwd(), changed_cwd);
+        let row = cache.infos(root).remove(0);
+        assert_eq!(row.cwd, changed_cwd);
+        assert_eq!(row.name.as_deref(), Some("renamed"));
+        assert_eq!(row.message_count, 1);
         let second = fixture.session("nested/second.jsonl", "two");
         assert_eq!(cache.infos(root).len(), 2);
         std::fs::remove_file(second).unwrap();
