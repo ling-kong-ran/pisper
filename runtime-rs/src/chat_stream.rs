@@ -30,6 +30,22 @@ pub(crate) struct Projection {
     aborted: bool,
 }
 
+struct RunSettlement(
+    Arc<std::sync::atomic::AtomicBool>,
+    Arc<tokio::sync::Notify>,
+    Option<tokio::sync::OwnedMutexGuard<()>>,
+    Arc<product::TerminalPublication>,
+);
+impl Drop for RunSettlement {
+    fn drop(&mut self) {
+        drop(self.2.take());
+        // 提交终态后若发生异常退出，重放和后续准入也不能永远等门。
+        self.3.publish();
+        self.0.store(true, std::sync::atomic::Ordering::Release);
+        self.1.notify_waiters();
+    }
+}
+
 fn text_content(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
@@ -46,7 +62,21 @@ fn text_content(value: &Value) -> String {
     }
 }
 
-fn record(state: &AppState, run_id: &str, event: &str, mut data: Value) {
+fn record(state: &AppState, run_id: &str, event: &str, data: Value) {
+    if let Some((tx, frame)) = stage_record(state, run_id, event, data) {
+        let _ = tx.send(frame);
+    }
+}
+
+fn stage_record(
+    state: &AppState,
+    run_id: &str,
+    event: &str,
+    mut data: Value,
+) -> Option<(
+    tokio::sync::broadcast::Sender<product::Frame>,
+    product::Frame,
+)> {
     if let Some(data) = data.as_object_mut() {
         data.insert(
             "eventAt".into(),
@@ -57,13 +87,13 @@ fn record(state: &AppState, run_id: &str, event: &str, mut data: Value) {
             ),
         );
     }
+    let runs = state.chat_runs.lock().expect("chat runs lock");
     let cursor = state
         .frame_cursor
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         + 1;
-    if let Some(run) = state.chat_runs.lock().expect("chat runs lock").get(run_id) {
-        run.record(cursor, event, data);
-    }
+    runs.get(run_id)
+        .map(|run| (run.tx.clone(), run.stage(cursor, event, data)))
 }
 
 pub(crate) fn project(
@@ -151,18 +181,16 @@ fn event(frame: product::Frame) -> Result<Event, Infallible> {
 }
 
 fn response(
-    frames: Vec<product::Frame>,
+    frames: Arc<Mutex<Vec<product::Frame>>>,
     rx: tokio::sync::broadcast::Receiver<product::Frame>,
     after: u64,
     closed: bool,
+    publication: Option<Arc<product::TerminalPublication>>,
 ) -> axum::response::Response {
-    let pending: VecDeque<_> = frames
-        .into_iter()
-        .filter(|frame| frame.cursor > after)
-        .collect();
+    let pending = VecDeque::<product::Frame>::new();
     let stream = futures::stream::unfold(
-        (pending, rx, after, false),
-        move |(mut pending, mut rx, mut cursor, terminal)| async move {
+        (pending, rx, after, false, publication, frames),
+        move |(mut pending, mut rx, mut cursor, terminal, publication, frames)| async move {
             if terminal {
                 return None;
             }
@@ -170,18 +198,31 @@ fn response(
                 let frame = if let Some(frame) = pending.pop_front() {
                     frame
                 } else {
+                    // 广播只负责唤醒，两个生产者可在锁外倒序通知。按提交账本
+                    // 取帧，不能以晚通知的 cursor 跳过已提交但尚未通知的早帧。
+                    pending = {
+                        let ledger = frames.lock().expect("frames lock");
+                        let start = ledger.partition_point(|frame| frame.cursor <= cursor);
+                        ledger[start..].iter().cloned().collect()
+                    };
+                    if !pending.is_empty() {
+                        continue;
+                    }
                     if closed {
                         return None;
                     }
                     match rx.recv().await {
-                        Ok(frame) => frame,
+                        Ok(_) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                             let frame = product::Frame {
                                 cursor: cursor + 1,
                                 event: "resync_required".into(),
                                 data: json!({"reason": "stream_buffer_overflow"}),
                             };
-                            return Some((event(frame), (pending, rx, cursor, true)));
+                            return Some((
+                                event(frame),
+                                (pending, rx, cursor, true, publication, frames),
+                            ));
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
                     }
@@ -191,7 +232,15 @@ fn response(
                 }
                 cursor = frame.cursor;
                 let terminal = frame.event == "done" || frame.event == "error";
-                return Some((event(frame), (pending, rx, cursor, terminal)));
+                if terminal {
+                    if let Some(publication) = &publication {
+                        publication.wait().await;
+                    }
+                }
+                return Some((
+                    event(frame),
+                    (pending, rx, cursor, terminal, publication, frames),
+                ));
             }
         },
     );
@@ -243,6 +292,25 @@ pub(crate) async fn chat_owned(
         return Err(ApiError::bad_request("消息不能为空。"));
     }
     let hosted = crate::session_runtime::hosted(&state, &session_id).await?;
+    let publishing = {
+        let runs = state.chat_runs.lock().expect("chat runs lock");
+        runs.values()
+            .filter(|run| {
+                let frames = run.frames.lock().expect("frames lock");
+                frames
+                    .first()
+                    .is_some_and(|frame| frame.data["sessionId"] == session_id)
+                    && frames
+                        .last()
+                        .is_some_and(|frame| matches!(frame.event.as_str(), "done" | "error"))
+                    && !run.terminal_publication.is_ready()
+            })
+            .map(|run| run.terminal_publication.clone())
+            .collect::<Vec<_>>()
+    };
+    for publication in publishing {
+        publication.wait().await;
+    }
     let run_guard = hosted.run.clone().try_lock_owned().map_err(|_| {
         ApiError::new(
             StatusCode::CONFLICT,
@@ -391,12 +459,13 @@ pub(crate) async fn chat_owned(
     state.chat_runs.lock().expect("chat runs lock").insert(
         run_id.clone(),
         product::ChatRun {
-            frames: Mutex::new(Vec::new()),
+            frames: Arc::new(Mutex::new(Vec::new())),
             tx,
             closed: std::sync::atomic::AtomicBool::new(false),
             cancel: owner_cancel,
             finished: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             settled: Arc::new(tokio::sync::Notify::new()),
+            terminal_publication: Arc::new(product::TerminalPublication::default()),
         },
     );
     record(
@@ -446,35 +515,30 @@ pub(crate) async fn chat_owned(
     let (frames, rx) = {
         let runs = state.chat_runs.lock().expect("chat runs lock");
         let run = &runs[&run_id];
-        let frames = run.frames.lock().expect("frames lock").clone();
+        let frames = run.frames.clone();
         (frames, run.tx.subscribe())
     };
     let task_state = state.clone();
-    let (run_cancel, run_finished, run_settled) = {
+    let (run_cancel, run_finished, run_settled, publication) = {
         let runs = state.chat_runs.lock().expect("chat runs lock");
         let run = &runs[&run_id];
         (
             run.cancel.clone(),
             run.finished.clone(),
             run.settled.clone(),
+            run.terminal_publication.clone(),
         )
     };
     let response_run_id = run_id.clone();
+    let response_publication = publication.clone();
     let mut asset_events = state.events.subscribe();
     tokio::spawn(async move {
-        struct Settled(
-            Arc<std::sync::atomic::AtomicBool>,
-            Arc<tokio::sync::Notify>,
-            Option<tokio::sync::OwnedMutexGuard<()>>,
+        let mut settled = RunSettlement(
+            run_finished,
+            run_settled,
+            Some(run_guard),
+            publication.clone(),
         );
-        impl Drop for Settled {
-            fn drop(&mut self) {
-                drop(self.2.take());
-                self.0.store(true, std::sync::atomic::Ordering::Release);
-                self.1.notify_waiters();
-            }
-        }
-        let _settled = Settled(run_finished, run_settled, Some(run_guard));
         let mut guard = Some(guard);
         let mut configuration = Some(configuration);
         if driven_goal {
@@ -588,13 +652,9 @@ pub(crate) async fn chat_owned(
         terminal["tools"] = json!(tools);
         terminal["streaming"] = json!(false);
         terminal["aborted"] = json!(aborted);
-        if let Some(error) = failure {
+        let terminal_event = if let Some(error) = failure {
             terminal["message"] = json!(security::redact_secret_text(&error));
-            let _ = task_state.events.send(
-                json!({"pisperEvent":"error","sessionId":session_id,"data":terminal}).to_string(),
-            );
-            crate::pet_state::observe_runtime_event(&task_state, "error", &terminal);
-            record(&task_state, &run_id, "error", terminal.clone());
+            "error"
         } else {
             if !isolated_context
                 && !internal
@@ -613,21 +673,29 @@ pub(crate) async fn chat_owned(
                 }
             }
             record(&task_state, &run_id, "text_end", json!({"text":text}));
-            let _ = task_state.events.send(
-                json!({"pisperEvent":"done","sessionId":session_id,"data":terminal}).to_string(),
-            );
-            crate::pet_state::observe_runtime_event(&task_state, "done", &terminal);
-            record(&task_state, &run_id, "done", terminal.clone());
-        }
+            "done"
+        };
         hosted.touch();
+        let staged = stage_record(&task_state, &run_id, terminal_event, terminal.clone());
         drop(guard);
         drop(configuration);
+        // 账本先提交，锁外释放租约并通知；门阻止重放或新一轮越过这段发布。
+        drop(settled.2.take());
+        let _ = task_state.events.send(
+            json!({"pisperEvent":terminal_event,"sessionId":session_id,"data":terminal})
+                .to_string(),
+        );
+        crate::pet_state::observe_runtime_event(&task_state, terminal_event, &terminal);
+        publication.publish();
+        if let Some((tx, frame)) = staged {
+            let _ = tx.send(frame);
+        }
         drop(hosted);
         if let Err(error) = task_state.sessions.sweep(&task_state, "").await {
             tracing::warn!(code = error.code, "Resident session cleanup failed");
         }
     });
-    let mut result = response(frames, rx, 0, false);
+    let mut result = response(frames, rx, 0, false, Some(response_publication));
     result.headers_mut().insert(
         "x-pisper-run-id",
         response_run_id
@@ -668,20 +736,25 @@ pub(crate) async fn run_events(
         .get("after")
         .and_then(|value| value.parse().ok())
         .unwrap_or(0);
-    let (frames, rx, closed) = {
+    let (frames, rx, closed, publication) = {
         let runs = state.chat_runs.lock().expect("chat runs lock");
         let run = runs.get(&id).ok_or_else(|| {
             ApiError::new(StatusCode::NOT_FOUND, "run_not_found", "对话运行不存在。")
         })?;
-        let frames = run.frames.lock().expect("frames lock").clone();
+        let frames = run.frames.clone();
         (
             frames,
             run.tx.subscribe(),
             run.closed.load(std::sync::atomic::Ordering::Relaxed),
+            run.terminal_publication.clone(),
         )
     };
-    Ok(response(frames, rx, after, closed))
+    Ok(response(frames, rx, after, closed, Some(publication)))
 }
+
+#[cfg(test)]
+#[path = "chat_stream_tests.rs"]
+mod lease_tests;
 
 #[cfg(test)]
 mod tests {
@@ -703,7 +776,7 @@ mod tests {
             event: "done".into(),
             data: json!({"text":"ok"}),
         }];
-        let response = response(frames, rx, 0, false);
+        let response = response(Arc::new(Mutex::new(frames)), rx, 0, false, None);
         let mut body = response.into_body().into_data_stream();
         assert!(body.next().await.is_some());
         assert!(

@@ -667,10 +667,7 @@ pub async fn vcs_commit(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ensure_hosted(&state, &id).await?;
-    let message = body
-        .get("message")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let message = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
     Ok(Json(crate::vcs_ops::commit(&state.cwd, message).await?))
 }
 
@@ -702,33 +699,61 @@ pub struct Frame {
     pub data: serde_json::Value,
 }
 
+/// 终态账本与租约释放之间的发布门；重放与下一轮准入共享同一完成事实。
+#[derive(Default)]
+pub struct TerminalPublication {
+    ready: std::sync::atomic::AtomicBool,
+    notified: tokio::sync::Notify,
+}
+
+impl TerminalPublication {
+    pub fn is_ready(&self) -> bool {
+        self.ready.load(std::sync::atomic::Ordering::Acquire)
+    }
+    pub async fn wait(&self) {
+        loop {
+            let notified = self.notified.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.is_ready() {
+                return;
+            }
+            notified.await;
+        }
+    }
+    pub fn publish(&self) {
+        if !self.ready.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            self.notified.notify_waiters();
+        }
+    }
+}
+
 /// A live chat run: ring of recorded frames for `/api/runs/{id}/events`
 /// replay plus a broadcast channel for attached live clients.
 pub struct ChatRun {
-    pub frames: Mutex<Vec<Frame>>,
+    pub frames: Arc<Mutex<Vec<Frame>>>,
     pub tx: tokio::sync::broadcast::Sender<Frame>,
     pub closed: std::sync::atomic::AtomicBool,
     pub cancel: tokio_util::sync::CancellationToken,
     pub finished: Arc<std::sync::atomic::AtomicBool>,
     pub settled: Arc<tokio::sync::Notify>,
+    pub terminal_publication: Arc<TerminalPublication>,
 }
 
 impl ChatRun {
-    pub fn record(&self, cursor: u64, event: &str, data: serde_json::Value) {
-        self.frames.lock().expect("frames lock").push(Frame {
+    /// 只提交重放账本；调用方在释放注册表锁和会话租约后才唤醒读取者。
+    pub fn stage(&self, cursor: u64, event: &str, data: serde_json::Value) -> Frame {
+        let frame = Frame {
             cursor,
             event: event.to_string(),
-            data: data.clone(),
-        });
+            data,
+        };
+        self.frames.lock().expect("frames lock").push(frame.clone());
         if event == "done" || event == "error" {
             self.closed
                 .store(true, std::sync::atomic::Ordering::Relaxed);
         }
-        let _ = self.tx.send(Frame {
-            cursor,
-            event: event.to_string(),
-            data,
-        });
+        frame
     }
 }
 
