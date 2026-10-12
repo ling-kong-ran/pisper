@@ -238,10 +238,11 @@ test('legacy upgrade notice uses the delivered Tauri external URL command and or
         handler = fn
       },
     }
-    const invoke = async (command, input) => {
+    const invoke = (command, input) => {
       calls.push({ command, input: { ...input } })
-      if (result === 'error') throw new Error('Fixture bridge unavailable')
-      return result
+      return result === 'error'
+        ? Promise.reject(new Error('Fixture bridge unavailable'))
+        : Promise.resolve(result)
     }
     vm.runInNewContext(notice.files['notice.js'], {
       window: {
