@@ -93,12 +93,18 @@ try {
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
   const requests = new Map()
+  const modelRequests = []
   const held = new Map()
   const holds = new Set()
   const failures = new Set(['/api/config', '/api/providers/models/refresh'])
   let remoteEnabled = false
   const responseFor = (path) => {
     if (path === '/api/config') return config
+    if (
+      path === '/api/providers/fixture/models' ||
+      path === '/api/providers/fixture/models/options'
+    )
+      return config
     if (path === '/api/providers/models/refresh') return { config }
     if (path === '/api/providers/import-local') return { discovery, imported: [], skipped: [] }
     if (path === '/api/remote/status')
@@ -131,6 +137,32 @@ try {
     const path = new URL(route.request().url()).pathname
     requests.set(path, (requests.get(path) || 0) + 1)
     if (path === '/api/remote/enabled') remoteEnabled = route.request().postDataJSON().enabled
+    if (
+      path === '/api/providers/fixture/models' ||
+      path === '/api/providers/fixture/models/options'
+    ) {
+      const payload = route.request().postDataJSON()
+      modelRequests.push({ method: route.request().method(), payload })
+      const provider = config.providers[0]
+      if (route.request().method() === 'POST') {
+        provider.models.push({
+          id: payload.id,
+          name: payload.name || payload.id,
+          kind: payload.kind,
+          input: ['text', 'image'],
+          reasoning: true,
+          contextWindow: 1_000_000,
+          maxTokens: 128_000,
+          thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+          ...payload,
+        })
+      } else {
+        Object.assign(
+          provider.models.find((model) => model.id === payload.modelId),
+          payload,
+        )
+      }
+    }
     if (holds.has(path)) {
       held.set(path, route)
       return
@@ -190,6 +222,118 @@ try {
   assert.equal(await name.inputValue(), 'Unsaved connection draft')
   console.log(
     'PASS: model initial failure, retry coalescing, stale data and unsaved draft retention',
+  )
+
+  const addModel = () =>
+    page.getByRole('button', { name: 'providers:modelEditor.add', exact: true })
+  const modelDialog = () => page.getByRole('dialog')
+  const submitModel = () =>
+    modelDialog().getByRole('button', { name: 'config:configPage.saveChanges', exact: true })
+  await addModel().click()
+  await modelDialog()
+    .getByRole('textbox', { name: 'providers:modelEditor.id', exact: true })
+    .fill('gateway/claude-opus-5-5')
+  await modelDialog()
+    .getByText('providers:modelEditor.automaticCapabilitiesHint', { exact: true })
+    .waitFor()
+  assert.equal(
+    await modelDialog().getByRole('spinbutton').count(),
+    0,
+    'Automatic mode must not display misleading fixed limits',
+  )
+  await modelDialog()
+    .getByRole('checkbox', { name: 'providers:modelEditor.manualCapabilities', exact: true })
+    .click()
+  await modelDialog()
+    .getByRole('spinbutton', { name: 'providers:modelEditor.contextWindow', exact: true })
+    .fill('300000')
+  await modelDialog()
+    .getByRole('checkbox', { name: 'providers:modelEditor.manualCapabilities', exact: true })
+    .click()
+  await submitModel().click()
+  await modelDialog().waitFor({ state: 'detached' })
+  const automatic = modelRequests.at(-1)
+  assert.equal(automatic.method, 'POST')
+  assert.equal(automatic.payload.id, 'gateway/claude-opus-5-5')
+  assert.deepEqual(automatic.payload.capabilities, ['chat'])
+  assert.equal(automatic.payload.kind, 'chat')
+  for (const field of ['input', 'reasoning', 'thinkingLevels', 'contextWindow', 'maxTokens']) {
+    assert.equal(
+      Object.hasOwn(automatic.payload, field),
+      false,
+      'Automatic creation must omit capability overrides: ' + field,
+    )
+  }
+
+  await page
+    .locator('[data-provider-model="gateway/claude-opus-5-5"]')
+    .getByRole('button', { name: 'providers:modelEditor.optionsNamed', exact: true })
+    .click()
+  assert.equal(
+    await modelDialog()
+      .getByRole('spinbutton', {
+        name: 'providers:modelEditor.contextWindow',
+        exact: true,
+      })
+      .inputValue(),
+    '1000000',
+  )
+  assert.equal(
+    await modelDialog()
+      .getByRole('spinbutton', {
+        name: 'providers:modelEditor.maxTokens',
+        exact: true,
+      })
+      .inputValue(),
+    '128000',
+  )
+  assert.equal(
+    await modelDialog()
+      .getByRole('checkbox', {
+        name: 'providers:modelEditor.reasoning',
+        exact: true,
+      })
+      .getAttribute('aria-checked'),
+    'true',
+  )
+  await submitModel().click()
+  await modelDialog().waitFor({ state: 'detached' })
+  const edited = modelRequests.at(-1)
+  assert.equal(edited.method, 'PUT')
+  assert.equal(edited.payload.contextWindow, 1_000_000)
+  assert.equal(edited.payload.maxTokens, 128_000)
+  assert.equal(edited.payload.reasoning, true)
+  assert.equal(
+    Object.hasOwn(edited.payload, 'thinkingLevels'),
+    false,
+    'Unchanged official thinking levels must not gain a user override',
+  )
+
+  await addModel().click()
+  await modelDialog()
+    .getByRole('textbox', { name: 'providers:modelEditor.id', exact: true })
+    .fill('fixture-manual-model')
+  await modelDialog()
+    .getByRole('checkbox', { name: 'providers:modelEditor.manualCapabilities', exact: true })
+    .click()
+  await modelDialog()
+    .getByRole('spinbutton', { name: 'providers:modelEditor.contextWindow', exact: true })
+    .fill('256000')
+  await modelDialog()
+    .getByRole('spinbutton', { name: 'providers:modelEditor.maxTokens', exact: true })
+    .fill('32000')
+  await modelDialog()
+    .getByRole('checkbox', { name: 'providers:modelEditor.reasoning', exact: true })
+    .click()
+  await submitModel().click()
+  await modelDialog().waitFor({ state: 'detached' })
+  const manual = modelRequests.at(-1)
+  assert.equal(manual.payload.contextWindow, 256_000)
+  assert.equal(manual.payload.maxTokens, 32_000)
+  assert.equal(manual.payload.reasoning, false)
+  assert.deepEqual(manual.payload.input, ['text'])
+  console.log(
+    'PASS: automatic model creation omits defaults, editing keeps catalog limits, and explicit overrides persist',
   )
 
   failures.add('/api/remote/status')

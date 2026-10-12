@@ -47,18 +47,17 @@ pub(super) fn project_models(
         let mut matches = original.iter().filter(|model| model.id == base_id);
         let base_model = matches.next().filter(|_| matches.next().is_none());
         let official = pi_catalog::canonical_model(base_id);
-        let template = original
-            .iter()
-            .find(|model| model.id == id)
-            .or(base_model)
-            .or(official.as_ref());
+        let template = official
+            .as_ref()
+            .or_else(|| original.iter().find(|model| model.id == id))
+            .or(base_model);
         let mut value = template
             .map(|model| serde_json::to_value(model).expect("serializable model"))
             .unwrap_or_else(|| {
                 json!({
                     "id": id, "name": id, "provider": provider,
                     "api": if string(entry,"api").is_empty() { original.first().map(|model| model.api.as_str()).unwrap_or("openai-responses") } else { string(entry,"api") }, "baseUrl": canonical_base(string(connection, "baseUrl"), string(connection, "api")),
-                    "reasoning": kind(&candidate) == "chat", "input": ["text", "image"],
+                    "reasoning": false, "input": ["text"],
                     "contextWindow": 200000, "maxTokens": original.first().map(|model| model.max_tokens).unwrap_or(128000),
                     "cost": original.first().map(|model| serde_json::to_value(&model.cost).expect("serializable model cost")).unwrap_or_else(|| json!({"input":0,"output":0,"cacheRead":0,"cacheWrite":0})),
                     "thinkingLevelMap": {"xhigh":null,"max":null}
@@ -69,10 +68,32 @@ pub(super) fn project_models(
         }
         value["id"] = json!(id);
         value["provider"] = json!(provider);
+        let configured = pi_catalog::configured_fields(connection, id);
+        let effective_api = configured
+            .as_ref()
+            .and_then(|model| model.get("api"))
+            .and_then(Value::as_str)
+            .filter(|api| !api.is_empty())
+            .or_else(|| (!string(connection, "api").is_empty()).then(|| string(connection, "api")))
+            .or_else(|| (!string(&candidate, "api").is_empty()).then(|| string(&candidate, "api")))
+            .or_else(|| (!string(entry, "api").is_empty()).then(|| string(entry, "api")))
+            .unwrap_or_else(|| string(&value, "api"))
+            .to_owned();
+        value["api"] = json!(effective_api);
+        if official
+            .as_ref()
+            .is_some_and(|model| model.api != effective_api)
+        {
+            value["compat"] = original
+                .iter()
+                .find(|model| model.id == id)
+                .and_then(|model| model.compat.clone())
+                .unwrap_or(Value::Null);
+        }
         if !string(connection, "baseUrl").is_empty() {
             value["baseUrl"] = json!(canonical_base(
                 string(connection, "baseUrl"),
-                string(connection, "api")
+                &effective_api
             ));
         }
         if template.is_none() {
@@ -83,9 +104,6 @@ pub(super) fn project_models(
         }
         if !string(&candidate, "name").is_empty() {
             value["name"] = candidate["name"].clone();
-        }
-        if !string(connection, "api").is_empty() {
-            value["api"] = connection["api"].clone();
         }
         if string(&value, "api").is_empty() {
             value["api"] = json!("openai-responses");
@@ -99,14 +117,35 @@ pub(super) fn project_models(
                 value[field] = candidate[field].clone();
             }
         }
-        // 手动配置的模型字段优先；目录只决定发现范围，不覆盖用户能力设置。
-        if let Some(configured) = array(connection, "models")
+        for field in ["reasoning", "input", "thinkingLevelMap", "compat"] {
+            if let Some(discovered) = candidate.get(field) {
+                pi_catalog::override_field(&mut value, field, discovered);
+            }
+        }
+        if let Some(compat) = connection.get("compat") {
+            pi_catalog::override_field(&mut value, "compat", compat);
+        }
+        let model_headers = original
             .iter()
-            .find(|item| string(item, "id") == id)
-        {
+            .find(|model| model.id == id)
+            .or(base_model)
+            .and_then(|model| model.headers.as_ref());
+        if let Some(headers) = model_headers {
+            value["headers"] = json!(headers);
+        }
+        if let Some(headers) = connection.get("headers") {
+            pi_catalog::override_field(&mut value, "headers", headers);
+        }
+        // 手动配置的模型字段优先；目录只决定发现范围，不覆盖用户能力设置。
+        if let Some(configured) = configured.as_ref() {
             for field in [
+                "name",
+                "api",
                 "reasoning",
                 "input",
+                "cost",
+                "samplingParams",
+                "samplingParamsByThinkingLevel",
                 "contextWindow",
                 "maxTokens",
                 "thinkingLevelMap",
@@ -119,12 +158,16 @@ pub(super) fn project_models(
                 }
             }
         }
-        if value.get("headers").is_none() {
-            if let Some(headers) = original.first().and_then(|model| model.headers.as_ref()) {
-                value["headers"] = serde_json::to_value(headers).expect("serializable headers");
-            } else if let Some(headers) = connection.get("headers") {
-                value["headers"] = headers.clone();
-            }
+        if !candidate["maxTokens"]
+            .as_u64()
+            .is_some_and(|limit| limit > 0 && limit <= 100_000_000)
+            && configured
+                .as_ref()
+                .and_then(|model| model.get("maxTokens"))
+                .is_none()
+            && value["maxTokens"].as_u64() > value["contextWindow"].as_u64()
+        {
+            value["maxTokens"] = value["contextWindow"].clone();
         }
         result.push(
             serde_json::from_value(value)
@@ -395,6 +438,112 @@ mod tests {
         let projected = project_models(&docs, "fixture", &original).unwrap();
         assert_eq!(projected[0].context_window, 256000);
         assert_eq!(projected[0].max_tokens, 32000);
+    }
+
+    #[test]
+    fn prefixed_discovery_uses_official_defaults_ahead_of_stale_sdk_models() {
+        let mut docs = docs();
+        let id = "gateway/team/claude-opus-5-5";
+        docs.catalog["providers"]["fixture"]["models"] = json!([{ "id": id }]);
+        let mut stale = model(id);
+        stale.context_window = 200000;
+        stale.reasoning = false;
+        let original = [stale, model("claude-opus-5-5")];
+        let projected = project_models(&docs, "fixture", &original).unwrap();
+        assert_eq!(projected[0].id, id);
+        assert_eq!(projected[0].context_window, 1_000_000);
+        assert_eq!(projected[0].max_tokens, 128000);
+        assert!(projected[0].reasoning);
+        docs.catalog["providers"]["fixture"]["models"][0]["contextWindow"] = json!(800000);
+        assert_eq!(
+            project_models(&docs, "fixture", &original).unwrap()[0].context_window,
+            800000
+        );
+        docs.models["providers"]["fixture"]["models"] =
+            json!([{"id":id,"contextWindow":200000,"maxTokens":8192,"reasoning":false}]);
+        let manual = project_models(&docs, "fixture", &original).unwrap();
+        assert_eq!(manual[0].context_window, 200000);
+        assert_eq!(manual[0].max_tokens, 8192);
+        assert!(!manual[0].reasoning);
+    }
+
+    #[test]
+    fn prefixed_discovery_preserves_per_model_protocol_and_rejects_fuzzy_matches() {
+        let mut docs = docs();
+        let id = "xxx/claude-opus-5-5";
+        docs.catalog["providers"]["fixture"]["models"] = json!([{ "id": id }]);
+        docs.models["providers"]["fixture"]["models"] =
+            json!([{"id":id,"api":"openai-completions"}]);
+        let projected = project_models(&docs, "fixture", &[]).unwrap();
+        assert_eq!(projected[0].context_window, 1_000_000);
+        assert_eq!(projected[0].api, "openai-completions");
+        assert_eq!(projected[0].base_url, "https://fixture.invalid/v1");
+        assert!(projected[0].compat.is_none());
+        docs.catalog["providers"]["fixture"]["models"] =
+            json!([{ "id":"xxx/claude-opus-5-5-custom" }]);
+        let unknown = project_models(&docs, "fixture", &[]).unwrap();
+        assert_eq!(unknown[0].context_window, 200000);
+        assert!(!unknown[0].reasoning);
+        assert_eq!(
+            serde_json::to_value(&unknown[0]).unwrap()["input"],
+            json!(["text"])
+        );
+    }
+
+    #[test]
+    fn discovery_refresh_retains_explicit_sdk_overrides_and_matching_model_headers() {
+        let mut docs = docs();
+        let id = "xxx/claude-opus-5-5";
+        docs.catalog["providers"]["fixture"]["models"] = json!([{ "id": id }]);
+        docs.models["providers"]["fixture"] = json!({
+            "api":"anthropic-messages", "baseUrl":"https://fixture.invalid/v1",
+            "compat":{"supportsStrictTools":false}, "headers":{"X-Provider":"provider"},
+            "models":[{"id":id,"cost":{"input":1,"output":2,"cacheRead":3,"cacheWrite":4},"samplingParams":{"temperature":0.3},"samplingParamsByThinkingLevel":{"high":{"topP":0.8}},"headers":{"X-Model":"model"}}],
+            "modelOverrides":{id:{"contextWindow":64000,"maxTokens":4096,"cost":{"input":8},"compat":{"supportsCacheControl":false}}}
+        });
+        let mut other = model("other");
+        other.headers = Some(BTreeMap::from([("X-Other".into(), Some("other".into()))]));
+        let mut matching = model(id);
+        matching.headers = Some(BTreeMap::from([(
+            "X-Matching".into(),
+            Some("matching".into()),
+        )]));
+        let projected = project_models(&docs, "fixture", &[other, matching]).unwrap();
+        let value = serde_json::to_value(&projected[0]).unwrap();
+        assert_eq!(value["contextWindow"], 64000);
+        assert_eq!(value["maxTokens"], 4096);
+        assert_eq!(value["cost"]["input"], 8);
+        assert_eq!(value["cost"]["output"], 2);
+        assert_eq!(value["samplingParams"]["temperature"], 0.3);
+        assert_eq!(value["samplingParamsByThinkingLevel"]["high"]["topP"], 0.8);
+        assert_eq!(value["headers"]["X-Provider"], "provider");
+        assert_eq!(value["headers"]["X-Model"], "model");
+        assert_eq!(value["headers"]["X-Matching"], "matching");
+        assert!(value["headers"].get("X-Other").is_none());
+        assert_eq!(value["compat"]["supportsStrictTools"], false);
+        assert_eq!(value["compat"]["supportsCacheControl"], false);
+    }
+
+    #[test]
+    fn missing_output_limits_are_clamped_to_discovered_or_manual_context() {
+        let mut docs = docs();
+        let id = "xxx/claude-opus-5-5";
+        docs.catalog["providers"]["fixture"]["models"] =
+            json!([{ "id": id,"contextWindow":64000 }]);
+        assert_eq!(
+            project_models(&docs, "fixture", &[]).unwrap()[0].max_tokens,
+            64000
+        );
+        docs.models["providers"]["fixture"]["models"] = json!([{"id":id,"contextWindow":32000}]);
+        assert_eq!(
+            project_models(&docs, "fixture", &[]).unwrap()[0].max_tokens,
+            32000
+        );
+        docs.models["providers"]["fixture"]["models"][0]["maxTokens"] = json!(4096);
+        assert_eq!(
+            project_models(&docs, "fixture", &[]).unwrap()[0].max_tokens,
+            4096
+        );
     }
 
     #[test]

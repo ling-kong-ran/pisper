@@ -383,7 +383,7 @@ fn candidate_model(item: &Value, api: &str) -> Option<Value> {
             "chat"
         }
     });
-    let mut model = json!({"id":id,"name":name,"kind":model_kind,"capabilities":[model_kind],"input":["text"],"reasoning":item.get("reasoning").and_then(Value::as_bool).unwrap_or(false)});
+    let mut model = json!({"id":id,"name":name,"kind":model_kind,"capabilities":[model_kind]});
     for field in [
         "input",
         "reasoning",
@@ -407,6 +407,8 @@ mod tests {
         let unknown = candidate_model(&json!({"id":"unknown"}), "openai-completions").unwrap();
         assert!(unknown.get("contextWindow").is_none());
         assert!(unknown.get("maxTokens").is_none());
+        assert!(unknown.get("reasoning").is_none());
+        assert!(unknown.get("input").is_none());
         let known = candidate_model(
             &json!({"id":"long-context", "contextWindow":1_000_000, "maxTokens":64000}),
             "openai-completions",

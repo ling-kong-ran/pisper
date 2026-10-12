@@ -874,7 +874,34 @@ fn model_draft(body: &Value, previous: Option<Value>) -> Result<Value, ApiError>
     if id.is_empty() || id.chars().count() > 240 || id.chars().any(char::is_control) {
         return Err(ApiError::bad_request("模型 ID 无效。"));
     }
-    let mut model = previous.unwrap_or_else(|| json!({ "id": id, "name": id, "reasoning": false, "input": ["text"], "contextWindow": 128000, "maxTokens": 8192, "kind": "chat", "userConfigured": true }));
+    let previous_fields = previous
+        .as_ref()
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut model = previous
+        .unwrap_or_else(|| json!({ "id": id, "name": id, "kind": "chat", "userConfigured": true }));
+    let mut defaults = json!({ "reasoning": false, "input": ["text"], "contextWindow": 128000, "maxTokens": 8192 });
+    let draft_kind = body
+        .get("kind")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            body.get("capabilities")
+                .and_then(Value::as_array)
+                .and_then(|items| items.first())
+                .and_then(Value::as_str)
+        })
+        .unwrap_or(kind(&model));
+    if draft_kind == "chat" {
+        if let Some(official) = pi_catalog::canonical_model(id) {
+            defaults = serde_json::to_value(official).expect("serializable official defaults");
+        }
+    }
+    for field in ["reasoning", "input", "contextWindow", "maxTokens"] {
+        if model.get(field).is_none() {
+            model[field] = defaults[field].clone();
+        }
+    }
     for field in [
         "name",
         "api",
@@ -895,6 +922,12 @@ fn model_draft(body: &Value, previous: Option<Value>) -> Result<Value, ApiError>
                 .ok_or_else(|| ApiError::bad_request(format!("{field} 必须是正整数。")))?;
             model[field] = json!(number);
         }
+    }
+    if body.get("maxTokens").is_none()
+        && !previous_fields.contains_key("maxTokens")
+        && model["maxTokens"].as_u64() > model["contextWindow"].as_u64()
+    {
+        model["maxTokens"] = model["contextWindow"].clone();
     }
     if model["maxTokens"].as_u64().unwrap_or(0) > model["contextWindow"].as_u64().unwrap_or(0) {
         return Err(ApiError::bad_request("输出上限不能超过上下文窗口。"));
@@ -953,6 +986,22 @@ fn model_draft(body: &Value, previous: Option<Value>) -> Result<Value, ApiError>
             );
         }
         model["thinkingLevelMap"] = json!(mapping);
+    }
+    // 自动能力保持未设置，后续官方目录更新仍能生效；已有显式字段及本次用户输入保留。
+    if model_kind == "chat" {
+        for field in [
+            "reasoning",
+            "input",
+            "contextWindow",
+            "maxTokens",
+            "thinkingLevelMap",
+        ] {
+            let supplied = body.get(field).is_some()
+                || (field == "thinkingLevelMap" && body.get("thinkingLevels").is_some());
+            if !supplied && !previous_fields.contains_key(field) {
+                model.as_object_mut().unwrap().remove(field);
+            }
+        }
     }
     Ok(model)
 }
@@ -1968,6 +2017,34 @@ mod tests {
             assert_eq!(std::fs::read(dir.join(name)).unwrap(), bytes);
         }
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn automatic_model_drafts_keep_capabilities_unset_and_preserve_explicit_overrides() {
+        for id in ["xxx/claude-opus-5-5", "tenant/route/claude-opus-5-5"] {
+            let draft = model_draft(&json!({"id":id}), None).unwrap();
+            assert_eq!(draft["id"], id);
+            for field in [
+                "contextWindow",
+                "maxTokens",
+                "reasoning",
+                "input",
+                "thinkingLevelMap",
+            ] {
+                assert!(
+                    draft.get(field).is_none(),
+                    "automatic field must not become a permanent override"
+                );
+            }
+            let manual = model_draft(
+                &json!({"id":id,"contextWindow":64000,"maxTokens":4096,"reasoning":false}),
+                None,
+            )
+            .unwrap();
+            assert_eq!(manual["contextWindow"], 64000);
+            assert_eq!(manual["maxTokens"], 4096);
+            assert_eq!(manual["reasoning"], false);
+        }
     }
 
     #[test]

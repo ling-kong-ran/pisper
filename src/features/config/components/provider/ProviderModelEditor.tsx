@@ -71,7 +71,7 @@ export function ProviderModelEditor({
   onClose: () => void
 }) {
   const { t } = useI18n()
-  const [draft, setDraft] = useState<ModelOptionsDraft>(() => ({
+  const [draft, setDraft] = useState<Required<Omit<ModelOptionsDraft, 'thinkingLevels'>>>(() => ({
     modelId: model?.id || '',
     name: model?.name || '',
     capabilities: model?.capabilities || [
@@ -82,6 +82,8 @@ export function ProviderModelEditor({
     contextWindow: model?.contextWindow || 200000,
     maxTokens: model?.maxTokens || 8192,
   }))
+  // 新建时由运行时匹配模型目录，避免把表单兜底值误存为用户覆盖。
+  const [manualCapabilities, setManualCapabilities] = useState(Boolean(model))
   const [selectedLevels, setSelectedLevels] = useState(
     model?.thinkingLevels || ['off', 'low', 'medium', 'high'],
   )
@@ -98,9 +100,18 @@ export function ProviderModelEditor({
       const result = await providerApi.saveModel(
         provider.id,
         {
-          ...draft,
           modelId: draft.modelId.trim(),
-          thinkingLevels: levelsTouched || !model ? selectedLevels : undefined,
+          name: draft.name,
+          capabilities: draft.capabilities,
+          ...(manualCapabilities
+            ? {
+                input: draft.input,
+                reasoning: draft.reasoning,
+                contextWindow: draft.contextWindow,
+                maxTokens: draft.maxTokens,
+                thinkingLevels: levelsTouched || !model ? selectedLevels : undefined,
+              }
+            : {}),
         },
         !model,
       )
@@ -186,7 +197,21 @@ export function ProviderModelEditor({
                 {t('providers:modelEditor.capabilitiesHint')}
               </p>
             </fieldset>
-            {chat && (
+            {chat && !model && (
+              <div className="space-y-2">
+                <Option
+                  label={t('providers:modelEditor.manualCapabilities')}
+                  checked={manualCapabilities}
+                  onChange={() => setManualCapabilities(!manualCapabilities)}
+                />
+                {!manualCapabilities && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t('providers:modelEditor.automaticCapabilitiesHint')}
+                  </p>
+                )}
+              </div>
+            )}
+            {chat && manualCapabilities && (
               <fieldset className="space-y-2">
                 <legend className="mb-2 text-sm font-medium">
                   {t('providers:modelEditor.chatCapabilities')}
@@ -210,7 +235,7 @@ export function ProviderModelEditor({
                 </div>
               </fieldset>
             )}
-            {chat && draft.reasoning && (
+            {chat && manualCapabilities && draft.reasoning && (
               <fieldset>
                 <legend className="mb-2 text-sm font-medium">
                   {t('config:configPage.modelThinkingLevels')}
@@ -235,7 +260,7 @@ export function ProviderModelEditor({
                 </div>
               </fieldset>
             )}
-            {chat && (
+            {chat && manualCapabilities && (
               <div className="grid gap-3 sm:grid-cols-2">
                 {(['contextWindow', 'maxTokens'] as const).map((field) => (
                   <label key={field} className="grid gap-1.5 text-sm">

@@ -5,11 +5,11 @@ export type ModelOptionsDraft = {
   modelId: string
   name: string
   capabilities: NonNullable<ProviderModel['capabilities']>
-  input: string[]
-  reasoning: boolean
+  input?: string[]
+  reasoning?: boolean
   thinkingLevels?: string[]
-  contextWindow: number
-  maxTokens: number
+  contextWindow?: number
+  maxTokens?: number
 }
 export type LocalProviderImportResult = {
   config: ConfigData

@@ -15,6 +15,12 @@ const agent = join(sandbox, 'agent')
 const workspace = join(sandbox, 'workspace')
 const primary = 'synthetic-upgrade-primary'
 const secondary = 'synthetic-upgrade-secondary'
+const opusId = 'xxx/claude-opus-5-5'
+const legacyOpusId = 'legacy/claude-opus-5-5'
+const wizardOpusId = 'wizard/claude-opus-5-5'
+const batchOpusId = 'gateway/region/claude-opus-5-5'
+const manualOpusId = 'manual/claude-opus-5-5'
+const unknownOpusId = 'gateway/claude-opus-5-5-unlisted'
 const id = (key) => createHash('sha256').update(key).digest('hex').slice(0, 24)
 const token = 'synthetic_upgrade_isolation_token'
 let child, ended, base
@@ -146,23 +152,41 @@ async function json(path, method = 'GET', body) {
   assert.equal(response.ok, true, `${method} ${path}: ${response.status}`)
   return response.json()
 }
+function getModel(config, providerId, modelId) {
+  const provider = config.providers.find((item) => item.id === providerId)
+  assert.ok(provider, `Provider ${providerId} must exist`)
+  const model = provider.models.find((item) => item.id === modelId)
+  assert.ok(model, `Model ${providerId}/${modelId} must preserve its configured ID`)
+  return model
+}
+function assertOfficialOpus(model) {
+  assert.equal(model.contextWindow, 1000000)
+  assert.equal(model.maxTokens, 128000)
+  assert.equal(model.reasoning, true)
+  assert.ok(model.thinkingLevels.includes('max'))
+  assert.ok(!model.thinkingLevels.includes('off'))
+}
+function assertAutomaticFieldsUnset(model) {
+  for (const field of ['contextWindow', 'maxTokens', 'reasoning', 'input', 'thinkingLevelMap'])
+    assert.equal(Object.hasOwn(model, field), false, `${field} must remain automatic in storage`)
+}
 async function verify() {
   const config = await json('/api/config')
   const provider = config.providers.find((p) => p.id === 'upgrade-fixture')
   assert.deepEqual(
     provider.models.map((m) => m.id),
-    ['claude-opus-5-5', 'manual-model'],
+    [opusId, 'manual-model'].sort(),
   )
   assert.equal(provider.apiKeys.length, 2)
-  const opus = provider.models.find((m) => m.id === 'claude-opus-5-5')
-  assert.ok(opus.thinkingLevels.includes('max'))
-  assert.ok(!opus.thinkingLevels.includes('off'))
+  const opus = provider.models.find((m) => m.id === opusId)
+  assertOfficialOpus(opus)
+  assertOfficialOpus(getModel(config, 'legacy-fixture', legacyOpusId))
   assert.ok(!JSON.stringify(config).includes(primary))
   assert.ok(!JSON.stringify(config).includes(secondary))
-  assert.equal(config.defaultModel, 'claude-opus-5-5')
+  assert.equal(config.defaultModel, opusId)
   const exported = await json('/api/providers/export')
   assert.equal(exported.providerKeyrings.providers['upgrade-fixture'].length, 2)
-  assert.equal(exported.providerModels.providers['upgrade-fixture'].models[0].id, 'claude-opus-5-5')
+  assert.equal(exported.providerModels.providers['upgrade-fixture'].models[0].id, opusId)
   return exported
 }
 try {
@@ -186,17 +210,22 @@ try {
           baseUrl: modelBase,
           models: [model('stale-model'), model('manual-model', { userConfigured: true })],
         },
+        'legacy-fixture': {
+          api: 'anthropic-messages',
+          baseUrl: modelBase,
+          models: [{ id: legacyOpusId, name: 'Legacy prefixed Opus', kind: 'chat' }],
+        },
       },
     },
     'auth.json': { 'upgrade-fixture': { type: 'api_key', key: primary } },
-    'settings.json': { defaultProvider: 'upgrade-fixture', defaultModel: 'claude-opus-5-5' },
+    'settings.json': { defaultProvider: 'upgrade-fixture', defaultModel: opusId },
     'pisper.json': {},
     'pisper-provider-models.json': {
       providers: {
         'upgrade-fixture': {
           baseUrl: modelBase,
           api: 'anthropic-messages',
-          models: [{ id: 'claude-opus-5-5', kind: 'chat' }],
+          models: [{ id: opusId, kind: 'chat' }],
         },
       },
     },
@@ -212,11 +241,11 @@ try {
   await start()
   const exported = await verify()
   const chat = await json('/api/sessions', 'POST', { name: 'Opus 5.5 protocol fixture' })
-  assert.equal(chat.model, 'upgrade-fixture/claude-opus-5-5')
+  assert.equal(chat.model, `upgrade-fixture/${opusId}`)
   await json(`/api/sessions/${chat.id}/thinking-level`, 'PUT', { level: 'high' })
   const bound = await json(`/api/sessions/${chat.id}/model`)
   assert.equal(bound.provider, 'upgrade-fixture')
-  assert.equal(bound.id, 'claude-opus-5-5')
+  assert.equal(bound.id, opusId)
   const streamed = await fetch(base + '/api/chat', {
     method: 'POST',
     headers: {
@@ -239,7 +268,12 @@ try {
   )
   assert(
     modelRequests.some(
-      (request) => request.model === 'claude-opus-5-5' && request.output_config.effort === 'high',
+      (request) =>
+        request.model === opusId &&
+        request.thinking.type === 'adaptive' &&
+        request.thinking.budget_tokens === undefined &&
+        request.output_config.effort === 'high' &&
+        request.temperature === undefined,
     ),
   )
   const logs = await readdir(join(agent, 'sessions'), { recursive: true })
@@ -253,9 +287,7 @@ try {
     const bindings = entries.filter((entry) => entry.type === 'model_change')
     assert(bindings.length > 0)
     assert(
-      bindings.every(
-        (entry) => entry.provider === 'upgrade-fixture' && entry.modelId === 'claude-opus-5-5',
-      ),
+      bindings.every((entry) => entry.provider === 'upgrade-fixture' && entry.modelId === opusId),
       'SDK initialization must not append a fallback model to history',
     )
     checkedHistory = true
@@ -265,7 +297,7 @@ try {
   const disabled = await json('/api/config')
   assert.deepEqual(
     disabled.providers.find((p) => p.id === 'upgrade-fixture').models.map((m) => m.id),
-    ['claude-opus-5-5', 'manual-model'],
+    [opusId, 'manual-model'].sort(),
   )
   await stop()
   await start()
@@ -283,19 +315,69 @@ try {
   assert.equal(unavailable.status, 400)
   assert.equal((await unavailable.json()).code, 'model_not_available')
   assert.equal(modelRequests.length, requestCount, 'Disabled provider must never receive a request')
-  assert.equal((await json(`/api/sessions/${chat.id}/model`)).id, 'claude-opus-5-5')
+  assert.equal((await json(`/api/sessions/${chat.id}/model`)).id, opusId)
   await json('/api/providers/upgrade-fixture/enabled', 'PUT', { enabled: true })
   await json('/api/providers/import', 'POST', exported)
   await verify()
   await stop()
   await start()
   await verify()
-  assert.equal((await json(`/api/sessions/${chat.id}/model`)).id, 'claude-opus-5-5')
+  assert.equal((await json(`/api/sessions/${chat.id}/model`)).id, opusId)
   assert.equal(await readFile(join(agent, 'pisper-provider-models.json'), 'utf8'), originalCatalog)
   assert.equal(
     JSON.parse(await readFile(join(agent, 'pisper-provider-keyrings.json'))).future,
     true,
   )
+  // 自动能力字段不能落盘为旧默认值，否则下次更新官方目录仍会被这些值覆盖。
+  const created = await json('/api/providers', 'POST', {
+    id: 'wizard-fixture',
+    name: 'Wizard fixture',
+    api: 'anthropic-messages',
+    baseUrl: modelBase,
+    apiKey: 'synthetic-wizard-key',
+    model: wizardOpusId,
+  })
+  assertOfficialOpus(getModel(created, 'wizard-fixture', wizardOpusId))
+  const added = await json('/api/providers/wizard-fixture/models', 'POST', {
+    id: 'editor/claude-opus-5-5',
+    name: 'Automatic editor fixture',
+    capabilities: ['chat'],
+  })
+  assertOfficialOpus(getModel(added, 'wizard-fixture', 'editor/claude-opus-5-5'))
+  const batch = await json('/api/providers/wizard-fixture/models/batch', 'POST', {
+    models: [
+      { id: batchOpusId },
+      { id: unknownOpusId },
+      { id: manualOpusId, contextWindow: 64000, maxTokens: 4096 },
+    ],
+  })
+  assertOfficialOpus(getModel(batch, 'wizard-fixture', batchOpusId))
+  const unknown = getModel(batch, 'wizard-fixture', unknownOpusId)
+  assert.notEqual(unknown.contextWindow, 1000000)
+  assert.equal(unknown.reasoning, false)
+  assert.deepEqual(unknown.input, ['text'])
+  const manual = getModel(batch, 'wizard-fixture', manualOpusId)
+  assert.equal(manual.contextWindow, 64000)
+  assert.equal(manual.maxTokens, 4096)
+  const automaticExport = await json('/api/providers/export')
+  for (const modelId of [wizardOpusId, 'editor/claude-opus-5-5', batchOpusId, unknownOpusId])
+    assertAutomaticFieldsUnset(
+      automaticExport.providers['wizard-fixture'].models.find((item) => item.id === modelId),
+    )
+  const edited = await json('/api/providers/wizard-fixture/models/options', 'PUT', {
+    modelId: wizardOpusId,
+    contextWindow: 64000,
+    maxTokens: 4096,
+  })
+  assert.equal(getModel(edited, 'wizard-fixture', wizardOpusId).contextWindow, 64000)
+  assert.equal(getModel(edited, 'wizard-fixture', wizardOpusId).maxTokens, 4096)
+  await stop()
+  await start()
+  const restarted = await json('/api/config')
+  assertOfficialOpus(getModel(restarted, 'legacy-fixture', legacyOpusId))
+  assertOfficialOpus(getModel(restarted, 'wizard-fixture', batchOpusId))
+  assert.equal(getModel(restarted, 'wizard-fixture', wizardOpusId).contextWindow, 64000)
+  assert.equal(getModel(restarted, 'wizard-fixture', manualOpusId).maxTokens, 4096)
   await json('/api/providers/upgrade-fixture/connection', 'PUT', {
     apiKeys: ['synthetic-replacement-a', 'synthetic-replacement-b'],
   })
@@ -305,7 +387,7 @@ try {
   })
   const cloned = await json('/api/providers/export')
   assert.equal(cloned.providerKeyrings.providers['clone-fixture'].length, 2)
-  assert.equal(cloned.providerModels.providers['clone-fixture'].models[0].id, 'claude-opus-5-5')
+  assert.equal(cloned.providerModels.providers['clone-fixture'].models[0].id, opusId)
   await json('/api/providers/clone-fixture', 'DELETE')
   const deleted = await json('/api/providers/export')
   assert.equal(deleted.providerKeyrings.providers['clone-fixture'], undefined)
@@ -320,7 +402,7 @@ try {
   assert.equal(cleared.credentials['upgrade-fixture'], undefined)
   assert.equal(cleared.providerKeyrings.providers['upgrade-fixture'], undefined)
   console.log(
-    'PASS provider upgrade: catalog, manual models, adaptive thinking, masked keys, export/import, restart, replacement and clear',
+    'PASS provider upgrade: prefixed official capabilities, wizard/add/batch, manual overrides, adaptive request ID, masked keys, export/import, restart, replacement and clear',
   )
 } finally {
   await stop()
