@@ -1,5 +1,6 @@
 import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { existsSync, readFileSync } from 'node:fs'
 import { syncBuiltinESMExports } from 'node:module'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -12,14 +13,34 @@ Object.defineProperty(process, 'platform', {
 })
 Object.defineProperty(process, 'arch', { value: target.startsWith('aarch64') ? 'arm64' : 'x64' })
 const commands = []
+let builtTuiVersion
 process.on('exit', () => {
   process.stdout.write(`\nRUST_PACKAGING_TEST_COMMANDS=${JSON.stringify(commands)}\n`)
 })
 
 childProcess.spawn = (command, args, options) => {
+  const manifestIndex = args.indexOf('--manifest-path')
+  const buildTui =
+    command === 'fixture-cargo' &&
+    args[0] === 'build' &&
+    manifestIndex >= 0 &&
+    /src-tui[\\/]Cargo\.toml$/.test(args[manifestIndex + 1])
+  let lockVersion
+  if (buildTui) {
+    const manifest = args[manifestIndex + 1]
+    builtTuiVersion = readFileSync(manifest, 'utf8').match(
+      /\[package\][\s\S]*?\r?\nversion\s*=\s*"([^"]+)"/,
+    )?.[1]
+    const lock = path.join(path.dirname(manifest), 'Cargo.lock')
+    if (existsSync(lock))
+      lockVersion = readFileSync(lock, 'utf8').match(
+        /name\s*=\s*"pisper-tui"\s*\r?\nversion\s*=\s*"([^"]+)"/,
+      )?.[1]
+  }
   commands.push({
     command,
     args,
+    ...(buildTui ? { tuiManifestVersion: builtTuiVersion, tuiLockVersion: lockVersion } : {}),
     ci: options.env.CI,
     deploymentTarget: options.env.MACOSX_DEPLOYMENT_TARGET,
     keyPresent: Boolean(options.env.TAURI_SIGNING_PRIVATE_KEY?.trim()),
@@ -28,6 +49,7 @@ childProcess.spawn = (command, args, options) => {
     stageDir: options.env.PISPER_TAURI_STAGE_DIR,
   })
   let stdout = ''
+  let code = 0
   if (command === 'fixture-rustc' && args.join(' ') === '-vV') {
     stdout = `host: ${process.env.PISPER_PACKAGING_TEST_TARGET}\n`
   } else if (command === 'git' && args.join(' ') === 'rev-parse HEAD') {
@@ -36,6 +58,9 @@ childProcess.spawn = (command, args, options) => {
     stdout = ''
   } else if (command === 'fixture-cargo' && ['test', 'build', 'rustc'].includes(args[0])) {
     stdout = 'test result: ok. synthetic command boundary\n'
+    if (buildTui && process.env.PISPER_PACKAGING_TEST_TUI_BUILD_FAIL === '1') code = 1
+  } else if (/^pisper(?:\.exe)?$/.test(path.basename(command)) && args.join(' ') === '--version') {
+    stdout = `pisper ${process.env.PISPER_PACKAGING_TEST_CLI_VERSION || builtTuiVersion}\n`
   } else if (args.includes('--pisper-speech-worker')) {
     stdout = JSON.stringify({
       id: 'packaging-version',
@@ -73,7 +98,7 @@ childProcess.spawn = (command, args, options) => {
   queueMicrotask(() => {
     child.stdout.end(stdout)
     child.stderr.end()
-    child.emit('close', 0, null)
+    child.emit('close', code, null)
   })
   return child
 }

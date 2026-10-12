@@ -67,6 +67,9 @@ const desktopPackage = JSON.parse(
   await readFile(path.join(root, 'src-tauri', 'desktop-package.json'), 'utf8'),
 )
 const runtimeVersion = desktopPackage.bundled?.runtime
+const tuiVersion = desktopPackage.bundled?.tui
+if (typeof tuiVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(tuiVersion))
+  throw new Error('desktop-package.json must declare bundled.tui as X.Y.Z before packaging.')
 if (typeof runtimeVersion !== 'string' || !runtimeVersion.trim()) {
   throw new Error('desktop-package.json must declare bundled.runtime before packaging.')
 }
@@ -120,6 +123,49 @@ if (!tauriEnv.TAURI_SIGNING_PRIVATE_KEY) {
   }
 }
 const signedUpdater = Boolean(tauriEnv.TAURI_SIGNING_PRIVATE_KEY?.trim())
+
+// frozen source 的 Cargo 版本可能早于同批次已发布的 TUI；暂存只属于本次编译。
+// 无论构建、CLI 验证或写入在哪一步失败，都恢复原字节，不混入 Desktop 版本提交。
+async function buildDesktopTui() {
+  const lockPath = path.join(root, 'src-tui', 'Cargo.lock')
+  const [originalManifest, originalLock] = await Promise.all([
+    readFile(tuiManifest),
+    readFile(lockPath),
+  ])
+  const manifestText = originalManifest.toString('utf8')
+  const lockText = originalLock.toString('utf8')
+  const manifestVersion = /(\[package\][\s\S]*?\r?\nversion\s*=\s*")[^"]+("[ \t]*(?:\r?\n|$))/
+  const lockVersion =
+    /(\[\[package\]\]\s*\r?\nname\s*=\s*"pisper-tui"\s*\r?\nversion\s*=\s*")[^"]+("[ \t]*(?:\r?\n|$))/
+  if (!manifestVersion.test(manifestText) || !lockVersion.test(lockText))
+    throw new Error('Unable to stage the bundled TUI Cargo version.')
+  const failures = []
+  try {
+    await writeFile(tuiManifest, manifestText.replace(manifestVersion, `$1${tuiVersion}$2`))
+    await writeFile(lockPath, lockText.replace(lockVersion, `$1${tuiVersion}$2`))
+    await run(cargo, ['build', '--release', '--locked', '--manifest-path', tuiManifest], {
+      env: tuiEnv,
+    })
+    const cli = path.join(root, 'src-tui', 'target', 'release', `pisper${executableSuffix}`)
+    const actual = await run(cli, ['--version'], { env: tuiEnv, capture: true, timeoutMs: 10000 })
+    if (actual !== `pisper ${tuiVersion}`)
+      throw new Error(`Bundled CLI version mismatch: expected pisper ${tuiVersion}, got ${actual}.`)
+  } catch (error) {
+    failures.push(error)
+  } finally {
+    const restored = await Promise.allSettled([
+      writeFile(tuiManifest, originalManifest),
+      writeFile(lockPath, originalLock),
+    ])
+    for (const result of restored) if (result.status === 'rejected') failures.push(result.reason)
+  }
+  if (failures.length === 1) throw failures[0]
+  if (failures.length)
+    throw new AggregateError(
+      failures,
+      'Unable to build bundled CLI or restore original TUI Cargo files.',
+    )
+}
 // macOS 本地资源验收复用即将打包的 release 产物，避免维护第二套大型编译缓存。
 const desktopTestProfileArgs = process.platform === 'darwin' ? ['--release'] : []
 
@@ -192,9 +238,7 @@ await run(process.execPath, [
   runtimeExecutable,
   runtimeDir,
 ])
-await run(cargo, ['build', '--release', '--locked', '--manifest-path', tuiManifest], {
-  env: tuiEnv,
-})
+await buildDesktopTui()
 
 await mkdir(binariesDir, { recursive: true })
 await copyFile(

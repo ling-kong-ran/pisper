@@ -82,7 +82,14 @@ test('packaging fixtures isolate release metadata, compilation targets and signi
   })
 })
 
-async function runPackaging({ key, signingIdentity, target = 'x86_64-pc-windows-msvc' } = {}) {
+async function runPackaging({
+  key,
+  signingIdentity,
+  target = 'x86_64-pc-windows-msvc',
+  failTuiBuild = false,
+  reportedCliVersion,
+  expectFailure = false,
+} = {}) {
   const temporaryRoot = await realpath(tmpdir())
   const root = await mkdtemp(path.join(temporaryRoot, 'pisper-rust-packaging-'))
   try {
@@ -113,6 +120,14 @@ export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,
       path.join(root, 'scripts/rust-desktop-platforms.mjs'),
     )
     await put('scripts/stage-search-tools.mjs', 'export async function stageSearchTools() {}')
+    const originalTuiManifest = Buffer.from(
+      '[package]\r\nname = "pisper-tui"\r\nversion = "0.5.38"\r\n# preserved manifest bytes\r\n',
+    )
+    const originalTuiLock = Buffer.from(
+      'version = 4\r\n\r\n[[package]]\r\nname = "pisper-tui"\r\nversion = "0.5.38"\r\n# preserved lock bytes\r\n',
+    )
+    await put('src-tui/Cargo.toml', originalTuiManifest)
+    await put('src-tui/Cargo.lock', originalTuiLock)
     for (const file of [
       'tauri.conf.json',
       'tauri.updater.conf.json',
@@ -136,6 +151,8 @@ export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,
       RUSTC: 'fixture-rustc',
       PISPER_PACKAGING_TEST_TARGET: target,
     }
+    if (failTuiBuild) env.PISPER_PACKAGING_TEST_TUI_BUILD_FAIL = '1'
+    if (reportedCliVersion) env.PISPER_PACKAGING_TEST_CLI_VERSION = reportedCliVersion
     if (signingIdentity) env.APPLE_SIGNING_IDENTITY = signingIdentity
     if (key !== undefined) env.TAURI_SIGNING_PRIVATE_KEY = key
     if (key?.trim()) {
@@ -150,8 +167,24 @@ export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,
     if (result.error) throw result.error
     const trace = result.stdout.match(/^RUST_PACKAGING_TEST_COMMANDS=(.+)$/m)
     assert.ok(trace, result.stderr || result.stdout)
-    assert.equal(result.status, 0, result.stderr || result.stdout)
     const commands = JSON.parse(trace[1])
+    assert.deepEqual(await readFile(path.join(root, 'src-tui/Cargo.toml')), originalTuiManifest)
+    assert.deepEqual(await readFile(path.join(root, 'src-tui/Cargo.lock')), originalTuiLock)
+    if (expectFailure) {
+      assert.notEqual(result.status, 0)
+      assert.equal(
+        commands.some(({ args }) => path.basename(args[0]) === 'tauri.js'),
+        false,
+      )
+      assert.equal(
+        commands.some(({ args }) => path.basename(args[0]) === 'stage-tauri-artifacts.mjs'),
+        false,
+      )
+      const staged = path.join(root, 'src-tauri/binaries', `pisper-cli-${target}${suffix}`)
+      await assert.rejects(readFile(staged), (error) => error.code === 'ENOENT')
+      return { result, commands, originalTuiBytesRestored: true }
+    }
+    assert.equal(result.status, 0, result.stderr || result.stdout)
     const builds = commands.filter(({ args }) => path.basename(args[0]) === 'tauri.js')
     const stages = commands.filter(
       ({ args }) => path.basename(args[0]) === 'stage-tauri-artifacts.mjs',
@@ -224,6 +257,38 @@ function assertRustPackagingPreserved(result) {
   )
   assert.ok(commands.indexOf(stage) > buildAt)
 }
+
+test('Desktop frozen source builds and verifies the declared bundled CLI then restores original Cargo bytes', async () => {
+  const result = await runPackaging({ target: 'aarch64-apple-darwin' })
+  const compile = result.commands.find((row) => row.tuiManifestVersion)
+  assert.equal(compile.tuiManifestVersion, '7.8.9')
+  assert.equal(compile.tuiLockVersion, '7.8.9')
+  const verify = result.commands.find(
+    ({ command, args }) => path.basename(command) === 'pisper' && args[0] === '--version',
+  )
+  assert(verify, 'Actual compiled CLI must report its version before staging')
+  assert(result.commands.indexOf(verify) > result.commands.indexOf(compile))
+  assert(result.commands.indexOf(verify) < result.commands.indexOf(result.build))
+})
+
+test('failed Desktop TUI build restores both Cargo files and cannot stage a stale CLI', async () => {
+  const result = await runPackaging({ failTuiBuild: true, expectFailure: true })
+  assert.equal(result.originalTuiBytesRestored, true)
+  assert.match(result.result.stderr, /fixture-cargo exited with 1/)
+  assert.equal(
+    result.commands.some(({ args }) => args[0] === '--version'),
+    false,
+  )
+})
+
+test('Desktop rejects a compiled CLI with the wrong version before staging and restores Cargo bytes', async () => {
+  const result = await runPackaging({ reportedCliVersion: '0.5.38', expectFailure: true })
+  assert.equal(result.originalTuiBytesRestored, true)
+  assert.match(
+    result.result.stderr,
+    /Bundled CLI version mismatch: expected pisper 7\.8\.9, got pisper 0\.5\.38/,
+  )
+})
 
 for (const target of ['x86_64-pc-windows-msvc', 'x86_64-pc-windows-gnu']) {
   test(`signed Rust packaging enables canonical updater artifacts and requires signatures (${target})`, async () => {
