@@ -45,6 +45,25 @@ childProcess.spawn = (command, args, options) => {
     deploymentTarget: options.env.MACOSX_DEPLOYMENT_TARGET,
     keyPresent: Boolean(options.env.TAURI_SIGNING_PRIVATE_KEY?.trim()),
     passwordPresent: Boolean(options.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD?.trim()),
+    // 只记录存在性与原值比较结果，避免把签名或公证凭据写入测试输出。
+    signingEnvironment: Object.fromEntries(
+      [
+        'APPLE_ID',
+        'APPLE_PASSWORD',
+        'APPLE_TEAM_ID',
+        'APPLE_API_KEY',
+        'APPLE_API_ISSUER',
+        'APPLE_API_KEY_PATH',
+        'TAURI_SIGNING_PRIVATE_KEY',
+        'TAURI_SIGNING_PRIVATE_KEY_PASSWORD',
+      ].map((name) => [
+        name,
+        {
+          present: Object.hasOwn(options.env, name),
+          matchesInput: options.env[name] === process.env[name],
+        },
+      ]),
+    ),
     bundleDir: options.env.PISPER_TAURI_BUNDLE_DIR,
     stageDir: options.env.PISPER_TAURI_STAGE_DIR,
   })

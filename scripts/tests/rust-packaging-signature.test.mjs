@@ -69,7 +69,11 @@ test('packaging fixtures isolate release metadata, compilation targets and signi
     APPLE_SIGNING_IDENTITY: 'synthetic-parent-identity',
     APPLE_CERTIFICATE: 'synthetic-parent-certificate',
     APPLE_CERTIFICATE_PASSWORD: 'synthetic-parent-certificate-password',
+    APPLE_ID: 'synthetic-parent-id',
+    APPLE_PASSWORD: 'synthetic-parent-apple-password',
+    APPLE_TEAM_ID: 'synthetic-parent-team',
     APPLE_API_KEY: 'synthetic-parent-api-key',
+    APPLE_API_ISSUER: 'synthetic-parent-api-issuer',
     APPLE_API_KEY_PATH: 'synthetic-parent-api-key-path',
     CI: 'fixture-parent-ci',
     RUNNER_ENVIRONMENT: 'fixture-parent-runner',
@@ -85,6 +89,7 @@ test('packaging fixtures isolate release metadata, compilation targets and signi
 async function runPackaging({
   key,
   signingIdentity,
+  notarizationEnv = {},
   target = 'x86_64-pc-windows-msvc',
   failTuiBuild = false,
   reportedCliVersion,
@@ -147,6 +152,7 @@ export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,
     )
     const env = {
       ...fixtureHostEnvironment(),
+      ...notarizationEnv,
       CARGO: 'fixture-cargo',
       RUSTC: 'fixture-rustc',
       PISPER_PACKAGING_TEST_TARGET: target,
@@ -359,6 +365,73 @@ test('macOS packaging preserves an explicitly configured platform signing identi
   const result = await runPackaging({ target: 'aarch64-apple-darwin', signingIdentity: identity })
   assert.equal(result.configs[0].value.bundle.macOS.signingIdentity, identity)
   assert.ok(result.commands.some(({ command }) => command === 'codesign'))
+})
+
+for (const [label, value] of [
+  ['absent', undefined],
+  ['empty', ''],
+  ['whitespace', ' \t '],
+]) {
+  test(`macOS packaging removes ${label} Apple ID credentials without disabling updater signatures`, async () => {
+    const names = ['APPLE_ID', 'APPLE_PASSWORD', 'APPLE_TEAM_ID']
+    const result = await runPackaging({
+      target: 'aarch64-apple-darwin',
+      key: ' synthetic-signing-key ',
+      notarizationEnv:
+        value === undefined ? {} : Object.fromEntries(names.map((name) => [name, value])),
+    })
+    assertRustPackagingPreserved(result)
+    for (const name of names)
+      assert.equal(result.build.signingEnvironment[name].present, false, name)
+    assert.equal(
+      result.configs.find(({ value }) => value.bundle.macOS)?.value.bundle.macOS.signingIdentity,
+      '-',
+    )
+    assert.ok(result.commands.some(({ command }) => command === 'codesign'))
+    const updater = result.configs.find(
+      ({ file }) => file === path.join(result.root, 'src-tauri/tauri.updater.conf.json'),
+    )
+    assert.equal(updater?.value.bundle.createUpdaterArtifacts, true)
+    assert.equal(updater?.value.plugins.updater.pubkey, result.publicKey)
+    assert.ok(result.stage.args.includes('--require-signature'))
+    for (const name of ['TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD']) {
+      assert.deepEqual(result.build.signingEnvironment[name], { present: true, matchesInput: true })
+    }
+  })
+}
+
+test('macOS packaging preserves nonempty Apple ID notarization credentials byte for byte', async () => {
+  const result = await runPackaging({
+    target: 'aarch64-apple-darwin',
+    notarizationEnv: {
+      APPLE_ID: ' synthetic@example.invalid ',
+      APPLE_PASSWORD: ' synthetic-apple-password ',
+      APPLE_TEAM_ID: ' SYNTHETIC1 ',
+    },
+  })
+  for (const name of ['APPLE_ID', 'APPLE_PASSWORD', 'APPLE_TEAM_ID']) {
+    assert.deepEqual(result.build.signingEnvironment[name], { present: true, matchesInput: true })
+  }
+})
+
+test('macOS packaging preserves API notarization credentials when Apple ID credentials are empty', async () => {
+  const result = await runPackaging({
+    target: 'aarch64-apple-darwin',
+    notarizationEnv: {
+      APPLE_ID: '',
+      APPLE_PASSWORD: '',
+      APPLE_TEAM_ID: '',
+      APPLE_API_KEY: ' synthetic-api-key ',
+      APPLE_API_ISSUER: ' synthetic-api-issuer ',
+      APPLE_API_KEY_PATH: ' synthetic-api-key.p8 ',
+    },
+  })
+  for (const name of ['APPLE_ID', 'APPLE_PASSWORD', 'APPLE_TEAM_ID']) {
+    assert.equal(result.build.signingEnvironment[name].present, false, name)
+  }
+  for (const name of ['APPLE_API_KEY', 'APPLE_API_ISSUER', 'APPLE_API_KEY_PATH']) {
+    assert.deepEqual(result.build.signingEnvironment[name], { present: true, matchesInput: true })
+  }
 })
 
 for (const runtimeOverride of [undefined, '9.8.7']) {

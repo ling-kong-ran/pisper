@@ -71,12 +71,32 @@ if (!isMainThread) {
     request.pipe(forwarded)
   }
   const connect = id => (request, socket, head) => {
+    let upstream
+    const fail = (side, error) => {
+      socket.destroy()
+      upstream?.destroy()
+      throw new Error(`owned CONNECT fixture ${id} ${request.url} ${side} ${error.code ?? 'UNKNOWN'}`, { cause: error })
+    }
+    // 重定向或取消可能重置客户端连接；仅清理该隧道，不能让其他用例失去夹具。
+    socket.on('error', error => {
+      upstream?.destroy()
+      if (error.code !== 'ECONNRESET') fail('client', error)
+    })
+    socket.once('close', () => upstream?.destroy())
     let target
     try { target = new URL('https://' + request.url) } catch { socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'); return }
     records.push({ server: id, method: 'CONNECT', target: request.url, proxyAuthorization: request.headers['proxy-authorization'] ?? null })
     if (!allowedHosts.has(target.hostname) || !allowedPorts().has(Number(target.port))) { socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return }
-    const upstream = net.connect({ host: '127.0.0.1', port: target.port }, () => { socket.write('HTTP/1.1 200 Connection Established\r\n\r\n'); if (head.length) upstream.write(head); socket.pipe(upstream); upstream.pipe(socket) })
-    sockets.add(upstream); upstream.on('close', () => sockets.delete(upstream)); upstream.on('error', () => socket.destroy())
+    upstream = net.connect({ host: '127.0.0.1', port: target.port }, () => {
+      if (socket.destroyed) { upstream.destroy(); return }
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+      if (head.length) upstream.write(head)
+      socket.pipe(upstream)
+      upstream.pipe(socket)
+    })
+    sockets.add(upstream)
+    upstream.on('close', () => sockets.delete(upstream))
+    upstream.on('error', error => fail('upstream', error))
   }
   const listen = async (id, secure, handler) => {
     const server = secure ? https.createServer(tls, handler) : http.createServer(handler)

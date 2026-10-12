@@ -91,12 +91,21 @@ mod tests {
         let workspace = root.join("workspace with spaces");
         std::fs::create_dir_all(&workspace).unwrap();
         let agent = root.join("agent").to_string_lossy().into_owned();
-        let regular = workspace.to_string_lossy().into_owned();
         let native = workspace
             .canonicalize()
             .unwrap()
             .to_string_lossy()
             .into_owned();
+        // Windows CI 的 TEMP 可能使用 8.3 短名；规范化同时展开短名，
+        // 因而两种输入必须取自同一个规范路径，只改变待验证的命名空间前缀。
+        let regular = if let Some(unc) = native.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{unc}")
+        } else {
+            native
+                .strip_prefix(r"\\?\")
+                .expect("The fixture must have a Windows verbatim path")
+                .to_owned()
+        };
         let regular_dir = get_default_session_dir_with(&regular, &agent);
         let native_dir = get_default_session_dir_with(&native, &agent);
         let native_directory_exists = std::path::Path::new(&native_dir).is_dir();

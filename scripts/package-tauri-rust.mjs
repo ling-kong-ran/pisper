@@ -97,6 +97,9 @@ if (desktop.minimumSystemVersion) {
     env.MACOSX_DEPLOYMENT_TARGET = desktop.minimumSystemVersion
 }
 for (const name of [
+  'APPLE_ID',
+  'APPLE_PASSWORD',
+  'APPLE_TEAM_ID',
   'APPLE_API_ISSUER',
   'APPLE_API_KEY',
   'APPLE_API_KEY_PATH',

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -21,6 +22,7 @@ import { checkImageAgentParity } from './smoke-rust-image-agent.mjs'
 import { checkVisualParity } from './smoke-rust-visual.mjs'
 import { checkChannelsParity } from './smoke-rust-channels.mjs'
 import { checkBrowserParity } from './smoke-rust-browser.mjs'
+import { createTerminalDiagnosticSanitizer } from './terminal-diagnostic.mjs'
 import {
   checkTerminalBridgeUiParity,
   checkTerminalEntrypointNegatives,
@@ -1502,6 +1504,12 @@ async function runUi(modelBaseUrl) {
 }
 
 async function runTerminalContracts() {
+  const sanitizeDiagnostic = createTerminalDiagnosticSanitizer({
+    workspace,
+    outputRoot: output,
+    repositoryRoot: root,
+    homeRoot: homedir(),
+  })
   const nativeEvidence = JSON.parse(await readFile(terminalEvidencePath, 'utf8'))
   const terminalBrowser = await chromium.launch({
     headless: true,
@@ -1525,7 +1533,14 @@ async function runTerminalContracts() {
         locale: 'zh-CN',
         isMobile: mobile,
       })
-      const evidence = { name, pageErrors: [], failedApi: [], deniedRequests: [], closed: false }
+      const evidence = {
+        name,
+        pageErrors: [],
+        consoleErrors: [],
+        failedApi: [],
+        deniedRequests: [],
+        closed: false,
+      }
       report.terminalPages ||= []
       report.terminalPages.push(evidence)
       let page
@@ -1597,7 +1612,11 @@ async function runTerminalContracts() {
           } else await route.continue()
         })
         page = await context.newPage()
-        page.on('pageerror', (error) => evidence.pageErrors.push(error.message))
+        page.on('pageerror', (error) => evidence.pageErrors.push(sanitizeDiagnostic(error.message)))
+        page.on('console', (message) => {
+          if (message.type() === 'error' && evidence.consoleErrors.length < 100)
+            evidence.consoleErrors.push(sanitizeDiagnostic(message.text()).slice(0, 4096))
+        })
         page.on('response', (response) => {
           const url = new URL(response.url())
           if (
@@ -1635,6 +1654,10 @@ async function runTerminalContracts() {
         isolatedContext: true,
         json,
         workspace,
+        onFailureEvidence: (evidence) => {
+          // 截图可能包含错误回显中的完整个人路径；保留已脱敏的 DOM 文本和几何证据。
+          report.terminalBridgeFailure = sanitizeDiagnostic(evidence)
+        },
       })
     } catch (error) {
       assertionFailure = error

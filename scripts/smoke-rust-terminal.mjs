@@ -154,6 +154,7 @@ export async function checkTerminalBridgeUiParity({
   isolatedContext = false,
   json,
   workspace,
+  onFailureEvidence,
 }) {
   const verified = await checkNativeTerminalEvidence({ check, nativeEvidence })
   if (!verified) return { layer: 'frontend-bridge-contract', skipped: 'Native evidence failed' }
@@ -209,11 +210,10 @@ export async function checkTerminalBridgeUiParity({
           () => typeof window.pisperDesktop?.terminalProfiles === 'function',
         )
         await waitForStartup(page, ['capabilities-loaded', 'sessions-loaded', 'chat-shell-ready'])
-        await selectSession(page, ownedSessions[0])
-        await page
+        const sessionPanel = await selectSession(page, ownedSessions[0])
+        await sessionPanel
           .locator('button[aria-label]:visible')
           .filter({ has: page.locator('svg.lucide-square-terminal, svg.lucide-terminal-square') })
-          .first()
           .click()
         const panel = page.locator('.terminal-panel')
         await panel.waitFor({ state: 'visible', timeout: 10_000 })
@@ -414,6 +414,17 @@ export async function checkTerminalBridgeUiParity({
         }
       } catch (error) {
         failure = error
+        // 必须在关闭 IPC 和删除合成会话前取证；诊断失败不能替换原断言失败。
+        if (onFailureEvidence) {
+          try {
+            const evidence = await page.evaluate(captureTerminalFailure).catch((captureError) => ({
+              captureError: captureError.message,
+            }))
+            await onFailureEvidence(evidence)
+          } catch {
+            console.warn('Terminal failure diagnostics could not be recorded')
+          }
+        }
       } finally {
         const errors = []
         for (const cleanup of [
@@ -447,6 +458,66 @@ export async function checkTerminalBridgeUiParity({
   )
 }
 
+function captureTerminalFailure() {
+  const contract = window.__terminalContract
+  const describe = (element) => {
+    const rect = element.getBoundingClientRect()
+    const style = getComputedStyle(element)
+    return {
+      className: element.className,
+      text: (element.textContent || '').slice(0, 4096),
+      title: element.getAttribute('title'),
+      hidden: element.hasAttribute('hidden'),
+      ariaBusy: element.getAttribute('aria-busy'),
+      display: style.display,
+      visibility: style.visibility,
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    }
+  }
+  return {
+    layer: 'frontend-bridge-contract',
+    controlledIpc: true,
+    activeSessionId: contract?.activeSessionId,
+    activeSessionEvents: contract?.activeSessionEvents,
+    acknowledged: contract?.acknowledged,
+    nextCreateMode: contract?.nextCreateMode,
+    activeIds: contract?.activeIds?.(),
+    heldIds: contract?.heldIds?.(),
+    calls: contract?.calls.map(({ command, at, terminalId, profileId, cwd, cols, rows, data }) => ({
+      command,
+      at,
+      terminalId,
+      profileId,
+      cwd,
+      cols,
+      rows,
+      ...(data ? { dataByteLength: data.length } : {}),
+    })),
+    panels: [...document.querySelectorAll('.terminal-panel')].map(describe),
+    tabs: [...document.querySelectorAll('.terminal-tab')].map((tab) => {
+      const indicator = tab.querySelector('i[data-status]')
+      return {
+        ...describe(tab),
+        status: indicator?.getAttribute('data-status'),
+        indicator: indicator ? describe(indicator) : null,
+      }
+    }),
+    hosts: [...document.querySelectorAll('.terminal-host')].map((host) => ({
+      ...describe(host),
+      xterms: [...host.querySelectorAll('.xterm')].map(describe),
+      screenText: (host.querySelector('.xterm-rows')?.textContent || '').slice(0, 4096),
+    })),
+    emptyButtons: [...document.querySelectorAll('.terminal-empty')].map((button) => ({
+      ...describe(button),
+      disabled: button.disabled,
+    })),
+    startupMarks: performance
+      .getEntriesByType('mark')
+      .filter((entry) => entry.name.startsWith('pisper-'))
+      .map(({ name, startTime }) => ({ name, startTime })),
+  }
+}
+
 function installControlledTransport() {
   if (window.top !== window) return
   if (window.__TAURI_INTERNALS__)
@@ -456,11 +527,18 @@ function installControlledTransport() {
   const channels = new Map()
   const archivedChannels = new Map()
   const pendingCreates = new Map()
-  const evidence = { calls: [], acknowledged: 0, nextCreateMode: 'ordinary', activeSessionId: '' }
+  const evidence = {
+    calls: [],
+    acknowledged: 0,
+    nextCreateMode: 'ordinary',
+    activeSessionId: '',
+    activeSessionEvents: [],
+  }
   window.__terminalContract = evidence
   localStorage.setItem('pisper:startup-diagnostics', '1')
   window.addEventListener('pisper:active-session-changed', (event) => {
     evidence.activeSessionId = event.detail?.id || ''
+    evidence.activeSessionEvents.push({ id: evidence.activeSessionId, at: performance.now() })
   })
   const emit = (id, message) => {
     const channel = archivedChannels.get(id)
@@ -496,6 +574,7 @@ function installControlledTransport() {
       if (command.startsWith('desktop_terminal_')) {
         evidence.calls.push({
           command,
+          at: performance.now(),
           ...(args.input || {}),
           ...(args.data ? { data: args.data } : {}),
           ...(args.terminalId ? { terminalId: args.terminalId } : {}),
@@ -567,6 +646,8 @@ async function waitForStartup(page, phases) {
 }
 
 async function selectSession(page, id) {
+  // 启动公告可能先于 Dock 监听器；先等真实面板，避免裸事件丢失后恢复旧会话。
+  await page.locator('.session-dock-panel:visible').first().waitFor({ state: 'visible' })
   await page.evaluate(
     (sessionId) =>
       window.dispatchEvent(
@@ -574,9 +655,14 @@ async function selectSession(page, id) {
       ),
     id,
   )
+  const panel = page.locator('.session-dock-panel').filter({
+    has: page.locator(`[aria-controls="composer-tool-tray-${id}"]`),
+  })
+  await panel.waitFor({ state: 'visible' })
   await page.waitForFunction((id) => window.__terminalContract.activeSessionId === id, id, {
     timeout: 10_000,
   })
+  return panel
 }
 
 async function installInitialPreferences(page, id, base) {
