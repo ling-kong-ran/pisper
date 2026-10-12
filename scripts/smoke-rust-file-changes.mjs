@@ -331,6 +331,13 @@ export async function checkFileChangeParity({
       assert.equal(await readFile(join(dir, 'child.txt'), 'utf8'), 'child actual write\n')
       assert.equal((await json(changes(id))).files[0].path, path)
       assert.equal((await json(summary(id))).pendingFiles, 1)
+      // completed 先于父会话处理完成通知；等待真实邮箱确认，避免把父会话
+      // 自己仍在运行时的合法 409 误判为无法关闭子会话。wait API 不确认邮箱。
+      await poll(
+        () => json(`${base(id)}/agents/${child.id}/wait`, 'POST', { timeoutMs: 250 }),
+        (value) => value.agent?.status === 'completed' && !value.agent.mailboxId,
+        'Parent delivery of the completed child result',
+      )
       const label = 'snapshot-child-delete'
       await json(`${base(id)}/agents`, 'POST', {
         taskName: 'snapshot-child-held',
@@ -338,9 +345,21 @@ export async function checkFileChangeParity({
       })
       try {
         await waitForHeldModel(label)
+        const parentBeforeDelete = await json(`${base(id)}/live`)
         const removed = await response(base(id), 'DELETE')
-        assert.equal(removed.status, 200, 'Deleting the parent must close its owned child itself')
-        assert.equal((await removed.json()).deleted, true)
+        const deletion = await removed.json()
+        assert.equal(
+          removed.status,
+          200,
+          'Deleting the parent must close its owned child itself: ' +
+            JSON.stringify({
+              deletion,
+              streaming: parentBeforeDelete.streaming,
+              configurationBusy: parentBeforeDelete.configurationBusy,
+              messageCount: parentBeforeDelete.messageCount,
+            }),
+        )
+        assert.equal(deletion.deleted, true)
         await waitForHeldModel(label, false)
         await absent(snapshotDir(id))
         await delay(150)
