@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
-    fs::{File, Metadata},
+    fs::File,
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
@@ -19,15 +19,22 @@ struct Stamp {
     created: Option<SystemTime>,
     #[cfg(unix)]
     identity: (u64, u64, i64, i64),
+    #[cfg(windows)]
+    identity: Option<(u64, [u8; 16])>,
 }
 impl Stamp {
     fn read(path: &Path) -> Result<Self, ApiError> {
+        #[cfg(windows)]
+        let file = File::open(path).map_err(|_| ApiError::bad_request("会话文件不可读取。"))?;
+        // Windows 必须从同一句柄读取时间与文件标识，避免路径替换时拼出混合戳。
+        #[cfg(windows)]
+        let meta = file
+            .metadata()
+            .map_err(|_| ApiError::bad_request("会话文件不可读取。"))?;
+        #[cfg(not(windows))]
         let meta =
             std::fs::metadata(path).map_err(|_| ApiError::bad_request("会话文件不可读取。"))?;
-        Ok(Self::from_metadata(&meta))
-    }
-    fn from_metadata(meta: &Metadata) -> Self {
-        Self {
+        Ok(Self {
             len: meta.len(),
             modified: meta.modified().ok(),
             created: meta.created().ok(),
@@ -36,6 +43,19 @@ impl Stamp {
                 use std::os::unix::fs::MetadataExt;
                 (meta.dev(), meta.ino(), meta.ctime(), meta.ctime_nsec())
             },
+            #[cfg(windows)]
+            identity: windows_file_identity(&file),
+        })
+    }
+    fn cacheable(&self) -> bool {
+        #[cfg(windows)]
+        {
+            // 不支持文件标识的文件系统仍可读取，但不能安全复用缓存。
+            self.identity.is_some()
+        }
+        #[cfg(not(windows))]
+        {
+            true
         }
     }
     fn millis(&self) -> i64 {
@@ -44,6 +64,42 @@ impl Stamp {
             .map(|time| time.as_millis() as i64)
             .unwrap_or(0)
     }
+}
+
+#[cfg(windows)]
+fn windows_file_identity(file: &File) -> Option<(u64, [u8; 16])> {
+    use std::os::windows::io::AsRawHandle;
+    #[repr(C)]
+    #[derive(Default)]
+    struct Information {
+        volume: u64,
+        id: [u8; 16],
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandleEx(
+            handle: *mut std::ffi::c_void,
+            class: i32,
+            information: *mut std::ffi::c_void,
+            size: u32,
+        ) -> i32;
+    }
+    let mut information = Information::default();
+    // ReFS 不保证旧 64 位索引唯一，必须读取 FileIdInfo 的完整 128 位标识。
+    const FILE_ID_INFO_CLASS: i32 = 18;
+    // SAFETY: repr(C) 对应 FILE_ID_INFO，缓冲区长度正确；File 保持句柄有效。
+    if unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FILE_ID_INFO_CLASS,
+            &mut information as *mut _ as *mut _,
+            std::mem::size_of::<Information>() as u32,
+        )
+    } == 0
+    {
+        return None;
+    }
+    (information.id != [0; 16]).then_some((information.volume, information.id))
 }
 
 struct Cached<T> {
@@ -107,9 +163,9 @@ impl<T> FileCache<T> {
         let key = (path.to_path_buf(), discriminator);
         {
             let mut entries = self.entries.lock().expect("session read cache");
-            entries
-                .values
-                .retain(|(candidate, _), cached| candidate != path || cached.stamp == stamp);
+            entries.values.retain(|(candidate, _), cached| {
+                candidate != path || (stamp.cacheable() && cached.stamp == stamp)
+            });
             entries.clock += 1;
             let now = entries.clock;
             if let Some(cached) = entries.values.get_mut(&key) {
@@ -123,7 +179,10 @@ impl<T> FileCache<T> {
         }
         let (value, bytes) = load()?;
         let value = Arc::new(value);
-        if bytes <= self.max_bytes && Stamp::read(path).ok().as_ref() == Some(&stamp) {
+        if stamp.cacheable()
+            && bytes <= self.max_bytes
+            && Stamp::read(path).ok().as_ref() == Some(&stamp)
+        {
             let mut entries = self.entries.lock().expect("session read cache");
             entries.clock += 1;
             let now = entries.clock;
@@ -660,7 +719,8 @@ mod tests {
         let fixture = Fixture::new();
         let path = fixture.0.join("history");
         std::fs::write(&path, "old").unwrap();
-        let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+        let original = std::fs::metadata(&path).unwrap();
+        let modified = original.modified().unwrap();
         let cache = FileCache::new(2, 1024);
         let read = || {
             cache
@@ -672,13 +732,25 @@ mod tests {
         assert_eq!(&*read(), "old");
         let replacement = fixture.0.join("replacement");
         std::fs::write(&replacement, "new").unwrap();
+        let times = std::fs::FileTimes::new().set_modified(modified);
+        #[cfg(windows)]
+        let times = {
+            use std::os::windows::fs::FileTimesExt;
+            // 同一时钟刻度或保留时间的替换不能靠创建时间偶然失效。
+            times.set_created(original.created().unwrap())
+        };
         File::options()
             .write(true)
             .open(&replacement)
             .unwrap()
-            .set_times(std::fs::FileTimes::new().set_modified(modified))
+            .set_times(times)
             .unwrap();
         std::fs::rename(replacement, &path).unwrap();
+        let replaced = std::fs::metadata(&path).unwrap();
+        assert_eq!(replaced.len(), original.len());
+        assert_eq!(replaced.modified().unwrap(), modified);
+        #[cfg(windows)]
+        assert_eq!(replaced.created().unwrap(), original.created().unwrap());
         assert_eq!(&*read(), "new");
         assert_eq!(
             &*cache
