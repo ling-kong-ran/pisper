@@ -59,3 +59,5 @@
 - `npm run test:release`：92 通过、2 跳过。
 - 按锁文件 `npm ci` 后，`npm run build` 和 `npm run check` 通过。后者包含 93 项真实 Runtime 可用性验收，以及新增数据路径、Provider 升级、项目上下文、会话缓存和 CLI 握手验证。
 - 未运行其他操作系统构建、移动端设备验收或正式安装器重新打包；未创建新版本。
+- 最终移动端入口调整后，`cargo check --locked --manifest-path runtime-rs/Cargo.toml` 与 `cargo test --locked --manifest-path runtime-rs/Cargo.toml --lib runtime_host::tests -- --test-threads=1` 通过。
+- `cargo clippy --locked --manifest-path runtime-rs/Cargo.toml -p pisper-server --all-targets` 完成，但存在存量警告；Runtime 全仓 `cargo fmt --check` 仍命中 development-workflow.md 已记录的基线问题，CI 的非阻断 Rust quality 检查同样失败。本次新增文件的 rustfmt 检查通过，未以全仓格式化混入功能修复。

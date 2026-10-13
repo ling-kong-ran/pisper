@@ -818,16 +818,16 @@ fn attach_event_listener(state: &AppState) {
 }
 
 async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState>> {
-    let cwd = std::env::var("PISPER_WORKSPACE_DIR")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .or_else(std::env::home_dir)
-        .ok_or_else(|| anyhow::anyhow!("Pisper workspace directory cannot be resolved"))?;
+    let cwd = match embedded {
+        Some(options) => options.workspace.clone(),
+        None => std::env::var("PISPER_WORKSPACE_DIR")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from)
+            .or_else(std::env::home_dir)
+            .ok_or_else(|| anyhow::anyhow!("Pisper workspace directory cannot be resolved"))?,
+    };
     let cwd = std::path::absolute(cwd)?.to_string_lossy().into_owned();
-    let cwd = embedded
-        .map(|options| options.workspace.to_string_lossy().into_owned())
-        .unwrap_or(cwd);
     let paths = match embedded {
         Some(options) => runtime_paths::RuntimePaths {
             agent_dir: options.agent_dir.to_string_lossy().into_owned(),
