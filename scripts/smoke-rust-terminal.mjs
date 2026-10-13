@@ -211,10 +211,23 @@ export async function checkTerminalBridgeUiParity({
         )
         await waitForStartup(page, ['capabilities-loaded', 'sessions-loaded', 'chat-shell-ready'])
         const sessionPanel = await selectSession(page, ownedSessions[0])
-        await sessionPanel
+        // 工具已移到顶栏；仍先确认真实活动会话，避免按钮作用于其它会话。
+        const toolbar = (await page.evaluate(() => Boolean(window.pisperDesktop?.customTitlebar)))
+          ? page.locator('.desktop-window-controls')
+          : page
+              .locator('.dv-groupview')
+              .filter({ has: sessionPanel })
+              .locator('.dv-tabs-and-actions-container')
+        const terminalToggle = toolbar
           .locator('button[aria-label]:visible')
           .filter({ has: page.locator('svg.lucide-square-terminal, svg.lucide-terminal-square') })
-          .click()
+        await terminalToggle.waitFor({ state: 'visible' })
+        assert.equal(
+          await terminalToggle.count(),
+          1,
+          'The selected session must own one terminal toggle',
+        )
+        await terminalToggle.click()
         const panel = page.locator('.terminal-panel')
         await panel.waitFor({ state: 'visible', timeout: 10_000 })
         await panel.locator('.terminal-empty:not([disabled])').click()
