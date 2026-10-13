@@ -211,9 +211,9 @@ export async function checkTerminalBridgeUiParity({
         )
         await waitForStartup(page, ['capabilities-loaded', 'sessions-loaded', 'chat-shell-ready'])
         const sessionPanel = await selectSession(page, ownedSessions[0])
-        // 工具已移到顶栏；仍先确认真实活动会话，避免按钮作用于其它会话。
+        // 单行顶栏把会话工具与窗口按钮分开；仍先确认真实活动会话，避免作用于其它会话。
         const toolbar = (await page.evaluate(() => Boolean(window.pisperDesktop?.customTitlebar)))
-          ? page.locator('.desktop-window-controls')
+          ? page.locator('[data-desktop-titlebar-actions]')
           : page
               .locator('.dv-groupview')
               .filter({ has: sessionPanel })
