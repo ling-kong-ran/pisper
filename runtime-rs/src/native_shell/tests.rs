@@ -353,8 +353,32 @@ impl Drop for OwnedProcesses {
     fn drop(&mut self) {
         for pid in self.0.lock().unwrap().iter() {
             if alive(*pid) {
-                pi_rust::coding_agent::utils::shell::kill_process_tree(*pid);
+                cleanup_owned_process(*pid);
             }
+        }
+    }
+}
+#[cfg(unix)]
+fn cleanup_owned_process(pid: u32) {
+    pi_rust::coding_agent::utils::shell::kill_process_tree(pid);
+}
+#[cfg(windows)]
+fn cleanup_owned_process(pid: u32) {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut std::ffi::c_void;
+        fn TerminateProcess(handle: *mut std::ffi::c_void, exit: u32) -> i32;
+        fn WaitForSingleObject(handle: *mut std::ffi::c_void, milliseconds: u32) -> u32;
+        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+    }
+    // quiet-parent 已退出，taskkill /T 无法可靠处理失去父进程的测试叶子。
+    // 只清理夹具明确报告的进程，并等待句柄完成；产品取消逻辑仍由独立测试覆盖。
+    unsafe {
+        let handle = OpenProcess(0x0010_0001, 0, pid);
+        if !handle.is_null() {
+            TerminateProcess(handle, 1);
+            WaitForSingleObject(handle, 3_000);
+            CloseHandle(handle);
         }
     }
 }
@@ -627,7 +651,7 @@ async fn native_post_exit_quiet_descendant_does_not_hold_output_forever() {
     );
     for pid in pids.lock().unwrap().iter().copied() {
         if alive(pid) {
-            pi_rust::coding_agent::utils::shell::kill_process_tree(pid);
+            cleanup_owned_process(pid);
         }
     }
     let deadline = Instant::now() + Duration::from_secs(3);
