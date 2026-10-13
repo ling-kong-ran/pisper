@@ -56,12 +56,14 @@ export function WorkbenchGreeting() {
         style={{ fontSize }}
         className="relative z-10 m-0 w-full px-4 text-center leading-[1.2] font-medium"
       >
-        <span
-          ref={measurement}
-          aria-hidden="true"
-          className="pointer-events-none invisible absolute text-3xl leading-[1.2] whitespace-nowrap"
-        >
-          {greeting}
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          {/* 测量保持原始字宽，但不能撑大窄会话面板的滚动区域。 */}
+          <span
+            ref={measurement}
+            className="invisible absolute text-3xl leading-[1.2] whitespace-nowrap"
+          >
+            {greeting}
+          </span>
         </span>
         <span>{greeting}</span>
       </h1>

@@ -862,8 +862,6 @@ function App() {
                     }
                     navigateSettings={navigateSettings}
                     collapsed={sidebarCollapsed}
-                    onNewChat={startNewChat}
-                    onSearch={() => setPaletteOpen(true)}
                     update={appUpdate}
                     onOpenUpdates={openUpdateSettings}
                     requestText={appDialog.prompt}

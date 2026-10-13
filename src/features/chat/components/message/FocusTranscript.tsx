@@ -65,6 +65,7 @@ type FocusTranscriptProps = {
   onRetryLastTurn: () => Promise<void> | void
   onPromptSelect?: (prompt: string) => void
   onWorkspace?: () => void
+  onScrollbarGutterChange?: (left: number, right: number) => void
 }
 
 function TranscriptLoading({ label }: { label: string }) {
@@ -126,6 +127,7 @@ export function FocusTranscript({
   onBranchFromHere,
   onCreateChildSession,
   onRetryLastTurn,
+  onScrollbarGutterChange,
 }: FocusTranscriptProps) {
   const { t } = useI18n()
   const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
@@ -145,6 +147,25 @@ export function FocusTranscript({
     maintainBottom,
     pauseFollowing,
   } = useAutoScroll(transcriptVersion, { resetKey: `${sessionId}:${transcriptLoadState}` })
+  useLayoutEffect(() => {
+    if (!transcriptElement || !onScrollbarGutterChange) return
+    // 分别测量两侧占位，兼容双侧、单侧和浮动滚动条；输入区本身不滚动。
+    const updateGutter = () => {
+      if (transcriptElement.offsetWidth > 0) {
+        const left = transcriptElement.clientLeft
+        const right = transcriptElement.offsetWidth - transcriptElement.clientWidth - left
+        onScrollbarGutterChange(left, right)
+      }
+    }
+    updateGutter()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateGutter)
+      return () => window.removeEventListener('resize', updateGutter)
+    }
+    const observer = new ResizeObserver(updateGutter)
+    observer.observe(transcriptElement)
+    return () => observer.disconnect()
+  }, [transcriptElement, onScrollbarGutterChange])
   const latestRunProps = useMemo(
     () => ({
       streaming,
@@ -233,7 +254,7 @@ export function FocusTranscript({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[var(--chat-transcript-block-padding,30px)_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
+        className="transcript [.focus-session.has-conversation_&]:py-[var(--chat-transcript-block-padding,30px)] [.focus-session.has-conversation_&]:pl-[max(0px,calc(var(--chat-column-padding)_-_var(--chat-scrollbar-left,0px)))] [.focus-session.has-conversation_&]:pr-[max(0px,calc(var(--chat-column-padding)_-_var(--chat-scrollbar-right,0px)))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:py-[24px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}

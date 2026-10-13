@@ -288,7 +288,7 @@ export function useChatDock({
         component: 'session',
         title: session.name || t('chat:chatPage.untitledChat'),
         params: { sessionId },
-        renderer: 'always',
+        renderer: 'onlyWhenVisible',
         ...SESSION_PANEL_CONSTRAINTS,
         ...(position ? { position } : {}),
       })
@@ -514,7 +514,7 @@ export function useChatDock({
             Object.entries(storedLayout.layout.panels).map(([id, panel]) => [
               id,
               panel.contentComponent === 'session'
-                ? { ...panel, ...SESSION_PANEL_CONSTRAINTS }
+                ? { ...panel, renderer: 'onlyWhenVisible', ...SESSION_PANEL_CONSTRAINTS }
                 : panel,
             ]),
           ),
@@ -544,7 +544,8 @@ export function useChatDock({
           component: 'session',
           title: session.name || t('chat:chatPage.untitledChat'),
           params: { sessionId },
-          renderer: 'always',
+          // 隐藏会话本就不挂载 FocusSession；直接放在网格中才能同步响应侧栏宽度变化。
+          renderer: 'onlyWhenVisible',
           ...SESSION_PANEL_CONSTRAINTS,
           ...(referenceGroup ? { position: { referenceGroup } } : {}),
           inactive: Boolean(referenceGroup),

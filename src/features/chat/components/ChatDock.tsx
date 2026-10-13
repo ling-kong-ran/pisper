@@ -46,7 +46,10 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
       sessionId={sessionId}
       panelId={api.id}
       shortcutEnabled={active}
-      onFocusCapture={() => api.setActive()}
+      onFocusCapture={() => {
+        // 可见面板已是组内活动页；只激活所在组，避免重新挂载点击中的内容而丢失 click。
+        if (!api.isActive) api.group.api.setActive()
+      }}
       canSplitPanel={Boolean(context?.compactDock === false && api.group.size > 1)}
       canClosePanel
     />

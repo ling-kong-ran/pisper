@@ -198,7 +198,7 @@ export function SessionContextPanel({
     >
       <header
         data-window-drag-region
-        className="auxiliary-page-header flex h-12 shrink-0 items-center gap-0.5 border-b border-border/60 px-1.5"
+        className={`auxiliary-page-header flex ${compact || embedded ? 'h-12' : 'h-9'} shrink-0 items-center gap-0.5 border-b border-border/60 px-1.5`}
       >
         <div
           ref={listRef}

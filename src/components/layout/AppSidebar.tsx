@@ -1,6 +1,6 @@
-// 工作台导航只负责展示；会话创建、搜索与设置跳转由应用壳传入。
+// 工作台导航只负责展示；页面与设置跳转由应用壳传入。
 import { lazy, Suspense, useMemo } from 'react'
-import { Blocks, Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
+import { Blocks, Home, type LucideIcon } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/i18n/use-i18n'
 import type { Notify } from '@/app/routes/route-context'
@@ -18,7 +18,6 @@ import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from '@/components/common/BrandLogo'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
-import { useShortcutLabel } from '@/lib/ui/shortcuts'
 import { cn } from '@/lib/utils'
 
 const SidebarSettingsButton = lazy(() =>
@@ -46,8 +45,6 @@ type AppSidebarProps = {
   navigate: (page: string) => void
   onOpenComponent: (id: string) => void
   navigateSettings: (destination: SettingsDestination) => void
-  onNewChat: () => void
-  onSearch: () => void
   collapsed: boolean
   update: SidebarUpdate
   onOpenUpdates: () => void
@@ -64,8 +61,6 @@ export function AppSidebar({
   navigate,
   onOpenComponent,
   navigateSettings,
-  onNewChat,
-  onSearch,
   collapsed,
   update,
   onOpenUpdates,
@@ -84,8 +79,6 @@ export function AppSidebar({
     [capabilities, mobileApp, t],
   )
   const activeSettingsKey = settingsNavigationKey(page, configSection)
-  const newChatShortcut = useShortcutLabel('primaryAction')
-  const searchShortcut = useShortcutLabel('commandPalette')
   // 沿用壳层已过滤的能力清单；没有后端支持的入口不会出现在工作台。
   const items = navigation.flatMap(([, entries]) => entries)
   const workspaceItems = ['workflows', 'assets'].flatMap((id) =>
@@ -198,41 +191,6 @@ export function AppSidebar({
               >
                 <Home size={16} aria-hidden="true" />
                 <span className={navLabel}>{t('navigation:workbench.home')}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className={navButton}
-                onClick={() => runAndClose(onNewChat)}
-                data-testid="workbench-new-task"
-                title={compact ? t('navigation:workbench.newTask') : undefined}
-              >
-                <MessageCirclePlus size={16} />
-                <span className={navLabel}>{t('navigation:workbench.newTask')}</span>
-                <kbd
-                  className={cn(
-                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
-                    compact && 'hidden',
-                  )}
-                >
-                  {newChatShortcut}
-                </kbd>
-              </Button>
-              <Button
-                variant="ghost"
-                className={navButton}
-                onClick={() => runAndClose(onSearch)}
-                title={compact ? t('navigation:workbench.search') : undefined}
-              >
-                <Search size={16} />
-                <span className={navLabel}>{t('navigation:workbench.search')}</span>
-                <kbd
-                  className={cn(
-                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
-                    compact && 'hidden',
-                  )}
-                >
-                  {searchShortcut}
-                </kbd>
               </Button>
               {workspaceItems.map(([id, label, Icon]) => {
                 const assetsOpen =

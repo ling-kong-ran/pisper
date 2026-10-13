@@ -102,7 +102,6 @@ export function PageHeader({
         'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
         page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
         desktop && '[-webkit-app-region:drag]',
-        window.pisperDesktop?.customTitlebar && 'pr-[148px]',
         desktopPlatform === 'darwin' && 'pl-[74px]',
       )}
     >
@@ -127,7 +126,6 @@ export function PageHeader({
             'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
           page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
           desktop && '[-webkit-app-region:no-drag]',
-          desktopPlatform && desktopPlatform !== 'darwin' && 'pr-[138px]',
         )}
       >
         {page === 'workflowCreate' ? (
