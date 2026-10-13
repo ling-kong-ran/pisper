@@ -57,6 +57,18 @@ export async function verifySidebarResize(page) {
   assert.equal(await savedWidth(), 360)
   await page.reload()
   await expectWidth(64)
+  await startDrag(16)
+  await expectWidth(80)
+  const partial = await handle.boundingBox()
+  await page.mouse.move(partial.x + partial.width / 2 + 20, partial.y + partial.height / 2)
+  await expectWidth(100)
+  await page.mouse.up()
+  await expectWidth(64)
+  assert.equal(
+    await savedWidth(),
+    360,
+    'A short exploratory drag must not overwrite the expanded width',
+  )
   await startDrag(260)
   await expectWidth(324)
   await page.keyboard.press('Escape')

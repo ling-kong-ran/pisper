@@ -47,7 +47,11 @@ export function WorkbenchSidebarProvider({
     SIDEBAR_MIN_WIDTH,
     Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewport * 0.45)),
   )
-  const width = Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, draft ?? savedWidth))
+  // 拖动草稿允许经过图标栏与展开下限之间的宽度，避免刚移动鼠标就跳到 220px。
+  const width = Math.min(
+    maximum,
+    Math.max(draft === null ? SIDEBAR_MIN_WIDTH : COLLAPSED_WIDTH, draft ?? savedWidth),
+  )
   const commit = useCallback(
     (value: number) => {
       saveWidth(Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, value)))
@@ -63,7 +67,7 @@ export function WorkbenchSidebarProvider({
         className={cn(
           className,
           draft !== null &&
-            'select-none cursor-col-resize [&_[data-slot=sidebar-gap]]:transition-none [&_[data-slot=sidebar-container]]:transition-none',
+            'select-none cursor-col-resize [&_.sidebar]:overflow-x-hidden [&_[data-slot=sidebar-gap]]:transition-none [&_[data-slot=sidebar-container]]:transition-none',
         )}
       />
     </WidthContext.Provider>
@@ -143,12 +147,17 @@ export function WorkbenchSidebarResizeHandle() {
         if (!current || current.pointer !== event.pointerId) return
         if (!open && event.clientX - current.x < 4) return
         const requestedWidth = current.width + event.clientX - current.x
-        if (requestedWidth <= SIDEBAR_MIN_WIDTH && event.clientX < current.x) {
+        if (current.expanded && requestedWidth <= SIDEBAR_MIN_WIDTH && event.clientX < current.x) {
           event.currentTarget.releasePointerCapture(event.pointerId)
           collapse()
           return
         }
-        current.next = Math.round(Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, requestedWidth)))
+        current.next = Math.round(
+          Math.min(
+            maximum,
+            Math.max(current.expanded ? SIDEBAR_MIN_WIDTH : COLLAPSED_WIDTH, requestedWidth),
+          ),
+        )
         if (!open) setOpen(true)
         control.preview(current.next)
       }}
@@ -156,7 +165,9 @@ export function WorkbenchSidebarResizeHandle() {
         const current = drag.current
         if (!current || current.pointer !== event.pointerId) return
         drag.current = null
-        if (current.next === COLLAPSED_WIDTH) control.preview(null)
+        // 短距离试探松手后回到图标栏；拖过中点才吸附到最小可用展开宽度。
+        if (!current.expanded && current.next < (COLLAPSED_WIDTH + SIDEBAR_MIN_WIDTH) / 2)
+          collapse()
         else commit(current.next)
         event.currentTarget.releasePointerCapture(event.pointerId)
       }}
