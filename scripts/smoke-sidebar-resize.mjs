@@ -12,8 +12,8 @@ export async function verifySidebarResize(page) {
         Math.abs(
           document
             .querySelector('#workbench-sidebar')
-            .closest('[data-slot="sidebar-container"]')
-            .getBoundingClientRect().width - expected,
+            ?.closest('[data-slot="sidebar-container"]')
+            ?.getBoundingClientRect().width - expected,
         ) < 1,
       width,
     )
@@ -38,7 +38,7 @@ export async function verifySidebarResize(page) {
   await expectWidth(360)
   await page.getByTestId('workbench-brand-toggle').click()
   await expectWidth(64)
-  assert.equal(await handle.count(), 0)
+  assert.equal(await handle.getAttribute('aria-valuenow'), '64')
   await page.getByTestId('workbench-brand-toggle').click()
   await expectWidth(360)
   await startDrag(70)
@@ -46,11 +46,51 @@ export async function verifySidebarResize(page) {
   await page.mouse.up()
   await expectWidth(360)
   assert.equal(await savedWidth(), 360)
+  // 临界值前仍可调整；到达最小值时立即复用收起状态，松手不会覆盖展开宽度。
+  await startDrag(-139)
+  await expectWidth(221)
+  const edge = await handle.boundingBox()
+  await page.mouse.move(edge.x + edge.width / 2 - 1, edge.y + edge.height / 2)
+  await expectWidth(64)
+  assert.equal(await handle.getAttribute('aria-valuenow'), '64')
+  await page.mouse.up()
+  assert.equal(await savedWidth(), 360)
+  await page.reload()
+  await expectWidth(64)
+  await startDrag(260)
+  await expectWidth(324)
+  await page.keyboard.press('Escape')
+  await page.mouse.up()
+  await expectWidth(64)
+  assert.equal(
+    await savedWidth(),
+    360,
+    'Cancel expanding must restore the collapsed state and saved width',
+  )
+  // 收起后仍能抓住右边缘，一次拖动展开到最大宽度。
+  await startDrag(600)
+  await expectWidth(480)
+  await page.mouse.up()
+  assert.equal(await savedWidth(), 480)
+  await page.reload()
+  await expectWidth(480)
+  await startDrag(-120)
+  await page.mouse.up()
+  await expectWidth(360)
+  await page.getByTestId('workbench-brand-toggle').click()
+  await expectWidth(64)
+  await page.getByTestId('workbench-brand-toggle').click()
+  await expectWidth(360)
   await handle.focus()
   await page.keyboard.press('ArrowLeft')
   await expectWidth(350)
   await page.keyboard.press('Home')
   await expectWidth(220)
+  await page.keyboard.press('ArrowLeft')
+  await expectWidth(64)
+  await page.getByTestId('workbench-brand-toggle').click()
+  await expectWidth(220)
+  await handle.focus()
   await page.keyboard.press('End')
   await expectWidth(480)
   await page.setViewportSize({ width: 700, height: 900 })

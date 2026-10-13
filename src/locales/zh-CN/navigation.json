@@ -70,7 +70,7 @@
   "appSidebar.downloading": "正在下载",
   "appSidebar.expandSidebar": "展开侧栏",
   "appSidebar.resizeSidebar": "调整侧栏宽度",
-  "appSidebar.resizeSidebarHint": "拖动调整宽度，双击恢复默认；方向键微调，Enter 恢复默认",
+  "appSidebar.resizeSidebarHint": "向左拖到最小收起，收起后向右拖动展开；双击或 Enter 恢复默认，方向键微调",
   "appSidebar.mainNavigation": "主导航",
   "appSidebar.newChat": "新建会话",
   "appSidebar.openSession": "打开会话",

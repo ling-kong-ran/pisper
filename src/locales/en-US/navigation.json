@@ -70,7 +70,7 @@
   "appSidebar.downloading": "Downloading",
   "appSidebar.expandSidebar": "Expand sidebar",
   "appSidebar.resizeSidebar": "Resize sidebar",
-  "appSidebar.resizeSidebarHint": "Drag to resize; double-click to reset. Use arrow keys to adjust or Enter to reset.",
+  "appSidebar.resizeSidebarHint": "Drag left to the minimum to collapse; drag right to expand. Double-click or Enter to reset; arrow keys to adjust.",
   "appSidebar.mainNavigation": "Main navigation",
   "appSidebar.newChat": "New chat",
   "appSidebar.openSession": "Open chat",

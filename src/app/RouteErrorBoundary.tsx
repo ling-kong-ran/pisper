@@ -14,8 +14,11 @@ async function recoverRoute() {
   if (window.__PISPER_MOBILE_APP__ && url.protocol === 'http:' && url.hostname === '127.0.0.1') {
     // 查询参数只用于绕过 WebView 对上一轮应用壳的缓存，hash 路由和当前会话仍保留。
     url.searchParams.set('_pisper_recovery', String(Date.now()))
+    window.location.replace(url.href)
+    return
   }
-  window.location.replace(url.href)
+  // 同一个带 hash 的 URL 执行 replace 只会进行文档内导航，无法清除失败的模块缓存。
+  window.location.reload()
 }
 
 export function RouteErrorBoundary() {

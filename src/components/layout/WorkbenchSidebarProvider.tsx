@@ -26,6 +26,7 @@ type WidthControl = {
   commit: (width: number) => void
 }
 const WidthContext = createContext<WidthControl | null>(null)
+const COLLAPSED_WIDTH = 64
 
 export function WorkbenchSidebarProvider({
   className,
@@ -71,11 +72,17 @@ export function WorkbenchSidebarProvider({
 
 export function WorkbenchSidebarResizeHandle() {
   const control = useContext(WidthContext)
-  const { open, isMobile, persistent } = useSidebar()
+  const { open, setOpen, isMobile, persistent } = useSidebar()
   const { t } = useI18n()
-  const drag = useRef<{ pointer: number; x: number; width: number; next: number } | null>(null)
+  const drag = useRef<{
+    pointer: number
+    x: number
+    width: number
+    next: number
+    expanded: boolean
+  } | null>(null)
   const preview = control?.preview
-  const enabled = open && !isMobile && !persistent
+  const enabled = !isMobile && !persistent
   useEffect(() => {
     if (!enabled) {
       drag.current = null
@@ -88,6 +95,18 @@ export function WorkbenchSidebarResizeHandle() {
   }, [enabled, preview])
   if (!control || !enabled) return null
   const { width, maximum, commit } = control
+  const cancel = () => {
+    const current = drag.current
+    drag.current = null
+    control.preview(null)
+    if (current) setOpen(current.expanded)
+  }
+  const collapse = () => {
+    drag.current = null
+    control.preview(null)
+    // 复用现有收起动作，保留已保存的展开宽度，不把临界宽度写回偏好。
+    setOpen(false)
+  }
   return (
     <div
       role="separator"
@@ -95,54 +114,70 @@ export function WorkbenchSidebarResizeHandle() {
       aria-orientation="vertical"
       aria-label={t('navigation:appSidebar.resizeSidebar')}
       aria-controls="workbench-sidebar"
-      aria-valuemin={SIDEBAR_MIN_WIDTH}
+      aria-valuemin={COLLAPSED_WIDTH}
       aria-valuemax={maximum}
-      aria-valuenow={width}
+      aria-valuenow={open ? width : COLLAPSED_WIDTH}
       title={t('navigation:appSidebar.resizeSidebarHint')}
       className="absolute inset-y-0 -right-1 z-30 w-2 touch-none cursor-col-resize outline-none [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 hover:after:bg-primary/50 focus-visible:after:bg-primary"
-      onDoubleClick={() => commit(SIDEBAR_DEFAULT_WIDTH)}
+      onDoubleClick={() => {
+        setOpen(true)
+        commit(SIDEBAR_DEFAULT_WIDTH)
+      }}
       onPointerDown={(event) => {
         if (event.button !== 0 || !event.isPrimary) return
         event.preventDefault()
         event.currentTarget.focus()
         event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = { pointer: event.pointerId, x: event.clientX, width, next: width }
-        control.preview(width)
+        const startWidth = open ? width : COLLAPSED_WIDTH
+        drag.current = {
+          pointer: event.pointerId,
+          x: event.clientX,
+          width: startWidth,
+          next: startWidth,
+          expanded: open,
+        }
+        control.preview(startWidth)
       }}
       onPointerMove={(event) => {
         const current = drag.current
         if (!current || current.pointer !== event.pointerId) return
-        current.next = Math.round(
-          Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, current.width + event.clientX - current.x)),
-        )
+        if (!open && event.clientX - current.x < 4) return
+        const requestedWidth = current.width + event.clientX - current.x
+        if (requestedWidth <= SIDEBAR_MIN_WIDTH && event.clientX < current.x) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+          collapse()
+          return
+        }
+        current.next = Math.round(Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, requestedWidth)))
+        if (!open) setOpen(true)
         control.preview(current.next)
       }}
       onPointerUp={(event) => {
         const current = drag.current
         if (!current || current.pointer !== event.pointerId) return
         drag.current = null
-        commit(current.next)
+        if (current.next === COLLAPSED_WIDTH) control.preview(null)
+        else commit(current.next)
         event.currentTarget.releasePointerCapture(event.pointerId)
       }}
-      onLostPointerCapture={() => {
-        drag.current = null
-        control.preview(null)
-      }}
-      onPointerCancel={() => {
-        drag.current = null
-        control.preview(null)
-      }}
+      onLostPointerCapture={cancel}
+      onPointerCancel={cancel}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
-          drag.current = null
-          control.preview(null)
+          cancel()
+          return
+        }
+        if (!open && event.key === 'ArrowLeft') {
+          event.preventDefault()
           return
         }
         const next =
           event.key === 'ArrowLeft'
             ? width - 10
             : event.key === 'ArrowRight'
-              ? width + 10
+              ? open
+                ? width + 10
+                : width
               : event.key === 'Home'
                 ? SIDEBAR_MIN_WIDTH
                 : event.key === 'End'
@@ -152,6 +187,11 @@ export function WorkbenchSidebarResizeHandle() {
                     : null
         if (next === null) return
         event.preventDefault()
+        if (event.key === 'ArrowLeft' && next <= SIDEBAR_MIN_WIDTH) {
+          collapse()
+          return
+        }
+        setOpen(true)
         commit(next)
       }}
     />
