@@ -151,6 +151,31 @@ test('catalog changes are checked before committing and all channels use the fro
   assert(dispatches(result).some(({ args }) => args[2] === 'release-app.yml'))
 })
 
+test('upstream changes normalized away by Git do not create an empty commit or rerun checks', async () => {
+  const result = await runRelease({
+    catalogChanged: true,
+    catalogIndexEmpty: true,
+    paths: ['src/project.tsx'],
+  })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(
+    result.commands.some(
+      ({ command, args }) => command === 'git' && ['commit', 'push'].includes(args[0]),
+    ),
+    false,
+  )
+  for (const check of ['check', 'test:release']) {
+    assert.equal(
+      result.commands.filter(({ args }) => args.includes('fixture-npm-cli') && args.includes(check))
+        .length,
+      1,
+    )
+  }
+  assert.equal(dispatches(result).length, 2)
+  for (const dispatch of dispatches(result))
+    assert(dispatch.args.includes(`source_sha=${sourceSha}`))
+})
+
 for (const fixture of [{ catalogFailure: true }, { catalogChanged: true, checkFailure: true }]) {
   test(`upstream update failure stops before source push and dispatch: ${JSON.stringify(fixture)}`, async () => {
     const result = await runRelease(fixture)

@@ -53,6 +53,22 @@ test('catalog update preserves full API metadata, is deterministic and accepts t
   assert.equal(await readFile(join(root, PI_CATALOG_PATH), 'utf8'), saved)
 })
 
+test('a CRLF catalog checkout remains byte-identical until model metadata changes', async (t) => {
+  const root = await temporary(t)
+  await updatePiModelCatalog({ root, fetchImpl: catalogFetch() })
+  const destination = join(root, PI_CATALOG_PATH)
+  const checkedOut = (await readFile(destination, 'utf8')).replaceAll('\n', '\r\n')
+  await writeFile(destination, checkedOut)
+
+  assert.equal((await updatePiModelCatalog({ root, fetchImpl: catalogFetch() })).changed, false)
+  assert.equal(await readFile(destination, 'utf8'), checkedOut)
+
+  const fetchImpl = catalogFetch({ fixture: [{ ...model, contextWindow: 2_000_000 }] })
+  assert.equal((await updatePiModelCatalog({ root, fetchImpl })).changed, true)
+  const updated = JSON.parse(await readFile(destination, 'utf8'))
+  assert.equal(updated.models.fixture[0].contextWindow, 2_000_000)
+})
+
 test('invalid checksum, schema, duplicate chat and network errors preserve the old snapshot', async (t) => {
   const root = await temporary(t)
   await updatePiModelCatalog({ root, fetchImpl: catalogFetch() })

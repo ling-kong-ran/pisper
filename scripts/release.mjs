@@ -131,6 +131,8 @@ function updateRustUpstreams() {
   runComponentChecks(['desktop', 'tui', 'runtime', 'app'])
   assertReleaseIdle()
   run('git', ['add', '--', ...allowed])
+  // 暂存会应用 Git 的文本归一化；没有实际差异时保留已完成的门禁，不创建空提交。
+  if (!run('git', ['diff', '--cached', '--name-only'], { capture: true })) return true
   run('git', ['commit', '-m', 'build(deps): refresh Pi Rust and official model catalog'])
   run('git', ['push', 'origin', releaseBranch])
   return true
