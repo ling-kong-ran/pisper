@@ -264,10 +264,16 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
         throw error
       })
     await native.locator('button[title^="Dock Alpha ·"]').click()
-    const tools = native
-      .locator('.desktop-window-controls')
-      .getByRole('button', { name: /会话上下文/ })
+    const tools = native.locator('[data-desktop-titlebar-actions]').getByRole('button', {
+      name: /会话上下文/,
+    })
     await tools.waitFor()
+    const topTab = native.locator('.dv-tabs-and-actions-container').first()
+    const controls = native.locator('.desktop-window-controls')
+    assert.ok(
+      Math.abs((await topTab.boundingBox()).y - (await controls.boundingBox()).y) <= 1,
+      'Native window controls and chat tabs share one row',
+    )
     // 通过既有公开事件打开分屏网页；切换预览焦点不能移除仍可见会话的工具栏。
     await native.evaluate((url) => {
       window.dispatchEvent(new CustomEvent('pisper:web-preview-open', { detail: { url } }))
@@ -281,6 +287,136 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await tools.click()
     await native.locator('[data-session-context-panel]').waitFor()
     assert.equal(await tools.count(), 1)
+    assert.equal(await native.locator('.auxiliary-page-header .desktop-window-controls').count(), 1)
+    assert.equal(await native.locator('.desktop-window-controls').count(), 1)
+    const asideHeader = await native.locator('.auxiliary-page-header').boundingBox()
+    const openControls = await controls.boundingBox()
+    assert.ok(Math.abs(openControls.y - asideHeader.y) <= 1)
+    assert.ok(openControls.x >= asideHeader.x)
+    assert.ok(openControls.x + openControls.width <= asideHeader.x + asideHeader.width + 1)
+    await tools.click()
+    await native.locator('[data-session-context-panel]').waitFor({ state: 'detached' })
+    await native.locator('.dv-tabs-and-actions-container .desktop-window-controls').waitFor()
+    const closedTools = await native.locator('[data-desktop-titlebar-actions]').boundingBox()
+    const closedControls = await controls.boundingBox()
+    assert.ok(Math.abs(closedTools.y - closedControls.y) <= 1)
+    assert.ok(Math.abs(closedTools.x + closedTools.width - closedControls.x) <= 1)
+    await native
+      .getByRole('tab', { name: '127.0.0.1', exact: true })
+      .locator('.dv-default-tab-action')
+      .click()
+    const groupsBeforeSplit = await native.locator('.dv-groupview').count()
+    await native.getByRole('tab', { name: 'Dock Alpha', exact: true }).click({ button: 'right' })
+    await native.getByRole('menuitem', { name: '拆分到右侧', exact: true }).click()
+    await native.waitForFunction(
+      (count) => document.querySelectorAll('.dv-groupview').length === count + 1,
+      groupsBeforeSplit,
+    )
+    await tools.waitFor()
+    await native.setViewportSize({ width: 825, height: 712 })
+    // 拖窄真正的 Dock 分隔线；只检查可见性会漏掉被父容器裁切的窗口按钮。
+    const sash = await native.locator('.dv-sash').evaluateAll(
+      (nodes) =>
+        nodes
+          .map((node) => node.getBoundingClientRect().toJSON())
+          .filter((box) => box.width > 0 && box.width < 10 && box.height > 60)
+          .sort((a, b) => b.x - a.x)[0],
+    )
+    assert.ok(sash, 'A vertical split sash exists')
+    await native.mouse.move(sash.x + sash.width / 2, sash.y + sash.height / 2)
+    await native.mouse.down()
+    await native.mouse.move(800, sash.y + sash.height / 2, { steps: 10 })
+    await native.mouse.up()
+    const expectNativeButtonsReachable = async () => {
+      try {
+        await native.waitForFunction(() => {
+          const buttons = [
+            ...document.querySelectorAll(
+              '.desktop-window-controls button, [data-desktop-titlebar-actions] button',
+            ),
+          ]
+          return (
+            buttons.length >= 6 &&
+            buttons.every((button) => {
+              const box = button.getBoundingClientRect()
+              return button.contains(
+                document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2),
+              )
+            })
+          )
+        })
+      } catch (error) {
+        console.error(
+          'Native titlebar geometry',
+          await native.evaluate(() => ({
+            viewport: { width: innerWidth, height: innerHeight },
+            workspace: document
+              .querySelector('.chat-dock-workspace')
+              ?.getBoundingClientRect()
+              .toJSON(),
+            groups: [...document.querySelectorAll('.dv-groupview')].map((node) =>
+              node.getBoundingClientRect().toJSON(),
+            ),
+            buttons: [
+              ...document.querySelectorAll(
+                '.desktop-window-controls button, [data-desktop-titlebar-actions] button',
+              ),
+            ].map((button) => {
+              const box = button.getBoundingClientRect()
+              const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+              return {
+                label: button.getAttribute('aria-label'),
+                box: box.toJSON(),
+                reachable: button.contains(hit),
+                hit: hit?.className,
+              }
+            }),
+          })),
+        )
+        throw error
+      }
+    }
+    await expectNativeButtonsReachable()
+    // 再转移一次标题栏归属，防止旧分组遗留最小宽度把第三列推出窗口。
+    const ownerHeader = native.locator('.dv-tabs-and-actions-container').filter({ has: controls })
+    const [createdResponse] = await Promise.all([
+      native.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/sessions') && response.request().method() === 'POST',
+      ),
+      ownerHeader.getByRole('button', { name: '新会话', exact: true }).click(),
+    ])
+    const createdSession = await createdResponse.json()
+    await ownerHeader
+      .getByRole('tab', { name: createdSession.name, exact: true, selected: true })
+      .click({ button: 'right' })
+    const groupsBeforeTransfer = await native.locator('.dv-groupview').count()
+    await native.getByRole('menuitem', { name: '拆分到右侧', exact: true }).click()
+    await native.waitForFunction(
+      (count) => document.querySelectorAll('.dv-groupview').length === count + 1,
+      groupsBeforeTransfer,
+    )
+    await expectNativeButtonsReachable()
+    assert.equal(await controls.count(), 1)
+    assert.equal(await tools.count(), 1)
+    await native.setViewportSize({ width: 1440, height: 960 })
+    await native.locator('.dv-tabs-and-actions-container .desktop-window-controls').waitFor()
+    await expectNativeButtonsReachable()
+    await native.setViewportSize({ width: 825, height: 712 })
+    await expectNativeButtonsReachable()
+    // 此宽度按既有响应式契约使用模态抽屉，不是常驻辅助侧栏。
+    await tools.click()
+    await native.getByRole('dialog').waitFor()
+    await native.keyboard.press('Escape')
+    await native.getByRole('dialog').waitFor({ state: 'detached' })
+    await expectNativeButtonsReachable()
+    await native.setViewportSize({ width: 1100, height: 800 })
+    await tools.click()
+    await native.locator('.auxiliary-page-header .desktop-window-controls').waitFor()
+    await expectNativeButtonsReachable()
+    await tools.click()
+    await native.locator('[data-session-context-panel]').waitFor({ state: 'detached' })
+    await expectNativeButtonsReachable()
     await native.context().close()
     assert.deepEqual(errors, [])
   } finally {

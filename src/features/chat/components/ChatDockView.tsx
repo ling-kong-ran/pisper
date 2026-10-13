@@ -1,6 +1,7 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
 // 移动端走单会话视图，不下载/执行本模块。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
@@ -29,9 +30,101 @@ type ChatDockViewProps = {
   createSession: (targetGroup?: DockviewGroupPanel) => Promise<string>
 }
 
-function DockHeaderTools({ activePanel }: IDockviewHeaderActionsProps) {
-  if (window.pisperDesktop?.customTitlebar || !activePanel) return null
-  return <DesktopTitlebarHost targetId={activePanel.id} inline />
+function DockHeaderTools({ activePanel, containerApi, group }: IDockviewHeaderActionsProps) {
+  const native = Boolean(window.pisperDesktop?.customTitlebar)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const [ownsTitlebar, setOwnsTitlebar] = useState(false)
+  const [overflowHost, setOverflowHost] = useState<HTMLElement | null>(null)
+  const [actionsWidth, setActionsWidth] = useState(0)
+  useLayoutEffect(() => {
+    if (!native) return
+    const header = rootRef.current?.closest<HTMLElement>('.dv-tabs-and-actions-container')
+    header?.setAttribute('data-window-drag-region', '')
+    // 多分屏时只有最上方、最右侧的分组接管标题按钮，不随网页预览焦点改变。
+    const update = () => {
+      const candidates = containerApi.groups
+        .map((item) => ({ id: item.id, box: item.api.boundingBox }))
+        .filter((item) => item.box && item.box.width > 0 && item.box.height > 0)
+        .sort((a, b) => {
+          if (!a.box || !b.box) return 0
+          return a.box.top - b.box.top || b.box.left + b.box.width - (a.box.left + a.box.width)
+        })
+      setOwnsTitlebar(candidates[0]?.id === group.id)
+    }
+    update()
+    const subscription = containerApi.onDidLayoutChange(update)
+    return () => {
+      subscription.dispose()
+      header?.removeAttribute('data-window-drag-region')
+    }
+  }, [containerApi, group, native])
+  useLayoutEffect(() => {
+    if (!native || !ownsTitlebar) return
+    const viewport = rootRef.current?.closest<HTMLElement>('[data-chat-dock-viewport]')
+    const host = viewport?.querySelector<HTMLElement>('[data-chat-dock-titlebar-overflow]')
+    if (!viewport || !host) return
+    const update = () => {
+      const box = group.api.boundingBox
+      // 分组总最小宽度可能超过窗口；窗口按钮始终留在主区域的可见右沿。
+      setOverflowHost(box && box.left + box.width > containerApi.width + 1 ? host : null)
+    }
+    update()
+    const subscription = containerApi.onDidLayoutChange(update)
+    const observer = new ResizeObserver(update)
+    observer.observe(viewport)
+    const groupElement = rootRef.current?.closest('.dv-groupview')
+    if (groupElement) observer.observe(groupElement)
+    return () => {
+      subscription.dispose()
+      observer.disconnect()
+    }
+  }, [containerApi, group, native, ownsTitlebar])
+  useLayoutEffect(() => {
+    const root = actionsRef.current
+    if (!native || !ownsTitlebar || !root) return
+    const previousMinimumWidth = group.minimumWidth
+    let previousWidth = 0
+    // 固定窗口按钮不可随标签裁切；给当前宿主保留工具、加号和一个可读标签的宽度。
+    const update = () => {
+      setActionsWidth(Math.ceil(root.getBoundingClientRect().width))
+      const width = Math.max(
+        previousMinimumWidth,
+        Math.ceil(root.getBoundingClientRect().width) + 36 + 80,
+      )
+      if (width === previousWidth) return
+      previousWidth = width
+      group.api.setConstraints({ minimumWidth: width })
+      containerApi.layout(containerApi.width, containerApi.height, true)
+    }
+    const observer = new ResizeObserver(update)
+    observer.observe(root)
+    update()
+    return () => {
+      observer.disconnect()
+      // Dockview 忽略 undefined；恢复数值才能释放旧分组的临时标题栏空间。
+      group.api.setConstraints({ minimumWidth: previousMinimumWidth })
+      if (containerApi.groups.includes(group))
+        containerApi.layout(containerApi.width, containerApi.height, true)
+    }
+  }, [containerApi, group, native, ownsTitlebar, overflowHost])
+  const actions = (
+    <div ref={actionsRef} className="flex h-full w-max shrink-0 items-center bg-background">
+      <DesktopTitlebarHost />
+      <DesktopTitlebarHost targetId="window-controls-chat" />
+    </div>
+  )
+  return (
+    <div
+      ref={rootRef}
+      className="flex h-full shrink-0 items-center"
+      style={native && ownsTitlebar && overflowHost ? { width: actionsWidth } : undefined}
+    >
+      {native
+        ? ownsTitlebar && (overflowHost ? createPortal(actions, overflowHost) : actions)
+        : activePanel && <DesktopTitlebarHost targetId={activePanel.id} />}
+    </div>
+  )
 }
 
 export function ChatDockView({
@@ -122,7 +215,11 @@ export function ChatDockView({
     [createSession, primaryShortcut],
   )
   return (
-    <div ref={containerRef} className="h-full w-full min-h-0 min-w-0">
+    <div
+      ref={containerRef}
+      data-chat-dock-viewport
+      className="relative h-full w-full min-h-0 min-w-0"
+    >
       <ChatDockTabContextMenu api={dockApi} getItems={getTabContextMenuItems}>
         <DockviewReact
           className="dockview-theme-light dockview-theme-pisper"
@@ -137,6 +234,7 @@ export function ChatDockView({
           noPanelsOverlay="watermark"
         />
       </ChatDockTabContextMenu>
+      <div data-chat-dock-titlebar-overflow className="absolute right-0 top-0 z-20 h-[35px]" />
     </div>
   )
 }

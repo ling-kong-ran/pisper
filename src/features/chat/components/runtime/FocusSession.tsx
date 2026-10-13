@@ -239,12 +239,6 @@ export const FocusSession = memo(function FocusSession({
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const sessionViewport = useSessionViewport()
   const titlebarTools = !mobileLayout && Boolean(window.pisperDesktop?.customTitlebar)
-  const getTitlebarAnchor = useCallback(
-    () =>
-      sessionViewport.ref.current?.closest<HTMLElement>('.chat-dock-workspace') ??
-      sessionViewport.ref.current,
-    [sessionViewport.ref],
-  )
   const [transcriptGutter, setTranscriptGutter] = useState({ left: 0, right: 0 })
   const updateTranscriptGutter = useCallback((left: number, right: number) => {
     setTranscriptGutter((previous) =>
@@ -937,8 +931,6 @@ export const FocusSession = memo(function FocusSession({
           !mobileLayout && (titlebarTools ? titlebarToolsActive : Boolean(headerToolsTargetId))
         }
         targetId={titlebarTools ? 'window' : headerToolsTargetId}
-        inline={!titlebarTools}
-        getAnchor={getTitlebarAnchor}
       >
         {headerActions}
       </DesktopTitlebarPortal>

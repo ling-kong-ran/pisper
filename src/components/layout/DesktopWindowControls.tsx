@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Minus, Square, X } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
-import { DesktopTitlebarHost } from '@/components/layout/DesktopTitlebar'
+import { useDesktopTitlebarHost } from '@/components/layout/DesktopTitlebar'
+import { cn } from '@/lib/utils'
 
 export function DesktopWindowControls() {
   const { t } = useI18n()
@@ -11,6 +13,7 @@ export function DesktopWindowControls() {
     close: t('navigation:window.close'),
   }
   const bridge = window.pisperDesktop
+  const host = useDesktopTitlebarHost(['window-controls-aside', 'window-controls-chat'])
   useEffect(() => {
     if (!bridge?.customTitlebar || !bridge.windowAction) return
     const interactive =
@@ -34,14 +37,17 @@ export function DesktopWindowControls() {
     }
   }, [bridge])
   if (!bridge?.customTitlebar || !bridge.windowAction) return null
-  // 工具宿主与窗口按钮占据独立空间，工具随内容栏移动而不会遮挡关闭按钮。
-  return (
+  // 窗口按钮占据标签栏的实际布局空间；侧栏优先接管，关闭后回到主栏工具旁。
+  const controls = (
     <div
       data-window-drag-region
-      className="desktop-window-controls flex h-9 shrink-0 items-stretch justify-end border-b border-border/60 bg-background [-webkit-app-region:drag]"
+      className={cn(
+        'desktop-window-controls flex shrink-0 items-stretch justify-end [-webkit-app-region:drag]',
+        host ? 'h-full' : 'h-9 border-b border-border/60 bg-background',
+      )}
       aria-label={t('navigation:window.controls')}
+      onPointerDown={(event) => event.stopPropagation()}
     >
-      <DesktopTitlebarHost />
       {(['minimize', 'maximize', 'close'] as const).map((action) => {
         const Icon = action === 'minimize' ? Minus : action === 'maximize' ? Square : X
         return (
@@ -59,4 +65,5 @@ export function DesktopWindowControls() {
       })}
     </div>
   )
+  return host ? createPortal(controls, host) : controls
 }
