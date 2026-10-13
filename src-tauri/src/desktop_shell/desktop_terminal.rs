@@ -495,24 +495,44 @@ fn create_terminal_with_profile(
     let event_terminal_id = terminal_id.clone();
     let output_channel = on_event.clone();
     let output_control = terminal.control.clone();
+    #[cfg(windows)]
+    let output_writer = terminal.writer.clone();
     let output_thread = thread::spawn(move || {
         let mut buffer = vec![0_u8; 16 * 1024];
+        let mut disconnected = false;
+        #[cfg(windows)]
+        let mut cursor_tail = Vec::new();
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(count) => {
-                    if output_channel(TerminalEvent::Output {
-                        terminal_id: event_terminal_id.clone(),
-                        data: buffer[..count].to_vec(),
-                    })
-                    .is_err()
+                    #[cfg(windows)]
+                    let cursor_queries =
+                        cursor_queries_in_chunk(&mut cursor_tail, &buffer[..count]);
+                    if !disconnected {
+                        disconnected = output_channel(TerminalEvent::Output {
+                            terminal_id: event_terminal_id.clone(),
+                            data: buffer[..count].to_vec(),
+                        })
+                        .is_err();
+                    }
+                    #[cfg(windows)]
+                    if cursor_queries > 0
+                        && (disconnected || output_control.stopping.load(Ordering::Acquire))
                     {
+                        // ConPTY 的 INHERIT_CURSOR 握手在关闭期间仍必须完成；
+                        // 渲染端已消失时由宿主回应，否则 ClosePseudoConsole 会死锁。
+                        if let Ok(mut writer) = output_writer.lock() {
+                            if let Some(writer) = writer.as_mut() {
+                                for _ in 0..cursor_queries {
+                                    let _ = writer.write_all(b"\x1b[1;1R");
+                                }
+                            }
+                        }
+                    }
+                    if disconnected {
                         let _ = output_control.stop();
-                        // The master still owns its original read handle. Drain
-                        // shutdown output even when the renderer is gone, so
-                        // pre-24H2 ClosePseudoConsole cannot block on a full pipe.
-                        let _ = std::io::copy(&mut reader, &mut std::io::sink());
-                        break;
+                        // 继续排空输出并处理跨块光标查询，直到控制台关闭管道。
                     }
                 }
                 Err(error) => {
@@ -568,6 +588,14 @@ fn create_terminal_with_profile(
         profile_id,
         cwd: cwd.to_string_lossy().into_owned(),
     })
+}
+
+#[cfg(windows)]
+fn cursor_queries_in_chunk(tail: &mut Vec<u8>, bytes: &[u8]) -> usize {
+    tail.extend_from_slice(bytes);
+    let count = tail.windows(4).filter(|bytes| *bytes == b"\x1b[6n").count();
+    tail.drain(..tail.len().saturating_sub(3));
+    count
 }
 
 #[tauri::command]
@@ -1103,6 +1131,21 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         panic!("The real child wait/output cleanup did not finish after channel disconnection");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cursor_queries_survive_fragmentation_without_duplicate_replies() {
+        for split in 0..=4 {
+            let query = b"\x1b[6n";
+            let mut tail = Vec::new();
+            let count = cursor_queries_in_chunk(&mut tail, &query[..split])
+                + cursor_queries_in_chunk(&mut tail, &query[split..]);
+            assert_eq!(count, 1);
+            assert_eq!(cursor_queries_in_chunk(&mut tail, b"text"), 0);
+            assert_eq!(cursor_queries_in_chunk(&mut tail, b"\x1b[6n\x1b[6n"), 2);
+            assert!(tail.len() <= 3);
+        }
     }
 
     #[test]
