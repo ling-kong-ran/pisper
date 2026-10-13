@@ -6,6 +6,7 @@ import { chromium } from 'playwright-core'
 import { verifyChatDockCreation } from './smoke-chat-dock-creation.mjs'
 import { verifyDesktopHeader } from './smoke-desktop-header.mjs'
 import { verifyComposerSidebar } from './smoke-composer-sidebar.mjs'
+import { verifySidebarResize } from './smoke-sidebar-resize.mjs'
 
 export async function verifyProductionChatDock({ base, token, workspace }) {
   const sessions = []
@@ -262,6 +263,10 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await expectPanels(phone, 1)
     assert.equal(await phone.locator('.dockview-theme-pisper').count(), 0)
     assert.deepEqual(dockRequests, [])
+    assert.equal(
+      await phone.getByRole('separator', { name: '调整侧栏宽度', exact: true }).count(),
+      0,
+    )
     // 手机旋转后仍使用单会话入口，且输入区不能被桌面侧栏挤出视口。
     for (const viewport of [
       { width: 844, height: 390 },
@@ -283,6 +288,10 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await phone.getByRole('tab', { name: '对话', exact: true, selected: true }).waitFor()
     await phone.getByRole('heading', { name: '设置', exact: true }).waitFor()
     await phone.context().close()
+    const resizing = await makePage(1280, 900)
+    await resizing.goto(base + '/#/chat')
+    await verifySidebarResize(resizing)
+    await resizing.context().close()
     await verifyChatDockCreation({ page, sessions })
     const native = await makePage(1440, 960, true)
     await native.goto(base + '/#/chat')

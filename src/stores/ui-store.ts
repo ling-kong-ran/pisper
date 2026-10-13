@@ -12,6 +12,16 @@ export type FontScale = 'small' | 'default' | 'large'
 export type RadiusMode = 'sharp' | 'default' | 'soft'
 export type MotionMode = 'system' | 'full' | 'reduced'
 
+export const SIDEBAR_DEFAULT_WIDTH = 264
+export const SIDEBAR_MIN_WIDTH = 220
+export const SIDEBAR_MAX_WIDTH = 480
+
+export function normalizeSidebarWidth(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)))
+    : SIDEBAR_DEFAULT_WIDTH
+}
+
 export const DEFAULT_UI_PREFERENCES = {
   theme: 'system',
   density: 'comfortable',
@@ -36,6 +46,8 @@ type UiState = {
   setComposerVoiceInput: (enabled: boolean) => void
   setComposerVoiceConversation: (enabled: boolean) => void
   sidebarCollapsed: boolean
+  sidebarWidth: number
+  setSidebarWidth: (width: number) => void
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
@@ -60,6 +72,7 @@ type UiState = {
 type PersistedUiState = Pick<
   UiState,
   | 'sidebarCollapsed'
+  | 'sidebarWidth'
   | 'theme'
   | 'density'
   | 'accent'
@@ -88,6 +101,8 @@ export const useUiStore = create<UiState>()(
       setComposerVoiceConversation: (composerVoiceConversation) =>
         set({ composerVoiceConversation }),
       sidebarCollapsed: false,
+      sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
+      setSidebarWidth: (width) => set({ sidebarWidth: normalizeSidebarWidth(width) }),
       ...DEFAULT_UI_PREFERENCES,
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
@@ -116,6 +131,7 @@ export const useUiStore = create<UiState>()(
           sidebarCollapsed: stored.sidebarCollapsed ?? false,
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
+          sidebarWidth: normalizeSidebarWidth(stored.sidebarWidth),
           theme:
             version === 0 && stored.theme === 'system' ? 'scheduled' : (stored.theme ?? 'system'),
         }
@@ -124,6 +140,7 @@ export const useUiStore = create<UiState>()(
         composerVoiceInput,
         composerVoiceConversation,
         sidebarCollapsed,
+        sidebarWidth,
         theme,
         density,
         accent,
@@ -135,6 +152,7 @@ export const useUiStore = create<UiState>()(
         composerVoiceInput,
         composerVoiceConversation,
         sidebarCollapsed,
+        sidebarWidth,
         theme,
         density,
         accent,
@@ -159,6 +177,7 @@ export const useUiStore = create<UiState>()(
                 ? (legacyTheme as ThemeMode)
                 : current.theme),
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',
+          sidebarWidth: normalizeSidebarWidth(stored?.sidebarWidth),
           density: stored?.density ?? (legacyDensity === 'compact' ? 'compact' : current.density),
           accent: stored?.accent ?? current.accent,
           customAccent: stored?.customAccent ?? current.customAccent,

@@ -18,6 +18,7 @@ import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from '@/components/common/BrandLogo'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
+import { WorkbenchSidebarResizeHandle } from './WorkbenchSidebarProvider'
 import { SidebarStatusHost } from './SidebarStatus'
 import { useUiStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
@@ -309,6 +310,7 @@ export function AppSidebar({
           </div>
         </footer>
       </aside>
+      <WorkbenchSidebarResizeHandle />
     </ShadcnSidebar>
   )
 }

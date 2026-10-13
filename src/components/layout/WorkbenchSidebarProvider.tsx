@@ -1,0 +1,159 @@
+// 工作台拥有侧栏宽度偏好；拖动草稿只留在布局层，松手后才持久化。
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type CSSProperties,
+} from 'react'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
+import {
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  useUiStore,
+} from '@/stores/ui-store'
+import { cn } from '@/lib/utils'
+
+type WidthControl = {
+  width: number
+  maximum: number
+  preview: (width: number | null) => void
+  commit: (width: number) => void
+}
+const WidthContext = createContext<WidthControl | null>(null)
+
+export function WorkbenchSidebarProvider({
+  className,
+  style,
+  ...props
+}: ComponentProps<typeof SidebarProvider>) {
+  const savedWidth = useUiStore((state) => state.sidebarWidth)
+  const saveWidth = useUiStore((state) => state.setSidebarWidth)
+  const [draft, preview] = useState<number | null>(null)
+  const [viewport, setViewport] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const update = () => setViewport(window.innerWidth)
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  // 窄窗口也至少保留 55% 宽度给内容；自动收窄不会覆盖用户保存的偏好。
+  const maximum = Math.max(
+    SIDEBAR_MIN_WIDTH,
+    Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewport * 0.45)),
+  )
+  const width = Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, draft ?? savedWidth))
+  const commit = useCallback(
+    (value: number) => {
+      saveWidth(Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, value)))
+      preview(null)
+    },
+    [maximum, saveWidth],
+  )
+  return (
+    <WidthContext.Provider value={{ width, maximum, preview, commit }}>
+      <SidebarProvider
+        {...props}
+        style={{ ...style, '--sidebar-width': `${width}px` } as CSSProperties}
+        className={cn(
+          className,
+          draft !== null &&
+            'select-none cursor-col-resize [&_[data-slot=sidebar-gap]]:transition-none [&_[data-slot=sidebar-container]]:transition-none',
+        )}
+      />
+    </WidthContext.Provider>
+  )
+}
+
+export function WorkbenchSidebarResizeHandle() {
+  const control = useContext(WidthContext)
+  const { open, isMobile, persistent } = useSidebar()
+  const { t } = useI18n()
+  const drag = useRef<{ pointer: number; x: number; width: number; next: number } | null>(null)
+  const preview = control?.preview
+  const enabled = open && !isMobile && !persistent
+  useEffect(() => {
+    if (!enabled) {
+      drag.current = null
+      preview?.(null)
+    }
+    return () => {
+      drag.current = null
+      preview?.(null)
+    }
+  }, [enabled, preview])
+  if (!control || !enabled) return null
+  const { width, maximum, commit } = control
+  return (
+    <div
+      role="separator"
+      tabIndex={0}
+      aria-orientation="vertical"
+      aria-label={t('navigation:appSidebar.resizeSidebar')}
+      aria-controls="workbench-sidebar"
+      aria-valuemin={SIDEBAR_MIN_WIDTH}
+      aria-valuemax={maximum}
+      aria-valuenow={width}
+      title={t('navigation:appSidebar.resizeSidebarHint')}
+      className="absolute inset-y-0 -right-1 z-30 w-2 touch-none cursor-col-resize outline-none [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 hover:after:bg-primary/50 focus-visible:after:bg-primary"
+      onDoubleClick={() => commit(SIDEBAR_DEFAULT_WIDTH)}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || !event.isPrimary) return
+        event.preventDefault()
+        event.currentTarget.focus()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        drag.current = { pointer: event.pointerId, x: event.clientX, width, next: width }
+        control.preview(width)
+      }}
+      onPointerMove={(event) => {
+        const current = drag.current
+        if (!current || current.pointer !== event.pointerId) return
+        current.next = Math.round(
+          Math.min(maximum, Math.max(SIDEBAR_MIN_WIDTH, current.width + event.clientX - current.x)),
+        )
+        control.preview(current.next)
+      }}
+      onPointerUp={(event) => {
+        const current = drag.current
+        if (!current || current.pointer !== event.pointerId) return
+        drag.current = null
+        commit(current.next)
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }}
+      onLostPointerCapture={() => {
+        drag.current = null
+        control.preview(null)
+      }}
+      onPointerCancel={() => {
+        drag.current = null
+        control.preview(null)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          drag.current = null
+          control.preview(null)
+          return
+        }
+        const next =
+          event.key === 'ArrowLeft'
+            ? width - 10
+            : event.key === 'ArrowRight'
+              ? width + 10
+              : event.key === 'Home'
+                ? SIDEBAR_MIN_WIDTH
+                : event.key === 'End'
+                  ? maximum
+                  : event.key === 'Enter'
+                    ? SIDEBAR_DEFAULT_WIDTH
+                    : null
+        if (next === null) return
+        event.preventDefault()
+        commit(next)
+      }}
+    />
+  )
+}

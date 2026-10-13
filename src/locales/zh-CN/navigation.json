@@ -69,6 +69,8 @@
   "appSidebar.countCommitsBehindBranch": "落后 {branch} {count} 个提交",
   "appSidebar.downloading": "正在下载",
   "appSidebar.expandSidebar": "展开侧栏",
+  "appSidebar.resizeSidebar": "调整侧栏宽度",
+  "appSidebar.resizeSidebarHint": "拖动调整宽度，双击恢复默认；方向键微调，Enter 恢复默认",
   "appSidebar.mainNavigation": "主导航",
   "appSidebar.newChat": "新建会话",
   "appSidebar.openSession": "打开会话",

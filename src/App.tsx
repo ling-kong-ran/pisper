@@ -12,7 +12,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
@@ -60,7 +59,8 @@ import { useAppDialog } from '@/hooks/useAppDialog'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/hooks/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarInset } from '@/components/ui/sidebar'
+import { WorkbenchSidebarProvider as SidebarProvider } from '@/components/layout/WorkbenchSidebarProvider'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -811,7 +811,6 @@ function App() {
             )}
             <MobileShellProvider value={shell}>
               <SidebarProvider
-                style={{ '--sidebar-width': '264px' } as CSSProperties}
                 className="app-body flex min-h-0 flex-1 overflow-hidden"
                 data-mobile-app={mobileLayout || undefined}
                 mobile={mobileLayout}

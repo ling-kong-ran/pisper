@@ -69,6 +69,8 @@
   "appSidebar.countCommitsBehindBranch": "{count} commits behind {branch}",
   "appSidebar.downloading": "Downloading",
   "appSidebar.expandSidebar": "Expand sidebar",
+  "appSidebar.resizeSidebar": "Resize sidebar",
+  "appSidebar.resizeSidebarHint": "Drag to resize; double-click to reset. Use arrow keys to adjust or Enter to reset.",
   "appSidebar.mainNavigation": "Main navigation",
   "appSidebar.newChat": "New chat",
   "appSidebar.openSession": "Open chat",
