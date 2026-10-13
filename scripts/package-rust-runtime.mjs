@@ -76,6 +76,7 @@ await writeFile(
     2,
   )}\n`,
 )
+run(process.execPath, [join(root, 'scripts', 'smoke-rust-data-paths.mjs'), join(stage, command)])
 run(process.execPath, [
   join(root, 'scripts', 'smoke-rust-provider-upgrade.mjs'),
   join(stage, command),

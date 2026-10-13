@@ -7,33 +7,37 @@ pub(crate) struct RuntimePaths {
 
 impl RuntimePaths {
     pub(crate) fn from_environment() -> anyhow::Result<Self> {
-        let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"));
         Self::resolve(
             std::env::var_os("PISPER_AGENT_DIR").map(PathBuf::from),
-            std::env::var_os("PI_CODING_AGENT_DIR").map(PathBuf::from),
-            std::env::var_os("PISPER_RS_DATA_DIR").map(PathBuf::from),
-            home.map(PathBuf::from),
+            std::env::home_dir(),
         )
     }
 
-    fn resolve(
-        pisper: Option<PathBuf>,
-        pi: Option<PathBuf>,
-        product: Option<PathBuf>,
-        home: Option<PathBuf>,
-    ) -> anyhow::Result<Self> {
+    fn resolve(pisper: Option<PathBuf>, home: Option<PathBuf>) -> anyhow::Result<Self> {
         let agent = pisper
             .filter(|path| !path.as_os_str().is_empty())
-            .or_else(|| pi.filter(|path| !path.as_os_str().is_empty()))
             .or_else(|| home.map(|home| home.join(".pisper").join("agent")))
             .ok_or_else(|| anyhow::anyhow!("Pisper agent directory cannot be resolved"))?;
-        let data = product
-            .filter(|path| !path.as_os_str().is_empty())
-            .unwrap_or_else(|| agent.clone());
+        // 与 Node resolveAgentDataDir 一致：只有 PISPER_AGENT_DIR 可以覆盖应用目录。
+        // Pi 的变量由入口向引擎传递，不能反向改变用户数据的来源。
+        let agent = std::path::absolute(agent)?;
         Ok(Self {
             agent_dir: agent.to_string_lossy().into_owned(),
-            data_dir: data.to_string_lossy().into_owned(),
+            data_dir: agent.to_string_lossy().into_owned(),
         })
+    }
+
+    pub(crate) fn prepare(&self) -> std::io::Result<()> {
+        // 首次启动也使用原位置；仅创建缺少的目录，不迁移或覆盖已有内容。
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&self.agent_dir)?;
+        builder.create(&self.data_dir)
     }
 }
 
@@ -44,14 +48,18 @@ mod tests {
     #[test]
     fn default_reuses_original_pisper_data() {
         let paths =
-            RuntimePaths::resolve(None, None, None, Some(PathBuf::from("user-home"))).unwrap();
+            RuntimePaths::resolve(None, Some(std::env::temp_dir().join("user-home"))).unwrap();
         assert_eq!(
             PathBuf::from(paths.agent_dir),
-            PathBuf::from("user-home").join(".pisper").join("agent")
+            std::env::temp_dir()
+                .join("user-home")
+                .join(".pisper")
+                .join("agent")
         );
         assert_eq!(
             paths.data_dir,
-            PathBuf::from("user-home")
+            std::env::temp_dir()
+                .join("user-home")
                 .join(".pisper")
                 .join("agent")
                 .to_string_lossy()
@@ -59,25 +67,34 @@ mod tests {
     }
 
     #[test]
-    fn explicit_test_and_product_paths_stay_isolated() {
-        let paths = RuntimePaths::resolve(
-            None,
-            Some(PathBuf::from("test-agent")),
-            Some(PathBuf::from("test-product")),
-            None,
-        )
-        .unwrap();
-        assert_eq!(paths.agent_dir, "test-agent");
-        assert_eq!(paths.data_dir, "test-product");
-        let paths = RuntimePaths::resolve(
-            Some(PathBuf::from("pisper-agent")),
-            Some(PathBuf::from("pi-agent")),
-            None,
-            None,
-        )
-        .unwrap();
-        assert_eq!(paths.agent_dir, "pisper-agent");
-        assert_eq!(paths.data_dir, "pisper-agent");
+    fn explicit_directory_is_absolute_and_shared_by_all_domains() {
+        let paths = RuntimePaths::resolve(Some(PathBuf::from("test-agent")), None).unwrap();
+        assert_eq!(
+            PathBuf::from(&paths.agent_dir),
+            std::env::current_dir().unwrap().join("test-agent")
+        );
+        assert_eq!(paths.data_dir, paths.agent_dir);
+        let empty =
+            RuntimePaths::resolve(Some(PathBuf::new()), Some(std::env::temp_dir())).unwrap();
+        assert_eq!(
+            PathBuf::from(empty.agent_dir),
+            std::env::temp_dir().join(".pisper/agent")
+        );
+    }
+
+    #[test]
+    fn prepare_preserves_existing_data_and_rejects_files() {
+        let root = std::env::temp_dir().join(format!("pisper-paths-{}", crate::product::new_id()));
+        let paths = RuntimePaths::resolve(None, Some(root.clone())).unwrap();
+        assert!(!root.exists());
+        paths.prepare().unwrap();
+        let sentinel = PathBuf::from(&paths.agent_dir).join("pisper.json");
+        std::fs::write(&sentinel, b"{\"keep\":true}").unwrap();
+        paths.prepare().unwrap();
+        assert_eq!(std::fs::read(&sentinel).unwrap(), b"{\"keep\":true}");
+        let blocked = RuntimePaths::resolve(Some(sentinel), None).unwrap();
+        assert!(blocked.prepare().is_err());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(windows)]

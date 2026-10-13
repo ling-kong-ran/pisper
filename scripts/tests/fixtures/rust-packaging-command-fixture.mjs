@@ -103,6 +103,7 @@ childProcess.spawn = (command, args, options) => {
       'check-dist-compat.mjs',
       'smoke-rust-usability.mjs',
       'smoke-rust-provider-upgrade.mjs',
+      'smoke-rust-data-paths.mjs',
       'tauri.js',
       'stage-tauri-artifacts.mjs',
     ].includes(path.basename(args[0]))

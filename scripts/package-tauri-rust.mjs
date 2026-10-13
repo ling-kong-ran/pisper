@@ -254,6 +254,10 @@ await copyFile(
 )
 
 await run(process.execPath, [
+  path.join(root, 'scripts', 'smoke-rust-data-paths.mjs'),
+  runtimeExecutable,
+])
+await run(process.execPath, [
   path.join(root, 'scripts', 'smoke-rust-provider-upgrade.mjs'),
   runtimeExecutable,
 ])

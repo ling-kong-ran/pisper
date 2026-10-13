@@ -4,6 +4,7 @@
 //! 配置响应只返回认证状态。文件读取错误必须阻止写入，避免损坏文档被空对象覆盖。
 
 mod discovery;
+mod model_metadata;
 mod pi_catalog;
 mod upgrade_compat;
 
@@ -61,6 +62,7 @@ struct Documents {
     auth: Value,
     catalog: Value,
     keyrings: Value,
+    metadata: model_metadata::ModelMetadata,
 }
 
 impl ProviderConfigStore {
@@ -218,6 +220,7 @@ impl ProviderConfigStore {
             auth: read_object(&self.agent_dir.join("auth.json"))?,
             catalog: read_object(&self.agent_dir.join("pisper-provider-models.json"))?,
             keyrings: read_object(&self.agent_dir.join("pisper-provider-keyrings.json"))?,
+            metadata: model_metadata::ModelMetadata::read(&self.agent_dir),
         };
         if documents
             .keyrings
@@ -2135,6 +2138,7 @@ mod tests {
             auth: json!({}),
             catalog: json!({}),
             keyrings: json!({}),
+            metadata: Default::default(),
         };
         assert!(model_allowed(&docs, "local", "chat-test"));
         assert!(!model_allowed(&docs, "local", "image-test"));

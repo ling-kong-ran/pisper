@@ -19,11 +19,13 @@ use serde_json::{json, Value};
 use crate::session_read_cache::{branch, value_bytes, StoredRead, StoredSummary};
 use crate::{product, ApiError, AppState, SessionMeta};
 
-pub(crate) fn load_metadata(data_dir: &str) -> HashMap<String, SessionMeta> {
-    std::fs::read(std::path::Path::new(data_dir).join("session-meta.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+pub(crate) fn load_metadata(data_dir: &str) -> anyhow::Result<HashMap<String, SessionMeta>> {
+    match std::fs::read(std::path::Path::new(data_dir).join("pisper-sessions.json")) {
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .map_err(|_| anyhow::anyhow!("Invalid pisper-sessions.json; existing data was preserved")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub(crate) fn save_metadata(state: &AppState) -> Result<(), ApiError> {
@@ -31,12 +33,16 @@ pub(crate) fn save_metadata(state: &AppState) -> Result<(), ApiError> {
         .session_meta
         .lock()
         .map_err(|_| ApiError::internal("session metadata lock poisoned"))?;
-    std::fs::create_dir_all(&state.data_dir).map_err(|e| ApiError::internal(e.to_string()))?;
+    write_metadata(&state.data_dir, &metadata)
+}
+
+fn write_metadata(data_dir: &str, metadata: &HashMap<String, SessionMeta>) -> Result<(), ApiError> {
+    std::fs::create_dir_all(data_dir).map_err(|e| ApiError::internal(e.to_string()))?;
     let bytes =
-        serde_json::to_vec_pretty(&*metadata).map_err(|e| ApiError::internal(e.to_string()))?;
+        serde_json::to_vec_pretty(metadata).map_err(|e| ApiError::internal(e.to_string()))?;
     // 同目录原子替换，避免进程中断把已有整理与执行设置截成半个 JSON。
-    let directory = std::path::Path::new(&state.data_dir);
-    let temporary = directory.join("session-meta.json.tmp");
+    let directory = std::path::Path::new(data_dir);
+    let temporary = directory.join("pisper-sessions.json.tmp");
     let mut file =
         std::fs::File::create(&temporary).map_err(|e| ApiError::internal(e.to_string()))?;
     file.write_all(&bytes)
@@ -44,7 +50,7 @@ pub(crate) fn save_metadata(state: &AppState) -> Result<(), ApiError> {
     file.sync_all()
         .map_err(|e| ApiError::internal(e.to_string()))?;
     drop(file);
-    std::fs::rename(temporary, directory.join("session-meta.json"))
+    std::fs::rename(temporary, directory.join("pisper-sessions.json"))
         .map_err(|e| ApiError::internal(e.to_string()))
 }
 
@@ -55,6 +61,17 @@ pub(crate) fn session_infos(agent_dir: &str) -> Vec<SessionInfo> {
 
 pub(crate) fn find_session_path(state: &AppState, id: &str) -> Result<String, ApiError> {
     state.session_reads.find(&state.agent_dir, id)
+}
+
+pub(crate) fn session_cwd(state: &AppState, id: &str) -> Result<String, ApiError> {
+    let path = find_session_path(state, id)?;
+    let cwd = state.session_meta.lock()
+        .map_err(|_| ApiError::internal("session metadata lock poisoned"))?
+        .get(id).and_then(|meta| meta.cwd.clone()).filter(|cwd| !cwd.is_empty());
+    match cwd {
+        Some(cwd) => Ok(cwd),
+        None => state.session_reads.cwd(&path),
+    }
 }
 
 /// 不能只写文件：必须重新载入管理器，避免下一条消息再次以 create_new 写同一文件。
@@ -1092,8 +1109,8 @@ fn summary_from_stored(
         .cloned()
         .unwrap_or_default();
     Ok(json!({
-        "id": id, "name": info.name,
-        "cwd": if meta.workspace_unset { "" } else { &info.cwd }, "model": model, "thinkingLevel": thinking,
+        "id": id, "name": meta.name.as_deref().unwrap_or(&info.name),
+        "cwd": if meta.workspace_unset { "" } else { meta.cwd.as_deref().filter(|cwd| !cwd.is_empty()).unwrap_or(&info.cwd) }, "model": model, "thinkingLevel": thinking,
         "modified": pi_rust::agent_core::harness::session::jsonl::iso8601::format_iso8601_utc(modified),
         "created": info.created,
         "streaming": (is_active && active.is_streaming()) || state.goals.busy(id), "messageCount": info.message_count,
@@ -1101,9 +1118,10 @@ fn summary_from_stored(
         "executionMode": meta.execution_mode.as_deref().unwrap_or("approval-required"),
         "permissionMode": meta.permission_mode.as_deref().unwrap_or("ask"),
         "runMode": meta.run_mode.as_deref().unwrap_or("plan"),
-        "pinned": meta.pinned, "archived": meta.archived, "unread": meta.unread,
-        "needsAttention": !state.approvals.pending(&id).is_empty(),
-        "attentionReason": if state.approvals.pending(&id).is_empty() { Value::Null } else { json!("approval") }, "goal": null,
+        "pinned": meta.organization.pinned, "archived": meta.organization.archived, "unread": meta.organization.unread,
+        "needsAttention": !state.approvals.pending(&id).is_empty() || meta.organization.failed,
+        "attentionReason": if !state.approvals.pending(&id).is_empty() { json!("approval") } else if meta.organization.failed { json!("failure") } else { Value::Null },
+        "lastCompletedAt": meta.organization.last_completed_at, "goal": null,
         "plan": null, "team": null,
     }))
 }
@@ -1666,16 +1684,17 @@ pub(crate) async fn organization(
             .map_err(|_| ApiError::internal("session metadata lock poisoned"))?;
         let meta = metadata.entry(id.clone()).or_default();
         if let Some(value) = body["pinned"].as_bool() {
-            meta.pinned = value;
+            meta.organization.pinned = value;
         }
         if let Some(value) = body["archived"].as_bool() {
-            meta.archived = value;
+            meta.organization.archived = value;
         }
         if let Some(value) = body["read"].as_bool() {
-            meta.unread = !value;
+            meta.organization.unread = !value;
         }
-        json!({ "id": id, "pinned": meta.pinned, "archived": meta.archived,
-            "unread": meta.unread, "needsAttention": false, "attentionReason": null })
+        json!({ "id": id, "pinned": meta.organization.pinned, "archived": meta.organization.archived,
+            "unread": meta.organization.unread, "needsAttention": meta.organization.failed,
+            "attentionReason": if meta.organization.failed { json!("failure") } else { Value::Null } })
     };
     save_metadata(&state)?;
     Ok(Json(response))
@@ -1684,6 +1703,39 @@ pub(crate) async fn organization(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_session_metadata_roundtrips_without_relocation_or_field_loss() {
+        let root = std::env::temp_dir().join(format!("pisper-metadata-{}", product::new_id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("pisper-sessions.json");
+        let original = json!({"session-1":{"name":"旧会话","manual":true,"cwd":"/workspace",
+            "model":"fixture/model","executionMode":"approval-required","permissionMode":"ask",
+            "runMode":"plan","organization":{"pinned":true,"archived":true,"unread":true,
+            "failed":true,"lastCompletedAt":"2026-01-01T00:00:00.000Z","futureFlag":42},
+            "sideChat":{"version":1,"parentSessionId":"parent","expiresAt":123},
+            "futureField":{"keep":true}}});
+        std::fs::write(&path, serde_json::to_vec(&original).unwrap()).unwrap();
+        let mut metadata = load_metadata(root.to_str().unwrap()).unwrap();
+        let session = metadata.get_mut("session-1").unwrap();
+        assert!(session.organization.pinned && session.organization.archived && session.organization.failed);
+        assert_eq!(session.name.as_deref(), Some("旧会话"));
+        session.organization.unread = false;
+        write_metadata(root.to_str().unwrap(), &metadata).unwrap();
+        let saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        for field in ["manual", "cwd", "model", "sideChat", "futureField"] {
+            assert_eq!(saved["session-1"][field], original["session-1"][field]);
+        }
+        assert_eq!(saved["session-1"]["organization"]["futureFlag"], 42);
+        assert_eq!(saved["session-1"]["organization"]["unread"], false);
+        assert!(saved["session-1"].get("pinned").is_none());
+        assert!(!load_metadata(root.to_str().unwrap()).unwrap()["session-1"].organization.unread);
+        assert!(!root.join("session-meta.json").exists());
+        std::fs::write(&path, b"{invalid").unwrap();
+        assert!(load_metadata(root.to_str().unwrap()).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"{invalid");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     fn assistant(
         text: &str,

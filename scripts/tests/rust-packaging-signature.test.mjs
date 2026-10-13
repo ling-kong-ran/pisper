@@ -257,6 +257,10 @@ function assertRustPackagingPreserved(result) {
   assert.ok(commands.some(({ command, args }) => command === 'fixture-cargo' && args[0] === 'test'))
   assert.ok(commands.some(({ args }) => path.basename(args[0]) === 'smoke-rust-usability.mjs'))
   const buildAt = commands.indexOf(build)
+  const dataPathsAt = commands.findIndex(
+    ({ args }) => path.basename(args[0]) === 'smoke-rust-data-paths.mjs',
+  )
+  assert.ok(dataPathsAt >= 0 && dataPathsAt < buildAt)
   assert.ok(
     commands.findIndex(({ args }) => path.basename(args[0]) === 'smoke-rust-usability.mjs') <
       buildAt,

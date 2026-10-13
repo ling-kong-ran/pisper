@@ -25,7 +25,7 @@ const MAX_COMMAND_NAME_CHARS: usize = 128;
 const MAX_COMMAND_DESCRIPTION_CHARS: usize = 280;
 const MAX_ARGUMENT_HINT_CHARS: usize = 120;
 
-/// session-meta.json 里的临时侧聊标记（SessionMeta.sideChat）。
+/// pisper-sessions.json 里的临时侧聊标记（SessionMeta.sideChat）。
 /// 内容就是 release SideChatMetadata：version/parentSessionId/lastActivityAt/expiresAt。
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SideChatMeta(pub Value);
@@ -460,8 +460,7 @@ pub(crate) async fn session_commands(
     let cwd = match state.sessions.get(&id) {
         Some(hosted) => hosted.runtime.cwd(),
         None => {
-            let path = session_api::find_session_path(&state, &id)?;
-            state.session_reads.cwd(&path)?
+            session_api::session_cwd(&state, &id)?
         }
     };
     let services = state.runtime.services();
@@ -690,8 +689,7 @@ pub(crate) async fn session_cwd_for(state: &AppState, id: &str) -> Result<String
     if let Some(hosted) = state.sessions.get(id) {
         return Ok(hosted.runtime.cwd());
     }
-    let path = session_api::find_session_path(state, id)?;
-    state.session_reads.cwd(&path)
+    session_api::session_cwd(state, id)
 }
 
 /// release getSessionFileDiff：单文件差异；非 VCS 工作区回退到会话内修改前快照。

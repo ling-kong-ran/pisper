@@ -18,8 +18,7 @@ pub(crate) fn router() -> Router<Arc<AppState>> {
         .route("/api/sessions/{id}/file-changes/approve", post(approve))
 }
 fn cwd(state: &AppState, id: &str) -> Result<PathBuf, ApiError> {
-    let path = crate::session_api::find_session_path(state, id)?;
-    Ok(PathBuf::from(state.session_reads.cwd(&path)?))
+    Ok(PathBuf::from(crate::session_api::session_cwd(state, id)?))
 }
 async fn list(
     State(state): State<Arc<AppState>>,

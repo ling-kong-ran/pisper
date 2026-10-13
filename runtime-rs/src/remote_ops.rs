@@ -136,8 +136,6 @@ pub(crate) async fn create_request(
         let mut requests = state.pairing_requests.lock().expect("pairing requests lock");
         requests.retain(|request| request.expires_at > now);
         requests.push(approval.clone());
-        security::save_pairing_requests(&state.data_dir, &requests)
-            .map_err(ApiError::internal)?;
     }
     Ok(Json(json!({
         "requestId": approval.request_id,
@@ -225,8 +223,6 @@ pub(crate) async fn cancel_request(
     {
         let mut requests = state.pairing_requests.lock().expect("pairing requests lock");
         requests.retain(|r| r.request_id != request_id);
-        security::save_pairing_requests(&state.data_dir, &requests)
-            .map_err(ApiError::internal)?;
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -253,7 +249,7 @@ pub(crate) async fn list_requests(State(state): State<ArcAppState>) -> Json<Valu
 }
 
 /// release POST /api/remote/pairing-requests/:requestId/decision：
-/// 批准时签发设备凭据并登记到 devices.json。
+/// 批准时签发设备凭据并登记到 remote-access.json。
 pub(crate) async fn decide_request(
     State(state): State<ArcAppState>,
     Path(request_id): Path<String>,
@@ -276,12 +272,9 @@ pub(crate) async fn decide_request(
     }
     if approved {
         let token = paired_token(&state, &request.device_name);
-        let device = security::PairedDevice {
-            id: product::new_id(),
-            name: request.device_name.clone(),
-            token: token.clone(),
-            paired_at: product::now_ms(),
-        };
+        let device = security::PairedDevice::new(
+            product::new_id(), request.device_name.clone(), &token, product::now_ms(),
+        );
         request.device_id = Some(device.id.clone());
         request.token = Some(token);
         request.status = "approved".to_string();
@@ -298,8 +291,6 @@ pub(crate) async fn decide_request(
             slot.device_id = request.device_id.clone();
             slot.token = request.token.clone();
         }
-        security::save_pairing_requests(&state.data_dir, &requests)
-            .map_err(ApiError::internal)?;
     }
     Ok(Json(json!({
         "requestId": request.request_id,
@@ -318,16 +309,7 @@ pub(crate) async fn revoke_device_post(
 ) -> Result<StatusCode, ApiError> {
     {
         let mut devices = state.pairing.devices.lock().expect("devices lock");
-        let before = devices.len();
-        devices.retain(|d| d.id != device_id);
-        if devices.len() == before {
-            return Err(ApiError::new(
-                StatusCode::NOT_FOUND,
-                "device_not_found",
-                "设备不存在。",
-            ));
-        }
-        security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
+        security::revoke_device(&state.data_dir, &mut devices, &device_id)?;
     }
     Ok(StatusCode::NO_CONTENT)
 }

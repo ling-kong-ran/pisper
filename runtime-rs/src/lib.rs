@@ -48,6 +48,7 @@ mod plugin_integration;
 mod plugins_api;
 mod product;
 mod product2;
+mod extension_packages;
 mod project_resources;
 mod provider_config;
 mod remote_ops;
@@ -163,11 +164,9 @@ pub(crate) struct AppState {
     _approval_events: approval_api::ApprovalSubscription,
     pub(crate) cwd: String,
     pub(crate) events: broadcast::Sender<String>,
-    /// Pisper product data dir (PISPER_RS_DATA_DIR, default
-    /// ~/.pisper/agent-rs): schedules/workflows/plugins persistence.
+    /// 所有领域沿用同一个 Pisper 数据目录（与 agent_dir 相同）。
     pub(crate) data_dir: String,
     /// Live workflow runs (in-memory; retry/stop operate on these).
-    pub(crate) runs: product::RunsMap,
     /// Remote-control (LAN) toggle; P2P transport is not implemented yet.
     pub(crate) remote_enabled: std::sync::atomic::AtomicBool,
     /// Stable device fingerprint shown in the remote pairing surface.
@@ -332,12 +331,25 @@ struct SessionMeta {
     permission_mode: Option<String>,
     goal: Option<String>,
     name: Option<String>,
-    pinned: bool,
-    archived: bool,
-    unread: bool,
+    cwd: Option<String>,
+    organization: SessionOrganization,
     run_mode: Option<String>,
     /// release SideChatMetadata；有值即临时侧聊会话。
     side_chat: Option<session_ops::SideChatMeta>,
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct SessionOrganization {
+    pinned: bool,
+    archived: bool,
+    unread: bool,
+    failed: bool,
+    last_completed_at: Option<String>,
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
 }
 
 async fn health() -> Json<serde_json::Value> {
@@ -623,7 +635,9 @@ async fn set_session_cwd(
     session_api::persist_session_cwd(&file, &cwd_input)?;
     {
         let mut metadata = state.session_meta.lock().expect("session metadata");
-        metadata.entry(id.clone()).or_default().workspace_unset = false;
+        let meta = metadata.entry(id.clone()).or_default();
+        meta.workspace_unset = false;
+        meta.cwd = Some(cwd_input.clone());
     }
     session_api::save_metadata(&state)?;
     mutation
@@ -805,12 +819,10 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
     let cwd = std::env::var("PISPER_WORKSPACE_DIR")
         .ok()
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| {
-            std::env::current_dir()
-                .expect("cwd")
-                .to_string_lossy()
-                .to_string()
-        });
+        .map(std::path::PathBuf::from)
+        .or_else(std::env::home_dir)
+        .ok_or_else(|| anyhow::anyhow!("Pisper workspace directory cannot be resolved"))?;
+    let cwd = std::path::absolute(cwd)?.to_string_lossy().into_owned();
     let cwd = embedded
         .map(|options| options.workspace.to_string_lossy().into_owned())
         .unwrap_or(cwd);
@@ -821,8 +833,12 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
         },
         None => runtime_paths::RuntimePaths::from_environment()?,
     };
+    paths.prepare()?;
     let agent_dir = paths.agent_dir;
     let data_dir = paths.data_dir;
+    let session_metadata = session_api::load_metadata(&data_dir)?;
+    let remote_enabled = security::load_remote_enabled(&data_dir).map_err(anyhow::Error::msg)?;
+    let paired_devices = security::load_devices(&data_dir).map_err(anyhow::Error::msg)?;
     let providers = Arc::new(provider_config::ProviderConfigStore::new(&agent_dir));
     let catalog = native_tool_catalog::release_catalog()?;
     let web_search = native_web_search::WebSearchService::new(
@@ -1046,9 +1062,7 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
         SessionManager::create(
             &cwd,
             Some(
-                &pi_rust::coding_agent::session_manager::get_default_session_dir_with(
-                    &cwd, &agent_dir,
-                ),
+                &std::path::Path::new(&agent_dir).join("sessions").to_string_lossy(),
             ),
             Some(&NewSessionOptions::default()),
         )?
@@ -1403,10 +1417,9 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
         _approval_events: approval_events,
         events,
         unsub: std::sync::Mutex::new(None),
-        session_meta: Arc::new(std::sync::Mutex::new(session_api::load_metadata(&data_dir))),
+        session_meta: Arc::new(std::sync::Mutex::new(session_metadata)),
         data_dir: data_dir.clone(),
-        runs: std::sync::Mutex::new(std::collections::HashMap::new()),
-        remote_enabled: std::sync::atomic::AtomicBool::new(false),
+        remote_enabled: std::sync::atomic::AtomicBool::new(remote_enabled),
         fingerprint,
         chat_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         frame_cursor: std::sync::atomic::AtomicU64::new(0),
@@ -1414,9 +1427,9 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
         desktop_token,
         pairing: security::PairingStore {
             pending: std::sync::Mutex::new(None),
-            devices: std::sync::Mutex::new(security::load_devices(&data_dir)),
+            devices: std::sync::Mutex::new(paired_devices),
         },
-        pairing_requests: std::sync::Mutex::new(security::load_pairing_requests(&data_dir)),
+        pairing_requests: std::sync::Mutex::new(Vec::new()),
         self_base: std::sync::Mutex::new(None),
         pet: pet_state::PetState::default(),
         mcp_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -1735,9 +1748,9 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/extensions/market", get(product2::extension_market))
         .route(
             "/api/extensions",
-            get(product2::extension_dashboard).delete(product2::extension_remove),
+            get(extension_packages::list).delete(extension_packages::remove),
         )
-        .route("/api/extensions/install", post(product2::extension_install))
+        .route("/api/extensions/install", post(extension_packages::install))
         .route("/api/decisions/status", get(product2::decisions_status))
         .route(
             "/api/decisions/config",
@@ -1958,13 +1971,13 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
             let state = state
                 .upgrade()
                 .ok_or_else(|| ApiError::internal("Runtime has shut down"))?;
-            let path = match session_api::find_session_path(&state, &id) {
-                Ok(path) => path,
+            match session_api::find_session_path(&state, &id) {
+                Ok(_) => {},
                 Err(error) if error.status == StatusCode::NOT_FOUND => return Ok(None),
                 Err(error) => return Err(error),
             };
             Ok(Some(std::path::PathBuf::from(
-                state.session_reads.cwd(&path)?,
+                session_api::session_cwd(&state, &id)?,
             )))
         })
     });
@@ -2136,12 +2149,7 @@ async fn pair_device(
         }
         out
     };
-    let device = security::PairedDevice {
-        id: product::new_id(),
-        name: device_name,
-        token: token.clone(),
-        paired_at: now,
-    };
+    let device = security::PairedDevice::new(product::new_id(), device_name, &token, now);
     let mut devices = state.pairing.devices.lock().expect("devices lock");
     devices.push(device.clone());
     security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
@@ -2176,7 +2184,10 @@ async fn list_devices(State(state): State<Arc<AppState>>) -> Json<serde_json::Va
             serde_json::json!({
                 "id": d.id,
                 "name": d.name,
-                "pairedAt": d.paired_at,
+                "pairedAt": session_ops::parse_timestamp_ms(&d.created_at),
+                "createdAt": d.created_at,
+                "lastSeenAt": d.last_seen_at,
+                "revokedAt": d.revoked_at,
             })
         })
         .collect();
@@ -2188,16 +2199,7 @@ async fn revoke_device(
     Path(device_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let mut devices = state.pairing.devices.lock().expect("devices lock");
-    let before = devices.len();
-    devices.retain(|d| d.id != device_id);
-    if devices.len() == before {
-        return Err(ApiError::new(
-            StatusCode::NOT_FOUND,
-            "device_not_found",
-            "设备不存在。",
-        ));
-    }
-    security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
+    security::revoke_device(&state.data_dir, &mut devices, &device_id)?;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
