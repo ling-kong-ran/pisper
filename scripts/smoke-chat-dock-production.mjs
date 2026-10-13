@@ -33,8 +33,12 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
   })
   const errors = []
   const layoutWrites = []
-  const makePage = async (width, height = 960, nativeTitlebar = false) => {
-    const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN' })
+  const makePage = async (width, height = 960, nativeTitlebar = false, hasTouch = false) => {
+    const context = await browser.newContext({
+      viewport: { width, height },
+      locale: 'zh-CN',
+      hasTouch,
+    })
     await context.addCookies([{ name: '__pisper_desktop', value: token, url: base }])
     await context.addInitScript((nativeTitlebar) => {
       localStorage.setItem('pisper-language', 'zh-CN')
@@ -135,7 +139,10 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await page.waitForFunction(() =>
       [...document.querySelectorAll('.session-dock-panel')].every((panel) => {
         const bounds = panel.getBoundingClientRect()
-        const workspace = panel.closest('.chat-dock-workspace').getBoundingClientRect()
+        const workspace = panel.closest('.chat-dock-workspace')?.getBoundingClientRect() ?? {
+          right: window.innerWidth,
+          bottom: window.innerHeight,
+        }
         if (bounds.right > workspace.right + 1 || bounds.bottom > workspace.bottom + 1) return false
         return [
           ...panel.querySelectorAll('.focus-composer textarea, .focus-composer button'),
@@ -245,7 +252,7 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await expectComposerBounds(page)
 
     // 全新手机页面必须走完整 ChatPage 单会话入口，不能请求桌面分屏 chunk。
-    const phone = await makePage(390)
+    const phone = await makePage(390, 844, false, true)
     const dockRequests = []
     phone.on('request', (request) => {
       if (/\/(?:ChatDockView|vendor-dockview)-[^/]+\.js/.test(request.url()))
@@ -255,6 +262,21 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await expectPanels(phone, 1)
     assert.equal(await phone.locator('.dockview-theme-pisper').count(), 0)
     assert.deepEqual(dockRequests, [])
+    // 手机旋转后仍使用单会话入口，且输入区不能被桌面侧栏挤出视口。
+    for (const viewport of [
+      { width: 844, height: 390 },
+      { width: 956, height: 440 },
+    ]) {
+      await phone.setViewportSize(viewport)
+      await expectPanels(phone, 1)
+      assert.equal(await phone.locator('.dockview-theme-pisper').count(), 0)
+      await expectComposerBounds(phone)
+      await phone.reload()
+      await expectPanels(phone, 1)
+      assert.equal(await phone.locator('.dockview-theme-pisper').count(), 0)
+      assert.deepEqual(dockRequests, [])
+    }
+    await phone.setViewportSize({ width: 390, height: 844 })
     await phone.goto(base + '/#/assets')
     await phone.getByRole('tab', { name: '工作区', exact: true, selected: true }).waitFor()
     await phone.goto(base + '/#/config/models')

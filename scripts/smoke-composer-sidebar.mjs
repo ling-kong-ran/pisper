@@ -8,6 +8,18 @@ export async function verifyComposerSidebar(page, session) {
     panel().getByRole('button', { name: '进入语音对话模式', exact: true })
   await voiceInput().waitFor()
   await voiceConversation().waitFor()
+  const actionBounds = await Promise.all([
+    panel().locator('.model-effort-pill').boundingBox(),
+    voiceConversation().boundingBox(),
+    voiceInput().boundingBox(),
+    panel().locator('.send-button').boundingBox(),
+  ])
+  assert.ok(actionBounds.every(Boolean), 'Composer actions must be visible')
+  const actionCenters = actionBounds.map((bounds) => bounds.y + bounds.height / 2)
+  assert.ok(
+    Math.max(...actionCenters) - Math.min(...actionCenters) <= 1,
+    'Model, voice and send controls must share the same vertical center',
+  )
   await page.locator(`#workbench-sidebar [data-usage-session-id="${session.id}"]`).waitFor()
   assert.equal(await panel().getByTestId('theme-toggle').count(), 0)
   await panel().getByRole('button', { name: '展开快捷操作', exact: true }).click()

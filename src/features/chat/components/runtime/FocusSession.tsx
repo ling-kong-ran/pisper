@@ -690,7 +690,7 @@ export const FocusSession = memo(function FocusSession({
     <div
       ref={toolbarRef}
       className={cn(
-        'focus-composer-quick-actions flex min-w-9 flex-1 items-end gap-1',
+        'focus-composer-quick-actions flex min-w-9 flex-1 items-center gap-1',
         !mobileLayout && 'basis-[calc(100%_-_108px)]',
       )}
     >
@@ -967,7 +967,7 @@ export const FocusSession = memo(function FocusSession({
           />
           <div
             className={cn(
-              'focus-composer-footer flex min-w-0 items-end gap-1',
+              'focus-composer-footer flex min-w-0 items-center gap-1',
               !mobileLayout && 'flex-wrap',
             )}
           >
