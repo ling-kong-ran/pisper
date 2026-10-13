@@ -13,7 +13,11 @@ export function DesktopWindowControls() {
     close: t('navigation:window.close'),
   }
   const bridge = window.pisperDesktop
-  const host = useDesktopTitlebarHost(['window-controls-aside', 'window-controls-chat'])
+  const host = useDesktopTitlebarHost([
+    'window-controls-page',
+    'window-controls-aside',
+    'window-controls-chat',
+  ])
   useEffect(() => {
     if (!bridge?.customTitlebar || !bridge.windowAction) return
     const interactive =

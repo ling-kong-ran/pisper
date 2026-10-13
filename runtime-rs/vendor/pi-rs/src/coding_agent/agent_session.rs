@@ -6347,6 +6347,33 @@ impl AgentSession {
     // Tree Navigation (agent-session.ts:3193-3425)
     // =========================================================================
 
+    /// Pisper: remove a branch while the host holds its exclusive run/mutation lease.
+    pub fn delete_branch(
+        &self,
+        entry_id: &str,
+    ) -> Result<crate::coding_agent::session_manager::BranchDeletion, AgentSessionError> {
+        if self.is_streaming() || self.is_compacting() {
+            return Err(AgentSessionError::Upstream("Session is busy".into()));
+        }
+        let (result, changed_branch) = {
+            let mut manager = self.session_manager.lock().expect("session lock");
+            let previous_leaf = manager.get_leaf_id().map(str::to_owned);
+            let result = manager
+                .delete_branch(entry_id)
+                .map_err(session_manager_error)?;
+            let changed = result.leaf_id != previous_leaf;
+            (result, changed)
+        };
+        self.refresh_finalized_context();
+        self.restore_tools_from_transcript();
+        if changed_branch {
+            let mut state = self.agent.state();
+            state.error_message = None;
+            state.streaming_message = None;
+        }
+        Ok(result)
+    }
+
     /// Upstream `navigateTree`: navigate to a different node in the session
     /// tree. Unlike fork() which creates a new session file, this stays in the
     /// same file.

@@ -50,12 +50,14 @@ export function ChatResourcePicker({
   onClose,
   onSelect,
   onCommandSelect,
+  initialCategory = 'all',
 }: {
   open: boolean
   sessionId: string
   onClose: () => void
   onSelect: (invocation: ResourceInvocation) => void
   onCommandSelect: (invocation: string) => void
+  initialCategory?: ResourceCategory
 }) {
   const { t } = useI18n()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
@@ -71,7 +73,7 @@ export function ChatResourcePicker({
   useEffect(() => {
     if (!open) return
     let active = true
-    setCategory('all')
+    setCategory(initialCategory)
     setQuery('')
     setSelected(null)
     setArgumentsValue({})
@@ -133,7 +135,7 @@ export function ChatResourcePicker({
     return () => {
       active = false
     }
-  }, [open, sessionId, t, workflowsAvailable])
+  }, [initialCategory, open, sessionId, t, workflowsAvailable])
 
   const categoryCounts = useMemo(
     () => ({

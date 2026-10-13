@@ -652,5 +652,9 @@
   "loadState.failed": "Could not load settings",
   "loadState.retry": "Retry",
   "loadState.retrying": "Retrying…",
-  "loadState.stale": "Refresh failed. Showing the last successfully loaded data."
+  "loadState.stale": "Refresh failed. Showing the last successfully loaded data.",
+  "interfaceSettings.composerVoice": "Composer voice controls",
+  "interfaceSettings.composerVoiceDescription": "Show persistent desktop composer buttons. Turning them on does not start recording.",
+  "interfaceSettings.voiceInput": "Voice input",
+  "interfaceSettings.voiceConversation": "Voice conversation"
 }

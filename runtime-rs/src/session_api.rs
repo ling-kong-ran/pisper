@@ -539,7 +539,20 @@ pub(crate) fn project_tree(manager: &SessionManager, streaming: bool) -> Result<
         .iter()
         .filter_map(|entry| entry.id())
         .collect();
-    let entries = manager.get_entries();
+    let all_entries = manager.get_entries();
+    let positions: HashMap<_, _> = all_entries
+        .iter()
+        .filter(|entry| entry.is_branch_position())
+        .filter_map(|entry| {
+            entry
+                .id()
+                .map(|id| (id.to_owned(), entry.parent_id().map(str::to_owned)))
+        })
+        .collect();
+    let entries: Vec<_> = all_entries
+        .into_iter()
+        .filter(|entry| !entry.is_branch_position())
+        .collect();
     let by_id: HashMap<_, _> = entries
         .iter()
         .enumerate()
@@ -548,8 +561,16 @@ pub(crate) fn project_tree(manager: &SessionManager, streaming: bool) -> Result<
     let mut children = vec![Vec::new(); entries.len()];
     let mut roots = Vec::new();
     for (index, entry) in entries.iter().enumerate() {
-        if let Some(parent) = entry
-            .parent_id()
+        let mut parent_id = entry.parent_id();
+        let mut visited_positions = std::collections::HashSet::new();
+        while let Some(position) = parent_id.and_then(|id| positions.get(id)) {
+            if !visited_positions.insert(parent_id) {
+                parent_id = None;
+                break;
+            }
+            parent_id = position.as_deref();
+        }
+        if let Some(parent) = parent_id
             .filter(|parent| Some(*parent) != entry.id())
             .and_then(|parent| by_id.get(parent))
         {

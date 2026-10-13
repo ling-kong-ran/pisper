@@ -62,6 +62,8 @@ mod session_api;
 mod session_ops;
 mod session_read_cache;
 mod session_runtime;
+#[cfg(test)]
+mod session_tree_tests;
 mod session_workers;
 mod skills_ops;
 mod speech_api;
@@ -1621,6 +1623,10 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/sessions/{id}/input", post(session_input))
         .route("/api/sessions/{id}/live", get(session_api::live))
         .route("/api/sessions/{id}/tree", get(session_api::tree))
+        .route(
+            "/api/sessions/{id}/tree/branches/{entryId}",
+            delete(session_ops::tree_branch_delete),
+        )
         .route("/api/sessions/{id}/abort", post(session_abort))
         .route("/api/sessions/{id}/derive", post(derive_session))
         .route("/api/sessions/{id}/compact", post(session_compact))

@@ -264,11 +264,16 @@ export function useLiveSessionSync({
   const loadSessionMessages = useCallback(
     async (
       id: string,
-      { force = false, limit = FOCUS_MESSAGE_PAGE_SIZE }: { force?: boolean; limit?: number } = {},
+      {
+        force = false,
+        limit = FOCUS_MESSAGE_PAGE_SIZE,
+        throwOnError = false,
+      }: { force?: boolean; limit?: number; throwOnError?: boolean } = {},
     ) => {
       if (!id) return
       const current = sessionStatesRef.current[id]
-      if (current?.recovering) {
+      // 分支变更后的显式刷新必须读到消息快照，不能被恢复轮询的去重提前返回。
+      if (current?.recovering && !throwOnError) {
         await syncLiveSession(id)
         return
       }
@@ -299,6 +304,7 @@ export function useLiveSessionSync({
                 sessionUsage: data.sessionUsage ?? latest.sessionUsage ?? null,
                 loaded: true,
                 loading: false,
+                recovering: throwOnError ? false : latest.recovering,
                 pageSize: Math.max(latest.pageSize || 0, limit),
                 error: '',
                 olderError: '',
@@ -317,6 +323,7 @@ export function useLiveSessionSync({
         }
       } catch (error) {
         updateSessionState(id, { loading: false, error: chatErrorMessage(error) })
+        if (throwOnError) throw error
       }
     },
     [sessionStatesRef, syncLiveSession, updateSessionState, updateSessions],

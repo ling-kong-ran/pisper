@@ -1,5 +1,5 @@
 // 会话树节点行渲染：移动端列表与桌面端分段轨道（含虚拟化）。
-// 从 SessionTreeDialog 拆出，样式类与原实现逐字一致。
+// 选中边框与活动路径标记分别表达浏览位置与会话当前位置。
 import { useEffect, type RefObject } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Bookmark } from 'lucide-react'
@@ -120,6 +120,9 @@ export function SessionTreeSegment({
         className={`session-tree-node hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.selected]:border-[var(--focus)] [&.selected]:bg-[var(--solid)] [&.selected]:shadow-[0_0_0_2px_var(--focus-ring),0_8px_20px_-18px_var(--shadow)] relative z-[1] grid w-[220px] min-h-[48px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[color-mix(in_srgb,var(--solid)_94%,transparent)] text-[var(--text)] [padding:6px_8px_6px_2px] text-left shadow-[0_4px_14px_-13px_var(--shadow)] cursor-pointer ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
         data-kind={node.kind}
         data-pisper-tree-entry={node.id}
+        aria-pressed={node.id === selectedId}
+        aria-current={node.leaf ? 'location' : undefined}
+        title={`${typeLabel(node)}${node.label ? ` · ${node.label}` : ''}\n${node.text}`}
         key={node.id}
         onClick={() => onSelect(node.id)}
       >
@@ -170,7 +173,7 @@ export function SessionTreeSegment({
         <div className="session-tree-children before:absolute before:top-0 before:left-[50%] before:w-[2px] before:h-[14px] before:rounded-[var(--r-pill)] before:bg-[var(--stroke)] before:[content:''] before:[transform:translateX(-1px)] [.session-tree-segment.active_>_&::before]:bg-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] relative flex items-start justify-center [margin-top:0] [padding-top:28px]">
           {children.map((child) => (
             <div
-              className={`session-tree-child before:absolute before:top-0 before:w-[50%] before:h-[14px] before:[border-top:2px_solid_var(--stroke)] before:[content:''] after:absolute after:top-0 after:w-[50%] after:h-[14px] after:[border-top:2px_solid_var(--stroke)] after:[content:''] before:right-[50%] after:left-[50%] after:[border-left:2px_solid_var(--stroke)] [&:first-child::before]:[border-top-color:transparent] [&:last-child::after]:[border-top-color:transparent] [&.active::before]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active::after]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active:first-child::before]:[border-top-color:transparent] [&.active:last-child::after]:[border-top-color:transparent] relative flex [padding:14px_12px_0]${child.active ? ' active' : ''}`}
+              className={`session-tree-child before:absolute before:top-0 before:w-[50%] before:h-[14px] before:[border-top:2px_solid_var(--stroke)] before:[content:''] after:absolute after:top-0 after:w-[50%] after:h-[14px] after:[border-top:2px_solid_var(--stroke)] after:[content:''] before:right-[50%] after:left-[50%] after:[border-left:2px_solid_var(--stroke)] [&:first-child::before]:[border-top-color:transparent] [&:last-child::after]:[border-top-color:transparent] [&.active::before]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active::after]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active:first-child::before]:[border-top-color:transparent] [&.active:last-child::after]:[border-top-color:transparent] relative flex px-3 pt-[14px]${child.active ? ' active' : ''}`}
               key={child.id}
             >
               <SessionTreeSegment

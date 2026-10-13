@@ -1,8 +1,9 @@
 // 会话树左侧浏览区：页签切换、搜索框、「全部标记」列表与桌面/移动端树画布。
 // 从 SessionTreeDialog 拆出，仅负责展示与事件上抛，不持有数据请求状态。
 import type { RefObject } from 'react'
-import { LoaderCircle, Search, Tag } from 'lucide-react'
+import { LoaderCircle, Search, Tag, X } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { SessionTreeNode, SessionTreeLabelMatch } from '@/features/chat/api/chat-api'
 import type { DisplayNode, TreeSegment, TreeView } from '@/features/chat/model/session-tree-model'
@@ -79,11 +80,41 @@ export function SessionTreeBrowser({
         <Search size={15} />
         <input
           value={query}
+          aria-label={t('chat:sessionTree.searchPlaceholder')}
           disabled={Boolean(openingMark)}
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder={t('chat:sessionTree.searchPlaceholder')}
         />
+        {query && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            disabled={Boolean(openingMark)}
+            aria-label={t('chat:sessionTree.clearSearch')}
+            onClick={() => onQueryChange('')}
+          >
+            <X size={13} />
+          </Button>
+        )}
       </label>
+      {view !== 'marks' && !mobileLayout && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-3 text-[11px] text-[var(--text-muted)]">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[var(--brand-blue)]" aria-hidden="true" />
+            {t('chat:sessionTree.activePath')}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="size-2.5 rounded-sm border border-[var(--focus)] shadow-[0_0_0_1px_var(--focus-ring)]"
+              aria-hidden="true"
+            />
+            {t('chat:sessionTree.selectedNode')}
+          </span>
+          <span className="ml-auto">
+            {t('chat:sessionTree.visibleNodes', { count: visibleNodes.length })}
+          </span>
+        </div>
+      )}
       {view === 'marks' ? (
         <div
           className="flex min-w-0 min-h-0 [flex:1_1_0] flex-col gap-[8px] overflow-auto [overscroll-behavior:contain] [padding:12px_14px]"

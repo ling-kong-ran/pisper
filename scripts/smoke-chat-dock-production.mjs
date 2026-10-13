@@ -4,6 +4,8 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 import { verifyChatDockCreation } from './smoke-chat-dock-creation.mjs'
+import { verifyDesktopHeader } from './smoke-desktop-header.mjs'
+import { verifyComposerSidebar } from './smoke-composer-sidebar.mjs'
 
 export async function verifyProductionChatDock({ base, token, workspace }) {
   const sessions = []
@@ -193,6 +195,9 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
       'Beta draft',
     )
     await alpha.getByRole('button', { name: '展开快捷操作', exact: true }).click()
+    const addMenu = page.getByRole('dialog', { name: '添加到消息', exact: true })
+    // 首次打开需加载菜单模块；先等真实菜单挂载，再检查原有窄分屏入口。
+    await addMenu.waitFor({ state: 'visible' })
     for (const id of ['permission', 'run-mode', 'model']) {
       const inline = alpha.locator(`.focus-composer-visible-tools [data-composer-tool-id="${id}"]`)
       const overflow = page.locator(`.composer-tool-tray [data-composer-tool-id="${id}"]`)
@@ -201,7 +206,14 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
         `${id} remains accessible in narrow splits`,
       )
     }
+    const modeTrigger = addMenu.locator('[data-composer-tool-id="run-mode"] button').first()
+    await modeTrigger.click()
+    await page.getByRole('menu', { name: '执行模式', exact: true }).waitFor()
     await page.keyboard.press('Escape')
+    assert.equal(await addMenu.isVisible(), true)
+    assert.equal(await modeTrigger.evaluate((button) => button === document.activeElement), true)
+    await page.keyboard.press('Escape')
+    await addMenu.waitFor({ state: 'detached' })
     await expectPanels(page, 2)
     await page.setViewportSize({ width: 1440, height: 960 })
     await expectPanels(page, 2)
@@ -264,6 +276,8 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
         throw error
       })
     await native.locator('button[title^="Dock Alpha ·"]').click()
+    await verifyDesktopHeader(native, sessions[0])
+    await verifyComposerSidebar(native, sessions[0])
     const tools = native.locator('[data-desktop-titlebar-actions]').getByRole('button', {
       name: /会话上下文/,
     })
@@ -336,7 +350,8 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
             ),
           ]
           return (
-            buttons.length >= 6 &&
+            // 主题已移至左栏；标题栏保留终端、上下文和三个原生窗口按钮。
+            buttons.length === 5 &&
             buttons.every((button) => {
               const box = button.getBoundingClientRect()
               return button.contains(
@@ -377,6 +392,25 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
       }
     }
     await expectNativeButtonsReachable()
+    // 极窄分组中既要处于面板范围，也不能被另一个控件覆盖。
+    const expectComposerButtonsReachable = async () => {
+      await native.waitForFunction(() =>
+        [...document.querySelectorAll('.focus-composer-footer button')].every((button) => {
+          const box = button.getBoundingClientRect()
+          if (!box.width || !box.height) return true
+          const panel = button.closest('.session-dock-panel')?.getBoundingClientRect()
+          return (
+            panel &&
+            box.left >= panel.left &&
+            box.right <= panel.right + 1 &&
+            button.contains(
+              document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2),
+            )
+          )
+        }),
+      )
+    }
+    await expectComposerButtonsReachable()
     // 再转移一次标题栏归属，防止旧分组遗留最小宽度把第三列推出窗口。
     const ownerHeader = native.locator('.dv-tabs-and-actions-container').filter({ has: controls })
     const [createdResponse] = await Promise.all([

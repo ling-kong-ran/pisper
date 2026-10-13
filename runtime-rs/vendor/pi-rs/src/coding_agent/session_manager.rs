@@ -97,6 +97,10 @@ use crate::coding_agent::core::messages::{
 use crate::coding_agent::utils::node_path;
 use crate::coding_agent::utils::paths::{normalize_path, resolve_path_auto_base};
 
+#[path = "session_manager_pruning.rs"]
+mod pruning;
+pub use pruning::BranchDeletion;
+
 /// Upstream `CURRENT_SESSION_VERSION`.
 pub const CURRENT_SESSION_VERSION: u32 = 3;
 
@@ -2346,6 +2350,18 @@ impl SessionManager {
                 continue;
             };
             self.by_id.insert(id.to_string(), position);
+            if let SessionEntry::Custom(position) = typed {
+                if position.custom_type == pruning::POSITION_TYPE {
+                    match position.data.as_ref().and_then(|data| data.get("leafId")) {
+                        Some(Value::Null) => self.leaf_id = None,
+                        Some(Value::String(leaf)) if self.by_id.contains_key(leaf) => {
+                            self.leaf_id = Some(leaf.clone());
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+            }
             self.leaf_id = Some(id.to_string());
             if let SessionEntry::Label(label) = typed {
                 if let Some(label_text) = label.label.clone() {

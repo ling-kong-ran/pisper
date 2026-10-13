@@ -108,14 +108,16 @@ export function useSessionCommands({
   const compactSession = useCallback(
     async (sessionId: string) => {
       const current = sessionStatesRef.current[sessionId]
-      if (!sessionId || current?.streaming || current?.compaction?.active) return
+      if (!sessionId || current?.streaming || current?.compaction?.active) return false
+      const previousCompaction = current?.compaction || null
+      const optimisticCompaction = {
+        ...(previousCompaction || {}),
+        active: true,
+        status: 'running',
+        reason: 'manual',
+      }
       updateSessionState(sessionId, {
-        compaction: {
-          ...(current?.compaction || {}),
-          active: true,
-          status: 'running',
-          reason: 'manual',
-        },
+        compaction: optimisticCompaction,
         error: '',
       })
       try {
@@ -125,9 +127,17 @@ export function useSessionCommands({
           contextUsage: result.contextUsage || null,
         })
         notify(t('chat:chatPage.contextCompacted'))
+        return true
       } catch (error) {
         await syncLiveSession(sessionId).catch(() => {})
-        updateSessionState(sessionId, { error: chatErrorMessage(error) })
+        updateSessionState(sessionId, (latest) => ({
+          ...latest,
+          // 同步可能失败或因去重跳过；只撤回本轮乐观对象，保留新的服务端状态。
+          compaction:
+            latest.compaction === optimisticCompaction ? previousCompaction : latest.compaction,
+          error: chatErrorMessage(error),
+        }))
+        return false
       }
     },
     [notify, sessionStatesRef, syncLiveSession, t, updateSessionState],

@@ -2,6 +2,8 @@
 // 排队与手动压缩守卫，以及「发送/排队」提交流程。
 // 从 FocusSession.tsx 拆出：行为与原先逐行一致，仅改变代码所在位置。
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useI18n } from '@/app/i18n/use-i18n'
+import { chatErrorMessage } from '@/features/chat/model/chat-errors'
 import type { ChatAttachment, EntityRecord, ResourceInvocation } from '@/types/chat'
 import type { ComposerExecutionMode } from '@/features/chat/components/runtime/GoalModeControl'
 
@@ -27,7 +29,9 @@ export function useFocusComposer({
   goal,
   streaming,
   compaction,
+  hasMessages,
   value,
+  updateValue,
   selection,
   clearDraft,
   promptRef,
@@ -46,11 +50,13 @@ export function useFocusComposer({
   goal?: EntityRecord | null
   streaming?: boolean
   compaction?: EntityRecord | null
+  hasMessages: boolean
   value: string
+  updateValue: (value: string) => void
   selection: ComposerSelection
   clearDraft: () => void
   promptRef: RefObject<HTMLTextAreaElement | null>
-  onCompact?: () => Promise<void> | void
+  onCompact?: () => Promise<boolean> | boolean
   onGoalPause?: () => Promise<void> | void
   onSend: (
     value: string,
@@ -68,6 +74,7 @@ export function useFocusComposer({
   setToolsOpen: (open: boolean) => void
   requestTranscriptBottom: () => void
 }) {
+  const { t } = useI18n()
   // 运行模式是会话级持久化偏好：初始化与切换会话时都从快照恢复，而不是固定回 plan。
   const [composerExecutionMode, setComposerExecutionMode] = useState<ComposerExecutionMode>(() =>
     normalizeComposerRunMode(runMode),
@@ -79,6 +86,10 @@ export function useFocusComposer({
   const goalPausePromiseRef = useRef<Promise<void> | null>(null)
   const [queueing, setQueueing] = useState(false)
   const [compactingManually, setCompactingManually] = useState(false)
+  const [commandError, setCommandError] = useState('')
+  const compactOperationRef = useRef<symbol | null>(null)
+  const currentDraftRef = useRef({ sessionId, value })
+  currentDraftRef.current = { sessionId, value }
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
 
   useEffect(() => {
@@ -88,8 +99,17 @@ export function useFocusComposer({
     setTeamTokenBudget(null)
     setQueueing(false)
     setCompactingManually(false)
+    compactOperationRef.current = null
+    setCommandError('')
     setInvocation(null)
   }, [sessionId])
+  useEffect(
+    () => () => {
+      compactOperationRef.current = null
+    },
+    [],
+  )
+  useEffect(() => setCommandError(''), [value])
   // 会话快照异步到达后同步持久化的运行模式（刷新页面首次渲染时可能尚未加载）。
   useEffect(() => {
     setComposerExecutionMode(normalizeComposerRunMode(runMode))
@@ -124,17 +144,53 @@ export function useFocusComposer({
     return pending
   }
   const compactContext = async () => {
-    if (!onCompact || streaming || compactingManually || compaction?.active) return
+    if (
+      !onCompact ||
+      !hasMessages ||
+      streaming ||
+      compactOperationRef.current ||
+      compaction?.active
+    ) {
+      setCommandError(t('chat:commands.compactUnavailable'))
+      return false
+    }
+    const operation = Symbol('compact')
+    compactOperationRef.current = operation
     setCompactingManually(true)
+    setCommandError('')
     try {
-      await onCompact()
+      const success = await onCompact()
+      if (compactOperationRef.current !== operation) return false
+      if (!success) setCommandError(t('chat:commands.compactFailed'))
+      return success
+    } catch (error) {
+      if (compactOperationRef.current === operation) setCommandError(chatErrorMessage(error))
+      return false
     } finally {
-      setCompactingManually(false)
+      if (compactOperationRef.current === operation) {
+        compactOperationRef.current = null
+        setCompactingManually(false)
+      }
     }
   }
   // 提交输入：空输入不发送；流式中走排队，否则发送目标模式/资源命令并清空草稿。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    // 内置命令在排队/目标/普通消息路径前处理；无效调用也不能发送给模型。
+    if (/^\/compact(?:\s|$)/.test(value.trim())) {
+      if (value.trim() !== '/compact' || selection.attachments.length || invocation) {
+        setCommandError(t('chat:commands.compactOnly'))
+        return
+      }
+      const submittedValue = value
+      if (await compactContext()) {
+        if (currentDraftRef.current.sessionId !== sessionId) return
+        // 压缩等待期间允许继续编辑；仅清掉本次命令文本，不清附件或资源。
+        if (currentDraftRef.current.value === submittedValue) updateValue('')
+        setToolsOpen(false)
+      }
+      return
+    }
     if (!value.trim() && !selection.attachments.length && !invocation) return
     if (streaming) {
       if ((!value.trim() && !selection.attachments.length) || queueing) return
@@ -192,6 +248,7 @@ export function useFocusComposer({
     setTeamTokenBudget,
     queueing,
     compactingManually,
+    commandError,
     invocation,
     setInvocation,
     requestGoalPause,

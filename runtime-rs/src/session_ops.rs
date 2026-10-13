@@ -280,6 +280,52 @@ pub(crate) async fn side_chat_create(
 
 // --------------------------------------------------------------- tree nav
 
+/// 删除消息子树；复用运行/配置准入，冷会话不必为删除构建代理引擎。
+pub(crate) async fn tree_branch_delete(
+    State(state): State<ArcAppState>,
+    Path((id, entry_id)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let result = {
+            let guard = state.sessions.metadata_guard(&id, &state.engine_mutation)?;
+            if state.goals.busy(&id) {
+                return Err(ApiError::new(axum::http::StatusCode::CONFLICT, "session_busy", "当前会话正在运行。"));
+            }
+            let validate = |manager: &SessionManager| {
+                let entry = manager.get_entry(&entry_id).ok_or_else(|| ApiError::new(
+                    axum::http::StatusCode::NOT_FOUND, "session_tree_entry_not_found", "会话树节点不存在。",
+                ))?;
+                if !matches!(entry, pi_rust::coding_agent::session_manager::SessionEntry::Message(message)
+                    if matches!(message.message, pi_rust::agent_core::types::AgentMessage::User(_) | pi_rust::agent_core::types::AgentMessage::Assistant(_))) {
+                    return Err(ApiError::new(axum::http::StatusCode::BAD_REQUEST, "invalid_session_tree_entry", "只能删除用户消息或助手回复所在的分支。"));
+                }
+                Ok(())
+            };
+            if let Some(hosted) = &guard.hosted {
+                let session = hosted.session();
+                {
+                    let manager = session.session_manager.lock().map_err(|_| ApiError::internal("session manager lock poisoned"))?;
+                    validate(&manager)?;
+                }
+                session.delete_branch(&entry_id).map_err(|error| ApiError::internal(crate::security::redact_secret_text(&error.to_string())))?
+            } else {
+                let path = session_api::find_session_path(&state, &id)?;
+                let mut manager = SessionManager::open(&path, None, None).map_err(|error| ApiError::internal(crate::security::redact_secret_text(&error.to_string())))?;
+                validate(&manager)?;
+                manager.delete_branch(&entry_id).map_err(|error| ApiError::internal(crate::security::redact_secret_text(&error.to_string())))?
+            }
+        };
+        // 释放本次准入后再投影，避免把自己的变更租约误报为仍在运行。
+        if let Ok(snapshot) = session_api::snapshot(&state, &id) {
+            let _ = state.events.send(json!({"pisperEvent":"snapshot","sessionId":id,"data":snapshot}).to_string());
+        }
+        let _ = state.events.send(json!({"pisperEvent":"session_tree_changed","sessionId":id,"data":{"revision":product::now_ms()}}).to_string());
+        serde_json::to_value(result).map(Json).map_err(|_| ApiError::internal("会话树删除结果无法序列化。"))
+    })
+    .await
+    .map_err(|_| ApiError::internal("会话树删除任务失败。"))?
+}
+
 /// release navigateSessionTree：切换活跃叶子；`includeTree:false` 只返回导航结果。
 pub(crate) async fn tree_navigate(
     State(state): State<ArcAppState>,

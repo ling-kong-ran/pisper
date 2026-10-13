@@ -1,11 +1,22 @@
 // 斜杠命令菜单：输入 / 时弹出的命令选择面板（新会话/切换模型等），
 // 键盘上下选择 + 回车执行。
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
-import { Braces, FileText } from 'lucide-react'
+import { Braces, FileText, Minimize2 } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { chatApi, type SessionCommand } from '@/features/chat/api/chat-api'
 import { commandDraft } from '@/features/chat/model/composer-drafts'
 import { AnchoredPopupMenu } from '@/features/chat/components/AnchoredPopupMenu'
+
+// 本地命令不属于 Runtime 的技能/提示词协议，也不发送给模型。
+type ComposerCommand =
+  | SessionCommand
+  | {
+      source: 'builtin'
+      name: string
+      invocation: string
+      description: string
+      argumentHint: string
+    }
 
 export function ComposerCommandMenu({
   sessionId,
@@ -41,10 +52,11 @@ export function ComposerCommandMenu({
   useEffect(() => {
     if (!open || commands) return
     let active = true
+    const controller = new AbortController()
     setLoading(true)
     setError(false)
     chatApi
-      .getSessionCommands(sessionId)
+      .getSessionCommands(sessionId, controller.signal)
       .then((data) => {
         if (active) setCommands(data.commands || [])
       })
@@ -56,18 +68,29 @@ export function ComposerCommandMenu({
       .finally(() => active && setLoading(false))
     return () => {
       active = false
+      controller.abort()
     }
   }, [commands, open, sessionId])
 
   const visibleCommands = useMemo(() => {
+    const available: ComposerCommand[] = [
+      {
+        source: 'builtin',
+        name: 'compact',
+        invocation: '/compact',
+        description: t('chat:commands.compactDescription'),
+        argumentHint: '',
+      },
+      ...(commands || []).filter((command) => command.invocation !== '/compact'),
+    ]
     const needle = query.toLocaleLowerCase(language)
-    if (!needle) return commands || []
-    return (commands || []).filter((command) =>
+    if (!needle) return available
+    return available.filter((command) =>
       `${command.invocation} ${command.name} ${command.description}`
         .toLocaleLowerCase(language)
         .includes(needle),
     )
-  }, [commands, language, query])
+  }, [commands, language, query, t])
 
   useEffect(() => {
     setActiveIndex(0)
@@ -76,7 +99,7 @@ export function ComposerCommandMenu({
   const close = () => {
     setDismissedValue(value)
   }
-  const select = (command: SessionCommand) => {
+  const select = (command: ComposerCommand) => {
     const next = commandDraft(command.invocation, value)
     onChange(next)
     setDismissedValue(next)
@@ -171,7 +194,12 @@ export function ComposerCommandMenu({
         style={{ marginTop: 0 }}
       >
         {visibleCommands.map((command, index) => {
-          const Icon = command.source === 'prompt' ? FileText : Braces
+          const Icon =
+            command.source === 'builtin'
+              ? Minimize2
+              : command.source === 'prompt'
+                ? FileText
+                : Braces
           return (
             <button
               type="button"
@@ -195,9 +223,17 @@ export function ComposerCommandMenu({
                 <small>{command.description || t('chat:commands.noDescription')}</small>
               </span>
               <em>
-                {command.source === 'prompt' ? t('chat:commands.prompt') : t('chat:commands.skill')}
-                {' · '}
-                {scopeLabels[command.scope]}
+                {command.source === 'builtin' ? (
+                  t('chat:commands.builtin')
+                ) : (
+                  <>
+                    {command.source === 'prompt'
+                      ? t('chat:commands.prompt')
+                      : t('chat:commands.skill')}
+                    {' · '}
+                    {scopeLabels[command.scope]}
+                  </>
+                )}
               </em>
             </button>
           )

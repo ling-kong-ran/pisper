@@ -1,6 +1,14 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
 // 移动端走单会话视图，不下载/执行本模块。
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import 'dockview-react/dist/styles/dockview.css'
 import {
@@ -20,6 +28,8 @@ import { useShortcutLabel } from '@/lib/ui/shortcuts'
 import { ChatDockWatermark, SessionDockPanel } from '@/features/chat/components/ChatDock'
 import { ChatDockTabContextMenu } from '@/features/chat/components/ChatDockTabContextMenu'
 import { WebPreviewDockPanel } from '@/features/chat/components/WebPreviewDockPanel'
+import { ChatDockContext } from '@/features/chat/model/chat-dock-context'
+import { sessionIdFromPanel } from '@/features/chat/model/dock-layout'
 
 type ChatDockViewProps = {
   compactDock: boolean
@@ -134,6 +144,27 @@ export function ChatDockView({
   createSession,
 }: ChatDockViewProps) {
   const { t } = useI18n()
+  const context = useContext(ChatDockContext)
+  const renamePanel = useCallback(
+    (panel: GetTabContextMenuItemsParams['panel']) => {
+      const session = context?.sessions.find((item) => item.id === sessionIdFromPanel(panel))
+      if (!session || !context) return
+      void context.renameSession(session)
+    },
+    [context],
+  )
+  const tabMenuItems = useCallback(
+    (params: Pick<GetTabContextMenuItemsParams, 'panel'>) => {
+      const items = getTabContextMenuItems(params)
+      if (!sessionIdFromPanel(params.panel)) return items
+      return [
+        { label: t('chat:focusSession.renameChat'), action: () => renamePanel(params.panel) },
+        'separator' as const,
+        ...items,
+      ]
+    },
+    [getTabContextMenuItems, renamePanel, t],
+  )
   const containerRef = useRef<HTMLDivElement>(null)
   const [dockApi, setDockApi] = useState<DockviewApi | null>(null)
   const handleReady = useCallback(
@@ -219,8 +250,18 @@ export function ChatDockView({
       ref={containerRef}
       data-chat-dock-viewport
       className="relative h-full w-full min-h-0 min-w-0"
+      onDoubleClickCapture={(event) => {
+        const target = event.target
+        if (!(target instanceof Element) || target.closest('.dv-default-tab-action, button')) return
+        const tab = target.closest('.dv-tab[role="tab"]')
+        const panel = dockApi?.panels.find((item) => tab?.contains(item.view.tab.element))
+        if (!panel || !sessionIdFromPanel(panel)) return
+        event.preventDefault()
+        event.stopPropagation()
+        renamePanel(panel)
+      }}
     >
-      <ChatDockTabContextMenu api={dockApi} getItems={getTabContextMenuItems}>
+      <ChatDockTabContextMenu api={dockApi} getItems={tabMenuItems}>
         <DockviewReact
           className="dockview-theme-light dockview-theme-pisper"
           components={dockComponents}
@@ -228,7 +269,7 @@ export function ChatDockView({
           leftHeaderActionsComponent={DockNewSessionAction}
           rightHeaderActionsComponent={DockHeaderTools}
           onReady={handleReady}
-          getTabContextMenuItems={getTabContextMenuItems}
+          getTabContextMenuItems={tabMenuItems}
           disableFloatingGroups
           disableDnd={compactDock}
           noPanelsOverlay="watermark"

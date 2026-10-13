@@ -13,9 +13,13 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
+import { SETTINGS_PAGES } from '@/app/routes/settings-navigation'
 import type { ThemeMode } from '@/stores/ui-store'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { ThemeToggleButton } from './ThemeToggleButton'
+import { DesktopTitlebarHost } from './DesktopTitlebar'
+import { useIsMobileApp } from '@/stores/client-store'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/ui/shortcuts'
 
@@ -69,6 +73,8 @@ export function PageHeader({
   onToggleTerminal,
 }: PageHeaderProps) {
   const { t } = useI18n()
+  const mobileAppClient = useIsMobileApp()
+  const phoneViewport = useIsPhoneViewport()
   const primaryShortcut = useShortcutLabel('primaryAction')
   const terminalShortcut = useShortcutLabel('toggleTerminal')
   const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
@@ -93,6 +99,8 @@ export function PageHeader({
           : null
         : primaryActions[page]
   const desktop = Boolean(desktopPlatform)
+  const settingsPage = SETTINGS_PAGES.has(page)
+  const settingsWindowControls = settingsPage && Boolean(window.pisperDesktop?.customTitlebar)
 
   return (
     <header
@@ -103,10 +111,16 @@ export function PageHeader({
         page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
         desktop && '[-webkit-app-region:drag]',
         desktopPlatform === 'darwin' && 'pl-[74px]',
+        settingsWindowControls && 'flex-wrap',
       )}
     >
       <WorkbenchSidebarToggle />
-      <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
+      <div
+        className={cn(
+          'mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1',
+          settingsWindowControls && 'max-[650px]:pr-[184px]',
+        )}
+      >
         <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]">
           {meta[0]}
         </h1>
@@ -126,6 +140,7 @@ export function PageHeader({
             'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
           page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
           desktop && '[-webkit-app-region:no-drag]',
+          settingsWindowControls && 'ml-auto flex-wrap',
         )}
       >
         {page === 'workflowCreate' ? (
@@ -204,7 +219,7 @@ export function PageHeader({
             {primary[0]}
           </Button>
         )}
-        {desktop && (
+        {desktop && !settingsPage && (
           <Button
             variant="ghost"
             size="icon"
@@ -221,14 +236,17 @@ export function PageHeader({
             <TerminalSquare size={16} />
           </Button>
         )}
-        <ThemeToggleButton
-          theme={theme}
-          onCycle={onCycleTheme}
+        <div
           className={cn(
-            'bg-[var(--solid)]',
+            'flex h-9 shrink-0 items-center gap-2',
             page !== 'chat' && 'max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4',
           )}
-        />
+        >
+          {(mobileAppClient || phoneViewport) && (
+            <ThemeToggleButton theme={theme} onCycle={onCycleTheme} className="bg-[var(--solid)]" />
+          )}
+          {settingsWindowControls && <DesktopTitlebarHost targetId="window-controls-page" />}
+        </div>
       </div>
     </header>
   )

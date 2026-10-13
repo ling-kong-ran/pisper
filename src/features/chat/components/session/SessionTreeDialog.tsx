@@ -1,9 +1,19 @@
 // 会话树对话框：会话从属关系（父子）的树形浏览。
 // 数据请求与状态留在本文件；渲染拆到 session-tree-* 子组件，纯算法在 session-tree-model。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { TreePine, X } from 'lucide-react'
+import { LoaderCircle, TreePine, X } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useIsMobileApp } from '@/stores/client-store'
@@ -63,9 +73,17 @@ export function SessionTreeDialog({
   const [savingLabel, setSavingLabel] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<SessionTreeNode | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [pendingBranchRefresh, setPendingBranchRefresh] = useState(false)
   const [openingRelatedId, setOpeningRelatedId] = useState('')
   const [error, setError] = useState('')
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const deleteButtonRef = useRef<HTMLButtonElement | null>(null)
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const dialogScope = useRef({ open, sessionId })
+  dialogScope.current = { open, sessionId }
 
   useEffect(() => {
     if (!open || !sessionId) return
@@ -73,6 +91,10 @@ export function SessionTreeDialog({
     setView('conversation')
     setMobilePane('list')
     setQuery('')
+    setData(null)
+    setDeleteTarget(null)
+    setDeleteError('')
+    setPendingBranchRefresh(false)
     setLoading(true)
     setError('')
     void Promise.all([chatApi.getSessionTree(sessionId), chatApi.listSessions()])
@@ -103,6 +125,9 @@ export function SessionTreeDialog({
     setLabel('')
     setOpeningMark(null)
     setSummarize(false)
+    setDeleteTarget(null)
+    setDeleteError('')
+    setPendingBranchRefresh(false)
     setError('')
   }, [open])
 
@@ -205,6 +230,13 @@ export function SessionTreeDialog({
   const canLabelSelected = selected?.kind === 'assistant' && selected.status === 'completed'
   const canCreateChildSelected = canLabelSelected
   const canDeriveSelected = selected ? !nonDerivableKinds.has(selected.kind) : false
+  const canDeleteSelected =
+    selected?.type === 'message' &&
+    (selected.role === 'user' || selected.role === 'assistant') &&
+    selected.kind !== 'tool-call'
+  const busy =
+    loading || savingLabel || navigating || creatingChild || deleting || Boolean(openingRelatedId)
+  const mutationBlocked = busy || streaming || Boolean(data?.streaming)
 
   useEffect(() => {
     setLabel(selected?.label || '')
@@ -227,16 +259,46 @@ export function SessionTreeDialog({
     return () => cancelAnimationFrame(frame)
   }, [open, query, selectedId, view, visibleNodes.length])
 
-  // 刷新会话树：拉取树数据并把选中项重置到叶子节点（或第一个节点）。
+  // 已提交的删除只重读快照；首次刷新或重试都等待树与消息完成，绝不重复删除。
+  const refreshBranchSnapshots = async () => {
+    const [treeResult, messagesResult] = await Promise.allSettled([
+      chatApi.getSessionTree(sessionId),
+      Promise.resolve().then(() => onNavigated(null)),
+    ])
+    if (!dialogScope.current.open || dialogScope.current.sessionId !== sessionId) return
+    if (treeResult.status === 'fulfilled') {
+      setData(treeResult.value)
+      setQuery('')
+      setSelectedId(treeResult.value.leafId || treeResult.value.nodes[0]?.id || '')
+    } else {
+      setData(null)
+      setSelectedId('')
+      throw treeResult.reason
+    }
+    if (messagesResult.status === 'rejected') throw messagesResult.reason
+    setPendingBranchRefresh(false)
+  }
+
+  // 普通错误只重读树；删除后的刷新错误必须同时补齐消息，避免留下已删除内容。
   const refresh = async () => {
+    if (busy) return
     setLoading(true)
     setError('')
     try {
-      const next = await chatApi.getSessionTree(sessionId)
-      setData(next)
-      setSelectedId(next.leafId || next.nodes[0]?.id || '')
+      if (pendingBranchRefresh) {
+        await refreshBranchSnapshots()
+      } else {
+        const next = await chatApi.getSessionTree(sessionId)
+        setData(next)
+        setSelectedId(next.leafId || next.nodes[0]?.id || '')
+      }
     } catch (reason) {
-      setError(chatErrorMessage(reason))
+      const message = chatErrorMessage(reason)
+      setError(
+        pendingBranchRefresh
+          ? t('chat:sessionTree.deleteRefreshFailed', { error: message })
+          : message,
+      )
     } finally {
       setLoading(false)
     }
@@ -244,11 +306,12 @@ export function SessionTreeDialog({
 
   // 保存选中节点的标签；防重入（savingLabel）。
   const saveLabel = async () => {
-    if (!selected || savingLabel) return
+    if (!selected || mutationBlocked) return
     setSavingLabel(true)
     setError('')
     try {
       setData(await chatApi.setSessionTreeLabel(sessionId, selected.id, label))
+      setMarksLoaded(false)
     } catch (reason) {
       setError(chatErrorMessage(reason))
     } finally {
@@ -258,11 +321,12 @@ export function SessionTreeDialog({
 
   // 移除选中节点的标签（置空）；防重入。
   const removeLabel = async () => {
-    if (!selected || savingLabel) return
+    if (!selected || mutationBlocked) return
     setSavingLabel(true)
     setError('')
     try {
       setData(await chatApi.setSessionTreeLabel(sessionId, selected.id, ''))
+      setMarksLoaded(false)
     } catch (reason) {
       setError(chatErrorMessage(reason))
     } finally {
@@ -272,7 +336,7 @@ export function SessionTreeDialog({
 
   // 从选中的已完成回复创建独立对话；创建成功后由外层打开新 Dock。
   const createChild = async () => {
-    if (!selected || !canCreateChildSelected || creatingChild) return
+    if (!selected || !canCreateChildSelected || mutationBlocked) return
     setCreatingChild(true)
     setError('')
     try {
@@ -287,7 +351,7 @@ export function SessionTreeDialog({
 
   // 在谱系中打开父会话或其它独立对话；父会话需要先定位到创建边界。
   const openRelatedSession = async (target: SessionSummary, targetEntryId = '') => {
-    if (!target.id || openingRelatedId) return
+    if (!target.id || busy) return
     setOpeningRelatedId(target.id)
     setError('')
     try {
@@ -303,7 +367,7 @@ export function SessionTreeDialog({
 
   // 导航到选中节点（非叶子且非流式中）：切换到该历史位置继续会话。
   const navigate = async () => {
-    if (!selected || navigating || selected.leaf || streaming || data?.streaming) return
+    if (!selected || selected.leaf || mutationBlocked) return
     setNavigating(true)
     setError('')
     try {
@@ -317,6 +381,33 @@ export function SessionTreeDialog({
       setError(chatErrorMessage(reason))
     } finally {
       setNavigating(false)
+    }
+  }
+
+  const deleteBranch = async () => {
+    if (!deleteTarget || mutationBlocked) return
+    setDeleting(true)
+    setDeleteError('')
+    setError('')
+    let deleted = false
+    const isCurrentDialog = () =>
+      dialogScope.current.open && dialogScope.current.sessionId === sessionId
+    try {
+      await chatApi.deleteSessionTreeBranch(sessionId, deleteTarget.id)
+      deleted = true
+      if (!isCurrentDialog()) return
+      setPendingBranchRefresh(true)
+      setMarksLoaded(false)
+      setAllMarks([])
+      await refreshBranchSnapshots()
+    } catch (reason) {
+      if (!isCurrentDialog()) return
+      const message = chatErrorMessage(reason)
+      if (deleted) setError(t('chat:sessionTree.deleteRefreshFailed', { error: message }))
+      else setDeleteError(message)
+    } finally {
+      if (isCurrentDialog() && deleted) setDeleteTarget(null)
+      setDeleting(false)
     }
   }
 
@@ -335,7 +426,7 @@ export function SessionTreeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !deleting && onClose()}>
       <DialogContent
         className={`chat-resource-dialog grid-rows-[auto_minmax(0,1fr)] overflow-hidden session-tree-dialog ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none !gap-0 !p-0' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
         showCloseButton={false}
@@ -363,13 +454,15 @@ export function SessionTreeDialog({
             size="icon-sm"
             aria-label={t('common:ui.closeDialog')}
             title={t('common:ui.closeDialog')}
+            disabled={deleting}
+            ref={closeButtonRef}
             onClick={onClose}
           >
             <X size={17} />
           </Button>
         </div>
         <div
-          className={`chat-resource-body grid min-h-0 overflow-hidden bg-[var(--surface-subtle)] session-tree-layout ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}
+          className={`chat-resource-body grid min-h-0 overflow-hidden bg-[var(--surface-subtle)] session-tree-layout ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : view === 'marks' ? 'grid-cols-1' : '!grid-cols-[minmax(0,1fr)_328px]'}`}
         >
           {(!mobileLayout || mobilePane === 'list') && (
             <SessionTreeBrowser
@@ -409,6 +502,10 @@ export function SessionTreeDialog({
               childSessions={childSessions}
               canLabel={canLabelSelected}
               canDerive={canDeriveSelected}
+              canDelete={canDeleteSelected}
+              busy={busy}
+              deleting={deleting}
+              deleteButtonRef={deleteButtonRef}
               label={label}
               summarize={summarize}
               savingLabel={savingLabel}
@@ -425,6 +522,11 @@ export function SessionTreeDialog({
               onCreateChild={() => void createChild()}
               onNavigate={() => void navigate()}
               onRefresh={() => void refresh()}
+              onDeleteBranch={() => {
+                if (!canDeleteSelected || mutationBlocked) return
+                setDeleteError('')
+                setDeleteTarget(selected)
+              }}
               onOpenRelated={(target, targetEntryId) =>
                 void openRelatedSession(target, targetEntryId ?? '')
               }
@@ -432,6 +534,51 @@ export function SessionTreeDialog({
           )}
         </div>
       </DialogContent>
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(nextOpen) => !nextOpen && !deleting && setDeleteTarget(null)}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            if (!dialogScope.current.open) return
+            event.preventDefault()
+            ;(deleteButtonRef.current || closeButtonRef.current)?.focus()
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('chat:sessionTree.deleteBranchTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('chat:sessionTree.deleteBranchDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteTarget && (
+            <p className="line-clamp-3 rounded-lg border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] p-3 text-sm break-words">
+              {deleteTarget.label || deleteTarget.text || typeLabel(deleteTarget)}
+            </p>
+          )}
+          {deleteError && (
+            <p role="alert" className="text-sm text-danger">
+              {deleteError}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t('common:ui.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={mutationBlocked}
+              onClick={(event) => {
+                event.preventDefault()
+                void deleteBranch()
+              }}
+            >
+              {deleting && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
+              {deleting
+                ? t('chat:sessionTree.deletingBranch')
+                : t('chat:sessionTree.confirmDeleteBranch')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

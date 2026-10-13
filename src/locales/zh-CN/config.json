@@ -652,5 +652,9 @@
   "loadState.failed": "设置加载失败",
   "loadState.retry": "重试",
   "loadState.retrying": "正在重试…",
-  "loadState.stale": "刷新失败，仍显示上次成功加载的数据。"
+  "loadState.stale": "刷新失败，仍显示上次成功加载的数据。",
+  "interfaceSettings.composerVoice": "输入框语音按钮",
+  "interfaceSettings.composerVoiceDescription": "在桌面输入框中常驻显示。关闭后隐藏入口；开启不会自动录音。",
+  "interfaceSettings.voiceInput": "语音输入",
+  "interfaceSettings.voiceConversation": "语音对话"
 }

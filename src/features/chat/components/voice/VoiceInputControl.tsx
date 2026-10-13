@@ -47,6 +47,7 @@ export function VoiceInputControl({
   sessionId,
   disabled = false,
   shortcutEnabled = false,
+  compact = false,
 }: {
   onInsert: (text: string) => void
   // 实时部分转写：频繁回调写入草稿；传 null 表示录音取消/失败，调用方回滚到录音前文本。
@@ -54,6 +55,7 @@ export function VoiceInputControl({
   sessionId?: string
   disabled?: boolean
   shortcutEnabled?: boolean
+  compact?: boolean
 }) {
   const { t } = useI18n()
   // 语音输入只需 ASR 模型；未安装时 ensureReady 会弹出下载引导并等待。
@@ -426,7 +428,7 @@ export function VoiceInputControl({
         )}
       <button
         type="button"
-        className={`relative grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45 ${
+        className={`relative grid ${compact ? '!size-8 !min-w-8' : '!size-11 !min-w-11'} place-items-center rounded-[var(--r-sm)] border transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45 ${
           stage === 'recording'
             ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger-strong)] shadow-[0_0_0_3px_var(--danger-soft)]'
             : stage === 'transcribing' || stage === 'requesting'

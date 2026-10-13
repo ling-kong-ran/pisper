@@ -353,7 +353,7 @@ export function ChatPage({
   // 强制重载会话分支：刷新消息 + 列表，供恢复/切换后同步。
   const reloadSessionBranch = useCallback(
     async (sessionId: string) => {
-      await loadSessionMessages(sessionId, { force: true })
+      await loadSessionMessages(sessionId, { force: true, throwOnError: true })
       await refreshSessions(sessionId)
     },
     [loadSessionMessages, refreshSessions],

@@ -19,6 +19,7 @@ import { normalizeHexColor } from '@/lib/format/custom-accent'
 import { LanguageSettings } from '@/features/config/components/settings/LanguageSettings'
 import { SettingsCard as Panel } from '@/features/config/components/settings/settings-primitives'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import {
   DEFAULT_UI_PREFERENCES,
   useUiStore,
@@ -159,6 +160,10 @@ const ACCENT_SWATCHES: Record<AccentPreset, string> = {
 
 export function InterfaceSettings({ notify }: { notify: Notify }) {
   const { t } = useI18n()
+  const composerVoiceInput = useUiStore((state) => state.composerVoiceInput)
+  const composerVoiceConversation = useUiStore((state) => state.composerVoiceConversation)
+  const setComposerVoiceInput = useUiStore((state) => state.setComposerVoiceInput)
+  const setComposerVoiceConversation = useUiStore((state) => state.setComposerVoiceConversation)
   const theme = useUiStore((state) => state.theme)
   const density = useUiStore((state) => state.density)
   const accent = useUiStore((state) => state.accent)
@@ -473,6 +478,30 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
         </div>
       </Panel>
 
+      <Panel className="p-[18px]" data-config-card="interface-composer">
+        <h3 className="text-sm font-semibold">{t('config:interfaceSettings.composerVoice')}</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t('config:interfaceSettings.composerVoiceDescription')}
+        </p>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <label htmlFor="composer-voice-input">{t('config:interfaceSettings.voiceInput')}</label>
+          <Switch
+            id="composer-voice-input"
+            checked={composerVoiceInput}
+            onCheckedChange={update(setComposerVoiceInput)}
+          />
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <label htmlFor="composer-voice-conversation">
+            {t('config:interfaceSettings.voiceConversation')}
+          </label>
+          <Switch
+            id="composer-voice-conversation"
+            checked={composerVoiceConversation}
+            onCheckedChange={update(setComposerVoiceConversation)}
+          />
+        </div>
+      </Panel>
       <LanguageSettings notify={notify} />
     </div>
   )

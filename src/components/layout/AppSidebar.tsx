@@ -18,6 +18,8 @@ import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from '@/components/common/BrandLogo'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
+import { SidebarStatusHost } from './SidebarStatus'
+import { useUiStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
 
 const SidebarSettingsButton = lazy(() =>
@@ -27,6 +29,10 @@ const SidebarSettingsButton = lazy(() =>
 )
 
 const SidebarMoreTools = lazy(() => import('@/components/layout/SidebarMoreTools'))
+
+const ThemeToggleButton = lazy(() =>
+  import('./ThemeToggleButton').then((module) => ({ default: module.ThemeToggleButton })),
+)
 
 const SidebarRecentSessions = lazy(() =>
   import('@/components/layout/SidebarRecentSessions').then((m) => ({
@@ -69,9 +75,12 @@ export function AppSidebar({
   notify,
 }: AppSidebarProps) {
   const { t } = useI18n()
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile, open, toggleSidebar, persistent } = useSidebar()
   const compact = collapsed && !isMobile
   const mobileApp = useIsMobileApp()
+  const theme = useUiStore((state) => state.theme)
+  const cycleTheme = useUiStore((state) => state.cycleTheme)
+  const desktopSidebar = !mobileApp && !isMobile
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const settingsActive = SETTINGS_PAGES.has(page)
   const settingsNavigation = useMemo(
@@ -113,6 +122,9 @@ export function AppSidebar({
     compact ? 'h-11 justify-center px-0' : 'h-8 justify-start px-2.5',
   )
   const navLabel = compact ? 'sr-only' : 'truncate'
+  const brandToggleLabel = open
+    ? t('navigation:appSidebar.collapseSidebar')
+    : t('navigation:appSidebar.expandSidebar')
 
   return (
     <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container border-0">
@@ -123,13 +135,31 @@ export function AppSidebar({
       >
         <div
           className={cn(
-            'flex h-12 shrink-0 items-center gap-2 px-3',
+            'flex shrink-0 items-center gap-2 px-3',
+            isMobile ? 'h-12' : 'h-9',
             compact ? 'justify-center' : 'justify-between',
           )}
           data-window-drag-region
+          data-testid="workbench-brand-header"
         >
           <div className="flex min-w-0 items-center gap-2">
-            <BrandLogo className="size-6" size={24} />
+            {isMobile || persistent ? (
+              <BrandLogo className="size-6" size={24} />
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 rounded-md hover:bg-sidebar-accent [-webkit-app-region:no-drag]"
+                data-testid="workbench-brand-toggle"
+                title={brandToggleLabel}
+                aria-label={brandToggleLabel}
+                aria-expanded={open}
+                aria-controls="workbench-sidebar"
+                onClick={toggleSidebar}
+              >
+                <BrandLogo className="size-5" size={20} />
+              </Button>
+            )}
             <span className={cn(compact ? 'sr-only' : 'truncate', 'text-sm font-semibold')}>
               {APP_NAME}
             </span>
@@ -250,6 +280,7 @@ export function AppSidebar({
             compact ? 'px-2' : 'px-3',
           )}
         >
+          {desktopSidebar && page === 'chat' && <SidebarStatusHost />}
           {update.status &&
             ['available', 'downloading', 'downloaded'].includes(update.status.state) && (
               <Suspense fallback={null}>
@@ -268,7 +299,13 @@ export function AppSidebar({
                 />
               </Suspense>
             </div>
-            <WorkbenchSidebarToggle inSidebar />
+            {desktopSidebar ? (
+              <Suspense fallback={<div className="size-8" aria-busy="true" />}>
+                <ThemeToggleButton compact theme={theme} onCycle={cycleTheme} />
+              </Suspense>
+            ) : (
+              <WorkbenchSidebarToggle inSidebar />
+            )}
           </div>
         </footer>
       </aside>

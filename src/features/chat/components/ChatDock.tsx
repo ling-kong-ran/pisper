@@ -349,7 +349,7 @@ function SessionPanel({
       onGoalPause: () => context?.pauseGoal(sessionId),
       onGoalBudgetChange: (tokenBudget: number | null) =>
         context?.setGoalBudget(sessionId, tokenBudget),
-      onCompact: () => context?.compactSession(sessionId),
+      onCompact: () => context?.compactSession(sessionId) ?? false,
       onApproval: (approvalId: string, approved: boolean) =>
         context?.resolveToolApproval(sessionId, approvalId, approved),
       onWorkspace: () => {

@@ -3,7 +3,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { cn } from '@/lib/utils'
 
-// 展开与收起使用独立按钮，品牌标识不再承担隐含的导航操作。
+// 保留侧栏底部及移动端的显式开关；桌面品牌按钮复用同一展开状态。
 export function WorkbenchSidebarToggle({ inSidebar = false }: { inSidebar?: boolean }) {
   const { open, openMobile, isMobile, persistent } = useSidebar()
   const { t } = useI18n()

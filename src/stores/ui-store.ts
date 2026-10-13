@@ -31,6 +31,10 @@ export const DEFAULT_UI_PREFERENCES = {
 }
 
 type UiState = {
+  composerVoiceInput: boolean
+  composerVoiceConversation: boolean
+  setComposerVoiceInput: (enabled: boolean) => void
+  setComposerVoiceConversation: (enabled: boolean) => void
   sidebarCollapsed: boolean
   theme: ThemeMode
   density: DensityMode
@@ -63,6 +67,8 @@ type PersistedUiState = Pick<
   | 'fontScale'
   | 'radius'
   | 'motion'
+  | 'composerVoiceInput'
+  | 'composerVoiceConversation'
 >
 
 // 快捷按钮只循环三种常用模式；旧的定时偏好仍可读取并在设置页使用。
@@ -76,6 +82,11 @@ export function nextThemeMode(theme: ThemeMode): ThemeMode {
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
+      composerVoiceInput: true,
+      composerVoiceConversation: true,
+      setComposerVoiceInput: (composerVoiceInput) => set({ composerVoiceInput }),
+      setComposerVoiceConversation: (composerVoiceConversation) =>
+        set({ composerVoiceConversation }),
       sidebarCollapsed: false,
       ...DEFAULT_UI_PREFERENCES,
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
@@ -100,6 +111,8 @@ export const useUiStore = create<UiState>()(
       migrate: (persisted, version): PersistedUiState => {
         const stored = persisted as Partial<PersistedUiState>
         return {
+          composerVoiceInput: true,
+          composerVoiceConversation: true,
           sidebarCollapsed: stored.sidebarCollapsed ?? false,
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
@@ -108,6 +121,8 @@ export const useUiStore = create<UiState>()(
         }
       },
       partialize: ({
+        composerVoiceInput,
+        composerVoiceConversation,
         sidebarCollapsed,
         theme,
         density,
@@ -117,6 +132,8 @@ export const useUiStore = create<UiState>()(
         radius,
         motion,
       }) => ({
+        composerVoiceInput,
+        composerVoiceConversation,
         sidebarCollapsed,
         theme,
         density,

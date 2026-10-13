@@ -199,3 +199,20 @@ for ordinary paths and the original cwd used for filesystem IO are unchanged.
 The Windows runtime path regression exercises real directory and session-manager
 creation plus disk/UNC key equivalence; the isolated CLI smoke covers ordinary
 and native-prefixed launches, spaces, shutdown and restart.
+
+`coding_agent/session_manager_pruning.rs` adds Pisper message-subtree deletion.
+It preserves sibling journal lines, resolved labels on surviving nodes, and
+structural metadata positions referenced by surviving children or compactions.
+Labels/context edits targeting removed entries become empty custom metadata.
+The deletion and a `pisper.session-tree-leaf` custom entry are committed through
+one synced temporary-file replacement before rebuilding in-memory indexes.
+The custom entry stores the logical leaf and retains its parent link, so older
+readers still obtain the same conversation context. New readers restore the
+logical leaf; the Pisper tree projection hides these internal position records.
+The AgentSession wrapper rebuilds finalized context and restores transcript
+tools. The HTTP host owns the existing run/mutation/configuration leases and
+rejects busy sessions. Filesystem side effects, session-wide file snapshots,
+and separately forked session journals are unchanged. Runtime tests in
+`runtime-rs/src/session_tree_tests.rs` exercise persistence, byte preservation,
+label cleanup, failed replacement and the actual HTTP route, without requiring
+the unpublished upstream oracle fixtures.

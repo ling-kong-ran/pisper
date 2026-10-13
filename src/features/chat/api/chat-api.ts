@@ -88,6 +88,11 @@ export type SessionTreeNavigationResult = {
 
 export type SessionTreeNavigationResponse = SessionTreeResponse & SessionTreeNavigationResult
 
+export type SessionTreeBranchDeletionResponse = {
+  deletedEntryIds: string[]
+  leafId: string | null
+}
+
 export type SessionTreeLabelMatch = {
   sessionId: string
   sessionName: string
@@ -177,7 +182,7 @@ async function requestJson<T>(path: string, options: HttpRequestOptions = {}): P
   // 会话摘要发生变更后立即失效；调用方随后显式刷新也会复用这次在途查询。
   if (options.method && options.method !== 'GET') {
     if (
-      /^\/api\/sessions(?:$|\/[^/]+(?:\/(?:derive|model|cwd|execution-mode|run-mode|thinking-level|goal|tree\/navigate))?$)/.test(
+      /^\/api\/sessions(?:$|\/[^/]+(?:\/(?:derive|model|cwd|execution-mode|run-mode|thinking-level|goal|tree\/(?:navigate|branches\/[^/]+)))?$)/.test(
         path,
       )
     ) {
@@ -221,6 +226,12 @@ export const chatApi = {
   getSessionTree: (sessionId: string) =>
     requestJson<SessionTreeResponse>(`${sessionPath(sessionId)}/tree`),
 
+  deleteSessionTreeBranch: (sessionId: string, entryId: string) =>
+    requestJson<SessionTreeBranchDeletionResponse>(
+      `${sessionPath(sessionId)}/tree/branches/${encodeURIComponent(entryId)}`,
+      { method: 'DELETE' },
+    ),
+
   navigateSessionTree: (sessionId: string, targetEntryId: string, summarize: boolean) =>
     requestJson<SessionTreeNavigationResponse>(`${sessionPath(sessionId)}/tree/navigate`, {
       method: 'POST',
@@ -241,8 +252,8 @@ export const chatApi = {
       { method: 'PUT', data: { label } },
     ),
 
-  getSessionCommands: (sessionId: string) =>
-    requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`),
+  getSessionCommands: (sessionId: string, signal?: AbortSignal) =>
+    requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`, { signal }),
 
   getConfig: ({ refresh = false } = {}) => fetchStartupQuery<ChatConfigResponse>('config', refresh),
 

@@ -1,9 +1,18 @@
-// 会话树右侧详情面板：选中节点预览、谱系跳转、标签编辑、派生对话与导航操作。
-// 从 SessionTreeDialog 拆出，文案复用既有 i18n key，行为与原实现一致。
-import { ChevronLeft, GitBranch, MessageSquare, MessageSquarePlus, Tag, Trash2 } from 'lucide-react'
+// 会话树详情：突出所选消息与主要操作，标签和谱系保留在同一面板。
+import type { RefObject } from 'react'
+import {
+  ChevronLeft,
+  GitBranch,
+  MessageSquare,
+  MessageSquarePlus,
+  RefreshCw,
+  Tag,
+  Trash2,
+} from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import type { SessionSummary } from '@/types/chat'
 import type { SessionTreeNode } from '@/features/chat/api/chat-api'
 import type { DisplayNode } from '@/features/chat/model/session-tree-model'
@@ -22,6 +31,10 @@ export function SessionTreeInspector({
   childSessions,
   canLabel,
   canDerive,
+  canDelete,
+  busy,
+  deleting,
+  deleteButtonRef,
   label,
   summarize,
   savingLabel,
@@ -38,6 +51,7 @@ export function SessionTreeInspector({
   onCreateChild,
   onNavigate,
   onRefresh,
+  onDeleteBranch,
   onOpenRelated,
 }: {
   mobileLayout: boolean
@@ -51,6 +65,10 @@ export function SessionTreeInspector({
   childSessions: SessionSummary[]
   canLabel: boolean
   canDerive: boolean
+  canDelete: boolean
+  busy: boolean
+  deleting: boolean
+  deleteButtonRef: RefObject<HTMLButtonElement | null>
   label: string
   summarize: boolean
   savingLabel: boolean
@@ -67,35 +85,166 @@ export function SessionTreeInspector({
   onCreateChild: () => void
   onNavigate: () => void
   onRefresh: () => void
+  onDeleteBranch: () => void
   onOpenRelated: (target: SessionSummary, targetEntryId?: string) => void
 }) {
   const { t, language } = useI18n()
+  const disabled = busy || streaming || dataStreaming
+  const timestamp = Date.parse(selected?.timestamp || '')
 
   return (
     <div
-      className={`chat-resource-config flex min-h-0 min-w-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px] session-tree-inspector [&_>_p]:m-[auto] [&_>_p]:text-[12px] [&_>_p]:text-[var(--text-muted)] [&_strong]:text-[14px] [&_p]:text-[12px] [&_p]:text-[var(--text-muted)] ${mobileLayout ? 'bg-[var(--solid)]' : '[margin:12px_12px_12px_0] rounded-[var(--r-md)] bg-[color-mix(in_srgb,var(--solid)_88%,var(--surface-subtle))] shadow-[0_10px_28px_-26px_var(--shadow)]'}`}
+      className={cn(
+        'chat-resource-config session-tree-inspector flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto overscroll-contain p-[18px]',
+        mobileLayout
+          ? 'bg-[var(--solid)]'
+          : 'm-[12px_12px_12px_0] rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--solid)]',
+      )}
     >
       {mobileLayout && (
-        <div className="sticky top-0 z-[2] -mx-[6px] -mt-[8px] flex border-b border-[var(--stroke-soft)] bg-[var(--solid)] px-[2px] pb-[8px]">
-          <Button
-            variant="ghost"
-            className="min-h-[40px] justify-start px-[8px]"
-            onClick={onBackToList}
-          >
-            <ChevronLeft size={17} />
-            {t('chat:sessionTree.backToNodes')}
+        <Button variant="ghost" className="min-h-10 self-start" onClick={onBackToList}>
+          <ChevronLeft size={17} />
+          {t('chat:sessionTree.backToNodes')}
+        </Button>
+      )}
+      {error && (
+        <div role="alert" className="rounded-lg border border-danger-border bg-danger-soft p-3">
+          <p className="text-xs break-words text-danger">{error}</p>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={onRefresh}>
+            <RefreshCw size={13} />
+            {t('chat:sessionTree.retry')}
           </Button>
         </div>
       )}
       {selected ? (
         <>
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <span>{t('chat:sessionTree.selectedNode')}</span>
+              {stateLabel(selected) && (
+                <span className="rounded-md bg-[var(--brand-blue-soft)] px-2 py-1 text-[10px] text-[var(--brand-blue-strong)]">
+                  {stateLabel(selected)}
+                </span>
+              )}
+            </div>
+            <h3 className="text-sm font-semibold break-words">
+              {selected.label || typeLabel(selected)}
+            </h3>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--text-muted)]">
+              <span>{typeLabel(selected)}</span>
+              {Number.isFinite(timestamp) && (
+                <time dateTime={selected.timestamp}>
+                  {new Intl.DateTimeFormat(language, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }).format(timestamp)}
+                </time>
+              )}
+            </div>
+            <p className="max-h-[240px] overflow-y-auto overscroll-contain rounded-lg bg-[var(--surface-subtle)] p-3 text-[13px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+              {selected.text || t('chat:sessionTree.noPreview')}
+            </p>
+          </div>
+          {canLabel && (
+            <div className="space-y-2 border-t border-[var(--stroke-soft)] pt-4">
+              <label className="grid gap-2 text-xs font-medium">
+                <span>{t('chat:sessionTree.nodeLabel')}</span>
+                <Input
+                  value={label}
+                  maxLength={80}
+                  disabled={disabled}
+                  placeholder={t('chat:sessionTree.labelPlaceholder')}
+                  onChange={(event) => onLabelChange(event.target.value)}
+                />
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={disabled}
+                  onClick={onSaveLabel}
+                >
+                  <Tag size={14} />
+                  {savingLabel
+                    ? t('chat:sessionTree.savingLabel')
+                    : t('chat:sessionTree.saveLabel')}
+                </Button>
+                {Boolean(selected.label) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={disabled}
+                    aria-label={t('chat:sessionTree.removeLabel')}
+                    title={t('chat:sessionTree.removeLabel')}
+                    onClick={onRemoveLabel}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          {(canDerive || canLabel) && (
+            <div className="space-y-3 border-t border-[var(--stroke-soft)] pt-4">
+              {canDerive && (
+                <>
+                  <Button
+                    className="chat-resource-confirm min-h-9 w-full bg-[var(--star)] font-semibold text-[var(--on-accent)] hover:bg-[var(--star-hover)]"
+                    disabled={disabled || selected.leaf}
+                    onClick={onNavigate}
+                  >
+                    <GitBranch size={15} />
+                    {navigating
+                      ? t('chat:sessionTree.navigating')
+                      : selected.leaf
+                        ? t('chat:sessionTree.currentPosition')
+                        : t('chat:sessionTree.continueFromNode')}
+                  </Button>
+                  <label className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-2 text-xs">
+                    <input
+                      className="mt-0.5 size-4 accent-[var(--blue)]"
+                      type="checkbox"
+                      checked={summarize}
+                      disabled={disabled || selected.leaf}
+                      onChange={(event) => onSummarizeChange(event.target.checked)}
+                    />
+                    <span>
+                      {t('chat:sessionTree.abandonedBranchSummary')}
+                      <small className="mt-1 block leading-relaxed text-[var(--text-muted)]">
+                        {t('chat:sessionTree.abandonedBranchSummaryHint')}
+                      </small>
+                    </span>
+                  </label>
+                  <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
+                    {t('chat:sessionTree.sideEffectsRemain')}
+                  </p>
+                </>
+              )}
+              {canLabel && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={disabled}
+                  onClick={onCreateChild}
+                >
+                  <MessageSquarePlus size={14} />
+                  {creatingChild
+                    ? t('chat:sessionTree.creatingChildChat')
+                    : t('chat:sessionTree.createChildChat')}
+                </Button>
+              )}
+            </div>
+          )}
           {(parentSession || childSessions.length > 0) && (
-            <div className="session-tree-lineage [&_>_strong]:text-[12px] [&_>_strong]:font-[650] [&_button]:justify-start [&_button]:text-left [&_button]:text-[11px] flex flex-col gap-[6px] [border-bottom:1px_solid_var(--stroke-soft)] [padding-bottom:12px]">
-              <strong>{t('chat:sessionTree.conversationLineage')}</strong>
+            <div className="session-tree-lineage flex flex-col gap-2 border-t border-[var(--stroke-soft)] pt-4">
+              <strong className="text-xs font-medium">
+                {t('chat:sessionTree.conversationLineage')}
+              </strong>
               {parentSession && (
                 <Button
                   variant="outline"
-                  disabled={Boolean(openingRelatedId)}
+                  className="h-auto min-h-8 justify-start text-left text-xs whitespace-normal"
+                  disabled={busy || Boolean(openingRelatedId)}
                   onClick={() => onOpenRelated(parentSession, parentEntryId)}
                 >
                   <MessageSquare size={13} />
@@ -107,7 +256,8 @@ export function SessionTreeInspector({
               {childSessions.map((child) => (
                 <Button
                   variant="outline"
-                  disabled={Boolean(openingRelatedId)}
+                  className="h-auto min-h-8 justify-start text-left text-xs whitespace-normal"
+                  disabled={busy || Boolean(openingRelatedId)}
                   key={child.id}
                   onClick={() => onOpenRelated(child)}
                 >
@@ -119,105 +269,27 @@ export function SessionTreeInspector({
               ))}
             </div>
           )}
-          <div>
-            <span className="session-tree-selection-kind [&_em]:rounded-[var(--r-xs)] [&_em]:bg-[var(--brand-blue-soft)] [&_em]:text-[var(--brand-blue-strong)] [&_em]:p-[2px_5px] [&_em]:[font-style:normal] flex items-center justify-between gap-[8px] text-[var(--text-muted)] text-[10px] [text-transform:uppercase]">
-              {typeLabel(selected)}
-              {stateLabel(selected) && <em>{stateLabel(selected)}</em>}
-            </span>
-            <strong>{selected.label || typeLabel(selected)}</strong>
-            <p>{selected.text || t('chat:sessionTree.noPreview')}</p>
-          </div>
-          <div className="chat-resource-inputs [&_label]:grid [&_label]:gap-[5px] [&_label]:text-[12px] [&_label]:font-[600] [&_input[type='checkbox']]:w-[16px] [&_input[type='checkbox']]:h-[16px] [&_input[type='checkbox']]:[accent-color:var(--blue)] flex flex-col gap-[11px]">
-            {canLabel && (
-              <>
-                <label>
-                  <span>{t('chat:sessionTree.nodeLabel')}</span>
-                  <Input
-                    value={label}
-                    maxLength={80}
-                    placeholder={t('chat:sessionTree.labelPlaceholder')}
-                    onChange={(event) => onLabelChange(event.target.value)}
-                  />
-                </label>
-                <Button
-                  variant="outline"
-                  disabled={savingLabel || streaming || dataStreaming}
-                  onClick={onSaveLabel}
-                >
-                  <Tag size={14} />
-                  {savingLabel
-                    ? t('chat:sessionTree.savingLabel')
-                    : t('chat:sessionTree.saveLabel')}
-                </Button>
-                {Boolean(selected.label) && (
-                  <Button
-                    variant="outline"
-                    disabled={savingLabel || streaming || dataStreaming}
-                    onClick={onRemoveLabel}
-                  >
-                    <Trash2 size={14} />
-                    {t('chat:sessionTree.removeLabel')}
-                  </Button>
-                )}
-              </>
-            )}
-            {canLabel && (
+          {canDelete && (
+            <div className="mt-auto border-t border-[var(--stroke-soft)] pt-4">
               <Button
-                variant="outline"
-                disabled={creatingChild || streaming || dataStreaming}
-                onClick={onCreateChild}
+                variant="destructive"
+                className="w-full"
+                disabled={disabled}
+                onClick={onDeleteBranch}
+                ref={deleteButtonRef}
               >
-                <MessageSquarePlus size={14} />
-                {creatingChild
-                  ? t('chat:sessionTree.creatingChildChat')
-                  : t('chat:sessionTree.createChildChat')}
+                <Trash2 size={14} />
+                {deleting
+                  ? t('chat:sessionTree.deletingBranch')
+                  : t('chat:sessionTree.deleteBranch')}
               </Button>
-            )}
-            {canDerive && (
-              <label className="session-tree-summary-option [&_small]:[grid-column:1/-1] [&_small]:text-[var(--text-muted)] [&_small]:font-[400] [&_small]:leading-[1.45] grid-cols-[minmax(0,1fr)_auto] items-center">
-                <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
-                <input
-                  type="checkbox"
-                  checked={summarize}
-                  disabled={selected.leaf || streaming || dataStreaming}
-                  onChange={(event) => onSummarizeChange(event.target.checked)}
-                />
-                <small>{t('chat:sessionTree.abandonedBranchSummaryHint')}</small>
-              </label>
-            )}
-          </div>
-          {canDerive && <p>{t('chat:sessionTree.sideEffectsRemain')}</p>}
-          {selected.timestamp && (
-            <p>
-              {new Intl.DateTimeFormat(language, {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-              }).format(new Date(selected.timestamp))}
-            </p>
-          )}
-          {error && <p className="danger-text">{error}</p>}
-          {canDerive && (
-            <Button
-              className="chat-resource-confirm hover:bg-[var(--star-hover)] hover:text-[var(--on-accent)] min-w-[112px] min-h-[36px] self-start bg-[var(--star)] text-[var(--on-accent)] font-[650]"
-              disabled={navigating || selected.leaf || streaming || dataStreaming}
-              onClick={onNavigate}
-            >
-              <GitBranch size={15} />
-              {navigating
-                ? t('chat:sessionTree.navigating')
-                : selected.leaf
-                  ? t('chat:sessionTree.currentPosition')
-                  : t('chat:sessionTree.continueFromNode')}
-            </Button>
+            </div>
           )}
         </>
       ) : (
-        <p>{loading ? t('chat:sessionTree.loading') : error || t('chat:sessionTree.chooseNode')}</p>
-      )}
-      {error && !selected && (
-        <Button variant="outline" onClick={onRefresh}>
-          {t('chat:sessionTree.retry')}
-        </Button>
+        <p className="m-auto text-xs text-[var(--text-muted)]">
+          {loading ? t('chat:sessionTree.loading') : t('chat:sessionTree.chooseNode')}
+        </p>
       )}
     </div>
   )
