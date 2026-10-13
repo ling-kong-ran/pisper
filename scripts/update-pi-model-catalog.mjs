@@ -100,7 +100,8 @@ export async function updatePiModelCatalog({
     if (error.code === 'ENOENT') return null
     throw error
   })
-  if (previous === content) return { changed: false, revision }
+  // Git 在 Windows 检出时可能转换行尾；相同目录应保留原文件，避免制造空提交。
+  if (previous?.replaceAll('\r\n', '\n') === content) return { changed: false, revision }
   await mkdir(dirname(destination), { recursive: true })
   const temporary = `${destination}.${process.pid}.tmp`
   try {

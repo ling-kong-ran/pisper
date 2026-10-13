@@ -45,7 +45,13 @@ childProcess.execFileSync = (command, args) => {
       ...fixture.paths,
       ...(committed ? ['runtime-rs/assets/pi-model-catalog.json'] : []),
     ]
-    if (operation === 'diff') return args.includes('--') ? '' : paths.join('\n')
+    if (operation === 'diff') {
+      if (args.includes('--cached'))
+        return fixture.catalogChanged && !fixture.catalogIndexEmpty
+          ? 'runtime-rs/assets/pi-model-catalog.json'
+          : ''
+      return args.includes('--') ? '' : paths.join('\n')
+    }
     if (operation === 'ls-tree') return paths.join('\n')
     if (operation === 'log') return paths.length ? 'test-commit' : ''
     if (operation === 'diff-tree') return paths.join('\n')
@@ -55,6 +61,7 @@ childProcess.execFileSync = (command, args) => {
         : fixture.subject || 'fix(projects): select native folders'
     if (fixture.catalogChanged && operation === 'add') return ''
     if (fixture.catalogChanged && operation === 'commit') {
+      if (fixture.catalogIndexEmpty) throw new Error('nothing to commit, working tree clean')
       committed = true
       return ''
     }
