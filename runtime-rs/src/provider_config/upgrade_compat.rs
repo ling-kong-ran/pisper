@@ -33,7 +33,7 @@ pub(super) fn project_models(
     original: &[Model],
 ) -> Result<Vec<Model>, ApiError> {
     let Some(entry) = catalog(docs, provider) else {
-        return Ok(original.to_vec());
+        return docs.metadata.project(overlay(docs, provider), original);
     };
     let connection = overlay(docs, provider);
     let mut result = Vec::new();
@@ -183,7 +183,7 @@ pub(super) fn project_models(
             result.push(model.clone());
         }
     }
-    Ok(result)
+    docs.metadata.project(connection, &result)
 }
 
 // 聚合网关可能通过任意协议转发模型；只借用无歧义的原厂容量，不复制协议、地址或凭据。
@@ -389,6 +389,7 @@ mod tests {
             settings: json!({}),
             auth: json!({}),
             keyrings: json!({}),
+            metadata: Default::default(),
             catalog: json!({"providers":{"fixture":{"baseUrl":"https://fixture.invalid/v1","api":"anthropic-messages","models":[{"id":"claude-opus-5-5","name":"Opus","kind":"chat"}]}}}),
         }
     }

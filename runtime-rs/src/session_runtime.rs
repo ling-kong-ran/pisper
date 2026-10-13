@@ -452,7 +452,7 @@ impl SessionRuntimeRegistry {
         let manager = SessionManager::open(
             &crate::session_api::find_session_path(state, id)?,
             None,
-            None,
+            Some(&crate::session_api::session_cwd(state, id)?),
         )
         .map_err(|error| ApiError::internal(error.to_string()))?;
         let runtime = self.build_runtime(state, manager).await?;

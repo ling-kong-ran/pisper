@@ -83,6 +83,7 @@ await run(process.execPath, [
   runtimeExecutable,
   join(stage, 'sidecar-runtime'),
 ])
+await run(process.execPath, [join(root, 'scripts', 'smoke-rust-data-paths.mjs'), runtimeExecutable])
 await copyFile(cliSource, join(stage, `pisper${suffix}`))
 await copyFile(runtimeExecutable, join(stage, `pisper-sidecar${suffix}`))
 if (process.platform !== 'win32') {

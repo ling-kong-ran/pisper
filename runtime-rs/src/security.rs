@@ -461,8 +461,12 @@ pub fn redact_secret_value(value: &serde_json::Value) -> serde_json::Value {
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
-    pub token: String,
-    pub paired_at: u64,
+    pub token_hash: String,
+    pub created_at: String,
+    pub last_seen_at: String,
+    pub revoked_at: Option<String>,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Default)]
@@ -472,19 +476,132 @@ pub struct PairingStore {
     pub devices: Mutex<Vec<PairedDevice>>,
 }
 
-pub fn load_devices(data_dir: &str) -> Vec<PairedDevice> {
-    let path = std::path::Path::new(data_dir).join("devices.json");
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+// 直接读写 Node 的唯一配对文件，保留未知字段；从不落盘明文设备令牌。
+static REMOTE_WRITE: Mutex<()> = Mutex::new(());
+
+fn remote_document(data_dir: &str) -> Result<serde_json::Value, String> {
+    let path = std::path::Path::new(data_dir).join("remote-access.json");
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| {
+                "Invalid remote-access.json; existing data was preserved".to_string()
+            })?;
+            if value.get("version").and_then(serde_json::Value::as_u64) != Some(1)
+                || !value
+                    .get("devices")
+                    .is_some_and(serde_json::Value::is_array)
+            {
+                return Err(
+                    "Invalid remote-access.json schema; existing data was preserved".into(),
+                );
+            }
+            Ok(value)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(serde_json::json!({"version":1,"enabled":false,"devices":[],"pairingCode":null}))
+        }
+        Err(_) => Err("Unable to read remote-access.json".into()),
+    }
+}
+
+fn update_remote(
+    data_dir: &str,
+    update: impl FnOnce(&mut serde_json::Value),
+) -> Result<(), String> {
+    use std::io::Write;
+    let _guard = REMOTE_WRITE
+        .lock()
+        .map_err(|_| "Remote storage lock failed")?;
+    let mut document = remote_document(data_dir)?;
+    update(&mut document);
+    let directory = std::path::Path::new(data_dir);
+    let path = directory.join("remote-access.json");
+    let temporary = directory.join(format!("remote-access.json.{}.tmp", uuid::Uuid::new_v4()));
+    let bytes =
+        serde_json::to_vec_pretty(&document).map_err(|_| "Remote storage encoding failed")?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let result = (|| -> std::io::Result<()> {
+        let mut file = options.open(&temporary)?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&temporary, &path)
+    })();
+    if result.is_err() && temporary.exists() {
+        std::fs::remove_file(&temporary).map_err(|_| "Remote storage cleanup failed")?;
+    }
+    result.map_err(|_| "Unable to write remote-access.json".into())
+}
+
+pub fn load_devices(data_dir: &str) -> Result<Vec<PairedDevice>, String> {
+    serde_json::from_value(remote_document(data_dir)?["devices"].clone())
+        .map_err(|_| "Invalid remote device records; existing data was preserved".into())
 }
 
 pub fn save_devices(data_dir: &str, devices: &[PairedDevice]) -> Result<(), String> {
-    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
-    let path = std::path::Path::new(data_dir).join("devices.json");
-    let json = serde_json::to_string_pretty(devices).map_err(|e| e.to_string())?;
-    std::fs::write(path, json).map_err(|e| e.to_string())
+    let value = serde_json::to_value(devices).map_err(|_| "Remote device encoding failed")?;
+    update_remote(data_dir, |document| document["devices"] = value)
+}
+
+pub(crate) fn revoke_device(
+    data_dir: &str,
+    devices: &mut Vec<PairedDevice>,
+    id: &str,
+) -> Result<(), crate::ApiError> {
+    let mut next = devices.clone();
+    let device = next
+        .iter_mut()
+        .find(|device| device.id == id && device.revoked_at.is_none())
+        .ok_or_else(|| {
+            crate::ApiError::new(
+                axum::http::StatusCode::NOT_FOUND,
+                "device_not_found",
+                "设备不存在或已被吊销。",
+            )
+        })?;
+    device.revoked_at = Some(crate::session_ops::iso_timestamp(crate::product::now_ms()));
+    save_devices(data_dir, &next).map_err(crate::ApiError::internal)?;
+    *devices = next;
+    Ok(())
+}
+
+pub fn load_remote_enabled(data_dir: &str) -> Result<bool, String> {
+    Ok(remote_document(data_dir)?["enabled"]
+        .as_bool()
+        .unwrap_or(false))
+}
+
+pub fn save_remote_enabled(data_dir: &str, enabled: bool) -> Result<(), String> {
+    update_remote(data_dir, |document| {
+        document["enabled"] = enabled.into();
+        if !enabled {
+            document["pairingCode"] = serde_json::Value::Null;
+        }
+    })
+}
+
+impl PairedDevice {
+    pub fn new(id: String, name: String, token: &str, now: u64) -> Self {
+        use sha2::{Digest, Sha256};
+        Self {
+            id,
+            name,
+            token_hash: Sha256::digest(token.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+            created_at: crate::session_ops::iso_timestamp(now),
+            last_seen_at: crate::session_ops::iso_timestamp(now),
+            revoked_at: None,
+            extra: Default::default(),
+        }
+    }
 }
 
 /// release remote-access-service 的配对申请（桌面端审批流）。
@@ -505,27 +622,49 @@ pub struct PairingApproval {
     pub token: Option<String>,
 }
 
-pub fn load_pairing_requests(data_dir: &str) -> Vec<PairingApproval> {
-    let path = std::path::Path::new(data_dir).join("pairing-requests.json");
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
-}
-
-pub fn save_pairing_requests(
-    data_dir: &str,
-    requests: &[PairingApproval],
-) -> Result<(), String> {
-    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
-    let path = std::path::Path::new(data_dir).join("pairing-requests.json");
-    let json = serde_json::to_string_pretty(requests).map_err(|e| e.to_string())?;
-    std::fs::write(path, json).map_err(|e| e.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn node_remote_store_survives_read_pair_revoke_and_restart() {
+        let root = std::env::temp_dir().join(format!("pisper-remote-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let directory = root.to_str().unwrap();
+        let path = root.join("remote-access.json");
+        let original = serde_json::json!({"version":1,"enabled":true,"pairingCode":null,
+            "futureSetting":{"keep":true},"devices":[{"id":"old-device","name":"旧手机",
+            "tokenHash":"old-hash","createdAt":"2026-01-01T00:00:00.000Z",
+            "lastSeenAt":"2026-01-02T00:00:00.000Z","revokedAt":null,"futureField":42}]});
+        std::fs::write(&path, serde_json::to_vec(&original).unwrap()).unwrap();
+        let mut devices = load_devices(directory).unwrap();
+        assert!(load_remote_enabled(directory).unwrap());
+        devices.push(PairedDevice::new(
+            "new-device".into(),
+            "新手机".into(),
+            "fixture-secret",
+            0,
+        ));
+        save_devices(directory, &devices).unwrap();
+        revoke_device(directory, &mut devices, "old-device").unwrap();
+        save_remote_enabled(directory, false).unwrap();
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(saved["futureSetting"], original["futureSetting"]);
+        assert_eq!(saved["devices"][0]["futureField"], 42);
+        assert_eq!(saved["devices"][0]["tokenHash"], "old-hash");
+        assert!(saved["devices"][0]["revokedAt"].is_string());
+        assert!(!saved.to_string().contains("fixture-secret"));
+        assert_eq!(load_devices(directory).unwrap().len(), 2);
+        assert!(!load_remote_enabled(directory).unwrap());
+        assert!(!root.join("devices.json").exists());
+        assert!(!root.join("pairing-requests.json").exists());
+        std::fs::write(&path, b"{invalid").unwrap();
+        assert!(load_devices(directory).is_err());
+        assert!(save_devices(directory, &devices).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"{invalid");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn vendor_prefixed_keys_are_redacted() {

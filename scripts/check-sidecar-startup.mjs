@@ -36,6 +36,8 @@ await run(process.execPath, [
   '--skip-ui',
 ])
 
+await run(process.execPath, ['scripts/smoke-rust-data-paths.mjs'])
+
 // 同一新编译产物还必须能原样承接旧 Node Provider 配置。
 await run(process.execPath, [
   'scripts/smoke-rust-provider-upgrade.mjs',

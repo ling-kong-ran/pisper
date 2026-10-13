@@ -396,10 +396,7 @@ fn expand_path(value: &str, cwd: &str) -> PathBuf {
 
 fn dirs_home() -> PathBuf {
     // 与 release homedir() 对齐；不经第三方 crate。
-    std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/"))
+    std::env::home_dir().unwrap_or_else(|| PathBuf::from("/"))
 }
 
 fn discover(state: &AppState, cwd: &str) -> pi_rust::coding_agent::core::skills::LoadSkillsResult {

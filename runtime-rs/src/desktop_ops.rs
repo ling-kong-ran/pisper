@@ -148,10 +148,7 @@ fn normalize_pet_opacity(value: &Value) -> f64 {
 // ------------------------------------------------------------ pet storage
 
 fn pet_roots(state: &AppState) -> Vec<(PathBuf, &'static str)> {
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/"));
+    let home = std::env::home_dir().unwrap_or_else(|| PathBuf::from("/"));
     vec![
         (StdPath::new(&state.data_dir).join("desktop-pets"), "pisper"),
         (home.join(".petdex").join("pets"), "petdex"),
