@@ -197,34 +197,15 @@ await run(
 await mkdir(buildDir, { recursive: true })
 const terminalEvidencePath = path.join(buildDir, 'terminal-test-evidence.json')
 await rm(terminalEvidencePath, { force: true })
-// Windows 不覆盖可能运行中的默认 exe；macOS 使用 Cargo 的标准命名，
-// 避免 rustc -o 在多 emit 类型下附加 crate hash 后找不到暂存入口。
-if (process.platform !== 'win32') {
-  await run(cargo, ['build', '--release', '--locked', '--manifest-path', runtimeManifest], {
-    env: runtimeEnv,
-  })
-  await copyFile(
-    path.join(root, 'runtime-rs', 'target', 'release', 'pisper-server'),
-    runtimeExecutable,
-  )
-} else {
-  await run(
-    cargo,
-    [
-      'rustc',
-      '--bin',
-      'pisper-server',
-      '--release',
-      '--locked',
-      '--manifest-path',
-      runtimeManifest,
-      '--',
-      '-o',
-      runtimeExecutable,
-    ],
-    { env: runtimeEnv },
-  )
-}
+// 各平台均从 Cargo 的稳定产物路径暂存；rustc -o 在多 emit 类型下
+// 会附加 crate hash，Windows GNU 工具链同样不能依赖指定的文件名。
+await run(cargo, ['build', '--release', '--locked', '--manifest-path', runtimeManifest], {
+  env: runtimeEnv,
+})
+await copyFile(
+  path.join(root, 'runtime-rs', 'target', 'release', `pisper-server${executableSuffix}`),
+  runtimeExecutable,
+)
 // 桌面与独立 CLI 使用同一套资源和审计元数据。
 await stageRustRuntime({
   root,

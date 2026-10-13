@@ -143,9 +143,8 @@ export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,
     }
     // 资源准备与编译均是外部边界；入口自身仍真实读写和暂存临时 root 中的文件。
     const suffix = target.includes('windows') ? '.exe' : ''
-    await put(`release/rust-build/pisper-server${suffix}`, 'synthetic-runtime')
+    await put(`runtime-rs/target/release/pisper-server${suffix}`, 'synthetic-runtime')
     await put(`src-tui/target/release/pisper${suffix}`, 'synthetic-tui')
-    if (!suffix) await put('runtime-rs/target/release/pisper-server', 'synthetic-runtime')
     await put(
       'runtime-rs/src/native_image_runtime/telea.rs',
       '/*\nIntel License Agreement\nSynthetic resource fixture\n*/\n',
@@ -191,6 +190,14 @@ export async function stageRustSpeech({targetDir}) { await mkdir(join(targetDir,
       return { result, commands, originalTuiBytesRestored: true }
     }
     assert.equal(result.status, 0, result.stderr || result.stdout)
+    assert.equal(
+      await readFile(
+        path.join(root, 'src-tauri/binaries', `pisper-sidecar-${target}${suffix}`),
+        'utf8',
+      ),
+      'synthetic-runtime',
+      'Desktop must stage the executable from the canonical Cargo output path',
+    )
     const builds = commands.filter(({ args }) => path.basename(args[0]) === 'tauri.js')
     const stages = commands.filter(
       ({ args }) => path.basename(args[0]) === 'stage-tauri-artifacts.mjs',
