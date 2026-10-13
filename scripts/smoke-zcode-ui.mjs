@@ -298,7 +298,7 @@ try {
   })
   await page.goto(base + '/#/chat')
   await page.getByRole('textbox', { name: '任务描述' }).waitFor({ timeout: 60000 })
-  await page.getByTestId('workbench-new-task').click()
+  await page.locator('main').getByRole('button', { name: '新会话', exact: true }).first().click()
   await page.getByTestId('workbench-greeting').waitFor()
   const prompt = page.getByRole('textbox', { name: '任务描述' })
   await page.locator('[data-brand="Pisper"]').waitFor()
@@ -809,7 +809,7 @@ try {
     'reasoning remains editable during streaming; selection is staged without mutating the active run',
   )
 
-  await page.getByTestId('workbench-new-task').click()
+  await page.locator('main').getByRole('button', { name: '新会话', exact: true }).first().click()
   await page.getByTestId('workbench-greeting').waitFor()
   const secondaryId = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
   assert.notEqual(secondaryId, sessionId)

@@ -1359,9 +1359,18 @@ async function runUi(modelBaseUrl) {
           response.request().method() === 'POST',
       )
       .catch((error) => error)
-    await page.getByTestId('workbench-new-task').click()
+    for (const name of ['新任务', '搜索']) {
+      assert.equal(
+        await page
+          .getByTestId('workbench-sidebar')
+          .getByRole('button', { name, exact: true })
+          .count(),
+        0,
+      )
+    }
+    await page.locator('main').getByRole('button', { name: '新会话', exact: true }).first().click()
     const creation = await createdResponse
-    assert.ok(!(creation instanceof Error), 'New-task button must create a real session')
+    assert.ok(!(creation instanceof Error), 'Main-panel new-chat button must create a real session')
     const created = await creation.json()
     report.uiCreatedSession = created
     assert.equal(typeof created.id, 'string')
@@ -1432,7 +1441,7 @@ async function runUi(modelBaseUrl) {
       await navigate(path)
       if (unsupported) {
         await page.waitForURL((url) => url.hash === '#/chat')
-        await page.getByTestId('workbench-new-task').waitFor()
+        await page.getByTestId('workbench-home').waitFor()
         assert.equal(
           await page
             .getByTestId('workbench-sidebar')

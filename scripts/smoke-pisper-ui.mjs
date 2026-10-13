@@ -314,7 +314,7 @@ try {
   })
   await page.goto(base + '/#/chat')
   await page.getByRole('textbox', { name: '任务描述' }).waitFor({ timeout: 60000 })
-  await page.getByTestId('workbench-new-task').click()
+  await page.locator('main').getByRole('button', { name: '新会话', exact: true }).first().click()
   await page.getByTestId('workbench-greeting').waitFor()
   const prompt = page.getByRole('textbox', { name: '任务描述' })
   await page.locator('[data-brand="Pisper"]').waitFor()
@@ -328,6 +328,8 @@ try {
     'New conversation has P watermark and task suggestions below the composer; clicking a suggestion fills but never sends',
   )
   const nav = page.getByTestId('workbench-sidebar')
+  for (const label of ['新任务', '搜索'])
+    assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 0)
   for (const label of ['工作流', '资产'])
     assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 1)
   for (const label of ['自动化', '插件', '终端'])
@@ -1006,7 +1008,7 @@ try {
     'reasoning remains editable during streaming; selection is staged without mutating the active run',
   )
 
-  await page.getByTestId('workbench-new-task').click()
+  await page.locator('main').getByRole('button', { name: '新会话', exact: true }).first().click()
   await page.getByTestId('workbench-greeting').waitFor()
   const secondaryId = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
   assert.notEqual(secondaryId, sessionId)
@@ -1379,7 +1381,7 @@ try {
   await page.waitForFunction(
     () => document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 64,
   )
-  for (const name of ['主页', '新任务', '搜索', '工作流', '资产', '更多工具', '设置']) {
+  for (const name of ['主页', '工作流', '资产', '更多工具', '设置']) {
     const button = nav.getByRole('button', { name, exact: true })
     assert.equal(await button.isVisible(), true)
     assert.equal(await button.getAttribute('title'), name)
@@ -1400,7 +1402,7 @@ try {
     )
     assert.equal(await sidebar.isVisible(), true, `${width}px must keep the desktop sidebar`)
     assert.equal(await page.locator('[data-slot="sidebar"][data-mobile="true"]').count(), 0)
-    for (const name of ['主页', '新任务', '搜索', '工作流', '资产', '设置']) {
+    for (const name of ['主页', '工作流', '资产', '设置']) {
       const icon = nav.getByRole('button', { name, exact: true }).locator('svg').first()
       const bounds = await icon.boundingBox()
       assert.ok(bounds && bounds.width > 0 && bounds.height > 0, `${width}px ${name} icon`)
