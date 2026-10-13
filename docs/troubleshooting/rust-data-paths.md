@@ -51,13 +51,17 @@
 新增 `node scripts/smoke-rust-data-paths.mjs <runtime executable>` 使用临时目录与真实进程，覆盖目录不存在、自动令牌握手、bootstrap Cookie、健康检查、旧会话元数据、远程配对设置、重启与显式目录覆盖。已经接入启动闸门和桌面、Runtime、TUI 打包入口。存储单元测试验证未知字段保留、原路径写回、损坏文件保护与令牌不以明文落盘。
 
 桌面/TUI 共用 Runtime 的源代码与协议验证可在 Windows 执行；macOS、Linux、Android、iOS 的实际构建及设备启动仍应由相应平台 CI/设备完成，不能以 Windows 测试代替。
+
 ## 本次验证记录（Windows x86_64 GNU）
 
 - `cargo build --locked --manifest-path runtime-rs/Cargo.toml` 通过。
-- Runtime 单元测试二进制串行复跑：504 通过、7 忽略；默认并行运行的 `native_post_exit_quiet_descendant_does_not_hold_output_forever` 清理断言曾失败，单独运行及整套串行复跑均通过。未跳过该测试，也未延长等待时间。
+- 合入最新 `release` 基线后，Runtime 单元测试串行运行：513 通过、7 忽略；MCP 回归 7 项、模型注册表回归 36 项通过。孤立子进程夹具的 Windows 清理改为终止并等待夹具拥有的进程，未跳过测试或延长等待时间。
 - `cargo test --locked --manifest-path src-tui/Cargo.toml`：162 通过。
 - `npm run test:release`：92 通过、2 跳过。
 - 按锁文件 `npm ci` 后，`npm run build` 和 `npm run check` 通过。后者包含 93 项真实 Runtime 可用性验收，以及新增数据路径、Provider 升级、项目上下文、会话缓存和 CLI 握手验证。
-- 未运行其他操作系统构建、移动端设备验收或正式安装器重新打包；未创建新版本。
+- Windows 本地普通安装器已生成，并从安装器解包再次通过原始数据路径、首次启动、重启与资源完整性检查；包内 CLI 报告 `0.6.3`。安装器仍使用 `0.6.1` 版本元数据，未创建新版本。
+- 本地打包修正了 Windows GNU 下 `rustc -o` 附加哈希后缀导致的产物定位失败：统一从 Cargo 标准产物路径暂存；19 项打包测试通过。
+- 桌面启动诊断 4 项、真实终端及光标查询回归 8 项通过。渲染端断开时，宿主继续回应 ConPTY 光标查询并排空输出，避免关闭控制台死锁。正式 Runtime 可用性检查 116 项通过；该环境没有可控浏览器的原生浏览器专项检查仍标记为跳过。
+- 未运行其他操作系统构建或移动端设备验收，未在开发者实际数据目录执行安装验证。
 - 最终移动端入口调整后，`cargo check --locked --manifest-path runtime-rs/Cargo.toml` 与 `cargo test --locked --manifest-path runtime-rs/Cargo.toml --lib runtime_host::tests -- --test-threads=1` 通过。
 - `cargo clippy --locked --manifest-path runtime-rs/Cargo.toml -p pisper-server --all-targets` 完成，但存在存量警告；Runtime 全仓 `cargo fmt --check` 仍命中 development-workflow.md 已记录的基线问题，CI 的非阻断 Rust quality 检查同样失败。本次新增文件的 rustfmt 检查通过，未以全仓格式化混入功能修复。
