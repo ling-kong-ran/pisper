@@ -76,3 +76,24 @@ jobs:
         run: cargo check --manifest-path src-tui/Cargo.toml
       - name: Test TUI
         run: cargo test --manifest-path src-tui/Cargo.toml
+
+  runtime-rs-quality:
+    name: Runtime Rust quality (fmt/clippy)
+    runs-on: ubuntu-latest
+    # AGENTS.md 要求 Rust 提交前运行 fmt 与 clippy，但 runtime-rs（本仓库最大的
+    # Rust 代码库）此前没有 CI 强制，基线是否零告警尚未验证。先以非阻断方式
+    # 建立可见性；确认基线干净后移除 continue-on-error，并给 clippy 加回
+    # `-D warnings`。范围限定 -p pisper-server，不检查 vendored pi-rs 上游源码。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: runtime-rs
+      - name: Check formatting
+        run: cargo fmt --manifest-path runtime-rs/Cargo.toml -p pisper-server -- --check
+      - name: Clippy
+        run: cargo clippy --locked --manifest-path runtime-rs/Cargo.toml -p pisper-server --all-targets
