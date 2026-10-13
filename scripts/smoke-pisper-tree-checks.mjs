@@ -4,7 +4,7 @@ import { join } from 'node:path'
 export async function verifySessionTreeLifecycle({ page, base, api, report, output }) {
   await page.goto(base + '/#/chat')
   const previous = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
-  await page.getByTestId('workbench-new-task').click()
+  await page.locator('main').getByRole('button', { name: '新会话', exact: true }).first().click()
   await page.waitForFunction(
     (previous) => localStorage.getItem('pisper-active-session') !== previous,
     previous,

@@ -96,7 +96,7 @@ const server = createServer(async (request, response) => {
         ? css
         : `<!doctype html><html><head><link rel="stylesheet" href="/style.css"><style>
     html,body,#root {height:100%;margin:0} #root{display:flex;flex-direction:column;font-family:system-ui}
-    main>.dockview-theme-pisper{height:100%} .session-dock-panel{height:100%;width:100%} button,select{font:inherit}
+    main>div{height:100%;min-height:0} .session-dock-panel{height:100%;width:100%} button,select{font:inherit}
   </style></head><body><div id="root"></div><script type="module" src="/bundle.js"></script></body></html>`,
   )
 })
@@ -161,7 +161,10 @@ try {
     await expectIds(['alpha', 'beta'])
     const alpha = await page.locator('[data-session-id="alpha"]').boundingBox()
     const beta = await page.locator('[data-session-id="beta"]').boundingBox()
-    assert.ok(alpha.width > 200 && beta.width > 200 && alpha.height > 100 && beta.height > 100)
+    assert.ok(
+      alpha.width > 200 && beta.width > 200 && alpha.height > 100 && beta.height > 100,
+      `Split panel dimensions: ${JSON.stringify({ alpha, beta })}`,
+    )
     if (direction === 'left') assert.ok(beta.x + beta.width <= alpha.x + 2)
     if (direction === 'right') assert.ok(alpha.x + alpha.width <= beta.x + 2)
     if (direction === 'above') assert.ok(beta.y + beta.height <= alpha.y + 2)
@@ -184,6 +187,43 @@ try {
     })
     assert.deepEqual(overflow, [], 'Each split stays fully inside the chat area')
   }
+
+  await fresh(null, '?sidebar=1')
+  await expectIds(['alpha'])
+  const draft = 'Keep this draft while the context sidebar changes width'
+  await page.getByRole('textbox', { name: 'Message Alpha', exact: true }).fill(draft)
+  const resizeFrames = await page.evaluate(async () => {
+    const main = document.querySelector('main')
+    const snapshots = []
+    for (const width of [553, 400, 760]) {
+      snapshots.push(
+        await new Promise((resolve) => {
+          requestAnimationFrame(() => {
+            main.style.width = `${width}px`
+            // 在下一帧绘制前检查，不能等几百毫秒后掩盖拖动过程中内容仍用旧尺寸的问题。
+            requestAnimationFrame(() => {
+              const host = main.getBoundingClientRect()
+              const panel = main.querySelector('[data-session-id="alpha"]').getBoundingClientRect()
+              resolve({ host: host.width, panel: panel.width, left: panel.left - host.left })
+            })
+          })
+        }),
+      )
+    }
+    main.style.removeProperty('width')
+    return snapshots
+  })
+  for (const frame of resizeFrames) {
+    assert.ok(
+      Math.abs(frame.host - frame.panel) <= 1 && Math.abs(frame.left) <= 1,
+      `Session content must follow parent width before paint: ${JSON.stringify(frame)}`,
+    )
+  }
+  assert.equal(
+    await page.getByRole('textbox', { name: 'Message Alpha', exact: true }).inputValue(),
+    draft,
+  )
+  console.log('PASS: parent-only resizing updates content before paint and retains the draft')
 
   for (const direction of ['left', 'right', 'above', 'below']) {
     await fresh()
