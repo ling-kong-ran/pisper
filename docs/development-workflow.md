@@ -161,6 +161,8 @@ Desktop 构建在 `npm ci` 后通过当前锁定的 `playwright-core` CLI 安装
 
 Android 宿主在创建 Iroh/DNS/TLS 任务前初始化进程级 Application/JavaVM 上下文，并配套固定摘要的 rustls Java AAR 与 ProGuard 保留规则。系统容器目录的别名只在壳入口解析，领域内部仍拒绝链接。`scripts/tauri.mjs` 使 Gradle 回调使用相同的移动编译环境，C 编译基线保持 Android API 24。模拟器验收入口为 `npm run test:android:runtime -- emulator-5562`，只接受名为 `pisper-rust-release-validation` 的独立 AVD，使用虚拟 Provider 配置。
 
+Linux 构建 Android 时，QuickJS 的 bindgen 需要宿主 `libclang`；Ubuntu 发布和商店流水线安装 `libclang-dev`。`mobile-rust-env.mjs` 在 Linux 保留显式 `LIBCLANG_PATH`，未设置时使用系统库发现，同时继续传入 NDK sysroot 和 Android API 24 目标参数。iOS 发布流水线先通过 Homebrew 安装 `minisign` 校验共享 Runtime 签名；两个 iOS 流水线均在暂存归档前创建 `release/`，不依赖开发目录已有产物。
+
 ### 无项目会话与模型目录容量（2026-10-12）
 
 Web 普通“新任务”不再继承最近项目；项目与分屏内的明确目录仍保留。创建协议以 `cwd: null` 表示未绑定目录，省略字段保留旧客户端的 Runtime 默认目录行为。Runtime 在数据目录内建立独立的 `chat-workspaces`，`session-meta.json` 的增量 `workspaceUnset` 字段控制摘要中的空目录；旧记录默认 false，不迁移、不改写原目录。用户选择目录后通过原 cwd 接口重新绑定并清除该标记。领域内部仍使用真实目录，避免向文件工具传入空路径或隐式使用上一个项目。验证覆盖创建、显式目录、旧客户端、重启与后续绑定。

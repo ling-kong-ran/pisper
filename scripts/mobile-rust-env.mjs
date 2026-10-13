@@ -9,7 +9,7 @@ export const ANDROID_WEBVIEW_RECOVERY = `override fun onRenderProcessGone(
     return MainActivity.recoverFromRendererCrash(view, currentUrl, detail.didCrash())
 }`
 
-// QuickJS bindgen 必须使用目标 SDK，不能继承另一平台遗留的 libclang/头文件。
+// QuickJS bindgen 加载宿主 libclang，并使用目标 SDK 的头文件。
 export function mobileRustEnv(platform, source = process.env) {
   const env = { ...source }
   if (platform === 'ios') {
@@ -63,7 +63,10 @@ export function mobileRustEnv(platform, source = process.env) {
       env.CARGO_ENCODED_RUSTFLAGS = args.join('\x1f')
     }
     env.WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION = ANDROID_WEBVIEW_RECOVERY
-    env.LIBCLANG_PATH = join(toolchain, process.platform === 'win32' ? 'bin' : 'lib')
+    // 不假定 Linux NDK 的 lib 目录包含宿主 libclang；保留显式配置，否则让 clang-sys 查找系统库。
+    if (process.platform !== 'linux') {
+      env.LIBCLANG_PATH = join(toolchain, process.platform === 'win32' ? 'bin' : 'lib')
+    }
     env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = `--sysroot=${join(toolchain, 'sysroot')} --target=aarch64-linux-android24`
   } else throw new Error(`Unsupported mobile platform: ${platform}`)
   return env

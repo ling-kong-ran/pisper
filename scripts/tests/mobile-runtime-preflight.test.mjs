@@ -85,6 +85,52 @@ test('Android build environment keeps the 16 KB linker flag idempotent across Ta
   assert.equal(first.WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION, ANDROID_WEBVIEW_RECOVERY)
 })
 
+test(
+  'Android Linux bindgen preserves an explicitly configured host libclang',
+  {
+    skip: process.platform !== 'linux',
+  },
+  async () => {
+    const { mobileRustEnv } = await import('../mobile-rust-env.mjs')
+    const initial = {
+      JAVA_HOME: '/fixture/jdk',
+      ANDROID_HOME: '/fixture/sdk',
+      NDK_HOME: '/fixture/ndk',
+      PATH: '/fixture/bin',
+      LIBCLANG_PATH: '/opt/host-llvm/lib',
+    }
+    const env = mobileRustEnv('android', initial)
+    assert.equal(env.LIBCLANG_PATH, initial.LIBCLANG_PATH)
+    assert.equal(mobileRustEnv('android', env).LIBCLANG_PATH, initial.LIBCLANG_PATH)
+    assert.match(env.CC_aarch64_linux_android, /linux-x86_64\/bin\/aarch64-linux-android24-clang$/)
+    assert.equal(
+      env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android,
+      '--sysroot=/fixture/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot --target=aarch64-linux-android24',
+    )
+  },
+)
+
+test(
+  'Android Linux bindgen can discover system libclang when no override is configured',
+  {
+    skip: process.platform !== 'linux',
+  },
+  async () => {
+    const { mobileRustEnv } = await import('../mobile-rust-env.mjs')
+    const env = mobileRustEnv('android', {
+      JAVA_HOME: '/fixture/jdk',
+      ANDROID_HOME: '/fixture/sdk',
+      NDK_HOME: '/fixture/ndk',
+      PATH: '/fixture/bin',
+    })
+    assert.equal(Object.hasOwn(env, 'LIBCLANG_PATH'), false)
+    assert.match(
+      env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android,
+      /--target=aarch64-linux-android24$/,
+    )
+  },
+)
+
 test('Android TLS staging refuses unpinned or corrupt certificate-verifier bytes', async () => {
   const { validateAndroidTls, ANDROID_TLS_RESOURCE } = await import('../stage-android-tls.mjs')
   assert.throws(

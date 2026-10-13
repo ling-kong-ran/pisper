@@ -133,6 +133,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
+      - name: Install Android host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libclang-dev minisign
       - name: Install Node dependencies
         run: npm ci
       - name: Build frontend
@@ -150,8 +154,6 @@ jobs:
       - name: Verify and stage mobile Runtime assets
         run: |
           set -Eeuo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends minisign
           node scripts/verify-tauri-signature.mjs \
             embedded-runtime/pisper-embedded-runtime.tar.gz \
             embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
@@ -275,6 +277,8 @@ jobs:
         run: npm ci
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Install Runtime signature verifier
+        run: brew install minisign
       - uses: actions/download-artifact@v5
         with:
           name: app-embedded-runtime
@@ -285,6 +289,7 @@ jobs:
           node scripts/verify-tauri-signature.mjs \
             embedded-runtime/pisper-embedded-runtime.tar.gz \
             embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
+          mkdir -p release
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/pisper-embedded-runtime.tar.gz

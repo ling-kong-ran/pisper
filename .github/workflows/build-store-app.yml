@@ -107,6 +107,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
+      - name: Install Android host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libclang-dev
       - name: Install dependencies and build frontend
         run: |
           npm ci
@@ -271,6 +275,7 @@ jobs:
       - name: Stage Runtime, build frontend, and generate icons
         run: |
           set -Eeuo pipefail
+          mkdir -p release
           cp embedded-runtime/pisper-embedded-runtime.tar.gz release/pisper-embedded-runtime.tar.gz
           cp embedded-runtime/pisper-embedded-runtime.tar.gz \
             src-tauri/pisper-embedded-runtime.tar.gz
