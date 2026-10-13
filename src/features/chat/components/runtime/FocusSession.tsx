@@ -17,6 +17,7 @@ import {
   AudioLines,
   Braces,
   Command,
+  ChevronDown,
   FolderOpen,
   PanelRightClose,
   PanelRightOpen,
@@ -27,6 +28,7 @@ import {
   X,
 } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
+import { DesktopTitlebarPortal } from '@/components/layout/DesktopTitlebar'
 import { WorkbenchSidebarToggle } from '@/components/layout/WorkbenchSidebarToggle'
 import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import { useUiStore } from '@/stores/ui-store'
@@ -114,6 +116,8 @@ const TRAY_FLOATING_SELECTOR = [
 
 export const FocusSession = memo(function FocusSession({
   session,
+  headerToolsTargetId,
+  titlebarToolsActive = false,
   shortcutEnabled = false,
   messages,
   transcriptLoadState = 'ready',
@@ -234,6 +238,13 @@ export const FocusSession = memo(function FocusSession({
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const sessionViewport = useSessionViewport()
+  const titlebarTools = !mobileLayout && Boolean(window.pisperDesktop?.customTitlebar)
+  const getTitlebarAnchor = useCallback(
+    () =>
+      sessionViewport.ref.current?.closest<HTMLElement>('.chat-dock-workspace') ??
+      sessionViewport.ref.current,
+    [sessionViewport.ref],
+  )
   const [transcriptGutter, setTranscriptGutter] = useState({ left: 0, right: 0 })
   const updateTranscriptGutter = useCallback((left: number, right: number) => {
     setTranscriptGutter((previous) =>
@@ -523,7 +534,12 @@ export const FocusSession = memo(function FocusSession({
   const workspaceBlock = (
     <button
       type="button"
-      className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground hover:bg-muted disabled:opacity-50 @max-[520px]:size-8 @max-[520px]:shrink-0 @max-[520px]:justify-center @max-[520px]:[&_span]:hidden"
+      className={cn(
+        'header-workspace inline-flex h-8 min-w-0 shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground hover:bg-muted disabled:opacity-50',
+        mobileLayout
+          ? 'max-w-[150px] @max-[520px]:size-8 @max-[520px]:shrink-0 @max-[520px]:justify-center @max-[520px]:[&_span]:hidden'
+          : 'max-w-full',
+      )}
       title={cwd}
       aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
         workspace: cwd ? workspaceName(cwd, language) : t('chat:focusSession.noWorkspace'),
@@ -535,7 +551,65 @@ export const FocusSession = memo(function FocusSession({
       <span className="truncate">
         {cwd ? workspaceName(cwd, language) : t('chat:focusSession.noWorkspace')}
       </span>
+      {!mobileLayout && (
+        <ChevronDown size={12} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+      )}
     </button>
+  )
+  const headerActions = (
+    <div className="flex flex-none items-center gap-1">
+      {window.pisperDesktop?.terminalProfiles &&
+        runtimeFeatureAvailable(capabilities, 'terminal') && (
+          <button
+            type="button"
+            className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+            aria-label={t('navigation:pageHeader.toggleTerminal')}
+            title={t('navigation:pageHeader.toggleTerminal')}
+            onClick={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}
+          >
+            <TerminalSquare size={16} />
+          </button>
+        )}
+      <SessionTreeControl
+        visible={messages.length > 0}
+        open={sessionTreeOpen}
+        sessionId={session.id}
+        streaming={Boolean(streaming)}
+        revision={sessionTreeRevision}
+        pulseToken={sessionTreePulse}
+        onOpenChange={setSessionTreeOpen}
+        onNavigated={async (editorText) => {
+          if (editorText !== null) applyWelcomeChip(editorText)
+          await onTreeNavigated?.()
+          requestTranscriptBottom()
+        }}
+        onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
+      />
+      <button
+        type="button"
+        className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
+        title={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
+        aria-expanded={contextOpen}
+        aria-controls={contextPanelId}
+        aria-haspopup={contextCompact ? 'dialog' : undefined}
+        onPointerDown={() => {
+          // 指针点击其他 Dock 面板时，焦点会先切换活动会话；保留点击时看到的开关状态。
+          contextOpenAtPointerDownRef.current = contextOpen
+        }}
+        onPointerCancel={() => {
+          contextOpenAtPointerDownRef.current = null
+        }}
+        onClick={() => {
+          const wasOpen = contextOpenAtPointerDownRef.current ?? contextOpen
+          contextOpenAtPointerDownRef.current = null
+          onToggleContext(!wasOpen)
+        }}
+      >
+        {contextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+      </button>
+      <ThemeToggleButton compact theme={theme} onCycle={cycleTheme} />
+    </div>
   )
   const headerBlock = (
     <AppCardHeader
@@ -548,10 +622,14 @@ export const FocusSession = memo(function FocusSession({
     >
       <WorkbenchSidebarToggle />
       <div className="flex min-w-0 flex-1 items-center gap-1" data-window-drag-region>
-        {workspaceBlock}
-        <span className="text-muted-foreground/40" aria-hidden="true">
-          /
-        </span>
+        {mobileLayout && (
+          <>
+            {workspaceBlock}
+            <span className="text-muted-foreground/40" aria-hidden="true">
+              /
+            </span>
+          </>
+        )}
         <button
           type="button"
           className="group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] font-medium hover:bg-muted"
@@ -567,59 +645,7 @@ export const FocusSession = memo(function FocusSession({
           />
         </button>
       </div>
-      <div className="flex flex-none items-center gap-1">
-        {window.pisperDesktop?.terminalProfiles &&
-          runtimeFeatureAvailable(capabilities, 'terminal') && (
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label={t('navigation:pageHeader.toggleTerminal')}
-              title={t('navigation:pageHeader.toggleTerminal')}
-              onClick={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}
-            >
-              <TerminalSquare size={16} />
-            </button>
-          )}
-        <SessionTreeControl
-          visible={messages.length > 0}
-          open={sessionTreeOpen}
-          sessionId={session.id}
-          streaming={Boolean(streaming)}
-          revision={sessionTreeRevision}
-          pulseToken={sessionTreePulse}
-          onOpenChange={setSessionTreeOpen}
-          onNavigated={async (editorText) => {
-            if (editorText !== null) applyWelcomeChip(editorText)
-            await onTreeNavigated?.()
-            requestTranscriptBottom()
-          }}
-          onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
-        />
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
-          title={contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
-          aria-expanded={contextOpen}
-          aria-controls={contextPanelId}
-          aria-haspopup={contextCompact ? 'dialog' : undefined}
-          onPointerDown={() => {
-            // 指针点击其他 Dock 面板时，焦点会先切换活动会话；保留点击时看到的开关状态。
-            contextOpenAtPointerDownRef.current = contextOpen
-          }}
-          onPointerCancel={() => {
-            contextOpenAtPointerDownRef.current = null
-          }}
-          onClick={() => {
-            const wasOpen = contextOpenAtPointerDownRef.current ?? contextOpen
-            contextOpenAtPointerDownRef.current = null
-            onToggleContext(!wasOpen)
-          }}
-        >
-          {contextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-        </button>
-        <ThemeToggleButton compact theme={theme} onCycle={cycleTheme} />
-      </div>
+      {!titlebarTools && headerActions}
     </AppCardHeader>
   )
   const transcriptBlock = (
@@ -757,54 +783,63 @@ export const FocusSession = memo(function FocusSession({
         streaming={streaming}
         statusLabel={composerStatusLabel}
       />
-      <div className="focus-composer relative flex min-w-0 flex-col gap-2 rounded-[18px] border border-border bg-card p-2.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#242424] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[40px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground">
-        <ComposerCommandMenu
-          placement="top"
-          sessionId={session.id}
-          value={value}
-          onChange={updateValue}
-          inputRef={promptRef}
-        />
-        <textarea
-          ref={promptRef}
-          rows={1}
-          aria-label={t('chat:focusSession.taskDescription')}
-          value={value}
-          onChange={(event) => {
-            updateValue(event.target.value)
-            event.currentTarget.style.height = 'auto'
-            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
-          }}
-          onPaste={selection.pasteFiles}
-          onCompositionStart={() => (imeComposingRef.current = true)}
-          onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
-          onKeyDown={(event) => {
-            // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
-            const composing = event.nativeEvent.isComposing || imeComposingRef.current
-            if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
-              event.preventDefault()
-              event.currentTarget.form?.requestSubmit()
-            }
-          }}
-          data-mobile-composer-input={mobileLayout || undefined}
-          enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
-          placeholder={composerPlaceholder}
-        />
-        <div className="focus-composer-footer flex min-w-0 items-end gap-1">
-          {toolsBlock}
-          <ComposerSendButton
-            streaming={streaming}
-            queueing={queueing}
-            disabled={
-              !streaming &&
-              (Boolean(pendingRuntimeSelection) ||
-                switchingModel ||
-                switchingThinking ||
-                queueing ||
-                (!value.trim() && !selection.attachments.length && !invocation))
-            }
-            onAbort={onAbort}
+      <div
+        className={
+          mobileLayout ? 'contents' : 'min-w-0 rounded-[18px] bg-muted/40 dark:bg-[#202020]'
+        }
+      >
+        {!mobileLayout && (
+          <div className="flex min-w-0 items-center px-2.5 pt-1.5 pb-1">{workspaceBlock}</div>
+        )}
+        <div className="focus-composer relative flex min-w-0 flex-col gap-2 rounded-[18px] border border-border bg-card p-2.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#242424] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[40px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground">
+          <ComposerCommandMenu
+            placement="top"
+            sessionId={session.id}
+            value={value}
+            onChange={updateValue}
+            inputRef={promptRef}
           />
+          <textarea
+            ref={promptRef}
+            rows={1}
+            aria-label={t('chat:focusSession.taskDescription')}
+            value={value}
+            onChange={(event) => {
+              updateValue(event.target.value)
+              event.currentTarget.style.height = 'auto'
+              event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
+            }}
+            onPaste={selection.pasteFiles}
+            onCompositionStart={() => (imeComposingRef.current = true)}
+            onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
+            onKeyDown={(event) => {
+              // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
+              const composing = event.nativeEvent.isComposing || imeComposingRef.current
+              if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
+                event.preventDefault()
+                event.currentTarget.form?.requestSubmit()
+              }
+            }}
+            data-mobile-composer-input={mobileLayout || undefined}
+            enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
+            placeholder={composerPlaceholder}
+          />
+          <div className="focus-composer-footer flex min-w-0 items-end gap-1">
+            {toolsBlock}
+            <ComposerSendButton
+              streaming={streaming}
+              queueing={queueing}
+              disabled={
+                !streaming &&
+                (Boolean(pendingRuntimeSelection) ||
+                  switchingModel ||
+                  switchingThinking ||
+                  queueing ||
+                  (!value.trim() && !selection.attachments.length && !invocation))
+              }
+              onAbort={onAbort}
+            />
+          </div>
         </div>
       </div>
       <div
@@ -897,15 +932,27 @@ export const FocusSession = memo(function FocusSession({
       )}
       data-chat-message-style="bubble"
     >
+      <DesktopTitlebarPortal
+        enabled={
+          !mobileLayout && (titlebarTools ? titlebarToolsActive : Boolean(headerToolsTargetId))
+        }
+        targetId={titlebarTools ? 'window' : headerToolsTargetId}
+        inline={!titlebarTools}
+        getAnchor={getTitlebarAnchor}
+      >
+        {headerActions}
+      </DesktopTitlebarPortal>
       <div
         className={cn(
           'flex h-full min-h-0 min-w-0 flex-1 flex-col',
           hasConversation ? 'overflow-hidden' : 'overflow-auto',
         )}
       >
-        <div className="shrink-0" data-chat-region="header">
-          {headerBlock}
-        </div>
+        {mobileLayout && (
+          <div className="shrink-0" data-chat-region="header">
+            {headerBlock}
+          </div>
+        )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-chat-region="messages">
           {transcriptBlock}
         </div>

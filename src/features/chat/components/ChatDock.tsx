@@ -418,6 +418,8 @@ function SessionPanel({
     >
       <FocusSession
         session={session}
+        headerToolsTargetId={panelId}
+        titlebarToolsActive={context.activeId === sessionId}
         shortcutEnabled={shortcutEnabled}
         messages={state.messages || EMPTY_LIST}
         transcriptLoadState={

@@ -12,18 +12,12 @@ import {
   type IDockviewHeaderActionsProps,
   type ReactContextMenuItemConfig,
 } from 'dockview-react'
-import { LoaderCircle, MoreHorizontal, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { LoaderCircle, Plus } from 'lucide-react'
 import { useI18n } from '@/app/i18n/use-i18n'
+import { DesktopTitlebarHost } from '@/components/layout/DesktopTitlebar'
 import { useShortcutLabel } from '@/lib/ui/shortcuts'
 import { ChatDockWatermark, SessionDockPanel } from '@/features/chat/components/ChatDock'
+import { ChatDockTabContextMenu } from '@/features/chat/components/ChatDockTabContextMenu'
 import { WebPreviewDockPanel } from '@/features/chat/components/WebPreviewDockPanel'
 
 type ChatDockViewProps = {
@@ -33,6 +27,11 @@ type ChatDockViewProps = {
     params: Pick<GetTabContextMenuItemsParams, 'panel'>,
   ) => Array<BuiltInContextMenuItem | ReactContextMenuItemConfig>
   createSession: (targetGroup?: DockviewGroupPanel) => Promise<string>
+}
+
+function DockHeaderTools({ activePanel }: IDockviewHeaderActionsProps) {
+  if (window.pisperDesktop?.customTitlebar || !activePanel) return null
+  return <DesktopTitlebarHost targetId={activePanel.id} inline />
 }
 
 export function ChatDockView({
@@ -65,44 +64,6 @@ export function ChatDockView({
     return () => observer.disconnect()
   }, [dockApi])
   const primaryShortcut = useShortcutLabel('primaryAction')
-  const DockGroupActions = useMemo(
-    () =>
-      function DockGroupActions({ activePanel }: IDockviewHeaderActionsProps) {
-        const items = activePanel ? getTabContextMenuItems({ panel: activePanel }) : []
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-9 rounded-none"
-                aria-label={t('chat:focusSession.chatActions')}
-                title={t('chat:focusSession.chatActions')}
-                disabled={!activePanel}
-              >
-                <MoreHorizontal size={16} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {items.map((item, index) =>
-                item === 'separator' ? (
-                  <DropdownMenuSeparator key={index} />
-                ) : typeof item === 'object' ? (
-                  <DropdownMenuItem
-                    key={item.label}
-                    disabled={item.disabled}
-                    onSelect={item.action}
-                  >
-                    {item.label}
-                  </DropdownMenuItem>
-                ) : null,
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
-    [getTabContextMenuItems, t],
-  )
   const DockNewSessionAction = useMemo(
     () =>
       function DockNewSessionAction({ group }: IDockviewHeaderActionsProps) {
@@ -162,18 +123,20 @@ export function ChatDockView({
   )
   return (
     <div ref={containerRef} className="h-full w-full min-h-0 min-w-0">
-      <DockviewReact
-        className="dockview-theme-light dockview-theme-pisper"
-        components={dockComponents}
-        watermarkComponent={Watermark}
-        leftHeaderActionsComponent={DockNewSessionAction}
-        rightHeaderActionsComponent={DockGroupActions}
-        onReady={handleReady}
-        getTabContextMenuItems={getTabContextMenuItems}
-        disableFloatingGroups
-        disableDnd={compactDock}
-        noPanelsOverlay="watermark"
-      />
+      <ChatDockTabContextMenu api={dockApi} getItems={getTabContextMenuItems}>
+        <DockviewReact
+          className="dockview-theme-light dockview-theme-pisper"
+          components={dockComponents}
+          watermarkComponent={Watermark}
+          leftHeaderActionsComponent={DockNewSessionAction}
+          rightHeaderActionsComponent={DockHeaderTools}
+          onReady={handleReady}
+          getTabContextMenuItems={getTabContextMenuItems}
+          disableFloatingGroups
+          disableDnd={compactDock}
+          noPanelsOverlay="watermark"
+        />
+      </ChatDockTabContextMenu>
     </div>
   )
 }

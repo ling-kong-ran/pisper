@@ -14,6 +14,8 @@ import type { TranscriptLoadState } from '@/features/chat/components/message/Foc
 import type { WithdrawnInput } from '@/features/chat/api/chat-api'
 
 export type FocusSessionProps = {
+  headerToolsTargetId?: string
+  titlebarToolsActive?: boolean
   session: SessionSummary
   shortcutEnabled?: boolean
   messages: ChatMessage[]

@@ -31,16 +31,38 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
   })
   const errors = []
   const layoutWrites = []
-  const makePage = async (width, height = 960) => {
+  const makePage = async (width, height = 960, nativeTitlebar = false) => {
     const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN' })
     await context.addCookies([{ name: '__pisper_desktop', value: token, url: base }])
-    await context.addInitScript(() => {
+    await context.addInitScript((nativeTitlebar) => {
       localStorage.setItem('pisper-language', 'zh-CN')
       localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
-    })
+      // 仅提供受控的桌面桥接能力；本检查不宣称操作过原生窗口。
+      if (nativeTitlebar)
+        window.pisperDesktop = {
+          platform: 'win32',
+          customTitlebar: true,
+          windowAction: () => Promise.resolve(),
+          terminalProfiles: () => Promise.resolve([]),
+          getAppInfo: () =>
+            Promise.resolve({
+              desktop: true,
+              packaged: false,
+              version: 'fixture',
+              platform: 'win32',
+              arch: 'x64',
+            }),
+          setLanguage: () => Promise.resolve(),
+        }
+    }, nativeTitlebar)
     await context.route('**/*', (route) => {
       const url = new URL(route.request().url())
       if (url.origin !== base) return route.abort()
+      if (url.pathname === '/toolbar-preview-fixture.html')
+        return route.fulfill({
+          contentType: 'text/html',
+          body: '<!doctype html><title>Preview</title><p>Toolbar preview fixture</p>',
+        })
       if (url.pathname.startsWith('/api/app-update')) {
         return route.fulfill({ json: { state: 'current', canDownload: false } })
       }
@@ -76,7 +98,9 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
           panels: [...document.querySelectorAll('.session-dock-panel')].map((node) => ({
             rect: node.getBoundingClientRect().toJSON(),
             visibility: getComputedStyle(node).visibility,
-            title: node.querySelector('[aria-label="重命名会话"]')?.textContent,
+            title: node
+              .closest('.dv-groupview')
+              ?.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
           })),
           groups: document.querySelectorAll('.dv-groupview').length,
         })),
@@ -132,7 +156,8 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await page.locator('.dockview-theme-pisper').waitFor()
     await page.locator('button[title^="Dock Alpha ·"]').click()
     await page.locator('button[title^="Dock Beta ·"]').click()
-    await page.getByRole('button', { name: '会话操作', exact: true }).click()
+    assert.equal(await page.getByRole('button', { name: '会话操作', exact: true }).count(), 0)
+    await page.getByRole('tab', { name: 'Dock Beta', exact: true }).click({ button: 'right' })
     const save = waitForSave(
       page,
       sessions.slice(0, 2).map(({ id }) => id),
@@ -141,8 +166,22 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await expectPanels(page, 2)
     await save
     await expectComposerBounds(page)
-    const alpha = page.locator('.session-dock-panel').filter({ hasText: 'Dock Alpha' })
-    const beta = page.locator('.session-dock-panel').filter({ hasText: 'Dock Beta' })
+    const panelFor = (name) =>
+      page
+        .locator('.dv-groupview')
+        .filter({ has: page.getByRole('tab', { name, exact: true }) })
+        .locator('.session-dock-panel')
+    const alpha = panelFor('Dock Alpha')
+    const beta = panelFor('Dock Beta')
+    assert.equal(await page.locator('.workbench-chat-header').count(), 0)
+    assert.equal(await page.locator('.focus-composer-shell .header-workspace').count(), 2)
+    assert.equal(
+      await page
+        .locator('.dv-tabs-and-actions-container')
+        .getByRole('button', { name: /会话上下文/ })
+        .count(),
+      2,
+    )
     await alpha.getByRole('textbox', { name: '任务描述', exact: true }).fill('Alpha draft')
     await beta.getByRole('textbox', { name: '任务描述', exact: true }).fill('Beta draft')
     assert.equal(
@@ -211,6 +250,38 @@ export async function verifyProductionChatDock({ base, token, workspace }) {
     await phone.getByRole('heading', { name: '设置', exact: true }).waitFor()
     await phone.context().close()
     await verifyChatDockCreation({ page, sessions })
+    const native = await makePage(1440, 960, true)
+    await native.goto(base + '/#/chat')
+    await native
+      .locator('.dockview-theme-pisper')
+      .waitFor()
+      .catch(async (error) => {
+        console.error(
+          'Native titlebar fixture startup',
+          errors,
+          (await native.locator('body').innerText()).slice(0, 1200),
+        )
+        throw error
+      })
+    await native.locator('button[title^="Dock Alpha ·"]').click()
+    const tools = native
+      .locator('.desktop-window-controls')
+      .getByRole('button', { name: /会话上下文/ })
+    await tools.waitFor()
+    // 通过既有公开事件打开分屏网页；切换预览焦点不能移除仍可见会话的工具栏。
+    await native.evaluate((url) => {
+      window.dispatchEvent(new CustomEvent('pisper:web-preview-open', { detail: { url } }))
+    }, base + '/toolbar-preview-fixture.html')
+    await native
+      .locator('.dv-active-group')
+      .getByRole('tab', { name: '127.0.0.1', exact: true, selected: true })
+      .waitFor()
+    await tools.waitFor()
+    assert.equal(await tools.count(), 1)
+    await tools.click()
+    await native.locator('[data-session-context-panel]').waitFor()
+    assert.equal(await tools.count(), 1)
+    await native.context().close()
     assert.deepEqual(errors, [])
   } finally {
     await browser.close()

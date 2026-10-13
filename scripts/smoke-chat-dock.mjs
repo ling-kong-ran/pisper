@@ -96,7 +96,7 @@ const server = createServer(async (request, response) => {
         ? css
         : `<!doctype html><html><head><link rel="stylesheet" href="/style.css"><style>
     html,body,#root {height:100%;margin:0} #root{display:flex;flex-direction:column;font-family:system-ui}
-    main>div{height:100%;min-height:0} .session-dock-panel{height:100%;width:100%} button,select{font:inherit}
+    main>div{height:100%;min-height:0} .contents{display:contents} .session-dock-panel{height:100%;width:100%} button,select{font:inherit}
   </style></head><body><div id="root"></div><script type="module" src="/bundle.js"></script></body></html>`,
   )
 })
@@ -287,9 +287,14 @@ try {
   await expectIds(['alpha'])
   await open('Beta')
   await expectIds(['beta'])
-  const actions = page.getByRole('button', { name: 'chat:focusSession.chatActions', exact: true })
-  await actions.focus()
-  await actions.press('Enter')
+  assert.equal(
+    await page.getByRole('button', { name: 'chat:focusSession.chatActions', exact: true }).count(),
+    0,
+    'Tab actions must not add a separate three-dot toolbar',
+  )
+  const actionsTab = page.locator('.dv-tab').filter({ hasText: 'Beta' })
+  await actionsTab.focus()
+  await actionsTab.press('Shift+F10')
   for (const direction of ['Left', 'Right', 'Top', 'Bottom']) {
     await page
       .getByRole('menuitem', { name: `chat:chatPage.splitTo${direction}`, exact: true })
@@ -297,15 +302,19 @@ try {
   }
   await page.keyboard.press('Escape')
   await page.waitForFunction(
-    () => document.activeElement?.getAttribute('aria-label') === 'chat:focusSession.chatActions',
+    () =>
+      document.activeElement?.matches('.dv-tab') &&
+      document.activeElement.textContent.includes('Beta'),
   )
-  assert.equal(await actions.evaluate((node) => node === document.activeElement), true)
-  await actions.press('Enter')
+  assert.equal(await actionsTab.evaluate((node) => node === document.activeElement), true)
+  await actionsTab.press('ContextMenu')
   const splitRight = page.getByRole('menuitem', { name: 'chat:chatPage.splitToRight', exact: true })
   await splitRight.focus()
   await splitRight.press('Enter')
   await checkDirection('right')
-  console.log('PASS: visible group menu supports keyboard split and focus restoration')
+  console.log(
+    'PASS: tab context menu supports both keyboard shortcuts, split and focus restoration',
+  )
 
   await fresh(persisted, '?deleted=beta')
   await expectIds(['alpha'])
@@ -359,7 +368,7 @@ try {
     await expectIds(['alpha'])
     await open('Beta')
     await expectIds(['beta'])
-    await page.getByRole('button', { name: 'chat:focusSession.chatActions', exact: true }).click()
+    await page.locator('.dv-tab').filter({ hasText: 'Beta' }).click({ button: 'right' })
     const suffix = { left: 'Left', right: 'Right', above: 'Top', below: 'Bottom' }[direction]
     await page
       .getByRole('menuitem', { name: `chat:chatPage.splitTo${suffix}`, exact: true })

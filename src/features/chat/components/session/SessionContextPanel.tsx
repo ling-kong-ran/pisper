@@ -202,7 +202,7 @@ export function SessionContextPanel({
       >
         <div
           ref={listRef}
-          className="flex min-w-0 flex-1 items-center overflow-x-auto"
+          className="flex min-w-0 items-center overflow-x-auto"
           role="tablist"
           aria-label={t('chat:sessionContext.title')}
           onKeyDown={(event) => {
