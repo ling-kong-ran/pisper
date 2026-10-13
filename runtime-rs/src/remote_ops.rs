@@ -273,7 +273,10 @@ pub(crate) async fn decide_request(
     if approved {
         let token = paired_token(&state, &request.device_name);
         let device = security::PairedDevice::new(
-            product::new_id(), request.device_name.clone(), &token, product::now_ms(),
+            product::new_id(),
+            request.device_name.clone(),
+            &token,
+            product::now_ms(),
         );
         request.device_id = Some(device.id.clone());
         request.token = Some(token);
