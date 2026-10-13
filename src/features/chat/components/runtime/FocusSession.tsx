@@ -3,7 +3,16 @@
 // use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
 // focus-session-composer-bits，状态文案在 focus-session-status；
 // composer 主体与发送行为约定保留在本文件。
-import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import {
   AudioLines,
   Braces,
@@ -225,6 +234,12 @@ export const FocusSession = memo(function FocusSession({
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const sessionViewport = useSessionViewport()
+  const [transcriptGutter, setTranscriptGutter] = useState({ left: 0, right: 0 })
+  const updateTranscriptGutter = useCallback((left: number, right: number) => {
+    setTranscriptGutter((previous) =>
+      previous.left === left && previous.right === right ? previous : { left, right },
+    )
+  }, [])
   const compactWelcome = !hasConversation && sessionViewport.compact
   const centeredWelcome = !hasConversation && !compactWelcome
   const composerStatusLabel = useFocusSessionStatusLabel(
@@ -612,6 +627,7 @@ export const FocusSession = memo(function FocusSession({
       key="transcript"
       emptyState={compactWelcome ? false : undefined}
       layoutMeasurementKey="fixed"
+      onScrollbarGutterChange={updateTranscriptGutter}
       sessionId={session.id}
       messages={messages}
       transcriptLoadState={transcriptLoadState}
@@ -699,7 +715,12 @@ export const FocusSession = memo(function FocusSession({
   const composerBlock = (
     <form
       key="composer"
-      className="focus-composer-shell relative z-20 mx-auto flex w-[min(600px,calc(100%_-_40px))] shrink-0 flex-col gap-2 pt-2 pb-4 @max-[700px]:w-[calc(100%_-_24px)]"
+      className={cn(
+        'focus-composer-shell relative z-20 mx-auto flex shrink-0 flex-col gap-2 pt-2 pb-4',
+        hasConversation
+          ? 'w-[min(var(--chat-content-width),calc(100%_-_2_*_var(--chat-inline-padding)))]'
+          : 'w-[min(600px,calc(100%_-_40px))] @max-[700px]:w-[calc(100%_-_24px)]',
+      )}
       onSubmit={(event) => {
         if (!streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)) {
           event.preventDefault()
@@ -862,7 +883,14 @@ export const FocusSession = memo(function FocusSession({
   return (
     <Panel
       ref={sessionViewport.ref}
+      style={
+        {
+          '--chat-scrollbar-left': `${transcriptGutter.left}px`,
+          '--chat-scrollbar-right': `${transcriptGutter.right}px`,
+        } as CSSProperties
+      }
       className={cn(
+        '[--chat-inline-padding:24px] @max-[700px]:[--chat-inline-padding:16px] [--chat-column-padding:max(var(--chat-inline-padding),calc((100%_-_var(--chat-content-width))/2))]',
         `focus-session [--chat-content-width:768px] [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
         centeredWelcome &&
           '[&_[data-chat-region=messages]]:!flex-none [&_[data-chat-region=messages]]:mt-[max(48px,calc((var(--session-viewport-height,100dvh)-560px)/2))] [&_[data-chat-region=messages]]:h-[160px] [&_[data-chat-region=messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-chat-region=messages]]:mt-8 max-[650px]:[&_[data-chat-region=messages]]:h-[150px]',

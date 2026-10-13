@@ -1,10 +1,11 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
 // 移动端走单会话视图，不下载/执行本模块。
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
   type BuiltInContextMenuItem,
+  type DockviewApi,
   type DockviewGroupPanel,
   type DockviewReadyEvent,
   type GetTabContextMenuItemsParams,
@@ -41,6 +42,28 @@ export function ChatDockView({
   createSession,
 }: ChatDockViewProps) {
   const { t } = useI18n()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dockApi, setDockApi] = useState<DockviewApi | null>(null)
+  const handleReady = useCallback(
+    (event: DockviewReadyEvent) => {
+      setDockApi(event.api)
+      onDockReady(event)
+    },
+    [onDockReady],
+  )
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container || !dockApi) return
+    // 侧栏拖动会改变父容器而非窗口尺寸；在绘制前同步网格，避免默认异步缩放裁掉会话。
+    const layout = () => {
+      const { clientWidth: width, clientHeight: height } = container
+      if (width > 0 && height > 0) dockApi.layout(width, height)
+    }
+    layout()
+    const observer = new ResizeObserver(layout)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [dockApi])
   const primaryShortcut = useShortcutLabel('primaryAction')
   const DockGroupActions = useMemo(
     () =>
@@ -138,17 +161,19 @@ export function ChatDockView({
     [createSession, primaryShortcut],
   )
   return (
-    <DockviewReact
-      className="dockview-theme-light dockview-theme-pisper"
-      components={dockComponents}
-      watermarkComponent={Watermark}
-      leftHeaderActionsComponent={DockNewSessionAction}
-      rightHeaderActionsComponent={DockGroupActions}
-      onReady={onDockReady}
-      getTabContextMenuItems={getTabContextMenuItems}
-      disableFloatingGroups
-      disableDnd={compactDock}
-      noPanelsOverlay="watermark"
-    />
+    <div ref={containerRef} className="h-full w-full min-h-0 min-w-0">
+      <DockviewReact
+        className="dockview-theme-light dockview-theme-pisper"
+        components={dockComponents}
+        watermarkComponent={Watermark}
+        leftHeaderActionsComponent={DockNewSessionAction}
+        rightHeaderActionsComponent={DockGroupActions}
+        onReady={handleReady}
+        getTabContextMenuItems={getTabContextMenuItems}
+        disableFloatingGroups
+        disableDnd={compactDock}
+        noPanelsOverlay="watermark"
+      />
+    </div>
   )
 }
