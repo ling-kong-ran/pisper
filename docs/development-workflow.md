@@ -80,7 +80,7 @@
 
 ### runtime-rs CI 质量门禁记录（2026-10-13）
 
-AGENTS.md 要求 Rust 提交前运行 `cargo fmt` 与 `clippy`，但此前 CI 只对 src-tui 强制。已为 `runtime-rs` 增加非阻断（`continue-on-error`）的 fmt/clippy job，范围限定 `-p pisper-server` 以排除 vendored pi-rs 上游源码。本机无 Rust 工具链，基线是否零告警未验证；升级为阻断门禁的条件：在有工具链的环境运行 `cargo fmt --manifest-path runtime-rs/Cargo.toml -p pisper-server -- --check` 与 `cargo clippy --locked --manifest-path runtime-rs/Cargo.toml -p pisper-server --all-targets -- -D warnings` 全绿后，移除 `continue-on-error`。
+AGENTS.md 要求 Rust 提交前运行 `cargo fmt` 与 `clippy`，但此前 CI 只对 src-tui 强制。已为 `runtime-rs` 增加非阻断（`continue-on-error`）的 fmt/clippy job，范围限定 `-p pisper-server` 以排除 vendored pi-rs 上游源码。基线验证结果（2026-10-13，CI run 38375831823）：`cargo fmt --check` 不通过，runtime-rs 存在未格式化代码，clippy 基线未走到。升级为阻断门禁的路径：先用独立的专注变更落地 `cargo fmt -p pisper-server` 全量格式化（不得混入功能改动），确认 clippy 基线后移除 `continue-on-error` 并给 clippy 加回 `-D warnings`。
 
 ### 决策审批与 Computer Use 验证接线
 
