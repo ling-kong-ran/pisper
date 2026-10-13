@@ -11,5 +11,8 @@
   "terminalPanel.orphanedTerminal": "未关联",
   "terminalPanel.starting": "正在启动 Shell...",
   "terminalPanel.processExited": "进程已退出，代码 {code}",
-  "terminalPanel.workspaceUnavailable": "无法读取当前会话的工作目录，请刷新会话后重试。"
+  "terminalPanel.workspaceUnavailable": "无法读取当前会话的工作目录，请刷新会话后重试。",
+  "terminalPanel.invalidResponse": "终端响应格式无效。",
+  "terminalPanel.disconnected": "终端连接已断开，请新建终端重试。",
+  "terminalPanel.connectionTimeout": "终端连接超时。"
 }

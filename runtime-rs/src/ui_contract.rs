@@ -80,7 +80,7 @@ fn capabilities_for_profile(profile: &str) -> Value {
             "terminal": terminal, "vcs": true, "fileChanges": true, "memory": true, "workers": false,
             "plugins": false, "mcp": true, "goals": true, "plans": true,
             "multiAgent": true, "channels": true, "workflows": true, "schedules": true,
-            "computerUse": false, "browserAutomation": false, "remoteAccess": false,
+            "computerUse": false, "browserAutomation": false, "remoteAccess": true,
             "desktopPet": false,
         },
         "tools": ["read", "bash", "edit", "write"],
@@ -91,6 +91,7 @@ fn capabilities_for_profile(profile: &str) -> Value {
         for feature in [
             "shell",
             "terminal",
+            "remoteAccess",
             "vcs",
             "mcp",
             "goals",
@@ -108,8 +109,7 @@ fn capabilities_for_profile(profile: &str) -> Value {
     value
 }
 
-// The PTY lives in the Tauri host. A plain Web client still requires the real
-// desktop bridge before displaying it; mobile hosts must never advertise it.
+// 桌面 IPC 和 Web Runtime 复用原生 PTY；移动本地宿主不得公布此能力。
 fn terminal_available(profile: Option<&str>, platform: Option<&str>) -> bool {
     let desktop_profile = !matches!(
         profile.map(str::trim),
@@ -517,10 +517,11 @@ mod tests {
             "workflows",
             "schedules",
             "channels",
+            "remoteAccess",
         ] {
             assert_eq!(value["features"][feature], true);
         }
-        for feature in ["desktopPet", "plugins", "remoteAccess"] {
+        for feature in ["desktopPet", "plugins"] {
             assert_eq!(value["features"][feature], false);
         }
     }

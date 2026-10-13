@@ -121,6 +121,8 @@ pub(crate) async fn capability_guard(
                 "/api/multi-agent",
                 "/api/vcs",
                 "/api/shell",
+                "/api/terminal",
+                "/api/remote",
                 "/api/speech",
                 "/api/browser",
             ]

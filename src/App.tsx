@@ -301,6 +301,10 @@ function App() {
     [t],
   )
   const [terminalOpen, setTerminalOpen] = useState(() => Boolean(readStoredTerminalPanel().open))
+  const [terminalMounted, setTerminalMounted] = useState(terminalOpen)
+  useEffect(() => {
+    if (terminalOpen) setTerminalMounted(true)
+  }, [terminalOpen])
   const [terminalHeight, setTerminalHeight] = useState(() =>
     Math.max(180, Math.min(640, Number(readStoredTerminalPanel().height) || 300)),
   )
@@ -310,7 +314,9 @@ function App() {
   paneRef.current = pane
   contextTabRef.current = contextTab
   shellModeRef.current = shellMode
+  const terminalSupported = !mobileApp && runtimeFeatureAvailable(capabilities, 'terminal')
   const toggleTerminalPanel = useCallback(() => {
+    if (!terminalSupported) return
     if (shellModeRef.current !== 'off') {
       if (paneRef.current === 'context' && contextTabRef.current === 'terminal') setPane('chat')
       else {
@@ -319,9 +325,8 @@ function App() {
       }
       return
     }
-    if (window.pisperDesktop?.terminalProfiles && runtimeFeatureAvailable(capabilities, 'terminal'))
-      setTerminalOpen((open) => !open)
-  }, [capabilities])
+    setTerminalOpen((open) => !open)
+  }, [terminalSupported])
   useEffect(() => {
     window.addEventListener('pisper:toggle-terminal', toggleTerminalPanel)
     return () => window.removeEventListener('pisper:toggle-terminal', toggleTerminalPanel)
@@ -728,9 +733,6 @@ function App() {
     }),
     [contextTab, openContext, pane, shellMode],
   )
-  const terminalSupported = Boolean(
-    window.pisperDesktop?.terminalProfiles && runtimeFeatureAvailable(capabilities, 'terminal'),
-  )
   const showContext = mobileLayout && (shellMode === 'pad' || pane === 'context')
   useEffect(() => {
     if (showContext) setContextMounted(true)
@@ -841,13 +843,7 @@ function App() {
                         )
                       } else searchInputRef.current?.focus()
                     }}
-                    onToggleTerminal={
-                      shellMode !== 'off' ||
-                      (window.pisperDesktop?.terminalProfiles &&
-                        runtimeFeatureAvailable(capabilities, 'terminal'))
-                        ? toggleTerminalPanel
-                        : undefined
-                    }
+                    onToggleTerminal={terminalSupported ? toggleTerminalPanel : undefined}
                     onSettings={() => navigate('config')}
                   />
                 </Suspense>
@@ -917,6 +913,7 @@ function App() {
                               workflowActions={workflowActions}
                               desktopPlatform={window.pisperDesktop?.platform || ''}
                               mobileApp={mobileApp}
+                              terminalSupported={terminalSupported}
                               terminalOpen={
                                 shellMode !== 'off'
                                   ? pane === 'context' && contextTab === 'terminal'
@@ -941,8 +938,8 @@ function App() {
                           <Outlet context={routeContext} />
                         </div>
                         {shellMode === 'off' &&
-                          window.pisperDesktop?.terminalProfiles &&
-                          runtimeFeatureAvailable(capabilities, 'terminal') && (
+                          (terminalOpen || terminalMounted) &&
+                          terminalSupported && (
                             <Suspense fallback={null}>
                               <TerminalPanel
                                 open={terminalOpen}

@@ -14,6 +14,7 @@ mod custom_ui_api;
 mod desktop_ops;
 mod execution_adapter;
 mod execution_modes;
+mod extension_packages;
 mod file_changes_api;
 mod firewall_ops;
 mod game_assets_api;
@@ -48,10 +49,15 @@ mod plugin_integration;
 mod plugins_api;
 mod product;
 mod product2;
-mod extension_packages;
 mod project_resources;
 mod provider_config;
+mod remote_access;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod remote_discovery;
+mod remote_http;
 mod remote_ops;
+mod remote_pairing;
+mod remote_tls;
 mod runtime_host;
 mod runtime_paths;
 mod system_dialogs;
@@ -68,6 +74,8 @@ mod session_tree_tests;
 mod session_workers;
 mod skills_ops;
 mod speech_api;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod terminal_api;
 mod tool_policy;
 mod ui_contract;
 mod vcs_ops;
@@ -169,10 +177,9 @@ pub(crate) struct AppState {
     /// 所有领域沿用同一个 Pisper 数据目录（与 agent_dir 相同）。
     pub(crate) data_dir: String,
     /// Live workflow runs (in-memory; retry/stop operate on these).
-    /// Remote-control (LAN) toggle; P2P transport is not implemented yet.
+    /// 远程 TLS/Iroh 开关，沿用 remote-access.json。
     pub(crate) remote_enabled: std::sync::atomic::AtomicBool,
-    /// Stable device fingerprint shown in the remote pairing surface.
-    pub(crate) fingerprint: String,
+    pub(crate) remote: remote_access::RemoteAccess,
     /// Built React frontend dir (vite `dist/`) served same-origin with /api.
     pub(crate) dist_dir: std::path::PathBuf,
     /// Live chat runs (POST /api/chat) for SSE replay (upstream runs service).
@@ -841,6 +848,7 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
     let session_metadata = session_api::load_metadata(&data_dir)?;
     let remote_enabled = security::load_remote_enabled(&data_dir).map_err(anyhow::Error::msg)?;
     let paired_devices = security::load_devices(&data_dir).map_err(anyhow::Error::msg)?;
+    let pairing_code = security::load_pairing_code(&data_dir).map_err(anyhow::Error::msg)?;
     let providers = Arc::new(provider_config::ProviderConfigStore::new(&agent_dir));
     let catalog = native_tool_catalog::release_catalog()?;
     let web_search = native_web_search::WebSearchService::new(
@@ -1064,7 +1072,9 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
         SessionManager::create(
             &cwd,
             Some(
-                &std::path::Path::new(&agent_dir).join("sessions").to_string_lossy(),
+                &std::path::Path::new(&agent_dir)
+                    .join("sessions")
+                    .to_string_lossy(),
             ),
             Some(&NewSessionOptions::default()),
         )?
@@ -1299,22 +1309,10 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
             model,
         )) as Arc<dyn memory_store::runtime::MemoryModel>
     }));
-    let fingerprint = {
-        use sha2::Digest;
-        use std::fmt::Write as _;
-        let digest = sha2::Sha256::digest(
-            [
-                data_dir.as_bytes(),
-                std::env::var("COMPUTERNAME").unwrap_or_default().as_bytes(),
-            ]
-            .concat(),
-        );
-        let digest = digest.as_slice();
-        digest[..8].iter().fold(String::new(), |mut out, b| {
-            let _ = write!(out, "{b:02x}");
-            out
-        })
-    };
+    let remote = remote_access::RemoteAccess::new(
+        &data_dir,
+        remote_access::RemoteConfig::from_environment(&data_dir)?,
+    );
     // 桌面安装后工作目录并非源码目录，优先使用桌面壳明确传入的资源路径。
     let dist_dir = std::env::var_os("PISPER_FRONTEND_ROOT")
         .map(std::path::PathBuf::from)
@@ -1422,13 +1420,13 @@ async fn boot(embedded: Option<&EmbeddedOptions>) -> anyhow::Result<Arc<AppState
         session_meta: Arc::new(std::sync::Mutex::new(session_metadata)),
         data_dir: data_dir.clone(),
         remote_enabled: std::sync::atomic::AtomicBool::new(remote_enabled),
-        fingerprint,
+        remote,
         chat_runs: std::sync::Mutex::new(std::collections::HashMap::new()),
         frame_cursor: std::sync::atomic::AtomicU64::new(0),
         dist_dir,
         desktop_token,
         pairing: security::PairingStore {
-            pending: std::sync::Mutex::new(None),
+            pending: std::sync::Mutex::new(pairing_code),
             devices: std::sync::Mutex::new(paired_devices),
         },
         pairing_requests: std::sync::Mutex::new(Vec::new()),
@@ -1568,6 +1566,14 @@ async fn serve_runtime(
         *state.self_base.lock().expect("self base lock") =
             Some(format!("http://{host}:{}", addr.port()));
     }
+    if state
+        .remote_enabled
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        if let Err(error) = remote_http::start(&state).await {
+            tracing::warn!(code = error.code, "Remote access startup failed");
+        }
+    }
     axum::serve(
         listener,
         app_router(state.clone())?.into_make_service_with_connect_info::<std::net::SocketAddr>(),
@@ -1575,6 +1581,7 @@ async fn serve_runtime(
         .with_graceful_shutdown(async move {
             shutdown.await;
             shutdown_state.closing.store(true, std::sync::atomic::Ordering::Release);
+            shutdown_state.remote.stop().await;
             if let Err(error) = shutdown_state.channels.dispose().await {
                 tracing::warn!(error=%security::redact_secret_text(&error.message), "Channel shutdown failed");
             }
@@ -1725,9 +1732,9 @@ fn session_router() -> Router<Arc<AppState>> {
         .route("/api/runtime/diagnostics", get(runtime_diagnostics))
         .route(
             "/api/remote/pairing-code",
-            get(create_pairing_code).post(create_pairing_code),
+            get(remote_pairing::create_code).post(remote_pairing::create_code),
         )
-        .route("/api/remote/pair", post(pair_device))
+        .route("/api/remote/pair", post(remote_pairing::pair))
         .route("/api/remote/devices", get(list_devices))
         .route("/api/remote/devices/{id}", delete(revoke_device))
         .route(
@@ -1828,16 +1835,56 @@ async fn desktop_auth_middleware(
     request: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
+    let remote = request
+        .extensions()
+        .get::<remote_http::RemoteRequest>()
+        .cloned();
+    if remote.is_none() && request.uri().path().starts_with("/api/remote/") {
+        let host = request
+            .headers()
+            .get(axum::http::header::HOST)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+        let local_host = host
+            .parse::<axum::http::uri::Authority>()
+            .ok()
+            .is_some_and(|authority| {
+                let host = authority.host().trim_matches(['[', ']']);
+                host == "localhost"
+                    || host
+                        .parse::<std::net::IpAddr>()
+                        .is_ok_and(|ip| ip.is_loopback())
+            });
+        let origin_ok = request
+            .headers()
+            .get(axum::http::header::ORIGIN)
+            .is_none_or(|origin| origin.to_str().ok() == Some(format!("http://{host}").as_str()));
+        let local_peer = request
+            .extensions()
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+            .is_some_and(|address| address.0.ip().is_loopback());
+        if !local_host || !origin_ok || !local_peer {
+            return ApiError::new(
+                StatusCode::FORBIDDEN,
+                "local_management_required",
+                "远程访问管理需要本机同源连接。",
+            )
+            .into_response();
+        }
+    }
     if let Some(response) = custom_ui_api::render_request(
         custom_ui,
         request.method().clone(),
         request.uri().clone(),
-        false,
+        remote.is_some(),
         None,
     )
     .await
     {
         return response;
+    }
+    if remote.is_some() {
+        return next.run(request).await;
     }
     // /mcp 是对外 MCP 协议端点，独立做 Bearer 令牌鉴权（mcp_host_ops）。
     if request.uri().path() == "/mcp" || request.uri().path().starts_with("/mcp/") {
@@ -1978,13 +2025,13 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
                 .upgrade()
                 .ok_or_else(|| ApiError::internal("Runtime has shut down"))?;
             match session_api::find_session_path(&state, &id) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(error) if error.status == StatusCode::NOT_FOUND => return Ok(None),
                 Err(error) => return Err(error),
             };
-            Ok(Some(std::path::PathBuf::from(
-                session_api::session_cwd(&state, &id)?,
-            )))
+            Ok(Some(std::path::PathBuf::from(session_api::session_cwd(
+                &state, &id,
+            )?)))
         })
     });
     let schedules = state
@@ -1994,6 +2041,10 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
         .cloned()
         .map(schedule_api::routes)
         .unwrap_or_else(Router::new);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let terminals = terminal_api::routes().with_state(state.clone());
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let terminals = Router::new();
     Ok(Router::new()
         .merge(base_router(state.runtime_profile))
         .route(
@@ -2047,6 +2098,7 @@ pub(crate) fn app_router(state: Arc<AppState>) -> anyhow::Result<Router> {
             Some(state.workflows.cache.clone()),
         ))
         .merge(schedules)
+        .merge(terminals)
         .merge(
             axum::Router::new()
                 // 对外 MCP 端点：独立 Bearer 鉴权（desktop_auth_middleware 对 /mcp 放行）。
@@ -2090,97 +2142,6 @@ async fn reject_shutdown(
     next.run(request).await
 }
 
-async fn create_pairing_code(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    use std::fmt::Write as _;
-    let code: u32 = (product::now_ms() % 1_000_000) as u32;
-    let mut code_str = String::new();
-    let _ = write!(code_str, "{code:06}");
-    let expires_at = product::now_ms() + 300_000;
-    *state.pairing.pending.lock().expect("pairing lock") = Some((code_str.clone(), expires_at));
-    // release 同形状（qrDataUrl 在渲染失败时为空字符串；本后端暂不渲染二维码图形）。
-    Json(serde_json::json!({ "code": code_str, "expiresAt": expires_at, "qrDataUrl": "" }))
-}
-
-async fn pair_device(
-    State(state): State<Arc<AppState>>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
-    let code = body
-        .get("code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ApiError::bad_request("missing \"code\" field"))?;
-    let device_name = body
-        .get("deviceName")
-        .and_then(|v| v.as_str())
-        .unwrap_or("device")
-        .to_string();
-    let now = product::now_ms();
-    let mut pending = state.pairing.pending.lock().expect("pairing lock");
-    match pending.as_ref() {
-        Some((pending_code, expires_at)) if *expires_at > now && pending_code == code => {}
-        Some((_, expires_at)) if *expires_at <= now => {
-            return Err(ApiError::new(
-                StatusCode::GONE,
-                "pairing_code_expired",
-                "配对码已过期。",
-            ));
-        }
-        _ => {
-            return Err(ApiError::new(
-                StatusCode::NOT_FOUND,
-                "pairing_code_invalid",
-                "配对码无效。",
-            ));
-        }
-    }
-    *pending = None;
-    drop(pending);
-    // Device bearer token: sha256 over time+name+process entropy.
-    let token = {
-        use sha2::Digest;
-        use std::fmt::Write as _;
-        let digest = sha2::Sha256::digest(
-            format!(
-                "{}:{}:{}:{}",
-                product::now_ms(),
-                device_name,
-                std::process::id(),
-                state.fingerprint
-            )
-            .as_bytes(),
-        );
-        let mut out = String::new();
-        for b in digest.iter() {
-            let _ = write!(out, "{b:02x}");
-        }
-        out
-    };
-    let device = security::PairedDevice::new(product::new_id(), device_name, &token, now);
-    let mut devices = state.pairing.devices.lock().expect("devices lock");
-    devices.push(device.clone());
-    security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
-    // release pairedResponse：201 + {deviceId, token, serverName, endpoints, apiVersion}。
-    let endpoints = if state
-        .remote_enabled
-        .load(std::sync::atomic::Ordering::Relaxed)
-    {
-        serde_json::json!([{ "t": "lan" }])
-    } else {
-        serde_json::json!([])
-    };
-    Ok((
-        StatusCode::CREATED,
-        Json(serde_json::json!({
-            "deviceId": device.id,
-            "token": token,
-            "name": device.name,
-            "serverName": "Pisper",
-            "endpoints": endpoints,
-            "apiVersion": 1,
-        })),
-    ))
-}
-
 async fn list_devices(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let devices = state.pairing.devices.lock().expect("devices lock");
     // Tokens are not exposed in listings.
@@ -2206,6 +2167,7 @@ async fn revoke_device(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let mut devices = state.pairing.devices.lock().expect("devices lock");
     security::revoke_device(&state.data_dir, &mut devices, &device_id)?;
+    state.remote.revoke(&device_id);
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 

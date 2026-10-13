@@ -353,7 +353,7 @@ test('macOS arm64 packaging stages native binaries and App/DMG bundles', async (
     result.commands
       .filter(
         ({ args }) =>
-          args.includes('desktop_terminal::tests') ||
+          args.includes('tests::native_pty') ||
           args.includes('desktop_shell::startup_diagnostics::tests'),
       )
       .every(({ deploymentTarget }) => deploymentTarget === '14.0'),
@@ -366,7 +366,7 @@ test('macOS arm64 packaging stages native binaries and App/DMG bundles', async (
   assert.equal(result.build.args.includes('--target'), false)
   assert.ok(
     result.commands.some(
-      ({ args }) => args.includes('desktop_terminal::tests') && args.includes('--release'),
+      ({ args }) => args.includes('tests::native_pty') && args.includes('--release'),
     ),
   )
 })

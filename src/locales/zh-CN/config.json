@@ -656,5 +656,6 @@
   "interfaceSettings.composerVoice": "输入框语音按钮",
   "interfaceSettings.composerVoiceDescription": "在桌面输入框中常驻显示。关闭后隐藏入口；开启不会自动录音。",
   "interfaceSettings.voiceInput": "语音输入",
-  "interfaceSettings.voiceConversation": "语音对话"
+  "interfaceSettings.voiceConversation": "语音对话",
+  "remoteAccess.p2pNode": "P2P 节点（扫码连接）"
 }

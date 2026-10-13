@@ -33,6 +33,8 @@ jobs:
       - run: npm run test:ui-ux
       - run: npm run test:thinking
       - run: npm run test:sidebar-projects
+      - run: npm run test:terminal
+      - run: npm run test:remote
 
   windows-shell:
     name: Windows shell lifecycle
@@ -45,6 +47,8 @@ jobs:
           workspaces: runtime-rs
       - name: Test the Rust host shell lifecycle on Windows
         run: cargo test --manifest-path runtime-rs/Cargo.toml --release host_shell
+      - name: Test shared native terminal lifecycle on Windows
+        run: cargo test --manifest-path crates/pisper-terminal/Cargo.toml
 
   ios-native:
     name: iOS native tests

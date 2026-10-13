@@ -62,6 +62,7 @@ const APP_SHARED_PREFIXES = [
   'runtime-rs/',
   'shared/',
   'crates/tauri-plugin-dns-sd/',
+  'crates/pisper-remote-transport/',
 ]
 
 const APP_SHARED_FILES = new Set([

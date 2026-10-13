@@ -303,9 +303,9 @@ if (process.platform === 'win32' && process.env.RUNNER_ENVIRONMENT) {
     'test',
     '--locked',
     '--manifest-path',
-    desktopManifest,
+    path.join(root, 'crates/pisper-terminal/Cargo.toml'),
     ...desktopTestProfileArgs,
-    'desktop_terminal::tests',
+    'tests::native_pty',
     '--',
     '--test-threads=1',
   ]

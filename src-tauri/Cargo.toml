@@ -59,6 +59,7 @@ sha2 = "0.10"
 # P2P 隧道使用最新稳定 Iroh，并关闭非必需的 metrics/discovery 特性。
 iroh = { version = "=1.1.0", default-features = false, features = ["tls-ring"] }
 rand = "0.8"
+pisper-remote-transport = { path = "../crates/pisper-remote-transport" }
 base64 = "0.22"
 # 移动端首次启动从受信任 App 资产解出前端与共享资源；Rust Runtime 已静态链接。
 flate2 = "1"
@@ -79,7 +80,7 @@ rustls-platform-verifier = "=0.7.0"
 # 桌面端专属依赖：sidecar 管理、终端 PTY、托盘/窗口状态等在移动端无意义，
 # 部分 crate（如 portable-pty）在 Android/iOS 上无法编译，必须按目标隔离。
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-portable-pty = "0.9"
+pisper-terminal = { path = "../crates/pisper-terminal" }
 pisper-component-updater = { path = "../crates/component-updater" }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-single-instance = "2.4.3"
@@ -113,6 +114,7 @@ winreg = "0.55"
 computer-use-capture-win = { path = "../crates/computer-use-capture-win" }
 
 [dev-dependencies]
+pisper-remote-transport = { path = "../crates/pisper-remote-transport", features = ["test-support"] }
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。
 rcgen = "0.13"
 tokio-rustls = "0.26"

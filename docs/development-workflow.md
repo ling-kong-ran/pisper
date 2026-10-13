@@ -210,3 +210,11 @@ Rust 布局的统一 `npm run release -- patch` 在校验干净工作区、relea
 手动压缩通过单独发送 `/compact` 执行，不再提供独立压缩按钮。它在发送/排队/目标路径之前由本地命令处理器拦截，要求已有消息、会话空闲且没有附件、资源或参数；失败保留草稿，撤销本次未被服务器更新替换的乐观状态，允许重试。异步期间的新草稿与会话不被清空。`smoke-compact-command.mjs` 通过真实命令/同步 hook 和受控 HTTP 验证失败恢复，不调用真实模型。
 
 追忆中的“删除所选分支”须确认，删除所选用户/助手消息及其全部后代，保留兄弟分支；删除当前路径时回退至最近可恢复祖先。`DELETE /api/sessions/{id}/tree/branches/{entryId}` 返回 `{deletedEntryIds, leafId}`，运行/配置忙碌时返回 409、缺失返回 404、非消息节点返回 400。SDK 原子替换日志，失败不改变文件或内存，成功后刷新上下文与快照；删除不会撤销已执行的文件操作，也不删除独立 fork 会话。Runtime `session_tree_tests` 覆盖持久化、重启、兄弟保留、未知扩展节点、引用、失败原子性与 HTTP 租约；追忆 UI 冒烟用真实 React/同步 hook 和受控 HTTP 验证确认、忙碌、失败及只重试读取。
+
+### 远程连接与网页终端验证
+
+- `npm run test:remote`：离线可运行的 Iroh、固定证书和真实 Runtime 配对/任务/吊销契约测试。
+- `npm run test:remote:public`：强制两端关闭 IP 直连，使用真实公网中继；需要联网，不在常规 CI 中执行。
+- `npm run test:terminal`：共享原生 PTY 生命周期与网页真实 WebSocket/xterm 验证。
+
+职责、既有路径及验收边界见 [远程连接](architecture/remote-access.md) 和 [网页终端](architecture/web-terminal.md)。

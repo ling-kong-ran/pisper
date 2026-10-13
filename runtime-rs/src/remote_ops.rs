@@ -2,93 +2,33 @@
 //! 防火墙状态/重试、配对审批流（pairing-requests）与 revoke 别名。
 //! 契约对齐 release（状态码 + 机读 code + 响应字段）。
 //!
-//! 诚实接缝：系统防火墙规则管理与远程 HTTPS 监听（Iroh/LAN 端点）
-//! 尚未在本后端实现，相应状态如实报告而不是伪造 allowed/listening。
+//! 传输及其权限边界由 remote_access / remote_http 持有。
 
 use axum::extract::{ConnectInfo, Path, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::Json;
+use axum::{Extension, Json};
 use serde_json::{json, Value};
-use sha2::Digest;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 
 use crate::{product, security, ApiError, AppState};
 
 type ArcAppState = Arc<AppState>;
 
-const PAIRING_REQUEST_TTL_MS: u64 = 300_000;
+const PAIRING_REQUEST_TTL_MS: u64 = 120_000;
 
-fn remote_endpoints(state: &AppState) -> Value {
-    if state.remote_enabled.load(std::sync::atomic::Ordering::Relaxed) {
-        json!([{ "t": "lan" }])
-    } else {
-        json!([])
-    }
+async fn remote_endpoints(state: &AppState) -> Value {
+    state.remote.refresh_endpoints().await["endpoints"].clone()
 }
-
 fn server_name() -> &'static str {
     "Pisper"
 }
-
-fn paired_token(state: &AppState, device_name: &str) -> String {
-    let digest = sha2::Sha256::digest(
-        format!(
-            "{}:{}:{}:{}",
-            product::now_ms(),
-            device_name,
-            std::process::id(),
-            state.fingerprint
-        )
-        .as_bytes(),
-    );
-    digest
-        .iter()
-        .take(32)
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
-// -------------------------------------------------------------- firewall
-
-/// release RemoteFirewallService.status 的原生视图。
-async fn remote_firewall_view(state: &AppState) -> Value {
-    let enabled = state.remote_enabled.load(std::sync::atomic::Ordering::Relaxed);
-    json!({
-        "state": if enabled { "failed" } else { "disabled" },
-        "reason": if enabled { json!("firewall_management_unavailable") } else { Value::Null },
-        "port": Value::Null,
-        "scope": "program_port",
-        "checkedAt": Value::Null,
-        "busy": false,
-        "lanReachability": "unverified",
-    })
-}
-
-/// release GET /api/remote/firewall。
-pub(crate) async fn firewall_status(
-    State(state): State<ArcAppState>,
-) -> Json<Value> {
-    Json(remote_firewall_view(&state).await)
-}
-
-/// release POST /api/remote/firewall/retry：非 JSON 请求按契约返回 415。
-pub(crate) async fn firewall_retry(
-    State(state): State<ArcAppState>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
-    let content_type = headers
-        .get(axum::http::header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("");
-    if !content_type.starts_with("application/json") {
-        return Err(ApiError::new(
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "json_required",
-            "此操作需要 JSON 请求。",
-        ));
-    }
-    Ok(Json(remote_firewall_view(&state).await))
+fn paired_token() -> Result<String, ApiError> {
+    Ok(format!(
+        "pst_{}",
+        crate::remote_access::random_secret().map_err(ApiError::internal)?
+    ))
 }
 
 // ------------------------------------------------------ pairing requests
@@ -96,31 +36,38 @@ pub(crate) async fn firewall_retry(
 /// release POST /api/remote/pairing-requests：申请方创建配对审批（202）。
 pub(crate) async fn create_request(
     State(state): State<ArcAppState>,
-    headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    remote: Option<Extension<crate::remote_http::RemoteRequest>>,
     Json(body): Json<Value>,
-) -> Result<Json<Value>, ApiError> {
-    let device_name = body
-        .get("deviceName")
-        .and_then(Value::as_str)
-        .unwrap_or("device")
-        .to_string();
-    let ip = headers
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string)
-        .unwrap_or_else(|| addr.ip().to_string());
-    let now = product::now_ms();
-    let secret = {
-        let digest = sha2::Sha256::digest(
-            format!("{}:{}:{}", now, std::process::id(), state.fingerprint).as_bytes(),
-        );
-        digest
-            .iter()
-            .take(16)
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    if !state
+        .remote_enabled
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "remote_disabled",
+            "远程访问已关闭。",
+        ));
+    }
+    let private = match addr.ip() {
+        std::net::IpAddr::V4(ip) => ip.is_private() || ip.is_loopback() || ip.is_link_local(),
+        std::net::IpAddr::V6(ip) => {
+            ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local()
+        }
     };
+    // Iroh 转发在 TLS 端表现为回环地址，不能被当作同一局域网的审批请求。
+    if !private || (remote.is_some() && addr.ip().is_loopback()) {
+        return Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            "pairing_lan_required",
+            "连接申请需要局域网地址。",
+        ));
+    }
+    let device_name = crate::remote_pairing::device_name(&body)?;
+    let ip = addr.ip().to_string();
+    let now = product::now_ms();
+    let secret = crate::remote_access::random_secret().map_err(ApiError::internal)?;
     let approval = security::PairingApproval {
         request_id: product::new_id(),
         secret: secret.clone(),
@@ -133,24 +80,40 @@ pub(crate) async fn create_request(
         token: None,
     };
     {
-        let mut requests = state.pairing_requests.lock().expect("pairing requests lock");
+        let mut requests = state
+            .pairing_requests
+            .lock()
+            .expect("pairing requests lock");
         requests.retain(|request| request.expires_at > now);
+        if requests.len() >= 32 {
+            return Err(ApiError::new(
+                StatusCode::TOO_MANY_REQUESTS,
+                "pairing_request_limit",
+                "等待配对的设备过多。",
+            ));
+        }
         requests.push(approval.clone());
     }
-    Ok(Json(json!({
-        "requestId": approval.request_id,
-        "requestSecret": approval.secret,
-        "expiresAt": approval.expires_at,
-        "serverName": server_name(),
-        "endpoints": remote_endpoints(&state),
-        "fingerprint": state.fingerprint,
-        "apiVersion": 1,
-    })))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({
+            "requestId": approval.request_id,
+            "requestSecret": approval.secret,
+            "expiresAt": crate::session_ops::iso_timestamp(approval.expires_at),
+            "serverName": server_name(),
+            "endpoints": remote_endpoints(&state).await,
+            "fingerprint": state.remote.info()["fingerprint"],
+            "apiVersion": 1,
+        })),
+    ))
 }
 
 fn find_request(state: &AppState, request_id: &str) -> Result<security::PairingApproval, ApiError> {
     let now = product::now_ms();
-    let requests = state.pairing_requests.lock().expect("pairing requests lock");
+    let requests = state
+        .pairing_requests
+        .lock()
+        .expect("pairing requests lock");
     let Some(request) = requests.iter().find(|r| r.request_id == request_id) else {
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
@@ -176,7 +139,7 @@ fn require_pairing_secret(
         .get("x-pisper-pairing-secret")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("");
-    if presented != request.secret {
+    if !bool::from(presented.as_bytes().ct_eq(request.secret.as_bytes())) {
         return Err(ApiError::new(
             StatusCode::FORBIDDEN,
             "pairing_secret_mismatch",
@@ -200,14 +163,14 @@ pub(crate) async fn request_status(
             "deviceId": request.device_id,
             "token": request.token,
             "serverName": server_name(),
-            "endpoints": remote_endpoints(&state),
+            "endpoints": remote_endpoints(&state).await,
             "apiVersion": 1,
             "status": "approved",
         }))),
         "denied" => Ok(Json(json!({"status": "denied"}))),
         _ => Ok(Json(json!({
             "status": "pending",
-            "expiresAt": request.expires_at,
+            "expiresAt": crate::session_ops::iso_timestamp(request.expires_at),
         }))),
     }
 }
@@ -221,7 +184,10 @@ pub(crate) async fn cancel_request(
     let request = find_request(&state, &request_id)?;
     require_pairing_secret(&request, &headers)?;
     {
-        let mut requests = state.pairing_requests.lock().expect("pairing requests lock");
+        let mut requests = state
+            .pairing_requests
+            .lock()
+            .expect("pairing requests lock");
         requests.retain(|r| r.request_id != request_id);
     }
     Ok(StatusCode::NO_CONTENT)
@@ -230,18 +196,23 @@ pub(crate) async fn cancel_request(
 /// release GET /api/remote/pairing-requests：桌面端审批列表（不含 secret/token）。
 pub(crate) async fn list_requests(State(state): State<ArcAppState>) -> Json<Value> {
     let now = product::now_ms();
-    let requests = state.pairing_requests.lock().expect("pairing requests lock");
+    let requests = state
+        .pairing_requests
+        .lock()
+        .expect("pairing requests lock");
     let out: Vec<Value> = requests
         .iter()
-        .filter(|request| request.expires_at > now)
+        .filter(|request| request.expires_at > now && request.status == "pending")
         .map(|request| {
             json!({
                 "requestId": request.request_id,
+                "id": request.request_id,
+                "requestedAt": crate::session_ops::iso_timestamp(request.created_at),
                 "deviceName": request.device_name,
                 "ip": request.ip,
                 "status": request.status,
                 "createdAt": request.created_at,
-                "expiresAt": request.expires_at,
+                "expiresAt": crate::session_ops::iso_timestamp(request.expires_at),
             })
         })
         .collect();
@@ -255,14 +226,34 @@ pub(crate) async fn decide_request(
     Path(request_id): Path<String>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
-    let approved = body.get("approved").and_then(Value::as_bool).ok_or_else(|| {
-        ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "invalid_pairing_decision",
-            "approved 必须是布尔值。",
-        )
-    })?;
-    let mut request = find_request(&state, &request_id)?;
+    let approved = body
+        .get("approved")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "invalid_pairing_decision",
+                "approved 必须是布尔值。",
+            )
+        })?;
+    let mut requests = state.pairing_requests.lock().expect("pairing requests");
+    let request = requests
+        .iter_mut()
+        .find(|request| request.request_id == request_id)
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::NOT_FOUND,
+                "pairing_request_not_found",
+                "配对申请不存在。",
+            )
+        })?;
+    if request.expires_at <= product::now_ms() {
+        return Err(ApiError::new(
+            StatusCode::GONE,
+            "pairing_request_expired",
+            "配对申请已过期。",
+        ));
+    }
     if request.status != "pending" {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
@@ -271,29 +262,23 @@ pub(crate) async fn decide_request(
         ));
     }
     if approved {
-        let token = paired_token(&state, &request.device_name);
+        let token = paired_token()?;
         let device = security::PairedDevice::new(
             product::new_id(),
             request.device_name.clone(),
             &token,
             product::now_ms(),
         );
+        let mut devices = state.pairing.devices.lock().expect("devices lock");
+        let mut updated = devices.clone();
+        updated.push(device.clone());
+        security::save_devices(&state.data_dir, &updated).map_err(ApiError::internal)?;
+        *devices = updated;
         request.device_id = Some(device.id.clone());
         request.token = Some(token);
         request.status = "approved".to_string();
-        let mut devices = state.pairing.devices.lock().expect("devices lock");
-        devices.push(device);
-        security::save_devices(&state.data_dir, &devices).map_err(ApiError::internal)?;
     } else {
         request.status = "denied".to_string();
-    }
-    {
-        let mut requests = state.pairing_requests.lock().expect("pairing requests lock");
-        if let Some(slot) = requests.iter_mut().find(|r| r.request_id == request_id) {
-            slot.status = request.status.clone();
-            slot.device_id = request.device_id.clone();
-            slot.token = request.token.clone();
-        }
     }
     Ok(Json(json!({
         "requestId": request.request_id,
@@ -313,6 +298,7 @@ pub(crate) async fn revoke_device_post(
     {
         let mut devices = state.pairing.devices.lock().expect("devices lock");
         security::revoke_device(&state.data_dir, &mut devices, &device_id)?;
+        state.remote.revoke(&device_id);
     }
     Ok(StatusCode::NO_CONTENT)
 }

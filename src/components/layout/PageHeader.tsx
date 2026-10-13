@@ -49,6 +49,7 @@ type PageHeaderProps = {
   workflowActions: WorkflowActions | null
   desktopPlatform: string
   mobileApp?: boolean
+  terminalSupported: boolean
   terminalOpen: boolean
   onToggleTerminal: () => void
 }
@@ -69,6 +70,7 @@ export function PageHeader({
   workflowActions,
   desktopPlatform,
   mobileApp = false,
+  terminalSupported,
   terminalOpen,
   onToggleTerminal,
 }: PageHeaderProps) {
@@ -219,7 +221,7 @@ export function PageHeader({
             {primary[0]}
           </Button>
         )}
-        {desktop && !settingsPage && (
+        {terminalSupported && !settingsPage && (
           <Button
             variant="ghost"
             size="icon"

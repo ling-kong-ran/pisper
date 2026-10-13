@@ -6,6 +6,7 @@ mod desktop_pet;
 mod desktop_terminal;
 mod remote_workspaces;
 mod startup_diagnostics;
+#[cfg(test)]
 mod tunnel_lifecycle;
 
 #[cfg(all(test, target_os = "windows"))]
@@ -18,7 +19,7 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex,
+        mpsc, Mutex,
     },
     thread,
     time::{Duration, Instant},
@@ -122,8 +123,6 @@ pub(crate) struct SidecarReady {
     pub(crate) pid: u32,
     #[serde(default, rename = "desktopPetRunning")]
     pub(crate) desktop_pet_running: bool,
-    #[serde(default, rename = "remoteEnabled")]
-    pub(crate) remote_enabled: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -141,19 +140,6 @@ struct ManagedSidecar {
 }
 
 struct SidecarState(Mutex<Option<ManagedSidecar>>);
-#[derive(Default)]
-struct DesktopTunnelState(
-    Mutex<tunnel_lifecycle::TunnelLifecycle<Arc<crate::iroh_tunnel::TunnelServer>>>,
-);
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DesktopTunnelStatus {
-    version: u8,
-    endpoint: Option<crate::iroh_tunnel::TunnelEndpoint>,
-    error: Option<String>,
-}
-
 struct LifecycleState {
     quitting: AtomicBool,
 }
@@ -364,160 +350,11 @@ fn tunnel_status_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(desktop_data_dir(app)?.join("iroh-tunnel-status.json"))
 }
 
-fn write_tunnel_status(
-    path: &Path,
-    endpoint: Option<crate::iroh_tunnel::TunnelEndpoint>,
-    error: Option<String>,
-) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let temporary = path.with_extension("json.tmp");
-    let payload = serde_json::to_vec(&DesktopTunnelStatus {
-        version: 1,
-        endpoint,
-        error,
-    })
-    .map_err(|error| error.to_string())?;
-    std::fs::write(&temporary, payload).map_err(|error| error.to_string())?;
-    std::fs::rename(temporary, path).map_err(|error| error.to_string())
-}
-
-fn start_desktop_tunnel(app: &AppHandle) {
-    let Some(state) = app.try_state::<DesktopTunnelState>() else {
-        return;
-    };
-    // 密钥准备和启动登记也与 stop 串行，避免快速重启时并发创建不同密钥。
-    let mut lifecycle = state.0.lock().expect("desktop tunnel state poisoned");
-    let Some(generation) = lifecycle.start() else {
-        return;
-    };
-    let Ok(data_dir) = desktop_data_dir(app) else {
-        lifecycle.fail(generation, || {});
-        return;
-    };
-    let status_path = data_dir.join("iroh-tunnel-status.json");
-    let secret = match crate::iroh_tunnel::load_or_create_secret(&data_dir.join("iroh-secret.key"))
-    {
-        Ok(secret) => secret,
-        Err(error) => {
-            lifecycle.fail(generation, || {
-                let _ = write_tunnel_status(&status_path, None, Some(error));
-            });
-            return;
-        }
-    };
-    let app = app.clone();
-    // 绑定任务完成后负责回收过期 server；只取消已登记 server 的发布任务。
-    tauri::async_runtime::spawn(async move {
-        let server = match crate::iroh_tunnel::start_server(
-            "127.0.0.1:5174".parse().expect("固定回环地址必须有效"),
-            secret,
-            crate::iroh_tunnel::production_relay_mode(),
-        )
-        .await
-        {
-            Ok(server) => Arc::new(server),
-            Err(error) => {
-                if let Some(state) = app.try_state::<DesktopTunnelState>() {
-                    state
-                        .0
-                        .lock()
-                        .expect("desktop tunnel state poisoned")
-                        .fail(generation, || {
-                            let _ = write_tunnel_status(&status_path, None, Some(error));
-                        });
-                }
-                return;
-            }
-        };
-        let installed = if let Some(state) = app.try_state::<DesktopTunnelState>() {
-            let publisher_app = app.clone();
-            let publisher_server = server.clone();
-            let installed = state
-                .0
-                .lock()
-                .expect("desktop tunnel state poisoned")
-                .install(generation, server.clone(), || {
-                    tokio::spawn(publish_desktop_tunnel(
-                        publisher_app,
-                        publisher_server,
-                        status_path,
-                        generation,
-                    ))
-                })
-                .is_ok();
-            installed
-        } else {
-            false
-        };
-        if !installed {
-            server.shutdown().await;
-        }
-    });
-}
-
-async fn publish_desktop_tunnel(
-    app: AppHandle,
-    server: Arc<crate::iroh_tunnel::TunnelServer>,
-    status_path: PathBuf,
-    generation: tunnel_lifecycle::Generation,
-) {
-    let publish = |endpoint| {
-        let Some(state) = app.try_state::<DesktopTunnelState>() else {
-            return false;
-        };
-        let lifecycle = state.0.lock().expect("desktop tunnel state poisoned");
-        // 检查世代与临时文件写入、rename 在同一锁内，旧代无法覆盖或争用新代文件。
-        lifecycle.publish(generation, || {
-            let _ = write_tunnel_status(&status_path, Some(endpoint), None);
-        })
-    };
-    // 先公布直连信息；relay 就绪后再次覆盖，移动端即可跨公网连接。
-    let initial = server.endpoint(Duration::from_millis(300)).await;
-    let needs_relay = initial.relay_url.is_none();
-    if !publish(initial) {
-        return;
-    }
-    if needs_relay && !publish(server.endpoint(Duration::from_secs(20)).await) {
-        return;
-    }
-    // 网络切换会改变直连候选地址；周期性刷新状态文件，下一次配对即可拿到新地址。
-    loop {
-        tokio::time::sleep(Duration::from_secs(15)).await;
-        if !publish(server.endpoint(Duration::from_secs(3)).await) {
-            return;
-        }
-    }
-}
-
-fn stop_desktop_tunnel(app: &AppHandle) {
-    if let Some(state) = app.try_state::<DesktopTunnelState>() {
-        let server = state
-            .0
-            .lock()
-            .expect("desktop tunnel state poisoned")
-            .stop(|| {
-                if let Ok(path) = tunnel_status_path(app) {
-                    let _ = std::fs::remove_file(&path);
-                    let _ = std::fs::remove_file(path.with_extension("json.tmp"));
-                }
-            });
-        if let Some(server) = server {
-            tauri::async_runtime::spawn(async move {
-                server.shutdown().await;
-            });
-        }
-    }
-}
-
+// 旧界面先调用 /api/remote/enabled，再通知此命令。Runtime 现已统一拥有隧道，
+// 保留通知命令的响应契约，避免旧页面再创建第二套监听器或重新读取私钥。
 #[tauri::command]
-fn desktop_iroh_set_enabled(app: AppHandle, enabled: bool) {
-    if enabled {
-        start_desktop_tunnel(&app);
-    } else {
-        stop_desktop_tunnel(&app);
-    }
+fn desktop_iroh_set_enabled(enabled: bool) {
+    let _ = enabled;
 }
 
 fn sidecar_descriptor_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1005,8 +842,6 @@ pub fn run() {
                     }
                 }
 
-                app.manage(DesktopTunnelState::default());
-                stop_desktop_tunnel(app.handle());
                 stage = startup_diagnostics::StartupStage::Runtime;
                 let (child, ready) = start_sidecar(app)?;
                 app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
@@ -1020,9 +855,6 @@ pub fn run() {
                 app.manage(desktop_pet::DesktopPetWindowState::new(
                     ready.bootstrap_url.clone(),
                 ));
-                if ready.remote_enabled {
-                    start_desktop_tunnel(app.handle());
-                }
                 if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
                     stop_sidecar(app.handle());
                     return Err(error.into());
@@ -1062,7 +894,6 @@ pub fn run() {
             })();
             if result.is_err() {
                 stop_sidecar(app.handle());
-                stop_desktop_tunnel(app.handle());
                 // 不把底层错误中的个人路径、令牌或会话数据写入弹窗与日志。
                 let mut message = startup_diagnostics::guidance(stage).to_string();
                 if let Some(missing) = missing_resource {
@@ -1109,7 +940,6 @@ pub fn run() {
             if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
                 desktop_terminal::shutdown(&state);
             }
-            stop_desktop_tunnel(app);
             stop_sidecar(app);
         }
     });

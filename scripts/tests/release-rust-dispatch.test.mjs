@@ -5,6 +5,16 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { releaseComponentsForPath } from '../release-changes.mjs'
+import { isAppOwnedPath } from '../app-paths.mjs'
+
+test('shared PTY and P2P changes reach every consuming release channel', () => {
+  for (const crate of ['pisper-terminal', 'pisper-remote-transport']) {
+    assert.deepEqual(releaseComponentsForPath(`crates/${crate}/src/lib.rs`), ['desktop', 'runtime'])
+  }
+  assert.equal(isAppOwnedPath('crates/pisper-remote-transport/src/pinning.rs'), true)
+  assert.equal(isAppOwnedPath('crates/pisper-terminal/src/lib.rs'), false)
+})
 
 const repo = fileURLToPath(new URL('../../', import.meta.url))
 const preload = new URL('./fixtures/release-command-fixture.mjs', import.meta.url).href

@@ -67,7 +67,10 @@ type PairingCode = {
   code: string
   expiresAt: string
   qrDataUrl: string
-  connectionInfo?: { fingerprint: string; endpoints: { t: string; url: string }[] }
+  connectionInfo?: {
+    fingerprint: string
+    endpoints: { t: string; url?: string; nodeId?: string }[]
+  }
 }
 
 type PairingApproval = {
@@ -164,10 +167,6 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         body: { enabled, configureFirewall: firewall !== null },
         timeout: 150_000,
       })
-      const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
-      if (invoke) {
-        await invoke('desktop_iroh_set_enabled', { enabled }).catch(() => undefined)
-      }
       if (!enabled) {
         setPairing(null)
         setPairingOpen(false)
@@ -342,9 +341,12 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               <div className="mt-2 space-y-2 text-xs">
                 <div>{t('remote-workspace:serverAddress')}</div>
                 {pairing.connectionInfo.endpoints.map((endpoint) => (
-                  <code key={endpoint.url} className="block select-all break-all">
-                    {endpoint.url}
-                  </code>
+                  <div key={endpoint.url || endpoint.nodeId}>
+                    {endpoint.t === 'iroh' && <div>{t('config:remoteAccess.p2pNode')}</div>}
+                    <code className="block select-all break-all">
+                      {endpoint.url || endpoint.nodeId}
+                    </code>
+                  </div>
                 ))}
                 <div>{t('remote-workspace:fingerprint')}</div>
                 <code className="block select-all break-all">

@@ -2,6 +2,7 @@
 // 支持多标签、缩放与断开重连提示。
 import {
   useCallback,
+  useMemo,
   useEffect,
   useRef,
   useState,
@@ -26,6 +27,7 @@ import {
 } from '@/features/terminal/model/terminal-session-scope'
 
 import { Button } from '@/components/ui/button'
+import { createTerminalTransport } from '@/features/terminal/api/terminal-transport'
 
 type TerminalTab = {
   id: string
@@ -158,7 +160,7 @@ export function TerminalPanel({
   onHeightChange,
   layout = 'dock',
 }: TerminalPanelProps) {
-  const bridge = window.pisperDesktop
+  const bridge = useMemo(createTerminalTransport, [])
   const [profiles, setProfiles] = useState<DesktopTerminalProfile[]>([])
   const [tabs, setTabs] = useState<TerminalTab[]>([])
   const [activeIds, setActiveIds] = useState<Record<string, string>>({})
@@ -196,10 +198,7 @@ export function TerminalPanel({
     window.addEventListener('resize', clampHeight)
     return () => window.removeEventListener('resize', clampHeight)
   }, [height, onHeightChange, open])
-  const supported = Boolean(bridge?.terminalProfiles && bridge.terminalCreate)
-
   useEffect(() => {
-    if (!supported) return
     let current = true
     bridge
       ?.terminalProfiles?.()
@@ -212,7 +211,7 @@ export function TerminalPanel({
     return () => {
       current = false
     }
-  }, [bridge, supported])
+  }, [bridge])
 
   // 销毁终端运行时：断开 ResizeObserver、释放插件、销毁 xterm 与 DOM 节点。
   const disposeRuntime = useCallback((id: string) => {
@@ -425,6 +424,7 @@ export function TerminalPanel({
         const created: DesktopTerminalCreated = await bridge.terminalCreate(
           {
             terminalId: id,
+            sessionId,
             profileId: profile.id,
             cwd,
             cols: runtimesRef.current.get(id)?.terminal.cols || DEFAULT_COLS,
@@ -531,7 +531,6 @@ export function TerminalPanel({
     window.addEventListener('pointerup', finish, { once: true })
   }
 
-  if (!supported) return null
   const fill = layout === 'fill'
 
   return (

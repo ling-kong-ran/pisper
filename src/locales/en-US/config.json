@@ -656,5 +656,6 @@
   "interfaceSettings.composerVoice": "Composer voice controls",
   "interfaceSettings.composerVoiceDescription": "Show persistent desktop composer buttons. Turning them on does not start recording.",
   "interfaceSettings.voiceInput": "Voice input",
-  "interfaceSettings.voiceConversation": "Voice conversation"
+  "interfaceSettings.voiceConversation": "Voice conversation",
+  "remoteAccess.p2pNode": "P2P node (connect by scanning)"
 }

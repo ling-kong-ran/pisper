@@ -471,7 +471,7 @@ pub struct PairedDevice {
 
 #[derive(Default)]
 pub struct PairingStore {
-    /// Pending (code, expires_at_ms) — one outstanding pairing at a time.
+    /// 待兑换配对码的 SHA-256 与失效时间；只保留一个有效码。
     pub pending: Mutex<Option<(String, u64)>>,
     pub devices: Mutex<Vec<PairedDevice>>,
 }
@@ -542,6 +542,41 @@ fn update_remote(
 pub fn load_devices(data_dir: &str) -> Result<Vec<PairedDevice>, String> {
     serde_json::from_value(remote_document(data_dir)?["devices"].clone())
         .map_err(|_| "Invalid remote device records; existing data was preserved".into())
+}
+
+pub fn load_pairing_code(data_dir: &str) -> Result<Option<(String, u64)>, String> {
+    let document = remote_document(data_dir)?;
+    let value = &document["pairingCode"];
+    if value.is_null() {
+        return Ok(None);
+    }
+    let invalid = || "Invalid pairing code record; existing data was preserved".to_string();
+    let hash = value["codeHash"]
+        .as_str()
+        .filter(|hash| hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(invalid)?;
+    let expires = value["expiresAt"]
+        .as_str()
+        .and_then(crate::session_ops::parse_timestamp_ms)
+        .ok_or_else(invalid)?;
+    Ok(Some((hash.to_string(), expires)))
+}
+
+pub fn save_pairing_code(data_dir: &str, hash: &str, expires: u64) -> Result<(), String> {
+    update_remote(data_dir, |document| {
+        document["pairingCode"] = serde_json::json!({
+            "codeHash": hash, "expiresAt": crate::session_ops::iso_timestamp(expires)
+        });
+    })
+}
+
+pub fn redeem_pairing_code(data_dir: &str, devices: &[PairedDevice]) -> Result<(), String> {
+    let value = serde_json::to_value(devices).map_err(|_| "Remote device encoding failed")?;
+    // 设备登记与一次性码消费必须在原文件的一次原子写入中提交。
+    update_remote(data_dir, |document| {
+        document["devices"] = value;
+        document["pairingCode"] = serde_json::Value::Null;
+    })
 }
 
 pub fn save_devices(data_dir: &str, devices: &[PairedDevice]) -> Result<(), String> {
@@ -639,13 +674,20 @@ mod tests {
         std::fs::write(&path, serde_json::to_vec(&original).unwrap()).unwrap();
         let mut devices = load_devices(directory).unwrap();
         assert!(load_remote_enabled(directory).unwrap());
+        let code_hash = crate::remote_access::hash("ABCD1234");
+        save_pairing_code(directory, &code_hash, 1_900_000_000_000).unwrap();
+        assert_eq!(
+            load_pairing_code(directory).unwrap(),
+            Some((code_hash, 1_900_000_000_000))
+        );
         devices.push(PairedDevice::new(
             "new-device".into(),
             "新手机".into(),
             "fixture-secret",
             0,
         ));
-        save_devices(directory, &devices).unwrap();
+        redeem_pairing_code(directory, &devices).unwrap();
+        assert_eq!(load_pairing_code(directory).unwrap(), None);
         revoke_device(directory, &mut devices, "old-device").unwrap();
         save_remote_enabled(directory, false).unwrap();
         let saved: serde_json::Value =

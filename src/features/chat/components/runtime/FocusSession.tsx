@@ -558,18 +558,17 @@ export const FocusSession = memo(function FocusSession({
   )
   const headerActions = (
     <div className="flex flex-none items-center gap-1">
-      {window.pisperDesktop?.terminalProfiles &&
-        runtimeFeatureAvailable(capabilities, 'terminal') && (
-          <button
-            type="button"
-            className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-            aria-label={t('navigation:pageHeader.toggleTerminal')}
-            title={t('navigation:pageHeader.toggleTerminal')}
-            onClick={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}
-          >
-            <TerminalSquare size={16} />
-          </button>
-        )}
+      {!mobileApp && runtimeFeatureAvailable(capabilities, 'terminal') && (
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+          aria-label={t('navigation:pageHeader.toggleTerminal')}
+          title={t('navigation:pageHeader.toggleTerminal')}
+          onClick={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}
+        >
+          <TerminalSquare size={16} />
+        </button>
+      )}
       <SessionTreeControl
         visible={messages.length > 0}
         open={sessionTreeOpen}

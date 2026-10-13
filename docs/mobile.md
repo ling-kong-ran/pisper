@@ -107,7 +107,7 @@ Embedded Runtime                 pinned TLS + Bearer
 - WebView 不直接信任桌面端自签证书，而是只访问 App 内的随机回环代理。
 - 所有公开 APK、AAB 与 IPA 始终从签名包内 embedded Runtime 加载 React 静态资源；远程模式只把 `/api/*` 数据请求发送给用户控制的 Desktop Runtime，桌面端不能替换 App UI。
 - Rust 本地代理校验配对时保存的证书指纹，向桌面端请求注入设备 Bearer 令牌，并按字节透传 API 响应和 SSE 事件流。Iroh 只替换 TCP 路径，不终止或改写 TLS。
-- Runtime 会广播 `_pisper._tcp.local` mDNS 服务，并在二维码中按建议顺序列出 LAN、IPv6、Tailscale 与 Iroh endpoint。
+- 桌面 Runtime 会广播 `_pisper._tcp.local` mDNS 服务，并在二维码中列出可用的 LAN HTTPS 与 Iroh endpoint；Iroh 自动选择直连或加密中继。实现边界与公网模拟命令见 [Rust Runtime 远程连接](architecture/remote-access.md)。
 - 代理优先探测直接地址，最多并发 8 个局域网探测，共享 2.5 秒预算，再给 Iroh 8 秒探测机会。多个被防火墙丢弃的地址不会逐个耗尽整个请求预算。网络恢复后重建 HTTP 连接池并重新探测；电脑离线、远程访问关闭或 P2P relay 不可达时，手机无法使用远程 Runtime。
 - Iroh 会先尝试 UDP 洞穿，失败时使用其公共 relay。Pisper 不需要部署中转服务器；relay 看到的是 QUIC 隧道流量，而隧道内仍是指纹锁定的 TLS。
 

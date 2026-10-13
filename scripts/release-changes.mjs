@@ -85,6 +85,11 @@ export function releaseComponentsForPath(input) {
   }
   if (path.startsWith('packages/pisper/')) return []
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
+  if (
+    path.startsWith('crates/pisper-terminal/') ||
+    path.startsWith('crates/pisper-remote-transport/')
+  )
+    return ['desktop', 'runtime']
   if (path.startsWith('crates/tauri-plugin-dns-sd/')) return ['desktop']
   if (path.startsWith('src-tauri/')) return ['desktop']
   // Desktop 安装包内置 TUI，入口、版本暂存和发布说明必须看到同一份变更。

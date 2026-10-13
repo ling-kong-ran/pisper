@@ -121,8 +121,11 @@ export async function checkNativeTerminalEvidence({ check, nativeEvidence }) {
       ['win32', 'linux', 'darwin'].includes(nativeEvidence.platform),
       'Record the actual native test platform',
     )
-    assert.match(String(nativeEvidence.command), /src-tauri.*Cargo\.toml/)
-    assert.match(String(nativeEvidence.command), /desktop_terminal::tests/)
+    assert.match(
+      String(nativeEvidence.command),
+      /(?:src-tauri|crates[\\/]pisper-terminal).*Cargo\.toml/,
+    )
+    assert.match(String(nativeEvidence.command), /(?:desktop_terminal::)?tests/)
     const output = String(nativeEvidence.output || '')
     const required = [...nativeTests]
     if (nativeEvidence.platform === 'win32') {

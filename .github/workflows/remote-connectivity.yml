@@ -1,0 +1,48 @@
+name: Remote connectivity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-connectivity-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  remote-connectivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_BUILD_JOBS: 1
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            runtime-rs -> target
+            crates/pisper-remote-transport -> target
+      - name: Build isolated PC and simulated mobile
+        run: |
+          cargo build --locked --manifest-path runtime-rs/Cargo.toml
+          cargo build --locked --manifest-path crates/pisper-remote-transport/Cargo.toml --example remote-runtime-smoke
+      - name: Direct connection and original data persistence
+        run: node scripts/smoke-remote-runtime.mjs 2>&1 | tee remote-direct.log
+      - name: Public relay with IP transports disabled on both peers
+        run: node scripts/smoke-remote-runtime.mjs --public 2>&1 | tee remote-public.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-connectivity-results
+          path: remote-*.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -14,7 +14,7 @@ resolver = "2"
 pi-rs = "0.2.2"
 # rsa rc.18 的编码接口尚不兼容 pkcs1 rc.5；两个宿主复用 Runtime 已验证的版本。
 pkcs1 = "=0.8.0-rc.4"
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 serde = { version = "1", features = ["derive"] }
@@ -24,6 +24,10 @@ tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["rt", "io"] }
 anyhow = "1"
 getrandom = "0.2"
+pisper-remote-transport = { path = "../crates/pisper-remote-transport" }
+rcgen = "0.13"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
 subtle = "2.6"
 sha2 = "0.11"
 tracing = "0.1"
@@ -83,3 +87,7 @@ path = "src/main.rs"
 [patch.crates-io]
 # pi-rs 0.2.2 native MCP fixes documented in vendor/pi-rs/PISPER-PATCHES.md.
 pi-rs = { path = "vendor/pi-rs" }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+pisper-terminal = { path = "../crates/pisper-terminal" }
+mdns-sd = "=0.17.2"

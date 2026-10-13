@@ -41,61 +41,55 @@ pub fn builtin_tools() -> serde_json::Value {
 // ------------------------------------------------------------------- remote
 
 pub async fn remote_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let enabled = state
-        .remote_enabled
-        .load(std::sync::atomic::Ordering::Relaxed);
-    Json(serde_json::json!({
-        "enabled": enabled,
-        "fingerprint": state.fingerprint,
-        "endpoints": if enabled { serde_json::json!([{ "t": "lan" }]) } else { serde_json::json!([]) },
-    }))
+    let info = state.remote.info();
+    Json(
+        serde_json::json!({"apiVersion":1,"enabled":state.remote_enabled.load(std::sync::atomic::Ordering::Acquire),
+        "listening":info["listening"],"error":info["error"]}),
+    )
 }
 
 pub async fn remote_connection_info(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "fingerprint": state.fingerprint,
-        "endpoints": if state.remote_enabled.load(std::sync::atomic::Ordering::Relaxed) {
-            serde_json::json!([{ "t": "lan" }])
-        } else {
-            serde_json::json!([])
-        },
-    }))
+    Json(state.remote.refresh_endpoints().await)
 }
 
 pub async fn remote_set_enabled(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    if state.runtime_profile != "desktop" {
+        return Err(ApiError::new(
+            axum::http::StatusCode::NOT_IMPLEMENTED,
+            "remote_unavailable",
+            "移动本地宿主不能开启远程服务器。",
+        ));
+    }
     let enabled = body
         .get("enabled")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+        .and_then(|value| value.as_bool())
+        .ok_or_else(|| ApiError::bad_request("enabled 必须为布尔值。"))?;
+    let _configuration = state.remote.configure().await;
     crate::security::save_remote_enabled(&state.data_dir, enabled).map_err(ApiError::internal)?;
-    if !enabled {
-        *state.pairing.pending.lock().expect("pairing lock") = None;
+    state
+        .remote_enabled
+        .store(enabled, std::sync::atomic::Ordering::Release);
+    if enabled {
+        crate::remote_http::start(&state).await?;
+    } else {
+        *state.pairing.pending.lock().expect("pairing code") = None;
         state
             .pairing_requests
             .lock()
-            .expect("pairing requests lock")
+            .expect("pairing requests")
             .clear();
+        state.remote.stop().await;
     }
-    state
-        .remote_enabled
-        .store(enabled, std::sync::atomic::Ordering::Relaxed);
-    // release setEnabled({configureFirewall:true}) 触发防火墙 reconcile；
-    // 失败不阻塞开关本身（release 同样吞掉防火墙错误继续返回状态）。
-    if body.get("configureFirewall").and_then(|v| v.as_bool()) == Some(true) {
-        let port = body
-            .get("port")
-            .and_then(|v| v.as_u64())
+    if body["configureFirewall"] == true {
+        let port = state.remote.info()["port"]
+            .as_u64()
             .map(|value| value as u16);
         let _ = crate::firewall_ops::reconcile(&state, enabled, port).await;
     }
-    Ok(Json(serde_json::json!({
-        "enabled": enabled,
-        "listening": enabled,
-        "error": serde_json::Value::Null,
-    })))
+    Ok(remote_status(State(state.clone())).await)
 }
 
 // ---------------------------------------------------------------------- vcs
