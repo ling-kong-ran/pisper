@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   CHAT_ATTACHMENT_ACCEPT,
   clipboardFiles,
+  isFileDrag,
   pathAttachments,
 } from '../../src/features/chat/attachments.ts'
 
@@ -33,6 +34,12 @@ test('plain text clipboard data does not trigger attachment handling', () => {
   )
 })
 
+test('only file drags are treated as composer attachments', () => {
+  assert.equal(isFileDrag({ types: ['Files'] }), true)
+  assert.equal(isFileDrag({ types: ['text/plain'] }), false)
+  assert.equal(isFileDrag(null), false)
+})
+
 test('system picker advertises every supported mobile attachment family', () => {
   for (const type of ['image/*', 'text/*', 'application/json', '.pdf', '.docx', '.md']) {
     assert.ok(CHAT_ATTACHMENT_ACCEPT.split(',').includes(type))
@@ -52,6 +59,20 @@ test('mobile chat uses the system file picker while desktop keeps path attachmen
   assert.match(picker, /selection\.addFiles\(files\)/)
   assert.match(picker, /window\.pisperDesktop\?\.pickFiles/)
   assert.match(picker, /selection\.addAttachments\(pathAttachments\(paths \|\| \[\]\)\)/)
+})
+
+test('composer drop uses the same file attachment path as paste', async () => {
+  const [focus, attachments] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/attachments.ts', 'utf8'),
+  ])
+  assert.match(focus, /onDragOver=\{showAttachmentDrop\}/)
+  assert.match(focus, /onDrop=\{\(event\) => \{[\s\S]*selection\.dropFiles\(event\)/)
+  assert.match(focus, /t\('chat:focusSession\.dropAttachment'\)/)
+  assert.match(
+    attachments,
+    /const dropFiles = useCallback\([\s\S]*clipboardFiles\(event\.dataTransfer\)[\s\S]*addFiles\(files\)/,
+  )
 })
 
 test('selected files become path-only attachments without content or size fields', () => {

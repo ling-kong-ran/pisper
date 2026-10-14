@@ -1,6 +1,6 @@
 // 附件选择：支持粘贴、拖拽与手机系统文件选择，统一转换成 ChatAttachment；
 // 超过大小上限（10MB）的附件被拒绝并提示。
-import { useCallback, useRef, useState, type ClipboardEvent } from 'react'
+import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { storedLanguage, translateText, type I18nValues } from '@/app/i18n.ts'
 import type { ChatAttachment } from '@/types/chat'
 
@@ -59,6 +59,11 @@ export function clipboardFiles(clipboardData: DataTransfer | null | undefined): 
     .filter((item) => item.kind === 'file')
     .map((item) => item.getAsFile?.())
     .filter((file): file is File => Boolean(file))
+}
+
+// 浏览器拖放只提供 File，不提供 Runtime 可读的本地路径，因此与粘贴一样走内容附件。
+export function isFileDrag(dataTransfer: DataTransfer | null | undefined) {
+  return [...(dataTransfer?.types || [])].includes('Files')
 }
 
 type Translate = (message: string, values?: I18nValues) => string
@@ -185,6 +190,16 @@ export function useAttachmentSelection(
     [addFiles],
   )
 
+  const dropFiles = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (!isFileDrag(event.dataTransfer)) return
+      event.preventDefault()
+      const files = clipboardFiles(event.dataTransfer)
+      if (files.length) void addFiles(files)
+    },
+    [addFiles],
+  )
+
   const removeAttachment = useCallback(
     (id: string) => {
       replaceAttachments(attachmentsRef.current.filter((item) => item.id !== id))
@@ -215,6 +230,7 @@ export function useAttachmentSelection(
     attachmentError,
     addFiles,
     pasteFiles,
+    dropFiles,
     removeAttachment,
     clearAttachments,
     addAttachments,
