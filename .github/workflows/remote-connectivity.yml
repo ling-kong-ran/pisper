@@ -35,6 +35,8 @@ jobs:
         run: |
           cargo build --locked --manifest-path runtime-rs/Cargo.toml
           cargo build --locked --manifest-path crates/pisper-remote-transport/Cargo.toml --example remote-runtime-smoke
+      - name: Transport recovery and delayed initial handshake
+        run: cargo test --locked --manifest-path crates/pisper-remote-transport/Cargo.toml
       - name: Direct connection and original data persistence
         run: node scripts/smoke-remote-runtime.mjs 2>&1 | tee remote-direct.log
       - name: Public relay with IP transports disabled on both peers

@@ -1039,6 +1039,76 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn slow_initial_handshake_does_not_consume_tls_budget_or_repeat_per_request() {
+        let (target, fingerprint, gate) = spawn_tls_sse_server_with_connections(2).await;
+        gate.add_permits(2);
+        let server = Endpoint::builder(iroh::endpoint::presets::Minimal)
+            .alpns(vec![PISPER_TUNNEL_ALPN.to_vec()])
+            .relay_mode(RelayMode::Disabled)
+            .bind()
+            .await
+            .unwrap();
+        let remote = loopback_endpoint(
+            server.id().to_string(),
+            server.bound_sockets().first().unwrap().port(),
+        );
+        let (arrived, waiting) = tokio::sync::oneshot::channel();
+        let (release, paused) = tokio::sync::oneshot::channel();
+        let accepting = server.clone();
+        let server_task = tokio::spawn(async move {
+            let incoming = accepting.accept().await.unwrap();
+            arrived.send(()).unwrap();
+            paused.await.unwrap();
+            let connection = incoming.await.unwrap();
+            // 只接受一次 QUIC 连接：后续独立 HTTP 请求必须复用它的流。
+            let mut streams = tokio::task::JoinSet::new();
+            for _ in 0..2 {
+                let (send, recv) = connection.accept_bi().await.unwrap();
+                streams.spawn(async move {
+                    copy_tcp_and_quic(TcpStream::connect(target).await.unwrap(), send, recv).await
+                });
+            }
+            while let Some(result) = streams.join_next().await {
+                result.unwrap().unwrap();
+            }
+        });
+        let client = TunnelClient::start(SecretKey::generate(), RelayMode::Disabled)
+            .await
+            .unwrap();
+        let connecting_client = client.clone();
+        let opening = connecting_client.open_bridge(remote);
+        tokio::pin!(opening);
+        tokio::select! {
+            _ = waiting => {},
+            _ = &mut opening => panic!("隧道握手完成前不能开放 TLS 桥"),
+            _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("未开始隧道握手"),
+        }
+        // 故障注入：首次握手超过 pinned_client 的 5 秒 TLS 预算，不能靠放宽预算通过。
+        assert!(tokio::time::timeout(Duration::from_secs(6), &mut opening)
+            .await
+            .is_err());
+        release.send(()).unwrap();
+        let bridge = tokio::time::timeout(Duration::from_secs(8), &mut opening)
+            .await
+            .unwrap()
+            .unwrap();
+        for _ in 0..2 {
+            // 独立客户端排除 HTTP 连接池复用，实际执行两次 TLS 握手和 HTTP 请求。
+            let http = crate::pinning::pinned_client(&fingerprint).unwrap();
+            let response = http.get(bridge.url()).send().await.unwrap();
+            assert_eq!(response.status(), reqwest::StatusCode::OK);
+            assert!(response.text().await.unwrap().contains("event: done"));
+        }
+        tokio::time::timeout(Duration::from_secs(5), server_task)
+            .await
+            .unwrap()
+            .unwrap();
+        drop(bridge);
+        client.close().await;
+        server.close().await;
+    }
+
+    #[tokio::test]
     #[ignore = "需要访问公网 Iroh relay；普通 CI 不执行"]
     async fn relays_without_direct_addresses() {
         let _ = tracing_subscriber::fmt()
