@@ -385,6 +385,7 @@
   "chatPage.stopTheActiveRunBeforeRenamingTheChat": "Stop the active run before renaming the chat",
   "chatPage.stopTheActiveRunBeforeChangingTheExecutionMode": "Stop the active run before changing the execution mode",
   "focusSession.addAttachment": "Add attachment",
+  "focusSession.dropAttachment": "Drop files to attach",
   "focusSession.withdrawQueuedInput": "Withdraw message",
   "focusSession.queuedInputAlreadyConsumed": "This message has already left the queue and cannot be withdrawn.",
   "focusSession.openCommandPaletteShortcut": "Open command palette ({shortcut})",

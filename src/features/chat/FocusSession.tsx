@@ -3,7 +3,7 @@
 // use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
 // focus-session-composer-bits，状态文案在 focus-session-status；
 // composer 主体与发送行为约定保留在本文件。
-import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
 import {
   AudioLines,
   Braces,
@@ -29,6 +29,7 @@ import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { AttachmentPicker } from './AttachmentPicker'
+import { isFileDrag } from './attachments'
 import { AttachmentTray } from './AttachmentTray'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { ComposerCommandMenu } from './ComposerCommandMenu'
@@ -194,6 +195,7 @@ export const FocusSession = memo(function FocusSession({
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [attachmentDropActive, setAttachmentDropActive] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
   const contextOpenAtPointerDownRef = useRef<boolean | null>(null)
   const addSelectedAttachments = selection.addAttachments
@@ -685,6 +687,18 @@ export const FocusSession = memo(function FocusSession({
       compact={mobileLayout}
     />
   )
+  const showAttachmentDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event.dataTransfer)) return false
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    setAttachmentDropActive(true)
+    return true
+  }
+  const hideAttachmentDrop = (event: DragEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget
+    if (next instanceof Node && event.currentTarget.contains(next)) return
+    setAttachmentDropActive(false)
+  }
   const composerBlock = (
     <form
       key="composer"
@@ -725,7 +739,27 @@ export const FocusSession = memo(function FocusSession({
         streaming={streaming}
         statusLabel={composerStatusLabel}
       />
-      <div className="focus-composer relative flex min-w-0 flex-col gap-2 rounded-[18px] border border-border/70 bg-muted/45 p-2.5 shadow-xs transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#242424] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[40px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground">
+      <div
+        className={cn(
+          'focus-composer relative flex min-w-0 flex-col gap-2 rounded-[18px] border border-border/70 bg-muted/45 p-2.5 shadow-xs transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md dark:bg-[#242424] [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[40px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground',
+          attachmentDropActive && 'border-ring ring-2 ring-ring/30',
+        )}
+        onDragEnter={showAttachmentDrop}
+        onDragOver={showAttachmentDrop}
+        onDragLeave={hideAttachmentDrop}
+        onDrop={(event) => {
+          setAttachmentDropActive(false)
+          selection.dropFiles(event)
+        }}
+      >
+        {attachmentDropActive && (
+          <div
+            role="status"
+            className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[18px] border border-dashed border-ring bg-background/85 px-4 text-center text-sm text-foreground"
+          >
+            {t('chat:focusSession.dropAttachment')}
+          </div>
+        )}
         <ComposerCommandMenu
           placement="top"
           sessionId={session.id}

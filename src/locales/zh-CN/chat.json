@@ -385,6 +385,7 @@
   "chatPage.stopTheActiveRunBeforeRenamingTheChat": "请先停止运行，再重命名会话",
   "chatPage.stopTheActiveRunBeforeChangingTheExecutionMode": "请先停止运行，再切换执行模式",
   "focusSession.addAttachment": "添加附件",
+  "focusSession.dropAttachment": "松开以添加附件",
   "focusSession.withdrawQueuedInput": "撤回消息",
   "focusSession.queuedInputAlreadyConsumed": "该消息已离开待发送队列，无法撤回。",
   "focusSession.openCommandPaletteShortcut": "打开命令面板（{shortcut}）",
