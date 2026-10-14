@@ -1,6 +1,6 @@
 {
   "name": "pisper",
-  "version": "0.6.3",
+  "version": "0.5.64",
   "private": true,
   "description": "Pisper CLI.",
   "license": "MIT",
@@ -19,7 +19,7 @@
     "url": "https://github.com/ling-kong-ran/pisper/issues"
   },
   "engines": {
-    "node": ">=22.19"
+    "node": ">=20"
   },
   "bin": {
     "pisper": "bin/pisper.mjs"
@@ -42,8 +42,7 @@
   },
   "pisper": {
     "repository": "ling-kong-ran/pisper",
-    "tuiVersion": "0.6.3",
-    "runtimeVersion": "0.6.3",
-    "runtimeBackend": "rust"
+    "tuiVersion": "0.5.38",
+    "runtimeVersion": "0.5.62"
   }
 }

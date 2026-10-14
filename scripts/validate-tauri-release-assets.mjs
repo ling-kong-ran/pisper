@@ -12,35 +12,33 @@ if (!match) {
 }
 
 const version = match[1]
-// 安装包和 updater 缺少任一已支持平台，都不能发布不完整的 latest.json。
 const tauriAssets = [
   'latest.json',
+  `Pisper_${version}_darwin_aarch64.app.tar.gz`,
+  `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
+  `Pisper_${version}_darwin_aarch64.dmg`,
+  `Pisper_${version}_darwin_x86_64.app.tar.gz`,
+  `Pisper_${version}_darwin_x86_64.app.tar.gz.sig`,
+  `Pisper_${version}_darwin_x86_64.dmg`,
+  `Pisper_${version}_linux_x86_64.AppImage`,
+  `Pisper_${version}_linux_x86_64.AppImage.sig`,
+  `Pisper_${version}_linux_x86_64.deb`,
   `Pisper_${version}_windows_x86_64-setup.exe`,
   `Pisper_${version}_windows_x86_64-setup.exe.sig`,
   `Pisper_${version}_windows_x86_64-offline-setup.exe`,
   `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
-  ...['aarch64', 'x86_64'].flatMap((arch) => [
-    `Pisper_${version}_darwin_${arch}.dmg`,
-    `Pisper_${version}_darwin_${arch}.app.tar.gz`,
-    `Pisper_${version}_darwin_${arch}.app.tar.gz.sig`,
-  ]),
-  `Pisper_${version}_linux_x86_64.AppImage`,
-  `Pisper_${version}_linux_x86_64.AppImage.sig`,
-  `Pisper_${version}_linux_x86_64.deb`,
-  ...['windows_x86_64', 'darwin_aarch64', 'darwin_x86_64', 'linux_x86_64'].flatMap((target) => [
-    `Pisper_Desktop_Rust_${version}_${target}.tar.gz`,
-    `Pisper_Desktop_Rust_${version}_${target}.tar.gz.sig`,
-    `Pisper_Desktop_${version}_${target}.tar.gz`,
-    `Pisper_Desktop_${version}_${target}.tar.gz.sig`,
-  ]),
 ]
-const expected = new Set(tauriAssets)
+const componentAssets = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+  .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
+  .flatMap((archive) => [archive, `${archive}.sig`])
+const expected = new Set([...tauriAssets, ...componentAssets])
 
 async function filesUnder(directory) {
   const result = []
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.isDirectory()) result.push(...(await filesUnder(path.join(directory, entry.name))))
-    else result.push(path.join(directory, entry.name))
+    const fullPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) result.push(...(await filesUnder(fullPath)))
+    else result.push(fullPath)
   }
   return result
 }

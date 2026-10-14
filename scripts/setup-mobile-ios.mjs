@@ -82,22 +82,6 @@ export function injectIosNativeBuildSettings(projectSpec, minimumSystemVersion) 
   project.options.deploymentTarget ??= {}
   project.options.deploymentTarget.iOS = minimumSystemVersion
   for (const target of targets) {
-    for (const phase of target.preBuildScripts ?? []) {
-      if (typeof phase.script === 'string' && phase.script.includes(' ios xcode-script ')) {
-        // 直接以 node 调用 Tauri CLI 时，上游会生成错误的 `node tauri` 路径。
-        const node = `'${process.execPath.replaceAll("'", "'\\''")}'`
-        phase.script = phase.script.replace(
-          /^.*?(?= ios xcode-script )/,
-          `${node} "$PROJECT_DIR/../../../node_modules/@tauri-apps/cli/tauri.js"`,
-        )
-      }
-    }
-    // 重建旧生成工程时也移除 NodeMobile，避免把旧 framework 混进 Rust App。
-    if (Array.isArray(target.dependencies)) {
-      target.dependencies = target.dependencies.filter(
-        (dependency) => !String(dependency.framework || '').includes('NodeMobile'),
-      )
-    }
     // 重生成工程时 Externals 已有多架构静态库，不能再被推断为同名 App 资源。
     for (const source of target.sources ?? []) {
       if (source.path === 'Externals') source.buildPhase = 'none'

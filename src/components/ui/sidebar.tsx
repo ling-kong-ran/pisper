@@ -36,10 +36,6 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
-  // pane：手机三段式里侧栏是一页，而不是盖住对话的抽屉。
-  mobilePresentation: 'sheet' | 'pane'
-  // Pad 三栏常驻时，展开/收起按钮会把仍然可见的侧栏误报成已收起。
-  persistent: boolean
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -60,8 +56,6 @@ function SidebarProvider({
   onOpenChange: setOpenProp,
   openMobile: openMobileProp,
   onOpenMobileChange: setOpenMobileProp,
-  mobilePresentation = 'sheet',
-  persistent = false,
   className,
   style,
   children,
@@ -73,8 +67,6 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
   openMobile?: boolean
   onOpenMobileChange?: (open: boolean) => void
-  mobilePresentation?: 'sheet' | 'pane'
-  persistent?: boolean
 }) {
   const phoneViewport = useIsMobile()
   const isMobile = mobile ?? phoneViewport
@@ -126,20 +118,8 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
-      mobilePresentation,
-      persistent,
     }),
-    [
-      state,
-      open,
-      setOpen,
-      isMobile,
-      openMobile,
-      setOpenMobile,
-      toggleSidebar,
-      mobilePresentation,
-      persistent,
-    ],
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
   )
 
   return (
@@ -178,7 +158,7 @@ function Sidebar({
   variant?: 'sidebar' | 'floating' | 'inset'
   collapsible?: 'offcanvas' | 'icon' | 'none'
 }) {
-  const { isMobile, mobilePresentation, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
   if (collapsible === 'none') {
     return (
@@ -191,23 +171,6 @@ function Sidebar({
         {...props}
       >
         {children}
-      </div>
-    )
-  }
-
-  if (isMobile && mobilePresentation === 'pane') {
-    return (
-      <div
-        data-sidebar="sidebar"
-        data-slot="sidebar"
-        data-mobile="pane"
-        className={cn(
-          'flex h-full min-h-0 w-full min-w-0 flex-col bg-sidebar text-sidebar-foreground',
-          className,
-        )}
-        {...props}
-      >
-        <div className="flex h-full w-full min-h-0 flex-col">{children}</div>
       </div>
     )
   }

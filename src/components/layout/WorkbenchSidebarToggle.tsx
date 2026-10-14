@@ -1,14 +1,13 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
-import { useI18n } from '@/app/i18n/use-i18n'
+import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
 
-// 保留侧栏底部及移动端的显式开关；桌面品牌按钮复用同一展开状态。
+// 展开与收起使用独立按钮，品牌标识不再承担隐含的导航操作。
 export function WorkbenchSidebarToggle({ inSidebar = false }: { inSidebar?: boolean }) {
-  const { open, openMobile, isMobile, persistent } = useSidebar()
+  const { open, openMobile, isMobile } = useSidebar()
   const { t } = useI18n()
   const expanded = isMobile ? openMobile : open
-  if (persistent) return null
   // 桌面始终保留侧栏内的同一个按钮，折叠后键盘焦点无需跨容器转移。
   if (!isMobile && !inSidebar) return null
   const label = expanded

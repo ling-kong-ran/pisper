@@ -647,15 +647,5 @@
   "providerWorkbench.addConnectionHint": "点击页面顶部的“快速设置”，按步骤填写接口地址、协议和密钥并选择模型。",
   "providerWorkbench.scanningLocal": "正在接入本机 Claude Code / Codex 配置…",
   "providerWorkbench.localImportStatus": "本地配置自动接入 · 新增 {imported} 项 · 待检查 {skipped} 项",
-  "remoteWorkspace.title": "连接到 Linux 工作区",
-  "loadState.loading": "正在加载设置…",
-  "loadState.failed": "设置加载失败",
-  "loadState.retry": "重试",
-  "loadState.retrying": "正在重试…",
-  "loadState.stale": "刷新失败，仍显示上次成功加载的数据。",
-  "interfaceSettings.composerVoice": "输入框语音按钮",
-  "interfaceSettings.composerVoiceDescription": "在桌面输入框中常驻显示。关闭后隐藏入口；开启不会自动录音。",
-  "interfaceSettings.voiceInput": "语音输入",
-  "interfaceSettings.voiceConversation": "语音对话",
-  "remoteAccess.p2pNode": "P2P 节点（扫码连接）"
+  "remoteWorkspace.title": "连接到 Linux 工作区"
 }

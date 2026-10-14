@@ -57,6 +57,5 @@
   "statusBar.reconnecting": "Reconnecting…",
   "statusBar.connectionLost": "Runtime connection lost, reconnecting…",
   "statusBar.connectionRestored": "Runtime connection restored",
-  "api.invalidResponse": "The server returned an invalid response. Please try again.",
-  "workspacePicker.systemUnavailable": "System directory selection is not supported on this platform"
+  "api.invalidResponse": "The server returned an invalid response. Please try again."
 }

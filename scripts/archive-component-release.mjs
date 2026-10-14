@@ -1,15 +1,9 @@
-import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { promisify } from 'node:util'
-import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
-import { decodeTauriSignerPayload } from './verify-tauri-signature.mjs'
 import {
   chmod,
   copyFile,
   cp,
   mkdir,
   readdir,
-  readFile,
   realpath,
   rm,
   stat,
@@ -20,7 +14,6 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { c as createTar, t as listTar } from 'tar'
 import { assertReleaseComponent, readComponentVersion } from './release-components.mjs'
-import { desktopUpgradeNotice } from './desktop-upgrade-notice.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const component = assertReleaseComponent(process.argv[2])
@@ -33,19 +26,7 @@ const outputDir = join(root, 'release', 'component-artifacts')
 const stageRoot = join(root, 'release', 'component-stage')
 const directoryName = `pisper-${component}-${version}-${platform}-${arch}`
 const stage = join(stageRoot, directoryName)
-const rustRuntime =
-  existsSync(join(root, 'runtime-rs/Cargo.toml')) && !existsSync(join(root, 'runtime/index.mjs'))
-const requireSignature = process.argv.includes('--require-signature')
-const label =
-  component === 'desktop'
-    ? rustRuntime
-      ? 'Desktop_Rust'
-      : 'Desktop'
-    : component === 'tui'
-      ? 'TUI'
-      : rustRuntime
-        ? 'Runtime_Rust'
-        : 'Runtime'
+const label = component === 'desktop' ? 'Desktop' : component === 'tui' ? 'TUI' : 'Runtime'
 const archive = join(outputDir, `Pisper_${label}_${version}_${platform}_${arch}.tar.gz`)
 
 async function copyComponentTree(source, destination) {
@@ -92,7 +73,6 @@ async function stageDesktop() {
     `${JSON.stringify(
       {
         name: 'pisper-desktop',
-        ...(rustRuntime ? { backend: 'rust' } : {}),
         version,
         platform,
         arch,
@@ -106,40 +86,7 @@ async function stageDesktop() {
   )
 }
 
-async function archiveDesktopUpgradeNotice() {
-  const notice = desktopUpgradeNotice({ version, platform, arch })
-  const noticeDirectoryName = `pisper-desktop-upgrade-notice-${version}-${platform}-${arch}`
-  const noticeStage = join(stageRoot, noticeDirectoryName)
-  await rm(noticeStage, { recursive: true, force: true })
-  await mkdir(join(noticeStage, 'dist'), { recursive: true })
-  for (const [name, content] of Object.entries(notice.files))
-    await writeFile(join(noticeStage, 'dist', name), content, 'utf8')
-  await writeFile(
-    join(noticeStage, 'manifest.json'),
-    `${JSON.stringify(notice.manifest, null, 2)}\n`,
-    'utf8',
-  )
-  // 旧 Node 更新器只识别旧名字；该资产必须是提示页，绝不能放入 Rust 主前端。
-  await createArchive(
-    noticeDirectoryName,
-    join(outputDir, `Pisper_Desktop_${version}_${platform}_${arch}.tar.gz`),
-  )
-}
-
 async function stageRuntime() {
-  if (rustRuntime) {
-    await copyComponentTree(join(root, 'release/rust-runtime-component'), stage)
-    const manifest = JSON.parse(await readFile(join(stage, 'manifest.json'), 'utf8'))
-    if (
-      manifest.backend !== 'rust' ||
-      manifest.version !== version ||
-      manifest.platform !== platform ||
-      manifest.arch !== arch
-    ) {
-      throw new Error('Rust Runtime staging does not match the release version and platform.')
-    }
-    return
-  }
   const seaRoot = join(root, 'release', 'sea')
   const sidecar = join(seaRoot, `pisper-sidecar${executableSuffix}`)
   const runtime = join(seaRoot, 'runtime')
@@ -180,7 +127,7 @@ async function stageTui() {
       join(
         'release',
         'tui',
-        `pisper-${version}-${rustRuntime ? platform : platform === 'darwin' ? 'macos' : platform}-${arch}`,
+        `pisper-${version}-${platform === 'darwin' ? 'macos' : platform}-${arch}`,
       ),
   )
   await stat(source)
@@ -209,38 +156,7 @@ async function createArchive(sourceDirectory, destination) {
   }
   const bytes = (await stat(destination)).size
   if (bytes === 0) throw new Error(`Component archive is empty: ${destination}`)
-  await signArchive(destination)
   console.log(`Packaged Pisper ${label}: ${destination} (${bytes} bytes)`)
-}
-
-async function signArchive(artifactPath) {
-  const key = process.env.TAURI_SIGNING_PRIVATE_KEY?.trim()
-  if (!key) {
-    if (requireSignature)
-      throw new Error('TAURI_SIGNING_PRIVATE_KEY is required for component releases.')
-    return
-  }
-  // 只从环境传递私钥，日志和进程参数中均不包含密钥材料。
-  await promisify(execFile)(
-    process.execPath,
-    [join(root, 'node_modules/@tauri-apps/cli/tauri.js'), 'signer', 'sign', artifactPath],
-    { cwd: root, env: process.env },
-  )
-  const publicKey = PublicKey.decode(
-    decodeTauriSignerPayload(
-      await readFile(join(root, 'src-tauri/updater.pubkey'), 'utf8'),
-    ).toString('utf8'),
-  )
-  const signature = Signature.decode(
-    decodeTauriSignerPayload(await readFile(`${artifactPath}.sig`, 'utf8')).toString('utf8'),
-  )
-  try {
-    if (!publicKey.verify(await readFile(artifactPath), signature))
-      throw new Error('Component signature does not match the shipped updater public key.')
-  } finally {
-    signature.free()
-    publicKey.free()
-  }
 }
 
 await rm(stage, { recursive: true, force: true })
@@ -250,9 +166,8 @@ if (component === 'desktop') await stageDesktop()
 else if (component === 'runtime') await stageRuntime()
 else await stageTui()
 await createArchive(directoryName, archive)
-if (component === 'desktop' && rustRuntime) await archiveDesktopUpgradeNotice()
 
-if (component === 'runtime' && !rustRuntime) {
+if (component === 'runtime') {
   const nodeDirectoryName = `pisper-runtime-node-${version}-${platform}-${arch}`
   const nodeStage = join(stageRoot, nodeDirectoryName)
   const nodeArchive = join(outputDir, `Pisper_Runtime_Node_${version}_${platform}_${arch}.tar.gz`)
@@ -294,7 +209,6 @@ if (component === 'tui') {
     `${JSON.stringify(
       {
         name: 'pisper-tui-component',
-        backend: rustRuntime ? 'rust' : 'node',
         version,
         platform,
         arch,

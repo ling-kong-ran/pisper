@@ -91,11 +91,10 @@ jobs:
             --dir release/npm/component-artifacts \
             --pattern "Pisper_TUI_Component_${TUI_VERSION}_*.tar.gz" \
             --pattern "Pisper_TUI_Component_${TUI_VERSION}_*.tar.gz.sig"
-          runtime_label="$(node --input-type=module -e "import fs from 'node:fs'; const p=JSON.parse(fs.readFileSync('packages/pisper/package.json')); console.log(p.pisper.runtimeBackend === 'rust' ? 'Rust' : 'Node')")"
           gh release download "runtime-v$RUNTIME_VERSION" \
             --dir release/npm/component-artifacts \
-            --pattern "Pisper_Runtime_${runtime_label}_${RUNTIME_VERSION}_*.tar.gz" \
-            --pattern "Pisper_Runtime_${runtime_label}_${RUNTIME_VERSION}_*.tar.gz.sig"
+            --pattern "Pisper_Runtime_Node_${RUNTIME_VERSION}_*.tar.gz" \
+            --pattern "Pisper_Runtime_Node_${RUNTIME_VERSION}_*.tar.gz.sig"
       - name: Pack platform-specific npm contents
         run: node scripts/package-npm-platforms.mjs
       - name: Smoke-test the packed launcher without a GitHub download
@@ -112,8 +111,7 @@ jobs:
             -C "$platform_dir" \
             --strip-components=1
           PISPER_NPM_INSTALL_DIR="$PWD/release/npm/smoke-data" node -e \
-            "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(async m => { const p = await m.ensurePisperInstallation(); if (!p.executable || !p.appRoot || (p.runtimeBackend === 'rust' ? !p.sidecar : p.sidecar)) process.exit(1) })"
-          PISPER_NPM_INSTALL_DIR="$PWD/release/npm/smoke-data" node release/npm/smoke/node_modules/pisper/bin/pisper.mjs --version
+            "import('./release/npm/smoke/node_modules/pisper/lib/install.mjs').then(async m => { const p = await m.ensurePisperInstallation(); if (!p.executable || !p.appRoot || p.sidecar) process.exit(1) })"
       - name: Check whether the version is already published
         id: registry
         shell: bash

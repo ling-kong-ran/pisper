@@ -18,7 +18,5 @@
   "modelEditor.delete": "Delete model",
   "modelEditor.deleteNamed": "Delete model {name}",
   "modelEditor.deleteConfirmation": "Delete “{name}”? The provider connection and credentials will remain. If this is the default model, another available model will be selected, or the default will be cleared if none is available. Existing conversations will keep their model bindings. You can add this model again later.",
-  "modelEditor.deleted": "Model deleted",
-  "modelEditor.manualCapabilities": "Set model capabilities manually",
-  "modelEditor.automaticCapabilitiesHint": "Use the model catalog for input, reasoning levels, context window, and maximum output. Model IDs with path prefixes are also supported."
+  "modelEditor.deleted": "Model deleted"
 }

@@ -1,33 +1,37 @@
-// 移动端将 Rust Runtime 静态链接进 App；归档仅携带同源 UI 与共享资源。
-import { assertMobileRuntimeSource } from './mobile-runtime-preflight.mjs'
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+// 为 Android/iOS 嵌入式 Node 生成同一份可执行 Runtime 闭包；归档包含标准
+// Runtime、生产 React 资源及生产依赖；仅携带共享语音 catalog/BPE，权重由用户主动下载。
+import { cp, mkdir, readFile, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { stageRuntimeClosure } from './stage-runtime-closure.mjs'
 import { createMobileRuntimeArchive } from './mobile-runtime-archive.mjs'
+import { smokeMobileRuntime } from './smoke-mobile-runtime.mjs'
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-assertMobileRuntimeSource(root)
-const runtimeDir = join(root, 'release/mobile-runtime/runtime')
-const output = join(root, 'release/pisper-embedded-runtime.tar.gz')
-const appVersion =
-  process.env.PISPER_APP_VERSION ||
-  JSON.parse(await readFile(join(root, 'src-tauri/mobile-package.json'), 'utf8')).version
-const runtimeProfile = process.env.PISPER_MOBILE_STORE === '1' ? 'mobile-store' : 'mobile-embedded'
-await rm(runtimeDir, { recursive: true, force: true })
-await mkdir(join(runtimeDir, 'shared'), { recursive: true })
-await cp(join(root, 'dist'), join(runtimeDir, 'dist'), { recursive: true })
-for (const entry of ['speech', 'speech-resources']) {
-  await cp(join(root, 'shared', entry), join(runtimeDir, 'shared', entry), { recursive: true })
-}
-// 原生插件仍消费平铺路径；两种路径必须来自同一目录内容。
-for (const name of ['speech-model-catalog.json', 'speech-resource-notices.json']) {
-  const canonical = await readFile(join(root, 'shared/speech', name))
-  if (!canonical.equals(await readFile(join(root, 'shared', name))))
-    throw new Error(`Speech resource aliases diverged: ${name}`)
-  await writeFile(join(runtimeDir, 'shared', name), canonical)
-}
-await writeFile(
-  join(runtimeDir, 'runtime.json'),
-  JSON.stringify({ backend: 'rust', apiVersion: 1, appVersion, runtimeProfile }) + '\n',
+const releaseDir = join(root, 'release')
+const workDir = join(releaseDir, 'mobile-runtime')
+const runtimeDir = join(workDir, 'runtime')
+const manifestPath = join(workDir, 'runtime-size-manifest.json')
+const output = join(releaseDir, 'pisper-embedded-runtime.tar.gz')
+const mobilePackage = JSON.parse(
+  await readFile(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),
 )
+const appVersion = process.env.PISPER_APP_VERSION || mobilePackage.version
+const runtimeProfile = process.env.PISPER_MOBILE_STORE === '1' ? 'mobile-store' : 'mobile-embedded'
+
+await rm(workDir, { recursive: true, force: true })
+await mkdir(workDir, { recursive: true })
+const manifest = await stageRuntimeClosure({
+  root,
+  runtimeDir,
+  manifestPath,
+  target: { platform: 'mobile', arch: 'arm64', libc: null },
+  appVersion,
+  includeSpeechModel: false,
+})
+await cp(join(root, 'dist'), join(runtimeDir, 'dist'), { recursive: true, force: true })
+await smokeMobileRuntime({ runtimeDir, runtimeProfile })
 await createMobileRuntimeArchive({ runtimeDir, output, appVersion, runtimeProfile })
-console.log(`Staged mobile Rust resources: ${output}`)
+console.log(
+  `Mobile Runtime staged: ${output} (${(manifest.runtime.afterPrune.bytes / 1024 / 1024).toFixed(1)} MiB before frontend)`,
+)

@@ -1,15 +1,21 @@
 // 侧边栏「最近会话」区块：搜索、按工作区分组的会话列表与右键菜单
 //（空白处新建项目/删除项目、分组上新建会话/重命名项目/删除项目）。
 // 从 AppSidebar 拆出并懒加载：应用壳属于 eager 入口、受打包预算约束，
-// radix 右键菜单原语只在区块内按需加载。
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+// 目录选择弹窗与 radix 右键菜单原语只在区块内按需加载。
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Archive,
   ArchiveRestore,
   ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
   CircleAlert,
   FolderClosed,
   FolderPlus,
@@ -24,8 +30,8 @@ import {
   Trash2,
 } from 'lucide-react'
 import { STORAGE_KEYS } from '@/app/storage'
-import { useI18n } from '@/app/i18n/use-i18n'
-import type { Notify } from '@/app/routes/route-context'
+import { useI18n } from '@/app/use-i18n'
+import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
@@ -35,29 +41,27 @@ import {
   requestSessionCreation,
   requestSessionSelection,
   subscribeSessionDeletionUpdates,
-} from '@/features/chat/model/events'
+} from '@/features/chat/events'
 import {
   SessionOrganizationProtocolError,
   updateSessionOrganization,
-} from '@/features/chat/api/session-organization-api'
-import { orderVisibleSessions } from '@/features/chat/model/session-list'
+} from '@/features/chat/session-organization-api'
+import { orderVisibleSessions } from '@/features/chat/session-list'
 import {
   deleteSessionsSequentially,
   groupSessionsByWorkspace,
   orderWorkspaceGroups,
   recentWorkspaceGroups,
-  retainWorkspaceGroups,
   replacementActiveSessionId,
   sessionWorkspaceKey,
   sessionsInWorkspace,
   type WorkspaceSessionGroup,
-} from '@/features/chat/model/session-workspaces'
-import { useWorkspaceOrderStore } from '@/features/chat/model/workspace-order-store'
-import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup/startup-queries'
-import { pageStateStorage } from '@/lib/storage/page-state-storage'
-import { apiJson } from '@/lib/http/api'
-import { pickSystemDirectory } from '@/lib/platform/pick-system-directory'
-import { relativeTime, workspaceName } from '@/lib/format/format'
+} from '@/features/chat/session-workspaces'
+import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
+import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
+import { pageStateStorage } from '@/lib/page-state-storage'
+import { apiJson } from '@/lib/api'
+import { relativeTime, workspaceName } from '@/lib/format'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -69,6 +73,11 @@ import {
 } from '@/components/ui/context-menu'
 import { useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+
+// 目录选择器只在「新建项目」时用到：按需加载。
+const WorkspacePicker = lazy(() =>
+  import('@/components/WorkspacePicker').then((m) => ({ default: m.WorkspacePicker })),
+)
 
 type SessionSummary = {
   id: string
@@ -128,34 +137,21 @@ export function SidebarRecentSessions({
   const [historyExpanded, setHistoryExpanded] = useState(true)
   const [sessionQuery, setSessionQuery] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
-  const collapsed = useWorkspaceOrderStore((state) => state.collapsed)
-  const collapsedWorkspaces = useMemo(() => new Set(collapsed), [collapsed])
-  const setWorkspacesCollapsed = useWorkspaceOrderStore((state) => state.setWorkspacesCollapsed)
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => new Set())
   const workspaceOrder = useWorkspaceOrderStore((state) => state.order)
   const rememberWorkspaces = useWorkspaceOrderStore((state) => state.rememberWorkspaces)
   const workspaceNames = useWorkspaceOrderStore((state) => state.names)
   const setWorkspaceName = useWorkspaceOrderStore((state) => state.setWorkspaceName)
-  const forgetWorkspace = useWorkspaceOrderStore((state) => state.forgetWorkspace)
   const [activeSessionId, setActiveSessionId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   // 右键菜单状态：menuTargetKey 记录右键落在哪个工作区分组（空串=空白区域），
   // menuTargetSessionId 记录右键落点是否为某个会话（优先级高于分组）；
-  // 系统目录选择和项目删除各自防止重复提交。
+  // projectPickerOpen 控制新建项目的目录选择弹窗，deletingKey 防止重复提交删除。
   const [menuTargetKey, setMenuTargetKey] = useState('')
   const [menuTargetSessionId, setMenuTargetSessionId] = useState('')
-  const [nativePickerOpen, setNativePickerOpen] = useState(false)
-  const projectPickInFlight = useRef(false)
-  const projectPickerGeneration = useRef(0)
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false)
   const [deletingKey, setDeletingKey] = useState('')
-
-  useEffect(
-    () => () => {
-      // 系统对话框无法由 React 取消；离开侧栏后丢弃迟到的选择结果。
-      projectPickerGeneration.current += 1
-    },
-    [],
-  )
 
   const { data: sidebarSessionData } = useQuery({
     ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
@@ -193,41 +189,19 @@ export function SidebarRecentSessions({
   useEffect(() => {
     rememberWorkspaces(allSessionGroups.map((group) => group.key))
   }, [allSessionGroups, rememberWorkspaces])
-  const allWorkspaceGroups = useMemo(
+  const sessionGroups = useMemo(
     () =>
-      orderWorkspaceGroups(retainWorkspaceGroups(allSessionGroups, workspaceOrder), workspaceOrder),
-    [allSessionGroups, workspaceOrder],
+      orderWorkspaceGroups(
+        recentWorkspaceGroups(visibleSessions, RECENT_SESSION_LIMIT, activeSessionId),
+        workspaceOrder,
+      ),
+    [visibleSessions, workspaceOrder, activeSessionId],
   )
-  const sessionGroups = useMemo(() => {
-    const recent = recentWorkspaceGroups(visibleSessions, RECENT_SESSION_LIMIT, activeSessionId)
-    const needle = sessionQuery.trim().toLocaleLowerCase(language)
-    const retained = allWorkspaceGroups
-      .filter(
-        (group) =>
-          !needle ||
-          `${group.cwd} ${workspaceNames[group.key] || workspaceName(group.cwd, language)}`
-            .toLocaleLowerCase(language)
-            .includes(needle),
-      )
-      .map((group) => group.key)
-    return orderWorkspaceGroups(retainWorkspaceGroups(recent, retained), workspaceOrder)
-  }, [
-    visibleSessions,
-    workspaceOrder,
-    activeSessionId,
-    allWorkspaceGroups,
-    sessionQuery,
-    language,
-    workspaceNames,
-  ])
-  const allProjectsCollapsed =
-    allWorkspaceGroups.length > 0 &&
-    allWorkspaceGroups.every((group) => collapsedWorkspaces.has(group.key))
   const workspaceCounts = useMemo(
     () => new Map(allSessionGroups.map((group) => [group.key, group.sessions.length])),
     [allSessionGroups],
   )
-  const menuTargetGroup = allWorkspaceGroups.find((group) => group.key === menuTargetKey) || null
+  const menuTargetGroup = allSessionGroups.find((group) => group.key === menuTargetKey) || null
   const menuTargetSession = sessions.find((session) => session.id === menuTargetSessionId) || null
   const workspaceLabel = (group: SessionGroup) =>
     group.cwd
@@ -264,32 +238,15 @@ export function SidebarRecentSessions({
 
   const createSessionInWorkspace = (cwd: string) => {
     if (!requestSessionCreation(cwd)) return
-    const key = sessionWorkspaceKey({ id: '', cwd })
-    rememberWorkspaces([key])
     setSessionQuery('')
     setHistoryExpanded(true)
-    setWorkspacesCollapsed([key], false)
+    setCollapsedWorkspaces((current) => {
+      const next = new Set(current)
+      next.delete(sessionWorkspaceKey({ id: '', cwd }))
+      return next
+    })
     navigate('chat')
     if (isMobile) setOpenMobile(false)
-  }
-
-  const createProject = async () => {
-    if (projectPickInFlight.current) return
-    // 同步锁覆盖同一事件批次的重复点击，文件夹创建由系统对话框提供。
-    projectPickInFlight.current = true
-    const generation = projectPickerGeneration.current
-    setNativePickerOpen(true)
-    try {
-      const path = await pickSystemDirectory()
-      if (generation === projectPickerGeneration.current && path) createSessionInWorkspace(path)
-    } catch (error) {
-      if (generation === projectPickerGeneration.current) {
-        notify(error instanceof Error ? error.message : String(error), 'error')
-      }
-    } finally {
-      projectPickInFlight.current = false
-      if (generation === projectPickerGeneration.current) setNativePickerOpen(false)
-    }
   }
 
   // 删除途中失败也刷新目录并重新选择活动会话；只有 API 确认成功的 id 算入已删除数。
@@ -339,6 +296,10 @@ export function SidebarRecentSessions({
         await fetchStartupQuery<{ sessions: SessionSummary[] }>('sessions', true)
       ).sessions
       const targets = sessionsInWorkspace(freshSessions, group.key)
+      if (!targets.length) {
+        notify(t('navigation:appSidebar.projectNoChats', { project: label }), 'info')
+        return
+      }
       const approved = await requestConfirm({
         title: t('navigation:appSidebar.deleteProject'),
         message: t('navigation:appSidebar.deleteProjectConfirm', {
@@ -371,7 +332,6 @@ export function SidebarRecentSessions({
         )
         return
       }
-      forgetWorkspace(group.key)
       notify(t('navigation:appSidebar.projectDeleted', { project: label }))
     } catch (error) {
       notify(
@@ -486,7 +446,12 @@ export function SidebarRecentSessions({
   }
 
   const toggleWorkspace = (key: string) => {
-    setWorkspacesCollapsed([key], !collapsedWorkspaces.has(key))
+    setCollapsedWorkspaces((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   const setContextMenuTarget = (key = '', sessionId = '') => {
@@ -523,33 +488,6 @@ export function SidebarRecentSessions({
           variant="ghost"
           size="icon-sm"
           className="size-6 text-muted-foreground"
-          title={
-            allProjectsCollapsed
-              ? t('navigation:appSidebar.expandAllProjects')
-              : t('navigation:appSidebar.collapseAllProjects')
-          }
-          aria-label={
-            allProjectsCollapsed
-              ? t('navigation:appSidebar.expandAllProjects')
-              : t('navigation:appSidebar.collapseAllProjects')
-          }
-          aria-controls="sidebar-recent-sessions"
-          aria-expanded={!allProjectsCollapsed}
-          disabled={!allWorkspaceGroups.length}
-          onClick={() => {
-            setHistoryExpanded(true)
-            setWorkspacesCollapsed(
-              allWorkspaceGroups.map((group) => group.key),
-              !allProjectsCollapsed,
-            )
-          }}
-        >
-          {allProjectsCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-6 text-muted-foreground"
           title={t('navigation:workbench.filterSessions')}
           aria-label={t('navigation:workbench.filterSessions')}
           aria-expanded={filterOpen}
@@ -564,9 +502,8 @@ export function SidebarRecentSessions({
           title={t('navigation:appSidebar.newProject')}
           aria-label={t('navigation:appSidebar.newProject')}
           aria-haspopup="dialog"
-          aria-expanded={nativePickerOpen}
-          disabled={nativePickerOpen}
-          onClick={() => void createProject()}
+          aria-expanded={projectPickerOpen}
+          onClick={() => setProjectPickerOpen(true)}
         >
           <FolderPlus size={14} />
         </Button>
@@ -654,7 +591,7 @@ export function SidebarRecentSessions({
                     {!groupCollapsed &&
                       group.sessions.map((session) => (
                         <button
-                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm text-foreground hover:bg-sidebar-accent ${session.id === activeSessionId ? 'active-session bg-sidebar-accent font-medium' : 'font-normal'}`}
+                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}
                           aria-current={session.id === activeSessionId ? 'page' : undefined}
                           title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
                           onClick={() => openRecentSession(session.id)}
@@ -702,17 +639,10 @@ export function SidebarRecentSessions({
                           )}
                         </button>
                       ))}
-                    {!groupCollapsed && !group.sessions.length && (
-                      <p className="m-0 px-8 py-1 text-xs text-muted-foreground">
-                        {workspaceCounts.get(group.key)
-                          ? t('navigation:appSidebar.noActiveChats')
-                          : t('navigation:appSidebar.projectEmpty')}
-                      </p>
-                    )}
                   </div>
                 )
               })}
-              {!sessionGroups.length && (
+              {!visibleSessions.length && (
                 <span className="[padding:8px] text-[var(--text-muted)] text-xs font-normal">
                   {sessionQuery.trim()
                     ? t('navigation:appSidebar.noMatchingChats')
@@ -814,7 +744,7 @@ export function SidebarRecentSessions({
                 )}
                 <ContextMenuItem
                   variant="destructive"
-                  disabled={Boolean(deletingKey)}
+                  disabled={Boolean(deletingKey) || !menuTargetGroup.sessions.length}
                   onSelect={() => void deleteProject(menuTargetGroup)}
                 >
                   <Trash2 size={13} />
@@ -823,19 +753,19 @@ export function SidebarRecentSessions({
               </>
             ) : (
               <>
-                <ContextMenuItem disabled={nativePickerOpen} onSelect={() => void createProject()}>
+                <ContextMenuItem onSelect={() => setProjectPickerOpen(true)}>
                   <FolderPlus size={13} />
                   {t('navigation:appSidebar.newProject')}
                 </ContextMenuItem>
                 <ContextMenuSub>
                   <ContextMenuSubTrigger
-                    disabled={!allWorkspaceGroups.length || Boolean(deletingKey)}
+                    disabled={!allSessionGroups.length || Boolean(deletingKey)}
                   >
                     <Trash2 size={13} />
                     {t('navigation:appSidebar.deleteProject')}
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent className="max-h-[70vh] max-w-[280px] overflow-y-auto">
-                    {allWorkspaceGroups.map((group) => (
+                    {allSessionGroups.map((group) => (
                       <ContextMenuItem key={group.key} onSelect={() => void deleteProject(group)}>
                         <span className="truncate" title={group.cwd || workspaceLabel(group)}>
                           {workspaceLabel(group)}
@@ -848,6 +778,19 @@ export function SidebarRecentSessions({
             )}
           </ContextMenuContent>
         </ContextMenu>
+      )}
+      {projectPickerOpen && (
+        <Suspense fallback={null}>
+          <WorkspacePicker
+            open
+            description={t('navigation:appSidebar.newProjectPickerDescription')}
+            onOpenChange={setProjectPickerOpen}
+            onSelect={(path) => {
+              setProjectPickerOpen(false)
+              createSessionInWorkspace(path)
+            }}
+          />
+        </Suspense>
       )}
     </section>
   )

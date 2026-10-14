@@ -39,15 +39,3 @@ export function npmPlatformOptionalDependencies(version) {
     ]),
   )
 }
-
-export function npmRuntimeBackend(value = 'node') {
-  if (value !== 'node' && value !== 'rust') throw new Error(`Unsupported Runtime backend: ${value}`)
-  return value
-}
-
-export function npmRuntimeAsset(version, target, backend = 'node') {
-  if (!/^\d+\.\d+\.\d+$/.test(version || '')) throw new Error('Invalid Runtime version.')
-  if (!NPM_PLATFORM_TARGETS.some((entry) => entry.release === target))
-    throw new Error(`Unsupported Runtime target: ${target}`)
-  return `Pisper_Runtime_${npmRuntimeBackend(backend) === 'rust' ? 'Rust' : 'Node'}_${version}_${target}.tar.gz`
-}

@@ -36,21 +36,3 @@ MCP 页面过去位于 workflows，直接拼接端点、保存远程快照和启
 ## 复查条件
 
 增加新的 Feature 消费方、MCP 响应字段或共享查询观察者时，重新核对公开范围、字段验证和取消所有权。Runtime 继承/原型注入、存量宽泛 EntityRecord、其他页面手写请求等债务继续按开发流程台账治理。
-
-## 移动三屏工作区生命周期（2026-10-08）
-
-- **问题与范围：** 移动右屏原先随切屏卸载，导致终端清理桥接关闭进程；内嵌扩展丢弃页面保存操作，文件面板固定使用空闲状态；同步导入右屏使桌面首屏也负担其依赖。
-- **移动映射与接口：** `src/components/layout/MobileContextScreen.tsx` 移至 `src/app/mobile/MobileContextScreen.tsx`，由应用层组装资产、插件、终端和公开的 `SessionFilesPane`。目录浏览已改为系统接口（见下文），布局纯逻辑仅保留视口和手势。App 按需加载移动布局及右屏，桌面直接组合原侧栏和页面。
-- **状态与依赖：** 聊天页仍拥有流与快照协调；通过路由回调向壳提供只读 `{ sessionId, streaming }` 投影，离开时撤销。缺少实时所有者时，右屏引导打开聊天，不允许使用旧状态写入。App 在移动右屏首次访问后保留实例；终端和扩展访问后只隐藏，直到移动布局离开或应用卸载才清理。扩展草稿由插件页持有，保存通过其原有 API；资产与扩展分别注册右屏操作，不覆盖聊天主操作。
-- **客户端与验证：** 影响 Web、桌面窄窗、Android/iOS 共用 React 布局；原生桥接、权限、资源和持久化格式不变。`npm run build` 检查预算与 Safari 目标；`npm run test:mobile-shell` 在本机 Chromium 中使用实际组件和隔离接口/桥接，覆盖终端保留与销毁、插件保存、运行/确认竞态、文件刷新、Pad 栏宽、手机触摸切屏及内嵌弹窗的视口定位。该入口在 `.github/workflows/ci.yml` 中于构建后执行；先运行 `npx playwright-core install chromium`，或通过 `PISPER_SMOKE_BROWSER` 指定浏览器。Android/iOS 原生打包与真机交互仍需平台验收，浏览器测试不能替代。
-- **体积测量：** 同一 macOS arm64、Node 24.20.0、锁文件和生产构建场景下，首屏静态 JS 为 release 基线 297.27 kB gzip、原功能提交 304.82 kB、修复后 298.62 kB；沿用 299.01 kB 预算。没有修改 Safari 构建目标或扩大预算。
-- **迁移与回滚：** 无用户数据迁移；回滚须同时还原 App 路由回调、移动右屏路径与调用方及相关测试，避免留下未接线的运行状态或悬空导入。回滚该修复会重新引入切屏终端关闭和配置丢失，应优先修正后续回归。
-
-
-### 系统文件选择（2026-10-10）
-
-- 删除自建 `WorkspacePicker`、`PathAttachmentPicker` 和移动右屏 `WorkspaceFiles`，以及只服务该列表的 `workspace-entries.ts`。右屏“文件”改成打开当前会话目录的按钮；`SessionFilesPane` 的改动审查与撤销保留。没有新的持久化状态或数据迁移。
-- 新建项目、会话工作目录、计划任务和插件目录统一调用 `src/lib/platform/pick-system-directory.ts`。桌面壳复用 Tauri 目录对话框；本机 Web 使用 `POST /api/desktop/pick-directory`，由 `runtime-rs/src/system_dialogs.rs` 调用系统对话框。取消返回 `{path:null}`，失败和重复请求返回错误；远程请求不能在宿主弹出对话框。Runtime 退出时取消未结束的选择请求并清理原生进程。Linux 需要图形桌面与 Zenity。
-- 附件通过 Tauri 原生文件选择器取得路径，普通浏览器与移动端通过 HTML 文件选择器上传内容，不再浏览 Runtime 目录。Android 本机目录选择复用系统 SAF 导入副本；远程模式不会接收手机目录。iOS 目录导入仍未实现，本次不新增支持。
-- 文件管理器入口与消息内路径链接复用 `local-path-reveal.ts`。移动原生壳没有 reveal 能力时报告不可用，不把宿主目录当成手机目录。
-- 验证入口：`npm run test:project-directory`、`npm run test:mobile-shell`、`node scripts/smoke-local-reveal.mjs` 与 Rust `system_dialogs` 测试覆盖选择、取消、失败、重复点击、目录绑定、上传和本机权限。Windows/Linux/Android 真机行为需在对应平台验证；macOS 已核对系统弹窗、取消、Runtime 退出清理及 Finder 打开项目目录，完整的原生选中回填未自动化实测（工具无法绑定 osascript 宿主），回填由交互夹具与接口测试覆盖。回滚使用对应变更的 revert，现有会话和目录数据不受影响。

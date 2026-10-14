@@ -1,5 +1,7 @@
 # Pisper 前端样式与页面布局审计
 
+> 基线说明：审计证据来自 2026-10-14 的 Rust 分支代码，并非恢复后的 `v0.5.81` Node 基线。代码引用固定到当时的提交；在 Node 分支治理样式前，需要重新验证问题是否存在及其位置。原完整代码保存在 `rust-runtime`。
+
 - 日期：2026-10-14
 - 状态：现状审计与治理建议，尚未修改产品实现。
 - 关联方案：[前端工作台设计方案](2026-10-14-frontend-workbench-design.md)。
@@ -76,7 +78,7 @@ Tailwind 官方同时支持主题变量、自定义样式和任意值。项目�
 - `ChatMessage.tsx` 中已保存标签状态使用同样组合。
 - 多处取消按钮、返回入口及对话框使用 `bg-surface-subtle`，预期底色无法由该类提供。
 
-相关代码：[主题映射](../../../src/index.css)、[页面标题栏](../../../src/components/layout/PageHeader.tsx)、[消息组件](../../../src/features/chat/components/message/ChatMessage.tsx)。
+相关代码：[主题映射](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/index.css)、[页面标题栏](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/components/layout/PageHeader.tsx)、[消息组件](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/chat/components/message/ChatMessage.tsx)。
 
 **处理建议：** 先确定需要保留的颜色角色，再补齐映射或替换为已有正确令牌。不能只凭类名可读就认定迁移完成；应以编译输出及实际状态样式为证据。
 
@@ -96,7 +98,7 @@ Tailwind 官方同时支持主题变量、自定义样式和任意值。项目�
 
 这些是前景与实心背景之间的对比度，不包含 hover、disabled、透明叠加或所有页面背景。普通大小文字的 WCAG AA 基准为 4.5:1；四套暗色彩色预设，以及浅色 blue、coral 的这一组合低于该基准。[W3C 文字对比度说明](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
 
-相关代码：[主题预设](../../../src/index.css)、[Button](../../../src/components/ui/button.tsx)。
+相关代码：[主题预设](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/index.css)、[Button](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/components/ui/button.tsx)。
 
 **处理建议：** 默认主操作保留中性强对比。确需彩色实心控件时，前景必须随背景选择并校验，不能让暗色预设固定使用白字。验收覆盖默认、悬停、按下和禁用的实际组合。
 
@@ -106,7 +108,7 @@ Tailwind 官方同时支持主题变量、自定义样式和任意值。项目�
 
 隔离探针中，自定义 `#ffffff` 配浅色页面会得到白色焦点轮廓与白色背景，二者为 1:1。文字可以仍然可读，但该焦点标记本身不可辨识。
 
-相关代码：[自定义强调色派生](../../../src/lib/format/custom-accent.ts)、[偏好应用](../../../src/app/ui-preferences.ts)。
+相关代码：[自定义强调色派生](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/lib/format/custom-accent.ts)、[偏好应用](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/app/ui-preferences.ts)。
 
 **处理建议：** 将焦点颜色作为独立输出，在实际相邻表面上校验。必要时调整明度或提供双层轮廓，不用未经约束的原始 HEX 直接充当 `ring`。对于用于识别控件和状态的非文本视觉信息，参考 3:1 的相邻色对比要求；不把所有装饰性分隔线都机械纳入该要求。[W3C 非文本对比度说明](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)
 
@@ -122,7 +124,7 @@ Tailwind 官方同时支持主题变量、自定义样式和任意值。项目�
 
 `StatusBadge` 的 `tone="blue"` 使用品牌色相关令牌，这意味着信息状态会随用户强调色改变。问题不是自定义颜色本身，而是品牌、交互和状态共用了部分角色。
 
-相关代码：[主题变量](../../../src/index.css)、[应用级 UI 组合](../../../src/components/ui/app-primitives.tsx)。
+相关代码：[主题变量](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/index.css)、[应用级 UI 组合](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/components/ui/app-primitives.tsx)。
 
 **处理建议：** 建立语义角色后分批迁移。旧变量仅作为有明确删除条件的兼容映射，新组件直接使用语义工具类。
 
@@ -168,7 +170,7 @@ Tailwind 官方同时支持主题变量、自定义样式和任意值。项目�
 
 这些差异可由源码确认；其中具体溢出或双滚动在多少尺寸出现，还需要完整页面运行验证，不能仅凭静态样式断言所有页面已发生故障。
 
-相关入口：[应用壳](../../../src/App.tsx)、[决策模型](../../../src/features/decisions/pages/DecisionsPage.tsx)、[配置](../../../src/features/config/pages/ConfigPage.tsx)、[计划任务](../../../src/features/schedules/pages/SchedulesPage.tsx)、[MCP](../../../src/features/mcp/pages/McpPage.tsx)、[技能](../../../src/features/skills/pages/SkillsPage.tsx)、[插件](../../../src/features/plugins/pages/PluginsPage.tsx)、[工作流](../../../src/features/workflows/pages/WorkflowsPage.tsx)。
+相关入口：[应用壳](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/App.tsx)、[决策模型](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/decisions/pages/DecisionsPage.tsx)、[配置](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/config/pages/ConfigPage.tsx)、[计划任务](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/schedules/pages/SchedulesPage.tsx)、[MCP](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/mcp/pages/McpPage.tsx)、[技能](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/skills/pages/SkillsPage.tsx)、[插件](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/plugins/pages/PluginsPage.tsx)、[工作流](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/workflows/pages/WorkflowsPage.tsx)。
 
 ### S08 默认组件外观与新布局方向不一致
 

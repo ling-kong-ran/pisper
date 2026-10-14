@@ -1,26 +1,23 @@
-// 工作台导航只负责展示；页面与设置跳转由应用壳传入。
+// 工作台导航只负责展示；会话创建、搜索与设置跳转由应用壳传入。
 import { lazy, Suspense, useMemo } from 'react'
-import { Blocks, Home, type LucideIcon } from 'lucide-react'
+import { Blocks, Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
-import { useI18n } from '@/app/i18n/use-i18n'
-import type { Notify } from '@/app/routes/route-context'
+import { useI18n } from '@/app/use-i18n'
+import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   getSettingsNavigation,
   settingsNavigationKey,
   SETTINGS_PAGES,
   type SettingsDestination,
-} from '@/app/routes/settings-navigation'
+} from '@/app/settings-navigation'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
-import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { BrandLogo } from '@/components/common/BrandLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
-import { WorkbenchSidebarResizeHandle } from './WorkbenchSidebarProvider'
-import { SidebarStatusHost } from './SidebarStatus'
-import { useUiStore } from '@/stores/ui-store'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 const SidebarSettingsButton = lazy(() =>
@@ -30,10 +27,6 @@ const SidebarSettingsButton = lazy(() =>
 )
 
 const SidebarMoreTools = lazy(() => import('@/components/layout/SidebarMoreTools'))
-
-const ThemeToggleButton = lazy(() =>
-  import('./ThemeToggleButton').then((module) => ({ default: module.ThemeToggleButton })),
-)
 
 const SidebarRecentSessions = lazy(() =>
   import('@/components/layout/SidebarRecentSessions').then((m) => ({
@@ -52,6 +45,8 @@ type AppSidebarProps = {
   navigate: (page: string) => void
   onOpenComponent: (id: string) => void
   navigateSettings: (destination: SettingsDestination) => void
+  onNewChat: () => void
+  onSearch: () => void
   collapsed: boolean
   update: SidebarUpdate
   onOpenUpdates: () => void
@@ -68,6 +63,8 @@ export function AppSidebar({
   navigate,
   onOpenComponent,
   navigateSettings,
+  onNewChat,
+  onSearch,
   collapsed,
   update,
   onOpenUpdates,
@@ -76,12 +73,9 @@ export function AppSidebar({
   notify,
 }: AppSidebarProps) {
   const { t } = useI18n()
-  const { isMobile, setOpenMobile, open, toggleSidebar, persistent } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const compact = collapsed && !isMobile
   const mobileApp = useIsMobileApp()
-  const theme = useUiStore((state) => state.theme)
-  const cycleTheme = useUiStore((state) => state.cycleTheme)
-  const desktopSidebar = !mobileApp && !isMobile
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const settingsActive = SETTINGS_PAGES.has(page)
   const settingsNavigation = useMemo(
@@ -89,6 +83,8 @@ export function AppSidebar({
     [capabilities, mobileApp, t],
   )
   const activeSettingsKey = settingsNavigationKey(page, configSection)
+  const newChatShortcut = useShortcutLabel('primaryAction')
+  const searchShortcut = useShortcutLabel('commandPalette')
   // 沿用壳层已过滤的能力清单；没有后端支持的入口不会出现在工作台。
   const items = navigation.flatMap(([, entries]) => entries)
   const workspaceItems = ['workflows', 'assets'].flatMap((id) =>
@@ -102,30 +98,15 @@ export function AppSidebar({
       Blocks,
     ]),
   ]
-  const shell = useMobileShell()
   const runAndClose = (action: () => void) => {
     action()
     if (isMobile) setOpenMobile(false)
-  }
-  const openAssets = () => {
-    if (!shell.active) {
-      runAndClose(() => navigate('assets'))
-      return
-    }
-    if (shell.mode === 'phone' && shell.pane === 'context' && shell.tab === 'assets') {
-      shell.setPane('chat')
-      return
-    }
-    shell.openContext('assets')
   }
   const navButton = cn(
     'w-full gap-2 rounded-lg text-sm font-normal text-foreground shadow-none hover:bg-sidebar-accent',
     compact ? 'h-11 justify-center px-0' : 'h-8 justify-start px-2.5',
   )
   const navLabel = compact ? 'sr-only' : 'truncate'
-  const brandToggleLabel = open
-    ? t('navigation:appSidebar.collapseSidebar')
-    : t('navigation:appSidebar.expandSidebar')
 
   return (
     <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container border-0">
@@ -136,31 +117,13 @@ export function AppSidebar({
       >
         <div
           className={cn(
-            'flex shrink-0 items-center gap-2 px-3',
-            isMobile ? 'h-12' : 'h-9',
+            'flex h-12 shrink-0 items-center gap-2 px-3',
             compact ? 'justify-center' : 'justify-between',
           )}
           data-window-drag-region
-          data-testid="workbench-brand-header"
         >
           <div className="flex min-w-0 items-center gap-2">
-            {isMobile || persistent ? (
-              <BrandLogo className="size-6" size={24} />
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 rounded-md hover:bg-sidebar-accent [-webkit-app-region:no-drag]"
-                data-testid="workbench-brand-toggle"
-                title={brandToggleLabel}
-                aria-label={brandToggleLabel}
-                aria-expanded={open}
-                aria-controls="workbench-sidebar"
-                onClick={toggleSidebar}
-              >
-                <BrandLogo className="size-5" size={20} />
-              </Button>
-            )}
+            <BrandLogo className="size-6" size={24} />
             <span className={cn(compact ? 'sr-only' : 'truncate', 'text-sm font-semibold')}>
               {APP_NAME}
             </span>
@@ -223,29 +186,54 @@ export function AppSidebar({
                 <Home size={16} aria-hidden="true" />
                 <span className={navLabel}>{t('navigation:workbench.home')}</span>
               </Button>
-              {workspaceItems.map(([id, label, Icon]) => {
-                const assetsOpen =
-                  id === 'assets' &&
-                  shell.active &&
-                  shell.tab === 'assets' &&
-                  (shell.mode === 'pad' || shell.pane === 'context')
-                const current = id === 'assets' ? assetsOpen || page === id : page === id
-                return (
-                  <Button
-                    key={id}
-                    variant="ghost"
-                    className={cn(navButton, current && 'bg-sidebar-accent')}
-                    aria-current={current ? 'page' : undefined}
-                    onClick={() =>
-                      id === 'assets' ? openAssets() : runAndClose(() => navigate(id))
-                    }
-                    title={compact ? label : undefined}
-                  >
-                    <Icon size={16} />
-                    <span className={navLabel}>{label}</span>
-                  </Button>
-                )
-              })}
+              <Button
+                variant="ghost"
+                className={navButton}
+                onClick={() => runAndClose(onNewChat)}
+                data-testid="workbench-new-task"
+                title={compact ? t('navigation:workbench.newTask') : undefined}
+              >
+                <MessageCirclePlus size={16} />
+                <span className={navLabel}>{t('navigation:workbench.newTask')}</span>
+                <kbd
+                  className={cn(
+                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
+                    compact && 'hidden',
+                  )}
+                >
+                  {newChatShortcut}
+                </kbd>
+              </Button>
+              <Button
+                variant="ghost"
+                className={navButton}
+                onClick={() => runAndClose(onSearch)}
+                title={compact ? t('navigation:workbench.search') : undefined}
+              >
+                <Search size={16} />
+                <span className={navLabel}>{t('navigation:workbench.search')}</span>
+                <kbd
+                  className={cn(
+                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
+                    compact && 'hidden',
+                  )}
+                >
+                  {searchShortcut}
+                </kbd>
+              </Button>
+              {workspaceItems.map(([id, label, Icon]) => (
+                <Button
+                  key={id}
+                  variant="ghost"
+                  className={cn(navButton, page === id && 'bg-sidebar-accent')}
+                  aria-current={page === id ? 'page' : undefined}
+                  onClick={() => runAndClose(() => navigate(id))}
+                  title={compact ? label : undefined}
+                >
+                  <Icon size={16} />
+                  <span className={navLabel}>{label}</span>
+                </Button>
+              ))}
               {extraItems.length > 0 && (
                 <Suspense fallback={null}>
                   <SidebarMoreTools
@@ -281,7 +269,6 @@ export function AppSidebar({
             compact ? 'px-2' : 'px-3',
           )}
         >
-          {desktopSidebar && page === 'chat' && <SidebarStatusHost />}
           {update.status &&
             ['available', 'downloading', 'downloaded'].includes(update.status.state) && (
               <Suspense fallback={null}>
@@ -300,17 +287,10 @@ export function AppSidebar({
                 />
               </Suspense>
             </div>
-            {desktopSidebar ? (
-              <Suspense fallback={<div className="size-8" aria-busy="true" />}>
-                <ThemeToggleButton compact theme={theme} onCycle={cycleTheme} />
-              </Suspense>
-            ) : (
-              <WorkbenchSidebarToggle inSidebar />
-            )}
+            <WorkbenchSidebarToggle inSidebar />
           </div>
         </footer>
       </aside>
-      <WorkbenchSidebarResizeHandle />
     </ShadcnSidebar>
   )
 }

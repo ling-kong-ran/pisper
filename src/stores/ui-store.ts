@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'
-import { pageStateStorage } from '@/lib/storage/page-state-storage'
+import { pageStateStorage } from '@/lib/page-state-storage'
 
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'
@@ -11,16 +11,6 @@ export type AccentPreset = 'neutral' | 'blue' | 'teal' | 'violet' | 'coral' | 'c
 export type FontScale = 'small' | 'default' | 'large'
 export type RadiusMode = 'sharp' | 'default' | 'soft'
 export type MotionMode = 'system' | 'full' | 'reduced'
-
-export const SIDEBAR_DEFAULT_WIDTH = 264
-export const SIDEBAR_MIN_WIDTH = 220
-export const SIDEBAR_MAX_WIDTH = 480
-
-export function normalizeSidebarWidth(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)))
-    : SIDEBAR_DEFAULT_WIDTH
-}
 
 export const DEFAULT_UI_PREFERENCES = {
   theme: 'system',
@@ -41,13 +31,7 @@ export const DEFAULT_UI_PREFERENCES = {
 }
 
 type UiState = {
-  composerVoiceInput: boolean
-  composerVoiceConversation: boolean
-  setComposerVoiceInput: (enabled: boolean) => void
-  setComposerVoiceConversation: (enabled: boolean) => void
   sidebarCollapsed: boolean
-  sidebarWidth: number
-  setSidebarWidth: (width: number) => void
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
@@ -72,7 +56,6 @@ type UiState = {
 type PersistedUiState = Pick<
   UiState,
   | 'sidebarCollapsed'
-  | 'sidebarWidth'
   | 'theme'
   | 'density'
   | 'accent'
@@ -80,8 +63,6 @@ type PersistedUiState = Pick<
   | 'fontScale'
   | 'radius'
   | 'motion'
-  | 'composerVoiceInput'
-  | 'composerVoiceConversation'
 >
 
 // 快捷按钮只循环三种常用模式；旧的定时偏好仍可读取并在设置页使用。
@@ -95,14 +76,7 @@ export function nextThemeMode(theme: ThemeMode): ThemeMode {
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
-      composerVoiceInput: true,
-      composerVoiceConversation: true,
-      setComposerVoiceInput: (composerVoiceInput) => set({ composerVoiceInput }),
-      setComposerVoiceConversation: (composerVoiceConversation) =>
-        set({ composerVoiceConversation }),
       sidebarCollapsed: false,
-      sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
-      setSidebarWidth: (width) => set({ sidebarWidth: normalizeSidebarWidth(width) }),
       ...DEFAULT_UI_PREFERENCES,
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
@@ -126,21 +100,15 @@ export const useUiStore = create<UiState>()(
       migrate: (persisted, version): PersistedUiState => {
         const stored = persisted as Partial<PersistedUiState>
         return {
-          composerVoiceInput: true,
-          composerVoiceConversation: true,
           sidebarCollapsed: stored.sidebarCollapsed ?? false,
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
-          sidebarWidth: normalizeSidebarWidth(stored.sidebarWidth),
           theme:
             version === 0 && stored.theme === 'system' ? 'scheduled' : (stored.theme ?? 'system'),
         }
       },
       partialize: ({
-        composerVoiceInput,
-        composerVoiceConversation,
         sidebarCollapsed,
-        sidebarWidth,
         theme,
         density,
         accent,
@@ -149,10 +117,7 @@ export const useUiStore = create<UiState>()(
         radius,
         motion,
       }) => ({
-        composerVoiceInput,
-        composerVoiceConversation,
         sidebarCollapsed,
-        sidebarWidth,
         theme,
         density,
         accent,
@@ -177,7 +142,6 @@ export const useUiStore = create<UiState>()(
                 ? (legacyTheme as ThemeMode)
                 : current.theme),
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',
-          sidebarWidth: normalizeSidebarWidth(stored?.sidebarWidth),
           density: stored?.density ?? (legacyDensity === 'compact' ? 'compact' : current.density),
           accent: stored?.accent ?? current.accent,
           customAccent: stored?.customAccent ?? current.customAccent,

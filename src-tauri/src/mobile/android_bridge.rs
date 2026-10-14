@@ -1,63 +1,6 @@
 use std::path::Path;
 
 #[cfg(target_os = "android")]
-pub(super) fn initialize_network_context() -> Result<(), String> {
-    // 持有 Application 的全局引用，Activity 重建不能让 DNS/TLS 指向已销毁的实例。
-    static APPLICATION: std::sync::Mutex<Option<jni::objects::GlobalRef>> =
-        std::sync::Mutex::new(None);
-    let mut application = APPLICATION
-        .lock()
-        .map_err(|_| "Android network context lock poisoned")?;
-    if application.is_some() {
-        return Ok(());
-    }
-    with_android_env(|env, context| {
-        let object = env
-            .call_method(
-                &context,
-                "getApplicationContext",
-                "()Landroid/content/Context;",
-                &[],
-            )
-            .and_then(|value| value.l())
-            .map_err(|error| error.to_string())?;
-        let reference = env
-            .new_global_ref(object)
-            .map_err(|error| error.to_string())?;
-        let vm = env.get_java_vm().map_err(|error| error.to_string())?;
-        // 两种 JNI 封装引用同一 VM/线程；调用只借用句柄，校验器自行保存全局引用。
-        let mut verifier_env = unsafe { jni_verifier::EnvUnowned::from_raw(env.get_raw().cast()) };
-        match verifier_env
-            .with_env(|env| {
-                let verifier_context = unsafe {
-                    jni_verifier::objects::JObject::from_raw(
-                        env,
-                        reference.as_obj().as_raw().cast(),
-                    )
-                };
-                rustls_platform_verifier::android::init_with_env(env, verifier_context)
-            })
-            .into_outcome()
-        {
-            jni_verifier::Outcome::Ok(()) => {}
-            jni_verifier::Outcome::Err(error) => return Err(error.to_string()),
-            jni_verifier::Outcome::Panic(_) => {
-                return Err("Android TLS context initialization failed".into())
-            }
-        }
-        // APPLICATION 锁保证本进程只初始化一次，引用随进程存活，早于任何网络任务。
-        unsafe {
-            ndk_context::initialize_android_context(
-                vm.get_java_vm_pointer().cast(),
-                reference.as_obj().as_raw().cast(),
-            );
-        }
-        *application = Some(reference);
-        Ok(())
-    })
-}
-
-#[cfg(target_os = "android")]
 pub(super) fn with_android_env<T>(
     action: impl FnOnce(&mut jni::JNIEnv, jni::objects::JObject) -> Result<T, String>,
 ) -> Result<T, String> {

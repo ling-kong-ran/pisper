@@ -69,9 +69,3 @@ For an external launch failure containing `MZ` and a Node syntax error, use the 
 | :--- | :--- |
 | `/<tool> [request]` | Request a Runtime Tool, for example `/read README.md`, `/bash npm test`, or `/web_search Pisper`. The Agent still generates arguments and calls the Tool; the active execution mode and Tool settings remain enforced. |
 | `/skill:<name> [request]` | Request an enabled Skill, for example `/skill:docs-search find signing requirements`. Runtime resources load on demand, and Tools invoked by the Skill follow the same permission chain. |
-
-## Rust source and local packages
-
-Run `cargo build --locked --manifest-path runtime-rs/Cargo.toml` before `npm run tui:dev -- doctor` or `npm run tui:dev`. The development CLI prefers the Rust Runtime in the same source tree. A missing build reports the build command instead of downloading the old Node Runtime.
-
-`npm run tui:build` builds the standalone CLI, Rust Runtime, native resources, and Web frontend into `release/tui/`. Resource packaging covers macOS Apple Silicon/Intel, Windows x64, and Linux x64; device validation is tracked separately. `pisper web` and `/web` open model settings. The npm distribution explicitly selects the Rust Runtime backend. Local packaging does not publish a release.

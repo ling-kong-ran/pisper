@@ -21,13 +21,6 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/setup-mobile-android.mjs',
   'scripts/setup-mobile-ios.mjs',
   'scripts/mobile-ios.mjs',
-  'scripts/mobile-rust-env.mjs',
-  'scripts/run-mobile-rust.mjs',
-  'scripts/check-mobile-rust.mjs',
-  'scripts/stage-android-tls.mjs',
-  'scripts/smoke-android-runtime.mjs',
-  'scripts/mobile-runtime-preflight.mjs',
-  'scripts/mobile-runtime-archive.mjs',
   'scripts/build-mobile-android.mjs',
   'scripts/build-mobile-node-ios.sh',
   'scripts/build-mobile-runtime.mjs',
@@ -59,10 +52,8 @@ const APP_SHARED_PREFIXES = [
   'src/',
   'public/',
   'runtime/',
-  'runtime-rs/',
   'shared/',
   'crates/tauri-plugin-dns-sd/',
-  'crates/pisper-remote-transport/',
 ]
 
 const APP_SHARED_FILES = new Set([
@@ -98,7 +89,6 @@ export function isAppExclusivePath(input) {
 
 export function isAppOwnedPath(input) {
   const path = normalizeRepoPath(input)
-  if (path === 'runtime-rs/pi-rs-source.json') return false
   if (isAppExclusivePath(path) || APP_SHARED_FILES.has(path)) return true
   if (path.startsWith('runtime/tests/')) return false
   return APP_SHARED_PREFIXES.some((prefix) => path.startsWith(prefix))

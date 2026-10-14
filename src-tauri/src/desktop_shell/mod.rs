@@ -6,7 +6,6 @@ mod desktop_pet;
 mod desktop_terminal;
 mod remote_workspaces;
 mod startup_diagnostics;
-#[cfg(test)]
 mod tunnel_lifecycle;
 
 #[cfg(all(test, target_os = "windows"))]
@@ -19,7 +18,7 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Mutex,
+        mpsc, Arc, Mutex,
     },
     thread,
     time::{Duration, Instant},
@@ -37,84 +36,6 @@ const SIDECAR_TIMEOUT: Duration = Duration::from_secs(30);
 const SIDECAR_DESCRIPTOR_NAME: &str = "desktop-sidecar.json";
 const DESKTOP_BRIDGE_SCRIPT: &str = include_str!("desktop-bridge.js");
 
-fn parse_desktop_data_dir(value: Option<std::ffi::OsString>) -> Result<Option<PathBuf>, String> {
-    let Some(value) = value else { return Ok(None) };
-    let directory = PathBuf::from(value);
-    if !directory.is_absolute() {
-        return Err("PISPER_DESKTOP_DATA_DIR must be an absolute directory path.".into());
-    }
-    Ok(Some(directory))
-}
-
-fn isolated_test_script(
-    directory: Option<&Path>,
-    input: Option<std::ffi::OsString>,
-) -> Result<Option<String>, String> {
-    let (Some(directory), Some(input)) = (directory, input) else {
-        return Ok(None);
-    };
-    let script = PathBuf::from(input);
-    if !script.is_absolute() {
-        return Err("PISPER_DESKTOP_TEST_INIT_SCRIPT must be an absolute path.".into());
-    }
-    let directory = directory
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    let script = script.canonicalize().map_err(|error| error.to_string())?;
-    if !script.starts_with(&directory) {
-        return Err(
-            "The desktop test script must remain inside its isolated data directory.".into(),
-        );
-    }
-    let file = std::fs::File::open(script).map_err(|error| error.to_string())?;
-    let metadata = file.metadata().map_err(|error| error.to_string())?;
-    const MAX_BYTES: u64 = 256 * 1024;
-    if !metadata.is_file() || metadata.len() > MAX_BYTES {
-        return Err(
-            "The desktop test script must be a regular UTF-8 file no larger than 256 KiB.".into(),
-        );
-    }
-    let mut bytes = Vec::new();
-    file.take(MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| error.to_string())?;
-    if bytes.len() as u64 > MAX_BYTES {
-        return Err("The desktop test script exceeds 256 KiB.".into());
-    }
-    String::from_utf8(bytes)
-        .map(Some)
-        .map_err(|error| error.to_string())
-}
-
-pub(crate) fn desktop_data_dir_override() -> Result<Option<PathBuf>, String> {
-    parse_desktop_data_dir(std::env::var_os("PISPER_DESKTOP_DATA_DIR"))
-}
-
-fn select_desktop_directory(
-    override_directory: Option<PathBuf>,
-    default_directory: impl FnOnce() -> Result<PathBuf, String>,
-) -> Result<PathBuf, String> {
-    match override_directory {
-        Some(directory) => Ok(directory),
-        None => default_directory(),
-    }
-}
-
-fn prepare_desktop_directory(directory: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(directory)
-        .map_err(|error| format!("Cannot create the desktop data directory: {error}"))
-}
-
-pub(crate) fn desktop_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let directory = select_desktop_directory(desktop_data_dir_override()?, || {
-        app.path()
-            .app_local_data_dir()
-            .map_err(|error| error.to_string())
-    })?;
-    prepare_desktop_directory(&directory)?;
-    Ok(directory)
-}
-
 #[derive(serde::Deserialize)]
 pub(crate) struct SidecarReady {
     pub(crate) url: String,
@@ -123,6 +44,8 @@ pub(crate) struct SidecarReady {
     pub(crate) pid: u32,
     #[serde(default, rename = "desktopPetRunning")]
     pub(crate) desktop_pet_running: bool,
+    #[serde(default, rename = "remoteEnabled")]
+    pub(crate) remote_enabled: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -140,6 +63,19 @@ struct ManagedSidecar {
 }
 
 struct SidecarState(Mutex<Option<ManagedSidecar>>);
+#[derive(Default)]
+struct DesktopTunnelState(
+    Mutex<tunnel_lifecycle::TunnelLifecycle<Arc<crate::iroh_tunnel::TunnelServer>>>,
+);
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopTunnelStatus {
+    version: u8,
+    endpoint: Option<crate::iroh_tunnel::TunnelEndpoint>,
+    error: Option<String>,
+}
+
 struct LifecycleState {
     quitting: AtomicBool,
 }
@@ -200,11 +136,7 @@ fn frontend_root(app: &tauri::App, app_root: &Path) -> Result<PathBuf, String> {
             return Ok(packaged);
         }
     }
-    Ok(if cfg!(debug_assertions) {
-        development_root().join("dist")
-    } else {
-        app_root.join("dist")
-    })
+    Ok(app_root.join("dist"))
 }
 
 fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, bool), String> {
@@ -214,22 +146,10 @@ fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, 
 
     if cfg!(debug_assertions) {
         using_installed = false;
-        let source_root = development_root();
-        app_root = source_root.join("release/rust-dev");
-        let binary = source_root
-            .join("runtime-rs/target/debug")
-            .join(if cfg!(windows) {
-                "pisper-server.exe"
-            } else {
-                "pisper-server"
-            });
-        if !binary.is_file() || !app_root.join("package.json").is_file() {
-            return Err(
-                "Rust development runtime is missing; run npm run desktop:webview:dev.".into(),
-            );
-        }
-        command = Command::new(binary);
-        command.current_dir(source_root);
+        app_root = development_root();
+        command = Command::new("node");
+        command.arg(app_root.join("runtime").join("sidecar.mjs"));
+        command.current_dir(&app_root);
     } else if allow_installed {
         let installed = component_updates::installed_component(
             app.handle(),
@@ -257,7 +177,11 @@ fn sidecar_command(app: &tauri::App, allow_installed: bool) -> Result<(Command, 
     }
 
     let frontend_root = frontend_root(app, &app_root)?;
-    let tunnel_status_path = tunnel_status_path(app.handle())?;
+    let tunnel_status_path = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("iroh-tunnel-status.json");
     command
         .env("PISPER_APP_ROOT", &app_root)
         .env("PISPER_FRONTEND_ROOT", frontend_root)
@@ -347,18 +271,175 @@ fn start_sidecar(app: &tauri::App) -> Result<(Child, SidecarReady), String> {
 }
 
 fn tunnel_status_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(desktop_data_dir(app)?.join("iroh-tunnel-status.json"))
+    Ok(app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("iroh-tunnel-status.json"))
 }
 
-// 旧界面先调用 /api/remote/enabled，再通知此命令。Runtime 现已统一拥有隧道，
-// 保留通知命令的响应契约，避免旧页面再创建第二套监听器或重新读取私钥。
+fn write_tunnel_status(
+    path: &Path,
+    endpoint: Option<crate::iroh_tunnel::TunnelEndpoint>,
+    error: Option<String>,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let temporary = path.with_extension("json.tmp");
+    let payload = serde_json::to_vec(&DesktopTunnelStatus {
+        version: 1,
+        endpoint,
+        error,
+    })
+    .map_err(|error| error.to_string())?;
+    std::fs::write(&temporary, payload).map_err(|error| error.to_string())?;
+    std::fs::rename(temporary, path).map_err(|error| error.to_string())
+}
+
+fn start_desktop_tunnel(app: &AppHandle) {
+    let Some(state) = app.try_state::<DesktopTunnelState>() else {
+        return;
+    };
+    // 密钥准备和启动登记也与 stop 串行，避免快速重启时并发创建不同密钥。
+    let mut lifecycle = state.0.lock().expect("desktop tunnel state poisoned");
+    let Some(generation) = lifecycle.start() else {
+        return;
+    };
+    let Ok(data_dir) = app.path().app_local_data_dir() else {
+        lifecycle.fail(generation, || {});
+        return;
+    };
+    let status_path = data_dir.join("iroh-tunnel-status.json");
+    let secret = match crate::iroh_tunnel::load_or_create_secret(&data_dir.join("iroh-secret.key"))
+    {
+        Ok(secret) => secret,
+        Err(error) => {
+            lifecycle.fail(generation, || {
+                let _ = write_tunnel_status(&status_path, None, Some(error));
+            });
+            return;
+        }
+    };
+    let app = app.clone();
+    // 绑定任务完成后负责回收过期 server；只取消已登记 server 的发布任务。
+    tauri::async_runtime::spawn(async move {
+        let server = match crate::iroh_tunnel::start_server(
+            "127.0.0.1:5174".parse().expect("固定回环地址必须有效"),
+            secret,
+            crate::iroh_tunnel::production_relay_mode(),
+        )
+        .await
+        {
+            Ok(server) => Arc::new(server),
+            Err(error) => {
+                if let Some(state) = app.try_state::<DesktopTunnelState>() {
+                    state
+                        .0
+                        .lock()
+                        .expect("desktop tunnel state poisoned")
+                        .fail(generation, || {
+                            let _ = write_tunnel_status(&status_path, None, Some(error));
+                        });
+                }
+                return;
+            }
+        };
+        let installed = if let Some(state) = app.try_state::<DesktopTunnelState>() {
+            let publisher_app = app.clone();
+            let publisher_server = server.clone();
+            let installed = state
+                .0
+                .lock()
+                .expect("desktop tunnel state poisoned")
+                .install(generation, server.clone(), || {
+                    tokio::spawn(publish_desktop_tunnel(
+                        publisher_app,
+                        publisher_server,
+                        status_path,
+                        generation,
+                    ))
+                })
+                .is_ok();
+            installed
+        } else {
+            false
+        };
+        if !installed {
+            server.shutdown().await;
+        }
+    });
+}
+
+async fn publish_desktop_tunnel(
+    app: AppHandle,
+    server: Arc<crate::iroh_tunnel::TunnelServer>,
+    status_path: PathBuf,
+    generation: tunnel_lifecycle::Generation,
+) {
+    let publish = |endpoint| {
+        let Some(state) = app.try_state::<DesktopTunnelState>() else {
+            return false;
+        };
+        let lifecycle = state.0.lock().expect("desktop tunnel state poisoned");
+        // 检查世代与临时文件写入、rename 在同一锁内，旧代无法覆盖或争用新代文件。
+        lifecycle.publish(generation, || {
+            let _ = write_tunnel_status(&status_path, Some(endpoint), None);
+        })
+    };
+    // 先公布直连信息；relay 就绪后再次覆盖，移动端即可跨公网连接。
+    let initial = server.endpoint(Duration::from_millis(300)).await;
+    let needs_relay = initial.relay_url.is_none();
+    if !publish(initial) {
+        return;
+    }
+    if needs_relay && !publish(server.endpoint(Duration::from_secs(20)).await) {
+        return;
+    }
+    // 网络切换会改变直连候选地址；周期性刷新状态文件，下一次配对即可拿到新地址。
+    loop {
+        tokio::time::sleep(Duration::from_secs(15)).await;
+        if !publish(server.endpoint(Duration::from_secs(3)).await) {
+            return;
+        }
+    }
+}
+
+fn stop_desktop_tunnel(app: &AppHandle) {
+    if let Some(state) = app.try_state::<DesktopTunnelState>() {
+        let server = state
+            .0
+            .lock()
+            .expect("desktop tunnel state poisoned")
+            .stop(|| {
+                if let Ok(path) = tunnel_status_path(app) {
+                    let _ = std::fs::remove_file(&path);
+                    let _ = std::fs::remove_file(path.with_extension("json.tmp"));
+                }
+            });
+        if let Some(server) = server {
+            tauri::async_runtime::spawn(async move {
+                server.shutdown().await;
+            });
+        }
+    }
+}
+
 #[tauri::command]
-fn desktop_iroh_set_enabled(enabled: bool) {
-    let _ = enabled;
+fn desktop_iroh_set_enabled(app: AppHandle, enabled: bool) {
+    if enabled {
+        start_desktop_tunnel(&app);
+    } else {
+        stop_desktop_tunnel(&app);
+    }
 }
 
 fn sidecar_descriptor_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(desktop_data_dir(app)?.join(SIDECAR_DESCRIPTOR_NAME))
+    Ok(app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?
+        .join(SIDECAR_DESCRIPTOR_NAME))
 }
 
 fn publish_sidecar_descriptor(app: &AppHandle, ready: &SidecarReady) -> Result<(), String> {
@@ -468,40 +549,7 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
     let navigation_app = app.handle().clone();
     let new_window_app = app.handle().clone();
 
-    let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
-        .devtools(cfg!(debug_assertions));
-    let mut test_script = None;
-    if let Some(directory) = desktop_data_dir_override()? {
-        test_script = isolated_test_script(
-            Some(&directory),
-            std::env::var_os("PISPER_DESKTOP_TEST_INIT_SCRIPT"),
-        )?;
-        let directory = directory.join("webview");
-        prepare_desktop_directory(&directory)?;
-        // 仅显式隔离测试允许发布构建的 WebView 自动化调试；普通启动保持关闭。
-        builder = builder.data_directory(directory).devtools(true);
-        // WKWebView 不支持 data_directory；隔离验收使用非持久化 store，避免覆盖正式 App 的 Cookie。
-        #[cfg(target_os = "macos")]
-        {
-            builder = builder.incognito(true);
-        }
-        #[cfg(target_os = "windows")]
-        if let Some(value) = std::env::var_os("PISPER_DESKTOP_TEST_CDP_PORT") {
-            let port = value
-                .to_str()
-                .and_then(|value| value.parse::<u16>().ok())
-                .ok_or("PISPER_DESKTOP_TEST_CDP_PORT must be a TCP port (0 selects an owned automatic port).")?;
-            // 直接传入 WebView2 environment options，不依赖运行时对 WEBVIEW2_* 环境变量的信任。
-            builder = builder.additional_browser_args(&format!(
-                "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port} --remote-debugging-address=127.0.0.1 --no-first-run --disable-background-networking"
-            ));
-        }
-    }
-    builder = builder.initialization_script(DESKTOP_BRIDGE_SCRIPT);
-    if let Some(script) = test_script {
-        builder = builder.initialization_script(&script);
-    }
-    builder
+    WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
         // Tauri's native Windows file-drop handler intercepts HTML5 drag events used by React Flow.
         .disable_drag_drop_handler()
         .title("Pisper")
@@ -511,6 +559,7 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         // 页头标题被压缩成逐字换行（见 PageHeader），因此保持 1080 起步。
         .min_inner_size(1080.0, 680.0)
         .center()
+        .initialization_script(DESKTOP_BRIDGE_SCRIPT)
         .on_navigation(move |target| {
             if same_origin(target, &allowed) || target.scheme() == "about" {
                 return true;
@@ -704,21 +753,6 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
 }
 
 pub fn run() {
-    // 显式隔离目录用于验证安装包，不能转发到用户已有窗口或复用其浏览器档案。
-    let isolated = match desktop_data_dir_override().and_then(|directory| {
-        if let Some(directory) = &directory {
-            prepare_desktop_directory(directory)?;
-        }
-        Ok(directory.is_some())
-    }) {
-        Ok(isolated) => isolated,
-        Err(error) => {
-            eprintln!("{error}");
-            #[cfg(target_os = "windows")]
-            startup_diagnostics::show_before_runtime(&error);
-            std::process::exit(1);
-        }
-    };
     let process_args = std::env::args_os().skip(1).collect::<Vec<_>>();
     let cli_args = process_args
         .first()
@@ -731,22 +765,21 @@ pub fn run() {
     }
     let mut builder = tauri::Builder::default()
         .on_menu_event(|app, event| handle_desktop_menu_event(app, event.id().as_ref()));
-    if cli_args.is_none() && !isolated {
+    if cli_args.is_none() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main_window(app);
         }));
     }
     let cli_args_for_setup = cli_args.clone();
-    builder = builder
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)
                 .build(),
-        );
-    if !isolated {
-        builder = builder.plugin(
+        )
+        .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::POSITION
@@ -754,9 +787,7 @@ pub fn run() {
                         | tauri_plugin_window_state::StateFlags::MAXIMIZED,
                 )
                 .build(),
-        );
-    }
-    let builder = builder
+        )
         .manage(component_updates::ComponentUpdateState::default())
         .manage(desktop_terminal::DesktopTerminalState::default())
         .manage(computer_use::ComputerUseStreamState::default())
@@ -805,9 +836,7 @@ pub fn run() {
             desktop_iroh_set_enabled,
         ])
         .setup(move |app| {
-            if !isolated {
-                desktop_bridge::cleanup_open_assets(app.handle());
-            }
+            desktop_bridge::cleanup_open_assets(app.handle());
             if let Some(args) = cli_args_for_setup.as_deref() {
                 let exit_code = match cli_manager::run_bundled_cli(app, args) {
                     Ok(code) => code,
@@ -836,12 +865,12 @@ pub fn run() {
                         return Err(format!("Required bundled file is missing: {missing}").into());
                     }
                 }
-                if !isolated {
-                    if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
-                        eprintln!("Failed to refresh the managed Pisper CLI: {error}");
-                    }
+                if let Err(error) = cli_manager::refresh_managed_cli(app.handle()) {
+                    eprintln!("Failed to refresh the managed Pisper CLI: {error}");
                 }
 
+                app.manage(DesktopTunnelState::default());
+                stop_desktop_tunnel(app.handle());
                 stage = startup_diagnostics::StartupStage::Runtime;
                 let (child, ready) = start_sidecar(app)?;
                 app.manage(SidecarState(Mutex::new(Some(ManagedSidecar {
@@ -855,6 +884,9 @@ pub fn run() {
                 app.manage(desktop_pet::DesktopPetWindowState::new(
                     ready.bootstrap_url.clone(),
                 ));
+                if ready.remote_enabled {
+                    start_desktop_tunnel(app.handle());
+                }
                 if let Err(error) = publish_sidecar_descriptor(app.handle(), &ready) {
                     stop_sidecar(app.handle());
                     return Err(error.into());
@@ -882,18 +914,11 @@ pub fn run() {
                     stop_sidecar(app.handle());
                     return Err(error.into());
                 }
-                if !cfg!(debug_assertions) {
-                    component_updates::cleanup_after_successful_startup(
-                        app.handle().clone(),
-                        &ready.url,
-                        &ready.bootstrap_url,
-                        ready.pid,
-                    );
-                }
                 Ok(())
             })();
             if result.is_err() {
                 stop_sidecar(app.handle());
+                stop_desktop_tunnel(app.handle());
                 // 不把底层错误中的个人路径、令牌或会话数据写入弹窗与日志。
                 let mut message = startup_diagnostics::guidance(stage).to_string();
                 if let Some(missing) = missing_resource {
@@ -938,90 +963,10 @@ pub fn run() {
         }
         if matches!(&event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
             if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
-                desktop_terminal::shutdown(&state);
+                desktop_terminal::close_all(&state);
             }
+            stop_desktop_tunnel(app);
             stop_sidecar(app);
         }
     });
-}
-
-#[cfg(test)]
-mod desktop_directory_tests {
-    use super::*;
-
-    #[test]
-    fn explicit_desktop_directory_is_absolute_and_avoids_default_resolver() {
-        let directory = std::env::temp_dir().join("pisper-isolated-desktop");
-        let parsed = parse_desktop_data_dir(Some(directory.clone().into_os_string())).unwrap();
-        let selected =
-            select_desktop_directory(parsed, || panic!("default path must not be read")).unwrap();
-        assert_eq!(selected, directory);
-    }
-
-    #[test]
-    fn ordinary_desktop_directory_keeps_default_path_and_errors() {
-        let parsed = parse_desktop_data_dir(None).unwrap();
-        let original = std::env::temp_dir().join("existing-app-local-data");
-        assert_eq!(
-            select_desktop_directory(parsed, || Ok(original.clone())).unwrap(),
-            original
-        );
-        assert_eq!(
-            select_desktop_directory(None, || Err("resolver failure".into())).unwrap_err(),
-            "resolver failure"
-        );
-    }
-
-    #[test]
-    fn relative_or_empty_desktop_override_is_rejected() {
-        for path in ["", "relative-directory", "../another-directory"] {
-            let error = parse_desktop_data_dir(Some(path.into())).unwrap_err();
-            assert!(error.contains("PISPER_DESKTOP_DATA_DIR"));
-            assert!(error.contains("absolute"));
-        }
-    }
-
-    #[test]
-    fn desktop_probe_script_is_inert_without_an_isolated_directory() {
-        assert!(isolated_test_script(None, Some("nonexistent.js".into()))
-            .unwrap()
-            .is_none());
-        assert!(isolated_test_script(Some(Path::new("nonexistent")), None)
-            .unwrap()
-            .is_none());
-    }
-
-    #[test]
-    fn desktop_probe_script_requires_owned_utf8_file_and_size_limit() {
-        let temporary = std::env::temp_dir().canonicalize().unwrap();
-        let root = temporary.join(format!(
-            "pisper-webview-probe-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir(&root).unwrap();
-        let directory = root.join("isolated");
-        std::fs::create_dir(&directory).unwrap();
-        let file = directory.join("probe.js");
-        let code = "window.__ownedProbe = true;";
-        std::fs::write(&file, code).unwrap();
-        assert_eq!(
-            isolated_test_script(Some(&directory), Some(file.clone().into())).unwrap(),
-            Some(code.into())
-        );
-        assert!(isolated_test_script(Some(&directory), Some("relative.js".into())).is_err());
-        let outside = root.join("outside.js");
-        std::fs::write(&outside, code).unwrap();
-        assert!(isolated_test_script(Some(&directory), Some(outside.into())).is_err());
-        assert!(isolated_test_script(Some(&directory), Some(directory.clone().into())).is_err());
-        std::fs::write(&file, vec![b'a'; 256 * 1024 + 1]).unwrap();
-        assert!(isolated_test_script(Some(&directory), Some(file.clone().into())).is_err());
-        std::fs::write(&file, [0xff]).unwrap();
-        assert!(isolated_test_script(Some(&directory), Some(file.into())).is_err());
-        assert!(root.canonicalize().unwrap().starts_with(&temporary));
-        std::fs::remove_dir_all(root).unwrap();
-    }
 }

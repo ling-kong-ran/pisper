@@ -102,19 +102,20 @@ jobs:
           name: release-source
           path: .
       - uses: actions/setup-node@v5
+        if: inputs.component != 'tui'
         with:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.component != 'runtime'
       - name: Install Linux Tauri prerequisites
         if: inputs.component == 'desktop'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - name: Install Node dependencies
+        if: inputs.component != 'tui'
         run: npm ci
-      - name: Check release dispatch behavior
-        run: npm run test:release
       - name: Check runtime and web
         if: inputs.component == 'runtime'
         run: |
@@ -131,20 +132,10 @@ jobs:
         if: inputs.component == 'desktop'
         run: |
           npm test
-          cargo test --manifest-path runtime-rs/Cargo.toml --locked --package pi-rs --test pisper_mcp_regression --test pisper_model_registry_regression
-          npm run typecheck
-          npm run lint
-          npm run i18n:check
-          npm run format:check
+          npm run check
           npm run build
-          mkdir -p release/rust-runtime src-tauri/binaries
-          # cargo check 只编译 codegen;tauri 构建脚本按宿主三元组校验 externalBin
-          # 存在性,quality 阶段用占位文件满足(linux 三元组由打包脚本在
-          # Windows 机器上不会暂存)。
-          for bin in pisper-sidecar pisper-cli; do
-            [ -f "src-tauri/binaries/$bin-x86_64-unknown-linux-gnu" ] || printf '#!/bin/sh\n' > "src-tauri/binaries/$bin-x86_64-unknown-linux-gnu"
-          done
-          cargo fmt --manifest-path src-tui/Cargo.toml -- --check
+          npm run sidecar:sea
+          npm run tui:stage
           cargo check --manifest-path src-tauri/Cargo.toml
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
           cargo test --manifest-path src-tui/Cargo.toml --locked
@@ -193,39 +184,22 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.component != 'runtime'
       - uses: Swatinem/rust-cache@v2
+        if: inputs.component != 'runtime'
         with:
           workspaces: |
             src-tauri
             src-tui
-            runtime-rs
-          cache-on-failure: 'true'
-          cache-workspace-crates: 'true'
       - name: Install Linux Tauri prerequisites
         if: runner.os == 'Linux' && inputs.component == 'desktop'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm ci
-      - name: Install and verify locked desktop test browsers
-        if: inputs.component == 'desktop'
-        shell: bash
-        run: |
-          node node_modules/playwright-core/cli.js install --with-deps chromium
-          node --input-type=module <<'NODE'
-          import { chromium } from 'playwright-core'
-          for (const options of [{ headless: true }, { headless: true, executablePath: chromium.executablePath() }]) {
-            const browser = await chromium.launch(options)
-            try {
-              console.log(`Desktop test browser ready: ${browser.version()}`)
-            } finally {
-              await browser.close()
-            }
-          }
-          NODE
-      - name: Check native project directory flow
-        if: runner.os == 'Windows' && inputs.component == 'desktop'
-        run: npm run test:project-directory
+      - name: Verify Windows shell process cleanup
+        if: runner.os == 'Windows' && inputs.component != 'tui'
+        run: node --import tsx --test runtime/tests/host-bash.test.mjs
       - name: Require component signing credentials
         shell: bash
         run: |
@@ -237,75 +211,72 @@ jobs:
           case "$RELEASE_COMPONENT" in
             desktop)
               npm run build
-              node scripts/package-tauri-rust.mjs
-              node scripts/archive-component-release.mjs desktop --require-signature
+              node scripts/fetch-bundled-components.mjs
+              npm run desktop:webview:package
+              node scripts/archive-component-release.mjs desktop
               ;;
             tui)
+              npm run sidecar:sea
+              npm run sidecar:sea:smoke
               npm run tui:package
-              node scripts/archive-component-release.mjs tui --require-signature
+              node scripts/archive-component-release.mjs tui
               ;;
             runtime)
-              if [ -f runtime-rs/Cargo.toml ] && [ ! -f runtime/index.mjs ]; then
-                node scripts/package-rust-runtime.mjs
-              else
-                npm run sidecar:sea
-                npm run sidecar:sea:smoke
-              fi
-              node scripts/archive-component-release.mjs runtime --require-signature
+              npm run sidecar:sea
+              npm run sidecar:sea:smoke
+              node scripts/archive-component-release.mjs runtime
               ;;
             *)
               echo "Unsupported release component: $RELEASE_COMPONENT" >&2
               exit 1
               ;;
           esac
-      - name: Preserve isolated desktop failure diagnostics
-        if: failure() && inputs.component == 'desktop'
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-diagnostics-${{ matrix.target }}-${{ github.run_attempt }}
-          retention-days: 7
-          if-no-files-found: warn
-          path: |
-            release/local-rust-build/usability/*/report.json
-            release/local-rust-build/usability/*/server.log
-            release/local-rust-build/usability/*/*failure*.json
-            release/local-rust-build/usability/*/*.png
-            release/project-directory-smoke/report.json
-            release/project-directory-smoke/*.png
-      - name: Verify the Windows installer embeds a signed WebView2 bootstrapper
+      - name: Verify Windows standard and offline prerequisites
         if: runner.os == 'Windows' && inputs.component == 'desktop'
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem release/tauri-rust-artifacts -Recurse -File -Filter '*-setup.exe')
-          if ($installers.Count -ne 2) { throw 'Expected ordinary and offline Windows installers.' }
-          if (@($installers | Where-Object { $_.Name -like '*-offline-setup.exe' }).Count -ne 1) { throw 'Expected exactly one offline installer.' }
-          foreach ($installer in $installers) {
-            $offline = $installer.Name -like '*-offline-setup.exe'
-            $payloadName = if ($offline) { 'MicrosoftEdgeWebView2RuntimeInstaller.exe' } else { 'MicrosoftEdgeWebview2Setup.exe' }
-            $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
-            New-Item -ItemType Directory -Path $payloadDir | Out-Null
-            try {
-              & 7z x $installer.FullName "-o$payloadDir" "*$payloadName" -r -y | Out-Null
+          $installers = @(Get-ChildItem release/tauri-artifacts -Recurse -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 2) { throw 'Expected standard and offline Windows installers.' }
+          $offline = @($installers | Where-Object { $_.Name -like '*-offline-setup.exe' })
+          $standard = @($installers | Where-Object { $_.Name -notlike '*-offline-setup.exe' })
+          if ($offline.Count -ne 1 -or $standard.Count -ne 1) { throw 'Missing Windows installer variant.' }
+          $payloadDir = Join-Path $env:RUNNER_TEMP "pisper-webview2-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $payloadDir | Out-Null
+          try {
+            foreach ($installer in $installers) {
+              $variantDir = Join-Path $payloadDir $installer.Name
+              & 7z x $installer.FullName "-o$variantDir" '*MicrosoftEdgeWebView2RuntimeInstaller.exe' '*MicrosoftEdgeWebview2Setup.exe' -r -y | Out-Null
               if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect the Windows installer.' }
-              $payloads = @(Get-ChildItem $payloadDir -Recurse -File -Filter $payloadName)
-              if ($payloads.Count -ne 1) { throw "Installer does not embed $payloadName." }
+              $payloads = @(Get-ChildItem $variantDir -Recurse -File -Filter '*MicrosoftEdgeWeb*.exe')
+              $expected = if ($installer.Name -like '*-offline-setup.exe') { 'MicrosoftEdgeWebView2RuntimeInstaller.exe' } else { 'MicrosoftEdgeWebview2Setup.exe' }
+              if ($payloads.Count -ne 1 -or $payloads[0].Name -ne $expected) { throw "Incorrect WebView2 payload in $($installer.Name)." }
               $payload = $payloads[0]
               $signature = Get-AuthenticodeSignature $payload.FullName
               if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') {
                 throw 'Bundled WebView2 installer must have a valid Microsoft signature.'
               }
               $digest = (Get-FileHash $payload.FullName -Algorithm SHA256).Hash
-              Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2 version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
-            } finally {
-              Remove-Item $payloadDir -Recurse -Force
+              Write-Host "$($installer.Name): installerBytes=$($installer.Length) WebView2=$expected version=$($payload.VersionInfo.ProductVersion) bytes=$($payload.Length) sha256=$digest"
             }
+          } finally {
+            Remove-Item $payloadDir -Recurse -Force
           }
+      - name: Test desktop shell on the release platform
+        if: inputs.component == 'desktop'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Sign independently updateable component archives
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS= read -r -d '' archive; do
+            npx tauri signer sign "$archive"
+          done < <(find release/component-artifacts -type f -name '*.tar.gz' -print0)
       - uses: actions/upload-artifact@v4
         with:
           name: pisper-${{ inputs.component }}-${{ matrix.target }}
           if-no-files-found: error
           path: |
-            release/tauri-rust-artifacts
+            release/tauri-artifacts
             release/component-artifacts
 
   release:
@@ -337,11 +308,7 @@ jobs:
         run: node scripts/validate-tauri-release-assets.mjs "$RELEASE_TAG" artifacts
       - name: Validate exact component release asset set
         if: inputs.component != 'desktop'
-        shell: bash
-        run: |
-          backend_args=()
-          if [ -f runtime/index.mjs ]; then backend_args+=(--node); fi
-          node scripts/validate-component-release-assets.mjs "$RELEASE_COMPONENT" "$RELEASE_TAG" artifacts "${backend_args[@]}"
+        run: node scripts/validate-component-release-assets.mjs "$RELEASE_COMPONENT" "$RELEASE_TAG" artifacts
       - name: Commit component version, upload a draft, and publish atomically
         shell: bash
         env:

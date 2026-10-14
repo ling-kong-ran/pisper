@@ -1,12 +1,10 @@
 // 按 GitHub iOS 构建顺序生成本地真机 IPA；本地签名由 Xcode 的开发团队配置负责。
-import { assertMobileRuntimeSource } from './mobile-runtime-preflight.mjs'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-assertMobileRuntimeSource(root)
 const node = process.execPath
 const mobileVersion = JSON.parse(
   readFileSync(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),
@@ -94,7 +92,6 @@ copyFileSync(runtimeArchive, sourceRuntimeArchive)
 // GitHub 流程先生成图标再初始化工程；已有工程也要直接覆盖资源，避免沿用 Tauri 默认图标。
 run(['scripts/sync-mobile-icons.mjs'])
 if (!existsSync(generatedProject)) run(['scripts/mobile-ios.mjs', 'init'])
-else run(['scripts/setup-mobile-ios.mjs'])
 restoreRustBuildPhase()
 run(['scripts/sync-mobile-icons.mjs'])
 mkdirSync(dirname(generatedRuntimeArchive), { recursive: true })

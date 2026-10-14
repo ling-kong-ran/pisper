@@ -3,10 +3,7 @@ import { chmod, copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/pro
 import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import {
-  npmPlatformOptionalDependencies,
-  npmRuntimeBackend,
-} from '../packages/pisper/lib/npm-platform.mjs'
+import { npmPlatformOptionalDependencies } from '../packages/pisper/lib/npm-platform.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const source = join(root, 'packages', 'pisper')
@@ -37,7 +34,6 @@ export async function packageNpm() {
     stdio: 'inherit',
   })
   const manifest = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
-  manifest.pisper.runtimeBackend = npmRuntimeBackend(manifest.pisper.runtimeBackend)
   manifest.version = version(process.env.PISPER_NPM_VERSION || manifest.version, 'npm version')
   manifest.pisper.tuiVersion = version(
     process.env.PISPER_NPM_TUI_VERSION || manifest.pisper.tuiVersion,

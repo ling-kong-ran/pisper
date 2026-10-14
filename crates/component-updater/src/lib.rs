@@ -22,7 +22,6 @@ const MAX_ARCHIVE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES: usize = 100_000;
 const MAX_SIGNATURE_BYTES: u64 = 64 * 1024;
-const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 const NETWORK_ATTEMPTS: usize = 3;
 const MIN_PARALLEL_DOWNLOAD_BYTES: u64 = 8 * 1024 * 1024;
 const MIN_DOWNLOAD_SEGMENT_BYTES: u64 = 4 * 1024 * 1024;
@@ -119,16 +118,10 @@ struct CurrentPointer {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ComponentManifest {
-    #[serde(default)]
-    name: Option<String>,
     version: String,
     platform: String,
     arch: String,
     command: String,
-    #[serde(default)]
-    backend: Option<String>,
-    #[serde(default)]
-    upgrade_notice: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -288,9 +281,13 @@ impl ComponentUpdater {
         let root = self.root.clone();
         let component = release.component;
         let version = Version::parse(&release.version).context("invalid component version")?;
+        let installed_version = version.clone();
         tokio::task::spawn_blocking(move || install_archive(&root, component, &version, &archive))
             .await
-            .context("component installer task failed")?
+            .context("component installer task failed")??;
+        self.installed(component)?
+            .filter(|installed| installed.version == installed_version)
+            .ok_or_else(|| anyhow!("installed component pointer was not activated"))
     }
 
     /// 依次尝试候选下载地址：每个地址内部仍会多次重试，
@@ -648,7 +645,6 @@ async fn download_range_once(
 
 pub fn deactivate_component(root: &Path, component: Component) -> Result<()> {
     let pointer = root.join(component.name()).join("current.json");
-    ensure_component_path(root, &pointer)?;
     match fs::remove_file(pointer) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -657,35 +653,10 @@ pub fn deactivate_component(root: &Path, component: Component) -> Result<()> {
 }
 
 pub fn resolve_installed(root: &Path, component: Component) -> Result<Option<InstalledComponent>> {
-    let component_root = root.join(component.name());
-    ensure_component_path(root, &component_root)?;
-    if !component_root.exists() {
-        return Ok(None);
-    }
-    let lock_path = component_root.join("install.lock");
-    ensure_component_path(root, &lock_path)?;
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(lock_path)
-        .context("failed to open component pointer lock")?;
-    // 读取完整指针及布局使用同一共享锁，不能观察安装器切换目录时的中间状态。
-    fs2::FileExt::lock_shared(&lock).context("failed to lock component pointer")?;
-    resolve_installed_locked(root, component)
-}
-
-fn resolve_installed_locked(
-    root: &Path,
-    component: Component,
-) -> Result<Option<InstalledComponent>> {
     let pointer_path = root.join(component.name()).join("current.json");
-    ensure_component_path(root, &pointer_path)?;
     let pointer = match fs::read(&pointer_path) {
-        Ok(value) => {
-            serde_json::from_slice::<CurrentPointer>(&value).context("invalid component pointer")?
-        }
+        Ok(value) => serde_json::from_slice::<CurrentPointer>(&value)
+            .with_context(|| format!("invalid component pointer: {}", pointer_path.display()))?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error).context("failed to read component pointer"),
     };
@@ -695,7 +666,6 @@ fn resolve_installed_locked(
         .join(component.name())
         .join("versions")
         .join(version.to_string());
-    ensure_component_path(root, &version_root)?;
     validate_layout(component, &version_root, &version)?;
     Ok(Some(InstalledComponent {
         component,
@@ -707,7 +677,7 @@ fn resolve_installed_locked(
 pub fn component_asset_name(component: Component, version: &str) -> String {
     match component {
         Component::Desktop => format!(
-            "Pisper_Desktop_Rust_{}_{}_{}.tar.gz",
+            "Pisper_Desktop_{}_{}_{}.tar.gz",
             version,
             platform_name(),
             architecture_name()
@@ -719,7 +689,7 @@ pub fn component_asset_name(component: Component, version: &str) -> String {
             architecture_name()
         ),
         Component::Runtime => format!(
-            "Pisper_Runtime_Rust_{}_{}_{}.tar.gz",
+            "Pisper_Runtime_{}_{}_{}.tar.gz",
             version,
             platform_name(),
             architecture_name()
@@ -733,30 +703,16 @@ fn release_info(component: Component, release: GitHubRelease) -> Option<ReleaseI
     }
     let version = release.tag_name.strip_prefix(component.tag_prefix())?;
     Version::parse(version).ok()?;
-    let mut archive_names = vec![component_asset_name(component, version)];
-    // v0.6.0 已使用 Rust，却仍沿用 Node 前端资产名；只在读取这一个历史版本时兼容。
-    // 新产物必须隔离身份，防止旧 Node 更新器只升级前端后继续启动旧 Runtime。
-    if component == Component::Desktop && version == "0.6.0" {
-        archive_names.push(format!(
-            "Pisper_Desktop_{}_{}_{}.tar.gz",
-            version,
-            platform_name(),
-            architecture_name()
-        ));
-    }
-    let (archive, signature) = archive_names.iter().find_map(|archive_name| {
-        let signature_name = format!("{archive_name}.sig");
-        Some((
-            release
-                .assets
-                .iter()
-                .find(|asset| asset.name == *archive_name)?,
-            release
-                .assets
-                .iter()
-                .find(|asset| asset.name == signature_name)?,
-        ))
-    })?;
+    let archive_name = component_asset_name(component, version);
+    let signature_name = format!("{archive_name}.sig");
+    let archive = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == archive_name)?;
+    let signature = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == signature_name)?;
     Some(ReleaseInfo {
         component,
         version: version.to_string(),
@@ -854,11 +810,9 @@ fn install_archive(
     component: Component,
     version: &Version,
     bytes: &[u8],
-) -> Result<InstalledComponent> {
+) -> Result<()> {
     let component_root = root.join(component.name());
-    ensure_component_path(root, &component_root)?;
     fs::create_dir_all(&component_root).context("failed to create component directory")?;
-    ensure_component_path(root, &component_root.join("install.lock"))?;
     let lock = OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -870,24 +824,17 @@ fn install_archive(
         .context("failed to lock the component installer")?;
     let versions_root = component_root.join("versions");
     let destination = versions_root.join(version.to_string());
-    ensure_component_path(root, &destination)?;
     fs::create_dir_all(&versions_root).context("failed to create component versions directory")?;
 
     let staging = versions_root.join(format!(".{}.tmp-{}", version, std::process::id()));
     let backup = versions_root.join(format!(".{}.previous-{}", version, std::process::id()));
-    ensure_component_path(root, &staging)?;
-    ensure_component_path(root, &backup)?;
-    ensure_component_path(root, &component_root.join("current.json"))?;
-    ensure_component_path(root, &component_root.join("current.json.tmp"))?;
-    ensure_component_path(root, &component_root.join("current.json.bak"))?;
     if staging.exists() {
         fs::remove_dir_all(&staging).context("failed to clear stale component staging")?;
     }
     let _ = fs::remove_dir_all(&backup);
     fs::create_dir_all(&staging).context("failed to create component staging directory")?;
     let result = extract_archive(bytes, &staging)
-        .and_then(|_| validate_layout(component, &staging, version))
-        .context("staged component validation failed");
+        .and_then(|_| validate_layout(component, &staging, version));
     if let Err(error) = result {
         let _ = fs::remove_dir_all(&staging);
         return Err(error);
@@ -904,32 +851,21 @@ fn install_archive(
         return Err(error).context("failed to activate component version directory");
     }
     let _ = fs::remove_dir_all(backup);
-    validate_layout(component, &destination, version)
-        .context("activated component validation failed")?;
+    validate_layout(component, &destination, version)?;
     write_pointer(&component_root, version)?;
-    cleanup_versions(&versions_root, component, version);
-    // 返回仍在安装锁保护下验证的版本，避免另一个安装器切换current之后二次查询。
-    Ok(InstalledComponent {
-        component,
-        version: version.clone(),
-        root: destination,
-    })
+    cleanup_versions(&versions_root, version);
+    Ok(())
 }
 
-fn cleanup_versions(versions_root: &Path, component: Component, active: &Version) {
+fn cleanup_versions(versions_root: &Path, active: &Version) {
     let Ok(entries) = fs::read_dir(versions_root) else {
         return;
     };
     let mut versions = entries
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .filter(|entry| entry.path().is_dir())
         .filter_map(|entry| {
             let version = Version::parse(entry.file_name().to_str()?).ok()?;
-            if entry.file_name() != std::ffi::OsStr::new(&version.to_string())
-                || validate_layout(component, &entry.path(), &version).is_err()
-            {
-                return None;
-            }
             Some((version, entry.path()))
         })
         .collect::<Vec<_>>();
@@ -1004,215 +940,40 @@ fn strip_archive_root(path: &Path) -> Result<PathBuf> {
     Ok(normal.into_iter().skip(1).collect())
 }
 
-// 只检查调用方拥有的组件根及其相对后代；不把符号链接规范化成另一个可删除目录。
-fn ensure_component_path(root: &Path, path: &Path) -> Result<()> {
-    let relative = path
-        .strip_prefix(root)
-        .context("component path escapes its root")?;
-    let mut current = root.to_path_buf();
-    for part in std::iter::once(None).chain(relative.components().map(Some)) {
-        if let Some(part) = part {
-            let PathComponent::Normal(name) = part else {
-                bail!("component path contains an invalid segment");
-            };
-            current.push(name);
-        }
-        match fs::symlink_metadata(&current) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                bail!("component path contains a symbolic link");
-            }
-            Ok(_) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error).context("failed to inspect component path"),
-        }
-    }
-    Ok(())
-}
-
-fn component_file(root: &Path, path: &Path) -> Result<()> {
-    ensure_component_path(root, path)?;
-    if !fs::metadata(path)?.is_file() {
-        bail!("component entry is not a regular file");
-    }
-    Ok(())
-}
-
-fn read_component_manifest(root: &Path) -> Result<ComponentManifest> {
-    let path = root.join("manifest.json");
-    component_file(root, &path)?;
-    if fs::metadata(&path)?.len() > MAX_MANIFEST_BYTES {
-        bail!("component manifest exceeds the size limit");
-    }
-    serde_json::from_slice(&fs::read(path)?).context("component manifest is invalid")
-}
-
-fn manifest_matches(component: Component, manifest: &ComponentManifest, version: &Version) -> bool {
-    manifest.version == version.to_string()
-        && manifest.platform == platform_name()
-        && manifest.arch == architecture_name()
-        && manifest.command
-            == if component == Component::Desktop {
-                "dist/index.html"
-            } else {
-                component.executable_name()
-            }
-        && match component {
-            Component::Desktop => manifest.name.as_deref() == Some("pisper-desktop"),
-            Component::Runtime => manifest.name.as_deref() == Some("pisper-runtime"),
-            Component::Tui => true,
-        }
-}
-
 fn validate_layout(component: Component, root: &Path, version: &Version) -> Result<()> {
     let entry = if component == Component::Desktop {
         root.join("dist").join(component.executable_name())
     } else {
         root.join(component.executable_name())
     };
-    component_file(root, &entry).context("component entry is missing or unsafe")?;
-    let manifest = read_component_manifest(root)?;
-    if !manifest_matches(component, &manifest, version) {
-        bail!("component manifest does not match the requested identity, platform and version");
+    if !entry.is_file() {
+        bail!("component entry is missing: {}", entry.display());
     }
-    if component == Component::Desktop {
-        // 完整 Rust 安装不能再激活旧 Node 前端或用于指导旧壳升级的提示页。
-        let historical_rust = version == &Version::new(0, 6, 0) && manifest.backend.is_none();
-        if manifest.upgrade_notice
-            || !(manifest.backend.as_deref() == Some("rust") || historical_rust)
-        {
-            bail!("desktop component backend is incompatible; expected rust");
-        }
+    let manifest_path = root.join("manifest.json");
+    let manifest =
+        serde_json::from_slice::<ComponentManifest>(&fs::read(&manifest_path).with_context(
+            || format!("component manifest is missing: {}", manifest_path.display()),
+        )?)
+        .context("component manifest is invalid")?;
+    if manifest.version != version.to_string()
+        || manifest.platform != platform_name()
+        || manifest.arch != architecture_name()
+        || manifest.command
+            != if component == Component::Desktop {
+                "dist/index.html"
+            } else {
+                component.executable_name()
+            }
+    {
+        bail!("component manifest does not match the requested platform and version");
     }
     if component == Component::Runtime {
-        if manifest.backend.as_deref() != Some("rust") || manifest.upgrade_notice {
-            bail!("runtime component backend is incompatible; expected rust");
-        }
         let package = root.join("sidecar-runtime").join("package.json");
-        component_file(root, &package).context("runtime payload is missing or unsafe")?;
-        let metadata: serde_json::Value = serde_json::from_slice(&fs::read(package)?)?;
-        if metadata.get("backend").and_then(|value| value.as_str()) != Some("rust") {
-            bail!("runtime payload backend does not match its manifest");
+        if !package.is_file() {
+            bail!("runtime payload is missing: {}", package.display());
         }
     }
     Ok(())
-}
-
-fn obsolete_legacy_component(component: Component, path: &Path, version: &Version) -> bool {
-    let Ok(manifest) = read_component_manifest(path) else {
-        return false;
-    };
-    if !manifest_matches(component, &manifest, version) {
-        return false;
-    }
-    if component == Component::Desktop
-        && manifest.backend.as_deref() == Some("upgrade-notice")
-        && manifest.upgrade_notice
-    {
-        return component_file(path, &path.join("dist/index.html")).is_ok();
-    }
-    // 只清除能够识别的 0.5.x 及更早 Node 组件，未知或 Rust 组件整个保留。
-    if version.major != 0
-        || version.minor >= 6
-        || manifest.upgrade_notice
-        || !matches!(manifest.backend.as_deref(), None | Some("node"))
-    {
-        return false;
-    }
-    match component {
-        Component::Desktop => component_file(path, &path.join("dist/index.html")).is_ok(),
-        Component::Runtime => {
-            let package = path.join("sidecar-runtime/package.json");
-            if component_file(path, &path.join(component.executable_name())).is_err()
-                || component_file(path, &path.join("sidecar-runtime/runtime/sidecar.mjs")).is_err()
-                || component_file(path, &package).is_err()
-                || !fs::metadata(&package)
-                    .is_ok_and(|metadata| metadata.len() <= MAX_MANIFEST_BYTES)
-            {
-                return false;
-            }
-            fs::read(package)
-                .ok()
-                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-                .is_some_and(|metadata| match metadata.get("backend") {
-                    None | Some(serde_json::Value::Null) => true,
-                    Some(serde_json::Value::String(backend)) => backend == "node",
-                    _ => false,
-                })
-        }
-        Component::Tui => false,
-    }
-}
-
-/// 完整 Rust 应用已健康启动后，回收应用自管的旧 Node 与升级提示组件。
-/// 未成功启动时不触碰缓存；正在安装的组件和未知目录保持原样。
-pub fn cleanup_legacy_components(root: &Path, rust_started: bool) -> Result<usize> {
-    if !rust_started || !root.exists() {
-        return Ok(0);
-    }
-    ensure_component_path(root, root)?;
-    let mut removed = 0;
-    for component in [Component::Desktop, Component::Runtime] {
-        let component_root = root.join(component.name());
-        if !component_root.exists() {
-            continue;
-        }
-        ensure_component_path(root, &component_root)?;
-        let lock_path = component_root.join("install.lock");
-        ensure_component_path(root, &lock_path)?;
-        let lock = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(lock_path)
-            .context("failed to open component cleanup lock")?;
-        // 安装期间不等待或改写指针，由下次健康启动重试。
-        if lock.try_lock_exclusive().is_err() {
-            continue;
-        }
-        let versions = component_root.join("versions");
-        if !versions.exists() {
-            continue;
-        }
-        ensure_component_path(root, &versions)?;
-        let pointer_path = component_root.join("current.json");
-        ensure_component_path(root, &pointer_path)?;
-        let pointer = fs::read(&pointer_path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<CurrentPointer>(&bytes).ok());
-        for entry in fs::read_dir(&versions).context("failed to list component cache")? {
-            let entry = entry.context("failed to inspect component cache")?;
-            if !entry.file_type()?.is_dir() {
-                continue;
-            }
-            let Some(version) = entry
-                .file_name()
-                .to_str()
-                .and_then(|name| Version::parse(name).ok())
-            else {
-                continue;
-            };
-            if entry.file_name() != std::ffi::OsStr::new(&version.to_string()) {
-                continue;
-            }
-            let path = entry.path();
-            ensure_component_path(root, &path)?;
-            if !obsolete_legacy_component(component, &path, &version) {
-                continue;
-            }
-            if pointer
-                .as_ref()
-                .is_some_and(|pointer| pointer.version == version.to_string())
-            {
-                // 先使已判定不兼容的指针失效，删除失败也不会重新激活旧前端。
-                fs::remove_file(&pointer_path)
-                    .context("failed to deactivate obsolete component")?;
-            }
-            fs::remove_dir_all(path).context("failed to remove obsolete component cache")?;
-            removed += 1;
-        }
-    }
-    Ok(removed)
 }
 
 fn write_pointer(component_root: &Path, version: &Version) -> Result<()> {
@@ -1281,11 +1042,8 @@ mod tests {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
-            static NEXT_DIRECTORY: std::sync::atomic::AtomicU64 =
-                std::sync::atomic::AtomicU64::new(0);
-            let sequence = NEXT_DIRECTORY.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
-                "pisper-component-updater-{}-{nonce}-{sequence}",
+                "pisper-component-updater-{}-{nonce}",
                 std::process::id()
             ));
             fs::create_dir_all(&path).unwrap();
@@ -1342,8 +1100,6 @@ mod tests {
             "platform": super::platform_name(),
             "arch": super::architecture_name(),
             "command": "dist/index.html",
-            "name": "pisper-desktop",
-            "backend": "rust",
         }))
         .unwrap();
         let mut manifest_header = tar::Header::new_gnu();
@@ -1608,127 +1364,11 @@ mod tests {
     #[test]
     fn component_assets_are_platform_specific() {
         let desktop = component_asset_name(Component::Desktop, "1.2.3");
-        assert!(desktop.starts_with("Pisper_Desktop_Rust_1.2.3_"));
+        assert!(desktop.starts_with("Pisper_Desktop_1.2.3_"));
         assert!(desktop.ends_with(".tar.gz"));
         let tui = component_asset_name(Component::Tui, "1.2.3");
         assert!(tui.starts_with("Pisper_TUI_Component_1.2.3_"));
         assert!(tui.ends_with(".tar.gz"));
-        assert!(component_asset_name(Component::Runtime, "1.2.3")
-            .starts_with("Pisper_Runtime_Rust_1.2.3_"));
-    }
-
-    fn desktop_release(version: &str, archive: String) -> GitHubRelease {
-        GitHubRelease {
-            tag_name: format!("v{version}"),
-            html_url: "https://example.test/release".into(),
-            body: Some("desktop fixture".into()),
-            published_at: None,
-            draft: false,
-            prerelease: false,
-            assets: vec![
-                GitHubAsset {
-                    name: archive.clone(),
-                    api_url: "https://api.example.test/archive".into(),
-                    browser_download_url: "https://github.example.test/archive".into(),
-                    size: 42,
-                },
-                GitHubAsset {
-                    name: format!("{archive}.sig"),
-                    api_url: "https://api.example.test/signature".into(),
-                    browser_download_url: "https://github.example.test/signature".into(),
-                    size: 512,
-                },
-            ],
-        }
-    }
-
-    #[test]
-    fn rust_desktop_releases_are_invisible_to_the_legacy_node_selector() {
-        let version = "0.6.1";
-        let legacy_name = format!(
-            "Pisper_Desktop_{}_{}_{}.tar.gz",
-            version,
-            super::platform_name(),
-            super::architecture_name()
-        );
-        let release = desktop_release(version, component_asset_name(Component::Desktop, version));
-        // 0.5.80/81 的选择器要求这一个完整名字与签名，不能识别 Rust 专属身份。
-        assert!(!release.assets.iter().any(|asset| asset.name == legacy_name));
-        assert!(!release
-            .assets
-            .iter()
-            .any(|asset| asset.name == format!("{legacy_name}.sig")));
-        assert_eq!(
-            release_info(Component::Desktop, release).unwrap().version,
-            version
-        );
-    }
-
-    #[test]
-    fn rust_desktop_selector_only_accepts_the_renamed_historical_rust_release() {
-        for (version, allowed) in [
-            ("0.5.80", false),
-            ("0.5.81", false),
-            ("0.6.0", true),
-            ("0.6.1", false),
-        ] {
-            let legacy_name = format!(
-                "Pisper_Desktop_{}_{}_{}.tar.gz",
-                version,
-                super::platform_name(),
-                super::architecture_name()
-            );
-            assert_eq!(
-                release_info(Component::Desktop, desktop_release(version, legacy_name)).is_some(),
-                allowed
-            );
-        }
-    }
-
-    #[test]
-    fn rust_desktop_release_requires_the_matching_signature_and_stable_public_release() {
-        for rejection in ["signature", "draft", "prerelease"] {
-            let mut release =
-                desktop_release("0.6.1", component_asset_name(Component::Desktop, "0.6.1"));
-            match rejection {
-                "signature" => {
-                    release.assets.pop();
-                }
-                "draft" => release.draft = true,
-                "prerelease" => release.prerelease = true,
-                _ => unreachable!(),
-            }
-            assert!(release_info(Component::Desktop, release).is_none());
-        }
-    }
-
-    #[test]
-    fn runtime_layout_rejects_legacy_and_mismatched_backends() {
-        let directory = TestDirectory::new();
-        let root = &directory.0;
-        let version = Version::parse("1.2.3").unwrap();
-        fs::create_dir_all(root.join("sidecar-runtime")).unwrap();
-        fs::write(root.join(Component::Runtime.executable_name()), b"fixture").unwrap();
-        for (backend, payload, valid) in [
-            (None, "node", false),
-            (Some("rust"), "node", false),
-            (Some("rust"), "rust", true),
-        ] {
-            fs::write(root.join("manifest.json"), serde_json::to_vec(&serde_json::json!({
-                "version": "1.2.3", "platform": super::platform_name(), "arch": super::architecture_name(),
-                "command": Component::Runtime.executable_name(), "backend": backend,
-                "name": "pisper-runtime",
-            })).unwrap()).unwrap();
-            fs::write(
-                root.join("sidecar-runtime/package.json"),
-                serde_json::to_vec(&serde_json::json!({"backend":payload})).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(
-                super::validate_layout(Component::Runtime, root, &version).is_ok(),
-                valid
-            );
-        }
     }
 
     #[test]
@@ -1752,271 +1392,6 @@ mod tests {
             .join("index.html")
             .is_file());
         assert!(!installed.root.join("pisper-sidecar").exists());
-    }
-
-    fn cached_component(
-        root: &Path,
-        component: Component,
-        version: &str,
-        backend: Option<&str>,
-    ) -> PathBuf {
-        let path = root.join(component.name()).join("versions").join(version);
-        fs::create_dir_all(&path).unwrap();
-        let command = if component == Component::Desktop {
-            "dist/index.html"
-        } else {
-            component.executable_name()
-        };
-        let entry = path.join(command);
-        fs::create_dir_all(entry.parent().unwrap()).unwrap();
-        fs::write(entry, b"fixture").unwrap();
-        let name = format!("pisper-{}", component.name());
-        fs::write(
-            path.join("manifest.json"),
-            serde_json::to_vec(&serde_json::json!({
-                "name": name, "version": version, "platform": super::platform_name(),
-                "arch": super::architecture_name(), "command": command, "backend": backend,
-                "upgradeNotice": backend == Some("upgrade-notice"),
-            }))
-            .unwrap(),
-        )
-        .unwrap();
-        if component == Component::Runtime {
-            fs::create_dir_all(path.join("sidecar-runtime/runtime")).unwrap();
-            fs::write(
-                path.join("sidecar-runtime/runtime/sidecar.mjs"),
-                b"node worker",
-            )
-            .unwrap();
-            fs::write(
-                path.join("sidecar-runtime/package.json"),
-                serde_json::to_vec(&serde_json::json!({"backend": backend})).unwrap(),
-            )
-            .unwrap();
-        }
-        path
-    }
-
-    #[test]
-    fn rust_desktop_layout_rejects_node_and_upgrade_notice_payloads() {
-        let directory = TestDirectory::new();
-        for (version, backend, accepted) in [
-            ("0.5.81", None, false),
-            ("0.6.0", None, true),
-            ("0.6.1", None, false),
-            ("0.6.1", Some("node"), false),
-            ("0.6.1", Some("upgrade-notice"), false),
-            ("0.6.1", Some("rust"), true),
-        ] {
-            let path = cached_component(&directory.0, Component::Desktop, version, backend);
-            super::write_pointer(
-                &directory.0.join("desktop"),
-                &Version::parse(version).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(
-                resolve_installed(&directory.0, Component::Desktop).is_ok(),
-                accepted
-            );
-            if accepted {
-                assert!(resolve_installed(&directory.0, Component::Desktop)
-                    .unwrap()
-                    .is_some())
-            }
-            fs::remove_dir_all(path).unwrap();
-        }
-        let path = cached_component(&directory.0, Component::Desktop, "0.6.1", Some("rust"));
-        let mut manifest: serde_json::Value =
-            serde_json::from_slice(&fs::read(path.join("manifest.json")).unwrap()).unwrap();
-        manifest["name"] = serde_json::json!("unrelated-component");
-        fs::write(
-            path.join("manifest.json"),
-            serde_json::to_vec(&manifest).unwrap(),
-        )
-        .unwrap();
-        assert!(resolve_installed(&directory.0, Component::Desktop).is_err());
-    }
-
-    #[test]
-    fn successful_rust_startup_only_reclaims_identified_legacy_cache() {
-        let directory = TestDirectory::new();
-        let root = directory.0.join("components");
-        let old_desktop = cached_component(&root, Component::Desktop, "0.5.81", None);
-        let old_runtime = cached_component(&root, Component::Runtime, "0.5.81", None);
-        let notice = cached_component(&root, Component::Desktop, "0.6.1", Some("upgrade-notice"));
-        let desktop = cached_component(&root, Component::Desktop, "0.6.2", Some("rust"));
-        let runtime = cached_component(&root, Component::Runtime, "0.6.2", Some("rust"));
-        let old_rust = cached_component(&root, Component::Runtime, "0.5.90", Some("rust"));
-        // Rust 组件中的 Node 语音工作进程仍是有效资源，不能按文件名回收。
-        fs::create_dir_all(runtime.join("sidecar-runtime/node_modules/speech")).unwrap();
-        fs::write(
-            runtime.join("sidecar-runtime/node_modules/speech/worker.mjs"),
-            b"required worker",
-        )
-        .unwrap();
-        let unknown = root.join("desktop/versions/0.5.79");
-        fs::create_dir_all(&unknown).unwrap();
-        fs::write(unknown.join("personal.txt"), b"unknown cache").unwrap();
-        let foreign = cached_component(&root, Component::Desktop, "0.5.78", None);
-        let mut manifest: serde_json::Value =
-            serde_json::from_slice(&fs::read(foreign.join("manifest.json")).unwrap()).unwrap();
-        manifest["name"] = serde_json::json!("foreign-data");
-        fs::write(
-            foreign.join("manifest.json"),
-            serde_json::to_vec(&manifest).unwrap(),
-        )
-        .unwrap();
-        let agent = directory.0.join("agent/sessions");
-        fs::create_dir_all(&agent).unwrap();
-        fs::write(agent.join("history.jsonl"), b"user sessions").unwrap();
-        super::write_pointer(&root.join("desktop"), &Version::parse("0.6.1").unwrap()).unwrap();
-        super::write_pointer(&root.join("runtime"), &Version::parse("0.6.2").unwrap()).unwrap();
-        assert_eq!(super::cleanup_legacy_components(&root, true).unwrap(), 3);
-        for path in [old_desktop, old_runtime, notice] {
-            assert!(!path.exists())
-        }
-        for path in [desktop, runtime.clone(), old_rust, unknown, foreign] {
-            assert!(path.exists())
-        }
-        assert_eq!(
-            fs::read(runtime.join("sidecar-runtime/node_modules/speech/worker.mjs")).unwrap(),
-            b"required worker"
-        );
-        assert_eq!(
-            fs::read(agent.join("history.jsonl")).unwrap(),
-            b"user sessions"
-        );
-        assert!(!root.join("desktop/current.json").exists());
-        assert_eq!(
-            resolve_installed(&root, Component::Runtime)
-                .unwrap()
-                .unwrap()
-                .version,
-            Version::parse("0.6.2").unwrap()
-        );
-        assert_eq!(super::cleanup_legacy_components(&root, true).unwrap(), 0);
-    }
-
-    #[test]
-    fn cleanup_keeps_unknown_identity_and_conflicting_rust_payload_metadata() {
-        let directory = TestDirectory::new();
-        for (index, (field, value)) in [
-            ("name", "foreign-data"),
-            ("version", "0.5.1"),
-            ("arch", "other-architecture"),
-            ("platform", "other-platform"),
-            ("command", "other-command"),
-            ("backend", "unknown-backend"),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let path = cached_component(
-                &directory.0,
-                Component::Desktop,
-                &format!("0.5.{}", 70 + index),
-                None,
-            );
-            let mut manifest: serde_json::Value =
-                serde_json::from_slice(&fs::read(path.join("manifest.json")).unwrap()).unwrap();
-            manifest[field] = serde_json::json!(value);
-            fs::write(
-                path.join("manifest.json"),
-                serde_json::to_vec(&manifest).unwrap(),
-            )
-            .unwrap();
-        }
-        let conflicting = cached_component(&directory.0, Component::Runtime, "0.5.81", None);
-        fs::write(
-            conflicting.join("sidecar-runtime/package.json"),
-            br#"{"backend":"rust"}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            super::cleanup_legacy_components(&directory.0, true).unwrap(),
-            0
-        );
-        assert!(conflicting
-            .join("sidecar-runtime/runtime/sidecar.mjs")
-            .exists());
-        assert_eq!(
-            fs::read_dir(directory.0.join("desktop/versions"))
-                .unwrap()
-                .count(),
-            6
-        );
-    }
-
-    #[test]
-    fn failed_startup_and_busy_installer_leave_legacy_cache_unchanged() {
-        use fs2::FileExt as _;
-        let directory = TestDirectory::new();
-        let root = &directory.0;
-        let old = cached_component(root, Component::Desktop, "0.5.81", None);
-        super::write_pointer(&root.join("desktop"), &Version::parse("0.5.81").unwrap()).unwrap();
-        let pointer = fs::read(root.join("desktop/current.json")).unwrap();
-        assert_eq!(super::cleanup_legacy_components(root, false).unwrap(), 0);
-        assert!(!root.join("desktop/install.lock").exists());
-        let lock = fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(root.join("desktop/install.lock"))
-            .unwrap();
-        lock.lock_exclusive().unwrap();
-        assert_eq!(super::cleanup_legacy_components(root, true).unwrap(), 0);
-        assert_eq!(
-            fs::read(root.join("desktop/current.json")).unwrap(),
-            pointer
-        );
-        assert!(old.is_dir());
-        drop(lock);
-        assert_eq!(super::cleanup_legacy_components(root, true).unwrap(), 1);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn component_cleanup_and_resolution_do_not_follow_symbolic_links() {
-        use std::os::unix::fs::symlink;
-        let directory = TestDirectory::new();
-        let outside = directory.0.join("outside");
-        let old = cached_component(&outside, Component::Desktop, "0.5.81", None);
-        super::write_pointer(&outside.join("desktop"), &Version::parse("0.5.81").unwrap()).unwrap();
-        let root = directory.0.join("components");
-        symlink(&outside, &root).unwrap();
-        assert!(super::cleanup_legacy_components(&root, true).is_err());
-        assert!(resolve_installed(&root, Component::Desktop).is_err());
-        assert!(old.exists());
-        fs::remove_file(&root).unwrap();
-        fs::create_dir_all(root.join("desktop/versions")).unwrap();
-        symlink(&old, root.join("desktop/versions/0.5.81")).unwrap();
-        assert_eq!(super::cleanup_legacy_components(&root, true).unwrap(), 0);
-        assert!(old.exists());
-        fs::remove_file(root.join("desktop/versions/0.5.81")).unwrap();
-        let cache = cached_component(&root, Component::Desktop, "0.5.81", None);
-        fs::remove_file(cache.join("manifest.json")).unwrap();
-        symlink(old.join("manifest.json"), cache.join("manifest.json")).unwrap();
-        assert_eq!(super::cleanup_legacy_components(&root, true).unwrap(), 0);
-        assert!(old.join("manifest.json").is_file());
-        assert!(cache.exists());
-        assert!(install_archive(
-            &directory.0.join("components-link"),
-            Component::Desktop,
-            &Version::parse("0.6.1").unwrap(),
-            &desktop_archive("0.6.1")
-        )
-        .is_ok());
-        let unsafe_root = directory.0.join("unsafe");
-        symlink(&outside, &unsafe_root).unwrap();
-        assert!(install_archive(
-            &unsafe_root,
-            Component::Desktop,
-            &Version::parse("0.6.1").unwrap(),
-            &desktop_archive("0.6.1")
-        )
-        .is_err());
-        assert!(!outside.join("desktop/versions/0.6.1").exists());
     }
 
     #[test]
@@ -2048,10 +1423,7 @@ mod tests {
         assert_eq!(info.version, "1.2.3");
         assert_eq!(info.archive_url, "https://api.example.test/archive");
         assert_eq!(info.signature_url, "https://api.example.test/signature");
-        assert_eq!(
-            info.archive_fallback_url,
-            "https://github.example.test/archive"
-        );
+        assert_eq!(info.archive_fallback_url, "https://github.example.test/archive");
         assert_eq!(
             info.signature_fallback_url,
             "https://github.example.test/signature"
@@ -2123,9 +1495,7 @@ mod tests {
             let mut request = [0_u8; 1024];
             let _ = stream.read(&mut request).unwrap();
             stream
-                .write_all(
-                    b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef",
-                )
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef")
                 .unwrap();
         });
         let directory = TestDirectory::new();
@@ -2182,30 +1552,6 @@ mod tests {
     }
 
     #[test]
-    fn normal_component_installation_preserves_unknown_cache_directories() {
-        let directory = TestDirectory::new();
-        let unknown = directory.0.join("tui/versions/1.0.0");
-        fs::create_dir_all(&unknown).unwrap();
-        fs::write(unknown.join("unrecognized-data"), b"keep").unwrap();
-        for version in ["2.0.0", "2.1.0", "2.2.0"] {
-            install_archive(
-                &directory.0,
-                Component::Tui,
-                &Version::parse(version).unwrap(),
-                &tui_archive(version.as_bytes()),
-            )
-            .unwrap();
-        }
-        assert_eq!(
-            fs::read(unknown.join("unrecognized-data")).unwrap(),
-            b"keep"
-        );
-        assert!(!directory.0.join("tui/versions/2.0.0").exists());
-        assert!(directory.0.join("tui/versions/2.1.0").exists());
-        assert!(directory.0.join("tui/versions/2.2.0").exists());
-    }
-
-    #[test]
     fn concurrent_installers_leave_one_valid_active_version() {
         let directory = TestDirectory::new();
         let root = std::sync::Arc::new(directory.0.clone());
@@ -2224,58 +1570,6 @@ mod tests {
             "2.0.0" | "2.1.0"
         ));
         assert!(installed.executable().is_file());
-    }
-
-    #[test]
-    fn concurrent_reinstallers_and_pointer_readers_never_observe_partial_layouts() {
-        let directory = TestDirectory::new();
-        let root = std::sync::Arc::new(directory.0.clone());
-        let version = Version::parse("2.0.0").unwrap();
-        install_archive(&root, Component::Tui, &version, &tui_archive(b"2.0.0")).unwrap();
-        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
-        let writers = [0, 1].map(|_| {
-            let root = root.clone();
-            let barrier = barrier.clone();
-            std::thread::spawn(move || {
-                barrier.wait();
-                for _ in 0..16 {
-                    let installed = install_archive(
-                        &root,
-                        Component::Tui,
-                        &Version::parse("2.0.0").unwrap(),
-                        &tui_archive(b"2.0.0"),
-                    )
-                    .unwrap();
-                    assert_eq!(installed.version, Version::parse("2.0.0").unwrap());
-                }
-            })
-        });
-        let read_root = root.clone();
-        let read_barrier = barrier.clone();
-        let reader = std::thread::spawn(move || {
-            read_barrier.wait();
-            for _ in 0..128 {
-                let installed = resolve_installed(&read_root, Component::Tui)
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(installed.version, Version::parse("2.0.0").unwrap());
-            }
-        });
-        barrier.wait();
-        for writer in writers {
-            writer.join().unwrap()
-        }
-        reader.join().unwrap();
-        assert_eq!(
-            fs::read(
-                resolve_installed(&root, Component::Tui)
-                    .unwrap()
-                    .unwrap()
-                    .executable()
-            )
-            .unwrap(),
-            b"2.0.0"
-        );
     }
 
     #[test]

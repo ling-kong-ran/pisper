@@ -10,9 +10,5 @@
   "terminalPanel.usesActiveSessionWorkspace": "New terminals use the active session workspace",
   "terminalPanel.orphanedTerminal": "Unlinked",
   "terminalPanel.starting": "Starting shell...",
-  "terminalPanel.processExited": "Process exited with code {code}",
-  "terminalPanel.workspaceUnavailable": "The session workspace is unavailable. Refresh the session and try again.",
-  "terminalPanel.invalidResponse": "Invalid terminal response.",
-  "terminalPanel.disconnected": "Terminal disconnected. Open a new terminal to reconnect.",
-  "terminalPanel.connectionTimeout": "Terminal connection timed out."
+  "terminalPanel.processExited": "Process exited with code {code}"
 }

@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,26 +15,12 @@ import {
   fallbackReleaseTag,
   readComponentVersion,
   releaseTag,
-  releaseTagPattern,
   releaseVersionFromTag,
 } from './release-components.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-// Rust 的桌面、Runtime、TUI 与 npm 共享发布源；移动端仍由独立接入门禁保护。
-const rustRuntimeLayout =
-  existsSync(join(root, 'runtime-rs', 'Cargo.toml')) &&
-  !existsSync(join(root, 'runtime', 'index.mjs'))
 const npmCli = String(process.env.npm_execpath || '').trim()
 const rawArgs = process.argv.slice(2)
-const releasePollSeconds = String(process.env.PISPER_RELEASE_POLL_SECONDS || '').trim()
-if (
-  releasePollSeconds &&
-  (!/^\d+$/.test(releasePollSeconds) ||
-    !Number.isSafeInteger(Number(releasePollSeconds)) ||
-    Number(releasePollSeconds) < 1)
-) {
-  throw new Error('PISPER_RELEASE_POLL_SECONDS 必须是正整数秒数。')
-}
 const args = rawArgs.filter((value) => !value.startsWith('--'))
 if (RELEASE_COMPONENTS[args[0]] || args[0] === 'app') {
   throw new Error('发布通道由变更路径自动检测，无需指定 desktop、tui、runtime 或 app。')
@@ -61,82 +46,6 @@ function runNpm(commandArgs, options) {
 }
 
 const PI_CODING_AGENT_PACKAGE = '@earendil-works/pi-coding-agent'
-
-function assertReleaseIdle() {
-  for (const workflow of [
-    'release.yml',
-    'release-app.yml',
-    'publish-npm.yml',
-    'build-store-app.yml',
-  ]) {
-    const runs = JSON.parse(
-      run(
-        'gh',
-        [
-          'run',
-          'list',
-          '--workflow',
-          workflow,
-          '--branch',
-          releaseBranch,
-          '--limit',
-          '100',
-          '--json',
-          'status',
-        ],
-        { capture: true },
-      ),
-    )
-    if (!Array.isArray(runs) || runs.some((item) => item.status !== 'completed'))
-      throw new Error(`发布工作流仍在运行或状态无法确认：${workflow}；不能推进冻结的发布源。`)
-  }
-}
-
-function updateRustUpstreams() {
-  run(process.execPath, ['scripts/update-pi-rust.mjs'])
-  run(process.execPath, ['scripts/update-pi-model-catalog.mjs'])
-  const allowed = [
-    'runtime-rs/vendor/pi-rs/',
-    'runtime-rs/pi-rs-source.json',
-    'runtime-rs/assets/pi-model-catalog.json',
-    'runtime-rs/Cargo.toml',
-    'runtime-rs/Cargo.lock',
-    'src-tauri/Cargo.lock',
-  ]
-  const changes = run('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
-    capture: true,
-  })
-    .split('\0')
-    .filter(Boolean)
-  if (!changes.length) return false
-  for (const line of changes) {
-    const file = line.slice(3)
-    if (!allowed.some((path) => (path.endsWith('/') ? file.startsWith(path) : file === path)))
-      throw new Error(`Pi 自动更新产生了非预期修改：${file}`)
-  }
-  // 先验证新目录能被固定的 Rust SDK 解析，并重跑本地补丁保护，再允许发布源前进。
-  runNpm(['run', 'test:release'])
-  run('cargo', [
-    'test',
-    '--locked',
-    '--manifest-path',
-    'runtime-rs/Cargo.toml',
-    '--package',
-    'pi-rs',
-    '--test',
-    'pisper_mcp_regression',
-    '--test',
-    'pisper_model_registry_regression',
-  ])
-  runComponentChecks(['desktop', 'tui', 'runtime', 'app'])
-  assertReleaseIdle()
-  run('git', ['add', '--', ...allowed])
-  // 暂存会应用 Git 的文本归一化；没有实际差异时保留已完成的门禁，不创建空提交。
-  if (!run('git', ['diff', '--cached', '--name-only'], { capture: true })) return true
-  run('git', ['commit', '-m', 'build(deps): refresh Pi Rust and official model catalog'])
-  run('git', ['push', 'origin', releaseBranch])
-  return true
-}
 
 function updateUpstreamPiDependency() {
   console.log(`正在检查 ${PI_CODING_AGENT_PACKAGE} 的最新版本…`)
@@ -251,16 +160,7 @@ if (source !== remoteSource) {
   )
 }
 
-assertReleaseIdle()
-let upstreamChecksComplete = false
-if (rustRuntimeLayout) {
-  console.log(
-    '检测到 Rust Runtime 布局：发布前检查 pi-rs 稳定版与 Pi 官方模型目录，保持 Desktop、TUI、Runtime、npm 和移动 App 的独立发布渠道。',
-  )
-  upstreamChecksComplete = updateRustUpstreams()
-} else {
-  updateUpstreamPiDependency()
-}
+updateUpstreamPiDependency()
 source = run('git', ['rev-parse', 'HEAD'], { capture: true })
 remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
 if (source !== remoteSource) {
@@ -310,43 +210,37 @@ for (const component of candidates) {
   plans.push({ component, nextVersion, tag })
 }
 
-{
-  const appCurrentVersion = JSON.parse(await readFile(join(root, APP_VERSION_FILE), 'utf8')).version
-  const latestAppTag = tags.find((tag) => appTagPattern().test(tag)) || ''
-  const appPaths = appReleasePaths(runGit, latestAppTag, source)
-  if (appPaths.length > 0) {
-    console.log(`正在检查自 ${latestAppTag || '仓库初始提交'} 以来的 app 实质性提交…`)
-    const subjects = appReleaseSubjects(runGit, latestAppTag, source)
-    const substantive = subjects.filter(isSubstantiveReleaseCommit)
-    if (substantive.length === 0) {
-      console.log('app 只有非实质性变更，自动跳过。')
-    } else {
-      console.log(`已找到 ${substantive.length} 个 app 实质性提交、${appPaths.length} 个变更文件：`)
-      for (const subject of substantive) console.log(`  - ${subject}`)
+const appCurrentVersion = JSON.parse(await readFile(join(root, APP_VERSION_FILE), 'utf8')).version
+const latestAppTag = tags.find((tag) => appTagPattern().test(tag)) || ''
+const appPaths = appReleasePaths(runGit, latestAppTag, source)
+if (appPaths.length > 0) {
+  console.log(`正在检查自 ${latestAppTag || '仓库初始提交'} 以来的 app 实质性提交…`)
+  const subjects = appReleaseSubjects(runGit, latestAppTag, source)
+  const substantive = subjects.filter(isSubstantiveReleaseCommit)
+  if (substantive.length === 0) {
+    console.log('app 只有非实质性变更，自动跳过。')
+  } else {
+    console.log(`已找到 ${substantive.length} 个 app 实质性提交、${appPaths.length} 个变更文件：`)
+    for (const subject of substantive) console.log(`  - ${subject}`)
 
-      const nextVersion = resolveVersion(appCurrentVersion, input)
-      if (compareVersions(nextVersion, appCurrentVersion) <= 0) {
-        throw new Error(`新版本 ${nextVersion} 必须高于当前 app 版本 ${appCurrentVersion}。`)
-      }
-      const tag = appReleaseTag(nextVersion)
-      if (runGit(['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
-      if (latestAppTag) {
-        const latestVersion = appVersionFromTag(latestAppTag)
-        if (latestVersion && compareVersions(nextVersion, latestVersion) <= 0) {
-          throw new Error(`新版本 ${nextVersion} 必须高于最新 app 标签 ${latestAppTag}。`)
-        }
-      }
-      plans.push({ component: 'app', nextVersion, tag })
+    const nextVersion = resolveVersion(appCurrentVersion, input)
+    if (compareVersions(nextVersion, appCurrentVersion) <= 0) {
+      throw new Error(`新版本 ${nextVersion} 必须高于当前 app 版本 ${appCurrentVersion}。`)
     }
+    const tag = appReleaseTag(nextVersion)
+    if (runGit(['tag', '--list', tag])) throw new Error(`标签 ${tag} 已经存在。`)
+    if (latestAppTag) {
+      const latestVersion = appVersionFromTag(latestAppTag)
+      if (latestVersion && compareVersions(nextVersion, latestVersion) <= 0) {
+        throw new Error(`新版本 ${nextVersion} 必须高于最新 app 标签 ${latestAppTag}。`)
+      }
+    }
+    plans.push({ component: 'app', nextVersion, tag })
   }
 }
 
 if (plans.length === 0) {
-  throw new Error(
-    rustRuntimeLayout
-      ? '未检测到 desktop、tui、Rust runtime 或 app 的待发布产品变更。'
-      : '未检测到 desktop、tui、runtime 或 app 的待发布产品变更。',
-  )
+  throw new Error('未检测到 desktop、tui、runtime 或 app 的待发布产品变更。')
 }
 
 // Desktop 安装包内置最新 TUI/Runtime；任一组件发布时必须链式更新 Desktop，
@@ -382,33 +276,6 @@ const releaseOrder = { tui: 0, runtime: 1, desktop: 2, app: 3 }
 plans.sort((left, right) => releaseOrder[left.component] - releaseOrder[right.component])
 
 const selectedComponents = plans.map(({ component }) => component)
-// 部分渠道成功后续发时，旧 npm 清单仍未同步；复用已正式发布的独立组件。
-const publishedComponentVersions = new Map()
-const bundledComponentVersion = (component, fallback = '') => {
-  const planned = plans.find((plan) => plan.component === component)?.nextVersion
-  if (planned) return planned
-  if (!publishedComponentVersions.has(component)) {
-    const latest = tags
-      .filter((tag) => releaseTagPattern(component).test(tag))
-      .sort((left, right) =>
-        compareVersions(
-          releaseVersionFromTag(component, right),
-          releaseVersionFromTag(component, left),
-        ),
-      )[0]
-    let publishedVersion = ''
-    if (latest) {
-      const release = JSON.parse(
-        run('gh', ['release', 'view', latest, '--json', 'isDraft,isPrerelease'], { capture: true }),
-      )
-      if (release.isDraft !== false || release.isPrerelease !== false)
-        throw new Error(`内置组件 ${latest} 尚未正式发布，不能用于 npm 或 Desktop。`)
-      publishedVersion = releaseVersionFromTag(component, latest)
-    }
-    publishedComponentVersions.set(component, publishedVersion)
-  }
-  return publishedComponentVersions.get(component) || fallback
-}
 const npmComponents = plans.filter(
   ({ component }) => component === 'runtime' || component === 'tui',
 )
@@ -424,8 +291,12 @@ if (chainNpm) {
   if (compareVersions(npmReleaseVersion, manifest.version) <= 0) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }
-  npmTuiVersion = bundledComponentVersion('tui', manifest.pisper.tuiVersion)
-  npmRuntimeVersion = bundledComponentVersion('runtime', manifest.pisper.runtimeVersion)
+  npmTuiVersion =
+    npmComponents.find(({ component }) => component === 'tui')?.nextVersion ||
+    manifest.pisper.tuiVersion
+  npmRuntimeVersion =
+    npmComponents.find(({ component }) => component === 'runtime')?.nextVersion ||
+    manifest.pisper.runtimeVersion
 }
 console.log(`自动发布通道：${selectedComponents.join('、')}`)
 if (chainNpm) {
@@ -434,14 +305,15 @@ if (chainNpm) {
       `（TUI ${npmTuiVersion} / Runtime ${npmRuntimeVersion}）。`,
   )
 }
-if (!upstreamChecksComplete) runComponentChecks(selectedComponents)
+runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
 // Desktop 派发携带同批次的新 TUI/Runtime 版本，使安装包 staging 能把组件清单
 // 更新视为实质性变更；依赖已在派发前同步，发布版本与标签仍由远端 workflow 原子提交。
-const hasDesktopPlan = plans.some(({ component }) => component === 'desktop')
-const desktopTuiVersion = hasDesktopPlan ? bundledComponentVersion('tui') : ''
-const desktopRuntimeVersion = hasDesktopPlan ? bundledComponentVersion('runtime') : ''
+const tuiPlan = plans.find(({ component }) => component === 'tui')
+const runtimePlan = plans.find(({ component }) => component === 'runtime')
+const desktopTuiVersion = tuiPlan?.nextVersion || ''
+const desktopRuntimeVersion = runtimePlan?.nextVersion || ''
 
 const npmDispatchIndex = npmComponents.length
   ? plans.findLastIndex(({ component }) => component === 'runtime' || component === 'tui')
@@ -462,9 +334,7 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
       `version=${nextVersion}`,
       '-f',
       `source_sha=${source}`,
-      ...(component !== 'app' &&
-      index !== npmDispatchIndex &&
-      (desktopTuiVersion || desktopRuntimeVersion)
+      ...(component === 'desktop' && (desktopTuiVersion || desktopRuntimeVersion)
         ? [
             '-f',
             `tui_version=${desktopTuiVersion}`,
@@ -492,13 +362,7 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
   console.log(output)
   console.log(`已请求构建 ${tag}（源提交 ${source}，run ${runId}）。`)
   console.log(`等待 ${tag} 完成后再继续，避免全局发布队列取消排队任务…`)
-  run('gh', [
-    'run',
-    'watch',
-    runId,
-    '--exit-status',
-    ...(releasePollSeconds ? ['--interval', String(Number(releasePollSeconds))] : []),
-  ])
+  run('gh', ['run', 'watch', runId, '--exit-status'])
 }
 
 console.log(`已完成 ${selectedComponents.join('、')} 对应的质量门禁和平台产物发布。`)

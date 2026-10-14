@@ -4,14 +4,14 @@
 
 ## 项目概览
 
-Pisper 是一个覆盖桌面端、终端和移动端的多代理应用，代理引擎为固定版本的 Rust Pi（`runtime-rs/vendor/pi-rs/`，补丁记录见其中的 `PISPER-PATCHES.md`）。项目包含：
+Pisper 是一个覆盖桌面端、终端和移动端的多代理应用，基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 构建。项目包含：
 
-- React Web 界面（Vite 生产静态资源，由 Runtime 同源提供）
-- Rust 应用运行时 `pisper-server`（`runtime-rs/`，axum HTTP/SSE），承载会话、工具、MCP、技能、记忆、工作流、通道和计划任务
-- Tauri 2 桌面壳：系统 WebView，启动并桥接 Rust Runtime 进程；移动端静态链接同一 Rust 库
+- React Web 界面（开发服务器和生产静态资源）
+- Node.js 应用运行时与桌面伴随进程，承载会话、工具、MCP、技能、记忆、工作流、通道和计划任务
+- Tauri 2 桌面壳，包含系统 WebView 和 Node SEA 伴随进程
 - Rust Ratatui TUI 客户端
 
-源码开发、前端构建与脚本以 **Node.js 24** 为基线，补丁版本必须满足锁定依赖的要求；后端使用 Rust 工具链，依赖由 `runtime-rs/Cargo.lock` 锁定。源码环境与 npm 启动器所用宿主 Node 的要求分别见 [`docs/development-workflow.md`](docs/development-workflow.md)，不得从 `engines` 声明推断完整支持范围。运行时代理数据默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 覆盖。不得提交该目录中的 API 密钥、机器人凭据或个人数据。
+源码开发、验证与桌面 SEA 构建以 **Node.js 24** 为基线，补丁版本必须满足锁定依赖的要求。源码环境、npm 启动器所用宿主 Node 与移动端嵌入式 Node 的要求分别见 [`docs/development-workflow.md`](docs/development-workflow.md)，不得从旧的 `engines` 声明推断完整 Runtime 支持范围。运行时代理数据默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 覆盖。不得提交该目录中的 API 密钥、机器人凭据或个人数据。
 
 ## 架构
 
@@ -23,22 +23,22 @@ Pisper 是一个覆盖桌面端、终端和移动端的多代理应用，代理�
 | `src/components/ui/` | shadcn/ui 基础组件；优先组合这些组件，避免编写一次性样式 |
 | `src/components/app/` | 应用级通用组合组件的推荐归属；按需要创建，不承载 Feature 业务规则 |
 | `src/locales/{zh-CN,en-US}/` | 翻译命名空间（`namespace:key`） |
-| `runtime-rs/` | Rust 应用运行时（axum HTTP/SSE）：HTTP API、领域服务、Pi 引擎接线与平台原生能力 |
-| `runtime-rs/src/*_api.rs` | HTTP 路由、请求校验与 SSE 流式编排（按 API 子域命名） |
-| `runtime-rs/src/native_*/` | 领域实现（会话、MCP、记忆、工作流、视觉、语音、渠道、插件等） |
-| `runtime-rs/vendor/pi-rs/` | 固定版本 Pi 引擎源码及 Pisper 补丁（`PISPER-PATCHES.md`） |
-| `scripts/tests/` | 发布、打包、签名与源码守卫的 Node 测试（`npm run test:release`） |
+| `runtime/` | Node 应用运行时（纯 ESM `.mjs`）：HTTP API、代理集成、服务和工具 |
+| `runtime/runtime/` | Pi 代理运行时集成 |
+| `runtime/services/` | 领域服务（会话、MCP、计划任务、工作流、Provider 等） |
+| `runtime/tools/app/` | 应用级代理工具（每个工具一个模块） |
+| `runtime/tests/` | 当前统一的 Node 测试入口，涵盖 Runtime、前端纯逻辑、协议、构建与源码守卫 |
 | `packages/pisper/` | 私有源代码清单，以及发布为 `pisper` 的 npm 安装器/启动器 |
 | `shared/` | Runtime 与客户端共享的小型 JS 模块（例如工作流图和发布说明） |
 | `src-tauri/` | Tauri 2 壳（桌面桥接、宠物窗口、更新器、CLI 安装） |
 | `src-tui/` | Rust TUI（`pisper` CLI） |
 | `crates/` | 独立 Rust 库、原生插件和平台适配模块 |
-| `scripts/` | 桌面/移动/TUI 打包、发布、冒烟测试和 i18n/产物检查脚本 |
+| `scripts/` | SEA 打包、发布、冒烟测试和 i18n 检查脚本 |
 | `docs/` | 产品文档、截图、赞助配置和打包说明 |
 | `dist/` | Vite 生产构建输出 |
-| `release/` | 已打包的 Rust Runtime/TUI/Tauri 产物（已被 Git 忽略） |
+| `release/` | 已打包的 SEA/TUI/Tauri 产物（已被 Git 忽略） |
 
-**桌面端运行形态：** Tauri 壳启动内嵌的 `pisper-server`（Rust Runtime），经 `PISPER_SIDECAR_READY` stdout 握手交付引导 URL，引导校验令牌并设置 HttpOnly Cookie，后续请求使用同源 Cookie 鉴权。开发 Web 流程中，`npm run dev` 启动 Rust 服务，默认在 `127.0.0.1:5174` 同源提供 `dist/` 前端和 API；前端改动需先 `npm run build`，没有 Vite 中间件热更新。
+**桌面端运行形态：** Tauri 壳 → `pisper-sidecar`（Node SEA）→ `sidecar-runtime/`（Pisper Runtime、Pi 包、技能和原生模块）。开发 Web 流程中，`runtime/index.mjs` 嵌入 Vite 中间件，并默认在 `127.0.0.1:5173` 提供 SPA 和 API。
 
 路径别名：`@/*` → `src/*`，`@shared/*` → `shared/*`。
 
@@ -51,12 +51,6 @@ Pisper 是一个覆盖桌面端、终端和移动端的多代理应用，代理�
 - **迁移债务：** 存量代码、工具与目标规范的已知偏差。新代码不得扩大偏差；本次涉及的区域优先治理，无法在当前范围完成的部分记录责任范围、迁移条件与验证方式，不要求顺带重写全仓库。
 
 命令脚本、测试和 CI 是当前执行行为的事实来源，检查存在不代表其断言永远合理。发现与规范冲突时，先核实保护目标：在同一范围内修正过时文档，或由负责集成的人提供替代验证并更新检查；超出任务范围时记录迁移项及当前失败。不得通过跳过检查、删除行为保护或口头解释宣称通过。已知偏差与检查覆盖范围见 [`docs/development-workflow.md`](docs/development-workflow.md)。
-
-AI 代理开始任何改动前必须先完成以下核对，未完成不得动手：
-
-1. **核实现状：** 打开 `package.json`、相关 `Cargo.toml` 和目标目录，确认计划引用的路径、命令和测试入口真实存在。本文件或其他文档与代码冲突时，以脚本、测试和 CI 为准，并在同一变更中修正文档；禁止凭旧文档或记忆引用已删除的路径。
-2. **定位契约：** 涉及协议、存储格式、命令、权限或目录职责的改动，先找到单一契约来源或现有覆盖测试，再决定改动点。
-3. **声明验证范围：** 按文末"验证要求"列出本次将运行的检查，以及明确不运行的项和原因；完成后逐条报告实际执行结果，不得把未运行的检查写成已通过。
 
 开发环境、依赖升级和验证矩阵见 [`docs/development-workflow.md`](docs/development-workflow.md)；故障排查见 [`docs/troubleshooting/README.md`](docs/troubleshooting/README.md)；跨层架构决策见 [`docs/architecture-decisions.md`](docs/architecture-decisions.md)。
 
@@ -72,8 +66,8 @@ AI 代理开始任何改动前必须先完成以下核对，未完成不得动�
 - 一个文件可以声明多个共同变化的组件，例如 `Dialog` 与 `DialogContent`，或只服务于当前页面的局部展示组件。当组件具有独立业务职责、生命周期或实际复用需求，且拆分能形成清晰接口时，优先独立文件；是否共享状态、能否单独测试和导出数量都不单独作为拆分依据。
 - 文件行数只作为评审信号，禁止新增仅凭固定行数判定架构正确性的硬门槛。优先处理多个变化原因、难以测试、依赖混乱或高冲突的模块；统计时区分生产代码、内联测试和生成内容。已有行数守卫按开发流程中的迁移项处理，不通过压缩代码或搬运方法凑行数。
 - 拆分后应有明确的状态所有者、生命周期与窄接口。仅通过共享 `this`、原型注入、双向回调或传递整个 Runtime 对象搬移方法，不视为完成职责解耦。对共同变化、拆开后产生大量透传和跨文件跳转的片段，可以合并；结构评审同时允许拆分与合并。
-- `runtime-rs/src/*_api.rs` 负责请求解析、权限边界、调用服务、流式编排和响应序列化；复杂业务逻辑放在领域模块。只有当路由具有独立权限、生命周期或测试边界时才按 API 子域拆分，不要求每个端点都单独建文件。
-- `runtime-rs/src/native_*/` 按领域和用例组织。配置归一化、持久化、网络连接和归档处理等职责在拥有独立测试边界时拆成同域辅助模块，不为追求小文件而拆分。
+- `runtime/http/routes/` 负责请求解析、权限边界、调用服务、流式编排和响应序列化；复杂业务逻辑放在服务层。只有当路由具有独立权限、生命周期或测试边界时才按 API 子域拆分，不要求每个端点都单独建文件。
+- `runtime/services/` 按领域和用例组织。配置归一化、持久化、网络连接和归档处理等职责在拥有独立测试边界时拆成同域辅助模块，不为追求小文件而拆分。
 - TUI 和 Tauri 也遵循按责任拆分的原则。入口文件保留必要的编排和公共状态；渲染、生命周期、代理/配对、设备操作、语音和资源处理在确有独立边界时拆分。
 - Runtime、Web 和 TUI 共享的 HTTP/SSE 数据必须有单一契约来源，或至少有覆盖关键负载和错误情况的契约测试。契约变更应优先采用向后兼容的增量方式；需要分阶段迁移时，保留旧字段或版本并说明移除条件。
 - 开始结构性改动前，先说明现有问题、文件移动映射、状态归属、依赖方向、受影响客户端与验证范围。验收检查调用方、懒加载、路由、导出、测试发现入口和源码守卫均已同步，且未增加隐式依赖；只改变文件位置不能作为职责治理完成的依据。记录与回滚要求见 [`docs/architecture-decisions.md`](docs/architecture-decisions.md)。
@@ -86,8 +80,10 @@ npm install                 # 根据 package-lock.json 安装依赖
 npm ci                      # 为 CI/发布执行可复现的全新安装
 
 # 日常 Web 服务器
-npm run dev                 # 启动 Rust 后端（默认 127.0.0.1:5174），同源提供 dist/ 前端与 API
-npm run build               # 构建生产前端并检查产物体积预算与 Safari 16 兼容性
+npm run dev                 # 使用 Vite 中间件启动 Web 与 API
+npm run build               # 构建生产前端并检查产物体积预算
+npm run preview             # 通过生产服务器提供已构建资源
+npm start                   # preview 的别名
 
 # 质量检查
 npm run typecheck           # 检查 src、Vite 配置及 tsconfig.jscheck.json 指定范围
@@ -95,37 +91,38 @@ npm run lint                # 运行 oxlint
 npm run format              # 执行 prettier --write .
 npm run format:check        # 检查 Prettier 格式
 npm run i18n:check          # 检查 zh-CN 和 en-US 是否定义了所有字面量 src 键
-npm run check               # 依次执行 typecheck、lint、i18n:check、format:check 和 Rust 启动闸门
-npm test                    # 运行 runtime-rs 的全部 Rust 测试（cargo test）
-npm run test:release        # 运行 scripts/tests/ 中的发布、打包、签名与守卫测试
+npm run check               # 依次执行 typecheck、lint、i18n:check、format:check 和 test:startup
+npm test                    # 运行 runtime/tests/*.test.mjs 中的全部测试
+npx tsx --test runtime/tests/foo.test.mjs  # 运行一个或多个指定测试文件
+
+# Node SEA 伴随进程
+npm run sidecar:dev         # 在开发环境直接运行伴随进程
+npm run sidecar:sea         # 构建 Node SEA 并准备运行时闭包
+npm run sidecar:sea:smoke   # 对暂存的 SEA、运行时和 API 执行冒烟测试
 
 # Tauri 桌面端（需要 Rust 和平台 Tauri 依赖）
-npm run desktop:webview:dev       # 构建 Rust 后端与前端并启动 Tauri 开发环境
+npm run desktop:webview:dev       # 构建前端并启动 Tauri 开发环境
 npm run desktop:webview:smoke -- http://127.0.0.1:9223  # 对运行中的 WebView CDP 端点执行冒烟测试
 npm run desktop:webview:package   # 打包 Tauri 桌面应用
-npm run desktop:webview:build     # desktop:webview:package 的完整入口
+npm run desktop:webview:build     # SEA + SEA 冒烟测试 + TUI 暂存 + 桌面打包
 
 # Rust TUI
 npm run tui:dev             # 使用 cargo run 启动 TUI
 npm run tui:check           # 执行 cargo check
 npm run tui:test            # 执行 cargo test
 cargo fmt --manifest-path src-tui/Cargo.toml -- --check  # 检查 Rust 格式
-npm run tui:package         # 构建并打包 TUI 分发包（tui:build 同义）
+npm run tui:stage           # 构建并使用 SEA 伴随进程暂存 TUI
+npm run tui:package         # 构建并打包 TUI 分发包
+npm run tui:build           # 先构建 SEA，再打包 TUI
 
 # npm 安装器包
 npm run npm:pack                  # 构建轻量级 pisper 压缩包
 npm run npm:pack:check            # 构建并验证压缩包的内容和行为
 
-# 移动端（环境要求见 docs/mobile.md 与 docs/development-workflow.md）
-npm run build:android             # 构建 Android App
-npm run build:ios                 # 构建 iOS App
-
 # 版本与发布
 npm run release -- patch          # 自动检测并发布所有发生变化的发布渠道
 npm run release -- 0.4.31         # 为所有检测到的发布渠道指定版本
 ```
-
-UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`test:thinking`、`test:sidebar-projects`、`test:mobile-shell` 等）按改动范围运行；完整清单以 `package.json` 的 `scripts` 为准，禁止引用本文件未列出且脚本中不存在的命令。
 
 验证按文末要求和开发流程矩阵选择；涉及多个前端或 Runtime 区域时优先运行 `npm run check` 和 `npm test`。纯文档变更检查差异、链接与规则一致性；桌面/TUI 打包仅在改动影响相应产物时运行。
 
@@ -152,21 +149,20 @@ UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`tes
 - Feature 代码放在 `src/features/<area>/`；共享布局和界面框架放在 `src/components/`。
 - i18n 默认使用 `t('namespace:key')` 或 `translateText('namespace:key')` 的字符串字面量键。确需动态键时，必须使用可静态登记和检查的类型化键表；`zh-CN` 和 `en-US` 都必须能检查到每个对外展示的键，键中不得出现中文字符。修改界面文案后运行 `npm run i18n:check`。
 - 必须在 `vite.config.ts` 中保留 `build.target: 'safari16'`，并将 `scripts/check-dist-compat.mjs` 保留在构建链中。iOS App 最低版本为 15.1，而依赖（例如 `@radix-ui/react-collection`）包含 Safari 16.4 以下 WebView 无法解析的 class 静态块；入口模块会在解析阶段失败，用户会在启动画面后看到黑屏。不得提高目标版本，也不得切换到 `safari15`：后者会降级依赖的顶层 await，并将 `vendor-shiki-runtime` 拖入急切入口依赖图（增加约 55 kB gzip，导致仅路由供应商审计失败）。
-- Prettier 规则：使用单引号、不加分号、保留尾随逗号、打印宽度为 100。检查范围以 `.prettierignore` 为准；未被排除的 Markdown（例如 `src-tui/`、`crates/`、`scripts/`）同样需要格式化。不得为规避失败扩大忽略范围。
+- Prettier 规则：使用单引号、不加分号、保留尾随逗号、打印宽度为 100。检查范围以 `.prettierignore` 为准；未被排除的 Markdown（例如 `src-tui/`、`crates/`、`runtime/tools/`）同样需要格式化。不得为规避失败扩大忽略范围。
 
-### 运行时（`runtime-rs/`）
+### 运行时（`runtime/`）
 
-- 使用 Rust 2021 模块。HTTP 路由、请求校验与 SSE 流式编排放在 `runtime-rs/src/*_api.rs`；领域规则与持久化放在 `native_*`/领域模块；Pi 引擎接线集中在 `runtime_host.rs`、`session_runtime.rs` 等装配模块。引擎本体是 `runtime-rs/vendor/pi-rs/` 的固定版本，升级或修改补丁必须同步更新其中的 `PISPER-PATCHES.md` 与锁定声明。
-- 应用工具经 `native_tool_catalog.rs`（固定工具目录）与 `native_tool_gateway.rs`（调度、审批与输出契约）接入；新增工具遵循现有注册方式，不得绕过审批或返回非结构化错误。
-- 测试以 `npm test`（即 `cargo test --manifest-path runtime-rs/Cargo.toml`）为统一入口；单元测试与实现同文件（`#[cfg(test)]`）或放入同域测试模块。发布、打包与源码守卫的 Node 测试位于 `scripts/tests/`，经 `npm run test:release` 执行。行为发生变化时优先扩展已有测试；新增测试位置必须在同一变更接入实际执行入口与 CI。
-- `shared/` 中的 `.mjs` 模块通过 JSDoc 与 `checkJs` 获得类型保护；新增或实质修改共享模块的公共接口时，将其纳入 `tsconfig.jscheck.json` 的 `files` 列表，不得将局部类型检查通过描述为整个共享层已获类型保护。
+- 使用 ESM `.mjs` 模块；API 处理器放在 `runtime/http/`，领域逻辑放在 `runtime/services/`，Pi 接线放在 `runtime/runtime/`。
+- 应用工具默认每个工具在 `runtime/tools/app/` 下使用一个模块，导出 `manifest` 和使用 `defineTool()` 的 `create…Tool(context)` 工厂。在 `runtime/tools/app/index.mjs` 中注册。多个工具只有在共享生命周期和公开 API 时才可共置；工厂接收 `cwd`/服务依赖，不得直接耦合 `AgentRuntimeService`。
+- 测试当前集中于 `runtime/tests/*.test.mjs`，并非与实现文件同目录。行为发生变化时，优先扩展已有测试；迁移位置必须同步测试发现入口。
+- `.mjs` 可以通过 JSDoc 与 `checkJs` 渐进增加类型保护。新增或实质修改公共协议、持久化及服务接口时，优先纳入 `tsconfig.jscheck.json`；未覆盖的旧依赖应明确记录并用边界校验与契约测试约束，不得将局部类型检查通过描述为整个 Runtime 已获类型保护。
 - 运行时变更必须同时兼容两个客户端：React Web 界面（`src/`）和 Rust TUI（`src-tui/`）。Runtime 通过 HTTP（JSON 响应体和 SSE 帧）发送的任何内容都必须是严格有效的 JSON/UTF-8，并且同时能被 `JSON.parse` 和 `serde_json` 接受——浏览器可以容忍孤立代理项和其他宽松编码，但 `serde_json` 会拒绝这些内容并使整个 TUI 流断开。修改运行时线协议输出时，运行 `npm test` 和 `npm run tui:check` / `npm run tui:test`。
-- 尚未完成的能力通过 capabilities 标记和结构化 `unsupported` 错误公开；不得把简化的内部数据当作成功结果返回。
 
 ### 共享代码、桌面端与 TUI
 
 - 前端和 Runtime 都需要的纯共享逻辑放在 `shared/`（被 TS 使用时同时提供 `.d.mts` 类型）。只有在确实跨客户端或跨运行时复用时才提升到共享层。`shared/` 中的代码必须保持环境中立，不得直接依赖 DOM、React、Node 专属 API 或平台原生接口；需要平台差异时由对应客户端或运行时适配层处理。
-- 桌面打包、资源暂存和更新器以 `scripts/package-tauri-rust.mjs` 及相关脚本为准；`docs/node-sea-webview.md` 仅保留 0.5.x 历史 SEA 布局说明。不得重新引入 Electron 或 Node SEA 打包路径。
+- 桌面打包和更新器细节见 `docs/node-sea-webview.md`。不得重新引入 Electron 打包路径。
 - TUI 面向用户的文档位于 `src-tui/README.md` / `README.en.md`。TUI 版本只能通过限定范围的发布脚本推进，不要将其与桌面端或 Runtime 版本同步。
 - 新增或修改 TUI 顶层命令、子命令、选项或 Slash 命令时，必须在同一变更中更新对应的 `--help`/命令帮助文本及其覆盖测试。
 
@@ -184,7 +180,7 @@ UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`tes
 
 ### 命名、文件与公共入口
 
-- 新增自有文件遵循统一命名：React 组件使用 `PascalCase.tsx`，Hook 使用 `useXxx.ts`，Store 使用 `xxx-store.ts`，纯前端模块使用能表达领域的 `kebab-case.ts`，脚本与共享 JS 模块使用 `kebab-case.mjs`，Rust 模块（`runtime-rs/`、`src-tui/`、`src-tauri/`、`crates/`）使用 `snake_case.rs`。生成文件、shadcn 等上游同步组件和外部约定文件遵循来源命名；保留现有文件名时，不为统一命名进行无关重命名。
+- 新增自有文件遵循统一命名：React 组件使用 `PascalCase.tsx`，Hook 使用 `useXxx.ts`，Store 使用 `xxx-store.ts`，纯前端模块使用能表达领域的 `kebab-case.ts`，运行时模块使用 `kebab-case.mjs`，Rust 模块使用 `snake_case.rs`。生成文件、shadcn 等上游同步组件和外部约定文件遵循来源命名；保留现有文件名时，不为统一命名进行无关重命名。
 - 一个功能目录可以按需要使用 `components/`、`hooks/`、`api/`、`model/`、`types/` 和 `tests/` 等子目录；只有在子目录有实际边界时才创建，不要创建空目录或为了目录层级而拆分。名称应表达实际职责，避免用 `PreviewPages`、`misc`、`helpers` 等模糊名称容纳不相关业务。
 - 跨 Feature 只能引用该领域明确声明的公共接口，不得访问内部实现。接口可以是 `index.ts`、`public.ts`，也可以是按类型、事件、组件划分的多个公开子入口；在入口注释或同域文档中标明公开范围，不强制建立单个聚合文件。
 - 公共入口不得无选择地导出全部内部实现，或因访问轻量类型、事件而引入页面、重型依赖和初始化副作用。纯类型使用 `export type`；Feature 内部直接引用同域模块，不经过自身聚合入口。修改入口时核对静态依赖图与懒加载边界。
@@ -205,10 +201,10 @@ UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`tes
 | 应用级导航、通知等协作契约 | 可放 `src/app/contracts/`；不得导入 Feature 实现、路由和 Provider，不启动副作用 |
 | 无单一领域归属的客户端状态和类型 | `src/stores/`、`src/types/`；领域专属状态即使跨页面也留在领域内 |
 | 跨客户端或跨运行时的环境中立协议、数据与纯逻辑 | `shared/`；不得依赖客户端或 Runtime 的具体实现 |
-| HTTP 解析、权限边界、响应和流式编排 | `runtime-rs/src/*_api.rs`；调用领域服务，不拥有领域状态与业务规则 |
-| 领域规则、状态机、领域存储格式与迁移 | `runtime-rs/src/native_*/` 或对应领域模块；按实际边界分组，领域迁移保留在该领域 |
-| Pi 会话、扩展、工具协议的适配和生命周期接线 | `runtime-rs/src/runtime_host.rs`、`session_runtime.rs` 等装配模块；通过窄接口装配领域服务，不把整个 `AppState` 作为通用依赖传递 |
-| 可隔离后台任务与 Worker | `runtime-rs/src/session_workers/`、`scheduled_jobs/` 及语音/插件 Worker 入口；Worker 消费领域接口，领域规则仍归服务所有 |
+| HTTP 解析、权限边界、响应和流式编排 | `runtime/http/`；调用领域服务，不拥有领域状态与业务规则 |
+| 领域规则、状态机、领域存储格式、Repository 与迁移 | `runtime/services/<domain>/` 或对应领域模块；按实际边界分组，领域迁移保留在该领域 |
+| Pi 会话、扩展、工具协议的适配和生命周期接线 | `runtime/runtime/`；通过窄接口装配领域服务，不把整个 Runtime 作为通用依赖传递 |
+| 通用持久化机制、可隔离后台任务 | 分别放 `runtime/storage/`、`runtime/workers/`；Worker 消费领域接口，领域规则仍归服务所有 |
 | 构建、发布、迁移执行入口和开发工具 | `scripts/`；产品业务规则和领域迁移实现不得迁入脚本层 |
 
 - Tauri 的命令注册与平台接线、TUI 的启动与事件循环保留在对应入口；独立的渲染、编辑、选择器、代理和设备适配按领域或生命周期组织。共享 Rust 库或原生插件确有独立边界时才进入 `crates/`，不因文件体积创建新包。
@@ -247,7 +243,7 @@ UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`tes
 
 ### 测试与测试资产
 
-- 测试按行为和边界命名，而不是按实现细节命名。服务、协议、存储、UI 和平台测试放在现有测试体系中；不要为一个局部需求引入第二套测试框架。当前 `npm test` 运行 `runtime-rs/` 的全部 Rust 测试，发布/打包守卫测试位于 `scripts/tests/` 并经 `npm run test:release` 执行，UI 冒烟经 `npm run test:ui*` 脚本执行；新增 Feature 内 `tests/` 或其他位置时，必须在同一变更接入实际执行入口与 CI，不能仅创建测试文件。
+- 测试按行为和边界命名，而不是按实现细节命名。服务、协议、存储、UI 和平台测试放在现有测试体系中；不要为一个局部需求引入第二套测试框架。当前 `npm test` 仅发现 `runtime/tests/*.test.mjs`；新增 Feature 内 `tests/` 或其他位置时，必须在同一变更接入实际执行入口与 CI，不能仅创建测试文件。
 - 测试应覆盖成功、空数据、错误、取消、重试、重启和兼容旧数据等相关边界。涉及公共 HTTP/SSE、存储格式或跨端模型时，必须补充契约或迁移测试。
 - 测试不得依赖开发者个人目录、真实凭据、真实外部网络或未固定版本的远程资源。清理时先关闭服务、等待持久化队列与后台任务，再删除临时目录并恢复环境；不得通过忽略清理错误或增加任意延时掩盖资源泄漏与竞态。
 - 源码守卫适合保护禁止依赖、安全入口、兼容目标和构建契约；避免绑定无关变量名、完整 Tailwind 字符串和调用形式。交互、布局、异步与协议行为优先用行为或契约测试验证。过时守卫由负责集成的人说明原保护目标、替代验证与迁移方式后更新，不能只删除失败断言。
@@ -300,8 +296,8 @@ UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`tes
 
 多代理会话遵循 `docs/team-mode-playbook.md`。用户要求独立完成或禁止子代理时不得开启子代理；没有使用子代理的普通开发任务不受本节的角色和接管流程限制：
 
-- 分层验证：子代理默认只为获准修改的文件运行指定测试（例如 `cargo test <名称过滤> --manifest-path runtime-rs/Cargo.toml` 或 `node --test scripts/tests/<file>.test.mjs`）；完整的 `npm test`、`npm run check` 和 `npm run build` 在集成阶段由主代理或负责合并的人运行。同一命令连续两次失败且没有进展时，必须升级处理，不得循环重试。
-- 守卫红线：`scripts/tests/` 与构建链检查脚本（`scripts/check-*.mjs`）中通过读取源码加断言实现的源码守卫只能读取，不能由执行重构的子代理修改。发现断言过时，应将守卫清单和原因交给负责集成的人处理。
+- 分层验证：子代理默认只为获准修改的文件运行指定测试（例如 `npx tsx --test runtime/tests/<file>.test.mjs`）；完整的 `npm test`、`npm run check` 和 `npm run build` 在集成阶段由主代理或负责合并的人运行。同一命令连续两次失败且没有进展时，必须升级处理，不得循环重试。
+- 守卫红线：`runtime/tests/*.test.mjs` 中通过 `readFile` + `assert.match` 实现的源码守卫测试只能读取，不能由执行重构的子代理修改。发现断言过时，应将守卫清单和原因交给负责集成的人处理。
 - 接管流程：先发送收尾消息并确认任务状态，再观察文件修改时间、输出和工作区差异；只有确认代理无进展或需要中断时才执行接管。中断后假定工作区处于中间状态，先修复和检查现有变更，再继续工作。
 
 ## 验证要求
@@ -309,13 +305,13 @@ UI/UX 与协议冒烟脚本（`test:ui`、`test:ui-ux`、`test:chat-dock`、`tes
 按改动影响范围选择检查；详细环境要求、验证矩阵和平台限制见 [`docs/development-workflow.md`](docs/development-workflow.md)。进入合并或发布阶段时，由主代理或负责合并的人运行适用范围的完整检查，并在变更说明中列出未运行项目及原因：
 
 - TypeScript/界面改动：运行受影响范围的类型检查、lint 和 i18n 检查；涉及多个前端区域或构建配置时运行 `npm run check`。
-- Runtime、HTTP/SSE、工具或服务改动：运行 `npm test` 中相关的 Rust 测试；公共线协议改动还要验证 Web、TUI 和对应契约。
-- TUI、Tauri 桌面、npm、Android 或 iOS 改动：遵循开发流程文档中的对应命令、构建和设备验收要求。
+- Runtime、HTTP/SSE、工具或服务改动：运行相关 `runtime/tests/` 测试；公共线协议改动还要验证 Web、TUI 和对应契约。
+- TUI、Tauri、SEA、npm、Android 或 iOS 改动：遵循开发流程文档中的对应命令、构建和设备验收要求。
 - 纯文档改动：检查链接、命令引用、规则一致性和 `git diff --check`；仅在文档被特定源码守卫读取或影响可执行契约时补充对应测试，不机械运行全量构建。
 - 不得新增顶层包管理器或双重锁文件；本仓库使用 **npm**（`package-lock.json`）。
 
 ## 范围外事项与安全
 
-- 不得提交密钥、`release/` 产物或 `.pisper/` 下的用户代理状态。
-- 不得使用 Electron 或 Node SEA；桌面端只能采用 Tauri + Rust Runtime（`pisper-server`）。
+- 不得提交密钥、`release/` 产物、`src-tauri/binaries/` 或 `.pisper/` 下的用户代理状态。
+- 不得使用 Electron；桌面端只能采用 Tauri + Node SEA。
 - 公共赞助展示配置位于 `docs/sponsors.json`，其中不得包含用户会话或 Provider 凭据。

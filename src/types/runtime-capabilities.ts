@@ -31,7 +31,7 @@ export type RuntimeFeature =
 export type RuntimeCapabilities = {
   version: number
   profile: 'desktop' | 'mobile-embedded' | 'mobile-store'
-  engine: 'node' | 'pi-rs'
+  engine: 'node'
   degraded: boolean
   modules: {
     childProcess: boolean

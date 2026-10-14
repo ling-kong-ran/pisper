@@ -1,14 +1,4 @@
 shared/speech-resources/xasr-bpe.vocab -text
 
-# 移动归档与原生插件逐字节校验共享清单，规范路径和兼容路径必须采用相同行尾。
-shared/speech-model-catalog.json text eol=lf
-shared/speech-resource-notices.json text eol=lf
-shared/speech/speech-model-catalog.json text eol=lf
-shared/speech/speech-resource-notices.json text eol=lf
-
 # 许可证清单锁定生成器的原始字节摘要，Windows 检出时也必须保留 LF。
 scripts/speech-bpe.mjs text eol=lf
-
-# 许可证字节与 stage-rust-speech 的 sha256/bytes 清单锁定,检出不得转换行尾。
-runtime-rs/src/native_speech/SHERPA-LICENSE -text
-runtime-rs/resources/licenses/*.txt -text

@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertReleaseComponent, releaseTag, releaseVersionFromTag } from './release-components.mjs'
@@ -25,26 +25,17 @@ async function filesUnder(path) {
   return files
 }
 
-const backend = process.argv.includes('--node') ? 'node' : 'rust'
-const label = component === 'tui' ? 'TUI' : backend === 'rust' ? 'Runtime_Rust' : 'Runtime'
+const label = component === 'tui' ? 'TUI' : 'Runtime'
 const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
 const archives = platforms.flatMap((platform) => {
   const distribution = `Pisper_${label}_${version}_${platform}.tar.gz`
   if (component === 'tui') {
     return [distribution, `Pisper_TUI_Component_${version}_${platform}.tar.gz`]
   }
-  return backend === 'rust'
-    ? [distribution]
-    : [distribution, `Pisper_Runtime_Node_${version}_${platform}.tar.gz`]
+  return [distribution, `Pisper_Runtime_Node_${version}_${platform}.tar.gz`]
 })
 const expected = archives.flatMap((archive) => [archive, `${archive}.sig`]).sort()
-const files = await filesUnder(directory)
-const actual = files.map((file) => basename(file)).sort()
-if (new Set(actual).size !== actual.length)
-  throw new Error('Duplicate component release asset names.')
-for (const file of files)
-  if ((await stat(file)).size === 0)
-    throw new Error(`Empty component release asset: ${basename(file)}`)
+const actual = (await filesUnder(directory)).map((file) => basename(file)).sort()
 const missing = expected.filter((name) => !actual.includes(name))
 const unexpected = actual.filter((name) => !expected.includes(name))
 if (missing.length || unexpected.length) {

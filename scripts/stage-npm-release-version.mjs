@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -76,11 +75,6 @@ if (!hasNpmChanges && !changesComponentTarget) {
 manifest.version = targetVersion
 if (targetTuiVersion) manifest.pisper.tuiVersion = targetTuiVersion
 if (targetRuntimeVersion) manifest.pisper.runtimeVersion = targetRuntimeVersion
-// 后端类型随发布源固定，安装器不能从版本号猜测 Node/Rust 资源布局。
-manifest.pisper.runtimeBackend =
-  existsSync(join(root, 'runtime-rs/Cargo.toml')) && !existsSync(join(root, 'runtime/index.mjs'))
-    ? 'rust'
-    : 'node'
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 console.log(
   `Staged npm-v${targetVersion} with TUI ${manifest.pisper.tuiVersion} and Runtime ${manifest.pisper.runtimeVersion}.`,

@@ -47,7 +47,7 @@ impl OnDeviceRuntime {
     }
 
     pub fn ensure_started(&self) -> Result<OnDeviceRuntimeStatus, String> {
-        // Bridge 命令可能并发到达，安装和启动必须串行，避免重复启动同进程 Rust。
+        // Bridge 命令可能并发到达，安装和启动必须串行，避免重复启动同进程 Node。
         let _lifecycle = self
             .lifecycle
             .lock()
@@ -57,6 +57,6 @@ impl OnDeviceRuntime {
 }
 
 fn public_status(mut status: OnDeviceRuntimeStatus) -> OnDeviceRuntimeStatus {
-    status.runtime_kind = "rust".into();
+    status.runtime_kind = "node".into();
     status
 }

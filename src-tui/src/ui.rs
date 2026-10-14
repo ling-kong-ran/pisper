@@ -2801,14 +2801,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
                 ListItem::new(vec![
                     Line::from(vec![
                         Span::styled(
-                            padded_single_line(
-                                if session.name.trim().is_empty() {
-                                    "New conversation"
-                                } else {
-                                    &session.name
-                                },
-                                name_width,
-                            ),
+                            padded_single_line(&session.name, name_width),
                             Style::default().fg(TEXT),
                         ),
                         Span::styled(model, Style::default().fg(MUTED)),
@@ -5083,9 +5076,6 @@ mod tests {
         let rendered = format!("{:?}", terminal.backend().buffer());
         assert!(rendered.contains("Timed conversation"));
         assert!(rendered.contains("1970-01-01"));
-        app.sessions[0].name.clear();
-        terminal.draw(|frame| draw(frame, &app)).unwrap();
-        assert!(format!("{:?}", terminal.backend().buffer()).contains("New conversation"));
 
         app.begin_session_list_load(false);
         terminal.draw(|frame| draw(frame, &app)).unwrap();

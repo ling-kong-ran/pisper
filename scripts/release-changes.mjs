@@ -11,10 +11,6 @@ const RELEASE_SCRIPT_PATHS = new Set([
   'scripts/release-components.mjs',
   'scripts/release-policy.mjs',
   'scripts/release.mjs',
-  'scripts/update-pi-rust.mjs',
-  'scripts/update-pi-model-catalog.mjs',
-  'scripts/upstream-download.mjs',
-  'runtime-rs/pi-rs-source.json',
   'scripts/rename-to-pisper.mjs',
   'scripts/stage-npm-release-version.mjs',
   'scripts/stage-release-version.mjs',
@@ -28,11 +24,6 @@ const SCRIPT_COMPONENTS = new Map([
   ['scripts/create-tauri-update-manifest.mjs', ['desktop']],
   ['scripts/package-tauri-release.mjs', ['desktop']],
   ['scripts/package-tui.mjs', ['tui']],
-  ['scripts/package-rust-runtime.mjs', ['runtime']],
-  ['scripts/package-tauri-rust.mjs', ['desktop']],
-  ['scripts/rust-desktop-platforms.mjs', ['desktop', 'tui', 'runtime']],
-  ['scripts/stage-rust-runtime.mjs', ['desktop', 'tui', 'runtime']],
-  ['scripts/stage-rust-speech.mjs', ['desktop', 'tui', 'runtime']],
   ['scripts/sea-bootstrap.cjs', ['runtime']],
   ['scripts/sea-runtime.mjs', ['desktop', 'runtime']],
   ['scripts/patch-pi-mobile-compat.mjs', ['desktop', 'runtime']],
@@ -85,16 +76,9 @@ export function releaseComponentsForPath(input) {
   }
   if (path.startsWith('packages/pisper/')) return []
   if (path.startsWith('crates/component-updater/')) return ['desktop', 'tui']
-  if (
-    path.startsWith('crates/pisper-terminal/') ||
-    path.startsWith('crates/pisper-remote-transport/')
-  )
-    return ['desktop', 'runtime']
   if (path.startsWith('crates/tauri-plugin-dns-sd/')) return ['desktop']
   if (path.startsWith('src-tauri/')) return ['desktop']
-  // Desktop 安装包内置 TUI，入口、版本暂存和发布说明必须看到同一份变更。
-  if (path.startsWith('src-tui/')) return ['desktop', 'tui']
-  if (path.startsWith('runtime-rs/')) return ['desktop', 'runtime']
+  if (path.startsWith('src-tui/')) return ['tui']
   if (path.startsWith('runtime/')) return ['runtime']
   if (path.startsWith('src/') || path.startsWith('public/')) return ['desktop']
   if (path.startsWith('shared/')) return ['desktop', 'runtime']

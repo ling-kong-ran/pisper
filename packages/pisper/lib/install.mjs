@@ -7,13 +7,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
 import { x as extractTar } from 'tar'
-import {
-  npmPlatformAlias,
-  npmPlatformTarget,
-  npmPlatformVersion,
-  npmRuntimeBackend,
-  npmRuntimeAsset,
-} from './npm-platform.mjs'
+import { npmPlatformAlias, npmPlatformTarget, npmPlatformVersion } from './npm-platform.mjs'
 import {
   componentsRoot,
   executableName,
@@ -28,7 +22,6 @@ const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const packageManifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
 const tuiVersion = packageManifest.pisper?.tuiVersion
 const runtimeVersion = packageManifest.pisper?.runtimeVersion
-const runtimeBackend = npmRuntimeBackend(packageManifest.pisper?.runtimeBackend)
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
 const INSTALL_WAIT_MS = 600_000
 const LEGACY_LOCK_GRACE_MS = 300_000
@@ -52,9 +45,8 @@ function decodeWrapped(value) {
 
 function componentAsset(component, version, platform = process.platform, arch = process.arch) {
   const target = supportedTarget(platform, arch)
-  return component === 'tui'
-    ? `Pisper_TUI_Component_${version}_${target}.tar.gz`
-    : npmRuntimeAsset(version, target, runtimeBackend)
+  const label = component === 'tui' ? 'TUI_Component' : 'Runtime_Node'
+  return `Pisper_${label}_${version}_${target}.tar.gz`
 }
 
 export function releaseAsset(
@@ -85,9 +77,7 @@ async function isFile(path) {
 
 function commandName(component) {
   if (component === 'tui') return executableName()
-  return runtimeBackend === 'rust'
-    ? `pisper-sidecar${process.platform === 'win32' ? '.exe' : ''}`
-    : 'sidecar-runtime/runtime/sidecar.mjs'
+  return 'sidecar-runtime/runtime/sidecar.mjs'
 }
 
 async function validateComponent(component, version, destination) {
@@ -101,14 +91,7 @@ async function validateComponent(component, version, destination) {
   }
   try {
     const manifest = JSON.parse(await readFile(join(destination, 'manifest.json'), 'utf8'))
-    if (component === 'runtime' && runtimeBackend === 'rust') {
-      const payload = JSON.parse(
-        await readFile(join(destination, 'sidecar-runtime', 'package.json'), 'utf8'),
-      )
-      if (payload.backend !== 'rust' || payload.version !== version) return ''
-    }
     if (
-      npmRuntimeBackend(manifest.backend) !== runtimeBackend ||
       manifest.version !== version ||
       manifest.platform !== releasePlatform() ||
       manifest.arch !== releaseArchitecture() ||
@@ -160,8 +143,7 @@ async function resolvePlatformBundle() {
     manifest.version !== expectedVersion ||
     metadata?.target !== target.release ||
     metadata?.tuiVersion !== tuiVersion ||
-    metadata?.runtimeVersion !== runtimeVersion ||
-    npmRuntimeBackend(metadata?.runtimeBackend) !== runtimeBackend
+    metadata?.runtimeVersion !== runtimeVersion
   ) {
     throw new Error(
       `npm platform package ${alias} does not match pisper@${packageManifest.version}`,
@@ -193,25 +175,17 @@ async function verifyArchive(component, archive, signatureBytes) {
   const publicKeyText = await readFile(join(packageRoot, 'updater.pubkey'), 'utf8')
   const publicKey = PublicKey.decode(decodeWrapped(publicKeyText))
   const signature = Signature.decode(decodeWrapped(signatureBytes.toString('utf8')))
-  let verificationError
   try {
     if (!publicKey.verify(archive, signature)) {
       throw new Error('signature verification returned false')
     }
   } catch (error) {
-    verificationError = error
     throw new Error(`${component} archive signature verification failed: ${error.message}`, {
       cause: error,
     })
   } finally {
-    for (const handle of [signature, publicKey]) {
-      try {
-        handle.free()
-      } catch (error) {
-        // 上游 WASM 验签失败后可能留下借用标记；清理异常不能覆盖原始验签拒绝。
-        if (!verificationError) throw error
-      }
-    }
+    signature.free()
+    publicKey.free()
   }
 }
 
@@ -373,18 +347,8 @@ async function installComponent({ root, bundleRoot, component, version, destinat
 
 export async function ensurePisperInstallation() {
   const root = componentsRoot()
-  const npmTuiDestination = join(
-    root,
-    runtimeBackend === 'rust' ? 'npm-rust' : 'npm',
-    'versions',
-    tuiVersion,
-  )
-  const runtimeDestination = join(
-    root,
-    runtimeBackend === 'rust' ? 'npm-runtime-rust' : 'npm-runtime',
-    'versions',
-    runtimeVersion,
-  )
+  const npmTuiDestination = join(root, 'npm', 'versions', tuiVersion)
+  const runtimeDestination = join(root, 'npm-runtime', 'versions', runtimeVersion)
   const [tui, runtime] = await Promise.all([
     resolveCurrentComponent(root, 'tui', tuiVersion).then(
       (current) => current || installedComponent('tui', tuiVersion, npmTuiDestination),
@@ -395,8 +359,6 @@ export async function ensurePisperInstallation() {
     return {
       executable: tui.executable,
       appRoot: join(runtime.destination, 'sidecar-runtime'),
-      runtimeBackend,
-      ...(runtimeBackend === 'rust' ? { sidecar: runtime.executable } : {}),
     }
   }
 
@@ -422,8 +384,6 @@ export async function ensurePisperInstallation() {
   return {
     executable: installedTui.executable,
     appRoot: join(installedRuntime.destination, 'sidecar-runtime'),
-    runtimeBackend,
-    ...(runtimeBackend === 'rust' ? { sidecar: installedRuntime.executable } : {}),
   }
 }
 

@@ -12,8 +12,7 @@ export const BUNDLE_BUDGETS = {
   // 状态栏新增连接探针与重连提示（自适应轮询 + 内置 toast）后，入口文件小幅增长。
   entryFileGzip: 57 * KIB + 384,
   // 页面偏好恢复后无条件加载的 mount-app 也计入启动面；分块与恢复客户端增加约 7 KB。
-  // 界面/交互 UI/UX 设计优化（工作台面板恢复与移动端动作）再增约 0.6 KB。
-  entryStaticJsGzip: 292 * KIB + 768,
+  entryStaticJsGzip: 292 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
   chunks: {
@@ -29,16 +28,16 @@ export const BUNDLE_BUDGETS = {
 }
 
 const ROUTE_SOURCES = [
-  'src/features/chat/pages/ChatPage.tsx',
-  'src/features/chat/pages/ChatHistoryPage.tsx',
-  'src/features/assets/pages/AssetsPage.tsx',
+  'src/features/chat/ChatPage.tsx',
+  'src/features/chat/ChatHistoryPage.tsx',
+  'src/features/assets/AssetsPage.tsx',
   'src/features/channels/ChannelsPage.tsx',
   'src/features/schedules/SchedulesPage.tsx',
-  'src/features/config/pages/ConfigPage.tsx',
-  'src/features/plugins/pages/PluginsPage.tsx',
+  'src/features/config/ConfigPage.tsx',
+  'src/features/plugins/PluginsPage.tsx',
   'src/features/memory/MemoryPage.tsx',
-  'src/features/mcp/pages/McpPage.tsx',
-  'src/features/skills/pages/SkillsPage.tsx',
+  'src/features/mcp/McpPage.tsx',
+  'src/features/skills/SkillsPage.tsx',
   'src/features/workflows/WorkflowsPage.tsx',
 ]
 
@@ -212,14 +211,9 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     check(`${name} gzip`, report.fileMetrics.get(report.manifest[key].file).gzip, limit)
   }
 
-  // 分屏恢复后只允许由桌面按需加载；手机聊天的静态依赖仍不能包含 Dockview。
-  const dockSource = 'src/features/chat/components/ChatDockView.tsx'
-  if (!report.manifest[dockSource]?.isDynamicEntry) failures.push('desktop dock is not lazy')
-  const chatClosure = staticClosure(report.manifest, 'src/features/chat/pages/ChatPage.tsx')
-  if ([...chatClosure].some((key) => report.manifest[key]?.name === 'vendor-dockview')) {
-    failures.push('desktop dock vendor is eager in mobile chat')
-  }
-  const welcomeCss = report.manifest['src/features/chat/components/WelcomeEffects.tsx']?.css || []
+  // PI 单会话界面不装载分屏 vendor；这比仅验证懒加载更严格。
+  if (report.keyByName.has('vendor-dockview')) failures.push('unused split-view vendor is bundled')
+  const welcomeCss = report.manifest['src/features/chat/WelcomeEffects.tsx']?.css || []
   if (welcomeCss.some((file) => file.includes('react-bits')))
     failures.push('PI welcome must not load decorative React Bits CSS')
 
@@ -272,10 +266,7 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     walk(key)
     return css
   }
-  for (const source of [
-    ...REACT_BITS_DYNAMIC_SOURCES,
-    'src/features/chat/pages/ChatHistoryPage.tsx',
-  ]) {
+  for (const source of [...REACT_BITS_DYNAMIC_SOURCES, 'src/features/chat/ChatHistoryPage.tsx']) {
     const css = transitiveCss(source)
     if (![...css].some((file) => file.includes('react-bits')))
       failures.push(`React Bits CSS is not attached to its consumer: ${source}`)
@@ -289,7 +280,7 @@ export async function auditBundle(distDirectory = resolve('dist')) {
   const failures = validateBundle(report)
   const rows = [
     ['entry', report.entryKey],
-    ['ChatPage', 'src/features/chat/pages/ChatPage.tsx'],
+    ['ChatPage', 'src/features/chat/ChatPage.tsx'],
     ['MarkdownMessage', report.keyByName.get('MarkdownMessage')],
     ...Object.keys(BUNDLE_BUDGETS.chunks).map((name) => [name, report.keyByName.get(name)]),
     ['Shiki wasm', 'node_modules/shiki/dist/wasm.mjs'],

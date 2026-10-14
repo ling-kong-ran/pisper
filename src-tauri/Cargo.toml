@@ -33,7 +33,7 @@ tauri-build = { version = "2.6.3", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
-tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api", "devtools"] }
+tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-notification = "2.3.3"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-barcode-scanner = "2"
@@ -50,7 +50,7 @@ reqwest = { version = "0.12", default-features = false, features = [
   # 更新清单等公开 HTTPS 请求需要可信 CA；桌面配对仍由 pinning.rs 的自定义 TLS 指纹验证。
   "rustls-tls-webpki-roots",
   "stream",
-  # 本机 Runtime 的代理请求需要 JSON 收发；桌面宿主靠其他依赖间接开启，
+  # 本机 Runtime 的 Provider 调用需要 JSON 收发；桌面宿主靠其他依赖间接开启，
   # 移动端目标必须显式声明，不能依赖特性统一的偶然性。
   "json",
 ] }
@@ -59,28 +59,22 @@ sha2 = "0.10"
 # P2P 隧道使用最新稳定 Iroh，并关闭非必需的 metrics/discovery 特性。
 iroh = { version = "=1.1.0", default-features = false, features = ["tls-ring"] }
 rand = "0.8"
-pisper-remote-transport = { path = "../crates/pisper-remote-transport" }
 base64 = "0.22"
-# 移动端首次启动从受信任 App 资产解出前端与共享资源；Rust Runtime 已静态链接。
+# 移动端首次启动从受信任 App 资产解出共享 Node Runtime 闭包；桌面测试也编译 mobile 模块。
 flate2 = "1"
 tar = "0.4"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
-pisper-server = { path = "../runtime-rs" }
 pisper-mobile-device-plugin = { path = "mobile-device-plugin" }
 
 # Android bridge：tao 已初始化 Android 上下文，jni 版本须与 tao 0.35 保持一致。
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
-ndk-context = "=0.1.1"
-# Tao 的桥使用 JNI 0.21；平台证书校验器需要 JNI 0.22，转换限制在网络初始化入口。
-jni-verifier = { package = "jni", version = "0.22" }
-rustls-platform-verifier = "=0.7.0"
 
 # 桌面端专属依赖：sidecar 管理、终端 PTY、托盘/窗口状态等在移动端无意义，
 # 部分 crate（如 portable-pty）在 Android/iOS 上无法编译，必须按目标隔离。
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-pisper-terminal = { path = "../crates/pisper-terminal" }
+portable-pty = "0.9"
 pisper-component-updater = { path = "../crates/component-updater" }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-single-instance = "2.4.3"
@@ -102,11 +96,8 @@ objc2-core-video = { version = "0.3", default-features = false, features = ["std
 block2 = { version = "0.6", default-features = false, features = ["std", "alloc"] }
 dispatch2 = { version = "0.3", default-features = false, features = ["std", "alloc", "objc2"] }
 
-[target.'cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))'.dependencies]
-libc = "0.2"
-
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security"] }
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"
 # Windows 镜像流捕获后端（WGC 主路径 + GDI 轮询兜底）：独立 crate 以便在
 # 任意主机交叉 cargo check/clippy（主 crate 因 ring 的 C 依赖无法在 macOS
@@ -114,11 +105,7 @@ winreg = "0.55"
 computer-use-capture-win = { path = "../crates/computer-use-capture-win" }
 
 [dev-dependencies]
-pisper-remote-transport = { path = "../crates/pisper-remote-transport", features = ["test-support"] }
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。
 rcgen = "0.13"
 tokio-rustls = "0.26"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-[patch.crates-io]
-pi-rs = { path = "../runtime-rs/vendor/pi-rs" }

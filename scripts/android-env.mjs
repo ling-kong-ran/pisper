@@ -23,11 +23,7 @@ export function resolveAndroidEnv(env = process.env) {
     if (ndk) result.NDK_HOME = join(ndkDir, ndk)
   }
   if (result.JAVA_HOME) {
-    // 展开 process.env 后失去 Windows 的大小写不敏感查询，不能用 PATH 覆盖已有 Path。
-    const pathKey = Object.keys(result).find((key) => key.toLowerCase() === 'path') || 'PATH'
-    const entries = (result[pathKey] || '').split(delimiter).filter(Boolean)
-    const javaBin = join(result.JAVA_HOME, 'bin')
-    result[pathKey] = [javaBin, ...entries.filter((entry) => entry !== javaBin)].join(delimiter)
+    result.PATH = `${join(result.JAVA_HOME, 'bin')}${delimiter}${result.PATH}`
   }
   return result
 }

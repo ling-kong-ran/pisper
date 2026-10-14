@@ -97,11 +97,11 @@ impl ApiClient {
 
     /// 构造一次性的浏览器引导 URL（`pisper web` 用）：
     /// 携带桌面令牌，浏览器借此完成对本地 Runtime 的一次性鉴权。
-    pub fn bootstrap_url(&self) -> Result<String> {
+    pub fn bootstrap_url(&self, next: &str) -> Result<String> {
         let mut url = self.url("/_pisper/desktop/bootstrap")?;
         url.query_pairs_mut()
             .append_pair("token", &self.token)
-            .append_pair("next", "/#/config/models");
+            .append_pair("next", next);
         Ok(url.to_string())
     }
 
@@ -1129,16 +1129,6 @@ fn is_low_surrogate(value: u16) -> bool {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn web_bootstrap_preserves_the_settings_hash_route() {
-        let api = super::ApiClient::new("http://127.0.0.1:1234", "synthetic").unwrap();
-        let url = url::Url::parse(&api.bootstrap_url().unwrap()).unwrap();
-        let params: std::collections::HashMap<_, _> = url.query_pairs().collect();
-        assert_eq!(params.get("next").unwrap(), "/#/config/models");
-        assert_eq!(url.path(), "/_pisper/desktop/bootstrap");
-        assert!(url.fragment().is_none());
-    }
-
     use super::{
         forward_stream_events, prepare_attachments, repair_json_surrogates, runtime_options,
         track_run_frames, RuntimeConfig, SseDecoder, API_REQUEST_TIMEOUT, MAX_SSE_PENDING_BYTES,

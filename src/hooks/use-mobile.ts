@@ -2,8 +2,6 @@
 import * as React from 'react'
 
 const PHONE_BREAKPOINT = 651
-// 横屏手机宽度会超过竖屏断点；同时限定触屏和短边，避免窄桌面窗口或平板误切布局。
-const PHONE_QUERY = `(max-width: ${PHONE_BREAKPOINT - 1}px), (pointer: coarse) and (max-height: 500px) and (max-width: 1023px)`
 
 // 通用 Sidebar 和浮动组件共用手机视口边界；原生移动 App 由调用方补充判断。
 export function useIsMobile() {
@@ -13,10 +11,12 @@ export function useIsMobile() {
 // 手机布局不能只依赖 Runtime 回显的客户端类型，否则移动浏览器和代理握手失败时
 // 会错误退回桌面分栏。原生能力仍应使用 useIsMobileApp 单独判断。
 export function useIsPhoneViewport() {
-  const [isPhone, setIsPhone] = React.useState(() => window.matchMedia(PHONE_QUERY).matches)
+  const [isPhone, setIsPhone] = React.useState(
+    () => window.matchMedia(`(max-width: ${PHONE_BREAKPOINT - 1}px)`).matches,
+  )
 
   React.useEffect(() => {
-    const media = window.matchMedia(PHONE_QUERY)
+    const media = window.matchMedia(`(max-width: ${PHONE_BREAKPOINT - 1}px)`)
     const update = () => setIsPhone(media.matches)
     update()
     media.addEventListener('change', update)
