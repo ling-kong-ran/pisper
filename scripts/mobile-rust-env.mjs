@@ -1,6 +1,12 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { resolveAndroidEnv } from './android-env.mjs'
+
+// bindgen 按 shell 参数规则解析此变量；Windows 反斜杠和 SDK 路径空格必须保留。
+function clangPathArgument(path) {
+  return JSON.stringify(path.replaceAll('\\', '/'))
+}
 
 export const ANDROID_WEBVIEW_RECOVERY = `override fun onRenderProcessGone(
     view: WebView,
@@ -24,7 +30,7 @@ export function mobileRustEnv(platform, source = process.env) {
       ['x86_64_apple_ios', 'iphonesimulator'],
     ]) {
       env[`BINDGEN_EXTRA_CLANG_ARGS_${target}`] =
-        `-isysroot ${xcrun(['--sdk', sdk, '--show-sdk-path'])}`
+        `-isysroot ${clangPathArgument(xcrun(['--sdk', sdk, '--show-sdk-path']))}`
     }
   } else if (platform === 'android') {
     Object.assign(env, resolveAndroidEnv(source))
@@ -63,11 +69,14 @@ export function mobileRustEnv(platform, source = process.env) {
       env.CARGO_ENCODED_RUSTFLAGS = args.join('\x1f')
     }
     env.WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION = ANDROID_WEBVIEW_RECOVERY
-    // 不假定 Linux NDK 的 lib 目录包含宿主 libclang；保留显式配置，否则让 clang-sys 查找系统库。
-    if (process.platform !== 'linux') {
-      env.LIBCLANG_PATH = join(toolchain, process.platform === 'win32' ? 'bin' : 'lib')
+    // NDK 未必携带宿主 libclang；优先保留显式配置，否则仅使用确实存在的库。
+    // 缺失时让 clang-sys 从宿主 LLVM 查找，不能用不存在的 NDK 路径屏蔽系统安装。
+    if (!env.LIBCLANG_PATH && process.platform !== 'linux') {
+      const directory = join(toolchain, process.platform === 'win32' ? 'bin' : 'lib')
+      const library = process.platform === 'win32' ? 'libclang.dll' : 'libclang.dylib'
+      if (existsSync(join(directory, library))) env.LIBCLANG_PATH = directory
     }
-    env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = `--sysroot=${join(toolchain, 'sysroot')} --target=aarch64-linux-android24`
+    env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = `--sysroot=${clangPathArgument(join(toolchain, 'sysroot'))} --target=aarch64-linux-android24`
   } else throw new Error(`Unsupported mobile platform: ${platform}`)
   return env
 }

@@ -15,6 +15,7 @@ import {
 } from './patch-wry-android.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
+import { enableAndroidReleaseNativeStripping } from './android-native-packaging.mjs'
 import { ANDROID_WEBVIEW_RECOVERY } from './mobile-rust-env.mjs'
 import { stageAndroidTls } from './stage-android-tls.mjs'
 
@@ -360,6 +361,7 @@ oldGradle = oldGradle.replace(
   '',
 )
 oldGradle = oldGradle.replace(/,?\s*"pisper-node-host\.pro"/g, '')
+oldGradle = enableAndroidReleaseNativeStripping(oldGradle)
 writeFileSync(oldGradlePath, oldGradle)
 for (const relative of [
   'app/src/main/cpp/pisper-node-host',
@@ -367,6 +369,9 @@ for (const relative of [
   'app/src/main/java/com/lingkongran/pisper/EmbeddedNodeHost.kt',
   'app/src/main/jniLibs/arm64-v8a/libnode.so',
   'app/src/main/jniLibs/arm64-v8a/libpisper_node_host.so',
+  'app/src/main/assets/pisper-embedded-node-android.json',
+  'app/src/main/assets/LICENSE.nodejs-mobile',
+  'app/pisper-node-host.pro',
 ]) {
   rmSync(join(androidDir, relative), { recursive: true, force: true })
 }

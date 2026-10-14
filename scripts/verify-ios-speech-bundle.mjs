@@ -21,6 +21,16 @@ export async function verifyIosSpeechBundle({ appRoot, root = projectRoot }) {
     }
   }
   await visit(appRoot)
+  // 旧生成工程可能残留 framework；只检查新配置无法证明最终 IPA 已移除 Node。
+  if (
+    files.some((path) =>
+      /(?:^|\/)(?:NodeMobile\.(?:xcframework|framework)|node_modules|libnode\.so|libpisper_node_host\.so)(?:\/|$)/i.test(
+        relative(appRoot, path).replaceAll('\\', '/'),
+      ),
+    )
+  ) {
+    throw new Error('Rust iOS app unexpectedly bundles a legacy Node runtime.')
+  }
   if (files.some((path) => /(?:\.onnx|(?:^|[\\/])voices(?:-selected-\d+)?\.bin)$/i.test(path))) {
     throw new Error('iOS app unexpectedly bundles speech model weights.')
   }

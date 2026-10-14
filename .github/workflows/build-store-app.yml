@@ -334,7 +334,7 @@ jobs:
             '^Payload/[^/]+\.app/PrivacyInfo\.xcprivacy$' \
             'PrivacyInfo.xcprivacy at the app bundle root'
           require_ipa_entry \
-            '^Payload/[^/]+\.app/pisper-embedded-runtime\.tar\.gz$' \
+            '^Payload/[^/]+\.app/(.*/)?pisper-embedded-runtime\.tar\.gz$' \
             'the embedded Runtime archive'
           rm -rf /tmp/pisper-store-ipa
           unzip -q "$IPA" -d /tmp/pisper-store-ipa

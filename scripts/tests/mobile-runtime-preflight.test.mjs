@@ -1,11 +1,67 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
-import { join, dirname } from 'node:path'
+import { join, dirname, delimiter } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { assertMobileRuntimeSource } from '../mobile-runtime-preflight.mjs'
 import { createMobileRuntimeArchive } from '../mobile-runtime-archive.mjs'
 import { x as extractTar } from 'tar'
+import { verifyIosSpeechBundle } from '../verify-ios-speech-bundle.mjs'
+import { resolveAndroidEnv } from '../android-env.mjs'
+import { enableAndroidReleaseNativeStripping } from '../android-native-packaging.mjs'
+
+for (const eol of ['\n', '\r\n']) {
+  test(`Android Release strips native symbols without changing Debug settings (${JSON.stringify(eol)})`, () => {
+    const source = [
+      'android {',
+      '    buildTypes {',
+      '        getByName("debug") {',
+      '            packaging { jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so") }',
+      '        }',
+      '    }',
+      '}',
+    ].join(eol)
+    const patched = enableAndroidReleaseNativeStripping(source)
+    assert.ok(patched.startsWith(source))
+    assert.match(patched, /onVariants\(selector\(\)\.withBuildType\("release"\)\)/)
+    assert.match(patched, /variant\.packaging\.jniLibs\.keepDebugSymbols\.set\(emptySet\(\)\)/)
+    assert.equal(enableAndroidReleaseNativeStripping(patched), patched)
+    assert.equal(patched.includes('\r\n'), eol === '\r\n')
+  })
+}
+
+test('mobile speech resource aliases retain identical bytes on every checkout platform', async () => {
+  for (const name of ['speech-model-catalog.json', 'speech-resource-notices.json']) {
+    const base = new URL('../../shared/', import.meta.url)
+    assert.deepEqual(
+      await readFile(new URL(`speech/${name}`, base)),
+      await readFile(new URL(name, base)),
+    )
+  }
+})
+
+for (const pathKey of ['PATH', 'Path']) {
+  test(`Android toolchain preserves ${pathKey} and does not hide Cargo when adding Java`, () => {
+    const source = {
+      JAVA_HOME: '/fixture/jdk',
+      ANDROID_HOME: '/fixture/sdk',
+      NDK_HOME: '/fixture/ndk',
+      [pathKey]: ['/fixture/cargo/bin', '/fixture/node/bin'].join(delimiter),
+    }
+    const first = resolveAndroidEnv(source)
+    assert.deepEqual(
+      Object.keys(first).filter((key) => key.toLowerCase() === 'path'),
+      [pathKey],
+    )
+    assert.deepEqual(first[pathKey].split(delimiter), [
+      join(source.JAVA_HOME, 'bin'),
+      '/fixture/cargo/bin',
+      '/fixture/node/bin',
+    ])
+    assert.equal(resolveAndroidEnv(first)[pathKey], first[pathKey])
+    assert.equal(source[pathKey].includes('jdk'), false)
+  })
+}
 
 // 保留“缺少宿主时不能覆盖旧资源”的保护，成功合同改为 Rust 库与 v2 静态资源。
 test('incomplete Rust mobile sources fail without modifying the previous archive', async () => {
@@ -105,7 +161,7 @@ test(
     assert.match(env.CC_aarch64_linux_android, /linux-x86_64\/bin\/aarch64-linux-android24-clang$/)
     assert.equal(
       env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android,
-      '--sysroot=/fixture/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot --target=aarch64-linux-android24',
+      '--sysroot="/fixture/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot" --target=aarch64-linux-android24',
     )
   },
 )
@@ -140,6 +196,33 @@ test('Android TLS staging refuses unpinned or corrupt certificate-verifier bytes
   assert.throws(() => validateAndroidTls(Buffer.from('untrusted')), /digest mismatch/)
 })
 
+test('Android bindgen preserves the host LLVM override instead of assuming NDK bundles libclang', async () => {
+  const { mobileRustEnv } = await import('../mobile-rust-env.mjs')
+  const source = {
+    JAVA_HOME: '/fixture/jdk',
+    ANDROID_HOME: '/fixture/sdk',
+    NDK_HOME: '/fixture/nonexistent-ndk',
+    PATH: '/fixture/bin',
+  }
+  assert.equal(Object.hasOwn(mobileRustEnv('android', source), 'LIBCLANG_PATH'), false)
+  const override = { ...source, LIBCLANG_PATH: '/fixture/host-llvm' }
+  assert.equal(mobileRustEnv('android', override).LIBCLANG_PATH, override.LIBCLANG_PATH)
+})
+
+test('Android bindgen preserves SDK paths containing spaces and Windows separators', async () => {
+  const { mobileRustEnv } = await import('../mobile-rust-env.mjs')
+  const env = mobileRustEnv('android', {
+    JAVA_HOME: '/fixture/jdk',
+    ANDROID_HOME: '/fixture/sdk',
+    NDK_HOME: 'C:\\Android SDK\\ndk',
+    PATH: '/fixture/bin',
+  })
+  assert.match(
+    env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android,
+    /^--sysroot="C:\/Android SDK\/ndk\/toolchains\/llvm\/prebuilt\/[^/]+\/sysroot" --target=aarch64-linux-android24$/,
+  )
+})
+
 test('iOS generator repairs direct-node build commands and removes obsolete Node frameworks', async () => {
   const { injectIosNativeBuildSettings } = await import('../setup-mobile-ios.mjs')
   const { load, dump } = await import('js-yaml')
@@ -161,6 +244,40 @@ test('iOS generator repairs direct-node build commands and removes obsolete Node
   assert.match(fixed.preBuildScripts[0].script, /node_modules\/@tauri-apps\/cli\/tauri\.js/)
   assert.doesNotMatch(fixed.preBuildScripts[0].script, /node tauri ios/)
   assert.deepEqual(fixed.dependencies, [{ sdk: 'UIKit.framework' }])
+})
+
+test('iOS packaged resources reject obsolete Node payloads while preserving native speech', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-ios-bundle-'))
+  try {
+    const appRoot = join(root, 'Pisper.app')
+    const resources = join(appRoot, 'speech.bundle/SpeechResources')
+    for (const name of [
+      'speech-model-catalog.json',
+      'speech-resource-notices.json',
+      'speech-resources/xasr-bpe.vocab',
+    ]) {
+      for (const base of [join(root, 'shared'), resources]) {
+        await mkdir(dirname(join(base, name)), { recursive: true })
+        await writeFile(join(base, name), 'same shared fixture')
+      }
+    }
+    assert.equal((await verifyIosSpeechBundle({ appRoot, root })).resourcesVerified, 3)
+    for (const name of [
+      'Frameworks/NodeMobile.framework/NodeMobile',
+      'assets/NodeMobile.xcframework/Info.plist',
+      'assets/node_modules/legacy/index.js',
+      'assets/libnode.so',
+    ]) {
+      const stale = join(appRoot, name)
+      await mkdir(dirname(stale), { recursive: true })
+      await writeFile(stale, 'stale runtime')
+      await assert.rejects(verifyIosSpeechBundle({ appRoot, root }), /legacy Node runtime/)
+      await rm(stale)
+    }
+    assert.equal((await verifyIosSpeechBundle({ appRoot, root })).weightsBundled, false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('Wry fallback injects only when document-start injection is unavailable and remains idempotent', async () => {

@@ -20,7 +20,13 @@
 
 ## 构建与验证
 
-使用 Node 24、Rust、Xcode/iOS SDK 或 Android SDK/NDK。Apple bindgen 显式使用 Xcode libclang 和对应 SDK，Android 使用 NDK 工具链；由 `mobile-rust-env.mjs` 装配，避免继承其他平台残留的编译环境。
+使用 Node 24、Rust、Xcode/iOS SDK 或 Android SDK/NDK。Apple bindgen 显式使用 Xcode libclang 和对应 SDK，Android 使用 NDK 工具链；由 `mobile-rust-env.mjs` 装配，避免继承其他平台残留的编译环境。Android bindgen 仍需要宿主 libclang：NDK 未提供时需安装宿主 LLVM，并通过自动发现或 `LIBCLANG_PATH` 指向包含动态库的目录；显式配置会保留。
+
+Windows 构建必须保留原有 `Path` 中的 Cargo/Node 路径；Java 路径由 Android 环境入口幂等添加。共享语音清单的规范路径与兼容路径均以 LF 检出，保证归档与原生插件的逐字节校验一致。不要通过跳过摘要或别名检查解决行尾差异。
+
+复用旧生成工程时，Android 初始化会移除 Node 宿主、旧清单和 ProGuard 文件；iOS 工程生成会移除 NodeMobile 依赖，最终包检查还会拒绝残留 Node framework 或 `node_modules`。IPA 的资源归档允许位于 App 根目录或 Tauri 的 `assets/` 目录，侧载与商店构建采用同一规则。
+
+Android 的 Tauri 模板在 Debug 配置内设置的 `packaging.jniLibs.keepDebugSymbols` 实际影响全局。初始化脚本通过 Release 变体 API 清空保留规则，使 APK/AAB 正常剥离原生符号；Debug 保持可调试。该属性的作用见 [Android JniLibsPackaging API](https://developer.android.com/reference/tools/gradle-api/8.12/com/android/build/api/variant/JniLibsPackaging)。验收必须检查最终包内主库，不能只比较 Cargo 中间文件或资源归档的大小。
 
 ```bash
 npm run build
@@ -33,6 +39,12 @@ npm run test:android:runtime -- emulator-5562
 ```
 
 `check-mobile-rust` 检查库及整个 Tauri 壳，不能代替 APK/IPA 链接、安装或真机验收。`cargo test --manifest-path runtime-rs/Cargo.toml --lib runtime_host::tests` 在隔离目录检查认证、就绪合同、端口释放、重启及会话保留；移动资源和发布合同由 `npm run test:release` 覆盖。设备验收还应覆盖首启、后台恢复、本机/远程切换、语音与原生权限。
+
+### Android 包体积实测（2026-10-14）
+
+Windows x64、Rust 1.96.0、NDK 27.0.12077973，基于 `600dfb33` 的 arm64 Release 本地未签名 APK：恢复 Release 符号剥离前为 168,627,066 字节，修复后为 133,679,998 字节（127.49 MiB），减少 34,947,068 字节。包内 Rust 主库从 128,652,120 降到 94,220,296 字节；资源归档为 3,172,488 字节，不含 Node 或预装语音模型。最终包通过 8 个原生库的 16 KB 对齐、共享资源摘要和 11 个 JNI 成员检查。
+
+这是 APK 文件大小，不代表安装占用或运行内存；未执行设备运行验收。本次 iOS 只完成资源、生成配置和构建辅助逻辑检查，Windows 环境未生成 Rust IPA，不能据此推算 iOS 实际包体积。
 
 ## 回滚
 
