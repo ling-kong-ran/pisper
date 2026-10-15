@@ -153,3 +153,39 @@ All scopes use four native jobs:
 | `linux-x86_64` | `ubuntu-22.04` | AppImage, DEB | `.tar.gz` |
 
 Existing Electron installations cannot consume Tauri's `latest.json`. Users of those historical builds must install a Tauri package manually; Pisper's Agent data directory remains independent from the application installation directory.
+
+### Recovery after the withdrawn Rust releases
+
+The Node component updater rejects the withdrawn release identities: Desktop `0.6.0`
+and `0.6.1`, and TUI/Runtime `0.6.1`, `0.6.2`, and `0.6.3` (including variants with
+prerelease or build suffixes). These identities must not be reused. This is a list
+of specific withdrawn releases, **not a ban on the 0.6.x series**: future Node releases
+can use new 0.6.x versions normally. New component manifests explicitly declare
+`backend: "node"`; legacy manifests without that field remain compatible. Payloads
+declaring another backend or `upgradeNotice: true` are never loaded or activated.
+
+On startup, a withdrawn or incompatible active component is treated as absent. The
+desktop shell uses its bundled frontend, Runtime, and TUI, including when offline.
+Resolution does not modify `current.json`, downloaded component files, or user data.
+Update checks exclude withdrawn releases even if a mirror still returns them, and
+direct installation rejects them before downloading. A later compatible update can
+replace the active pointer normally. The policy belongs to the shared component updater,
+so desktop and standalone TUI use the same rules; Android/iOS do not use this updater.
+
+This fix takes effect only in binaries built with the corrected updater. Installing
+the original 0.5.81 package again does not retrofit the fix. Affected users must install
+a corrected full desktop package; a frontend-only component update cannot replace
+the native updater. Do not uninstall with data removal or delete `~/.pisper/agent`.
+For temporary recovery on Windows, fully exit Pisper and rename
+`%LOCALAPPDATA%\com.lingkongran.pisper\components\desktop\current.json` to an unused
+backup filename after verifying it points to a withdrawn version. Reopen the Node
+desktop application to use its bundled frontend.
+
+Regression coverage runs with
+`cargo test --manifest-path src-tui/Cargo.toml --locked -p pisper-component-updater`
+and `node --import tsx --test runtime/tests/component-archive.test.mjs`. Before a Windows
+release, use an isolated Windows test profile to seed withdrawn Desktop/TUI/Runtime
+components and fixture user data, install the corrected full package over the old app,
+then start it offline twice. Verify the normal UI and bundled Runtime/managed CLI are
+used, user data is unchanged, and a subsequent compatible Node 0.6.x component can be
+installed. Host unit tests do not replace this Windows installer acceptance test.

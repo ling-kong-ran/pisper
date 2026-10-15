@@ -62,6 +62,44 @@ async function entries(archive) {
   return result
 }
 
+test('future 0.6.x component archives explicitly retain the Node backend', async (t) => {
+  const { root } = await fixture(t)
+  await writeFile(join(root, 'package.json'), '{"version":"0.6.4"}')
+  await writeFile(join(root, 'src-tauri', 'desktop-package.json'), '{"version":"0.6.4"}')
+  await writeFile(join(root, 'src-tui', 'Cargo.toml'), '[package]\nversion = "0.6.4"\n')
+  await mkdir(join(root, 'dist'))
+  await writeFile(join(root, 'dist', 'index.html'), '<!doctype html>')
+  const tuiStage = join(root, 'tui-stage')
+  await mkdir(tuiStage)
+  await writeFile(join(tuiStage, `pisper${suffix}`), 'tui')
+  for (const component of ['desktop', 'runtime', 'tui']) {
+    await run(
+      process.execPath,
+      [join(root, 'scripts', 'archive-component-release.mjs'), component],
+      {
+        cwd: root,
+        env: { ...process.env, PISPER_TUI_STAGE_DIR: tuiStage },
+      },
+    )
+  }
+  const stageRoot = join(root, 'release', 'component-stage')
+  const manifests = []
+  for (const directory of await readdir(stageRoot)) {
+    if (directory.startsWith('pisper-tui-') && !directory.startsWith('pisper-tui-component-'))
+      continue
+    const manifest = JSON.parse(await readFile(join(stageRoot, directory, 'manifest.json'), 'utf8'))
+    assert.equal(manifest.backend, 'node')
+    assert.equal(manifest.version, '0.6.4')
+    manifests.push(manifest.name)
+  }
+  assert.deepEqual(manifests.sort(), [
+    'pisper-desktop',
+    'pisper-runtime',
+    'pisper-runtime-node',
+    'pisper-tui-component',
+  ])
+})
+
 test(
   'runtime component archives materialize safe links and preserve npm bin execution',
   { skip: process.platform === 'win32' && 'Windows npm does not stage file symlinks' },

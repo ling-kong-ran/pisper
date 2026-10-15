@@ -37,6 +37,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --import tsx --test runtime/tests/host-bash.test.mjs
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test Windows component rollback and compatibility
+        run: cargo test --manifest-path src-tui/Cargo.toml --locked -p pisper-component-updater
 
   ios-native:
     name: iOS native tests
@@ -64,3 +67,5 @@ jobs:
         run: cargo check --manifest-path src-tui/Cargo.toml
       - name: Test TUI
         run: cargo test --manifest-path src-tui/Cargo.toml
+      - name: Test component rollback and compatibility
+        run: cargo test --manifest-path src-tui/Cargo.toml --locked -p pisper-component-updater

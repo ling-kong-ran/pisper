@@ -119,6 +119,14 @@ function runComponentChecks(selected) {
   }
   if (selected.includes('desktop') || selected.includes('tui')) {
     run('cargo', ['fmt', '--manifest-path', 'src-tui/Cargo.toml', '--', '--check'])
+    run('cargo', [
+      'test',
+      '--manifest-path',
+      'src-tui/Cargo.toml',
+      '--locked',
+      '-p',
+      'pisper-component-updater',
+    ])
     runNpm(['run', 'tui:test'])
     runNpm(['run', 'tui:check'])
   }

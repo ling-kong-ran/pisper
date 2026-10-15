@@ -77,6 +77,27 @@ impl Component {
             (Self::Runtime, false) => "pisper-sidecar",
         }
     }
+
+    fn is_withdrawn(self, version: &Version) -> bool {
+        // 只撤销已发布后撤回的版本身份，不能封禁未来仍使用 Node 的 0.6.x。
+        // 忽略预发布/构建后缀，避免旧产物仅改后缀就绕过撤回规则。
+        version.major == 0
+            && version.minor == 6
+            && match self {
+                Self::Desktop => matches!(version.patch, 0 | 1),
+                Self::Tui | Self::Runtime => matches!(version.patch, 1..=3),
+            }
+    }
+
+    fn ensure_not_withdrawn(self, version: &Version) -> Result<()> {
+        if self.is_withdrawn(version) {
+            bail!(
+                "withdrawn Pisper {} component version: {version}",
+                self.name()
+            );
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -122,6 +143,23 @@ struct ComponentManifest {
     platform: String,
     arch: String,
     command: String,
+    backend: Option<String>,
+    #[serde(default)]
+    upgrade_notice: bool,
+}
+
+impl ComponentManifest {
+    fn is_node_compatible(&self) -> bool {
+        // 历史 Node 包没有 backend 字段；显式声明其他后端或升级提示页的包不能执行。
+        !self.upgrade_notice && matches!(self.backend.as_deref(), None | Some("node"))
+    }
+
+    fn ensure_node_compatible(&self) -> Result<()> {
+        if !self.is_node_compatible() {
+            bail!("component payload is incompatible with the Node application");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -260,6 +298,8 @@ impl ComponentUpdater {
     where
         F: FnMut(u64, u64) + Send,
     {
+        let version = Version::parse(&release.version).context("invalid component version")?;
+        release.component.ensure_not_withdrawn(&version)?;
         let archive = self
             .download_candidates_with_progress(
                 &release.archive_candidates(),
@@ -280,7 +320,6 @@ impl ComponentUpdater {
 
         let root = self.root.clone();
         let component = release.component;
-        let version = Version::parse(&release.version).context("invalid component version")?;
         let installed_version = version.clone();
         tokio::task::spawn_blocking(move || install_archive(&root, component, &version, &archive))
             .await
@@ -662,11 +701,17 @@ pub fn resolve_installed(root: &Path, component: Component) -> Result<Option<Ins
     };
     let version =
         Version::parse(&pointer.version).context("invalid installed component version")?;
+    // 撤回状态由本地策略判定，离线覆盖安装也能恢复；不改指针、不删组件或用户数据。
+    if component.is_withdrawn(&version) {
+        return Ok(None);
+    }
     let version_root = root
         .join(component.name())
         .join("versions")
         .join(version.to_string());
-    validate_layout(component, &version_root, &version)?;
+    if !validate_layout(component, &version_root, &version)?.is_node_compatible() {
+        return Ok(None);
+    }
     Ok(Some(InstalledComponent {
         component,
         version,
@@ -702,7 +747,9 @@ fn release_info(component: Component, release: GitHubRelease) -> Option<ReleaseI
         return None;
     }
     let version = release.tag_name.strip_prefix(component.tag_prefix())?;
-    Version::parse(version).ok()?;
+    if component.is_withdrawn(&Version::parse(version).ok()?) {
+        return None;
+    }
     let archive_name = component_asset_name(component, version);
     let signature_name = format!("{archive_name}.sig");
     let archive = release
@@ -811,6 +858,7 @@ fn install_archive(
     version: &Version,
     bytes: &[u8],
 ) -> Result<()> {
+    component.ensure_not_withdrawn(version)?;
     let component_root = root.join(component.name());
     fs::create_dir_all(&component_root).context("failed to create component directory")?;
     let lock = OpenOptions::new()
@@ -834,7 +882,8 @@ fn install_archive(
     let _ = fs::remove_dir_all(&backup);
     fs::create_dir_all(&staging).context("failed to create component staging directory")?;
     let result = extract_archive(bytes, &staging)
-        .and_then(|_| validate_layout(component, &staging, version));
+        .and_then(|_| validate_layout(component, &staging, version))
+        .and_then(|manifest| manifest.ensure_node_compatible());
     if let Err(error) = result {
         let _ = fs::remove_dir_all(&staging);
         return Err(error);
@@ -851,7 +900,7 @@ fn install_archive(
         return Err(error).context("failed to activate component version directory");
     }
     let _ = fs::remove_dir_all(backup);
-    validate_layout(component, &destination, version)?;
+    validate_layout(component, &destination, version)?.ensure_node_compatible()?;
     write_pointer(&component_root, version)?;
     cleanup_versions(&versions_root, version);
     Ok(())
@@ -940,7 +989,11 @@ fn strip_archive_root(path: &Path) -> Result<PathBuf> {
     Ok(normal.into_iter().skip(1).collect())
 }
 
-fn validate_layout(component: Component, root: &Path, version: &Version) -> Result<()> {
+fn validate_layout(
+    component: Component,
+    root: &Path,
+    version: &Version,
+) -> Result<ComponentManifest> {
     let entry = if component == Component::Desktop {
         root.join("dist").join(component.executable_name())
     } else {
@@ -973,7 +1026,7 @@ fn validate_layout(component: Component, root: &Path, version: &Version) -> Resu
             bail!("runtime payload is missing: {}", package.display());
         }
     }
-    Ok(())
+    Ok(manifest)
 }
 
 fn write_pointer(component_root: &Path, version: &Version) -> Result<()> {
@@ -1038,22 +1091,26 @@ mod tests {
 
     impl TestDirectory {
         fn new() -> Self {
+            // macOS 的时钟精度可能让并行测试得到相同纳秒值，序号保证目录互不覆盖。
+            static NEXT_DIRECTORY: std::sync::atomic::AtomicU64 =
+                std::sync::atomic::AtomicU64::new(0);
+            let sequence = NEXT_DIRECTORY.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let nonce = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
             let path = std::env::temp_dir().join(format!(
-                "pisper-component-updater-{}-{nonce}",
+                "pisper-component-updater-{}-{nonce}-{sequence}",
                 std::process::id()
             ));
-            fs::create_dir_all(&path).unwrap();
+            fs::create_dir(&path).unwrap();
             Self(path)
         }
     }
 
     impl Drop for TestDirectory {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            fs::remove_dir_all(&self.0).unwrap();
         }
     }
 
@@ -1081,6 +1138,10 @@ mod tests {
     }
 
     fn desktop_archive(version: &str) -> Vec<u8> {
+        desktop_archive_with_manifest(version, serde_json::json!({}))
+    }
+
+    fn desktop_archive_with_manifest(version: &str, extra: serde_json::Value) -> Vec<u8> {
         let encoder = GzEncoder::new(Vec::new(), Compression::fast());
         let mut builder = tar::Builder::new(encoder);
         let contents = b"<!doctype html>";
@@ -1095,13 +1156,17 @@ mod tests {
                 contents.as_slice(),
             )
             .unwrap();
-        let manifest = serde_json::to_vec(&serde_json::json!({
+        let mut manifest = serde_json::json!({
             "version": version,
             "platform": super::platform_name(),
             "arch": super::architecture_name(),
             "command": "dist/index.html",
-        }))
-        .unwrap();
+        });
+        manifest
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let manifest = serde_json::to_vec(&manifest).unwrap();
         let mut manifest_header = tar::Header::new_gnu();
         manifest_header.set_size(manifest.len() as u64);
         manifest_header.set_mode(0o644);
@@ -1394,6 +1459,318 @@ mod tests {
         assert!(!installed.root.join("pisper-sidecar").exists());
     }
 
+    // 直接重建旧版本已落盘的组件，避免用修复后的安装器生成无效历史状态。
+    fn seed_component(root: &Path, component: Component, version: &str) -> PathBuf {
+        let payload = root.join(component.name()).join("versions").join(version);
+        let entry = if component == Component::Desktop {
+            payload.join("dist/index.html")
+        } else {
+            payload.join(component.executable_name())
+        };
+        fs::create_dir_all(entry.parent().unwrap()).unwrap();
+        fs::write(entry, b"old component payload").unwrap();
+        if component == Component::Runtime {
+            fs::create_dir_all(payload.join("sidecar-runtime")).unwrap();
+            fs::write(payload.join("sidecar-runtime/package.json"), b"{}").unwrap();
+        }
+        fs::write(
+            payload.join("manifest.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "version": version,
+                "platform": super::platform_name(),
+                "arch": super::architecture_name(),
+                "command": if component == Component::Desktop {
+                    "dist/index.html"
+                } else {
+                    component.executable_name()
+                },
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        super::write_pointer(
+            &root.join(component.name()),
+            &Version::parse(version).unwrap(),
+        )
+        .unwrap();
+        payload
+    }
+
+    fn file_snapshot(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+        fn visit(
+            root: &Path,
+            path: &Path,
+            files: &mut std::collections::BTreeMap<PathBuf, Vec<u8>>,
+        ) {
+            for entry in fs::read_dir(path).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    visit(root, &path, files);
+                } else {
+                    files.insert(
+                        path.strip_prefix(root).unwrap().to_owned(),
+                        fs::read(path).unwrap(),
+                    );
+                }
+            }
+        }
+        let mut files = std::collections::BTreeMap::new();
+        visit(root, root, &mut files);
+        files
+    }
+
+    #[test]
+    fn withdrawn_components_are_ignored_on_every_start_without_changing_user_data() {
+        let directory = TestDirectory::new();
+        let root = directory.0.join("components");
+        let agent = directory.0.join("agent/sessions");
+        fs::create_dir_all(&agent).unwrap();
+        fs::write(agent.join("session.jsonl"), b"fixture session\n").unwrap();
+        fs::write(directory.0.join("preferences.json"), b"fixture preferences").unwrap();
+        for version in ["0.6.1", "0.6.1-beta.1", "0.6.1+build.2"] {
+            for component in Component::ALL {
+                seed_component(&root, component, version);
+            }
+            let before = file_snapshot(&directory.0);
+            for _ in 0..2 {
+                for component in Component::ALL {
+                    assert!(
+                        resolve_installed(&root, component).unwrap().is_none(),
+                        "{} {version}",
+                        component.name()
+                    );
+                }
+                assert_eq!(file_snapshot(&directory.0), before);
+            }
+        }
+    }
+
+    #[test]
+    fn node_components_remain_loadable_with_legacy_or_explicit_backend_manifests() {
+        let directory = TestDirectory::new();
+        for component in Component::ALL {
+            let payload = seed_component(&directory.0, component, "0.5.82");
+            assert!(resolve_installed(&directory.0, component)
+                .unwrap()
+                .is_some());
+            let path = payload.join("manifest.json");
+            let mut manifest: serde_json::Value =
+                serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            manifest["backend"] = "node".into();
+            fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            assert!(resolve_installed(&directory.0, component)
+                .unwrap()
+                .is_some());
+        }
+    }
+
+    #[test]
+    fn incompatible_backend_and_upgrade_notice_payloads_are_not_loaded() {
+        let directory = TestDirectory::new();
+        for component in Component::ALL {
+            for extra in [
+                serde_json::json!({"backend": "rust"}),
+                serde_json::json!({"backend": "upgrade-notice", "upgradeNotice": true}),
+                serde_json::json!({"upgradeNotice": true}),
+                serde_json::json!({"backend": "future-backend"}),
+            ] {
+                let payload = seed_component(&directory.0, component, "0.5.82");
+                let path = payload.join("manifest.json");
+                let mut manifest: serde_json::Value =
+                    serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+                manifest
+                    .as_object_mut()
+                    .unwrap()
+                    .extend(extra.as_object().unwrap().clone());
+                fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+                let before = file_snapshot(&directory.0);
+                assert!(resolve_installed(&directory.0, component)
+                    .unwrap()
+                    .is_none());
+                assert_eq!(file_snapshot(&directory.0), before);
+            }
+        }
+    }
+
+    fn signed_release(component: Component, version: &str) -> GitHubRelease {
+        let archive = component_asset_name(component, version);
+        GitHubRelease {
+            tag_name: format!("{}{version}", component.tag_prefix()),
+            html_url: "https://example.test/release".into(),
+            body: None,
+            published_at: None,
+            draft: false,
+            prerelease: false,
+            assets: [archive.clone(), format!("{archive}.sig")]
+                .into_iter()
+                .map(|name| GitHubAsset {
+                    name,
+                    api_url: "https://example.test/asset".into(),
+                    browser_download_url: "https://example.test/asset".into(),
+                    size: 42,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn cached_release_feeds_cannot_offer_withdrawn_components() {
+        for component in Component::ALL {
+            let selected = ["0.5.81", "0.6.1", "0.5.82", "0.6.1+build.2"]
+                .into_iter()
+                .filter_map(|version| release_info(component, signed_release(component, version)))
+                .max_by_key(|release| Version::parse(&release.version).unwrap())
+                .unwrap();
+            assert_eq!(selected.version, "0.5.82");
+        }
+    }
+
+    #[test]
+    fn withdrawal_is_scoped_to_published_versions_not_the_minor_series() {
+        let directory = TestDirectory::new();
+        for component in Component::ALL {
+            let (withdrawn, future) = match component {
+                Component::Desktop => (
+                    vec!["0.6.0", "0.6.1"],
+                    vec!["0.6.2", "0.6.3", "0.6.4", "0.6.99", "1.0.0"],
+                ),
+                Component::Tui | Component::Runtime => (
+                    vec!["0.6.1", "0.6.2", "0.6.3"],
+                    vec!["0.6.0", "0.6.4", "0.6.99", "1.0.0"],
+                ),
+            };
+            for version in withdrawn {
+                seed_component(&directory.0, component, version);
+                assert!(resolve_installed(&directory.0, component)
+                    .unwrap()
+                    .is_none());
+                assert!(release_info(component, signed_release(component, version)).is_none());
+            }
+            for version in future {
+                seed_component(&directory.0, component, version);
+                assert!(resolve_installed(&directory.0, component)
+                    .unwrap()
+                    .is_some());
+                assert!(release_info(component, signed_release(component, version)).is_some());
+            }
+        }
+        install_archive(
+            &directory.0,
+            Component::Desktop,
+            &Version::parse("0.6.4").unwrap(),
+            &desktop_archive("0.6.4"),
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_installed(&directory.0, Component::Desktop)
+                .unwrap()
+                .unwrap()
+                .version,
+            Version::parse("0.6.4").unwrap()
+        );
+    }
+
+    #[test]
+    fn withdrawn_archives_cannot_replace_an_active_node_component() {
+        let directory = TestDirectory::new();
+        for component in Component::ALL {
+            seed_component(&directory.0, component, "0.5.81");
+            let before = file_snapshot(&directory.0);
+            let error = install_archive(
+                &directory.0,
+                component,
+                &Version::parse("0.6.1").unwrap(),
+                &desktop_archive("0.6.1"),
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("withdrawn"));
+            assert_eq!(file_snapshot(&directory.0), before);
+        }
+    }
+
+    #[test]
+    fn direct_install_rejects_withdrawn_versions_before_any_download() {
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper rollback test",
+        )
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        for component in Component::ALL {
+            let mut release = release_info(component, signed_release(component, "0.5.82")).unwrap();
+            release.version = "0.6.1".into();
+            // 非 URL 使回归时也不会访问外网；正确实现应在下载器之前拒绝该版本。
+            release.archive_url = "invalid-url".into();
+            release.archive_fallback_url.clear();
+            let mut progressed = false;
+            let error = runtime
+                .block_on(updater.install_with_progress(&release, |_, _| progressed = true))
+                .unwrap_err();
+            assert!(error.to_string().contains("withdrawn"), "{error:#}");
+            assert!(!progressed);
+            assert!(file_snapshot(&directory.0).is_empty());
+        }
+    }
+
+    #[test]
+    fn a_node_update_can_replace_a_withdrawn_pointer_without_deleting_user_data() {
+        let directory = TestDirectory::new();
+        let root = directory.0.join("components");
+        let previous = seed_component(&root, Component::Desktop, "0.6.1");
+        fs::write(directory.0.join("preferences.json"), b"fixture preferences").unwrap();
+        let previous_files = file_snapshot(&previous);
+        install_archive(
+            &root,
+            Component::Desktop,
+            &Version::parse("0.5.82").unwrap(),
+            &desktop_archive("0.5.82"),
+        )
+        .unwrap();
+        let installed = resolve_installed(&root, Component::Desktop)
+            .unwrap()
+            .unwrap();
+        assert_eq!(installed.version, Version::parse("0.5.82").unwrap());
+        assert_eq!(file_snapshot(&previous), previous_files);
+        assert_eq!(
+            fs::read(directory.0.join("preferences.json")).unwrap(),
+            b"fixture preferences"
+        );
+    }
+
+    #[test]
+    fn incompatible_archive_cannot_activate_over_an_existing_node_component() {
+        let directory = TestDirectory::new();
+        let previous = seed_component(&directory.0, Component::Desktop, "0.5.81");
+        let before = file_snapshot(&previous);
+        for extra in [
+            serde_json::json!({"backend": "rust"}),
+            serde_json::json!({"upgradeNotice": true}),
+        ] {
+            let error = install_archive(
+                &directory.0,
+                Component::Desktop,
+                &Version::parse("0.6.4").unwrap(),
+                &desktop_archive_with_manifest("0.6.4", extra),
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("incompatible"));
+            assert_eq!(
+                resolve_installed(&directory.0, Component::Desktop)
+                    .unwrap()
+                    .unwrap()
+                    .version,
+                Version::parse("0.5.81").unwrap()
+            );
+            assert_eq!(file_snapshot(&previous), before);
+            assert!(!directory.0.join("desktop/versions/0.6.4").exists());
+        }
+    }
+
     #[test]
     fn release_requires_the_archive_and_its_signature() {
         let archive = component_asset_name(Component::Runtime, "1.2.3");
@@ -1423,7 +1800,10 @@ mod tests {
         assert_eq!(info.version, "1.2.3");
         assert_eq!(info.archive_url, "https://api.example.test/archive");
         assert_eq!(info.signature_url, "https://api.example.test/signature");
-        assert_eq!(info.archive_fallback_url, "https://github.example.test/archive");
+        assert_eq!(
+            info.archive_fallback_url,
+            "https://github.example.test/archive"
+        );
         assert_eq!(
             info.signature_fallback_url,
             "https://github.example.test/signature"
@@ -1495,7 +1875,9 @@ mod tests {
             let mut request = [0_u8; 1024];
             let _ = stream.read(&mut request).unwrap();
             stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef")
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef",
+                )
                 .unwrap();
         });
         let directory = TestDirectory::new();

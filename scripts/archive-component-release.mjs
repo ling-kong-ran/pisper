@@ -73,6 +73,7 @@ async function stageDesktop() {
     `${JSON.stringify(
       {
         name: 'pisper-desktop',
+        backend: 'node',
         version,
         platform,
         arch,
@@ -107,6 +108,7 @@ async function stageRuntime() {
     `${JSON.stringify(
       {
         name: 'pisper-runtime',
+        backend: 'node',
         version,
         platform,
         arch,
@@ -179,6 +181,7 @@ if (component === 'runtime') {
     `${JSON.stringify(
       {
         name: 'pisper-runtime-node',
+        backend: 'node',
         version,
         platform,
         arch,
@@ -209,6 +212,7 @@ if (component === 'tui') {
     `${JSON.stringify(
       {
         name: 'pisper-tui-component',
+        backend: 'node',
         version,
         platform,
         arch,
