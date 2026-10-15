@@ -3,6 +3,7 @@
 // 这里集中 re-export 引擎的核心能力，供 Pisper 其余代码统一使用。
 import { constants } from 'node:fs'
 import { access as fsAccess, readFile as fsReadFile } from 'node:fs/promises'
+import { installOutputLimitContinuation } from './output-limit-continuation.mjs'
 
 // 引擎入口包会急切加载 CLI/TUI 模块；这里改为解析包内文件 URL 并按需 import 聚焦的头部模块。
 const packageEntryUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
@@ -55,7 +56,10 @@ export const resolveToCwd = pathUtils.resolveToCwd
 // 惰性加载的引擎子模块：每个都只在首次调用时 import，减少启动开销。
 export async function createAgentSession(options) {
   const runtime = await packageModule('./core/sdk.js')
-  return runtime.createAgentSession(options)
+  const created = await runtime.createAgentSession(options)
+  // 父会话和子 Agent 都从这里创建；输出上限续跑必须装在引擎会话上，prompt 循环才会继续。
+  installOutputLimitContinuation(created?.session)
+  return created
 }
 
 export async function createDefaultResourceLoader(options) {

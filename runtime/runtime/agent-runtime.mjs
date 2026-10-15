@@ -59,14 +59,8 @@ import {
   MultiAgentService,
   MULTI_AGENT_TOOL_NAMES,
   agentCompletionPrompt,
-  isAgentCompletionMessage,
 } from '../services/multi-agent-service.mjs'
-import {
-  GoalService,
-  goalBudgetPrompt,
-  goalContinuationPrompt,
-  isGoalContinuationMessage,
-} from '../services/goal-service.mjs'
+import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../services/goal-service.mjs'
 import {
   projectGoalTeam,
   shouldAttachTeamSnapshot,
@@ -1975,13 +1969,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     let goal = this.goals.get(session.sessionId)
     // 普通（Plan）消息不带 goal/team 标记：显式离开目标驱动，先暂停活动 Goal，
     // 否则隐藏延续与团队快照会继续挂在本轮与后续轮次。内部延续/唤醒消息除外。
-    if (
-      !goalMode &&
-      !teamMode &&
-      !isGoalContinuationMessage(message) &&
-      !isAgentCompletionMessage(message) &&
-      goal?.status === 'active'
-    ) {
+    if (!goalMode && !teamMode && !isInternalParentMessage(message) && goal?.status === 'active') {
       await this.pauseSessionGoal(session.sessionId)
       goal = this.goals.get(session.sessionId)
     }
@@ -2022,11 +2010,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
     value.pendingUserMessage = String(message || '')
     // 上一轮的陈旧计划在无目标驱动时清空，避免残留计划误导本轮行为。
-    // 内部唤醒轮（Agent 完成/目标延续）保留计划。
-    const keepPlan =
-      goal?.status === 'active' ||
-      isGoalContinuationMessage(message) ||
-      isAgentCompletionMessage(message)
+    // 内部唤醒轮（Agent 完成、目标延续、输出上限续跑）保留计划。
+    const keepPlan = goal?.status === 'active' || isInternalParentMessage(message)
     if (!keepPlan) await this.plans.replace(session.sessionId, [])
 
     // 注入待处理的 Agent 完成通知（对用户隐藏）

@@ -9,6 +9,7 @@ import {
   isAgentCompletionMessage,
 } from '../services/multi-agent-service.mjs'
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
+import { isOutputLimitContinuationMessage } from './output-limit-continuation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { attachGeneratedAssets } from '../services/session-assets.mjs'
@@ -36,9 +37,13 @@ const MAX_PROJECTION_CACHE_BYTES = 24 * 1024 * 1024
 const MAX_SESSION_CONTEXT_USAGE_CACHE_ENTRIES = 64
 export const ATTACHMENT_MARKER = '\n\n---\nAttachment context (injected by Pisper):\n'
 
-// 内部注入消息（目标延续/Agent 完成）不展示给用户，也不进入排队列表。
+// 内部注入消息（目标延续、输出上限续跑、Agent 完成）不展示给用户，也不进入排队列表。
 export function isInternalParentMessage(content) {
-  return isGoalContinuationMessage(content) || isAgentCompletionMessage(content)
+  return (
+    isGoalContinuationMessage(content) ||
+    isOutputLimitContinuationMessage(content) ||
+    isAgentCompletionMessage(content)
+  )
 }
 
 // 从消息内容（字符串或内容块数组）中提取纯文本。
