@@ -41,6 +41,7 @@ for (const stop of ['abort', 'timeout']) {
       let execution
       const abort = new AbortController()
       t.after(async () => {
+        t.mock.timers.reset()
         abort.abort()
         await execution?.catch(() => {})
         for (const pid of pids) {
@@ -62,9 +63,12 @@ setInterval(() => {}, 1000)
       const ready = Promise.withResolvers()
       let output = ''
       const quote = (value) => `'${value.replaceAll("'", "''")}'`
+      // PowerShell 冷启动不能消耗用于验证回收行为的超时预算；
+      // 保持真实进程树，等后代就绪后才推进工具计时器，不依赖机器启动速度。
+      if (stop === 'timeout') t.mock.timers.enable({ apis: ['setTimeout'] })
       execution = operations.exec(`& ${quote(process.execPath)} ${quote(fixture)}`, directory, {
         signal: abort.signal,
-        timeout: stop === 'timeout' ? 2 : 10,
+        ...(stop === 'timeout' ? { timeout: 2 } : {}),
         env: process.env,
         onData: (chunk) => {
           output += chunk.toString()
@@ -78,6 +82,9 @@ setInterval(() => {}, 1000)
       await Promise.race([ready.promise, execution])
       assert.equal(pids.length, 2)
       if (stop === 'abort') abort.abort()
+      else t.mock.timers.tick(2000)
+      // 超时动作已触发，stdio 的退出宽限与进程回收继续使用真实计时器。
+      t.mock.timers.reset()
       await rejected
       // 等操作系统回收已终止的进程，以状态为条件轮询，避免固定延时掩盖泄漏。
       const deadline = Date.now() + 3000
