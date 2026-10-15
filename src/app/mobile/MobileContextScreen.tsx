@@ -1,15 +1,6 @@
-// 右侧屏承接原来底栏里的资产，以及改动、扩展、文件和终端，主屏因此可以一直留在对话。
+// 右侧屏承接原来底栏里的资产，以及改动、扩展和终端，主屏因此可以一直留在对话。
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import {
-  Blocks,
-  File,
-  FileDiff,
-  Folder,
-  FolderOpen,
-  FolderUp,
-  PanelsTopLeft,
-  TerminalSquare,
-} from 'lucide-react'
+import { Blocks, FileDiff, FolderOpen, PanelsTopLeft, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import { SessionFilesPane } from '@/features/chat/SessionFilesPane'
@@ -18,11 +9,6 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { ChatAttachment } from '@/types/chat'
-import {
-  joinWorkspacePath,
-  listWorkspaceEntries,
-  type WorkspaceListEntry,
-} from '@/features/chat/api/workspace-entries'
 import type { MobileContextTab } from '@/components/layout/mobile-shell-layout'
 import { useMobileShell } from '@/components/layout/MobileShellContext'
 
@@ -45,7 +31,6 @@ const TABS: Array<{ id: MobileContextTab; icon: typeof FolderOpen }> = [
   { id: 'changes', icon: FileDiff },
   { id: 'session-tools', icon: PanelsTopLeft },
   { id: 'extensions', icon: Blocks },
-  { id: 'files', icon: File },
   { id: 'terminal', icon: TerminalSquare },
 ]
 
@@ -77,117 +62,6 @@ function usePanelAction() {
   return { action, register }
 }
 
-function WorkspaceFiles({
-  sessionId,
-  resolveSessionCwd,
-}: {
-  sessionId: string
-  resolveSessionCwd: (sessionId: string) => Promise<string>
-}) {
-  const { t } = useI18n()
-  const [path, setPath] = useState('')
-  const [requestedPath, setRequestedPath] = useState<string | null>(null)
-  const [parent, setParent] = useState('')
-  const [entries, setEntries] = useState<WorkspaceListEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    void resolveSessionCwd(sessionId)
-      .then((cwd) => {
-        if (!cancelled) setRequestedPath(cwd)
-      })
-      .catch((caught: unknown) => {
-        if (cancelled) return
-        setError(caught instanceof Error ? caught.message : String(caught))
-        setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [resolveSessionCwd, sessionId])
-
-  useEffect(() => {
-    if (requestedPath === null) return
-    const controller = new AbortController()
-    setLoading(true)
-    setError('')
-    void listWorkspaceEntries(requestedPath, controller.signal)
-      .then((data) => {
-        if (controller.signal.aborted) return
-        setEntries(data.entries)
-        setPath(data.path)
-        setParent(data.parent)
-      })
-      .catch((caught: unknown) => {
-        if (controller.signal.aborted) return
-        setEntries([])
-        setError(caught instanceof Error ? caught.message : String(caught))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-    return () => controller.abort()
-  }, [requestedPath])
-
-  return (
-    <div className="flex h-full min-h-0 flex-col" data-swipe-ignore>
-      <div className="flex flex-none items-center gap-2 border-b border-[var(--stroke-soft)] px-3 py-2">
-        <button
-          type="button"
-          className="grid size-8 place-items-center rounded-md text-muted-foreground enabled:hover:bg-muted disabled:opacity-40"
-          disabled={!parent || loading}
-          aria-label={t('navigation:mobileShell.filesUp')}
-          onClick={() => setRequestedPath(parent)}
-        >
-          <FolderUp size={16} />
-        </button>
-        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {path || t('navigation:mobileShell.workspaceRoot')}
-        </p>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-2">
-        {loading ? (
-          <p className="px-2 py-3 text-sm text-muted-foreground">
-            {t('navigation:mobileShell.filesLoading')}
-          </p>
-        ) : error ? (
-          <p className="px-2 py-3 text-sm text-[var(--danger)]" role="alert">
-            {error}
-          </p>
-        ) : entries.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-muted-foreground">
-            {t('navigation:mobileShell.filesEmpty')}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {entries.map((entry) => (
-              <li key={`${entry.kind}:${entry.name}`}>
-                {entry.kind === 'directory' ? (
-                  <button
-                    type="button"
-                    className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted"
-                    onClick={() => setRequestedPath(joinWorkspacePath(path, entry.name))}
-                  >
-                    <Folder size={16} aria-hidden="true" />
-                    <span className="truncate">{entry.name}</span>
-                  </button>
-                ) : (
-                  <div className="flex h-10 items-center gap-2 px-2 text-sm text-muted-foreground">
-                    <File size={16} aria-hidden="true" />
-                    <span className="truncate">{entry.name}</span>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export function MobileContextScreen({
   visible,
   sessionStreaming,
@@ -212,7 +86,6 @@ export function MobileContextScreen({
     changes: t('navigation:mobileShell.changes'),
     'session-tools': t('navigation:mobileShell.sessionTools'),
     extensions: t('navigation:mobileShell.extensions'),
-    files: t('navigation:mobileShell.files'),
     terminal: t('navigation:mobileShell.terminal'),
   }
   const assetsAction = usePanelAction()
@@ -329,13 +202,6 @@ export function MobileContextScreen({
               />
             </Suspense>
           </div>
-        )}
-        {tab === 'files' && (
-          <WorkspaceFiles
-            key={activeSessionId || 'workspace'}
-            sessionId={activeSessionId}
-            resolveSessionCwd={resolveSessionCwd}
-          />
         )}
         {loaded('terminal') && (
           <div hidden={tab !== 'terminal'} className="h-full min-h-0">

@@ -7,6 +7,7 @@ import {
   Suspense,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PointerEvent,
   type ReactNode,
@@ -62,6 +63,7 @@ import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
+import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -151,7 +153,17 @@ export function SidebarRecentSessions({
   const [menuTargetKey, setMenuTargetKey] = useState('')
   const [menuTargetSessionId, setMenuTargetSessionId] = useState('')
   const [projectPickerOpen, setProjectPickerOpen] = useState(false)
+  const [projectPicking, setProjectPicking] = useState(false)
+  const projectPickingRef = useRef(false)
+  const projectRequestRef = useRef(0)
   const [deletingKey, setDeletingKey] = useState('')
+
+  useEffect(
+    () => () => {
+      projectRequestRef.current += 1
+    },
+    [],
+  )
 
   const { data: sidebarSessionData } = useQuery({
     ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
@@ -247,6 +259,30 @@ export function SidebarRecentSessions({
     })
     navigate('chat')
     if (isMobile) setOpenMobile(false)
+  }
+
+  const chooseProject = async () => {
+    if (projectPickingRef.current) return
+    if (!hasSystemDirectoryPicker()) {
+      setProjectPickerOpen(true)
+      return
+    }
+    projectPickingRef.current = true
+    setProjectPicking(true)
+    const request = ++projectRequestRef.current
+    try {
+      const path = await pickSystemDirectory()
+      if (request === projectRequestRef.current && path) createSessionInWorkspace(path)
+    } catch (error) {
+      if (request === projectRequestRef.current)
+        notify(error instanceof Error ? error.message : String(error), 'error')
+    } finally {
+      // 原生对话框可能晚于侧栏卸载才返回，旧结果不能创建会话或更新已卸载状态。
+      if (request === projectRequestRef.current) {
+        projectPickingRef.current = false
+        setProjectPicking(false)
+      }
+    }
   }
 
   // 删除途中失败也刷新目录并重新选择活动会话；只有 API 确认成功的 id 算入已删除数。
@@ -503,7 +539,8 @@ export function SidebarRecentSessions({
           aria-label={t('navigation:appSidebar.newProject')}
           aria-haspopup="dialog"
           aria-expanded={projectPickerOpen}
-          onClick={() => setProjectPickerOpen(true)}
+          disabled={projectPicking}
+          onClick={() => void chooseProject()}
         >
           <FolderPlus size={14} />
         </Button>
@@ -753,7 +790,7 @@ export function SidebarRecentSessions({
               </>
             ) : (
               <>
-                <ContextMenuItem onSelect={() => setProjectPickerOpen(true)}>
+                <ContextMenuItem disabled={projectPicking} onSelect={() => void chooseProject()}>
                   <FolderPlus size={13} />
                   {t('navigation:appSidebar.newProject')}
                 </ContextMenuItem>

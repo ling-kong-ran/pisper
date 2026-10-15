@@ -181,13 +181,8 @@
   "mobileShell.sessionTools": "会话工具",
   "mobileShell.toolsOpenChat": "打开对话以使用会话工具",
   "mobileShell.extensions": "扩展",
-  "mobileShell.files": "文件",
   "mobileShell.terminal": "终端",
   "mobileShell.terminalUnavailable": "当前设备没有可用的终端",
-  "mobileShell.filesEmpty": "这个目录是空的",
-  "mobileShell.filesLoading": "正在读取目录",
-  "mobileShell.filesUp": "上级目录",
-  "mobileShell.workspaceRoot": "工作区",
   "mobileShell.noSessionChanges": "打开一个会话后，这里会显示文件改动",
   "mobileShell.changesOpenChat": "打开对话以查看实时改动"
 }

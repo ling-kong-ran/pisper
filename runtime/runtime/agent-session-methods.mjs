@@ -13,7 +13,6 @@ import {
   sessionInputQueueRevision,
   withdrawQueuedSessionInput,
 } from './session-input-queue.mjs'
-import { listWorkspaceDirectories, listWorkspaceEntries } from './workspace-directories.mjs'
 
 // 非常驻会话的模型选择：与常驻路径共用同一套绑定推导（显式 model_change 优先于
 // provider 回显），避免网关改写回显后思考等级对齐到错误模型。
@@ -416,13 +415,5 @@ export const agentSessionMethods = {
 
   async setSessionCwd(id, input) {
     return this.sessionLifecycle.setSessionCwd(id, input)
-  },
-
-  listDirectories(input) {
-    return listWorkspaceDirectories(input, this.cwd)
-  },
-
-  listWorkspaceEntries(input) {
-    return listWorkspaceEntries(input, this.cwd)
   },
 }

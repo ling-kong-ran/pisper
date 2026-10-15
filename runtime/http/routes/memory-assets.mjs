@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs'
 
-// 记忆与资产路由：目录浏览、资产（上传/下载/删除）、记忆空间/候选/搜索、
+// 记忆与资产路由：资产（上传/下载/删除）、记忆空间/候选/搜索、
 // 会话树标签等辅助能力。
 
 function assetByteRange(header, size) {
@@ -20,20 +20,6 @@ function assetByteRange(header, size) {
   return { start, end }
 }
 export const memoryAssetRoutes = [
-  {
-    method: 'GET',
-    path: '/api/directories',
-    async handler({ runtime, url, json }) {
-      json(200, await runtime.listDirectories(url.searchParams.get('path')))
-    },
-  },
-  {
-    method: 'GET',
-    path: '/api/workspace-entries',
-    async handler({ runtime, url, json }) {
-      json(200, await runtime.listWorkspaceEntries(url.searchParams.get('path')))
-    },
-  },
   {
     method: 'GET',
     path: '/api/assets',

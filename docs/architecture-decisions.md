@@ -56,7 +56,7 @@
 ## 2026-10-15：Node 基线上的移动三屏布局
 
 - 范围：移植 `feat/mobile-three-pane-layout` 与 `codex/fix-mobile-three-pane` 的移动端最终行为；不恢复 Rust Runtime，也不引入尚未完成的工作台改版。
-- 归属：`app/mobile/MobileContextScreen` 是资产、文件变更、扩展和终端的 Feature 组装边界。通用 `MobileThreePane` 只接收插槽；目录请求放在聊天领域公开 API。原分支重构过的路径映射到当前 Node 基线目录，不额外迁移全仓库。
+- 归属：`app/mobile/MobileContextScreen` 是资产、文件变更、扩展和终端的 Feature 组装边界。通用 `MobileThreePane` 只接收插槽；文件选择边界见[系统文件选择](architecture/system-file-selection.md)。原分支重构过的路径映射到当前 Node 基线目录，不额外迁移全仓库。
 - 状态与生命周期：移动壳只持有本地临时页签和屏幕状态；聊天运行状态由 ChatPage 提供只读投影；已打开的终端和插件面板在切屏时保留挂载。轻量布局在所有断点保持同一组件树，避免丢失未保存的表单；右屏业务视图继续懒加载，弹窗以视口定位。辅助页面经 DOM 插槽由聊天页 portal 渲染，继续使用原 SideChatProvider 和页签状态。
 - 验证：`runtime/tests/mobile-shell-layout.test.mjs` 与 `npm run test:mobile:ui` 覆盖布局、状态保留和交互；Android/iOS 真机与发布构建分别按开发流程验收。源码守卫从旧底栏键盘样式迁移为顶部分页隐藏，浏览器测试保留其原本让输入区可见的行为目标。
 - 回滚：一起恢复应用壳、移动上下文、Feature 公开接口、文案和对应测试；没有新增用户数据格式或持久化迁移。

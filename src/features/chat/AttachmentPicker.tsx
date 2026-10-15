@@ -1,11 +1,10 @@
-// 附件入口：手机上传本机文件内容，桌面与 Web 保留 Runtime 路径引用。
-import { useRef, useState, type ChangeEvent } from 'react'
+// 附件由系统选择：桌面原生桥接保留路径引用，Web/手机通过浏览器上传内容。
+import { useRef, type ChangeEvent } from 'react'
 import { Paperclip } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useIsMobileApp } from '@/stores/client-store'
 import type { ChatAttachment } from '@/types/chat'
 import { CHAT_ATTACHMENT_ACCEPT, pathAttachments } from './attachments'
-import { PathAttachmentPicker } from './PathAttachmentPicker'
 
 type AttachmentPickerSelection = {
   attachments: ChatAttachment[]
@@ -23,7 +22,6 @@ export function AttachmentPicker({
 }) {
   const { t } = useI18n()
   const mobileApp = useIsMobileApp()
-  const [pathPickerOpen, setPathPickerOpen] = useState(false)
   const deviceFileInputRef = useRef<HTMLInputElement>(null)
 
   const chooseAttachments = async () => {
@@ -41,7 +39,7 @@ export function AttachmentPicker({
       }
       return
     }
-    setPathPickerOpen(true)
+    deviceFileInputRef.current?.click()
   }
 
   const addDeviceFiles = (event: ChangeEvent<HTMLInputElement>) => {
@@ -64,20 +62,18 @@ export function AttachmentPicker({
       />
       <button
         type="button"
-        className="attach-trigger [.focus-composer_&]:h-[38px] [.focus-composer_&]:border-0 [.focus-composer_&]:rounded-[var(--r-sm)] [.focus-composer_&]:bg-[var(--surface-subtle)] [.focus-composer_&]:text-[12px] [.focus-composer_&]:w-[38px] [.focus-composer_&]:min-w-[38px] [.focus-session.has-conversation_.focus-composer_&]:w-[36px] [.focus-session.has-conversation_.focus-composer_&]:min-w-[36px] [.focus-session.has-conversation_.focus-composer_&]:h-[36px] relative grid place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] [&_i]:absolute [&_i]:top-[-4px] [&_i]:right-[-4px] [&_i]:grid [&_i]:min-w-[14px] [&_i]:h-[14px] [&_i]:place-items-center [&_i]:[border:2px_solid_var(--solid)] [&_i]:rounded-[var(--r-pill)] [&_i]:bg-[var(--blue)] [&_i]:text-[var(--on-accent)] [&_i]:p-[0_3px] [&_i]:text-[13px] [&_i]:[font-style:normal]"
+        className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t('chat:focusSession.addAttachment')}
         aria-label={t('chat:focusSession.addAttachment')}
         onClick={() => void chooseAttachments()}
       >
         <Paperclip size={17} />
-        {selection.attachments.length > 0 && <i>{selection.attachments.length}</i>}
+        {selection.attachments.length > 0 && (
+          <span className="absolute -top-1 -right-1 grid min-w-3.5 place-items-center rounded-full border-2 border-background bg-primary px-0.5 text-xs text-primary-foreground">
+            {selection.attachments.length}
+          </span>
+        )}
       </button>
-      <PathAttachmentPicker
-        open={pathPickerOpen}
-        initialPath={cwd}
-        onOpenChange={setPathPickerOpen}
-        onSelect={(paths) => selection.addAttachments(pathAttachments(paths))}
-      />
     </>
   )
 }
