@@ -78,6 +78,47 @@ const dependencyDiffCommand = [
   'package-lock.json',
 ]
 
+test('release increments from the latest published version after a source rollback', async () => {
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  const ast = parse(source, { sourceType: 'module' })
+  const functions = ['parseVersion', 'compareVersions', 'resolveVersion'].map((name) => {
+    const node = ast.program.body.find(
+      (node) => node.type === 'FunctionDeclaration' && node.id?.name === name,
+    )
+    assert.ok(node)
+    return source.slice(node.start, node.end)
+  })
+  const resolveVersion = runInNewContext(
+    `(() => {${functions.join('\n')}\nreturn resolveVersion})()`,
+  )
+  assert.equal(resolveVersion('0.1.54', 'patch', '0.1.55'), '0.1.56')
+  assert.equal(resolveVersion('0.5.64', 'patch', '0.6.3'), '0.6.4')
+  assert.equal(resolveVersion('0.5.81', 'patch', '0.5.81'), '0.5.82')
+  assert.equal(resolveVersion('0.5.81', 'patch', '0.5.80'), '0.5.82')
+  assert.equal(resolveVersion('0.1.54', 'minor', '0.1.55'), '0.2.0')
+  assert.equal(resolveVersion('0.1.54', 'major', '0.1.55'), '1.0.0')
+  assert.equal(resolveVersion('0.1.54', '0.1.58', '0.1.55'), '0.1.58')
+})
+
+test('npm release baseline includes stable versions outside the latest tag', async () => {
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  const ast = parse(source, { sourceType: 'module' })
+  const functions = ['parseVersion', 'compareVersions', 'highestPublishedVersion'].map((name) => {
+    const node = ast.program.body.find(
+      (node) => node.type === 'FunctionDeclaration' && node.id?.name === name,
+    )
+    assert.ok(node, name)
+    return source.slice(node.start, node.end)
+  })
+  const highest = runInNewContext(
+    `(() => {${functions.join('\n')}\nreturn highestPublishedVersion})()`,
+  )
+  assert.equal(highest(['0.5.64', '0.6.3', '0.6.2', '0.6.4-win32-x64.0']), '0.6.3')
+  assert.equal(highest(['0.5.9', '0.5.81', '0.5.10']), '0.5.81')
+  assert.throws(() => highest(['0.6.4-beta.1']), /稳定版本/)
+  assert.throws(() => highest('0.6.3'), /稳定版本/)
+})
+
 test('release dependency update does not commit or push when manifests are unchanged', async () => {
   const { update, calls } = await dependencyUpdateFixture({ changed: '' })
   assert.equal(update(), false)

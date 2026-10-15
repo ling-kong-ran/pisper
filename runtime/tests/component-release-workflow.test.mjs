@@ -248,7 +248,10 @@ test('release command auto-detects every changed component and rejects manual sc
   assert.match(source, /component === 'app' \? 'release-app\.yml' : 'release\.yml'/)
   assert.match(source, /releaseOrder = \{ tui: 0, runtime: 1, desktop: 2, app: 3 \}/)
   assert.match(source, /`component=\$\{component\}`/)
-  assert.match(source, /npmReleaseVersion = resolveVersion\(manifest\.version, input\)/)
+  assert.match(
+    source,
+    /npmReleaseVersion = resolveVersion\(manifest\.version, input, npmPublishedVersion\)/,
+  )
   assert.doesNotMatch(source, /const npmBump/)
   assert.match(source, /自动发布通道/)
 })

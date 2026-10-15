@@ -97,12 +97,22 @@ function compareVersions(left, right) {
   return 0
 }
 
-function resolveVersion(current, target) {
+function resolveVersion(current, target, published = current) {
   if (/^\d+\.\d+\.\d+$/.test(target)) return target
-  const [major, minor, patch] = parseVersion(current)
+  // 源码回退不代表已发布版本也回退；增量版本必须避开现存标签和 npm 已占用的版本。
+  const baseline = compareVersions(published, current) > 0 ? published : current
+  const [major, minor, patch] = parseVersion(baseline)
   if (target === 'major') return `${major + 1}.0.0`
   if (target === 'minor') return `${major}.${minor + 1}.0`
   return `${major}.${minor}.${patch + 1}`
+}
+
+function highestPublishedVersion(versions) {
+  const stable = Array.isArray(versions)
+    ? versions.filter((value) => typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value))
+    : []
+  if (!stable.length) throw new Error('无法确定 npm 已发布稳定版本，停止发布以避免重复或降级。')
+  return stable.sort(compareVersions).at(-1)
 }
 
 function runComponentChecks(selected) {
@@ -203,7 +213,11 @@ for (const component of candidates) {
   )
   for (const subject of substantive) console.log(`  - ${subject}`)
 
-  const nextVersion = resolveVersion(currentVersion, input)
+  const nextVersion = resolveVersion(
+    currentVersion,
+    input,
+    releaseVersionFromTag(component, latestTag) || currentVersion,
+  )
   if (compareVersions(nextVersion, currentVersion) <= 0) {
     throw new Error(`新版本 ${nextVersion} 必须高于当前 ${component} 版本 ${currentVersion}。`)
   }
@@ -231,7 +245,11 @@ if (appPaths.length > 0) {
     console.log(`已找到 ${substantive.length} 个 app 实质性提交、${appPaths.length} 个变更文件：`)
     for (const subject of substantive) console.log(`  - ${subject}`)
 
-    const nextVersion = resolveVersion(appCurrentVersion, input)
+    const nextVersion = resolveVersion(
+      appCurrentVersion,
+      input,
+      appVersionFromTag(latestAppTag) || appCurrentVersion,
+    )
     if (compareVersions(nextVersion, appCurrentVersion) <= 0) {
       throw new Error(`新版本 ${nextVersion} 必须高于当前 app 版本 ${appCurrentVersion}。`)
     }
@@ -258,13 +276,17 @@ if (
   plans.some(({ component }) => component === 'tui' || component === 'runtime')
 ) {
   const desktopCurrent = await readComponentVersion(root, 'desktop')
-  const desktopNext = resolveVersion(desktopCurrent, input)
+  const desktopLatestTag = fallbackReleaseTag('desktop', tags, desktopCurrent)
+  const desktopNext = resolveVersion(
+    desktopCurrent,
+    input,
+    releaseVersionFromTag('desktop', desktopLatestTag) || desktopCurrent,
+  )
   const desktopTag = releaseTag('desktop', desktopNext)
   if (compareVersions(desktopNext, desktopCurrent) <= 0) {
     throw new Error(`新版本 ${desktopNext} 必须高于当前 desktop 版本 ${desktopCurrent}。`)
   }
   if (runGit(['tag', '--list', desktopTag])) throw new Error(`标签 ${desktopTag} 已经存在。`)
-  const desktopLatestTag = fallbackReleaseTag('desktop', tags, desktopCurrent)
   if (desktopLatestTag) {
     const latestVersion =
       releaseVersionFromTag('desktop', desktopLatestTag) || desktopLatestTag.slice(1)
@@ -295,7 +317,21 @@ if (chainNpm) {
   const manifest = JSON.parse(
     await readFile(join(root, 'packages', 'pisper', 'package.json'), 'utf8'),
   )
-  npmReleaseVersion = resolveVersion(manifest.version, input)
+  // npm 版本不能靠 GitHub 标签推断：撤回 Release 后 registry 中的版本仍可能存在。
+  const registryVersions = JSON.parse(
+    runNpm(['view', manifest.name, 'versions', '--json'], { capture: true }),
+  )
+  if (!Array.isArray(registryVersions)) {
+    throw new Error('npm registry 未返回版本列表，停止发布。')
+  }
+  const npmPublishedVersion = highestPublishedVersion([
+    ...registryVersions,
+    ...tags.filter((tag) => /^npm-v\d+\.\d+\.\d+$/.test(tag)).map((tag) => tag.slice(5)),
+  ])
+  npmReleaseVersion = resolveVersion(manifest.version, input, npmPublishedVersion)
+  if (compareVersions(npmReleaseVersion, npmPublishedVersion) <= 0) {
+    throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于已发布版本 ${npmPublishedVersion}。`)
+  }
   if (compareVersions(npmReleaseVersion, manifest.version) <= 0) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }

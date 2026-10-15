@@ -200,6 +200,9 @@ jobs:
       - name: Verify Windows shell process cleanup
         if: runner.os == 'Windows' && inputs.component != 'tui'
         run: node --import tsx --test runtime/tests/host-bash.test.mjs
+      - name: Verify component rollback on the native build platform
+        if: inputs.component != 'runtime'
+        run: cargo test --manifest-path src-tui/Cargo.toml --locked -p pisper-component-updater
       - name: Require component signing credentials
         shell: bash
         run: |
