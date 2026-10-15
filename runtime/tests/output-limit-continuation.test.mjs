@@ -8,16 +8,17 @@ import {
   installOutputLimitContinuation,
   isOutputLimitContinuationMessage,
 } from '../runtime/output-limit-continuation.mjs'
-import { createAgentSession, SessionManager, SettingsManager } from '../runtime/pi-coding-agent.mjs'
+import {
+  createAgentSession,
+  createDefaultResourceLoader,
+  SessionManager,
+  SettingsManager,
+} from '../runtime/pi-coding-agent.mjs'
+import { pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import {
   isInternalParentMessage,
   serializeTranscriptMessages,
 } from '../runtime/stream-projection.mjs'
-
-const { createExtensionRuntime } = await import(
-  new URL('./core/extensions/loader.js', import.meta.resolve('@earendil-works/pi-coding-agent'))
-    .href
-)
 
 function assistantMessage(text, stopReason, output) {
   return {
@@ -184,52 +185,141 @@ test('agent sessions install output-limit continuation at creation', async () =>
   assert.match(source, /installOutputLimitContinuation\(created\?\.session\)/)
 })
 
-test('a real session continues after max output tokens when Pi will not retry', async (t) => {
+async function realSessionFixture(t, stopReasons) {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-output-limit-'))
-  const extensions = { extensions: [], errors: [], runtime: createExtensionRuntime() }
-  const { session } = await createAgentSession({
-    cwd: directory,
-    agentDir: directory,
-    model: {
-      id: 'output-limit-fixture',
-      provider: 'fixture',
-      api: 'openai-completions',
-      name: 'Output limit fixture',
-      input: ['text'],
-      reasoning: false,
-      contextWindow: 128000,
-      maxTokens: 100,
-    },
-    modelRuntime: {},
-    tools: [],
-    sessionManager: SessionManager.inMemory(directory),
-    settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
-    resourceLoader: {
-      getExtensions: () => extensions,
-      getSkills: () => ({ skills: [], diagnostics: [] }),
-      getPrompts: () => ({ prompts: [], diagnostics: [] }),
-      getThemes: () => ({ themes: [], diagnostics: [] }),
-      getAgentsFiles: () => ({ agentsFiles: [] }),
-      getSystemPrompt: () => 'Output limit fixture',
-      getAppendSystemPrompt: () => [],
-      extendResources() {},
-      async reload() {},
-    },
-  })
+  let session
   t.after(async () => {
-    session.dispose()
+    session?.dispose()
     await rm(directory, { recursive: true, force: true })
   })
+  const settingsManager = SettingsManager.inMemory({
+    compaction: { enabled: false },
+    retry: { enabled: false },
+  })
+  const beforeStarts = []
+  const resourceLoader = await createDefaultResourceLoader({
+    cwd: directory,
+    agentDir: directory,
+    settingsManager,
+    noExtensions: true,
+    noSkills: true,
+    noPromptTemplates: true,
+    noThemes: true,
+    noContextFiles: true,
+    extensionFactories: [
+      pisperPromptExtension,
+      (pi) => {
+        pi.on('before_agent_start', (event, context) => {
+          beforeStarts.push({
+            messageType: event.messageType,
+            hasPrompt: Object.hasOwn(event, 'prompt'),
+            idle: context.isIdle(),
+          })
+        })
+      },
+    ],
+  })
+  await resourceLoader.reload()
+  const model = {
+    id: 'output-limit-fixture',
+    provider: 'fixture',
+    api: 'openai-completions',
+    name: 'Output limit fixture',
+    input: ['text'],
+    reasoning: false,
+    contextWindow: 128000,
+    maxTokens: 100,
+  }
+  ;({ session } = await createAgentSession({
+    cwd: directory,
+    agentDir: directory,
+    model,
+    modelRuntime: { hasConfiguredAuth: () => true, getModel: () => model },
+    tools: [],
+    sessionManager: SessionManager.inMemory(directory),
+    settingsManager,
+    resourceLoader,
+  }))
+  const requests = []
+  // 只替换网络边界，保留 SDK 的事件、持久化投影和回合续跑循环。
+  session.agent.streamFunction = async (activeModel, context) => {
+    const stopReason = stopReasons[requests.length]
+    assert.ok(stopReason, 'The session must not make an unexpected extra request')
+    requests.push(structuredClone(context))
+    const output = stopReason === 'length' ? activeModel.maxTokens : 1
+    const message = {
+      ...assistantMessage(stopReason === 'length' ? 'partial' : 'finished', stopReason, output),
+      api: activeModel.api,
+      provider: activeModel.provider,
+      model: activeModel.id,
+      usage: {
+        input: 1,
+        output,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 1 + output,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+    }
+    return {
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'done', reason: stopReason, message }
+      },
+      result: async () => message,
+    }
+  }
+  return { session, requests, beforeStarts }
+}
 
-  const stopped = await session._checkCompaction(assistantMessage('done', 'stop', 8), true, [])
-  assert.equal(stopped, false)
-  assert.equal(session.agent.followUpQueue.messages.length, 0)
+test('a real prompt finishes after a max-output continuation in the same call', async (t) => {
+  const { session, requests, beforeStarts } = await realSessionFixture(t, ['length', 'stop'])
 
-  const continued = await session._checkCompaction(lengthStop('half', 100), true, [])
-  assert.equal(continued, true)
-  const queued = session.agent.followUpQueue.messages
-  assert.equal(queued.length, 1)
-  assert.equal(queued[0].role, 'user')
-  assert.equal(isOutputLimitContinuationMessage(queued[0].content[0].text), true)
-  assert.equal(isInternalParentMessage(queued[0].content[0].text), true)
+  await session.prompt('Finish the original task.')
+
+  assert.equal(requests.length, 2)
+  assert.deepEqual(beforeStarts, [{ messageType: 'user', hasPrompt: true, idle: false }])
+  const continuation = requests[1].messages.find(
+    (message) =>
+      message.role === 'user' &&
+      Array.isArray(message.content) &&
+      message.content.some(
+        (part) => part.type === 'text' && isOutputLimitContinuationMessage(part.text),
+      ),
+  )
+  assert.ok(continuation)
+  assert.equal(isInternalParentMessage(continuation.content[0].text), true)
+  assert.deepEqual(
+    session.messages
+      .filter((message) => message.role === 'assistant')
+      .map((message) => message.stopReason),
+    ['length', 'stop'],
+  )
+  assert.equal(session.agent.hasQueuedMessages(), false)
+  assert.equal(session.isStreaming, false)
+})
+
+test('custom-triggered runs retain the Pisper identity without a user prompt event', async (t) => {
+  const { session, requests, beforeStarts } = await realSessionFixture(t, ['stop', 'stop'])
+
+  await session.prompt('Start a user turn.')
+  await session.sendCustomMessage(
+    { customType: 'fixture', content: 'Continue from the extension.', display: false },
+    { triggerTurn: true },
+  )
+
+  assert.equal(requests.length, 2)
+  assert.deepEqual(beforeStarts, [
+    { messageType: 'user', hasPrompt: true, idle: false },
+    { messageType: 'custom', hasPrompt: false, idle: false },
+  ])
+  for (const request of requests) {
+    const systemPrompt = request.messages
+      .filter((message) => message.role === 'system')
+      .map((message) => message.content)
+      .join('\n')
+    assert.match(systemPrompt, /Application: Pisper/)
+    assert.match(systemPrompt, /Active provider: fixture/)
+    assert.match(systemPrompt, /Active model: output-limit-fixture/)
+  }
+  assert.equal(session.isStreaming, false)
 })

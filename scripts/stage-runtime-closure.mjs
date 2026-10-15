@@ -92,7 +92,7 @@ export async function stageRuntimeClosure({
   const afterPrune = await collectRuntimeSnapshot(runtimeDir)
   const [criticalFiles, native] = await Promise.all([
     inspectCriticalFiles(runtimeDir, [
-      ...criticalRuntimeEntries(nativeSelection),
+      ...criticalRuntimeEntries(nativeSelection, runtimeDir),
       ...speechNativeEntries(target),
       ...searchToolCriticalEntries(target),
     ]),

@@ -140,7 +140,9 @@ test('Azure OpenAI SDK also removes diagnostics without changing API key authent
     await rm(directory, { recursive: true, force: true })
   })
   await runtime.init()
-  const template = runtime.modelRuntime.getModels('azure-openai-responses')[0]
+  const template = runtime.modelRuntime
+    .getModels('azure')
+    .find((model) => model.api === 'azure-openai-responses')
   assert.ok(template)
   let captured
   const result = await runtime.modelRuntime.completeSimple(

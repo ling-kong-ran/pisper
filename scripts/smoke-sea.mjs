@@ -6,7 +6,11 @@ import { createRequire } from 'node:module'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { collectNativeState, criticalRuntimeEntries } from './sea-runtime.mjs'
+import {
+  collectNativeState,
+  criticalRuntimeEntries,
+  resolvePiTuiRuntimeRoot,
+} from './sea-runtime.mjs'
 import { searchToolCriticalEntries } from './stage-search-tools.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -43,7 +47,11 @@ async function smokeStagedModules() {
       `SEA executable size manifest mismatch: ${manifest.sidecarExecutableBytes} !== ${executableBytes}.`,
     )
   }
-  for (const entry of [...criticalRuntimeEntries(), ...searchToolCriticalEntries(manifest)]) {
+  const piTui = resolvePiTuiRuntimeRoot(runtimeRoot)
+  for (const entry of [
+    ...criticalRuntimeEntries(manifest.native.selection, runtimeRoot),
+    ...searchToolCriticalEntries(manifest),
+  ]) {
     if (!manifest.criticalFiles.some((audited) => audited.path === entry.path)) {
       throw new Error(`SEA runtime audit is missing a required entry: ${entry.path}`)
     }
@@ -108,11 +116,7 @@ async function smokeStagedModules() {
       import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js')),
       import(stagedUrl('node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js')),
       import(stagedUrl('node_modules/playwright-core/index.mjs')),
-      import(
-        stagedUrl(
-          'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/native-platform.js',
-        )
-      ),
+      import(stagedUrl(`${piTui}/dist/native-platform.js`)),
     ])
   if (typeof client.Client !== 'function') throw new Error('Staged MCP Client did not import.')
   if (typeof sse.SSEClientTransport !== 'function')
@@ -138,13 +142,7 @@ async function smokeStagedModules() {
   // Linux 无 DISPLAY 时上游不会加载原生模块；直接验证绑定，且不读取用户剪贴板。
   const require = createRequire(import.meta.url)
   for (const nativePath of manifest.native.selection.piTuiNativeFiles || []) {
-    const binding = require(
-      join(
-        runtimeRoot,
-        'node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui',
-        nativePath,
-      ),
-    )
+    const binding = require(join(runtimeRoot, piTui, nativePath))
     if (typeof binding.getText !== 'function' || typeof binding.getImage !== 'function') {
       throw new Error('Current-platform staged clipboard native binding did not load.')
     }

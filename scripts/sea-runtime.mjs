@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { lstat, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
@@ -10,6 +11,12 @@ const PI_CODING_AGENT = 'node_modules/@earendil-works/pi-coding-agent'
 const PI_NESTED_NODE_MODULES = `${PI_CODING_AGENT}/node_modules`
 const CLIPBOARD_SCOPE = `${PI_NESTED_NODE_MODULES}/@mariozechner`
 const PI_TUI = `${PI_NESTED_NODE_MODULES}/@earendil-works/pi-tui`
+
+export function resolvePiTuiRuntimeRoot(runtimeDir) {
+  // 优先遵循 pi-coding-agent 的局部依赖；npm 去重后则使用提升到顶层的同名包。
+  const candidates = [PI_TUI, 'node_modules/@earendil-works/pi-tui']
+  return candidates.find((path) => existsSync(runtimePath(runtimeDir, path))) || PI_TUI
+}
 
 const removableDirectoryNames = new Set([
   '.github',
@@ -376,7 +383,7 @@ async function pruneEsbuildPackages(runtimeDir, target, audit) {
 async function prunePiTuiNative(runtimeDir, target, audit) {
   const selectedFiles = selectPiTuiNativeFiles(target)
   if (selectedFiles === null) return null
-  const nativeRoot = runtimePath(runtimeDir, `${PI_TUI}/native`)
+  const nativeRoot = runtimePath(runtimeDir, `${resolvePiTuiRuntimeRoot(runtimeDir)}/native`)
   const keep = new Set(selectedFiles.map((path) => path.replace(/^native\//, '')))
   for (const relativePath of await listRelativeFiles(nativeRoot)) {
     if (!keep.has(relativePath)) {
@@ -489,7 +496,8 @@ export function speechNativeEntries(target) {
   }))
 }
 
-export function criticalRuntimeEntries(nativeSelection = {}) {
+export function criticalRuntimeEntries(nativeSelection = {}, runtimeDir) {
+  const piTui = runtimeDir ? resolvePiTuiRuntimeRoot(runtimeDir) : PI_TUI
   const entries = [
     ['app', 'runtime/sidecar.mjs'],
     ['app', 'runtime/mobile-embedded.mjs'],
@@ -515,7 +523,7 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['skills', `${PI_CODING_AGENT}/dist/core/skills.js`],
     ['tools', `${PI_CODING_AGENT}/dist/core/tools/index.js`],
     ['extensions', `${PI_CODING_AGENT}/dist/core/extensions/index.js`],
-    ['tui', `${PI_TUI}/dist/index.js`],
+    ['tui', `${piTui}/dist/index.js`],
     ['officeparser', 'node_modules/officeparser/dist/index.mjs'],
     ['officeparser', 'node_modules/officeparser/dist/index.js'],
     ['officeparser', 'node_modules/officeparser/dist/OfficeParser.js'],
@@ -537,8 +545,8 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js'],
     ['playwright', 'node_modules/playwright-core/index.mjs'],
     ['locales', 'node_modules/zod/v4/locales/index.js'],
-    ['native', `${PI_TUI}/dist/native-platform.js`],
-    ['native', `${PI_TUI}/dist/native-module-path.js`],
+    ['native', `${piTui}/dist/native-platform.js`],
+    ['native', `${piTui}/dist/native-module-path.js`],
   ]
 
   if (typeof nativeSelection.clipboardPackage === 'string') {
@@ -552,12 +560,15 @@ export function criticalRuntimeEntries(nativeSelection = {}) {
     ])
   }
   for (const relativePath of nativeSelection.piTuiNativeFiles || []) {
-    entries.push(['native', `${PI_TUI}/${relativePath}`])
+    entries.push(['native', `${piTui}/${relativePath}`])
   }
   return entries.map(([kind, path]) => ({ kind, path }))
 }
 
-export async function inspectCriticalFiles(runtimeDir, entries = criticalRuntimeEntries()) {
+export async function inspectCriticalFiles(
+  runtimeDir,
+  entries = criticalRuntimeEntries({}, runtimeDir),
+) {
   const inspected = []
   for (const entry of entries) {
     const stats = await treeStats(runtimePath(runtimeDir, entry.path))
@@ -572,6 +583,7 @@ export async function inspectCriticalFiles(runtimeDir, entries = criticalRuntime
 }
 
 export async function collectNativeState(runtimeDir, nativeSelection) {
+  const piTui = resolvePiTuiRuntimeRoot(runtimeDir)
   const clipboardScope = runtimePath(runtimeDir, CLIPBOARD_SCOPE)
   let clipboardPackages = []
   try {
@@ -584,7 +596,7 @@ export async function collectNativeState(runtimeDir, nativeSelection) {
   }
 
   const piTuiNativeFiles = await listRelativeFiles(
-    runtimePath(runtimeDir, `${PI_TUI}/native`),
+    runtimePath(runtimeDir, `${piTui}/native`),
     '.node',
   )
   const expectedClipboard = nativeSelection.clipboardPackage
