@@ -33,11 +33,9 @@ import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferen
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { AppSidebar } from '@/components/layout/AppSidebar'
-import {
-  MobilePrimaryNavigation,
-  MobileSettingsNavigation,
-} from '@/components/layout/MobileNavigation'
-import { AppDialog } from '@/components/layout/AppDialog'
+import { MobileShellProvider, useMobileShellMode } from '@/components/layout/MobileShellContext'
+import { MobileThreePane } from '@/components/layout/MobileThreePane'
+import type { MobileContextTab, MobileShellPane } from '@/components/layout/mobile-shell-layout'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
 import { chatApi } from '@/features/chat/chat-api'
 import {
@@ -79,6 +77,9 @@ const DesktopWindowControls = lazy(() =>
     default: m.DesktopWindowControls,
   })),
 )
+const AppDialog = lazy(() =>
+  import('@/components/layout/AppDialog').then((module) => ({ default: module.AppDialog })),
+)
 const AppShortcuts = lazy(() =>
   import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
 )
@@ -118,6 +119,17 @@ const PageHeader = lazy(() =>
 const TerminalPanel = lazy(() =>
   import('@/features/terminal/TerminalPanel').then((module) => ({
     default: module.TerminalPanel,
+  })),
+)
+// 设置专属导航只在进入设置页时加载，避免移动壳能力扩大首屏依赖。
+const MobileSettingsNavigation = lazy(() =>
+  import('@/components/layout/MobileNavigation').then((module) => ({
+    default: module.MobileSettingsNavigation,
+  })),
+)
+const MobileContextScreen = lazy(() =>
+  import('@/app/mobile/MobileContextScreen').then((module) => ({
+    default: module.MobileContextScreen,
   })),
 )
 const MobileViewportStabilizer = lazy(() =>
@@ -195,12 +207,49 @@ function App() {
   const [activeSessionId, setActiveSessionId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
-  const [mobileNav, setMobileNav] = useState(false)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
   const drawerSidebar = mobileLayout
+  const shellMode = useMobileShellMode(mobileLayout)
+  const [pane, setPane] = useState<MobileShellPane>('chat')
+  const [contextTab, setContextTab] = useState<MobileContextTab>('assets')
+  const [contextMounted, setContextMounted] = useState(false)
+  const [sessionToolsHost, setSessionToolsHost] = useState<HTMLDivElement | null>(null)
+  const previousMobileLayout = useRef(mobileLayout)
+  useEffect(() => {
+    const enteringMobile = mobileLayout && !previousMobileLayout.current
+    previousMobileLayout.current = mobileLayout
+    if (!enteringMobile || page !== 'chat') return
+    let cancelled = false
+    // 跨模式的打开状态归壳层协调，不能误判普通路由进入。
+    void import('@/features/chat/session-context-store')
+      .then(({ useSessionContextStore }) => {
+        if (!cancelled && useSessionContextStore.getState().open) {
+          setContextTab('session-tools')
+          setPane('context')
+        }
+      })
+      .catch(() => {
+        // 偏好模块加载失败时保持对话可用；用户仍能手动打开工作区。
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mobileLayout, page])
+  const [activeSessionRun, reportActiveSessionRun] = useState<{
+    sessionId: string
+    streaming: boolean
+  } | null>(null)
+  const setMobileNav = useCallback((value: boolean | ((open: boolean) => boolean)) => {
+    setPane((current) => {
+      const open = current === 'sessions'
+      const next = typeof value === 'function' ? value(open) : value
+      if (next) return 'sessions'
+      return current === 'sessions' ? 'chat' : current
+    })
+  }, [])
   const [paletteOpen, setPaletteOpen] = useState(false)
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
@@ -261,17 +310,28 @@ function App() {
   const [terminalHeight, setTerminalHeight] = useState(() =>
     Math.max(180, Math.min(640, Number(readStoredTerminalPanel().height) || 300)),
   )
-  useEffect(() => {
-    const toggle = () => {
-      if (
-        window.pisperDesktop?.terminalProfiles &&
-        runtimeFeatureAvailable(capabilities, 'terminal')
-      )
-        setTerminalOpen((open) => !open)
+  const paneRef = useRef(pane)
+  const contextTabRef = useRef(contextTab)
+  const shellModeRef = useRef(shellMode)
+  paneRef.current = pane
+  contextTabRef.current = contextTab
+  shellModeRef.current = shellMode
+  const toggleTerminalPanel = useCallback(() => {
+    if (shellModeRef.current !== 'off') {
+      if (paneRef.current === 'context' && contextTabRef.current === 'terminal') setPane('chat')
+      else {
+        setContextTab('terminal')
+        setPane('context')
+      }
+      return
     }
-    window.addEventListener('pisper:toggle-terminal', toggle)
-    return () => window.removeEventListener('pisper:toggle-terminal', toggle)
+    if (window.pisperDesktop?.terminalProfiles && runtimeFeatureAvailable(capabilities, 'terminal'))
+      setTerminalOpen((open) => !open)
   }, [capabilities])
+  useEffect(() => {
+    window.addEventListener('pisper:toggle-terminal', toggleTerminalPanel)
+    return () => window.removeEventListener('pisper:toggle-terminal', toggleTerminalPanel)
+  }, [toggleTerminalPanel])
   const browserEventCursor = useRef('')
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -420,6 +480,7 @@ function App() {
     (next: string, options?: NavigateOptions) => {
       if (!PAGE_IDS.has(next) || !runtimePageAvailable(capabilities, next)) return
       routerNavigate(pagePath(next), options)
+      setPane('chat')
       setQuery('')
     },
     [capabilities, routerNavigate],
@@ -458,6 +519,7 @@ function App() {
       const search =
         nextSection === 'interface' && view && view !== 'appearance' ? `?view=${view}` : ''
       routerNavigate(`/config/${nextSection}${search}`)
+      setPane('chat')
       setQuery('')
     },
     [capabilities, routerNavigate],
@@ -519,6 +581,7 @@ function App() {
       const targetSessionId = pageStateStorage.getItem(STORAGE_KEYS.activeSession) || ''
       setPendingAsset({ asset, targetSessionId })
       if (targetSessionId) requestSessionSelection(targetSessionId)
+      setPane('chat')
       navigate('chat')
     },
     [navigate],
@@ -559,7 +622,7 @@ function App() {
       if (event.key === 'Escape' && !appDialog.dialog) {
         if (paletteOpen) setPaletteOpen(false)
         else if (modal) setModal(null)
-        else if (mobileNav) setMobileNav(false)
+        else if (mobileLayout && pane !== 'chat') setPane('chat')
         return
       }
     }
@@ -569,7 +632,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, mobileNav, modal, modelOnboardingOpen, paletteOpen])
+  }, [appDialog.dialog, mobileLayout, modal, modelOnboardingOpen, paletteOpen, pane])
 
   const startupConfigHandled = useRef(false)
   useEffect(() => {
@@ -639,6 +702,44 @@ function App() {
     }
   }, [showSystemNotification])
 
+  useEffect(() => {
+    if (mobileLayout) return
+    setPane('chat')
+  }, [mobileLayout])
+
+  // 资产不再占一整页：手机和 Pad 上从任何入口进来都落到右侧工作区。
+  useEffect(() => {
+    if (!mobileLayout || page !== 'assets') return
+    setContextTab('assets')
+    setPane('context')
+    routerNavigate(pagePath('chat'), { replace: true })
+  }, [mobileLayout, page, routerNavigate])
+
+  const openContext = useCallback((tab: MobileContextTab) => {
+    setContextTab(tab)
+    setPane('context')
+  }, [])
+  const shell = useMemo(
+    () => ({
+      active: shellMode !== 'off',
+      mode: shellMode,
+      pane,
+      tab: contextTab,
+      setPane,
+      openContext,
+      sessionToolsHost,
+      setSessionToolsHost,
+    }),
+    [contextTab, openContext, pane, sessionToolsHost, shellMode],
+  )
+  const terminalSupported = Boolean(
+    window.pisperDesktop?.terminalProfiles && runtimeFeatureAvailable(capabilities, 'terminal'),
+  )
+  const showContext = mobileLayout && (shellMode === 'pad' || pane === 'context')
+  useEffect(() => {
+    if (showContext) setContextMounted(true)
+  }, [showContext])
+
   const activeMeta: readonly [string, string] =
     page === 'chat'
       ? [
@@ -657,6 +758,7 @@ function App() {
   const routeContext: AppRouteContext = {
     query,
     activeSessionId,
+    reportActiveSessionRun,
     navigate,
     notify,
     browserNotify,
@@ -686,7 +788,7 @@ function App() {
     <ToastProvider duration={2800} swipeDirection="right">
       <div
         ref={appShellRef}
-        className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-app]]:pb-0"
+        className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0"
         data-mobile-app={mobileLayout || undefined}
         data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
       >
@@ -709,128 +811,181 @@ function App() {
             <WebDesktopPet />
           </Suspense>
         )}
-        <SidebarProvider
-          style={{ '--sidebar-width': '264px' } as CSSProperties}
-          className="app-body flex min-h-0 flex-1 overflow-hidden"
-          data-mobile-app={mobileLayout || undefined}
-          mobile={mobileLayout}
-          open={!sidebarCollapsed}
-          onOpenChange={(open) => setSidebarCollapsed(!open)}
-          openMobile={mobileNav}
-          onOpenMobileChange={setMobileNav}
-        >
-          <Suspense fallback={null}>
-            <AppShortcuts
-              blocked={Boolean(appDialog.dialog || modal || modelOnboardingOpen || paletteOpen)}
-              onCommandPalette={() => setPaletteOpen(true)}
-              onPrimary={handlePrimary}
-              onToggleSidebar={() =>
-                drawerSidebar
-                  ? setMobileNav((value) => !value)
-                  : setSidebarCollapsed(!sidebarCollapsed)
-              }
-              onSearch={() => {
-                if (page === 'chat') {
-                  navigate('chatHistory')
-                  requestAnimationFrame(() =>
-                    requestAnimationFrame(() => searchInputRef.current?.focus()),
-                  )
-                } else searchInputRef.current?.focus()
-              }}
-              onToggleTerminal={
-                window.pisperDesktop?.terminalProfiles &&
-                runtimeFeatureAvailable(capabilities, 'terminal')
-                  ? () => setTerminalOpen((value) => !value)
-                  : undefined
-              }
-              onSettings={() => navigate('config')}
-            />
-          </Suspense>
-          <AppSidebar
-            page={page}
-            configSection={configSection}
-            navigation={navigation}
-            installedTools={installedTools}
-            navigate={navigate}
-            onOpenComponent={(id) => routerNavigate(`/tools/components/${encodeURIComponent(id)}`)}
-            navigateSettings={navigateSettings}
-            collapsed={sidebarCollapsed}
-            onNewChat={startNewChat}
-            onSearch={() => setPaletteOpen(true)}
-            update={appUpdate}
-            onOpenUpdates={openUpdateSettings}
-            requestText={appDialog.prompt}
-            requestConfirm={appDialog.confirm}
-            notify={notify}
-          />
-          <SidebarInset className="main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background">
-            {page !== 'chat' && (
-              <Suspense fallback={null}>
-                <PageHeader
-                  elementRef={pageHeaderRef}
-                  meta={activeMeta}
-                  page={page}
-                  query={query}
-                  setQuery={setQuery}
-                  configSection={configSection}
-                  onMenu={() => setMobileNav(true)}
-                  onPrimary={handlePrimary}
-                  searchSlot={
-                    page === 'config' ? (
+        <MobileShellProvider value={shell}>
+          <SidebarProvider
+            style={{ '--sidebar-width': '264px' } as CSSProperties}
+            className="app-body flex min-h-0 flex-1 overflow-hidden"
+            data-mobile-app={mobileLayout || undefined}
+            mobile={mobileLayout}
+            mobilePresentation={mobileLayout ? 'pane' : 'sheet'}
+            persistent={shellMode === 'pad'}
+            open={!sidebarCollapsed}
+            onOpenChange={(open) => setSidebarCollapsed(!open)}
+            openMobile={pane === 'sessions'}
+            onOpenMobileChange={setMobileNav}
+          >
+            <Suspense fallback={null}>
+              <AppShortcuts
+                blocked={Boolean(appDialog.dialog || modal || modelOnboardingOpen || paletteOpen)}
+                onCommandPalette={() => setPaletteOpen(true)}
+                onPrimary={handlePrimary}
+                onToggleSidebar={() => {
+                  if (shellMode === 'pad') return
+                  if (drawerSidebar) setMobileNav((value) => !value)
+                  else setSidebarCollapsed(!sidebarCollapsed)
+                }}
+                onSearch={() => {
+                  if (page === 'chat') {
+                    navigate('chatHistory')
+                    requestAnimationFrame(() =>
+                      requestAnimationFrame(() => searchInputRef.current?.focus()),
+                    )
+                  } else searchInputRef.current?.focus()
+                }}
+                onToggleTerminal={
+                  shellMode !== 'off' ||
+                  (window.pisperDesktop?.terminalProfiles &&
+                    runtimeFeatureAvailable(capabilities, 'terminal'))
+                    ? toggleTerminalPanel
+                    : undefined
+                }
+                onSettings={() => navigate('config')}
+              />
+            </Suspense>
+            <Suspense fallback={null}>
+              <MobileThreePane
+                enabled={mobileLayout}
+                mode={shellMode}
+                pane={pane}
+                onPaneChange={setPane}
+                sessions={
+                  <AppSidebar
+                    page={page}
+                    configSection={configSection}
+                    navigation={navigation}
+                    installedTools={installedTools}
+                    navigate={navigate}
+                    onOpenComponent={(id) =>
+                      routerNavigate(`/tools/components/${encodeURIComponent(id)}`)
+                    }
+                    navigateSettings={navigateSettings}
+                    collapsed={sidebarCollapsed}
+                    onNewChat={startNewChat}
+                    onSearch={() => setPaletteOpen(true)}
+                    update={appUpdate}
+                    onOpenUpdates={openUpdateSettings}
+                    requestText={appDialog.prompt}
+                    requestConfirm={appDialog.confirm}
+                    notify={notify}
+                  />
+                }
+                chat={
+                  <SidebarInset className="main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background">
+                    {page !== 'chat' && (
                       <Suspense fallback={null}>
-                        <ConfigSearchBox
+                        <PageHeader
+                          elementRef={pageHeaderRef}
+                          meta={activeMeta}
+                          page={page}
                           query={query}
-                          onQueryChange={setQuery}
-                          onSelect={setConfigSection}
-                          inputRef={searchInputRef}
+                          setQuery={setQuery}
+                          configSection={configSection}
+                          onMenu={() => setMobileNav(true)}
+                          onPrimary={handlePrimary}
+                          searchSlot={
+                            page === 'config' ? (
+                              <Suspense fallback={null}>
+                                <ConfigSearchBox
+                                  query={query}
+                                  onQueryChange={setQuery}
+                                  onSelect={setConfigSection}
+                                  inputRef={searchInputRef}
+                                />
+                              </Suspense>
+                            ) : undefined
+                          }
+                          searchInputRef={searchInputRef}
+                          theme={theme}
+                          onCycleTheme={cycleTheme}
+                          workflowActions={workflowActions}
+                          desktopPlatform={window.pisperDesktop?.platform || ''}
+                          mobileApp={mobileApp}
+                          terminalOpen={
+                            shellMode !== 'off'
+                              ? pane === 'context' && contextTab === 'terminal'
+                              : terminalOpen
+                          }
+                          onToggleTerminal={toggleTerminalPanel}
                         />
                       </Suspense>
-                    ) : undefined
-                  }
-                  searchInputRef={searchInputRef}
-                  theme={theme}
-                  onCycleTheme={cycleTheme}
-                  workflowActions={workflowActions}
-                  desktopPlatform={window.pisperDesktop?.platform || ''}
-                  mobileApp={mobileApp}
-                  terminalOpen={terminalOpen}
-                  onToggleTerminal={() => setTerminalOpen((value) => !value)}
-                />
-              </Suspense>
-            )}
-            {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
-              <MobileSettingsNavigation
-                page={page}
-                configSection={configSection}
-                mobileApp={mobileApp}
-                onNavigate={navigateSettings}
+                    )}
+                    {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
+                      <MobileSettingsNavigation
+                        page={page}
+                        configSection={configSection}
+                        mobileApp={mobileApp}
+                        onNavigate={navigateSettings}
+                      />
+                    )}
+                    <div
+                      className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : `page-${page} px-6 pb-5 max-[650px]:px-3`}`}
+                      key={page}
+                    >
+                      <Outlet context={routeContext} />
+                    </div>
+                    {shellMode === 'off' &&
+                      window.pisperDesktop?.terminalProfiles &&
+                      runtimeFeatureAvailable(capabilities, 'terminal') && (
+                        <Suspense fallback={null}>
+                          <TerminalPanel
+                            open={terminalOpen}
+                            height={terminalHeight}
+                            labels={terminalLabels}
+                            activeSessionId={activeSessionId}
+                            resolveSessionCwd={resolveSessionCwd}
+                            onOpenChange={setTerminalOpen}
+                            onHeightChange={setTerminalHeight}
+                          />
+                        </Suspense>
+                      )}
+                  </SidebarInset>
+                }
+                context={
+                  mobileLayout && (showContext || contextMounted) ? (
+                    <Suspense fallback={null}>
+                      <MobileContextScreen
+                        tab={contextTab}
+                        visible={showContext}
+                        onCloseTerminal={() =>
+                          shellMode === 'pad' ? setContextTab('assets') : setPane('chat')
+                        }
+                        onOpenChat={() => {
+                          navigate('chat')
+                          setPane('context')
+                        }}
+                        sessionStreaming={
+                          activeSessionRun?.sessionId === activeSessionId
+                            ? activeSessionRun.streaming
+                            : null
+                        }
+                        onTabChange={setContextTab}
+                        activeSessionId={activeSessionId}
+                        query={query}
+                        notify={notify}
+                        requestConfirm={appDialog.confirm}
+                        requestText={appDialog.prompt}
+                        onUseAsset={useAsset}
+                        terminalSupported={terminalSupported}
+                        terminalLabels={terminalLabels}
+                        resolveSessionCwd={resolveSessionCwd}
+                      />
+                    </Suspense>
+                  ) : null
+                }
               />
-            )}
-            <div
-              className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : `page-${page} px-6 pb-5 max-[650px]:px-3`}`}
-              key={page}
-            >
-              <Outlet context={routeContext} />
-            </div>
-            {window.pisperDesktop?.terminalProfiles &&
-              runtimeFeatureAvailable(capabilities, 'terminal') && (
-                <Suspense fallback={null}>
-                  <TerminalPanel
-                    open={terminalOpen}
-                    height={terminalHeight}
-                    labels={terminalLabels}
-                    activeSessionId={activeSessionId}
-                    resolveSessionCwd={resolveSessionCwd}
-                    onOpenChange={setTerminalOpen}
-                    onHeightChange={setTerminalHeight}
-                  />
-                </Suspense>
-              )}
-            {clientLoaded && mobileLayout && (
-              <MobilePrimaryNavigation page={page} onNavigate={navigate} />
-            )}
-          </SidebarInset>
-        </SidebarProvider>
+            </Suspense>
+          </SidebarProvider>
+        </MobileShellProvider>
         <Suspense fallback={null}>
           <FloatingWidgets anchorRef={pageHeaderRef} notify={notify} />
         </Suspense>
@@ -845,11 +1000,15 @@ function App() {
           />
         )}
         <ToastViewport hotkey={[]} label={t('common:ui.notifications')} />
-        <AppDialog
-          dialog={appDialog.dialog}
-          onClose={appDialog.close}
-          onFinish={appDialog.finish}
-        />
+        {appDialog.dialog && (
+          <Suspense fallback={null}>
+            <AppDialog
+              dialog={appDialog.dialog}
+              onClose={appDialog.close}
+              onFinish={appDialog.finish}
+            />
+          </Suspense>
+        )}
         <Suspense fallback={null}>
           {modelOnboardingOpen && (
             <ModelOnboardingDialog

@@ -4,6 +4,9 @@
 
 ## 环境与可复现性
 
+- 本次升级至 Pi 1.2.0，沿用 Node 24 基线。Azure 内置目录使用 `azure` Provider 标识，Responses 协议仍为 `azure-openai-responses`；测试按协议选择模型。真实 `AgentSession.prompt()` 回归覆盖输出上限后的同轮续跑，以及 `before_agent_start` 的 user/custom 分支保留 Pisper 身份。SEA 与移动端闭包按实际解析位置审计 Pi TUI，兼容 npm 的顶层提升与嵌套安装；不得省略目标平台原生文件校验。
+- 源码回退后的增量发版以当前版本与所属渠道已发布版本的较高者为基线。npm 单独查询 registry，不能把删除 GitHub Release 当作撤回 npm 版本；各渠道仍由正式发布脚本与工作流更新版本和标签。
+
 - 源码开发和 Web/Runtime 验证以 Node.js 24 为基线，补丁版本必须满足 `package-lock.json` 中实际依赖的 `engines`。2026-09-18 审阅使用 Node 24.21.0；该版本是复现参考，不代表其他版本已通过验收。npm 版本以根目录 `package.json` 的 `packageManager` 字段为准，安装使用 `package-lock.json`，不引入第二套包管理器或锁文件。
 - 分别核验宿主环境：桌面和独立 TUI 的 SEA 包自带 Node；移动端使用 `scripts/mobile-node-artifacts.json` 固定的嵌入式 Node；npm 启动器通过 `PISPER_RUNTIME_NODE` 使用当前宿主 Node 运行下载的 Runtime 闭包。启动器自身能够安装不代表完整 Runtime 可以在同一 Node 版本运行。
 - 当前根清单和 `packages/pisper/package.json` 仍声明 Node ≥20，但锁定 Pi 依赖要求 ≥22.19，构建依赖另有补丁版本限制。这是待修正的兼容声明，不能据此宣称 Node 20 支持。调整最低版本时同步清单、生成的 npm 产物、文档和最低支持版本的 CI；只在 Node 24 上通过检查不能证明更低版本受支持。
@@ -22,6 +25,8 @@
 - 资源、模型和二进制文件应记录来源、版本、校验摘要和打包路径；不得把临时副本或个人测试数据放入源码和发布目录。
 
 ## 按影响范围验证
+
+移动三屏布局使用 `npm run test:mobile:ui` 执行隔离浏览器验收（先运行 `npm run build`），同时接入 `npm run test:ui` 和 CI。它验证手机切屏、Pad 三栏、输入区和纵向滑动保护、软键盘页签隐藏、终端存活、插件草稿、操作入口与弹窗定位。`npm run test:workflows:ui` 额外验证未保存的节点属性和 Inspector 在桌面/手机断点间保持。旧底栏的键盘源码断言已替换为顶部分页隐藏契约，并由实际浏览器行为验证补充；浏览器模拟不代替 Android/iOS 真机验收。
 
 | 改动范围 | 最低验证 | 需要补充的情况 |
 | --- | --- | --- |

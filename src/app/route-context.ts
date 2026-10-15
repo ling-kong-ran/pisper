@@ -17,6 +17,7 @@ export const LOCAL_REVEAL_NOTICE_EVENT = 'pisper:local-reveal-notice'
 export type AppRouteContext = {
   query: string
   activeSessionId: string
+  reportActiveSessionRun: (state: { sessionId: string; streaming: boolean } | null) => void
   navigate: (page: string, options?: { replace?: boolean }) => void
   notify: Notify
   browserNotify: (event: string, data: unknown, options?: { force?: boolean }) => void

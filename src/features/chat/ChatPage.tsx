@@ -10,10 +10,12 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import type { DockviewGroupPanel } from 'dockview-react'
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
+import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
@@ -66,6 +68,7 @@ type ChatPageProps = {
   navigate: (page: string, options?: { replace?: boolean }) => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
+  reportActiveSessionRun: (state: { sessionId: string; streaming: boolean } | null) => void
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -76,6 +79,7 @@ export function ChatPage({
   notify,
   navigate,
   browserNotify,
+  reportActiveSessionRun,
   registerPrimaryAction,
   pendingAsset,
   onAssetConsumed,
@@ -154,6 +158,11 @@ export function ChatPage({
   const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
   const activeSessionState = catalog.sessionStates[catalog.activeId]
   const activeStreaming = resolveSessionStreaming(activeSessionState, activeSession)
+  // 壳层仅持有只读投影；本地流和快照的协调仍由聊天目录负责。
+  useLayoutEffect(() => {
+    reportActiveSessionRun({ sessionId: catalog.activeId, streaming: activeStreaming })
+    return () => reportActiveSessionRun(null)
+  }, [activeStreaming, catalog.activeId, reportActiveSessionRun])
   const activeCompleted = Boolean(
     activeSessionState?.lifecycle?.phase === 'completed' &&
     !activeSessionState.error &&
@@ -161,13 +170,25 @@ export function ChatPage({
   )
   const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
   const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
-  const contextPresentation = resolveSessionContextPresentation({
-    availableWidth: contextWidth,
-    mobileLayout,
-    hasSession: Boolean(activeSession),
-    preference: contextOpen ? 'open' : 'closed',
-  })
+  const shell = useMobileShell()
+  // 移动端通过壳层 DOM 插槽展示原面板，状态和侧聊生命周期仍归聊天页面。
+  const contextPresentation = shell.active
+    ? 'closed'
+    : resolveSessionContextPresentation({
+        availableWidth: contextWidth,
+        mobileLayout,
+        hasSession: Boolean(activeSession),
+        preference: contextOpen ? 'open' : 'closed',
+      })
   const contextCompact = mobileLayout || contextWidth < 800
+  const mobileToolsVisible =
+    shell.active &&
+    shell.tab === 'session-tools' &&
+    (shell.mode === 'pad' || shell.pane === 'context')
+  const [mobileToolsMounted, setMobileToolsMounted] = useState(false)
+  useEffect(() => {
+    if (mobileToolsVisible) setMobileToolsMounted(true)
+  }, [mobileToolsVisible])
   useSessionContextAutoReveal({
     sessionId: catalog.activeId,
     streaming: activeStreaming,
@@ -175,16 +196,28 @@ export function ChatPage({
     runStartedAt:
       typeof activeSessionState?.runStartedAt === 'string' ? activeSessionState.runStartedAt : null,
     enabled: true,
-    open: contextPresentation !== 'closed',
+    open: shell.active ? mobileToolsVisible : contextPresentation !== 'closed',
     onReveal: () => {
       setContextTab('files')
-      setContextOpen(true)
+      if (shell.active) shell.openContext('session-tools')
+      else setContextOpen(true)
     },
   })
   const setActiveId = catalog.setActiveId
   const toggleSessionContext = useCallback(
     (sessionId: string, open: boolean) => {
       if (!sessionId) return
+      if (shell.active) {
+        if (open) {
+          setActiveId(sessionId)
+          setMobileToolsMounted(true)
+          shell.openContext('session-tools')
+        } else {
+          if (shell.mode === 'pad') shell.openContext('assets')
+          else shell.setPane('chat')
+        }
+        return
+      }
       if (open) {
         setActiveId(sessionId)
         setContextOpen(true)
@@ -192,7 +225,7 @@ export function ChatPage({
         setContextOpen(false)
       }
     },
-    [setActiveId, setContextOpen],
+    [setActiveId, setContextOpen, shell],
   )
 
   const createSessionRecord = catalog.createSessionRecord
@@ -379,7 +412,13 @@ export function ChatPage({
       globalError: catalog.globalError,
       activeId: catalog.activeId,
       compactDock: dock.compactDock,
-      contextTab: contextPresentation === 'closed' ? null : contextTab,
+      contextTab: shell.active
+        ? mobileToolsVisible
+          ? contextTab
+          : null
+        : contextPresentation === 'closed'
+          ? null
+          : contextTab,
       contextCompact,
       contextPanelId: SESSION_CONTEXT_PANEL_ID,
       toggleSessionContext,
@@ -426,6 +465,8 @@ export function ChatPage({
       contextPresentation,
       contextTab,
       contextCompact,
+      shell,
+      mobileToolsVisible,
       toggleSessionContext,
       dock.splitDockPanel,
       dock.closeDockPanel,
@@ -495,37 +536,42 @@ export function ChatPage({
     ],
   )
 
-  const contextPanel = activeSession && contextPresentation !== 'closed' && (
-    <Suspense
-      fallback={
-        contextPresentation === 'aside' ? (
-          <aside
-            className="h-full min-h-0 w-full rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--panel)] p-4 text-sm text-[var(--text-muted)]"
-            role="status"
-          >
-            {t('chat:focusSession.gitLoading')}
-          </aside>
-        ) : null
-      }
-    >
-      <LazySessionContextPanel
-        key={activeSession.id}
-        panelId={SESSION_CONTEXT_PANEL_ID}
-        compact={contextPresentation === 'sheet'}
-        sessionId={activeSession.id}
-        tab={contextTab}
-        plan={runtimeFeatureAvailable(capabilities, 'plans') ? visiblePlan : null}
-        streaming={activeStreaming}
-        plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
-        requestConfirm={requestConfirm}
-        onTabChange={setContextTab}
-        onClose={() => setContextOpen(false)}
-      />
-    </Suspense>
-  )
+  const contextPanel = activeSession &&
+    (shell.active
+      ? mobileToolsMounted || mobileToolsVisible
+      : contextPresentation !== 'closed') && (
+      <Suspense
+        fallback={
+          contextPresentation === 'aside' ? (
+            <aside
+              className="h-full min-h-0 w-full rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--panel)] p-4 text-sm text-[var(--text-muted)]"
+              role="status"
+            >
+              {t('chat:focusSession.gitLoading')}
+            </aside>
+          ) : null
+        }
+      >
+        <LazySessionContextPanel
+          key={activeSession.id}
+          panelId={SESSION_CONTEXT_PANEL_ID}
+          compact={!shell.active && contextPresentation === 'sheet'}
+          embedded={shell.active}
+          sessionId={activeSession.id}
+          tab={contextTab}
+          plan={runtimeFeatureAvailable(capabilities, 'plans') ? visiblePlan : null}
+          streaming={activeStreaming}
+          plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
+          requestConfirm={requestConfirm}
+          onTabChange={setContextTab}
+          onClose={() => toggleSessionContext(activeSession.id, false)}
+        />
+      </Suspense>
+    )
 
   return (
     <SideChatProvider runtime={sideChatRuntime}>
+      {shell.active && shell.sessionToolsHost && createPortal(contextPanel, shell.sessionToolsHost)}
       <div
         ref={chatLayoutRef}
         className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1"
@@ -533,7 +579,7 @@ export function ChatPage({
         <SessionContextLayout
           availableWidth={contextWidth}
           presentation={contextPresentation}
-          context={contextPanel}
+          context={shell.active ? null : contextPanel}
           side="right"
         >
           {catalog.loading ? (

@@ -525,13 +525,23 @@ try {
   )
   await page.reload()
   await selectNode(transformNode.id)
+  // 未保存的草稿与 Inspector 状态必须跨应用壳断点保留，不能重新选择节点掩盖重挂载。
+  await page.getByRole('spinbutton', { name: '留白（像素）', exact: true }).fill('9')
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.locator('[data-mobile-shell="phone"]').waitFor()
   assert.ok(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   )
-  // 响应式 Inspector 会重新挂载到 Sheet，先等待新的宿主，避免操作已卸载的侧栏。
   const mobileInspector = page.getByRole('dialog', { name: '节点属性', exact: true })
   await mobileInspector.waitFor({ state: 'visible' })
+  assert.equal(
+    await mobileInspector
+      .getByRole('spinbutton', { name: '留白（像素）', exact: true })
+      .inputValue(),
+    '9',
+    'Changing the shell breakpoint must preserve unsaved node edits',
+  )
+  await mobileInspector.getByRole('spinbutton', { name: '留白（像素）', exact: true }).fill('8')
   await mobileInspector.getByRole('spinbutton', { name: '留白（像素）', exact: true }).click()
   await page.screenshot({
     path: join(output, 'workflow-image-inspector-mobile.png'),
@@ -541,7 +551,7 @@ try {
     .getByRole('region', { name: '节点结果', exact: true })
     .screenshot({ path: join(output, 'workflow-image-preview-mobile.png') })
   report.checks.push(
-    'single-node local rerun reuses upstream results without more image calls; saved graph remains open; mobile inspector fits',
+    'single-node local rerun reuses upstream results without more image calls; unsaved node edits and inspector survive the phone breakpoint; mobile inspector fits',
   )
 
   const updated = (await api('/api/workflows')).workflows.find((item) => item.id === workflow.id)

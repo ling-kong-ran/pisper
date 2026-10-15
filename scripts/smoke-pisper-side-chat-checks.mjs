@@ -11,11 +11,14 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
   assert.equal(await activeSession(), parentSessionId)
 
   const viewport = page.viewportSize()
-  // 手机抽屉打开时主输入框会被 aria-hidden，仍须检查其草稿没有被侧聊覆盖。
+  // 手机右屏打开时主输入框会被 aria-hidden，仍须检查其草稿没有被侧聊覆盖。
   const mainInput = page.locator('textarea[aria-label="任务描述"]')
   const mainDraft = await mainInput.inputValue()
   const mainDraftMarker = 'PI parent draft stays separate from temporary chat'
-  const panel = page.locator(`[data-side-chat-parent="${parentSessionId}"]`)
+  // 右屏离开视口后仍保留挂载，按可访问区域判断显示状态，不能把保留的 DOM 当作打开。
+  const panel = page
+    .getByRole('region', { name: '临时聊天', exact: true })
+    .and(page.locator(`[data-side-chat-parent="${parentSessionId}"]`))
   const input = panel.getByRole('textbox', { name: '临时聊天消息', exact: true })
   const send = panel.getByRole('button', { name: '发送临时消息', exact: true })
   const stop = panel.getByRole('button', { name: '停止临时回复', exact: true })
@@ -154,8 +157,11 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
 
     stage = 'mobile-stop'
     await page.setViewportSize({ width: 390, height: 844 })
-    // 已打开的面板在手机上继续以抽屉显示；用户关闭后仍可手动重开。
-    await page.locator('[data-slot="sheet-content"]').waitFor()
+    // 已打开的辅助页面移入右屏同一会话容器；用户关闭后仍可手动重开。
+    await page
+      .locator('[data-mobile-session-tools-host]')
+      .getByRole('tab', { name: '临时聊天', exact: true })
+      .waitFor()
     await page.keyboard.press('Escape')
     await panel.waitFor({ state: 'hidden' })
     await openSideChat()

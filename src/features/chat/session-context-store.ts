@@ -42,6 +42,7 @@ const storage = createJSONStorage<SessionContextPreferences>(() => ({
   },
 }))
 
+// @public 应用壳只读布局偏好以协调响应式切换；聊天页继续拥有用户打开/关闭操作。
 export const useSessionContextStore = create<SessionContextState>()(
   persist(
     (set, get) => ({

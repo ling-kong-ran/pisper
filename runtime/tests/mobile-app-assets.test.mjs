@@ -315,10 +315,10 @@ test('Android renderer 恢复等待初始页面完成，补丁可重放且拒绝
 })
 
 test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见', async () => {
-  const [app, navigation, focus, stabilizer, styles, html, setup, activity, iosPlugin] =
+  const [app, mobilePane, focus, stabilizer, styles, html, setup, activity, iosPlugin] =
     await Promise.all([
       readFile('src/App.tsx', 'utf8'),
-      readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
+      readFile('src/components/layout/MobileThreePane.tsx', 'utf8'),
       readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
       readFile('src/components/layout/MobileViewportStabilizer.tsx', 'utf8'),
       readFile('src/index.css', 'utf8'),
@@ -348,8 +348,8 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(stabilizer, /viewport\?\.addEventListener\('resize', schedule\)/)
   assert.match(stabilizer, /viewport\?\.addEventListener\('scroll', schedule\)/)
   assert.match(stabilizer, /shell\.dataset\.mobileKeyboard = 'open'/)
-  assert.match(navigation, /\[\[data-mobile-keyboard='open'\]_&\]:pointer-events-none/)
-  assert.match(navigation, /transition-\[max-height,opacity,border-color,padding-bottom\]/)
+  // 三屏布局以顶部分页替代底栏；键盘弹起仍需给输入区让出空间，浏览器测试覆盖实际隐藏。
+  assert.match(mobilePane, /\[\[data-mobile-keyboard='open'\]_&\]:hidden/)
   assert.match(stabilizer, /document\.addEventListener\('touchstart', handleTouch, true\)/)
   assert.match(stabilizer, /document\.addEventListener\('pointerdown', handleTouch, true\)/)
   assert.match(stabilizer, /document\.addEventListener\('focusin', handleFocus, true\)/)

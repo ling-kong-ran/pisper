@@ -5,9 +5,10 @@ import { cn } from '@/lib/utils'
 
 // 展开与收起使用独立按钮，品牌标识不再承担隐含的导航操作。
 export function WorkbenchSidebarToggle({ inSidebar = false }: { inSidebar?: boolean }) {
-  const { open, openMobile, isMobile } = useSidebar()
+  const { open, openMobile, isMobile, persistent } = useSidebar()
   const { t } = useI18n()
   const expanded = isMobile ? openMobile : open
+  if (persistent) return null
   // 桌面始终保留侧栏内的同一个按钮，折叠后键盘焦点无需跨容器转移。
   if (!isMobile && !inSidebar) return null
   const label = expanded

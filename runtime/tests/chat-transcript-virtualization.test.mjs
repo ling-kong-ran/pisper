@@ -120,8 +120,7 @@ test('virtualization source owns only message rows and preserves stable render b
   // 当前失败在输入区提供恢复入口；历史消息仍在虚拟化列表中保留诊断。
   assert.ok(sessionSource.indexOf('<ChatRequestNotice') > sessionSource.indexOf('<FocusTranscript'))
   assert.ok(
-    sessionSource.indexOf('<ChatRequestNotice') <
-      sessionSource.indexOf('className="focus-composer '),
+    sessionSource.indexOf('<ChatRequestNotice') < sessionSource.search(/['"]focus-composer /),
   )
   assert.match(virtualSource, /hideErrorNotice=\{isLatestAgent && Boolean\(message\.error\)\}/)
   assert.match(messageSource, /message\.error && !streaming && !hideErrorNotice/)
