@@ -21,15 +21,7 @@ const mocks = {
     }`,
   '@/features/chat/session-change-summary-api': `export async function invalidateSessionChangeSummary() {}`,
   '@/lib/api': `export async function apiJson(url, options) {
-    if (url.startsWith('/api/workspace-entries?')) {
-      const path = new URL(url, 'https://fixture.invalid').searchParams.get('path')
-      window.fileEvidence.requests.push(path)
-      if (path === '/canonical/one/folder') return new Promise(resolve => {
-        window.resolveOldListing = () => resolve({path, parent:'/canonical/one', directories:[], files:[{name:'stale.txt'}]})
-      })
-      const canonical = path === '/workspaces/one' ? '/canonical/one' : path
-      return {path:canonical, parent:'/', directories:[{name:'folder'}], files:[{name:path === '/workspaces/two' ? 'two.txt' : 'one.txt'}]}
-    }
+    if (url === '/api/sessions') return {sessions: []}
     if (url.startsWith('/api/assets?')) return {assets:[]}
     if (url !== '/api/plugins') throw new Error('Unexpected fixture API '+url)
     if (options?.method === 'PUT') {
@@ -107,53 +99,193 @@ try {
     'Install Chromium with npx playwright-core install chromium, or set PISPER_SMOKE_BROWSER.',
   )
   browser = await chromium.launch({ headless: true, executablePath })
+  const projectPage = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+  projectPage.setDefaultTimeout(5000)
+  await projectPage.goto(`http://127.0.0.1:${server.address().port}/?sidebar`)
+  const newProject = projectPage.getByRole('button', {
+    name: 'navigation:appSidebar.newProject',
+    exact: true,
+  })
+  await newProject.waitFor()
+  await projectPage.evaluate(() => {
+    window.projectPickCalls = 0
+    window.projectPickResult = null
+    window.pisperDesktop.pickDirectory = () => {
+      window.projectPickCalls++
+      return Promise.resolve(window.projectPickResult)
+    }
+  })
+  await newProject.click()
+  await projectPage.waitForFunction(() => window.projectPickCalls === 1)
+  assert.equal(
+    await projectPage.getByRole('dialog').count(),
+    0,
+    'Native cancellation must not open a manual directory dialog',
+  )
+  assert.deepEqual(await projectPage.evaluate(() => window.sidebarEvidence.navigations), [])
+  await projectPage.evaluate(() => {
+    window.projectPickResult = '/workspaces/native-project'
+  })
+  await newProject.click()
+  await projectPage.waitForFunction(() => window.sidebarEvidence.navigations.includes('chat'))
+  await projectPage.evaluate(() => {
+    window.pisperDesktop.pickDirectory = () => Promise.reject(new Error('native_directory_failed'))
+  })
+  await newProject.click()
+  await projectPage.waitForFunction(() =>
+    window.sidebarEvidence.notices.some(
+      (notice) => notice.message === 'native_directory_failed' && notice.tone === 'error',
+    ),
+  )
+  await projectPage.evaluate(() => {
+    delete window.pisperDesktop.pickDirectory
+  })
+  await newProject.click()
+  await projectPage
+    .getByRole('textbox', { name: 'common:workspacePicker.workingDirectoryPath', exact: true })
+    .waitFor()
+  await projectPage.close()
+
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
   page.setDefaultTimeout(10000)
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto(`http://127.0.0.1:${server.address().port}`)
-  await page.waitForFunction(() => window.workspaceEntries)
-  assert.deepEqual(
-    await page.evaluate(() =>
-      window.workspaceEntries.normalizeWorkspaceEntries({
-        entries: [
-          { name: 'z.txt', type: 'file' },
-          { name: 'folder', type: 'directory' },
-        ],
-      }),
-    ),
-    [
-      { name: 'folder', kind: 'directory' },
-      { name: 'z.txt', kind: 'file' },
-    ],
+  await page.waitForFunction(() => window.controls)
+  await page.evaluate(() => window.controls.setWorkspaceOpen(true))
+  const workspacePath = page.getByRole('textbox', {
+    name: 'common:workspacePicker.workingDirectoryPath',
+    exact: true,
+  })
+  await workspacePath.waitFor()
+  assert.equal(await workspacePath.inputValue(), '/workspaces/initial')
+  await workspacePath.fill('   /workspaces/manual   ')
+  await page.evaluate(() => {
+    window.failWorkspaceSave = true
+  })
+  await page
+    .getByRole('button', { name: 'common:workspacePicker.useThisFolder', exact: true })
+    .click()
+  await page.getByRole('alert').filter({ hasText: 'workspace_save_failed' }).waitFor()
+  assert.equal(await workspacePath.inputValue(), '   /workspaces/manual   ')
+  await page.evaluate(() => {
+    window.failWorkspaceSave = false
+  })
+  await workspacePath.press('Enter')
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  assert.deepEqual(await page.evaluate(() => window.pickerEvidence.selected), [
+    '/workspaces/manual',
+  ])
+
+  // Android 本机继续通过系统 SAF 导入，远程模式只接受 Runtime 路径。
+  await page.evaluate(() => {
+    window.__PISPER_MOBILE_APP__ = true
+    window.__PISPER_MOBILE_PLATFORM__ = 'android'
+    window.nativeWorkspaceMode = 'remote'
+    window.importedWorkspace = null
+    window.__TAURI_INTERNALS__ = {
+      invoke: (command) => {
+        if (command === 'mobile_state')
+          return Promise.resolve({ mode: window.nativeWorkspaceMode, onDevice: { running: true } })
+        if (command === 'mobile_import_workspace_directory')
+          return Promise.resolve({ path: window.importedWorkspace })
+        return Promise.reject(new Error('unexpected_native_command'))
+      },
+    }
+    window.controls.setWorkspaceOpen(true)
+  })
+  await workspacePath.waitFor()
+  assert.equal(
+    await page
+      .getByRole('button', { name: 'common:workspacePicker.importFolderCopy', exact: true })
+      .count(),
+    0,
   )
-  assert.deepEqual(
-    await page.evaluate(() =>
-      window.workspaceEntries.normalizeWorkspaceEntries({
-        directories: ['folder'],
-        files: ['z.txt'],
-      }),
-    ),
-    [
-      { name: 'folder', kind: 'directory' },
-      { name: 'z.txt', kind: 'file' },
-    ],
-  )
-  assert.deepEqual(
-    await page.evaluate(() => window.workspaceEntries.normalizeWorkspaceEntries({ entries: [] })),
-    [],
+  await page.getByRole('button', { name: 'common:ui.cancel', exact: true }).click()
+  await page.evaluate(() => {
+    window.nativeWorkspaceMode = 'local'
+    window.controls.setWorkspaceOpen(true)
+  })
+  const importFolder = page.getByRole('button', {
+    name: 'common:workspacePicker.importFolderCopy',
+    exact: true,
+  })
+  await importFolder.waitFor()
+  await importFolder.click()
+  await page.waitForFunction(
+    () =>
+      ![...document.querySelectorAll('button')].find(
+        (node) => node.textContent === 'common:workspacePicker.importFolderCopy',
+      ).disabled,
   )
   assert.equal(
-    await page.evaluate(() => {
-      try {
-        window.workspaceEntries.normalizeWorkspaceEntries({})
-        return false
-      } catch (error) {
-        return error.kind === 'protocol'
-      }
-    }),
-    true,
+    await workspacePath.inputValue(),
+    '/workspaces/initial',
+    'Cancellation preserves the current path',
   )
+  await page.evaluate(() => {
+    window.importedWorkspace = '/workspace/import-1/Project'
+  })
+  await importFolder.click()
+  await page.waitForFunction(
+    () =>
+      document.querySelector('input:not([type="file"])')?.value === '/workspace/import-1/Project',
+  )
+  await workspacePath.press('Enter')
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  assert.deepEqual(await page.evaluate(() => window.pickerEvidence.selected), [
+    '/workspaces/manual',
+    '/workspace/import-1/Project',
+  ])
+  await page.evaluate(() => {
+    delete window.__PISPER_MOBILE_APP__
+    delete window.__PISPER_MOBILE_PLATFORM__
+    delete window.__TAURI_INTERNALS__
+  })
+
+  // Web 和手机交给浏览器系统选择器；不能回退到服务器文件树。
+  const attachment = page.getByRole('button', {
+    name: 'chat:focusSession.addAttachment',
+    exact: true,
+  })
+  for (const client of ['web', 'mobile-app']) {
+    await page.evaluate((client) => window.controls.setClient(client), client)
+    const chooserPromise = page.waitForEvent('filechooser')
+    await attachment.click()
+    const chooser = await chooserPromise
+    await chooser.setFiles({
+      name: client + '.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('fixture'),
+    })
+    await page.waitForFunction(
+      (name) => window.pickerEvidence.uploads.includes(name),
+      client + '.txt',
+    )
+  }
+  await page.evaluate(() => {
+    window.controls.setClient('web')
+    window.pisperDesktop.pickFiles = () => Promise.resolve(['/workspaces/picked.txt'])
+  })
+  await attachment.click()
+  await page.waitForFunction(() => window.pickerEvidence.attachments.length === 1)
+  assert.deepEqual(await page.evaluate(() => window.pickerEvidence.attachments[0]), {
+    id: 'path:/workspaces/picked.txt',
+    kind: 'path',
+    name: 'picked.txt',
+    path: '/workspaces/picked.txt',
+  })
+  await page.evaluate(() => {
+    window.pisperDesktop.pickFiles = () => Promise.resolve([])
+  })
+  await attachment.click()
+  assert.equal(await page.evaluate(() => window.pickerEvidence.attachments.length), 1)
+  await page.evaluate(() => {
+    window.pisperDesktop.pickFiles = () => Promise.reject(new Error('native_picker_failed'))
+  })
+  await attachment.click()
+  await page.waitForFunction(() => window.pickerEvidence.errors.includes('native_picker_failed'))
+
   await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
   await page.waitForFunction(() => window.evidence.created === 1)
   await page.getByRole('tab', { name: 'navigation:mobileShell.sessionTools', exact: true }).click()
@@ -272,36 +404,10 @@ try {
     .waitFor()
   assert.equal(await approve.count(), 0, 'No stale writes after the chat owner leaves')
 
-  await page.evaluate(() => window.controls.setTab('files'))
-  await page.getByText('one.txt', { exact: true }).waitFor()
-  assert.equal(await page.evaluate(() => window.fileEvidence.requests[0]), '/workspaces/one')
-  await page.getByRole('button', { name: 'folder', exact: true }).click()
-  await page.waitForFunction(() => window.resolveOldListing)
   assert.equal(
-    await page.evaluate(() => window.fileEvidence.requests.at(-1)),
-    '/canonical/one/folder',
+    await page.getByRole('tab', { name: 'navigation:mobileShell.files', exact: true }).count(),
+    0,
   )
-  await page.evaluate(() => window.controls.setSession('two'))
-  await page.getByText('two.txt', { exact: true }).waitFor()
-  await page.evaluate(async () => {
-    window.resolveOldListing()
-    await new Promise(requestAnimationFrame)
-  })
-  assert.equal(await page.getByText('stale.txt', { exact: true }).count(), 0)
-  assert.equal(await page.getByText('two.txt', { exact: true }).count(), 1)
-  await page.evaluate(() => window.controls.setSession('slow'))
-  await page.waitForFunction(() => window.resolveSlowCwd)
-  await page.evaluate(() => window.controls.setSession('two'))
-  await page.getByText('two.txt', { exact: true }).waitFor()
-  await page.evaluate(async () => {
-    window.resolveSlowCwd('/workspaces/slow')
-    await new Promise(requestAnimationFrame)
-  })
-  assert.equal(
-    await page.evaluate(() => window.fileEvidence.requests.includes('/workspaces/slow')),
-    false,
-  )
-  assert.equal(await page.getByText('two.txt', { exact: true }).count(), 1)
 
   await page.setViewportSize({ width: 1024, height: 768 })
   await page.evaluate(() => window.controls.setMode('pad'))
@@ -381,7 +487,7 @@ try {
   await page.waitForFunction(() => window.evidence.closeAll === 1)
   assert.deepEqual(errors, [])
   console.log(
-    'PASS mobile shell: terminal lifetime, independent save, run safety, refresh, layout and touch navigation',
+    'PASS mobile shell: system file selection, workspace paths, terminal lifetime, independent save, run safety, layout and touch navigation',
   )
 } finally {
   await browser?.close()

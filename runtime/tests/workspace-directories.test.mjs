@@ -3,12 +3,20 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
+import { createRouteRegistry } from '../http/route-registry.mjs'
+import { memoryAssetRoutes } from '../http/routes/memory-assets.mjs'
 import {
-  listWorkspaceDirectories,
-  listWorkspaceEntries,
+  resolveWorkspaceDirectory,
   normalizeWorkspacePath,
   workspacePathKey,
 } from '../runtime/workspace-directories.mjs'
+
+test('HTTP clients cannot enumerate host directories through the retired file browser APIs', () => {
+  const registry = createRouteRegistry(memoryAssetRoutes)
+  assert.equal(registry.match('GET', '/api/directories'), null)
+  assert.equal(registry.match('GET', '/api/workspace-entries'), null)
+  assert.ok(registry.match('GET', '/api/assets'))
+})
 
 test('workspace paths remain platform-native without exposing Windows namespace prefixes', () => {
   assert.equal(
@@ -24,78 +32,41 @@ test('workspace paths remain platform-native without exposing Windows namespace 
   assert.equal(workspacePathKey('E:\\Projects\\', 'win32'), 'e:\\projects')
 })
 
-test('directory listings return validated absolute paths for Web workspace selection', async (t) => {
+test('workspace paths are validated without listing directory contents on desktop and mobile', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'pisper-workspaces-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  await Promise.all([
-    mkdir(join(root, 'zeta')),
-    mkdir(join(root, 'Alpha')),
-    writeFile(join(root, 'ignored.txt'), 'not a directory'),
-  ])
-
-  const listing = await listWorkspaceDirectories(root, root)
-
-  assert.equal(listing.path, root)
-  assert.deepEqual(
-    listing.directories.map((entry) => entry.name),
-    ['Alpha', 'zeta'],
-  )
-  assert.ok(listing.directories.every((entry) => entry.path.startsWith(root)))
-
-  const embeddedListing = await listWorkspaceDirectories(root, root, {
-    profile: 'mobile-embedded',
-  })
-  assert.deepEqual(embeddedListing, listing)
-
-  const storeListing = await listWorkspaceDirectories(root, root, {
-    profile: 'mobile-store',
-  })
-  assert.deepEqual(storeListing, listing)
+  await mkdir(join(root, 'project'))
+  await writeFile(join(root, 'file.txt'), 'not a directory')
+  for (const profile of [undefined, 'mobile-embedded', 'mobile-store']) {
+    assert.equal(
+      await resolveWorkspaceDirectory('project', root, { profile }),
+      join(root, 'project'),
+    )
+    assert.equal(await resolveWorkspaceDirectory('', root, { profile }), root)
+    await assert.rejects(
+      resolveWorkspaceDirectory('missing', root, { profile }),
+      /工作目录不存在或不是文件夹/,
+    )
+    await assert.rejects(
+      resolveWorkspaceDirectory('file.txt', root, { profile }),
+      /工作目录不存在或不是文件夹/,
+    )
+  }
 })
 
-test('workspace entry listings expose paths for directories and files without size metadata', async (t) => {
-  const root = await mkdtemp(join(tmpdir(), 'pisper-workspace-files-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  await Promise.all([
-    mkdir(join(root, 'Folder')),
-    writeFile(join(root, 'large.bin'), 'content is never returned'),
-    writeFile(join(root, 'notes.md'), '# Notes'),
-  ])
-
-  const listing = await listWorkspaceEntries(root, root)
-
-  assert.deepEqual(listing.directories, [{ name: 'Folder', path: join(root, 'Folder') }])
-  assert.deepEqual(listing.files, [
-    { name: 'large.bin', path: join(root, 'large.bin') },
-    { name: 'notes.md', path: join(root, 'notes.md') },
-  ])
-  assert.ok(listing.files.every((entry) => !('size' in entry) && !('content' in entry)))
-})
-
-test('workspace selection uses the desktop picker or the server-backed Web browser', async () => {
-  const [
-    cargo,
-    shell,
-    command,
-    bridge,
-    permissions,
-    picker,
-    workspacePicker,
-    chat,
-    schedules,
-    routes,
-  ] = await Promise.all([
-    readFile('src-tauri/Cargo.toml', 'utf8'),
-    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
-    readFile('src-tauri/src/desktop_shell/desktop_bridge.rs', 'utf8'),
-    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
-    readFile('src-tauri/permissions/desktop.toml', 'utf8'),
-    readFile('src/lib/pick-system-directory.ts', 'utf8'),
-    readFile('src/components/WorkspacePicker.tsx', 'utf8'),
-    readFile('src/features/chat/use-session-commands.ts', 'utf8'),
-    readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
-    readFile('runtime/http/routes/memory-assets.mjs', 'utf8'),
-  ])
+test('workspace selection keeps native system dialogs and a manual Runtime path fallback', async () => {
+  const [cargo, shell, command, bridge, permissions, picker, workspacePicker, chat, schedules] =
+    await Promise.all([
+      readFile('src-tauri/Cargo.toml', 'utf8'),
+      readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
+      readFile('src-tauri/src/desktop_shell/desktop_bridge.rs', 'utf8'),
+      readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
+      readFile('src-tauri/permissions/desktop.toml', 'utf8'),
+      readFile('src/lib/pick-system-directory.ts', 'utf8'),
+      readFile('src/components/WorkspacePicker.tsx', 'utf8'),
+      readFile('src/features/chat/use-session-commands.ts', 'utf8'),
+      readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+    ])
   assert.match(cargo, /tauri-plugin-dialog/)
   assert.match(shell, /plugin\(tauri_plugin_dialog::init\(\)\)/)
   assert.match(shell, /desktop_bridge::desktop_pick_directory/)
@@ -111,11 +82,9 @@ test('workspace selection uses the desktop picker or the server-backed Web brows
   assert.match(permissions, /"desktop_pick_files"/)
   assert.match(picker, /window\.pisperDesktop\?\.pickDirectory/)
   assert.doesNotMatch(picker, /showDirectoryPicker|webkitdirectory/)
-  assert.match(workspacePicker, /\/api\/directories\?path=/)
+  assert.doesNotMatch(workspacePicker, /\/api\/directories|\/api\/workspace-entries/)
   assert.match(chat, /setWorkspaceSession\(session\)/)
   assert.match(chat, /pickSystemDirectory\(session\.cwd\)/)
   assert.match(schedules, /<WorkspacePicker/)
   assert.match(schedules, /pickSystemDirectory\(value\)/)
-  assert.match(routes, /\/api\/directories/)
-  assert.match(routes, /\/api\/workspace-entries/)
 })

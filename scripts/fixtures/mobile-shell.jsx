@@ -4,20 +4,16 @@ import { createRoot } from 'react-dom/client'
 import { createPortal } from 'react-dom'
 import { MobileShellProvider } from '@/components/layout/MobileShellContext'
 import { MobileThreePane } from '@/components/layout/MobileThreePane'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from '@/lib/startup-queries'
+import { SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarRecentSessions } from '@/components/layout/SidebarRecentSessions'
 import { MobileContextScreen } from '@/app/mobile/MobileContextScreen'
-import {
-  normalizeWorkspaceEntries,
-  joinWorkspacePath,
-  parentWorkspacePath,
-} from '@/features/chat/api/workspace-entries'
-window.workspaceEntries = { normalizeWorkspaceEntries, joinWorkspacePath, parentWorkspacePath }
-window.fileEvidence = { requests: [] }
-const resolveSessionCwd = (id) =>
-  id === 'slow'
-    ? new Promise((resolve) => {
-        window.resolveSlowCwd = resolve
-      })
-    : Promise.resolve(`/workspaces/${id}`)
+import { WorkspacePicker } from '@/components/WorkspacePicker'
+import { AttachmentPicker } from '@/features/chat/AttachmentPicker'
+import { useClientStore } from '@/stores/client-store'
+window.pickerEvidence = { selected: [], attachments: [], uploads: [], errors: [] }
+const resolveSessionCwd = (id) => Promise.resolve(`/workspaces/${id}`)
 
 window.evidence = {
   closeAll: 0,
@@ -71,6 +67,7 @@ window.pisperDesktop = {
 }
 const labels = new Proxy({}, { get: (_, key) => String(key) })
 export function Fixture() {
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [pane, setPane] = useState('context')
   const [tab, setTab] = useState('terminal')
   const [mode, setMode] = useState('phone')
@@ -78,7 +75,16 @@ export function Fixture() {
   const [streaming, setStreaming] = useState(false)
   const [mounted, setMounted] = useState(true)
   const [sessionToolsHost, setSessionToolsHost] = useState(null)
-  window.controls = { setPane, setTab, setMode, setSession, setStreaming, setMounted }
+  window.controls = {
+    setPane,
+    setTab,
+    setMode,
+    setSession,
+    setStreaming,
+    setMounted,
+    setWorkspaceOpen,
+    setClient: (client) => useClientStore.setState({ client }),
+  }
   if (!mounted) return null
   return (
     <MobileShellProvider
@@ -93,6 +99,27 @@ export function Fixture() {
         setSessionToolsHost,
       }}
     >
+      <WorkspacePicker
+        open={workspaceOpen}
+        initialPath="/workspaces/initial"
+        onOpenChange={setWorkspaceOpen}
+        onSelect={(path) => {
+          if (window.failWorkspaceSave) throw new Error('workspace_save_failed')
+          window.pickerEvidence.selected.push(path)
+        }}
+      />
+      <AttachmentPicker
+        cwd="/workspaces/initial"
+        selection={{
+          attachments: [],
+          addFiles: (files) => {
+            window.pickerEvidence.uploads.push(...Array.from(files, (file) => file.name))
+            return Promise.resolve(true)
+          },
+          addAttachments: (attachments) => window.pickerEvidence.attachments.push(...attachments),
+          setError: (error) => window.pickerEvidence.errors.push(error.message),
+        }}
+      />
       {sessionToolsHost &&
         createPortal(
           <textarea aria-label="session tool draft" defaultValue="" />,
@@ -140,4 +167,21 @@ export function Fixture() {
     </MobileShellProvider>
   )
 }
-createRoot(document.getElementById('root')).render(<Fixture />)
+window.sidebarEvidence = { navigations: [], notices: [] }
+function SidebarFixture() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SidebarProvider mobile={false}>
+        <SidebarRecentSessions
+          navigate={(page) => window.sidebarEvidence.navigations.push(page)}
+          notify={(message, tone) => window.sidebarEvidence.notices.push({ message, tone })}
+          requestText={() => Promise.resolve(null)}
+          requestConfirm={() => Promise.resolve(false)}
+        />
+      </SidebarProvider>
+    </QueryClientProvider>
+  )
+}
+createRoot(document.getElementById('root')).render(
+  location.search === '?sidebar' ? <SidebarFixture /> : <Fixture />,
+)
