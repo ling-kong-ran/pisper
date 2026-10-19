@@ -337,6 +337,14 @@ export function SessionTreeDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
+        onCloseAutoFocus={(event) => {
+          const trigger = document.getElementById(`task-${sessionId}-more`)
+          // 菜单项已经卸载；只恢复仍然处于活动任务中的稳定入口，避免抢走切换后的焦点。
+          if (trigger?.closest('[data-task-workspace]')?.getAttribute('data-active') === 'true') {
+            event.preventDefault()
+            trigger.focus()
+          }
+        }}
         className={`chat-resource-dialog grid-rows-[auto_minmax(0,1fr)] overflow-hidden session-tree-dialog ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none !gap-0 !p-0' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
         showCloseButton={false}
       >

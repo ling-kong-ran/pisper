@@ -65,7 +65,16 @@ function contrastRatio(first: Rgb, second: Rgb) {
 }
 
 function onAccent(base: Rgb) {
-  return contrastRatio(base, WHITE) >= contrastRatio(base, INK) ? '#fff' : '#18181b'
+  if (contrastRatio(base, WHITE) >= 4.5) return '#ffffff'
+  if (contrastRatio(base, INK) >= 4.5) return '#18181b'
+  // 中间亮度颜色与墨色可能仍不足 4.5；纯黑补足该区间，不修改用户选色。
+  return '#000000'
+}
+
+function readableHover(base: Rgb, foreground: string, amount: number) {
+  const ink = hexToRgb(foreground)
+  const target = contrastRatio(ink, WHITE) > contrastRatio(ink, INK) ? WHITE : INK
+  return mix(base, target, amount)
 }
 
 // 强调色会出现在浅色或深色表面上的小字号文字中,不足对比度时继续向可读方向混合
@@ -88,16 +97,16 @@ function strongOnDarkSurface(base: Rgb) {
 // 运行时注入不会经过 CSS 构建降级；直接生成 RGBA，保留旧 WebView 中的透明度。
 export function customAccentStyleRules(hex: string) {
   const base = hexToRgb(hex)
-  const hover = mix(base, INK, 0.12)
+  const on = onAccent(base)
+  const hover = readableHover(base, on, 0.12)
   const strong = strongOnLightSurface(base)
   const soft = mix(base, WHITE, 0.93)
   const border = mix(base, WHITE, 0.72)
   const darkBase = mix(base, WHITE, 0.22)
-  const darkHover = mix(base, WHITE, 0.33)
   const darkStrong = strongOnDarkSurface(base)
   const darkBaseRgb = hexToRgb(darkBase)
-  const on = onAccent(base)
   const darkOn = onAccent(darkBaseRgb)
+  const darkHover = readableHover(darkBaseRgb, darkOn, 0.14)
   return `:root[data-accent='custom'] {
   --star: ${hex};
   --star-hover: ${hover};
@@ -111,7 +120,7 @@ export function customAccentStyleRules(hex: string) {
   --brand-blue-soft: ${soft};
   --brand-blue-border: ${border};
   --accent-ring: ${alpha(base, 0.16)};
-  --focus: ${hex};
+  --focus: ${strong};
   --focus-ring: ${alpha(base, 0.18)};
 }
 :root[data-theme='dark'][data-accent='custom'] {
@@ -127,7 +136,7 @@ export function customAccentStyleRules(hex: string) {
   --brand-blue-soft: ${alpha(darkBaseRgb, 0.15)};
   --brand-blue-border: ${alpha(darkBaseRgb, 0.34)};
   --accent-ring: ${alpha(darkBaseRgb, 0.22)};
-  --focus: ${darkBase};
+  --focus: ${darkStrong};
   --focus-ring: ${alpha(darkBaseRgb, 0.26)};
 }`
 }

@@ -1,4 +1,4 @@
-// 设置页横滑条。手机主入口已改成左中右三屏，不再使用底部主导航。
+// 移动端设置横滑条；主导航由常驻功能栏统一提供。
 import { useEffect, useMemo, useRef } from 'react'
 import {
   getSettingsNavigation,

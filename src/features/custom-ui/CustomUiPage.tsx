@@ -1,3 +1,4 @@
+import { PageFrame } from '@/components/app/PageFrame'
 // 自定义组件页：加载 dataDir/custom-ui/ 下用户自写的静态 UI 组件，
 // 左侧组件列表 + 右侧沙箱 iframe 渲染。组件与应用的交互全部经过
 // component-bridge 的 postMessage 代理（权限按 manifest 声明过滤）。
@@ -34,6 +35,7 @@ import { resolveFloatingWidgetIds, useFloatingWidgetsStore } from './floating-wi
 import type { CustomUiComponent } from './custom-ui-api'
 
 type CustomUiPageProps = {
+  embedded?: boolean
   notify: Notify
 }
 
@@ -122,7 +124,7 @@ function ComponentStage({
   )
 }
 
-export function CustomUiPage({ notify }: CustomUiPageProps) {
+export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
   const { t } = useI18n()
   const catalog = useCustomUiComponents()
   const components = catalog.data?.components || []
@@ -313,80 +315,82 @@ export function CustomUiPage({ notify }: CustomUiPageProps) {
   }
 
   return (
-    <div className="flex min-h-[100%] min-w-0 flex-col gap-[12px]">
-      {importPanel}
-      {importNotice}
-      {error && (
-        <AppNotice>
-          <FolderCode size={14} />
-          <span>{error}</span>
-        </AppNotice>
-      )}
-      {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-[12px] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
-        <Panel className="flex min-h-0 flex-col gap-[8px] overflow-y-auto p-2">
-          <div className="flex items-center justify-between px-1 pt-1">
-            <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
-              {t('custom-ui:customUiPage.installedComponents', { count: components.length })}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-[26px] w-[26px]"
-              title={t('custom-ui:customUiPage.rescan')}
-              aria-label={t('custom-ui:customUiPage.rescan')}
-              disabled={refreshing}
-              onClick={() => void catalog.refetch()}
-            >
-              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            </Button>
-          </div>
-          {components.map((component) => (
-            <button
-              key={component.id}
-              type="button"
-              onClick={() => setSelectedId(component.id)}
-              className={cn(
-                'flex min-w-0 cursor-pointer flex-col gap-[2px] rounded-[var(--r-md)] border-0 px-[10px] py-[8px] text-left transition-colors',
-                component.id === selected?.id
-                  ? 'bg-[var(--accent-soft)] text-[var(--text)]'
-                  : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]',
-              )}
-            >
-              <span className="flex min-w-0 items-center gap-[6px]">
-                <Blocks size={13} className="flex-none text-[var(--star-strong)]" />
-                <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                  {customUiComponentLabel(component, t)}
-                </strong>
-              </span>
-              {component.builtIn && (
-                <small className="pl-[19px] text-xs text-[var(--text-muted)]">
-                  {t('custom-ui:builtIn.badge')}
-                </small>
-              )}
-              <small className="overflow-hidden text-ellipsis whitespace-nowrap pl-[19px] text-[11px] text-[var(--text-muted)]">
-                {component.id}
-              </small>
-            </button>
-          ))}
-          <p className="m-0 mt-auto break-all px-1 pb-1 text-[11px] leading-[1.6] text-[var(--text-muted)]">
-            {t('custom-ui:customUiPage.directoryHint', { path: root })}
-          </p>
-        </Panel>
-        {selected ? (
-          <ComponentStage
-            key={`${selected.id}:${catalog.dataUpdatedAt}`}
-            component={selected}
-            notify={notify}
-            floating={floatingIds.includes(selected.id)}
-            onToggleFloating={toggleFloating}
-          />
-        ) : (
-          <Panel className="grid place-items-center text-[12px] text-[var(--text-muted)]">
-            {t('custom-ui:customUiPage.selectComponent')}
-          </Panel>
+    <PageFrame variant="collection" embedded={embedded}>
+      <div className="flex min-w-0 flex-col gap-3">
+        {importPanel}
+        {importNotice}
+        {error && (
+          <AppNotice>
+            <FolderCode size={14} />
+            <span>{error}</span>
+          </AppNotice>
         )}
+        {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-[12px] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+          <Panel className="flex min-h-0 flex-col gap-[8px] overflow-y-auto p-2">
+            <div className="flex items-center justify-between px-1 pt-1">
+              <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                {t('custom-ui:customUiPage.installedComponents', { count: components.length })}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-[26px] w-[26px]"
+                title={t('custom-ui:customUiPage.rescan')}
+                aria-label={t('custom-ui:customUiPage.rescan')}
+                disabled={refreshing}
+                onClick={() => void catalog.refetch()}
+              >
+                <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+              </Button>
+            </div>
+            {components.map((component) => (
+              <button
+                key={component.id}
+                type="button"
+                onClick={() => setSelectedId(component.id)}
+                className={cn(
+                  'flex min-w-0 cursor-pointer flex-col gap-[2px] rounded-[var(--r-md)] border-0 px-[10px] py-[8px] text-left transition-colors',
+                  component.id === selected?.id
+                    ? 'bg-[var(--accent-soft)] text-[var(--text)]'
+                    : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]',
+                )}
+              >
+                <span className="flex min-w-0 items-center gap-[6px]">
+                  <Blocks size={13} className="flex-none text-[var(--star-strong)]" />
+                  <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+                    {customUiComponentLabel(component, t)}
+                  </strong>
+                </span>
+                {component.builtIn && (
+                  <small className="pl-[19px] text-xs text-[var(--text-muted)]">
+                    {t('custom-ui:builtIn.badge')}
+                  </small>
+                )}
+                <small className="overflow-hidden text-ellipsis whitespace-nowrap pl-[19px] text-[11px] text-[var(--text-muted)]">
+                  {component.id}
+                </small>
+              </button>
+            ))}
+            <p className="m-0 mt-auto break-all px-1 pb-1 text-[11px] leading-[1.6] text-[var(--text-muted)]">
+              {t('custom-ui:customUiPage.directoryHint', { path: root })}
+            </p>
+          </Panel>
+          {selected ? (
+            <ComponentStage
+              key={`${selected.id}:${catalog.dataUpdatedAt}`}
+              component={selected}
+              notify={notify}
+              floating={floatingIds.includes(selected.id)}
+              onToggleFloating={toggleFloating}
+            />
+          ) : (
+            <Panel className="grid place-items-center text-[12px] text-[var(--text-muted)]">
+              {t('custom-ui:customUiPage.selectComponent')}
+            </Panel>
+          )}
+        </div>
       </div>
-    </div>
+    </PageFrame>
   )
 }

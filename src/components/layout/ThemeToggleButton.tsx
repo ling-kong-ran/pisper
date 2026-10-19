@@ -1,6 +1,7 @@
 import { Clock, MonitorCog, Moon, Sun, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { nextThemeMode, type ThemeMode } from '@/stores/ui-store'
 
@@ -16,11 +17,13 @@ export function ThemeToggleButton({
   theme,
   onCycle,
   compact = false,
+  menuItem = false,
   className,
 }: {
   theme: ThemeMode
   onCycle: () => void
   compact?: boolean
+  menuItem?: boolean
   className?: string
 }) {
   const { t } = useI18n()
@@ -32,6 +35,17 @@ export function ThemeToggleButton({
   }
   const Icon = THEME_ICONS[theme]
   const description = { theme: labels[theme], next: labels[nextThemeMode(theme)] }
+  if (menuItem)
+    return (
+      <DropdownMenuItem
+        data-testid="theme-toggle"
+        aria-label={t('navigation:pageHeader.themeThemeClickToSwitchThemes', description)}
+        onSelect={onCycle}
+      >
+        <Icon aria-hidden="true" />
+        {t('navigation:pageHeader.themeLabel', description)}
+      </DropdownMenuItem>
+    )
   return (
     <Button
       variant={compact ? 'ghost' : 'outline'}

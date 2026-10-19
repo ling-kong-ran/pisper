@@ -1,7 +1,7 @@
 import type { SessionFileChangeFile } from './chat-api'
 
 export type SessionContextPreference = 'auto' | 'open' | 'closed'
-export type SessionContextPresentation = 'aside' | 'sheet' | 'closed'
+export type SessionContextPresentation = 'aside' | 'sheet' | 'content' | 'closed'
 
 export type SessionContextRun = {
   sessionId: string
@@ -55,6 +55,18 @@ export const SESSION_CONTEXT_DEFAULT_WIDTH = 360
 export const SESSION_CONTEXT_MIN_WIDTH = 280
 export const SESSION_CONTEXT_MAX_WIDTH = 720
 export const SESSION_CHAT_MIN_WIDTH = 400
+
+export function sessionContextDisplayWidth(preferred: number, availableWidth: number) {
+  const chatMinimum = Math.min(
+    SESSION_CHAT_MIN_WIDTH,
+    availableWidth - SESSION_CONTEXT_MIN_WIDTH - 8,
+  )
+  const maximum = Math.max(
+    SESSION_CONTEXT_MIN_WIDTH,
+    Math.min(SESSION_CONTEXT_MAX_WIDTH, availableWidth - chatMinimum - 8),
+  )
+  return Math.min(maximum, normalizeSessionContextWidth(preferred))
+}
 
 export function normalizeSessionContextWidth(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return SESSION_CONTEXT_DEFAULT_WIDTH

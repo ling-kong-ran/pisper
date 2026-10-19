@@ -27,6 +27,35 @@ export type SessionOpenRequest = {
   targetEntryId?: string
 }
 
+export function classifyDockSnapshot(raw: unknown) {
+  const layout = parseDockLayoutEnvelope(raw)
+  return { layout, writable: raw === null || raw === undefined || raw === '' || Boolean(layout) }
+}
+
+export function resolveTaskOpen({
+  sessionId,
+  visibleIds,
+  focusedId,
+  disposition,
+  width,
+  height,
+}: {
+  sessionId: string
+  visibleIds: readonly string[]
+  focusedId: string
+  disposition: SessionOpenDisposition
+  width: number
+  height: number
+}): { kind: 'focus' | 'split' | 'unavailable' | 'add' } | { kind: 'replace'; replacedId: string } {
+  if (visibleIds.includes(sessionId)) return { kind: 'focus' }
+  if (disposition !== 'open') {
+    const available =
+      disposition === 'left' || disposition === 'right' ? width >= 600 : height >= 480
+    return { kind: available ? 'split' : 'unavailable' }
+  }
+  return focusedId ? { kind: 'replace', replacedId: focusedId } : { kind: 'add' }
+}
+
 // 类型守卫：确认值是普通对象（非数组）。
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

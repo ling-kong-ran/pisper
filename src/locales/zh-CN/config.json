@@ -339,11 +339,13 @@
   "interfaceSettings.accentCustom": "自定义",
   "interfaceSettings.customAccentColor": "自定义强调色",
   "interfaceSettings.customAccentHex": "输入 HEX 颜色",
-  "interfaceSettings.customAccentHint": "挑一个颜色，即刻全界面生效",
+  "interfaceSettings.customAccentHint": "用于活动标记、交互链接和键盘焦点；主按钮与状态颜色保持不变。",
   "interfaceSettings.invalidAccentColor": "请输入 6 位 HEX 颜色（如 #1677e8）",
   "interfaceSettings.accentNeutral": "中性黑",
   "interfaceSettings.accentTeal": "青绿色",
   "interfaceSettings.accentViolet": "紫罗兰",
+  "interfaceSettings.advanced": "高级",
+  "interfaceSettings.visualStyle": "视觉风格",
   "interfaceSettings.appearance": "外观",
   "interfaceSettings.appearanceDescription": "选择界面的明暗模式、强调色和视觉风格。",
   "interfaceSettings.automaticByTime": "按时间自动",
@@ -391,6 +393,7 @@
   "languageSettings.currentDensity": "当前密度",
   "languageSettings.currentLanguage": "当前语言",
   "languageSettings.defaultSpacingAndSizing": "默认间距与尺寸",
+  "languageSettings.interfaceOnlyHint": "仅影响界面，不改变 Agent 回复语言。",
   "languageSettings.displayLanguage": "界面语言",
   "languageSettings.displayLanguageChangedToEnglish": "界面语言已切换为英文",
   "languageSettings.displayLanguageChangedToSimplifiedChinese": "界面语言已切换为简体中文",
@@ -647,5 +650,6 @@
   "providerWorkbench.addConnectionHint": "点击页面顶部的“快速设置”，按步骤填写接口地址、协议和密钥并选择模型。",
   "providerWorkbench.scanningLocal": "正在接入本机 Claude Code / Codex 配置…",
   "providerWorkbench.localImportStatus": "本地配置自动接入 · 新增 {imported} 项 · 待检查 {skipped} 项",
-  "remoteWorkspace.title": "连接到 Linux 工作区"
+  "remoteWorkspace.title": "连接到 Linux 工作区",
+  "interfaceSettings.accentDescription": "用于活动标记、交互链接和键盘焦点；主按钮与状态颜色保持不变。"
 }

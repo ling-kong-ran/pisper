@@ -1,6 +1,6 @@
 // 侧边栏「最近会话」区块：搜索、按工作区分组的会话列表与右键菜单
 //（空白处新建项目/删除项目、分组上新建会话/重命名项目/删除项目）。
-// 从 AppSidebar 拆出并懒加载：应用壳属于 eager 入口、受打包预算约束，
+// 由应用壳经公共导航入口懒加载，任务组织规则由聊天领域持有。
 // 目录选择弹窗与 radix 右键菜单原语只在区块内按需加载。
 import {
   lazy,
@@ -22,6 +22,7 @@ import {
   FolderPlus,
   MessageSquare,
   LoaderCircle,
+  PanelRight,
   Pencil,
   Pin,
   PinOff,
@@ -30,6 +31,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import type { SessionSplitDisposition } from './dock-layout'
 import { STORAGE_KEYS } from '@/app/storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
@@ -95,7 +97,7 @@ type SessionSummary = {
 
 type SessionGroup = WorkspaceSessionGroup<SessionSummary>
 
-type SidebarRecentSessionsProps = {
+type ProjectTaskListProps = {
   navigate: (page: string) => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
@@ -127,12 +129,12 @@ function WorkspaceActionButton({
   )
 }
 
-export function SidebarRecentSessions({
+export function ProjectTaskList({
   navigate,
   requestText,
   requestConfirm,
   notify,
-}: SidebarRecentSessionsProps) {
+}: ProjectTaskListProps) {
   const { t, language } = useI18n()
   const queryClient = useQueryClient()
   const { isMobile, setOpenMobile } = useSidebar()
@@ -244,6 +246,12 @@ export function SidebarRecentSessions({
   const openRecentSession = (id: string) => {
     setActiveSessionId(id)
     requestSessionSelection(id)
+    navigate('chat')
+    if (isMobile) setOpenMobile(false)
+  }
+
+  const splitSession = (id: string, direction: SessionSplitDisposition) => {
+    requestSessionSelection(id, direction)
     navigate('chat')
     if (isMobile) setOpenMobile(false)
   }
@@ -697,6 +705,28 @@ export function SidebarRecentSessions({
                   <MessageSquare size={13} />
                   {t('navigation:appSidebar.openSession')}
                 </ContextMenuItem>
+                {!isMobile && (
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>
+                      <PanelRight size={13} />
+                      {t('chat:workbench.openSplit')}
+                    </ContextMenuSubTrigger>
+                    <ContextMenuSubContent>
+                      <ContextMenuItem onSelect={() => splitSession(menuTargetSession.id, 'left')}>
+                        {t('chat:focusSession.splitToLeft')}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => splitSession(menuTargetSession.id, 'right')}>
+                        {t('chat:focusSession.splitToRight')}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => splitSession(menuTargetSession.id, 'above')}>
+                        {t('chat:focusSession.splitToTop')}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => splitSession(menuTargetSession.id, 'below')}>
+                        {t('chat:focusSession.splitToBottom')}
+                      </ContextMenuItem>
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                )}
                 <ContextMenuItem onSelect={() => void renameSession(menuTargetSession)}>
                   <Pencil size={13} />
                   {t('chat:chatHistoryPage.renameChat')}

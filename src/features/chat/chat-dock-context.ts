@@ -11,7 +11,7 @@ import type {
 } from '@/types/chat'
 import type { SessionOpenDisposition } from './dock-layout'
 import type { WithdrawnInput } from './chat-api'
-import type { SessionContextTab } from './SessionContextPanel'
+import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
 export type ChatDockContextValue = {
   sessions: SessionSummary[]
@@ -24,10 +24,8 @@ export type ChatDockContextValue = {
   globalError: string
   activeId: string
   compactDock: boolean
-  contextTab: SessionContextTab | null
-  contextCompact: boolean
-  contextPanelId: string
-  toggleSessionContext: (sessionId: string, open: boolean) => void
+  mobileLayout: boolean
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   sessionTreePulseSessionId: string
   sessionTreePulseToken: number
   pendingAsset: PendingAsset | null

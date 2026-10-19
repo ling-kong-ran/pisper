@@ -187,6 +187,12 @@ export function createScrollFollowController(
   return {
     maintainBottom,
     pauseFollowing,
+    restorePosition(top: number) {
+      if (disposed || !Number.isFinite(top)) return
+      pauseFollowing()
+      setUnread(false)
+      writeTop(Math.max(0, top))
+    },
     contentChanged() {
       if (disposed) return
       if (pinned) maintainBottom()

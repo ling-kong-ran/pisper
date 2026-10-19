@@ -184,5 +184,10 @@
   "mobileShell.terminal": "Terminal",
   "mobileShell.terminalUnavailable": "No terminal is available on this device",
   "mobileShell.noSessionChanges": "Open a chat to see file changes here",
-  "mobileShell.changesOpenChat": "Open chat to view live changes"
+  "mobileShell.changesOpenChat": "Open chat to view live changes",
+  "rail.workspace": "Workspace",
+  "rail.resources": "Resources",
+  "rail.extensions": "Extensions",
+  "rail.automation": "Automation",
+  "pageHeader.themeLabel": "Theme: {theme}"
 }

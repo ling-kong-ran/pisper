@@ -1,33 +1,18 @@
-// 聊天主页面：保留会话目录、实时同步与辅助面板，仅挂载当前活动会话。
-// 此 UI 不挂载 Dockview；历史分屏布局不会恢复，其他会话仍可在后台运行。
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { createPortal } from 'react-dom'
+// 聊天主页面持有会话目录与实时连接，任务工作区在各分屏内独立装配。
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
 import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
-import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { AppEmptyState } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
 import { waitForMobileRuntimeReady } from '@/lib/http'
-import { isPlanActive, resolveSessionPlan } from '@/lib/session-state'
-import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
-import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { SingleSessionPanel } from './ChatDock'
+import { MobileSessionPanel } from './ChatDock'
 import { chatApi } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useChatDock } from './use-chat-dock'
@@ -38,19 +23,12 @@ import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
 import { updateSessionOrganization } from './session-organization-api'
 import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
-import { resolveSessionContextPresentation } from './session-context-layout'
-import { useSessionContextStore } from './session-context-store'
-import { useSessionContextAutoReveal } from './useSessionContextAutoReveal'
-import type { SessionContextTab } from './SessionContextPanel'
-import { SessionContextLayout } from './SessionContextLayout'
 import { SideChatProvider } from './SideChatProvider'
 import type { SideChatRuntime } from './side-chat-context'
-import { resolveSessionStreaming } from './session-streaming-state'
 
-const LazySessionContextPanel = lazy(() =>
-  import('./SessionContextPanel').then((module) => ({ default: module.SessionContextPanel })),
+const LazyChatDockView = lazy(() =>
+  import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
 )
-const SESSION_CONTEXT_PANEL_ID = 'chat-session-context-panel'
 
 function invokeMobile<T>(command: string): Promise<T> {
   const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
@@ -68,7 +46,6 @@ type ChatPageProps = {
   navigate: (page: string, options?: { replace?: boolean }) => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
-  reportActiveSessionRun: (state: { sessionId: string; streaming: boolean } | null) => void
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -79,7 +56,6 @@ export function ChatPage({
   notify,
   navigate,
   browserNotify,
-  reportActiveSessionRun,
   registerPrimaryAction,
   pendingAsset,
   onAssetConsumed,
@@ -91,25 +67,7 @@ export function ChatPage({
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const chatLayoutRef = useRef<HTMLDivElement>(null)
-  const [contextWidth, setContextWidth] = useState(0)
-  const contextOpen = useSessionContextStore((state) => state.open)
-  const setContextOpen = useSessionContextStore((state) => state.setOpen)
-  const [contextTab, setContextTab] = useState<SessionContextTab>('files')
-  useLayoutEffect(() => {
-    const layout = chatLayoutRef.current
-    if (!layout) return
-    const measure = () => setContextWidth(layout.clientWidth)
-    measure()
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', measure)
-      return () => window.removeEventListener('resize', measure)
-    }
-    const observer = new ResizeObserver(measure)
-    observer.observe(layout)
-    return () => observer.disconnect()
-  }, [])
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
   const resumeSyncRef = useRef<Promise<void> | null>(null)
@@ -152,82 +110,9 @@ export function ChatPage({
     localStreamSessionsRef,
     loadSessionMessages: liveSync.loadSessionMessages,
     releaseSessionState: catalog.releaseSessionState,
-    singleSessionLayout: true,
+    singleSessionLayout: mobileLayout,
     notify,
   })
-  const activeSession = catalog.sessions.find((session) => session.id === catalog.activeId)
-  const activeSessionState = catalog.sessionStates[catalog.activeId]
-  const activeStreaming = resolveSessionStreaming(activeSessionState, activeSession)
-  // 壳层仅持有只读投影；本地流和快照的协调仍由聊天目录负责。
-  useLayoutEffect(() => {
-    reportActiveSessionRun({ sessionId: catalog.activeId, streaming: activeStreaming })
-    return () => reportActiveSessionRun(null)
-  }, [activeStreaming, catalog.activeId, reportActiveSessionRun])
-  const activeCompleted = Boolean(
-    activeSessionState?.lifecycle?.phase === 'completed' &&
-    !activeSessionState.error &&
-    !activeSessionState.runStopped,
-  )
-  const sessionPlan = resolveSessionPlan(activeSessionState, activeSession)
-  const visiblePlan = isPlanActive(sessionPlan, { streaming: activeStreaming }) ? sessionPlan : null
-  const shell = useMobileShell()
-  // 移动端通过壳层 DOM 插槽展示原面板，状态和侧聊生命周期仍归聊天页面。
-  const contextPresentation = shell.active
-    ? 'closed'
-    : resolveSessionContextPresentation({
-        availableWidth: contextWidth,
-        mobileLayout,
-        hasSession: Boolean(activeSession),
-        preference: contextOpen ? 'open' : 'closed',
-      })
-  const contextCompact = mobileLayout || contextWidth < 800
-  const mobileToolsVisible =
-    shell.active &&
-    shell.tab === 'session-tools' &&
-    (shell.mode === 'pad' || shell.pane === 'context')
-  const [mobileToolsMounted, setMobileToolsMounted] = useState(false)
-  useEffect(() => {
-    if (mobileToolsVisible) setMobileToolsMounted(true)
-  }, [mobileToolsVisible])
-  useSessionContextAutoReveal({
-    sessionId: catalog.activeId,
-    streaming: activeStreaming,
-    completed: activeCompleted,
-    runStartedAt:
-      typeof activeSessionState?.runStartedAt === 'string' ? activeSessionState.runStartedAt : null,
-    enabled: true,
-    open: shell.active ? mobileToolsVisible : contextPresentation !== 'closed',
-    onReveal: () => {
-      setContextTab('files')
-      if (shell.active) shell.openContext('session-tools')
-      else setContextOpen(true)
-    },
-  })
-  const setActiveId = catalog.setActiveId
-  const toggleSessionContext = useCallback(
-    (sessionId: string, open: boolean) => {
-      if (!sessionId) return
-      if (shell.active) {
-        if (open) {
-          setActiveId(sessionId)
-          setMobileToolsMounted(true)
-          shell.openContext('session-tools')
-        } else {
-          if (shell.mode === 'pad') shell.openContext('assets')
-          else shell.setPane('chat')
-        }
-        return
-      }
-      if (open) {
-        setActiveId(sessionId)
-        setContextOpen(true)
-      } else {
-        setContextOpen(false)
-      }
-    },
-    [setActiveId, setContextOpen, shell],
-  )
-
   const createSessionRecord = catalog.createSessionRecord
   const loadSessionMessages = liveSync.loadSessionMessages
   const refreshSessions = catalog.refreshSessions
@@ -412,16 +297,8 @@ export function ChatPage({
       globalError: catalog.globalError,
       activeId: catalog.activeId,
       compactDock: dock.compactDock,
-      contextTab: shell.active
-        ? mobileToolsVisible
-          ? contextTab
-          : null
-        : contextPresentation === 'closed'
-          ? null
-          : contextTab,
-      contextCompact,
-      contextPanelId: SESSION_CONTEXT_PANEL_ID,
-      toggleSessionContext,
+      mobileLayout,
+      requestConfirm,
       sessionTreePulseSessionId: recallPulse.sessionId,
       sessionTreePulseToken: recallPulse.token,
       pendingAsset,
@@ -462,14 +339,10 @@ export function ChatPage({
       catalog.globalError,
       catalog.activeId,
       dock.compactDock,
-      contextPresentation,
-      contextTab,
-      contextCompact,
-      shell,
-      mobileToolsVisible,
-      toggleSessionContext,
       dock.splitDockPanel,
       dock.closeDockPanel,
+      mobileLayout,
+      requestConfirm,
       recallPulse.sessionId,
       recallPulse.token,
       pendingAsset,
@@ -536,66 +409,49 @@ export function ChatPage({
     ],
   )
 
-  const contextPanel = activeSession &&
-    (shell.active
-      ? mobileToolsMounted || mobileToolsVisible
-      : contextPresentation !== 'closed') && (
-      <Suspense
-        fallback={
-          contextPresentation === 'aside' ? (
-            <aside
-              className="h-full min-h-0 w-full rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--panel)] p-4 text-sm text-[var(--text-muted)]"
-              role="status"
-            >
-              {t('chat:focusSession.gitLoading')}
-            </aside>
-          ) : null
-        }
-      >
-        <LazySessionContextPanel
-          key={activeSession.id}
-          panelId={SESSION_CONTEXT_PANEL_ID}
-          compact={!shell.active && contextPresentation === 'sheet'}
-          embedded={shell.active}
-          sessionId={activeSession.id}
-          tab={contextTab}
-          plan={runtimeFeatureAvailable(capabilities, 'plans') ? visiblePlan : null}
-          streaming={activeStreaming}
-          plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
-          requestConfirm={requestConfirm}
-          onTabChange={setContextTab}
-          onClose={() => toggleSessionContext(activeSession.id, false)}
-        />
-      </Suspense>
-    )
-
   return (
     <SideChatProvider runtime={sideChatRuntime}>
-      {shell.active && shell.sessionToolsHost && createPortal(contextPanel, shell.sessionToolsHost)}
       <div
         ref={chatLayoutRef}
         className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1"
       >
-        <SessionContextLayout
-          availableWidth={contextWidth}
-          presentation={contextPresentation}
-          context={shell.active ? null : contextPanel}
-          side="right"
-        >
-          {catalog.loading ? (
-            <AppEmptyState>
-              <RefreshCw className="animate-spin" size={24} />
-              <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
-              <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-            </AppEmptyState>
-          ) : (
-            <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
-              <ChatDockContext.Provider value={dockContextValue}>
-                {clientLoaded && <SingleSessionPanel onCreateSession={createSession} />}
-              </ChatDockContext.Provider>
-            </div>
-          )}
-        </SessionContextLayout>
+        {catalog.loading ? (
+          <AppEmptyState>
+            <RefreshCw className="animate-spin" size={24} />
+            <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
+            <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
+          </AppEmptyState>
+        ) : (
+          <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
+            <ChatDockContext.Provider value={dockContextValue}>
+              {clientLoaded &&
+                (mobileLayout ? (
+                  <MobileSessionPanel
+                    sessionIds={dock.mobileSessionIds}
+                    onSelectSession={dock.openSessionInDock}
+                    onCreateSession={createSession}
+                    onOpenHistory={() => navigate('chatHistory')}
+                  />
+                ) : (
+                  <Suspense
+                    fallback={
+                      <div role="status" className="p-4">
+                        {t('chat:chatPage.wakingTheAgent')}
+                      </div>
+                    }
+                  >
+                    <LazyChatDockView
+                      compactDock={dock.compactDock}
+                      onDockReady={dock.onDockReady}
+                      onDockDispose={dock.onDockDispose}
+                      getTabContextMenuItems={dock.getTabContextMenuItems}
+                      createSession={createSession}
+                    />
+                  </Suspense>
+                ))}
+            </ChatDockContext.Provider>
+          </div>
+        )}
       </div>
       {sessionCommands.workspaceSession && (
         <WorkspacePicker

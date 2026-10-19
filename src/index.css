@@ -15,6 +15,8 @@
 :root {
   color-scheme: light;
   /* Android edge-to-edge 由原生 WindowInsets 覆盖；iOS 和桌面沿用系统 CSS env。 */
+  --activity-rail-width: 52px;
+  --app-chrome: #f5f5f5;
   --pisper-safe-area-top: env(safe-area-inset-top, 0px);
   --pisper-safe-area-right: env(safe-area-inset-right, 0px);
   --pisper-safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -56,20 +58,20 @@
   --accent-ring: rgba(24, 24, 27, .12);
   --focus: var(--brand-blue);
   --focus-ring: rgba(23, 131, 255, .16);
-  --status-blue: var(--brand-blue);
+  --status-blue: #116fd6;
   --selection-ring: rgba(24, 24, 27, .08);
   --node-active-ring: rgba(24, 24, 27, .16);
   --node-pulse-color: rgba(24, 24, 27, .34);
 
   /* ── 中性色：纯白与冷灰 ── */
-  --bg: #fafafa;
-  --panel: #fafafa;
+  --bg: #ffffff;
+  --panel: #ffffff;
   --solid: #fff;
   --stroke: #e5e5e5;
   --stroke-soft: #ededed;
   --stroke-hover: #d4d4d4;
   /* 浅色主题的普通文字统一纯黑，层级通过字号、字重和布局表达。 */
-  --text: #262626;
+  --text: #000000;
   --text-soft: #404040;
   --text-secondary: #525252;
   --text-tertiary: #737373;
@@ -82,9 +84,9 @@
   --surface-highlight: #f5f5f5;
   --control-muted: #cbd5e1;
   --control-thumb: #fff;
-  --control-selected-bg: var(--star);
-  --control-selected-text: var(--on-accent);
-  --control-selected-border: var(--star);
+  --control-selected-bg: var(--primary);
+  --control-selected-text: var(--primary-foreground);
+  --control-selected-border: var(--primary);
 
   /* ── 语义色：warning 独立使用橙色 ── */
   --success: #16a34a;
@@ -101,13 +103,14 @@
   --warning-border: #fed7aa;
   --warning-subtle: #fff7ed;
   --warning-code-bg: #451a03;
+  --info-soft: #edf5ff;
   --status-green: #22c55e;
   --status-muted: #9ca3af;
 
-  /* ── 用户气泡：墨底纸白字（暗色反转） ── */
-  --user-bubble-bg: #111827;
-  --user-bubble-text: #fff;
-  --user-bubble-code: rgba(255, 255, 255, .16);
+  /* 用户消息靠位置和轻量底色区分，避免与主操作争夺注意力。 */
+  --user-bubble-bg: #f4f4f4;
+  --user-bubble-text: var(--text);
+  --user-bubble-code: rgba(0, 0, 0, .06);
 
   /* ── 圆角 / 阴影 / 动效 ── */
   --r-xs: 6px;
@@ -130,15 +133,15 @@
   --ui-font-size: 14px;
   --app-font-size: var(--ui-font-size);
   --app-small-size: calc(var(--ui-font-size) * 6 / 7);
-  --app-message-font-size: calc(var(--ui-font-size) * 15 / 14);
+  --app-message-font-size: calc(var(--ui-font-size) * 8 / 7);
 
   /* ── 表面与场景：侧栏/内容区/卡片三层递进 ── */
   --sidebar-bg: #f5f5f5;
   --sidebar-status-bg: #f5f5f5;
   --sidebar-shadow: rgba(15, 23, 42, .08);
-  --sidebar: oklch(0.985 0 0);
-  --main-surface-bg: #fafafa;
-  --main-surface-inset: #fafafa;
+  --sidebar: #ffffff;
+  --main-surface-bg: #ffffff;
+  --main-surface-inset: #ffffff;
   --main-surface-shadow: rgba(15, 23, 42, .08);
   --main-glow-start: rgba(255, 255, 255, 0);
   --main-glow-end: rgba(255, 255, 255, 0);
@@ -247,14 +250,15 @@
   --card-foreground: var(--text);
   --popover: var(--solid);
   --popover-foreground: var(--text);
-  --primary: var(--star);
-  --primary-foreground: var(--on-accent);
+  --primary: #18181b;
+  --primary-hover: #09090b;
+  --primary-foreground: #ffffff;
   --secondary: var(--surface-muted);
   --secondary-foreground: var(--text-soft);
   --muted: var(--surface-muted);
   --muted-foreground: var(--text-muted);
-  --accent: var(--accent-soft);
-  --accent-foreground: var(--accent-strong);
+  --accent: var(--surface-hover);
+  --accent-foreground: var(--text);
   --destructive: var(--danger);
   --border: var(--stroke);
   --input: var(--stroke);
@@ -266,8 +270,8 @@
   --chart-5: oklch(0.269 0 0);
   --radius: var(--r-sm);
   --sidebar-foreground: var(--text);
-  --sidebar-primary: var(--star);
-  --sidebar-primary-foreground: var(--on-accent);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--surface-muted);
   --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--stroke);
@@ -276,6 +280,11 @@
 
 :root[data-theme='dark'] {
     color-scheme: dark;
+    --app-chrome: #000000;
+    --primary: #e2e2e5;
+    --primary-hover: #f2f2f4;
+    --primary-foreground: #1a1a1f;
+    --info-soft: #16273b;
 
     /* ── 暗色主题主操作反白，蓝色仍只承担状态语义 ── */
     --star: #e2e2e5;
@@ -299,14 +308,14 @@
     --accent-ring: rgba(255, 255, 255, .13);
     --focus: var(--brand-blue);
     --focus-ring: rgba(95, 168, 232, .18);
-    --status-blue: var(--brand-blue);
+    --status-blue: #93c5fd;
     --selection-ring: rgba(255, 255, 255, .11);
     --node-active-ring: rgba(255, 255, 255, .16);
     --node-pulse-color: rgba(255, 255, 255, .26);
 
     /* ── 中性色：中性偏暖深灰 ── */
-    --bg: #171717;
-    --panel: #171717;
+    --bg: #0f0f0f;
+    --panel: #0f0f0f;
     --solid: #262626;
     --stroke: #383838;
     --stroke-soft: #2b2b2b;
@@ -327,9 +336,9 @@
     --surface-highlight: #303030;
     --control-muted: #46464f;
     --control-thumb: #fff;
-    --control-selected-bg: var(--star);
-    --control-selected-text: var(--on-accent);
-    --control-selected-border: var(--star);
+    --control-selected-bg: var(--primary);
+    --control-selected-text: var(--primary-foreground);
+    --control-selected-border: var(--primary);
 
     /* ── 语义色 ── */
     --success: #44b97c;
@@ -349,10 +358,9 @@
     --status-green: #44b97c;
     --status-muted: #8f8b85;
 
-    /* ── 用户气泡：纸白底墨字 ── */
-    --user-bubble-bg: #e8e5de;
-    --user-bubble-text: #1d1d24;
-    --user-bubble-code: rgba(29, 29, 36, .08);
+    --user-bubble-bg: #303030;
+    --user-bubble-text: var(--text);
+    --user-bubble-code: rgba(255, 255, 255, .08);
 
     --sh-star: 0 6px 20px -8px rgba(0, 0, 0, .55);
     --sh-edge: rgba(0, 0, 0, .3);
@@ -361,9 +369,9 @@
     --sidebar-bg: #101010;
     --sidebar-status-bg: #101010;
     --sidebar-shadow: rgba(0, 0, 0, .55);
-    --sidebar: #0d0d13;
-    --main-surface-bg: #171717;
-    --main-surface-inset: #171717;
+    --sidebar: #0f0f0f;
+    --main-surface-bg: #0f0f0f;
+    --main-surface-inset: #0f0f0f;
     --main-surface-shadow: rgba(0, 0, 0, .4);
     --main-glow-start: rgba(255, 255, 255, .02);
     --main-glow-end: rgba(20, 20, 24, 0);
@@ -428,7 +436,7 @@
 
 /* 客制化预设只覆写语义 Token，确保浅色和暗色主题仍共享同一组件实现。 */
 :root[data-accent='blue'] {
-  --star: #1677e8;
+  --star: #126fdc;
   --star-hover: #0f69d3;
   --star-strong: #0f69d3;
   --star-soft: #edf6ff;
@@ -479,7 +487,7 @@
 }
 
 :root[data-accent='coral'] {
-  --star: #c94f5d;
+  --star: #c24957;
   --star-hover: #b6404d;
   --star-strong: #b6404d;
   --star-soft: #fff1f2;
@@ -504,7 +512,7 @@
   --star-strong: var(--brand-blue-strong);
   --star-soft: rgba(var(--brand-blue-rgb), .15);
   --star-border: rgba(var(--brand-blue-rgb), .38);
-  --on-accent: #fff;
+  --on-accent: #18181b;
   --brand-blue-soft: rgba(var(--brand-blue-rgb), .15);
   --brand-blue-border: rgba(var(--brand-blue-rgb), .34);
 }
@@ -566,7 +574,10 @@
 html, body, #root { width: 100%; height: 100%; min-width: 320px; min-height: 100%; margin: 0; }
 body { overflow: hidden; font-size: var(--app-font-size); line-height: 1.5; }
 :root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
-small { font-size: var(--app-small-size) !important; line-height: 1.45; }
+/* 默认辅助字号留在 base 层，组件的排版角色可覆盖它并跟随用户字号。 */
+@layer base {
+  small { font-size: var(--app-small-size); line-height: 1.45; }
+}
 /* 控件字体继承由 Tailwind preflight 提供，避免未分层 reset 覆盖组件字号与字重。 */
 button, a, select { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -701,6 +712,10 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   --text-3xl: calc(var(--ui-font-size) * 15 / 7);
   --font-heading: var(--font-sans);
   --font-sans: var(--app-font-family);
+  --color-info: var(--status-blue);
+  --color-info-soft: var(--info-soft);
+  --color-primary-hover: var(--primary-hover);
+  --color-brand: var(--brand-blue-strong);
   --color-brand-soft: var(--brand-blue-soft);
   --color-brand-strong: var(--brand-blue-strong);
   --color-success-soft: var(--success-soft);
@@ -714,6 +729,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   --color-content: var(--text);
   --color-content-soft: var(--text-soft);
   --color-content-muted: var(--text-muted);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-hover: var(--surface-hover);
   --color-surface-muted: var(--surface-muted);
   --color-surface-highlight: var(--surface-highlight);
   --color-control-muted: var(--control-muted);
@@ -897,4 +914,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   .border-muted-foreground\/50 {
     border-color: var(--stroke);
   }
+}
+
+@media (max-width: 650px) {
+  :root { --activity-rail-width: 44px; }
 }

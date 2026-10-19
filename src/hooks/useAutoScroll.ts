@@ -3,8 +3,14 @@ import { createScrollFollowController } from '@/lib/scroll-follow'
 
 export function useAutoScroll(
   contentVersion: unknown,
-  { threshold = 64, resetKey }: { threshold?: number; resetKey?: unknown } = {},
+  {
+    threshold = 64,
+    resetKey,
+    readInitialPosition,
+  }: { threshold?: number; resetKey?: unknown; readInitialPosition?: () => number | null } = {},
 ) {
+  const readInitialPositionRef = useRef(readInitialPosition)
+  readInitialPositionRef.current = readInitialPosition
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const [hasUnread, setHasUnread] = useState(false)
@@ -23,7 +29,9 @@ export function useAutoScroll(
     controllerRef.current = controller
     setHasUnread(false)
     // 首次打开或切换会话直接定位最新消息，只有后续内容增长才做平滑跟随。
-    controller.scrollToBottom()
+    const position = readInitialPositionRef.current?.()
+    if (typeof position === 'number') controller.restorePosition(position)
+    else controller.scrollToBottom()
     return () => {
       controller.dispose()
       controllerRef.current = null

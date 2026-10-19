@@ -1,3 +1,4 @@
+import { useResourceReading, type ResourceReadingPosition } from './use-resource-reading'
 // Git 差异查看器：虚拟化渲染统一 diff，支持逐块展开与滚动。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -84,6 +85,7 @@ function VirtualDiffRows({
   }, [scrollElement])
 
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    useFlushSync: false,
     count: items.length,
     getScrollElement: () => scrollElement,
     estimateSize: () => 25,
@@ -201,7 +203,11 @@ export function GitDiffDialog({
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+      }
     }
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', onKeyDown)
@@ -357,5 +363,53 @@ export function GitDiffDialog({
       </section>
     </div>,
     document.body,
+  )
+}
+
+// 内嵌差异复用相同解析与虚拟行；每个文件有独立的有界滚动容器。
+export function InlineGitDiff({
+  diff,
+  truncated,
+  position,
+  onReading = () => {},
+}: {
+  diff: string
+  truncated?: boolean
+  position?: ResourceReadingPosition
+  onReading?: (position: ResourceReadingPosition) => void
+}) {
+  const { t } = useI18n()
+  const files = useMemo(() => parseUnifiedDiff(diff), [diff])
+  const { element: scrollElement, ref: setScrollElement } = useResourceReading<HTMLDivElement>(
+    position,
+    onReading,
+  )
+  return (
+    <div>
+      {truncated && (
+        <p className="px-3 py-2 text-xs text-content-muted">
+          {t('chat:chatMessage.filePreviewTruncated')}
+        </p>
+      )}
+      <div
+        ref={setScrollElement}
+        tabIndex={0}
+        className="max-h-80 min-w-0 overflow-auto border-y border-border bg-background"
+      >
+        {!files.length || files.every((file) => !file.hunks.length) ? (
+          <p className="p-3 text-xs text-content-muted">
+            {t('chat:focusSession.gitDiffNoTextChanges')}
+          </p>
+        ) : (
+          files.map((file, index) => (
+            <VirtualDiffRows
+              key={`${file.path}-${index}`}
+              file={file}
+              scrollElement={scrollElement}
+            />
+          ))
+        )}
+      </div>
+    </div>
   )
 }

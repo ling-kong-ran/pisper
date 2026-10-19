@@ -186,21 +186,14 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     section: 'interface',
     card: 'interface-appearance',
     titleKey: 'config:interfaceSettings.appearance',
-    keywords: [
-      'theme',
-      'dark',
-      'light',
-      'accent',
-      'font',
-      'corner',
-      '主题',
-      '深色',
-      '浅色',
-      '强调色',
-      '字体',
-      '圆角',
-      '外观',
-    ],
+    keywords: ['theme', 'dark', 'light', 'accent', '主题', '深色', '浅色', '强调色', '外观'],
+  },
+  {
+    id: 'interface-style',
+    section: 'interface',
+    card: 'interface-style',
+    titleKey: 'config:interfaceSettings.interfaceStyle',
+    keywords: ['font', 'corner', 'radius', '字体', '字号', '圆角'],
   },
   {
     id: 'interface-motion',
@@ -441,7 +434,8 @@ export function requestConfigCardHighlight(card: string, section: string) {
   window.dispatchEvent(new Event(CONFIG_CARD_HIGHLIGHT_EVENT))
 }
 
-function takePendingHighlight(): PendingHighlight | null {
+function takePendingHighlight(section: string): PendingHighlight | null {
+  if (pendingHighlight?.section !== section) return null
   const pending = pendingHighlight
   pendingHighlight = null
   return pending
@@ -455,6 +449,10 @@ function flashConfigCard(pending: PendingHighlight) {
   if (!target)
     target = document.querySelector<HTMLElement>(`[data-config-card="${CONFIG_SECTION_ANCHOR}"]`)
   if (!target) return
+  // 搜索命中折叠分组中的选项时先展开祖先，避免滚动到不可见控件。
+  for (let ancestor = target.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor instanceof HTMLDetailsElement) ancestor.open = true
+  }
   target.scrollIntoView({ behavior: 'smooth', block: 'center' })
   const previous = {
     boxShadow: target.style.boxShadow,
@@ -475,14 +473,25 @@ function flashConfigCard(pending: PendingHighlight) {
 // 同分区点击由事件监听即时消费；跨分区点击在新区内容渲染后由本效应消费。
 export function useConfigCardHighlight(section: string) {
   useEffect(() => {
+    let prepareFrame = 0
+    let highlightFrame = 0
     const consume = () => {
-      const pending = takePendingHighlight()
+      // 旧分区不能提前消耗新分区的请求，否则懒加载期间只能命中旧页面。
+      const pending = takePendingHighlight(section)
       if (!pending) return
       // 双 rAF：等分区切换后的新卡片完成布局再查找锚点。
-      requestAnimationFrame(() => requestAnimationFrame(() => flashConfigCard(pending)))
+      cancelAnimationFrame(prepareFrame)
+      cancelAnimationFrame(highlightFrame)
+      prepareFrame = requestAnimationFrame(() => {
+        highlightFrame = requestAnimationFrame(() => flashConfigCard(pending))
+      })
     }
     consume()
     window.addEventListener(CONFIG_CARD_HIGHLIGHT_EVENT, consume)
-    return () => window.removeEventListener(CONFIG_CARD_HIGHLIGHT_EVENT, consume)
+    return () => {
+      window.removeEventListener(CONFIG_CARD_HIGHLIGHT_EVENT, consume)
+      cancelAnimationFrame(prepareFrame)
+      cancelAnimationFrame(highlightFrame)
+    }
   }, [section])
 }

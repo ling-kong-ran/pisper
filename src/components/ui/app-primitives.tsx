@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 const STATUS_BADGE_TONES = {
-  blue: 'bg-brand-soft text-brand-strong',
+  blue: 'bg-info-soft text-info',
   green: 'bg-success-soft text-success-strong',
   red: 'bg-danger-soft text-danger',
   amber: 'bg-warning-soft text-warning-strong',
@@ -21,7 +21,7 @@ export function AppCard({ className, ...props }: ComponentProps<typeof Card>) {
   return (
     <Card
       className={cn(
-        'app-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] block min-w-0 gap-0 overflow-visible rounded-surface border border-border bg-card p-3.5 py-3.5 text-card-foreground shadow-surface ring-0 backdrop-blur-[14px]',
+        'app-card [&_h2]:text-base [&_h2]:tracking-normal shrink-0 block min-w-0 gap-0 overflow-visible rounded-surface border border-border bg-card p-3.5 py-3.5 text-card-foreground shadow-none ring-0',
         className,
       )}
       {...props}
@@ -34,7 +34,7 @@ export function AppCardHeader({ className, ...props }: ComponentProps<'div'>) {
     <div
       data-slot="app-card-header"
       className={cn(
-        'flex min-w-0 items-start justify-between gap-3 [&_h2]:text-base [&_h2]:tracking-[0] [&_h3]:text-sm [&_p]:mt-1 [&_p]:text-[12px] [&_p]:text-content-muted [&_span]:text-[12px] [&_span]:text-content-muted [&_a]:text-[12px] [&_a]:font-semibold [&_a]:text-content-soft [&_a]:no-underline hover:[&_a]:text-content',
+        'flex min-w-0 items-start justify-between gap-3 [&_h2]:text-base [&_h2]:tracking-[0] [&_h3]:text-sm [&_p]:mt-1 [&_p]:text-xs [&_p]:text-content-muted [&_span]:text-xs [&_span]:text-content-muted [&_a]:text-xs [&_a]:font-semibold [&_a]:text-content-soft [&_a]:no-underline hover:[&_a]:text-content',
         className,
       )}
       {...props}
@@ -47,7 +47,7 @@ export function AppEmptyState({ className, ...props }: ComponentProps<typeof App
     <AppCard
       data-slot="app-empty-state"
       className={cn(
-        'col-span-full grid min-h-[300px] place-content-center justify-items-center text-content-muted [&>svg:first-child:not(.animate-spin)]:box-content [&>svg:first-child:not(.animate-spin)]:rounded-full [&>svg:first-child:not(.animate-spin)]:border [&>svg:first-child:not(.animate-spin)]:border-[var(--stroke-soft)] [&>svg:first-child:not(.animate-spin)]:bg-[radial-gradient(circle_at_50%_38%,var(--surface-subtle),var(--panel)_72%)] [&>svg:first-child:not(.animate-spin)]:p-[26px] [&>svg:first-child:not(.animate-spin)]:text-[var(--text-tertiary)] [&>svg:first-child:not(.animate-spin)]:shadow-[inset_0_1px_0_var(--surface-highlight),0_10px_26px_-18px_var(--shadow)] [&_h2]:mt-[18px] [&_h2]:text-[15px] [&_h2]:text-content [&_p]:mt-[7px] [&_p]:max-w-[360px] [&_p]:text-center [&_p]:text-[13px] [&_p]:leading-[1.6]',
+        'col-span-full grid min-h-[300px] place-content-center justify-items-center text-content-muted [&>svg:first-child:not(.animate-spin)]:box-content [&>svg:first-child:not(.animate-spin)]:rounded-full [&>svg:first-child:not(.animate-spin)]:border [&>svg:first-child:not(.animate-spin)]:border-[var(--stroke-soft)] [&>svg:first-child:not(.animate-spin)]:bg-[radial-gradient(circle_at_50%_38%,var(--surface-subtle),var(--panel)_72%)] [&>svg:first-child:not(.animate-spin)]:p-[26px] [&>svg:first-child:not(.animate-spin)]:text-[var(--text-tertiary)] [&>svg:first-child:not(.animate-spin)]:shadow-[inset_0_1px_0_var(--surface-highlight),0_10px_26px_-18px_var(--shadow)] [&_h2]:mt-[18px] [&_h2]:text-[15px] [&_h2]:text-content [&_p]:mt-[7px] [&_p]:max-w-[360px] [&_p]:text-center [&_p]:text-sm [&_p]:leading-[1.6]',
         className,
       )}
       {...props}
@@ -61,7 +61,7 @@ export function AppError({ className, ...props }: ComponentProps<'div'>) {
       role="alert"
       data-slot="app-error"
       className={cn(
-        'my-2.5 flex items-start gap-1.5 rounded-[var(--r-xs)] bg-danger-soft p-[7px] text-[13px] leading-[1.4] text-danger',
+        'my-2.5 flex items-start gap-1.5 rounded-[var(--r-xs)] bg-danger-soft p-[7px] text-sm leading-[1.4] text-danger',
         className,
       )}
       {...props}
@@ -74,7 +74,7 @@ export function AppNotice({ className, ...props }: ComponentProps<'div'>) {
     <div
       data-slot="app-notice"
       className={cn(
-        'mt-3 flex gap-2 rounded-[var(--r-sm)] bg-[var(--accent-soft)] p-[9px] text-[var(--star-strong)] [&>span]:flex [&>span]:flex-col [&>span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[13px] [&_small]:leading-[1.4] [&_small]:text-content-muted',
+        'mt-3 flex gap-2 rounded-[var(--r-sm)] bg-info-soft p-[9px] text-info [&>span]:flex [&>span]:flex-col [&>span]:gap-[3px] [&_strong]:text-sm [&_small]:text-sm [&_small]:leading-[1.4] [&_small]:text-content-muted',
         className,
       )}
       {...props}
@@ -82,12 +82,15 @@ export function AppNotice({ className, ...props }: ComponentProps<'div'>) {
   )
 }
 
-export function AppSectionTitle({ title }: { title: ReactNode }) {
+export function AppSectionTitle({ title, className }: { title: ReactNode; className?: string }) {
   return (
     <CardTitle
       role="heading"
       aria-level={3}
-      className="app-section-title [.selection-list_&]:mb-[8px] [.model-config-heading_&]:m-0 [.skill-scope-head_&]:mb-[2px] text-[13px] leading-5 font-semibold tracking-[0] text-content-soft"
+      className={cn(
+        'app-section-title text-sm leading-5 font-semibold tracking-normal text-content-soft',
+        className,
+      )}
     >
       {title}
     </CardTitle>
@@ -104,7 +107,7 @@ export function StatusBadge({
     <Badge
       variant="secondary"
       className={cn(
-        'status-badge [.cli-settings-heading_&]:[align-self:center] h-auto min-h-6 rounded-full border-0 px-2 text-[12px] leading-4 font-medium tracking-[0]',
+        'status-badge h-auto min-h-6 rounded-full border-0 px-2 text-xs leading-4 font-medium tracking-[0]',
         STATUS_BADGE_TONES[tone],
         className,
       )}
@@ -183,7 +186,7 @@ export function SegmentedTabs({
       >
         {options.map((option) => (
           <TabsTrigger
-            className="h-8 min-w-14 flex-none rounded-md border-0 px-3 text-[13px] font-medium tracking-[0] text-content-muted data-active:bg-card data-active:text-content data-active:shadow-sm"
+            className="h-8 min-w-14 flex-none rounded-md border-0 px-3 text-sm font-medium tracking-[0] text-content-muted data-active:bg-card data-active:text-content data-active:shadow-sm"
             value={option}
             key={option}
           >

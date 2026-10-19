@@ -13,6 +13,7 @@ import {
   FolderOpen,
   GitFork,
   MessageSquarePlus,
+  MoreHorizontal,
   LoaderCircle,
   RotateCcw,
   Tag,
@@ -26,6 +27,12 @@ import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -35,6 +42,7 @@ import {
   revealPathThroughRuntime,
 } from '@/lib/local-path-reveal'
 import type { ChatAttachment, ChatMessage } from '@/types/chat'
+import { MessageCopyButton } from './MessageCopyButton'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
 import { ChatRequestNotice } from './ChatRequestNotice'
@@ -714,7 +722,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
       className={cn(
-        'message mx-auto mb-[var(--chat-message-gap,32px)] w-full max-w-[var(--chat-content-width,1040px)] min-w-0 gap-0',
+        'message group/message mx-auto mb-[var(--chat-message-gap,32px)] w-full max-w-[var(--chat-content-width,1040px)] min-w-0 gap-0',
         message.role === 'agent'
           ? 'items-stretch'
           : "items-end [[data-chat-message-style='plain']_&]:items-start",
@@ -725,7 +733,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       data-pisper-streaming={streaming || undefined}
       data-pisper-error={message.error ? 'true' : undefined}
     >
-      {message.role === 'agent' && (
+      {message.role === 'agent' && streaming && (
         <span className="mb-3 flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
           <span
             className="agent-message-mark grid size-[22px] place-items-center"
@@ -764,8 +772,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             className={cn(
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
               message.role === 'agent'
-                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.72] [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
-                : "rounded-[22px] border border-[var(--stroke-soft)] bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.72] text-[var(--user-bubble-text)] shadow-none [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
+                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h2]:text-[1.125em]! [&_h3]:text-[1em]! [&_li]:py-0! [&_li+li]:mt-0! [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
+                : "rounded-[22px] border border-transparent bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.625] text-[var(--user-bubble-text)] shadow-none [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}
@@ -779,79 +787,21 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           />
         )}
       </div>
+      {message.role === 'user' && displayText && (
+        <div className="message-actions mt-1 -mr-1.5 flex flex-wrap justify-end gap-1 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md">
+          <MessageCopyButton text={displayText} copyLabel={t('chat:chatMessage.copyMessage')} />
+        </div>
+      )}
       {message.error && !streaming && !hideErrorNotice && (
         <ChatRequestNotice error={String(message.error)} className="mt-3" />
       )}
       {message.role === 'agent' &&
         !streaming &&
-        (message.turnBoundaryEntryId || retryUserMessageId) && (
-          <div className="message-actions mt-4 -ml-1.5 flex items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+        (displayText || message.turnBoundaryEntryId || retryUserMessageId) && (
+          <div className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+            {displayText && <MessageCopyButton text={displayText} />}
             {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
-              <>
-                <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t('chat:chatMessage.deriveFromHere')}
-                      data-pisper-derive-entry={message.turnBoundaryEntryId}
-                      disabled={branching || creatingChild || sessionStreaming}
-                      onClick={async () => {
-                        const boundaryEntryId = message.turnBoundaryEntryId
-                        if (!boundaryEntryId) return
-                        setBranching(true)
-                        try {
-                          await onBranchFromHere(boundaryEntryId)
-                        } finally {
-                          setBranching(false)
-                        }
-                      }}
-                    >
-                      {branching ? (
-                        <LoaderCircle className="animate-spin" size={14} />
-                      ) : (
-                        <GitFork size={14} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={6}>
-                    {t('chat:chatMessage.deriveFromHere')}
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t('chat:chatMessage.createChildChat')}
-                      data-pisper-child-entry={message.turnBoundaryEntryId}
-                      disabled={branching || creatingChild}
-                      onClick={async () => {
-                        const boundaryEntryId = message.turnBoundaryEntryId
-                        if (!boundaryEntryId) return
-                        setCreatingChild(true)
-                        try {
-                          await onCreateChildSession(boundaryEntryId)
-                        } finally {
-                          setCreatingChild(false)
-                        }
-                      }}
-                    >
-                      {creatingChild ? (
-                        <LoaderCircle className="animate-spin" size={14} />
-                      ) : (
-                        <MessageSquarePlus size={14} />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={6}>
-                    {t('chat:chatMessage.createChildChat')}
-                  </TooltipContent>
-                </Tooltip>
-              </>
+              <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
             )}
             {retryUserMessageId && (
               <Tooltip>
@@ -883,6 +833,59 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                   {t('chat:chatMessage.retry')}
                 </TooltipContent>
               </Tooltip>
+            )}
+            {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('chat:chatMessage.moreReplyActions')}
+                  >
+                    <MoreHorizontal size={16} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="min-w-52 rounded-2xl p-1.5 [&_[role=menuitem]]:min-h-9 max-[650px]:[&_[role=menuitem]]:min-h-11"
+                >
+                  <DropdownMenuItem
+                    data-pisper-derive-entry={message.turnBoundaryEntryId}
+                    disabled={branching || creatingChild || sessionStreaming}
+                    onSelect={async () => {
+                      const boundaryEntryId = message.turnBoundaryEntryId
+                      if (!boundaryEntryId) return
+                      setBranching(true)
+                      try {
+                        await onBranchFromHere(boundaryEntryId)
+                      } finally {
+                        setBranching(false)
+                      }
+                    }}
+                  >
+                    <GitFork size={16} />
+                    {t('chat:chatMessage.deriveFromHere')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-pisper-child-entry={message.turnBoundaryEntryId}
+                    disabled={branching || creatingChild}
+                    onSelect={async () => {
+                      const boundaryEntryId = message.turnBoundaryEntryId
+                      if (!boundaryEntryId) return
+                      setCreatingChild(true)
+                      try {
+                        await onCreateChildSession(boundaryEntryId)
+                      } finally {
+                        setCreatingChild(false)
+                      }
+                    }}
+                  >
+                    <MessageSquarePlus size={16} />
+                    {t('chat:chatMessage.createChildChat')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         )}

@@ -1,3 +1,4 @@
+import { PageFrame } from '@/components/app/PageFrame'
 // 配置页：按分区（模型/通知/界面/桌面宠物/更新/运行时等）组织设置卡片，
 // 每个分区一个设置组件，共享设置原语（SettingsCard 等）。
 // 内容根带 data-config-card="section" 锚点，供设置搜索结果跳转高亮定位。
@@ -78,11 +79,8 @@ export function ConfigPage({
   }
 
   return (
-    <div
-      data-config-card={CONFIG_SECTION_ANCHOR}
-      className={section === 'models' ? 'mx-auto w-full max-w-[1040px]' : undefined}
-    >
-      {content}
-    </div>
+    <PageFrame variant={section === 'models' ? 'settings-wide' : 'settings'}>
+      <div data-config-card={CONFIG_SECTION_ANCHOR}>{content}</div>
+    </PageFrame>
   )
 }

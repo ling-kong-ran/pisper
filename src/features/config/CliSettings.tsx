@@ -88,6 +88,7 @@ export function CliSettings({ notify }: { notify: Notify }) {
           <p>{t('config:cliSettings.description')}</p>
         </div>
         <Badge
+          className="self-center"
           tone={
             status?.installed && !status.needsRepair
               ? 'green'

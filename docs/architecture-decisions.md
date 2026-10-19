@@ -60,3 +60,12 @@
 - 状态与生命周期：移动壳只持有本地临时页签和屏幕状态；聊天运行状态由 ChatPage 提供只读投影；已打开的终端和插件面板在切屏时保留挂载。轻量布局在所有断点保持同一组件树，避免丢失未保存的表单；右屏业务视图继续懒加载，弹窗以视口定位。辅助页面经 DOM 插槽由聊天页 portal 渲染，继续使用原 SideChatProvider 和页签状态。
 - 验证：`runtime/tests/mobile-shell-layout.test.mjs` 与 `npm run test:mobile:ui` 覆盖布局、状态保留和交互；Android/iOS 真机与发布构建分别按开发流程验收。源码守卫从旧底栏键盘样式迁移为顶部分页隐藏，浏览器测试保留其原本让输入区可见的行为目标。
 - 回滚：一起恢复应用壳、移动上下文、Feature 公开接口、文案和对应测试；没有新增用户数据格式或持久化迁移。
+
+## 2026-10：前端工作台职责迁移
+
+- 范围与依据：采用[前端设计方案](superpowers/specs/2026-10-14-frontend-workbench-design.md)与[Node 基线实施计划](superpowers/plans/2026-10-14-node-frontend-workbench.md)。后端继续使用 release 的 Node Runtime，不改变 HTTP/SSE、代理引擎或发布渠道。
+- 移动映射：原 `components/layout/SidebarRecentSessions` 的任务逻辑迁至 `features/chat/ProjectTaskList`，由 `public-navigation` 暴露；AppSidebar 只接收插槽。页面模板位于 `components/app`，不导入 Feature 实现。
+- 状态：聊天领域按任务持有临时标签、草稿和资源阅读位置；Dock 只持有分屏位置与焦点。原生终端连接归应用级 TerminalProvider/registry，标签仅保存资源 ID，关闭视图不终止进程。公共页面偏好仍使用 `pageStateStorage`，未增加临时 URL、附件内容或日志的持久化。
+- 生命周期：任务标题和附件入口通过工作区 DOM 插槽展示，编辑器状态仍由原任务持有。导航前显式通知保存阅读位置，因为 Dock 移除 DOM 早于 React 卸载。返回处理先交给当前弹层，再交给活动内容/列表详情层，不向浏览器历史插入临时条目。
+- 依赖：应用壳通过轻量 `public-workspace` 事件打开焦点任务资源；终端公开轻量服务接口与懒加载视图两个入口。服务与组件导入均不隐式启动终端连接。
+- 验证与回滚：统一入口见[开发流程](development-workflow.md#前端工作台验收入口)。迁移不修改用户数据格式；回滚应恢复同一批应用壳、Feature、模板和测试，不覆盖并存的发布说明改动，也不修改独立的 rust-runtime 分支。

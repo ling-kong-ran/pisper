@@ -39,4 +39,21 @@ function RadioGroupItem({
   )
 }
 
-export { RadioGroup, RadioGroupItem }
+// 卡片和分段选项可提供自己的视觉内容，共用 Radix 的游标焦点与方向键选择。
+function RadioGroupOption({
+  className,
+  ...props
+}: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+  return (
+    <RadioGroupPrimitive.Item
+      data-slot="radio-group-option"
+      className={cn(
+        'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+export { RadioGroup, RadioGroupItem, RadioGroupOption }

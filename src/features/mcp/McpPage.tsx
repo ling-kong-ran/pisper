@@ -1,3 +1,5 @@
+import { PageFrame } from '@/components/app/PageFrame'
+import { ListDetailLayout } from '@/components/app/ListDetailLayout'
 // MCP 页面负责选择与操作编排；远程快照和请求生命周期由领域查询层持有。
 import { useCallback, useState, type ReactNode } from 'react'
 import { CircleDot, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
@@ -119,6 +121,8 @@ export function McpPage({
   requestText,
   requestConfirm,
 }: McpPageProps) {
+  const [detailOpen, setDetailOpen] = useState(false)
+
   const { t, language } = useI18n()
   const { data, busy, loading, error, change, reload } = useMcpDashboard()
   const [selectedId, setSelectedId] = useState('')
@@ -226,226 +230,252 @@ export function McpPage({
   }
 
   return (
-    <div className="preview-page flex min-h-[100%] flex-col">
-      <McpHostPanel notify={notify} requestConfirm={requestConfirm} />
-      {loading && !error && <p role="status">{t('mcp:loading')}</p>}
-      {error && (
-        <Alert
-          role="status"
-          className="mb-3 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere]"
-        >
-          <span>{error.message}</span>
-          <Button variant="ghost" disabled={busy} onClick={() => void reload()}>
-            {t('mcp:retry')}
-          </Button>
-        </Alert>
-      )}
-      {data && (
-        <div className="mcp-layout [.preview-page_>_&]:min-h-0 [.preview-page_>_&]:flex-1 max-[1150px]:grid-cols-[220px_minmax(340px,1fr)] max-[650px]:grid-cols-[1fr] grid min-h-[100%] grid-cols-[230px_minmax(320px,1fr)_300px] gap-[12px]">
-          <McpPanel className="selection-list [.config-layout_>_&]:max-h-[calc(100dvh_-_280px)] [.config-layout_>_&]:overflow-y-auto max-[900px]:max-h-[300px] min-h-0 overflow-auto">
-            <McpSectionTitle>{t('mcp:services')}</McpSectionTitle>
-            {visibleServices.length ? (
-              visibleServices.map((service) => {
-                const [label, tone] = mcpStatusMeta(service.status, t)
-                const location =
-                  service.transport === 'stdio'
-                    ? service.workingDirectory || service.command
-                    : service.endpoint
-                return (
-                  <button
-                    className={`service-row grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent p-[10px_8px] text-left hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.active]:rounded-[var(--r-sm)] [&.active]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap ${selected?.id === service.id ? 'active' : ''}`}
-                    onClick={() => setSelectedId(service.id)}
-                    key={service.id}
-                  >
-                    <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                      <Server size={15} />
-                    </span>
-                    <span>
-                      <strong>{service.name}</strong>
-                      <small title={location}>{location}</small>
-                    </span>
-                    <McpBadge tone={tone}>{label}</McpBadge>
-                  </button>
-                )
-              })
-            ) : (
-              <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                {t('mcp:noServerConfigured')}
-              </div>
-            )}
-          </McpPanel>
-          <div className="mcp-center max-[650px]:min-w-0 flex min-w-0 flex-col gap-[12px]">
-            <div className="metric-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[9px]">
-              <McpMetric
-                value={String(metrics.onlineServices)}
-                label={t('mcp:onlineServices')}
-                note={t('mcp:countServicesTotal', {
-                  count: metrics.totalServices,
-                })}
-                tone="blue"
-              />
-              <McpMetric
-                value={String(metrics.availableTools)}
-                label={t('mcp:availableTools')}
-                note={t('mcp:countRestrictedTools', {
-                  count: metrics.restrictedTools,
-                })}
-                tone="green"
-              />
-              <McpMetric
-                value={`${metrics.errorRate}%`}
-                label={t('mcp:errorRate')}
-                note="24h"
-                tone="amber"
-              />
-            </div>
-            <McpPanel className="mcp-tools-panel min-h-0 flex-1 overflow-y-auto">
-              <McpSectionTitle>
-                {t('mcp:toolCapabilities')} · {tools.length}
-              </McpSectionTitle>
-              {tools.length ? (
-                tools.map((tool) => (
-                  <div
-                    className="tool-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
-                    key={tool.piName}
-                  >
-                    <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                      <Wrench size={15} />
-                    </span>
-                    <span>
-                      <strong>{tool.name}</strong>
-                      <small>
-                        {tool.serviceName} · {tool.description}
-                      </small>
-                    </span>
-                    <McpBadge
-                      tone={
-                        tool.risk === 'high' || tool.risk === '高风险'
-                          ? 'red'
-                          : tool.risk === 'medium' || tool.risk === '中风险'
-                            ? 'amber'
-                            : 'green'
-                      }
-                    >
-                      {mcpRiskLabel(tool.risk, t)}
-                    </McpBadge>
-                    <Switch
-                      checked={Boolean(tool.enabled)}
-                      disabled={busy || !tool.serviceEnabled}
-                      aria-label={t('mcp:toggleToolName', { name: tool.name })}
-                      onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
-                    />
+    <PageFrame variant="list-detail">
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <McpHostPanel notify={notify} requestConfirm={requestConfirm} />
+          {loading && !error && <p role="status">{t('mcp:loading')}</p>}
+          {error && (
+            <Alert
+              role="status"
+              className="mb-3 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere]"
+            >
+              <span>{error.message}</span>
+              <Button variant="ghost" disabled={busy} onClick={() => void reload()}>
+                {t('mcp:retry')}
+              </Button>
+            </Alert>
+          )}
+          {data && (
+            <>
+              <ListDetailLayout
+                selected={detailOpen}
+                onBack={() => setDetailOpen(false)}
+                backLabel={t('common:pageTemplate.backToList')}
+                list={
+                  <McpPanel className="min-w-0 border-0 bg-transparent p-0 shadow-none">
+                    <McpSectionTitle>{t('mcp:services')}</McpSectionTitle>
+                    {visibleServices.length ? (
+                      visibleServices.map((service) => {
+                        const [label, tone] = mcpStatusMeta(service.status, t)
+                        const location =
+                          service.transport === 'stdio'
+                            ? service.workingDirectory || service.command
+                            : service.endpoint
+                        return (
+                          <button
+                            className={`service-row grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent p-[10px_8px] text-left hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.active]:rounded-[var(--r-sm)] [&.active]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap ${selected?.id === service.id ? 'active' : ''}`}
+                            onClick={() => {
+                              setDetailOpen(true)
+                              setSelectedId(service.id)
+                            }}
+                            key={service.id}
+                          >
+                            <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
+                              <Server size={15} />
+                            </span>
+                            <span>
+                              <strong>{service.name}</strong>
+                              <small title={location}>{location}</small>
+                            </span>
+                            <McpBadge tone={tone}>{label}</McpBadge>
+                          </button>
+                        )
+                      })
+                    ) : (
+                      <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
+                        {t('mcp:noServerConfigured')}
+                      </div>
+                    )}
+                  </McpPanel>
+                }
+                detail={
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <div className="metric-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[9px]">
+                      <McpMetric
+                        value={String(metrics.onlineServices)}
+                        label={t('mcp:onlineServices')}
+                        note={t('mcp:countServicesTotal', {
+                          count: metrics.totalServices,
+                        })}
+                        tone="blue"
+                      />
+                      <McpMetric
+                        value={String(metrics.availableTools)}
+                        label={t('mcp:availableTools')}
+                        note={t('mcp:countRestrictedTools', {
+                          count: metrics.restrictedTools,
+                        })}
+                        tone="green"
+                      />
+                      <McpMetric
+                        value={`${metrics.errorRate}%`}
+                        label={t('mcp:errorRate')}
+                        note="24h"
+                        tone="amber"
+                      />
+                    </div>
+                    <McpPanel className="mcp-tools-panel min-h-0 flex-1 overflow-y-auto">
+                      <McpSectionTitle>
+                        {t('mcp:toolCapabilities')} · {tools.length}
+                      </McpSectionTitle>
+                      {tools.length ? (
+                        tools.map((tool) => (
+                          <div
+                            className="tool-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
+                            key={tool.piName}
+                          >
+                            <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
+                              <Wrench size={15} />
+                            </span>
+                            <span>
+                              <strong>{tool.name}</strong>
+                              <small>
+                                {tool.serviceName} · {tool.description}
+                              </small>
+                            </span>
+                            <McpBadge
+                              tone={
+                                tool.risk === 'high' || tool.risk === '高风险'
+                                  ? 'red'
+                                  : tool.risk === 'medium' || tool.risk === '中风险'
+                                    ? 'amber'
+                                    : 'green'
+                              }
+                            >
+                              {mcpRiskLabel(tool.risk, t)}
+                            </McpBadge>
+                            <Switch
+                              checked={Boolean(tool.enabled)}
+                              disabled={busy || !tool.serviceEnabled}
+                              aria-label={t('mcp:toggleToolName', { name: tool.name })}
+                              onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
+                          {t('mcp:noToolsAvailable')}
+                        </div>
+                      )}
+                    </McpPanel>
                   </div>
-                ))
-              ) : (
-                <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                  {t('mcp:noToolsAvailable')}
-                </div>
-              )}
-            </McpPanel>
-          </div>
-          <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
-            <McpPanel>
-              <McpSectionTitle>{t('mcp:currentService')}</McpSectionTitle>
-              <h2>{selected?.name || t('mcp:noServerConfigured')}</h2>
-              <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
-                {selected?.error ||
-                  (selected
-                    ? t(
-                        'mcp:thisServerExposesToolsThroughAStandardMCPTransportEnabledToolsAreRegisteredInNewAgentRuntimes',
-                      )
-                    : t('mcp:useTheButtonInTheUpperRightToAddAStreamableHTTPOrStdioMCPServer'))}
-              </p>
-              {[
-                [
-                  t('mcp:transport'),
-                  selected?.transport === 'stdio'
-                    ? 'stdio'
-                    : selected?.transport === 'sse'
-                      ? 'HTTP + SSE'
-                      : 'Streamable HTTP',
-                ],
-                ...(selected?.transport === 'stdio'
-                  ? [
-                      [t('mcp:executable'), selected.command || '—'],
-                      [t('mcp:workingDirectory'), selected.workingDirectory || '—'],
-                    ]
-                  : [[t('mcp:serverAddress'), selected?.endpoint || '—']]),
-                [t('mcp:latency'), selected?.latencyMs == null ? '—' : `${selected.latencyMs} ms`],
-                [
-                  t('mcp:lastPing'),
-                  selected?.lastPingAt ? relativeTime(selected.lastPingAt, language) : '—',
-                ],
-                [t('mcp:authentication'), mcpAuthLabel(selected, t)],
-              ].map((row) => (
-                <div
-                  className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
-                  key={row[0]}
-                >
-                  <span>{row[0]}</span>
-                  <strong title={row[1]}>{row[1]}</strong>
-                </div>
-              ))}
-              <div className="toggle-line [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_>_span]:text-[12px] flex min-h-[34px] items-center justify-between [border-top:1px_solid_var(--stroke-soft)]">
-                <span>{t('mcp:serverEnabled')}</span>
-                <Switch
-                  checked={Boolean(selected?.enabled)}
-                  disabled={!selected || busy}
-                  aria-label={t('mcp:toggleMCPServer')}
-                  onCheckedChange={(enabled) => void toggleServer(enabled)}
-                />
-              </div>
-              <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!selected?.enabled || busy}
-                  onClick={testConnection}
-                >
-                  <RefreshCw className={busy ? 'animate-spin' : ''} data-icon="inline-start" />
-                  {t('mcp:testConnection')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={!selected || busy}
-                  onClick={deleteServer}
-                >
-                  <Trash2 data-icon="inline-start" />
-                  {t('mcp:delete')}
-                </Button>
-              </div>
-            </McpPanel>
-            <McpPanel className="mcp-calls-panel min-h-0 flex-1 overflow-y-auto">
-              <McpSectionTitle>{t('mcp:recentCalls')}</McpSectionTitle>
-              {calls.length ? (
-                calls.slice(0, 8).map((activity) => (
-                  <div
-                    className="activity-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_span]:text-[var(--text)] [&.failed]:text-[var(--danger)] [&.running]:text-[var(--star-strong)] grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:9px_2px] text-[var(--success)]"
-                    key={activity.id}
-                  >
-                    <CircleDot size={14} />
-                    <span>
-                      <strong>{activity.toolName}</strong>
-                      <small>
-                        {relativeTime(activity.timestamp, language)} ·{' '}
-                        {activity.status === 'ok'
-                          ? t('mcp:callSucceeded')
-                          : activity.error || t('mcp:callFailed')}{' '}
-                        · {activity.durationMs} ms
-                      </small>
-                    </span>
+                }
+                inspector={
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <McpPanel>
+                      <McpSectionTitle>{t('mcp:currentService')}</McpSectionTitle>
+                      <h2>{selected?.name || t('mcp:noServerConfigured')}</h2>
+                      <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+                        {selected?.error ||
+                          (selected
+                            ? t(
+                                'mcp:thisServerExposesToolsThroughAStandardMCPTransportEnabledToolsAreRegisteredInNewAgentRuntimes',
+                              )
+                            : t(
+                                'mcp:useTheButtonInTheUpperRightToAddAStreamableHTTPOrStdioMCPServer',
+                              ))}
+                      </p>
+                      {[
+                        [
+                          t('mcp:transport'),
+                          selected?.transport === 'stdio'
+                            ? 'stdio'
+                            : selected?.transport === 'sse'
+                              ? 'HTTP + SSE'
+                              : 'Streamable HTTP',
+                        ],
+                        ...(selected?.transport === 'stdio'
+                          ? [
+                              [t('mcp:executable'), selected.command || '—'],
+                              [t('mcp:workingDirectory'), selected.workingDirectory || '—'],
+                            ]
+                          : [[t('mcp:serverAddress'), selected?.endpoint || '—']]),
+                        [
+                          t('mcp:latency'),
+                          selected?.latencyMs == null ? '—' : `${selected.latencyMs} ms`,
+                        ],
+                        [
+                          t('mcp:lastPing'),
+                          selected?.lastPingAt ? relativeTime(selected.lastPingAt, language) : '—',
+                        ],
+                        [t('mcp:authentication'), mcpAuthLabel(selected, t)],
+                      ].map((row) => (
+                        <div
+                          className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
+                          key={row[0]}
+                        >
+                          <span>{row[0]}</span>
+                          <strong title={row[1]}>{row[1]}</strong>
+                        </div>
+                      ))}
+                      <div className="toggle-line [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_>_span]:text-[12px] flex min-h-[34px] items-center justify-between [border-top:1px_solid_var(--stroke-soft)]">
+                        <span>{t('mcp:serverEnabled')}</span>
+                        <Switch
+                          checked={Boolean(selected?.enabled)}
+                          disabled={!selected || busy}
+                          aria-label={t('mcp:toggleMCPServer')}
+                          onCheckedChange={(enabled) => void toggleServer(enabled)}
+                        />
+                      </div>
+                      <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={!selected?.enabled || busy}
+                          onClick={testConnection}
+                        >
+                          <RefreshCw
+                            className={busy ? 'animate-spin' : ''}
+                            data-icon="inline-start"
+                          />
+                          {t('mcp:testConnection')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={!selected || busy}
+                          onClick={deleteServer}
+                        >
+                          <Trash2 data-icon="inline-start" />
+                          {t('mcp:delete')}
+                        </Button>
+                      </div>
+                    </McpPanel>
+                    <McpPanel className="mcp-calls-panel min-h-0 flex-1 overflow-y-auto">
+                      <McpSectionTitle>{t('mcp:recentCalls')}</McpSectionTitle>
+                      {calls.length ? (
+                        calls.slice(0, 8).map((activity) => (
+                          <div
+                            className="activity-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_span]:text-[var(--text)] [&.failed]:text-[var(--danger)] [&.running]:text-[var(--star-strong)] grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:9px_2px] text-[var(--success)]"
+                            key={activity.id}
+                          >
+                            <CircleDot size={14} />
+                            <span>
+                              <strong>{activity.toolName}</strong>
+                              <small>
+                                {relativeTime(activity.timestamp, language)} ·{' '}
+                                {activity.status === 'ok'
+                                  ? t('mcp:callSucceeded')
+                                  : activity.error || t('mcp:callFailed')}{' '}
+                                · {activity.durationMs} ms
+                              </small>
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
+                          {t('mcp:noRecentCalls')}
+                        </div>
+                      )}
+                    </McpPanel>
                   </div>
-                ))
-              ) : (
-                <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                  {t('mcp:noRecentCalls')}
-                </div>
-              )}
-            </McpPanel>
-          </div>
+                }
+              />
+            </>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </PageFrame>
   )
 }

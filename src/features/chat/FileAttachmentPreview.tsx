@@ -32,6 +32,13 @@ export function FileAttachmentPreview({
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [imageFailed, setImageFailed] = useState(false)
+  const imageUrl =
+    attachment.id &&
+    !attachment.id.startsWith('path:') &&
+    /^image\/(png|jpeg|webp|gif|avif)$/.test(attachment.mimeType || '')
+      ? `/api/assets/${encodeURIComponent(attachment.id)}/download?inline=1`
+      : ''
   const name = attachment.name || t('chat:chatMessage.fileAttachment')
   const markdown =
     /\.(md|markdown)$/i.test(name) || (content?.mimeType || attachment.mimeType) === 'text/markdown'
@@ -39,6 +46,7 @@ export function FileAttachmentPreview({
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
+    setImageFailed(false)
     setContent(null)
     setError('')
     void loadAttachmentPreview(attachment, controller.signal)
@@ -110,6 +118,15 @@ export function FileAttachmentPreview({
                 <RefreshCw size={14} />
                 {t('chat:chatMessage.filePreviewRetry')}
               </Button>
+            </div>
+          ) : imageUrl && !imageFailed ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
+              <img
+                src={imageUrl}
+                alt={name}
+                className="max-h-full max-w-full object-contain"
+                onError={() => setImageFailed(true)}
+              />
             </div>
           ) : text !== undefined ? (
             markdown ? (

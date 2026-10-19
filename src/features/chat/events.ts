@@ -10,6 +10,8 @@ import {
   type SessionOpenDisposition,
 } from './dock-layout'
 
+export const TASK_VIEW_WILL_CHANGE = 'pisper:task-view-will-change'
+export const SESSION_NAVIGATION_WILL_CHANGE = 'pisper:session-navigation-will-change'
 export const SESSION_SELECTED_EVENT = 'pisper:session-selected'
 export const SESSION_CREATE_REQUESTED_EVENT = 'pisper:session-create-requested'
 export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
@@ -97,6 +99,8 @@ export function requestSessionSelection(
 ) {
   const request = createSessionOpenRequest(id, disposition, targetEntryId)
   if (!request) return
+  // 先让当前视图保存瞬时位置，再交给 Dock 移除旧 DOM。
+  window.dispatchEvent(new Event(SESSION_NAVIGATION_WILL_CHANGE))
   pageStateStorage.setItem(STORAGE_KEYS.activeSession, id)
   localStorage.setItem(STORAGE_KEYS.sessionOpenRequest, JSON.stringify(request))
   if (targetEntryId) {

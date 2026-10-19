@@ -1,3 +1,5 @@
+import { PageFrame } from '@/components/app/PageFrame'
+import { PageToolbar } from '@/components/app/PageToolbar'
 // 资源（资产）页：浏览/搜索/下载工作区生成的资源文件（图片/文档等）。
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
@@ -186,175 +188,177 @@ export function AssetsPage({
   }
 
   return (
-    <div className="asset-page flex min-h-[100%] flex-col gap-[12px]">
-      <div className="asset-toolbar [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[7px] max-[650px]:items-stretch max-[650px]:flex-col max-[650px]:[&_>_div:last-child]:justify-end flex items-center justify-between gap-[12px]">
-        <Segmented
-          options={ASSET_TABS.map((item) => assetTabLabel(item, t))}
-          value={assetTabLabel(tab, t)}
-          onChange={(label) =>
-            setTab(ASSET_TABS.find((item) => assetTabLabel(item, t) === label) || 'all')
-          }
-        />
-      </div>
-      <div className="asset-summary [&_strong]:text-[var(--text)] [&_strong]:text-[13px] max-[650px]:items-start max-[650px]:flex-col flex items-center justify-between gap-[12px] text-[var(--text-secondary)] text-[12px]">
-        <span>
-          <strong>{assets.length}</strong> {t('assets:assetsPage.assets')}
-        </span>
-        <span>
-          {t('assets:assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically')}
-        </span>
-      </div>
-      {error && (
-        <AppError>
-          <AlertTriangle size={13} />
-          {error}
-        </AppError>
-      )}
-      {loading ? (
-        <AppEmptyState>
-          <RefreshCw className="animate-spin" size={23} />
-          <h2>{t('assets:assetsPage.loadingAssets')}</h2>
-        </AppEmptyState>
-      ) : assets.length ? (
-        <div className="asset-grid max-[650px]:grid-cols-[1fr] functional grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(260px,1fr))] content-start gap-3">
-          {assets.map((asset) => {
-            const isVideo = asset.mimeType?.startsWith('video/')
-            const Icon =
-              asset.kind === 'image'
-                ? FileImage
-                : isVideo
-                  ? FileVideo
-                  : asset.kind === 'link'
-                    ? Link2
-                    : File
-            return (
-              <Panel
-                className="asset-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_>_strong]:text-[13px] [&_>_span]:m-[5px_0_10px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[6px] [&_>_div:last-child]:mt-[auto] max-[650px]:min-h-[200px] functional flex h-full min-h-[292px] flex-col overflow-hidden"
-                key={asset.id}
-              >
-                <button
-                  className={`asset-preview [&.blue]:bg-[var(--asset-preview-blue-bg)] [&.blue]:text-[var(--asset-preview-blue-text)] [&.violet]:bg-[var(--asset-preview-violet-bg)] [&.violet]:text-[var(--violet-strong)] [&.yellow]:bg-[var(--warning-soft)] [&.yellow]:text-[var(--amber)] [&.red]:bg-[var(--danger-soft)] [&.red]:text-[var(--danger)] [.asset-card.functional_&::after]:absolute [.asset-card.functional_&::after]:inset-0 [.asset-card.functional_&::after]:rounded-[var(--r-sm)] [.asset-card.functional_&::after]:bg-[rgba(0,_0,_0,_0)] [.asset-card.functional_&::after]:[transition:background_var(--d1)_var(--ease-out)] [.asset-card.functional_&::after]:[content:''] [.asset-card.functional_&::after]:pointer-events-none [.asset-card.functional_&:hover::after]:bg-[rgba(0,_0,_0,_.16)] [.asset-card.functional_&.image]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:text-[var(--success)] [.asset-card.functional_&.file]:bg-[var(--surface-hover)] [.asset-card.functional_&.file]:text-[var(--violet-strong)] [.asset-card.functional_&_img]:relative [.asset-card.functional_&_img]:z-[0] [.asset-card.functional_&_img]:w-full [.asset-card.functional_&_img]:h-full [.asset-card.functional_&_img]:rounded-[var(--r-sm)] [.asset-card.functional_&_img]:object-cover [.asset-card.functional_&_video]:relative [.asset-card.functional_&_video]:z-[0] [.asset-card.functional_&_video]:w-full [.asset-card.functional_&_video]:h-full [.asset-card.functional_&_video]:rounded-[var(--r-sm)] [.asset-card.functional_&_video]:object-cover ${asset.kind}    ${isVideo ? 'video' : ''} relative -mx-1.5 -mt-1.5 mb-2.5 grid h-44 min-h-0 w-[calc(100%+12px)] shrink-0 place-items-center overflow-hidden rounded-[var(--r-sm)] border-0 bg-[var(--surface-hover)] text-[var(--text-muted)]`}
-                  title={t('assets:assetsPage.preview')}
-                  aria-label={`${t('assets:assetsPage.preview')}: ${asset.name}`}
-                  onClick={() => previewAsset(asset)}
+    <PageFrame variant="collection">
+      <div className="flex min-w-0 flex-col gap-3">
+        <PageToolbar>
+          <Segmented
+            options={ASSET_TABS.map((item) => assetTabLabel(item, t))}
+            value={assetTabLabel(tab, t)}
+            onChange={(label) =>
+              setTab(ASSET_TABS.find((item) => assetTabLabel(item, t) === label) || 'all')
+            }
+          />
+        </PageToolbar>
+        <div className="asset-summary [&_strong]:text-[var(--text)] [&_strong]:text-[13px] max-[650px]:items-start max-[650px]:flex-col flex items-center justify-between gap-[12px] text-[var(--text-secondary)] text-[12px]">
+          <span>
+            <strong>{assets.length}</strong> {t('assets:assetsPage.assets')}
+          </span>
+          <span>
+            {t('assets:assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically')}
+          </span>
+        </div>
+        {error && (
+          <AppError>
+            <AlertTriangle size={13} />
+            {error}
+          </AppError>
+        )}
+        {loading ? (
+          <AppEmptyState>
+            <RefreshCw className="animate-spin" size={23} />
+            <h2>{t('assets:assetsPage.loadingAssets')}</h2>
+          </AppEmptyState>
+        ) : assets.length ? (
+          <div className="asset-grid max-[650px]:grid-cols-[1fr] functional grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(260px,1fr))] content-start gap-3">
+            {assets.map((asset) => {
+              const isVideo = asset.mimeType?.startsWith('video/')
+              const Icon =
+                asset.kind === 'image'
+                  ? FileImage
+                  : isVideo
+                    ? FileVideo
+                    : asset.kind === 'link'
+                      ? Link2
+                      : File
+              return (
+                <Panel
+                  className="asset-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_>_strong]:text-[13px] [&_>_span]:m-[5px_0_10px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[12px] [&_>_div:last-child]:flex [&_>_div:last-child]:gap-[6px] [&_>_div:last-child]:mt-[auto] max-[650px]:min-h-[200px] functional flex h-full min-h-[292px] flex-col overflow-hidden"
+                  key={asset.id}
                 >
-                  {asset.kind === 'image' ? (
-                    <>
-                      <Icon className="absolute" size={38} />
-                      <img
+                  <button
+                    className={`asset-preview [&.blue]:bg-[var(--asset-preview-blue-bg)] [&.blue]:text-[var(--asset-preview-blue-text)] [&.violet]:bg-[var(--asset-preview-violet-bg)] [&.violet]:text-[var(--violet-strong)] [&.yellow]:bg-[var(--warning-soft)] [&.yellow]:text-[var(--amber)] [&.red]:bg-[var(--danger-soft)] [&.red]:text-[var(--danger)] [.asset-card.functional_&::after]:absolute [.asset-card.functional_&::after]:inset-0 [.asset-card.functional_&::after]:rounded-[var(--r-sm)] [.asset-card.functional_&::after]:bg-[rgba(0,_0,_0,_0)] [.asset-card.functional_&::after]:[transition:background_var(--d1)_var(--ease-out)] [.asset-card.functional_&::after]:[content:''] [.asset-card.functional_&::after]:pointer-events-none [.asset-card.functional_&:hover::after]:bg-[rgba(0,_0,_0,_.16)] [.asset-card.functional_&.image]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:bg-[var(--surface-hover)] [.asset-card.functional_&.link]:text-[var(--success)] [.asset-card.functional_&.file]:bg-[var(--surface-hover)] [.asset-card.functional_&.file]:text-[var(--violet-strong)] [.asset-card.functional_&_img]:relative [.asset-card.functional_&_img]:z-[0] [.asset-card.functional_&_img]:w-full [.asset-card.functional_&_img]:h-full [.asset-card.functional_&_img]:rounded-[var(--r-sm)] [.asset-card.functional_&_img]:object-cover [.asset-card.functional_&_video]:relative [.asset-card.functional_&_video]:z-[0] [.asset-card.functional_&_video]:w-full [.asset-card.functional_&_video]:h-full [.asset-card.functional_&_video]:rounded-[var(--r-sm)] [.asset-card.functional_&_video]:object-cover ${asset.kind}    ${isVideo ? 'video' : ''} relative -mx-1.5 -mt-1.5 mb-2.5 grid h-44 min-h-0 w-[calc(100%+12px)] shrink-0 place-items-center overflow-hidden rounded-[var(--r-sm)] border-0 bg-[var(--surface-hover)] text-[var(--text-muted)]`}
+                    title={t('assets:assetsPage.preview')}
+                    aria-label={`${t('assets:assetsPage.preview')}: ${asset.name}`}
+                    onClick={() => previewAsset(asset)}
+                  >
+                    {asset.kind === 'image' ? (
+                      <>
+                        <Icon className="absolute" size={38} />
+                        <img
+                          className="block size-full min-h-0 object-cover"
+                          src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
+                          alt=""
+                          onError={(event) => {
+                            event.currentTarget.hidden = true
+                          }}
+                        />
+                      </>
+                    ) : isVideo ? (
+                      <video
                         className="block size-full min-h-0 object-cover"
                         src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
-                        alt=""
-                        onError={(event) => {
-                          event.currentTarget.hidden = true
-                        }}
+                        muted
+                        preload="metadata"
                       />
-                    </>
-                  ) : isVideo ? (
-                    <video
-                      className="block size-full min-h-0 object-cover"
-                      src={`/api/assets/${encodeURIComponent(asset.id)}/download?inline=1`}
-                      muted
-                      preload="metadata"
-                    />
-                  ) : (
-                    <Icon size={38} />
-                  )}
-                </button>
-                <div className="asset-card-copy [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_span]:overflow-hidden [&_span]:text-[var(--text-muted)] [&_span]:text-[13px] [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap flex min-w-0 flex-col gap-[4px]">
-                  <strong title={asset.name}>{asset.name}</strong>
-                  <span>
-                    {asset.kind === 'link'
-                      ? asset.url
-                        ? new URL(asset.url).hostname
-                        : ''
-                      : formatFileSize(asset.size)}{' '}
-                    ·{' '}
-                    {asset.source === 'agent'
-                      ? t('assets:assetsPage.agentOutputs')
-                      : asset.source === 'attachment'
-                        ? t('assets:assetsPage.chatAttachments')
-                        : t('assets:assetsPage.manualUploads')}
-                  </span>
-                  {asset.sessionName && (
-                    <small title={asset.sessionName}>
-                      {t('assets:assetsPage.fromName', { name: asset.sessionName })}
-                    </small>
-                  )}
-                </div>
-                <div className="asset-card-actions flex-none [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] max-[650px]:opacity-100 max-[650px]:transform-none">
-                  {asset.kind === 'link' ? (
-                    <Button asChild variant="outline">
-                      <a href={asset.url} target="_blank" rel="noreferrer">
-                        <ExternalLink size={13} />
-                        {t('assets:assetsPage.open')}
-                      </a>
+                    ) : (
+                      <Icon size={38} />
+                    )}
+                  </button>
+                  <div className="asset-card-copy [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_span]:overflow-hidden [&_span]:text-[var(--text-muted)] [&_span]:text-[13px] [&_span]:text-ellipsis [&_span]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap flex min-w-0 flex-col gap-[4px]">
+                    <strong title={asset.name}>{asset.name}</strong>
+                    <span>
+                      {asset.kind === 'link'
+                        ? asset.url
+                          ? new URL(asset.url).hostname
+                          : ''
+                        : formatFileSize(asset.size)}{' '}
+                      ·{' '}
+                      {asset.source === 'agent'
+                        ? t('assets:assetsPage.agentOutputs')
+                        : asset.source === 'attachment'
+                          ? t('assets:assetsPage.chatAttachments')
+                          : t('assets:assetsPage.manualUploads')}
+                    </span>
+                    {asset.sessionName && (
+                      <small title={asset.sessionName}>
+                        {t('assets:assetsPage.fromName', { name: asset.sessionName })}
+                      </small>
+                    )}
+                  </div>
+                  <div className="asset-card-actions flex-none [.asset-card.functional:hover_&]:opacity-100 [.asset-card.functional:hover_&]:[transform:translateY(0)] [.asset-card.functional:focus-within_&]:opacity-100 [.asset-card.functional:focus-within_&]:[transform:translateY(0)] [&_a]:no-underline flex flex-wrap items-center gap-[5px] [margin-top:auto] [padding-top:10px] opacity-0 [transform:translateY(4px)] [transition:opacity_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)] max-[650px]:opacity-100 max-[650px]:transform-none">
+                    {asset.kind === 'link' ? (
+                      <Button asChild variant="outline">
+                        <a href={asset.url} target="_blank" rel="noreferrer">
+                          <ExternalLink size={13} />
+                          {t('assets:assetsPage.open')}
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={() => openAsset(asset)}>
+                        {canOpenAssetInApplication() ? (
+                          <ExternalLink size={13} />
+                        ) : (
+                          <Download size={13} />
+                        )}
+                        {canOpenAssetInApplication()
+                          ? t('assets:assetsPage.openInApplication')
+                          : t('assets:assetsPage.download')}
+                      </Button>
+                    )}
+                    <Button onClick={() => attachAsset(asset)}>
+                      <Paperclip size={13} />
+                      {t('assets:assetsPage.useInChat')}
                     </Button>
-                  ) : (
-                    <Button variant="outline" onClick={() => openAsset(asset)}>
-                      {canOpenAssetInApplication() ? (
-                        <ExternalLink size={13} />
-                      ) : (
-                        <Download size={13} />
-                      )}
-                      {canOpenAssetInApplication()
-                        ? t('assets:assetsPage.openInApplication')
-                        : t('assets:assetsPage.download')}
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="ml-auto"
+                      title={t('assets:assetsPage.deleteAsset')}
+                      aria-label={`${t('assets:assetsPage.deleteAsset')}: ${asset.name}`}
+                      onClick={() => deleteAsset(asset)}
+                    >
+                      <Trash2 size={13} />
                     </Button>
-                  )}
-                  <Button onClick={() => attachAsset(asset)}>
-                    <Paperclip size={13} />
-                    {t('assets:assetsPage.useInChat')}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="ml-auto"
-                    title={t('assets:assetsPage.deleteAsset')}
-                    aria-label={`${t('assets:assetsPage.deleteAsset')}: ${asset.name}`}
-                    onClick={() => deleteAsset(asset)}
-                  >
-                    <Trash2 size={13} />
-                  </Button>
-                </div>
-              </Panel>
-            )
-          })}
-        </div>
-      ) : (
-        <AppEmptyState>
-          <StarOrbit size={46} />
-          <h2>{t('assets:assetsPage.nothingHasGatheredHereYet')}</h2>
-          <p>
-            {t(
-              'assets:assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay',
-            )}
-          </p>
-          <Button size="lg" className="mt-4" onClick={() => setLinkModal(true)}>
-            <Link2 size={14} />
-            {t('assets:assetsPage.addLink')}
-          </Button>
-        </AppEmptyState>
-      )}
-      {preview && (
-        <AssetPreviewModal
-          asset={preview}
-          onClose={() => setPreview(null)}
-          onUse={() => attachAsset(preview)}
-          onOpen={() => openAsset(preview)}
-        />
-      )}
-      {linkModal && (
-        <AssetLinkModal
-          onClose={() => setLinkModal(false)}
-          onCreated={() => {
-            setLinkModal(false)
-            loadAssets()
-            notify(t('assets:assetsPage.linkAssetAdded'))
-          }}
-        />
-      )}
-    </div>
+                  </div>
+                </Panel>
+              )
+            })}
+          </div>
+        ) : (
+          <AppEmptyState>
+            <StarOrbit size={46} />
+            <h2>{t('assets:assetsPage.nothingHasGatheredHereYet')}</h2>
+            <p>
+              {t(
+                'assets:assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay',
+              )}
+            </p>
+            <Button size="lg" className="mt-4" onClick={() => setLinkModal(true)}>
+              <Link2 size={14} />
+              {t('assets:assetsPage.addLink')}
+            </Button>
+          </AppEmptyState>
+        )}
+        {preview && (
+          <AssetPreviewModal
+            asset={preview}
+            onClose={() => setPreview(null)}
+            onUse={() => attachAsset(preview)}
+            onOpen={() => openAsset(preview)}
+          />
+        )}
+        {linkModal && (
+          <AssetLinkModal
+            onClose={() => setLinkModal(false)}
+            onCreated={() => {
+              setLinkModal(false)
+              loadAssets()
+              notify(t('assets:assetsPage.linkAssetAdded'))
+            }}
+          />
+        )}
+      </div>
+    </PageFrame>
   )
 }
 

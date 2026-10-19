@@ -1,11 +1,14 @@
 // @public 壳层可用的文件改动面板；调用方提供会话 ID、实时运行状态和确认能力。
+import { useResourceReading } from './use-resource-reading'
 // 文件快照的读取、审批和撤销由当前面板持有；切换会话时整组状态重新挂载。
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, FileDiff, RefreshCw, Undo2 } from 'lucide-react'
+import { Check, ChevronRight, FileDiff, RefreshCw, Undo2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { chatApi, type SessionFileChangesResponse } from './chat-api'
+import { TaskFileDiff } from './TaskChangesPane'
+import type { ContextPageView } from './session-context-pages'
 import { invalidateSessionChangeSummary } from './session-change-summary-api'
 
 const GitDiffDialog = lazy(() =>
@@ -16,6 +19,8 @@ const MAX_VISIBLE_FILES = 100
 type FileAction = { kind: 'approve' | 'revert'; path?: string }
 type SessionFilesPaneProps = {
   sessionId: string
+  view?: ContextPageView
+  onViewChange?: (patch: Partial<ContextPageView>) => void
   streaming: boolean
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
@@ -24,9 +29,23 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function SessionFilesPane({ sessionId, streaming, requestConfirm }: SessionFilesPaneProps) {
+export function SessionFilesPane({
+  sessionId,
+  streaming,
+  requestConfirm,
+  view,
+  onViewChange,
+}: SessionFilesPaneProps) {
   const { t } = useI18n()
+  const reading = useResourceReading<HTMLUListElement>(view?.reading?.list, (position) =>
+    onViewChange?.({ reading: { ...view?.reading, list: position } }),
+  )
+  const [localExpanded, setLocalExpanded] = useState<string[]>([])
+  const expandedFiles = view?.expandedFiles || localExpanded
+  const expand = (paths: string[]) =>
+    onViewChange ? onViewChange({ expandedFiles: paths }) : setLocalExpanded(paths)
   const [revision, setRevision] = useState(0)
+  const [snapshotRevision, setSnapshotRevision] = useState(0)
   const [changes, setChanges] = useState<SessionFileChangesResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -68,7 +87,10 @@ export function SessionFilesPane({ sessionId, streaming, requestConfirm }: Sessi
       .getSessionFileChanges(sessionId)
       .then(
         (data) => {
-          if (activeRef.current && sequence === requestSequence.current) setChanges(data)
+          if (activeRef.current && sequence === requestSequence.current) {
+            setChanges(data)
+            setSnapshotRevision((value) => value + 1)
+          }
         },
         (caught: unknown) => {
           if (activeRef.current && sequence === requestSequence.current)
@@ -278,6 +300,22 @@ export function SessionFilesPane({ sessionId, streaming, requestConfirm }: Sessi
           </Button>
         </div>
       </div>
+      <p className="text-xs text-content-muted">{t('chat:workbench.taskSnapshotScope')}</p>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loading || !changes?.files.length}
+          onClick={() =>
+            expand(changes?.files.slice(0, MAX_VISIBLE_FILES).map((file) => file.path) || [])
+          }
+        >
+          {t('chat:workbench.expandAll')}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => expand([])}>
+          {t('chat:workbench.collapseAll')}
+        </Button>
+      </div>
       {displayedError && (
         <p
           role="alert"
@@ -306,63 +344,93 @@ export function SessionFilesPane({ sessionId, streaming, requestConfirm }: Sessi
         )
       ) : (
         <ul
+          ref={reading.ref}
           className="min-h-0 flex-1 space-y-1 overflow-y-auto"
           aria-label={t('chat:focusSession.fileChanges')}
         >
           {changes.files.slice(0, MAX_VISIBLE_FILES).map((file) => (
-            <li
-              key={file.path}
-              className="flex min-w-0 items-center gap-1 rounded-md bg-[var(--surface-subtle)] px-2 py-1"
-            >
-              <button
-                type="button"
-                className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md text-left text-[length:var(--app-small-size)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-blue)] disabled:opacity-60"
-                title={file.path}
-                disabled={loading || Boolean(running)}
-                aria-busy={diffLoading === file.path}
-                onClick={() => void viewDiff(file.path)}
-              >
-                {diffLoading === file.path ? (
-                  <RefreshCw size={14} className="flex-none animate-spin" />
-                ) : (
-                  <FileDiff size={14} className="flex-none text-[var(--star-strong)]" />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{file.path}</span>
-                  <span className="block text-[var(--text-muted)]">
-                    +{file.added} −{file.removed}
-                    {file.reverted
-                      ? ` · ${t('chat:focusSession.fileChangesReverted')}`
-                      : file.approved
-                        ? ` · ${t('chat:focusSession.fileChangesApproved')}`
-                        : ''}
+            <li key={file.path} className="min-w-0 rounded-md border-b border-border/60">
+              <div className="flex min-w-0 items-center gap-1 px-2 py-1">
+                <button
+                  type="button"
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md text-left text-[length:var(--app-small-size)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-blue)] disabled:opacity-60"
+                  title={file.path}
+                  disabled={loading || Boolean(running)}
+                  aria-busy={diffLoading === file.path}
+                  aria-expanded={expandedFiles.includes(file.path)}
+                  onClick={() =>
+                    expand(
+                      expandedFiles.includes(file.path)
+                        ? expandedFiles.filter((path) => path !== file.path)
+                        : [...expandedFiles, file.path],
+                    )
+                  }
+                >
+                  <ChevronRight
+                    size={14}
+                    className={
+                      expandedFiles.includes(file.path) ? 'rotate-90 shrink-0' : 'shrink-0'
+                    }
+                  />
+                  {diffLoading === file.path ? (
+                    <RefreshCw size={14} className="flex-none animate-spin" />
+                  ) : (
+                    <FileDiff size={14} className="flex-none text-[var(--star-strong)]" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{file.path}</span>
+                    <span className="block text-[var(--text-muted)]">
+                      +{file.added} −{file.removed}
+                      {file.reverted
+                        ? ` · ${t('chat:focusSession.fileChangesReverted')}`
+                        : file.approved
+                          ? ` · ${t('chat:focusSession.fileChangesApproved')}`
+                          : ''}
+                    </span>
                   </span>
-                </span>
-              </button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-11 sm:size-9"
-                title={t('chat:focusSession.fileChangesApproveFile')}
-                aria-label={`${t('chat:focusSession.fileChangesApproveFile')} ${file.path}`}
-                disabled={writesDisabled || !file.pending || file.approved || file.reverted}
-                onClick={() => void runAction({ kind: 'approve', path: file.path })}
-              >
-                <Check size={14} />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-11 sm:size-9"
-                title={t('chat:focusSession.fileChangesRevertFile')}
-                aria-label={`${t('chat:focusSession.fileChangesRevertFile')} ${file.path}`}
-                disabled={writesDisabled || file.reverted || !file.canRevert}
-                onClick={() => void runAction({ kind: 'revert', path: file.path })}
-              >
-                <Undo2 size={14} />
-              </Button>
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 sm:size-9"
+                  title={t('chat:focusSession.fileChangesApproveFile')}
+                  aria-label={`${t('chat:focusSession.fileChangesApproveFile')} ${file.path}`}
+                  disabled={writesDisabled || !file.pending || file.approved || file.reverted}
+                  onClick={() => void runAction({ kind: 'approve', path: file.path })}
+                >
+                  <Check size={14} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 sm:size-9"
+                  title={t('chat:focusSession.fileChangesRevertFile')}
+                  aria-label={`${t('chat:focusSession.fileChangesRevertFile')} ${file.path}`}
+                  disabled={writesDisabled || file.reverted || !file.canRevert}
+                  onClick={() => void runAction({ kind: 'revert', path: file.path })}
+                >
+                  <Undo2 size={14} />
+                </Button>
+              </div>
+              {expandedFiles.includes(file.path) && (
+                <>
+                  <TaskFileDiff
+                    sessionId={sessionId}
+                    path={file.path}
+                    scope="task"
+                    position={view?.reading?.[file.path]}
+                    onReading={(position) =>
+                      onViewChange?.({ reading: { ...view?.reading, [file.path]: position } })
+                    }
+                    revision={snapshotRevision}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => void viewDiff(file.path)}>
+                    {t('chat:workbench.fullDiff')}
+                  </Button>
+                </>
+              )}
             </li>
           ))}
           {changes.files.length > MAX_VISIBLE_FILES && (

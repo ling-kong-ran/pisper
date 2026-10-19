@@ -24,7 +24,8 @@ import {
   dockPositionForDisposition,
   initialDockSessionIds,
   panelIdForSession,
-  parseDockLayoutEnvelope,
+  classifyDockSnapshot,
+  resolveTaskOpen,
   sessionIdFromPanel,
   sessionIdsFromDockLayout,
   type DockLayoutEnvelope,
@@ -38,6 +39,8 @@ import {
   consumeWebPreviewRequest,
   type WebPreviewOpenRequest,
 } from './web-preview-events'
+import { useContextPagesStore } from './session-context-pages-store'
+import { clearComposerDraft } from './composer-drafts'
 import { WEB_PREVIEW_PANEL_ID, webPreviewPanelTitle } from './web-preview-panel'
 
 type DockOptions = {
@@ -71,6 +74,8 @@ export function useChatDock({
   notify,
 }: DockOptions) {
   const { t } = useI18n()
+  const noticeRef = useRef({ notify, t })
+  noticeRef.current = { notify, t }
   const [dockReady, setDockReady] = useState(0)
   // 手机布局不渲染 Dock：打开会话时只切换活动 id。
   const singleSessionLayoutRef = useRef(singleSessionLayout)
@@ -80,6 +85,8 @@ export function useChatDock({
   )
   const dockApiRef = useRef<DockviewApi | null>(null)
   const dockInitializedRef = useRef(false)
+  const layoutWritableRef = useRef(true)
+  const latestLayoutRef = useRef<DockLayoutEnvelope | null>(null)
   const dockDisposablesRef = useRef<DockviewIDisposable[]>([])
   const layoutSaveTimerRef = useRef<number | undefined>(undefined)
   const pendingDockLayoutRef = useRef<string | null>(null)
@@ -102,21 +109,34 @@ export function useChatDock({
     const validIds = new Set(sessions.map((session) => session.id))
     return [
       ...mobileOpenedSessionIds,
-      ...sessionIdsFromDockLayout(storedDockLayout?.layout),
+      ...sessionIdsFromDockLayout(
+        singleSessionLayout
+          ? latestLayoutRef.current?.layout || storedDockLayout?.layout
+          : storedDockLayout?.layout,
+      ),
       activeId,
     ].filter((id, index, ids) => id && validIds.has(id) && ids.indexOf(id) === index)
-  }, [activeId, mobileOpenedSessionIds, sessions, storedDockLayout])
+  }, [activeId, mobileOpenedSessionIds, sessions, storedDockLayout, singleSessionLayout])
 
   useEffect(() => {
     let mounted = true
     void apiJson<unknown>('/api/settings/chat-dock-layout')
       .then((value) => {
         if (!mounted) return
-        setStoredDockLayout(parseDockLayoutEnvelope(value))
+        const snapshot = classifyDockSnapshot(value)
+        layoutWritableRef.current = snapshot.writable
+        latestLayoutRef.current = snapshot.layout
+        setStoredDockLayout(snapshot.layout)
+        if (!snapshot.writable)
+          noticeRef.current.notify(noticeRef.current.t('chat:workbench.layoutPreserved'), 'info')
         setDockLayoutLoaded(true)
       })
       .catch(() => {
-        if (mounted) setDockLayoutLoaded(true)
+        if (mounted) {
+          layoutWritableRef.current = false
+          noticeRef.current.notify(noticeRef.current.t('chat:workbench.layoutPreserved'), 'info')
+          setDockLayoutLoaded(true)
+        }
       })
     return () => {
       mounted = false
@@ -158,6 +178,7 @@ export function useChatDock({
 
   const queueDockLayoutWrite = useCallback(
     (serialized: string) => {
+      if (!layoutWritableRef.current) return
       pendingLayoutWriteRef.current = serialized
       consumeDockLayoutWrites()
     },
@@ -175,6 +196,7 @@ export function useChatDock({
       if (api) {
         try {
           const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+          latestLayoutRef.current = envelope
           serialized = JSON.stringify(envelope)
         } catch {}
       }
@@ -193,9 +215,9 @@ export function useChatDock({
       if (!api || !dockInitializedRef.current) return
       let serialized: string
       try {
-        serialized = JSON.stringify(
-          createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || ''),
-        )
+        const envelope = createDockLayoutEnvelope(api.toJSON(), api.activePanel?.id || '')
+        latestLayoutRef.current = envelope
+        serialized = JSON.stringify(envelope)
       } catch {
         return
       }
@@ -217,6 +239,7 @@ export function useChatDock({
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
       // 单会话布局无 Dock：记录打开顺序并直接切换活动会话。
       if (singleSessionLayoutRef.current) {
+        pendingDockRequestRef.current = { sessionId, disposition: 'open' }
         if (sessionId) {
           setMobileOpenedSessionIds((current) =>
             current.includes(sessionId) ? current : [...current, sessionId],
@@ -231,28 +254,27 @@ export function useChatDock({
         pendingDockRequestRef.current = { sessionId, disposition }
         return false
       }
-      const effectiveDisposition = compactDockRef.current ? 'open' : disposition
       const panelId = panelIdForSession(sessionId)
       const existing = api.getPanel(panelId)
       const referencePanel = api.activePanel
+      const action = resolveTaskOpen({
+        sessionId,
+        visibleIds: api.panels.filter((panel) => panel.api.isVisible).map(sessionIdFromPanel),
+        focusedId: sessionIdFromPanel(referencePanel),
+        disposition,
+        width: compactDockRef.current ? 0 : referencePanel?.api.width || api.width,
+        height: compactDockRef.current ? 0 : referencePanel?.api.height || api.height,
+      })
       if (existing) {
-        if (effectiveDisposition !== 'open') {
-          if (referencePanel && existing.id !== referencePanel.id) {
-            existing.api.moveTo({
-              group: referencePanel.group,
-              position: dockPositionForDisposition(effectiveDisposition),
-            })
-          } else if (existing.group.size > 1) {
-            existing.api.moveTo({
-              group: existing.group,
-              position: dockPositionForDisposition(effectiveDisposition),
-            })
-          }
-        }
         existing.api.setActive()
         setActiveId(sessionId)
         return true
       }
+      if (action.kind === 'unavailable') {
+        notify(t('chat:workbench.splitUnavailable'), 'info')
+        return false
+      }
+      const effectiveDisposition = disposition
       const position =
         effectiveDisposition === 'open'
           ? api.activeGroup
@@ -271,11 +293,13 @@ export function useChatDock({
         minimumHeight: 240,
         ...(position ? { position } : {}),
       })
+      // 先在原分组加入新任务，再关闭被替换的视图，保留其分屏位置。
+      if (action.kind === 'replace' && referencePanel) referencePanel.api.close()
       setActiveId(sessionId)
       void loadSessionMessages(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
       return true
     },
-    [loadSessionMessages, sessionsRef, setActiveId, t],
+    [loadSessionMessages, sessionsRef, setActiveId, notify, t],
   )
 
   // 在 Dock 打开 Web 预览面板：已存在则更新 URL 并聚焦，
@@ -381,6 +405,9 @@ export function useChatDock({
         }),
         api.onDidLayoutChange(() => scheduleDockLayoutSave(api)),
         api.onDidAddPanel((panel) => {
+          panel.group.header.hidden = panel.group.panels.every(
+            (item) => item.api.component === 'session',
+          )
           const sessionId = sessionIdFromPanel(panel)
           if (sessionId) void loadSessionMessages(sessionId, { limit: FOCUS_MESSAGE_PAGE_SIZE })
         }),
@@ -417,6 +444,10 @@ export function useChatDock({
   useEffect(() => {
     return subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
       const deleted = new Set(deletedIds)
+      for (const id of deletedIds) {
+        useContextPagesStore.getState().forget(id)
+        clearComposerDraft(id)
+      }
       setMobileOpenedSessionIds((current) => current.filter((id) => !deleted.has(id)))
       if (pendingDockRequestRef.current && deleted.has(pendingDockRequestRef.current.sessionId)) {
         pendingDockRequestRef.current = null
@@ -484,67 +515,83 @@ export function useChatDock({
     )
       return
     const api = dockApiRef.current
-    const validIds = new Set(sessions.map((session) => session.id))
-    const storedLayout = storedDockLayout
-    if (storedLayout) {
-      try {
-        api.fromJSON(storedLayout.layout)
-        for (const panel of [...api.panels]) {
-          if (panel.api.component !== 'session') continue
-          const sessionId = sessionIdFromPanel(panel)
-          if (!validIds.has(sessionId)) api.removePanel(panel)
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled || dockApiRef.current !== api || dockInitializedRef.current) return
+      const validIds = new Set(sessions.map((session) => session.id))
+      const storedLayout = latestLayoutRef.current || storedDockLayout
+      if (storedLayout) {
+        try {
+          api.fromJSON(storedLayout.layout)
+          for (const panel of [...api.panels]) {
+            if (panel.api.component !== 'session') continue
+            const sessionId = sessionIdFromPanel(panel)
+            if (!validIds.has(sessionId)) api.removePanel(panel)
+          }
+        } catch {
+          layoutWritableRef.current = false
+          notify(t('chat:workbench.layoutPreserved'), 'info')
+          api.clear()
         }
-      } catch {
-        api.clear()
       }
-    }
-    if (!api.panels.length) {
-      const initialIds = initialDockSessionIds({
-        activeSessionId: activeId,
-        validSessionIds: sessions.map((session) => session.id),
-      })
-      let referenceGroup: DockviewGroupPanel | undefined
-      for (const sessionId of initialIds) {
-        const session = sessions.find((item) => item.id === sessionId)
-        if (!session) continue
-        const panel = api.addPanel({
-          id: panelIdForSession(sessionId),
-          component: 'session',
-          title: session.name || t('chat:chatPage.untitledChat'),
-          params: { sessionId },
-          renderer: 'always',
-          minimumWidth: 300,
-          ...(referenceGroup ? { position: { referenceGroup } } : {}),
-          inactive: Boolean(referenceGroup),
+      if (!api.panels.length) {
+        const initialIds = initialDockSessionIds({
+          activeSessionId: activeId,
+          validSessionIds: sessions.map((session) => session.id),
         })
-        referenceGroup ||= panel.group
+        let referenceGroup: DockviewGroupPanel | undefined
+        for (const sessionId of initialIds) {
+          const session = sessions.find((item) => item.id === sessionId)
+          if (!session) continue
+          const panel = api.addPanel({
+            id: panelIdForSession(sessionId),
+            component: 'session',
+            title: session.name || t('chat:chatPage.untitledChat'),
+            params: { sessionId },
+            renderer: 'always',
+            minimumWidth: 300,
+            ...(referenceGroup ? { position: { referenceGroup } } : {}),
+            inactive: Boolean(referenceGroup),
+          })
+          referenceGroup ||= panel.group
+        }
       }
-    }
-    for (const panel of api.panels) {
-      const session = sessions.find((item) => item.id === sessionIdFromPanel(panel))
-      if (session) panel.api.setTitle(session.name || t('chat:chatPage.untitledChat'))
-    }
-    dockInitializedRef.current = true
-    localStorage.removeItem(STORAGE_KEYS.chatMode)
-    const request = pendingDockRequestRef.current || consumeSessionSelectionRequest()
-    pendingDockRequestRef.current = null
-    if (request) {
-      openSessionInDock(request.sessionId, request.disposition)
-      if (request.targetEntryId) {
-        void loadSessionMessages(request.sessionId, {
-          force: true,
-          limit: FOCUS_MESSAGE_PAGE_SIZE,
-        })
+      for (const group of api.groups) {
+        for (const panel of [...group.panels]) {
+          if (panel !== group.activePanel && panel.api.component === 'session')
+            api.removePanel(panel)
+        }
+        group.header.hidden = group.panels.every((panel) => panel.api.component === 'session')
       }
-    } else {
-      const preferredPanel =
-        api.getPanel(storedLayout?.activePanelId || panelIdForSession(activeId)) || api.panels[0]
-      preferredPanel?.api.setActive()
+      for (const panel of api.panels) {
+        const session = sessions.find((item) => item.id === sessionIdFromPanel(panel))
+        if (session) panel.api.setTitle(session.name || t('chat:chatPage.untitledChat'))
+      }
+      dockInitializedRef.current = true
+      localStorage.removeItem(STORAGE_KEYS.chatMode)
+      const request = pendingDockRequestRef.current || consumeSessionSelectionRequest()
+      pendingDockRequestRef.current = null
+      if (request) {
+        openSessionInDock(request.sessionId, request.disposition)
+        if (request.targetEntryId) {
+          void loadSessionMessages(request.sessionId, {
+            force: true,
+            limit: FOCUS_MESSAGE_PAGE_SIZE,
+          })
+        }
+      } else {
+        const preferredPanel =
+          api.getPanel(storedLayout?.activePanelId || panelIdForSession(activeId)) || api.panels[0]
+        preferredPanel?.api.setActive()
+      }
+      const previewRequest = pendingWebPreviewRef.current || consumeWebPreviewRequest()
+      pendingWebPreviewRef.current = null
+      if (previewRequest) openWebPreviewInDock(previewRequest)
+      scheduleDockLayoutSave(api)
+    })
+    return () => {
+      cancelled = true
     }
-    const previewRequest = pendingWebPreviewRef.current || consumeWebPreviewRequest()
-    pendingWebPreviewRef.current = null
-    if (previewRequest) openWebPreviewInDock(previewRequest)
-    scheduleDockLayoutSave(api)
   }, [
     activeId,
     dockLayoutLoaded,
@@ -556,6 +603,7 @@ export function useChatDock({
     scheduleDockLayoutSave,
     sessions,
     storedDockLayout,
+    notify,
     t,
   ])
 
@@ -603,6 +651,18 @@ export function useChatDock({
     [closeDockPanel, compactDock, splitDockPanel, t],
   )
 
+  const onDockDispose = useCallback(
+    (api: DockviewApi) => {
+      if (dockApiRef.current !== api) return
+      persistDockLayout(api)
+      dockInitializedRef.current = false
+      for (const disposable of dockDisposablesRef.current) disposable.dispose()
+      dockDisposablesRef.current = []
+      dockApiRef.current = null
+    },
+    [persistDockLayout],
+  )
+
   return {
     compactDock,
     mobileSessionIds,
@@ -611,6 +671,7 @@ export function useChatDock({
     closeDockPanel,
     moveSessionToGroup,
     onDockReady,
+    onDockDispose,
     getTabContextMenuItems,
   }
 }

@@ -9,7 +9,6 @@ export type ComposerDraft = {
   attachments: ChatAttachment[]
 }
 
-const MAX_RETAINED_DRAFTS = 64
 const drafts = new Map<string, ComposerDraft>()
 
 export function commandDraft(invocation: string, value: string) {
@@ -36,11 +35,7 @@ export function updateComposerDraft(sessionId: string, patch: Partial<ComposerDr
   drafts.delete(sessionId)
   if (!next.text && !next.attachments.length) return
   drafts.set(sessionId, next)
-  while (drafts.size > MAX_RETAINED_DRAFTS) {
-    const oldest = drafts.keys().next().value
-    if (typeof oldest !== 'string') break
-    drafts.delete(oldest)
-  }
+  // 未发送内容只由提交、显式清空或任务删除清理，不能按最近访问数量回收。
 }
 
 export function clearComposerDraft(sessionId: string) {

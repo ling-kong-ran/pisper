@@ -36,3 +36,11 @@ TUI 未引用这些端点，其 JSON/SSE 契约保持原状。不保留兼容枚
 
 同时运行 `npm run check`、`npm test`、`npm run build`、TUI 检查与测试。
 回滚应一起恢复前端入口、Runtime 路由/方法、文案和测试；不能覆盖独立保存在 stash 中的用户改动。
+
+## 恢复工作台暂存改动时的整合边界
+
+2026-10-16 恢复发版前暂存的工作台改造，保留任务、分屏、来源、进程和页面模板等原改动。
+删除其中新增的 `TaskFilesPane`、`workspace-entries*.ts` 以及 `workspace-files` 资源标签、菜单和视图状态，
+保持本记录中的文件浏览退役决定。项目列表的系统目录选择接线随组件重命名迁移到
+`features/chat/ProjectTaskList.tsx`；验收夹具使用同一生产组件。已发布的各渠道版本元数据保持当前值。
+恢复使用 `git stash apply`，原 stash 留作备份；本次恢复不自动提交或再次发布。

@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
 import androidx.core.view.WindowInsetsCompat
@@ -27,6 +28,21 @@ class MainActivity : TauriActivity() {
     // WebView 必须随输入法可视区缩放，否则底部会话输入框会落在键盘后方。
     window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     super.onCreate(savedInstanceState)
+    onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+      override fun handleOnBackPressed() {
+        val webView = safeAreaWebView
+        val origin = webView?.url?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        fun fallback() {
+          isEnabled = false
+          try { onBackPressedDispatcher.onBackPressed() } finally { isEnabled = true }
+        }
+        if (webView == null || !isTrustedProxyOrigin(origin)) { fallback(); return }
+        // 不向非受信任页面注入返回协议；没有可关闭界面时保留 Tauri 默认返回行为。
+        webView.evaluateJavascript("Boolean(window.__pisperRequestBack?.())") { consumed ->
+          if (!isFinishing && !isDestroyed && safeAreaWebView === webView && consumed != "true") fallback()
+        }
+      }
+    })
     // Android 15+ 的 edge-to-edge WebView 不一定把系统栏转换为 CSS env(safe-area-inset-*)。
     // 保留系统默认分发，只把真实 WindowInsets 映射为当前页面的设计变量。
     window.decorView.setOnApplyWindowInsetsListener { view, insets ->

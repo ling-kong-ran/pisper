@@ -48,5 +48,10 @@
   "statusBar.reconnecting": "Reconnecting…",
   "statusBar.connectionLost": "Runtime connection lost, reconnecting…",
   "statusBar.connectionRestored": "Runtime connection restored",
-  "api.invalidResponse": "The server returned an invalid response. Please try again."
+  "api.invalidResponse": "The server returned an invalid response. Please try again.",
+  "pageTemplate.backToList": "Back to list",
+  "pageTemplate.openDetail": "Open details and canvas",
+  "pageTemplate.loading": "Loading…",
+  "pageTemplate.retry": "Retry",
+  "pageTemplate.empty": "Nothing here yet"
 }

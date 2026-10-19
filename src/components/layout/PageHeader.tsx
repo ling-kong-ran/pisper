@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
-import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
 import { ThemeToggleButton } from './ThemeToggleButton'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -103,18 +102,25 @@ export function PageHeader({
         page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
         desktop && '[-webkit-app-region:drag]',
         window.pisperDesktop?.customTitlebar && 'pr-[148px]',
-        desktopPlatform === 'darwin' && 'pl-[74px]',
+        'pl-[calc(24px+var(--workbench-leading-inset,0px))] max-[650px]:pl-[calc(16px+var(--workbench-leading-inset,0px))]',
+        page === 'config' &&
+          'mx-auto w-full min-h-24 px-6 py-8 max-[650px]:min-h-24 max-[650px]:pt-14',
+        page === 'config' && (configSection === 'models' ? 'max-w-[1040px]' : 'max-w-[776px]'),
       )}
     >
-      <WorkbenchSidebarToggle />
       <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
-        <h1 className="shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]">
+        <h1
+          className={cn(
+            'shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]',
+            page === 'config' && 'text-2xl',
+          )}
+        >
           {meta[0]}
         </h1>
         <p
           className={cn(
             'mt-0 min-w-0 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-[var(--text-muted)] max-[650px]:mt-[3px] max-[650px]:whitespace-normal',
-            page === 'chat' && 'hidden',
+            (page === 'chat' || page === 'config') && 'hidden',
           )}
         >
           {meta[1]}
@@ -183,7 +189,9 @@ export function PageHeader({
         {primary && (
           <Button
             size="lg"
-            variant={page === 'workflowCreate' ? 'outline' : 'default'}
+            variant={
+              page === 'config' ? 'ghost' : page === 'workflowCreate' ? 'outline' : 'default'
+            }
             className={cn(
               'max-[650px]:col-start-2 max-[650px]:row-start-1',
               page === 'chat' && mobileApp && 'hidden',
@@ -223,14 +231,16 @@ export function PageHeader({
             <TerminalSquare size={16} />
           </Button>
         )}
-        <ThemeToggleButton
-          theme={theme}
-          onCycle={onCycleTheme}
-          className={cn(
-            'bg-[var(--solid)]',
-            page !== 'chat' && 'max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4',
-          )}
-        />
+        {page !== 'config' && (
+          <ThemeToggleButton
+            theme={theme}
+            onCycle={onCycleTheme}
+            className={cn(
+              'bg-[var(--solid)]',
+              page !== 'chat' && 'max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4',
+            )}
+          />
+        )}
       </div>
     </header>
   )

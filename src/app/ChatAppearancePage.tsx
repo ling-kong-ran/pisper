@@ -53,7 +53,7 @@ export function ChatAppearancePage({
         data-config-card="interface-custom-ui"
       >
         <Suspense fallback={<p role="status">{t('common:webPreview.loading')}</p>}>
-          <CustomUiPage notify={notify} />
+          <CustomUiPage notify={notify} embedded />
         </Suspense>
       </TabsContent>
     </Tabs>

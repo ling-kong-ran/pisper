@@ -1,3 +1,5 @@
+import { PageFrame } from '@/components/app/PageFrame'
+import { ListDetailLayout } from '@/components/app/ListDetailLayout'
 // 技能页：查看/安装/卸载 Agent 技能包，展示技能说明与封面。
 import { useCallback, useEffect, useState } from 'react'
 import { FileCode2, Image, Package, RefreshCw, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
@@ -105,6 +107,8 @@ export function SkillsPage({
   requestText,
   requestConfirm,
 }: SkillsPageProps) {
+  const [detailOpen, setDetailOpen] = useState(false)
+
   const { t } = useI18n()
   const [data, setData] = useState<SkillsData | null>(null)
   const [selectedId, setSelectedId] = useState('')
@@ -182,7 +186,7 @@ export function SkillsPage({
 
   if (loading && !data) {
     return (
-      <div className="skills-page flex min-h-[100%] flex-col gap-[12px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
         <AppEmptyState>
           <RefreshCw className="animate-spin" size={23} />
           <h2>{t('skills:skillsPage.loadingSkills')}</h2>
@@ -314,7 +318,7 @@ export function SkillsPage({
     <section className="skill-scope [.skill-scope_+_&]:[border-top:1px_solid_var(--stroke)] [.skill-scope_+_&]:pt-[14px]">
       <div className="skill-scope-head [&_>_div]:min-w-0 [&_small]:block [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_span]:min-w-[24px] [&_>_span]:text-[var(--text-secondary)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&_>_span]:text-right flex min-w-0 items-start justify-between gap-[10px]">
         <div>
-          <SectionTitle title={title} />
+          <SectionTitle title={title} className="mb-0.5" />
           {workspace && <small title={workspace}>{workspace}</small>}
         </div>
         <span>{scopedSkills.length}</span>
@@ -329,7 +333,10 @@ export function SkillsPage({
             >
               <button
                 className="skill-row-main [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] border-0 bg-transparent [padding:6px_4px] text-left"
-                onClick={() => setSelectedId(skill.id)}
+                onClick={() => {
+                  setDetailOpen(true)
+                  setSelectedId(skill.id)
+                }}
               >
                 <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
                   <Icon size={15} />
@@ -361,158 +368,181 @@ export function SkillsPage({
   )
 
   return (
-    <div className="skills-page flex min-h-[100%] flex-col gap-[12px]">
-      <Segmented
-        options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
-        value={skillFilterLabel(filter, t)}
-        onChange={(label) =>
-          setFilter(SKILL_FILTERS.find((item) => skillFilterLabel(item, t) === label) || 'all')
-        }
-      />
-      <div className="skills-layout max-[1150px]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:grid-cols-[1fr] grid min-h-0 flex-1 grid-cols-[minmax(240px,.85fr)_minmax(290px,1.05fr)_minmax(280px,1fr)] gap-[12px]">
-        <Panel className="flex flex-col gap-[16px]">
-          {filter !== 'project' &&
-            renderSkillScope(
-              t('skills:skillsPage.globalSkills'),
-              globalSkills,
-              allGlobalSkills,
-              t('skills:skillsPage.noGlobalSkills'),
-              data?.locations?.global || '~/.pisper/agent/skills',
-            )}
-          {filter !== 'global' &&
-            renderSkillScope(
-              t('skills:skillsPage.projectSkills'),
-              projectSkills,
-              allProjectSkills,
-              t('skills:skillsPage.noProjectSkills'),
-              data?.locations?.project ||
-                (data?.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
-            )}
-        </Panel>
-        <Panel>
-          <AppCardHeader>
-            <SectionTitle title={t('skills:skillsPage.configuredSkillPackages')} />
-            <span className="text-[var(--text-secondary)] text-[12px] font-[600]">
-              {t('skills:skillsPage.countSkillPackages', { count: packages.length })}
-            </span>
-          </AppCardHeader>
-          {packages.length ? (
-            packages.map((item) => (
-              <div
-                className="market-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
-                key={item.source}
-              >
-                <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                  <Package size={15} />
-                </span>
-                <span>
-                  <strong title={item.source}>{item.source}</strong>
-                  <small>{item.description}</small>
-                </span>
-                <Badge tone={item.tone as 'green' | 'gray'}>{item.status}</Badge>
-              </div>
-            ))
-          ) : (
-            <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
-              {t(
-                'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
-              )}
-            </p>
-          )}
-        </Panel>
-        <div className="detail-stack flex min-w-0 flex-col gap-[12px] [.mcp-layout_>_&]:min-h-0 max-[1150px]:[.memory-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.memory-layout_>_&]:grid max-[1150px]:[.memory-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.mcp-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.mcp-layout_>_&]:grid max-[1150px]:[.mcp-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[1150px]:[.skills-layout_>_&]:[grid-column:1/-1] max-[1150px]:[.skills-layout_>_&]:grid max-[1150px]:[.skills-layout_>_&]:grid-cols-[repeat(2,minmax(0,1fr))] max-[650px]:[.memory-layout_>_&]:[grid-column:auto] max-[650px]:[.memory-layout_>_&]:grid-cols-[1fr] max-[650px]:[.mcp-layout_>_&]:[grid-column:auto] max-[650px]:[.mcp-layout_>_&]:grid-cols-[1fr] max-[650px]:[.skills-layout_>_&]:[grid-column:auto] max-[650px]:[.skills-layout_>_&]:grid-cols-[1fr]">
-          <Panel>
-            <SectionTitle title={t('skills:skillsPage.selectedSkill')} />
-            <h2>{selected?.name || t('skills:skillsPage.noSkillAvailable')}</h2>
-            <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55]">
-              {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
-            </p>
-            {[
-              [
-                t('skills:skillsPage.triggerMode'),
-                selected?.modelInvocationEnabled
-                  ? t('skills:skillsPage.automaticManual')
-                  : t('skills:skillsPage.manualOnly'),
-              ],
-              [
-                t('skills:skillsPage.permissions'),
-                selected?.allowedTools?.length
-                  ? selected.allowedTools.join(', ')
-                  : t('skills:skillsPage.usesChatToolPermissions'),
-              ],
-              [
-                t('skills:skillsPage.scope'),
-                selected?.sourceInfo?.scope === 'project'
-                  ? t('skills:skillsPage.project')
-                  : t('skills:skillsPage.global'),
-              ],
-              [t('skills:skillsPage.version'), selected?.version || 'latest'],
-              [t('skills:skillsPage.source'), selected?.source || '—'],
-            ].map((row) => (
-              <div
-                className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
-                key={row[0]}
-              >
-                <span>{row[0]}</span>
-                <strong>{row[1]}</strong>
-              </div>
-            ))}
-            <Button
-              variant={selected?.removable ? 'destructive' : 'default'}
-              size="lg"
-              className="w-full"
-              disabled={busy}
-              onClick={selected?.removable ? uninstallSkill : saveSettings}
-            >
-              {selected?.removable ? <Trash2 size={14} /> : <Save size={14} />}
-              {selected?.removable
-                ? t('skills:skillsPage.uninstallSkill')
-                : t('skills:skillsPage.saveSettings')}
-            </Button>
-          </Panel>
-          <Panel>
-            <SectionTitle title={t('skills:skillsPage.triggerConditions')} />
-            {(
-              [
-                [
-                  t('skills:skillsPage.allowAutomaticModelInvocation'),
-                  Boolean(selected?.modelInvocationEnabled),
-                  false,
-                  (checked) => void updateSkill(selected, { modelInvocationEnabled: checked }),
-                ],
-                [
-                  t('skills:skillsPage.supportManualSkillCommand'),
-                  Boolean(selected?.command),
-                  true,
-                ],
-                [
-                  t('skills:skillsPage.projectScopedSkill'),
-                  selected?.sourceInfo?.scope === 'project',
-                  true,
-                ],
-                [
-                  t('skills:skillsPage.declaresRequiredTools'),
-                  Boolean(selected?.allowedTools?.length),
-                  true,
-                ],
-              ] as Array<[string, boolean, boolean, ((checked: boolean) => void)?]>
-            ).map(([item, checked, disabled, onChange]) => (
-              <label
-                className="check-row [&_input]:[accent-color:var(--star-strong)] flex items-center gap-[7px] [border-top:1px_solid_var(--stroke-soft)] [padding:8px_2px] text-[12px]"
-                key={item}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={!selected || busy || disabled}
-                  onChange={(event) => onChange?.(event.target.checked)}
-                />
-                <span>{item}</span>
-              </label>
-            ))}
-          </Panel>
+    <PageFrame variant="list-detail">
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <Segmented
+            options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
+            value={skillFilterLabel(filter, t)}
+            onChange={(label) =>
+              setFilter(SKILL_FILTERS.find((item) => skillFilterLabel(item, t) === label) || 'all')
+            }
+          />
+          <>
+            <ListDetailLayout
+              selected={detailOpen}
+              onBack={() => setDetailOpen(false)}
+              backLabel={t('common:pageTemplate.backToList')}
+              list={
+                <Panel className="min-w-0 border-0 bg-transparent p-0 shadow-none">
+                  <Button
+                    variant="outline"
+                    className="mb-3 w-full @min-[760px]/list-detail:hidden"
+                    onClick={() => setDetailOpen(true)}
+                  >
+                    {t('skills:skillsPage.configuredSkillPackages')}
+                  </Button>
+                  {filter !== 'project' &&
+                    renderSkillScope(
+                      t('skills:skillsPage.globalSkills'),
+                      globalSkills,
+                      allGlobalSkills,
+                      t('skills:skillsPage.noGlobalSkills'),
+                      data?.locations?.global || '~/.pisper/agent/skills',
+                    )}
+                  {filter !== 'global' &&
+                    renderSkillScope(
+                      t('skills:skillsPage.projectSkills'),
+                      projectSkills,
+                      allProjectSkills,
+                      t('skills:skillsPage.noProjectSkills'),
+                      data?.locations?.project ||
+                        (data?.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
+                    )}
+                </Panel>
+              }
+              detail={
+                <Panel>
+                  <AppCardHeader>
+                    <SectionTitle title={t('skills:skillsPage.configuredSkillPackages')} />
+                    <span className="text-[var(--text-secondary)] text-[12px] font-[600]">
+                      {t('skills:skillsPage.countSkillPackages', { count: packages.length })}
+                    </span>
+                  </AppCardHeader>
+                  {packages.length ? (
+                    packages.map((item) => (
+                      <div
+                        className="market-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
+                        key={item.source}
+                      >
+                        <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
+                          <Package size={15} />
+                        </span>
+                        <span>
+                          <strong title={item.source}>{item.source}</strong>
+                          <small>{item.description}</small>
+                        </span>
+                        <Badge tone={item.tone as 'green' | 'gray'}>{item.status}</Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
+                      {t(
+                        'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
+                      )}
+                    </p>
+                  )}
+                </Panel>
+              }
+              inspector={
+                <div className="flex min-w-0 flex-col gap-3">
+                  <Panel>
+                    <SectionTitle title={t('skills:skillsPage.selectedSkill')} />
+                    <h2>{selected?.name || t('skills:skillsPage.noSkillAvailable')}</h2>
+                    <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55]">
+                      {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
+                    </p>
+                    {[
+                      [
+                        t('skills:skillsPage.triggerMode'),
+                        selected?.modelInvocationEnabled
+                          ? t('skills:skillsPage.automaticManual')
+                          : t('skills:skillsPage.manualOnly'),
+                      ],
+                      [
+                        t('skills:skillsPage.permissions'),
+                        selected?.allowedTools?.length
+                          ? selected.allowedTools.join(', ')
+                          : t('skills:skillsPage.usesChatToolPermissions'),
+                      ],
+                      [
+                        t('skills:skillsPage.scope'),
+                        selected?.sourceInfo?.scope === 'project'
+                          ? t('skills:skillsPage.project')
+                          : t('skills:skillsPage.global'),
+                      ],
+                      [t('skills:skillsPage.version'), selected?.version || 'latest'],
+                      [t('skills:skillsPage.source'), selected?.source || '—'],
+                    ].map((row) => (
+                      <div
+                        className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
+                        key={row[0]}
+                      >
+                        <span>{row[0]}</span>
+                        <strong>{row[1]}</strong>
+                      </div>
+                    ))}
+                    <Button
+                      variant={selected?.removable ? 'destructive' : 'default'}
+                      size="lg"
+                      className="w-full"
+                      disabled={busy}
+                      onClick={selected?.removable ? uninstallSkill : saveSettings}
+                    >
+                      {selected?.removable ? <Trash2 size={14} /> : <Save size={14} />}
+                      {selected?.removable
+                        ? t('skills:skillsPage.uninstallSkill')
+                        : t('skills:skillsPage.saveSettings')}
+                    </Button>
+                  </Panel>
+                  <Panel>
+                    <SectionTitle title={t('skills:skillsPage.triggerConditions')} />
+                    {(
+                      [
+                        [
+                          t('skills:skillsPage.allowAutomaticModelInvocation'),
+                          Boolean(selected?.modelInvocationEnabled),
+                          false,
+                          (checked) =>
+                            void updateSkill(selected, { modelInvocationEnabled: checked }),
+                        ],
+                        [
+                          t('skills:skillsPage.supportManualSkillCommand'),
+                          Boolean(selected?.command),
+                          true,
+                        ],
+                        [
+                          t('skills:skillsPage.projectScopedSkill'),
+                          selected?.sourceInfo?.scope === 'project',
+                          true,
+                        ],
+                        [
+                          t('skills:skillsPage.declaresRequiredTools'),
+                          Boolean(selected?.allowedTools?.length),
+                          true,
+                        ],
+                      ] as Array<[string, boolean, boolean, ((checked: boolean) => void)?]>
+                    ).map(([item, checked, disabled, onChange]) => (
+                      <label
+                        className="check-row [&_input]:[accent-color:var(--star-strong)] flex items-center gap-[7px] [border-top:1px_solid_var(--stroke-soft)] [padding:8px_2px] text-[12px]"
+                        key={item}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!selected || busy || disabled}
+                          onChange={(event) => onChange?.(event.target.checked)}
+                        />
+                        <span>{item}</span>
+                      </label>
+                    ))}
+                  </Panel>
+                </div>
+              }
+            />
+          </>
         </div>
       </div>
-    </div>
+    </PageFrame>
   )
 }

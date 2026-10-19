@@ -339,11 +339,13 @@
   "interfaceSettings.accentCustom": "Custom",
   "interfaceSettings.customAccentColor": "Custom accent color",
   "interfaceSettings.customAccentHex": "Enter a HEX color",
-  "interfaceSettings.customAccentHint": "Pick any color — applied instantly across the app",
+  "interfaceSettings.customAccentHint": "Used for active indicators, interactive links, and keyboard focus. Primary buttons and status colors stay unchanged.",
   "interfaceSettings.invalidAccentColor": "Enter a 6-digit HEX color (e.g. #1677e8)",
   "interfaceSettings.accentNeutral": "Neutral",
   "interfaceSettings.accentTeal": "Teal",
   "interfaceSettings.accentViolet": "Violet",
+  "interfaceSettings.advanced": "Advanced",
+  "interfaceSettings.visualStyle": "Visual style",
   "interfaceSettings.appearance": "Appearance",
   "interfaceSettings.appearanceDescription": "Choose the color mode, accent, and visual style of the interface.",
   "interfaceSettings.automaticByTime": "Automatic by time",
@@ -391,6 +393,7 @@
   "languageSettings.currentDensity": "Current density",
   "languageSettings.currentLanguage": "Current language",
   "languageSettings.defaultSpacingAndSizing": "Default spacing and sizing",
+  "languageSettings.interfaceOnlyHint": "Interface only; does not change agent response language.",
   "languageSettings.displayLanguage": "Display language",
   "languageSettings.displayLanguageChangedToEnglish": "Display language changed to English",
   "languageSettings.displayLanguageChangedToSimplifiedChinese": "Display language changed to Simplified Chinese",
@@ -647,5 +650,6 @@
   "providerWorkbench.addConnectionHint": "Use Quick setup at the top of this page to enter an endpoint, choose a protocol, and select a model.",
   "providerWorkbench.scanningLocal": "Connecting local Claude Code / Codex settings…",
   "providerWorkbench.localImportStatus": "Local configuration · {imported} imported · {skipped} need review",
-  "remoteWorkspace.title": "Connect to a Linux workspace"
+  "remoteWorkspace.title": "Connect to a Linux workspace",
+  "interfaceSettings.accentDescription": "Used for active indicators, interactive links, and keyboard focus. Primary buttons and status colors stay unchanged."
 }

@@ -400,18 +400,18 @@ export const chatApi = {
       timeout: 60_000,
     }),
 
-  getVcsChanges: (sessionId: string) =>
-    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`),
+  getVcsChanges: (sessionId: string, options: { signal?: AbortSignal } = {}) =>
+    requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`, options),
 
   // 单文件差异：消息文件 chip「查看改动」；非版本控制工作区回退到修改前快照。
-  getFileDiff: (sessionId: string, path: string) =>
+  getFileDiff: (sessionId: string, path: string, options: { signal?: AbortSignal } = {}) =>
     requestJson<{
       isRepo: boolean
       diff: string
       diffTruncated?: boolean
       source?: string
       canRevert?: boolean
-    }>(`${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`),
+    }>(`${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`, options),
 
   commitVcsChanges: (sessionId: string, message: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/commit`, {
@@ -438,9 +438,14 @@ export const chatApi = {
   getSessionFileChanges: (sessionId: string, options: { signal?: AbortSignal } = {}) =>
     requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes`, options),
 
-  getSessionFileChangeDiff: (sessionId: string, path: string) =>
+  getSessionFileChangeDiff: (
+    sessionId: string,
+    path: string,
+    options: { signal?: AbortSignal } = {},
+  ) =>
     requestJson<{ diff: string; diffTruncated?: boolean; found?: boolean }>(
       `${sessionPath(sessionId)}/file-changes/diff?path=${encodeURIComponent(path)}`,
+      options,
     ),
 
   revertSessionFileChanges: (sessionId: string, path = '') =>

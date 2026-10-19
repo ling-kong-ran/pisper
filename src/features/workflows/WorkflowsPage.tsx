@@ -1,3 +1,5 @@
+import { PageFrame } from '@/components/app/PageFrame'
+import { PageToolbar } from '@/components/app/PageToolbar'
 // 工作流页面：列表视图 + 编辑器（路由 /workflows/:id）的宿主，
 // 管理工作流目录、保存与运行，并向壳层注册主操作。
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -115,71 +117,73 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
   }
 
   return (
-    <div className="workflows-page flex min-h-[100%] flex-col gap-[12px]">
-      {runTarget && (
-        <WorkflowRunDialog
-          workflow={runTarget}
-          onClose={() => setRunTarget(null)}
-          onRun={(inputs) => catalog.runWorkflow(runTarget, inputs)}
-        />
-      )}
-      <WorkflowError message={catalog.error} />
-      <div className="workflow-page-toolbar max-[650px]:items-stretch max-[650px]:flex-col max-[650px]:gap-[8px] flex min-w-0 items-center justify-between gap-[16px]">
-        <WorkflowViewTabs value={view} t={t} onChange={setView} />
-        <WorkflowOperationsSummary data={catalog.data} t={t} />
-      </div>
-      {view === 'workflows' && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-blue-soft)] text-[var(--star-strong)]">
-              <Film className="size-5" />
-            </span>
-            <div className="space-y-1">
-              <h2 className="text-sm font-medium">{t('workflows:sprite.title')}</h2>
-              <p className="text-sm text-muted-foreground">{t('workflows:sprite.description')}</p>
+    <PageFrame variant="collection">
+      <div className="flex min-w-0 flex-col gap-3">
+        {runTarget && (
+          <WorkflowRunDialog
+            workflow={runTarget}
+            onClose={() => setRunTarget(null)}
+            onRun={(inputs) => catalog.runWorkflow(runTarget, inputs)}
+          />
+        )}
+        <WorkflowError message={catalog.error} />
+        <PageToolbar>
+          <WorkflowViewTabs value={view} t={t} onChange={setView} />
+          <WorkflowOperationsSummary data={catalog.data} t={t} />
+        </PageToolbar>
+        {view === 'workflows' && (
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-blue-soft)] text-[var(--star-strong)]">
+                <Film className="size-5" />
+              </span>
+              <div className="space-y-1">
+                <h2 className="text-sm font-medium">{t('workflows:sprite.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('workflows:sprite.description')}</p>
+              </div>
             </div>
+            <Button variant="outline" onClick={openSpriteTemplate}>
+              {t('workflows:sprite.openStudio')}
+              <ArrowUpRight className="size-4" />
+            </Button>
           </div>
-          <Button variant="outline" onClick={openSpriteTemplate}>
-            {t('workflows:sprite.openStudio')}
-            <ArrowUpRight className="size-4" />
-          </Button>
-        </div>
-      )}
-      {view === 'workflows' ? (
-        <WorkflowAssetList
-          workflows={catalog.visibleWorkflows}
-          runs={catalog.data.runs}
-          busyId={catalog.busyId}
-          language={language}
-          t={t}
-          onRun={setRunTarget}
-          onEdit={(workflowId) => navigate(workflowPath(workflowId))}
-          onDuplicate={(workflow) => void catalog.duplicateWorkflow(workflow)}
-          onExport={(workflow) => void catalog.exportWorkflow(workflow)}
-          onImport={(value) => void catalog.importWorkflow(value)}
-          onDelete={(workflow) => void catalog.removeWorkflow(workflow)}
-        />
-      ) : view === 'runs' ? (
-        <WorkflowRunHistory
-          runs={catalog.data.runs}
-          busyId={catalog.busyId}
-          language={language}
-          t={t}
-          onStop={(run) => void catalog.stopRun(run)}
-          onRetry={(run) => void catalog.retryRun(run)}
-          onApproval={(run, nodeId, approved) =>
-            void catalog.resolveApproval(run, nodeId, approved)
-          }
-        />
-      ) : (
-        <WorkflowTemplateGallery
-          t={t}
-          onOpenTemplate={(templateId) =>
-            navigate(`${workflowPath('new')}?template=${encodeURIComponent(templateId)}`)
-          }
-        />
-      )}
-    </div>
+        )}
+        {view === 'workflows' ? (
+          <WorkflowAssetList
+            workflows={catalog.visibleWorkflows}
+            runs={catalog.data.runs}
+            busyId={catalog.busyId}
+            language={language}
+            t={t}
+            onRun={setRunTarget}
+            onEdit={(workflowId) => navigate(workflowPath(workflowId))}
+            onDuplicate={(workflow) => void catalog.duplicateWorkflow(workflow)}
+            onExport={(workflow) => void catalog.exportWorkflow(workflow)}
+            onImport={(value) => void catalog.importWorkflow(value)}
+            onDelete={(workflow) => void catalog.removeWorkflow(workflow)}
+          />
+        ) : view === 'runs' ? (
+          <WorkflowRunHistory
+            runs={catalog.data.runs}
+            busyId={catalog.busyId}
+            language={language}
+            t={t}
+            onStop={(run) => void catalog.stopRun(run)}
+            onRetry={(run) => void catalog.retryRun(run)}
+            onApproval={(run, nodeId, approved) =>
+              void catalog.resolveApproval(run, nodeId, approved)
+            }
+          />
+        ) : (
+          <WorkflowTemplateGallery
+            t={t}
+            onOpenTemplate={(templateId) =>
+              navigate(`${workflowPath('new')}?template=${encodeURIComponent(templateId)}`)
+            }
+          />
+        )}
+      </div>
+    </PageFrame>
   )
 }
 
@@ -299,118 +303,124 @@ export function WorkflowBuilder({
     : t('workflows:editor.nodeProperties')
 
   return (
-    <div
-      ref={editorElement}
-      className="workflow-editor-page @container/workflow flex min-w-0 flex-col gap-3"
-    >
-      {runDialogOpen && (
-        <WorkflowRunDialog
-          workflow={editor.draft}
-          onClose={() => setRunDialogOpen(false)}
-          onRun={runWorkflow}
-        />
-      )}
-      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border bg-card p-2">
-        <nav aria-label={t('workflows:workflowsPage.editorNavigation')}>
-          <Button variant="ghost" size="sm" onClick={() => navigate(PAGE_PATHS.workflows)}>
-            <ArrowLeft />
-            {t('workflows:workflowsPage.backToWorkflows')}
-          </Button>
-        </nav>
-        <div className="hidden h-5 w-px bg-border @min-[640px]/workflow:block" />
-        <p className="min-w-0 flex-1 truncate px-1 text-sm font-medium" title={editor.draft.name}>
-          {editor.draft.name}
-        </p>
-        <div className="flex flex-wrap items-center gap-2 max-[480px]:w-full max-[480px]:justify-end">
-          <WorkflowNodePalette
-            nodeCount={editor.draft.nodes.length}
+    <PageFrame variant="workbench">
+      <div
+        ref={editorElement}
+        className="workflow-editor-page @container/workflow flex h-full min-h-0 min-w-0 flex-col gap-3 p-3"
+      >
+        {runDialogOpen && (
+          <WorkflowRunDialog
+            workflow={editor.draft}
+            onClose={() => setRunDialogOpen(false)}
+            onRun={runWorkflow}
+          />
+        )}
+        <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border bg-card p-2">
+          <nav aria-label={t('workflows:workflowsPage.editorNavigation')}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(PAGE_PATHS.workflows)}>
+              <ArrowLeft />
+              {t('workflows:workflowsPage.backToWorkflows')}
+            </Button>
+          </nav>
+          <div className="hidden h-5 w-px bg-border @min-[640px]/workflow:block" />
+          <p className="min-w-0 flex-1 truncate px-1 text-sm font-medium" title={editor.draft.name}>
+            {editor.draft.name}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 max-[480px]:w-full max-[480px]:justify-end">
+            <WorkflowNodePalette
+              nodeCount={editor.draft.nodes.length}
+              t={t}
+              onAddNode={editor.addNode}
+            />
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <Settings2 />
+                  {t('workflows:workflowsPage.workflowSettings')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>{t('workflows:workflowsPage.workflowSettings')}</DialogTitle>
+                  <DialogDescription>{t('workflows:editor.settingsDescription')}</DialogDescription>
+                </DialogHeader>
+                <WorkflowSettings
+                  draft={editor.draft}
+                  catalog={editor.catalog}
+                  t={t}
+                  onUpdateDraft={editor.updateDraft}
+                  onInputUploadBusy={editor.onInputUploadBusy}
+                />
+              </DialogContent>
+            </Dialog>
+            {!wideEditor && (
+              <Button variant="ghost" size="sm" onClick={() => setInspectorOpen(true)}>
+                <PanelRight />
+                {t('workflows:editor.nodeProperties')}
+              </Button>
+            )}
+          </div>
+        </div>
+        <WorkflowError message={editor.error} />
+        {editor.running && editor.currentRun && (
+          <WorkflowRunningNotice run={editor.currentRun} t={t} />
+        )}
+        <div
+          className={cn(
+            'builder-layout grid min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border bg-card',
+            wideEditor ? 'grid-cols-[minmax(0,1fr)_320px]' : 'grid-cols-1',
+          )}
+        >
+          <WorkflowEditorCanvas
+            draft={editor.draft}
+            selectedNodeId={editor.selectedNodeId}
+            selectedEdgeId={editor.selectedEdgeId}
             t={t}
             onAddNode={editor.addNode}
+            onConnect={editor.addEdge}
+            onMoveNode={editor.moveNode}
+            onSelectNode={(id) => {
+              editor.selectNode(id)
+              setInspectorOpen(true)
+            }}
+            onSelectEdge={(id) => {
+              editor.selectEdge(id)
+              setInspectorOpen(true)
+            }}
+            onClearSelection={editor.clearSelection}
+            onDeleteNodes={editor.removeNodes}
+            onDeleteEdges={editor.removeEdges}
           />
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Settings2 />
-                {t('workflows:workflowsPage.workflowSettings')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>{t('workflows:workflowsPage.workflowSettings')}</DialogTitle>
-                <DialogDescription>{t('workflows:editor.settingsDescription')}</DialogDescription>
-              </DialogHeader>
-              <WorkflowSettings
-                draft={editor.draft}
-                catalog={editor.catalog}
-                t={t}
-                onUpdateDraft={editor.updateDraft}
-                onInputUploadBusy={editor.onInputUploadBusy}
-              />
-            </DialogContent>
-          </Dialog>
-          {!wideEditor && (
-            <Button variant="ghost" size="sm" onClick={() => setInspectorOpen(true)}>
-              <PanelRight />
-              {t('workflows:editor.nodeProperties')}
-            </Button>
+          {wideEditor && (
+            <aside
+              className="flex min-h-0 min-w-0 flex-col border-l bg-card"
+              aria-label={inspectorTitle}
+            >
+              <header className="border-b px-4 py-3">
+                <h2 className="text-sm font-medium">{inspectorTitle}</h2>
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                {inspector}
+              </div>
+            </aside>
           )}
         </div>
-      </div>
-      <WorkflowError message={editor.error} />
-      {editor.running && editor.currentRun && (
-        <WorkflowRunningNotice run={editor.currentRun} t={t} />
-      )}
-      <div
-        className={cn(
-          'builder-layout grid h-[max(440px,calc(100vh-220px))] min-h-[440px] min-w-0 overflow-hidden rounded-xl border bg-card supports-[height:100dvh]:h-[max(440px,calc(100dvh-220px))]',
-          wideEditor ? 'grid-cols-[minmax(0,1fr)_320px]' : 'grid-cols-1',
-        )}
-      >
-        <WorkflowEditorCanvas
-          draft={editor.draft}
-          selectedNodeId={editor.selectedNodeId}
-          selectedEdgeId={editor.selectedEdgeId}
-          t={t}
-          onAddNode={editor.addNode}
-          onConnect={editor.addEdge}
-          onMoveNode={editor.moveNode}
-          onSelectNode={(id) => {
-            editor.selectNode(id)
-            setInspectorOpen(true)
-          }}
-          onSelectEdge={(id) => {
-            editor.selectEdge(id)
-            setInspectorOpen(true)
-          }}
-          onClearSelection={editor.clearSelection}
-          onDeleteNodes={editor.removeNodes}
-          onDeleteEdges={editor.removeEdges}
-        />
-        {wideEditor && (
-          <aside
-            className="flex min-h-0 min-w-0 flex-col border-l bg-card"
-            aria-label={inspectorTitle}
-          >
-            <header className="border-b px-4 py-3">
-              <h2 className="text-sm font-medium">{inspectorTitle}</h2>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">{inspector}</div>
-          </aside>
+        {!wideEditor && (
+          <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>
+            <SheetContent className="gap-0 data-[side=right]:w-[min(400px,100vw)] data-[side=right]:sm:max-w-[400px]">
+              <SheetHeader className="border-b pr-12">
+                <SheetTitle>{inspectorTitle}</SheetTitle>
+                <SheetDescription className="sr-only">
+                  {t('workflows:editor.inspectorDescription')}
+                </SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                {inspector}
+              </div>
+            </SheetContent>
+          </Sheet>
         )}
       </div>
-      {!wideEditor && (
-        <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>
-          <SheetContent className="gap-0 data-[side=right]:w-[min(400px,100vw)] data-[side=right]:sm:max-w-[400px]">
-            <SheetHeader className="border-b pr-12">
-              <SheetTitle>{inspectorTitle}</SheetTitle>
-              <SheetDescription className="sr-only">
-                {t('workflows:editor.inspectorDescription')}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">{inspector}</div>
-          </SheetContent>
-        </Sheet>
-      )}
-    </div>
+    </PageFrame>
   )
 }

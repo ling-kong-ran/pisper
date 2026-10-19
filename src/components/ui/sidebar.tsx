@@ -179,6 +179,7 @@ function Sidebar({
   collapsible?: 'offcanvas' | 'icon' | 'none'
 }) {
   const { isMobile, mobilePresentation, state, openMobile, setOpenMobile } = useSidebar()
+  const mobileReturnFocusRef = React.useRef<HTMLElement | null>(null)
 
   if (collapsible === 'none') {
     return (
@@ -220,12 +221,26 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
+          overlayClassName="bg-background/70 supports-backdrop-filter:backdrop-blur-none"
+          onOpenAutoFocus={() => {
+            // 侧栏由外部标题按钮或快捷键打开，没有 Radix Trigger；保存真实来源。
+            mobileReturnFocusRef.current =
+              document.activeElement instanceof HTMLElement ? document.activeElement : null
+          }}
+          onCloseAutoFocus={(event) => {
+            const target = mobileReturnFocusRef.current
+            if (target?.isConnected && target !== document.body) {
+              event.preventDefault()
+              target.focus()
+            }
+          }}
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
           style={
             {
               '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
-              width: SIDEBAR_WIDTH_MOBILE,
-              maxWidth: SIDEBAR_WIDTH_MOBILE,
+              width: 'min(280px, calc(100vw - var(--activity-rail-width)))',
+              maxWidth: 'calc(100vw - var(--activity-rail-width))',
+              left: side === 'left' ? 'var(--activity-rail-width)' : undefined,
             } as React.CSSProperties
           }
           side={side}
@@ -266,7 +281,7 @@ function Sidebar({
         data-side={side}
         inert={state === 'collapsed' && collapsible === 'offcanvas'}
         className={cn(
-          'absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] min-[651px]:flex',
+          'absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-(--activity-rail-width) data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--activity-rail-width)-var(--sidebar-width))] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] min-[651px]:flex',
           // Adjust the padding for floating and inset variants.
           variant === 'floating' || variant === 'inset'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'

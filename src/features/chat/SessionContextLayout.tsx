@@ -1,110 +1,152 @@
-// 聊天布局持有右栏宽度，切换会话或抽屉形态时不重挂载主会话。
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { usePanelRef } from 'react-resizable-panels'
+// 局部分栏只有一个尺寸所有者；临时空间不足仅约束显示，不能覆盖用户的宽度偏好。
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import {
-  SESSION_CHAT_MIN_WIDTH,
   SESSION_CONTEXT_DEFAULT_WIDTH,
-  SESSION_CONTEXT_MAX_WIDTH,
   SESSION_CONTEXT_MIN_WIDTH,
+  SESSION_CONTEXT_MAX_WIDTH,
+  sessionContextDisplayWidth,
   type SessionContextPresentation,
 } from './session-context-layout'
-import { useSessionContextStore } from './session-context-store'
 
 type SessionContextLayoutProps = {
+  preferredWidth: number
+  onWidthChange: (width: number) => void
   availableWidth: number
   presentation: SessionContextPresentation
   children: ReactNode
   context: ReactNode
   side?: 'left' | 'right'
+  layoutId?: string
+  conversationHeaderInset?: number
 }
-
 export function SessionContextLayout({
+  preferredWidth: preferred,
+  onWidthChange: setWidth,
   availableWidth,
   presentation,
   children,
   context,
   side = 'right',
+  layoutId = 'chat',
+  conversationHeaderInset = 0,
 }: SessionContextLayoutProps) {
   const { t } = useI18n()
-  const width = useSessionContextStore((state) => state.width)
-  const setWidth = useSessionContextStore((state) => state.setWidth)
-  const contextRef = usePanelRef()
-  const groupElementRef = useRef<HTMLDivElement>(null)
-  const handleElementRef = useRef<HTMLDivElement>(null)
+  const cleanup = useRef<() => void>(() => {})
+  useEffect(() => () => cleanup.current(), [])
   const aside = presentation === 'aside'
-
-  useLayoutEffect(() => {
-    // 窗口变窄只限制当前布局；变宽后恢复偏好，不把临时受限的宽度写回。
-    if (aside && availableWidth > 0) contextRef.current?.resize(width)
-  }, [aside, availableWidth, contextRef, width, side])
-
-  // 同一组 keyed 节点换序，移动左右栏时保留主会话、输入草稿和滚动容器。
-  const conversation = (
-    <ResizablePanel
+  const contentOnly = presentation === 'content'
+  const width = sessionContextDisplayWidth(preferred, availableWidth)
+  const maximum = sessionContextDisplayWidth(SESSION_CONTEXT_MAX_WIDTH, availableWidth)
+  const setDisplayedWidth = (next: number) =>
+    setWidth(Math.max(SESSION_CONTEXT_MIN_WIDTH, Math.min(maximum, next)))
+  const beginResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    cleanup.current()
+    event.preventDefault()
+    event.currentTarget.focus()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const startX = event.clientX
+    const move = (next: PointerEvent) =>
+      setDisplayedWidth(width + (next.clientX - startX) * (side === 'left' ? 1 : -1))
+    const finish = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      window.removeEventListener('keydown', key)
+    }
+    const cancel = () => {
+      setWidth(preferred)
+      finish()
+    }
+    const key = (next: KeyboardEvent) => {
+      if (next.key === 'Escape') {
+        next.preventDefault()
+        next.stopPropagation()
+        cancel()
+      }
+    }
+    cleanup.current = finish
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish, { once: true })
+    window.addEventListener('pointercancel', cancel, { once: true })
+    window.addEventListener('keydown', key)
+  }
+  const chat = (
+    <div
       key="conversation"
-      id="chat-conversation"
-      minSize={aside ? SESSION_CHAT_MIN_WIDTH : 0}
+      id={`${layoutId}-conversation`}
+      data-workspace-conversation
+      inert={contentOnly}
+      className={contentOnly ? 'hidden' : 'min-h-0 min-w-0 flex-1 overflow-hidden'}
+      style={aside && conversationHeaderInset ? { paddingTop: conversationHeaderInset } : undefined}
     >
       {children}
-    </ResizablePanel>
+    </div>
   )
-  const separator = (
-    <ResizableHandle
+  const separator = aside ? (
+    <div
       key="separator"
-      elementRef={handleElementRef}
+      role="separator"
+      tabIndex={0}
+      aria-orientation="vertical"
       aria-label={t('chat:sessionContext.resize')}
       title={t('chat:sessionContext.resizeHint')}
-      withHandle
-      disableDoubleClick
-      onDoubleClick={() => {
-        setWidth(SESSION_CONTEXT_DEFAULT_WIDTH)
-        contextRef.current?.resize(SESSION_CONTEXT_DEFAULT_WIDTH)
+      aria-controls={`${layoutId}-conversation ${layoutId}-content`}
+      aria-valuemin={SESSION_CONTEXT_MIN_WIDTH}
+      aria-valuemax={maximum}
+      aria-valuenow={width}
+      onPointerDown={beginResize}
+      onDoubleClick={() => setWidth(SESSION_CONTEXT_DEFAULT_WIDTH)}
+      onKeyDown={(event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(event.key)) return
+        event.preventDefault()
+        if (event.key === 'Enter') {
+          setWidth(SESSION_CONTEXT_DEFAULT_WIDTH)
+          return
+        }
+        const step = event.shiftKey ? 64 : 16
+        setDisplayedWidth(
+          event.key === 'Home'
+            ? SESSION_CONTEXT_MIN_WIDTH
+            : event.key === 'End'
+              ? maximum
+              : width + (event.key === 'ArrowRight' ? step : -step) * (side === 'left' ? 1 : -1),
+        )
       }}
-      className="w-2 bg-transparent after:w-2 focus-visible:ring-inset [&>div]:h-10 [&>div]:bg-[var(--stroke-soft)] hover:[&>div]:bg-[var(--brand-blue)] focus-visible:[&>div]:bg-[var(--brand-blue)]"
-    />
-  )
-  const contextPanel = (
-    <ResizablePanel
-      key="context"
-      id="chat-context"
-      panelRef={contextRef}
-      defaultSize={width}
-      minSize={SESSION_CONTEXT_MIN_WIDTH}
-      maxSize={SESSION_CONTEXT_MAX_WIDTH}
-      groupResizeBehavior="preserve-pixel-size"
+      className="group flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
-      {context}
-    </ResizablePanel>
+      <span
+        aria-hidden="true"
+        className="h-10 w-0.5 rounded-full bg-border group-hover:bg-ring group-focus-visible:bg-ring"
+      />
+    </div>
+  ) : null
+  const resource = (
+    <div
+      key="resource"
+      id={`${layoutId}-content`}
+      className={
+        aside
+          ? 'h-full min-h-0 shrink-0 overflow-hidden'
+          : contentOnly
+            ? 'h-full min-h-0 min-w-0 flex-1 overflow-hidden'
+            : 'hidden'
+      }
+      style={aside ? { width } : undefined}
+    >
+      {(aside || contentOnly) && context}
+    </div>
   )
-  const panels = !aside
-    ? [conversation]
-    : side === 'left'
-      ? [contextPanel, separator, conversation]
-      : [conversation, separator, contextPanel]
-
   return (
     <>
-      <ResizablePanelGroup
-        id="chat-context-layout"
-        elementRef={groupElementRef}
-        orientation="horizontal"
-        className="min-h-0 min-w-0 flex-1"
-        disabled={!aside}
-        onLayoutChanged={(layout, { isUserInteraction }) => {
-          if (!aside || !isUserInteraction) return
-          const group = groupElementRef.current
-          const handle = handleElementRef.current
-          const percent = layout['chat-context']
-          if (!group || !handle || !Number.isFinite(percent)) return
-          // 键盘回调早于 Panel 的重绘，getSize() 可能仍是旧值；按本次布局计算像素。
-          const panelSpace = group.clientWidth - handle.getBoundingClientRect().width
-          if (panelSpace > 0) setWidth((panelSpace * percent) / 100)
-        }}
+      <div
+        id={`${layoutId}-context-layout`}
+        data-workspace-layout
+        className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden"
       >
-        {panels}
-      </ResizablePanelGroup>
+        {side === 'left' ? [resource, separator, chat] : [chat, separator, resource]}
+      </div>
       {presentation === 'sheet' && context}
     </>
   )

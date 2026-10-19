@@ -1,11 +1,11 @@
 // 会话树开关：会话列表与树形视图的切换控件。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { TreePine } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { chatApi } from './chat-api'
 import { SessionTreeDialog } from './SessionTreeDialog'
 
-import { Button } from '@/components/ui/button'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 
 export function SessionTreeControl({
   visible,
@@ -17,6 +17,7 @@ export function SessionTreeControl({
   onOpenChange,
   onNavigated,
   onCreateChildSession,
+  children,
 }: {
   visible: boolean
   open: boolean
@@ -27,10 +28,13 @@ export function SessionTreeControl({
   onOpenChange: (open: boolean) => void
   onNavigated: (editorText: string | null) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  children: (menuItem: ReactNode) => ReactNode
 }) {
   const { t } = useI18n()
   const [branches, setBranches] = useState(0)
   const [pulsing, setPulsing] = useState(false)
+  const openFrame = useRef(0)
+  useEffect(() => () => cancelAnimationFrame(openFrame.current), [])
 
   useEffect(() => {
     if (!pulseToken) return
@@ -51,38 +55,44 @@ export function SessionTreeControl({
     }
   }, [revision, sessionId, streaming, visible])
 
-  if (!visible) return null
+  const indicator = branches > 0 && (
+    <i aria-hidden="true" className="size-1 rounded-full bg-blue-500" />
+  )
+  const menuItem = visible ? (
+    <DropdownMenuItem
+      aria-label={t('chat:sessionTree.menu')}
+      aria-haspopup="dialog"
+      data-pisper-recall-pulse={pulsing || undefined}
+      onSelect={() => {
+        // 先让菜单完成关闭与焦点恢复，再由独立挂载的对话框接管焦点。
+        cancelAnimationFrame(openFrame.current)
+        openFrame.current = requestAnimationFrame(() => onOpenChange(true))
+      }}
+    >
+      <TreePine
+        className={
+          pulsing
+            ? 'motion-reduce:animate-none [animation:session-tree-new-node-pulse_1.8s_var(--ease-out)]'
+            : undefined
+        }
+      />
+      {t('chat:sessionTree.menu')}
+      {indicator}
+    </DropdownMenuItem>
+  ) : null
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={`focus-session-tree-entry relative !size-8 !min-w-8 rounded-md border-0 bg-transparent p-0 text-muted-foreground shadow-none hover:bg-muted hover:text-foreground motion-reduce:animate-none ${pulsing ? '[animation:session-tree-new-node-pulse_1.8s_var(--ease-out)]' : ''}`}
-        title={t('chat:sessionTree.menuDescription')}
-        data-pisper-recall-pulse={pulsing || undefined}
-        aria-label={t('chat:sessionTree.menu')}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => onOpenChange(true)}
-      >
-        <TreePine size={16} />
-
-        {branches > 0 && (
-          <i
-            aria-hidden="true"
-            className="absolute right-1 top-1 size-1 rounded-full bg-blue-500"
-          />
-        )}
-      </Button>
-      <SessionTreeDialog
-        open={open}
-        sessionId={sessionId}
-        streaming={streaming}
-        onClose={() => onOpenChange(false)}
-        onNavigated={onNavigated}
-        onCreateChildSession={onCreateChildSession}
-      />
+      {children(menuItem)}
+      {visible && (
+        <SessionTreeDialog
+          open={open}
+          sessionId={sessionId}
+          streaming={streaming}
+          onClose={() => onOpenChange(false)}
+          onNavigated={onNavigated}
+          onCreateChildSession={onCreateChildSession}
+        />
+      )}
     </>
   )
 }

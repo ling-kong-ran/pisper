@@ -17,6 +17,7 @@ import type { ChatMessage, EntityRecord } from '@/types/chat'
 import { type SessionOpenRequest } from './dock-layout'
 import {
   SESSION_SELECTED_EVENT,
+  SESSION_NAVIGATION_WILL_CHANGE,
   clearSessionMessageTarget,
   getSessionMessageTarget,
 } from './events'
@@ -27,6 +28,7 @@ import {
 } from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
 import { WorkbenchGreeting } from './WorkbenchGreeting'
+import { useContextPagesStore } from './session-context-pages-store'
 
 import { Button } from '@/components/ui/button'
 
@@ -136,6 +138,11 @@ export function FocusTranscript({
   const activityVersion = activityScrollVersion(activityFeed)
   const thinkingScrollBucket = Math.floor(String(thinkingText || '').length / 128)
   const transcriptVersion = `${sessionId}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
+  const leaving = useRef(false)
+  // 恢复值在实例挂载时固定，避免初始行高测量触发 scroll 后反过来覆盖恢复目标。
+  const initialReadingPosition = useRef(
+    useContextPagesStore.getState().sessions[sessionId]?.conversationScrollTop ?? null,
+  )
   const {
     scrollRef: transcriptRef,
     scrollElement: transcriptElement,
@@ -144,7 +151,41 @@ export function FocusTranscript({
     scrollToBottom,
     maintainBottom,
     pauseFollowing,
-  } = useAutoScroll(transcriptVersion, { resetKey: `${sessionId}:${transcriptLoadState}` })
+  } = useAutoScroll(transcriptVersion, {
+    resetKey: `${sessionId}:${transcriptLoadState}`,
+    readInitialPosition: () =>
+      transcriptLoadState === 'ready' ? initialReadingPosition.current : null,
+  })
+  useEffect(() => {
+    let frame: number | null = null
+    const save = () => {
+      const element = transcriptElement
+      if (!element || transcriptLoadState !== 'ready' || element.clientHeight <= 0) return
+      const store = useContextPagesStore.getState()
+      if (store.sessions[sessionId]?.conversationScrollTop !== element.scrollTop)
+        store.update(sessionId, 'files', {
+          type: 'workspace',
+          conversationScrollTop: element.scrollTop,
+        })
+    }
+    const beforeSelection = () => {
+      save()
+      leaving.current = true
+      if (frame !== null) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        leaving.current = false
+        frame = null
+      })
+    }
+    // Dock 会先移除 DOM 再卸载 React；使用显式导航前通知保存；选中事件与卸载发生时尺寸可能已为零。
+    window.addEventListener(SESSION_NAVIGATION_WILL_CHANGE, beforeSelection)
+    window.addEventListener('pointerdown', save, true)
+    return () => {
+      window.removeEventListener(SESSION_NAVIGATION_WILL_CHANGE, beforeSelection)
+      if (frame !== null) cancelAnimationFrame(frame)
+      window.removeEventListener('pointerdown', save, true)
+    }
+  }, [sessionId, transcriptElement, transcriptLoadState])
   const latestRunProps = useMemo(
     () => ({
       streaming,
@@ -189,9 +230,19 @@ export function FocusTranscript({
   }, [hasOlder, loadingOlder, onLoadOlder, pauseFollowing, transcriptRef])
   const handleTranscriptScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
+      if (
+        !leaving.current &&
+        transcriptLoadState === 'ready' &&
+        event.currentTarget.clientHeight > 0
+      ) {
+        useContextPagesStore.getState().update(sessionId, 'files', {
+          type: 'workspace',
+          conversationScrollTop: event.currentTarget.scrollTop,
+        })
+      }
       if (event.currentTarget.scrollTop <= 96) void loadOlder()
     },
-    [loadOlder],
+    [loadOlder, sessionId, transcriptLoadState],
   )
 
   useLayoutEffect(() => {

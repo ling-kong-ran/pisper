@@ -1,14 +1,22 @@
+import { TASK_VIEW_WILL_CHANGE } from './events'
 // 会话上下文只在用户打开时挂载；文件列表按当前标签请求，不复制聊天状态。
-import { useMemo, useRef, useState } from 'react'
-import { ExternalLink, Files, Globe2, ListTodo, MessageSquare, Plus, X } from 'lucide-react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import {
+  ArrowLeft,
+  ExternalLink,
+  Files,
+  FileDiff,
+  Link2,
+  Globe2,
+  ListTodo,
+  TerminalSquare,
+  Activity,
+  MessageSquare,
+  Plus,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   createContextPages,
   updateContextPages,
@@ -25,6 +33,14 @@ import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
 import { SessionFilesPane } from './SessionFilesPane'
+import { TaskTerminalView, TaskProcessesPane } from '@/features/terminal/public-views'
+import { useTerminalService } from '@/features/terminal/public'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
+import { TaskChangesPane } from './TaskChangesPane'
+import { TaskSourcesPane } from './TaskSourcesPane'
+import type { TaskSource } from './task-sources'
+import { TaskNewTab } from './TaskNewTab'
 import { SideChatPane } from './SideChatPane'
 
 export type { SessionContextTab } from './session-context-pages'
@@ -33,7 +49,10 @@ type SessionContextPanelProps = {
   panelId: string
   compact: boolean
   embedded?: boolean
+  active?: boolean
   sessionId: string
+  cwd?: string
+  sources?: TaskSource[]
   tab: SessionContextTab
   plan: Plan | null
   streaming: boolean
@@ -41,6 +60,7 @@ type SessionContextPanelProps = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onTabChange: (tab: SessionContextTab) => void
   onClose: () => void
+  onBack?: () => void
 }
 
 function BrowserPane({
@@ -125,7 +145,10 @@ export function SessionContextPanel({
   panelId,
   compact,
   embedded = false,
+  active = true,
   sessionId,
+  cwd = '',
+  sources = [],
   tab,
   plan,
   streaming,
@@ -133,10 +156,17 @@ export function SessionContextPanel({
   requestConfirm,
   onTabChange,
   onClose,
+  onBack,
 }: SessionContextPanelProps) {
   const { t } = useI18n()
+  const terminal = useTerminalService()
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const tabs = [
-    { id: 'files' as const, icon: Files, label: t('chat:focusSession.fileChanges') },
+    { id: 'terminal' as const, icon: TerminalSquare, label: t('terminal:workspace.terminal') },
+    { id: 'processes' as const, icon: Activity, label: t('terminal:workspace.processes') },
+    { id: 'changes' as const, icon: FileDiff, label: t('chat:workbench.projectChanges') },
+    { id: 'sources' as const, icon: Link2, label: t('chat:workbench.sources') },
+    { id: 'files' as const, icon: Files, label: t('chat:workbench.taskSnapshots') },
     ...(plansAvailable
       ? [{ id: 'plan' as const, icon: ListTodo, label: t('chat:sessionContext.plan') }]
       : []),
@@ -152,10 +182,24 @@ export function SessionContextPanel({
   const pages = stored ?? initial
   const listRef = useRef<HTMLDivElement>(null)
   const selected = pages.pages.find((page) => page.id === pages.activeId) ?? pages.pages[0]
-  const getType = (page: ContextPage) => tabs.find((item) => item.id === page.kind) ?? tabs[0]
+  const getType = (page: ContextPage) =>
+    page.kind === 'new'
+      ? { id: 'new' as const, icon: Plus, label: t('chat:workbench.newTab') }
+      : (tabs.find((item) => item.id === page.kind) ?? tabs[0])
   const focusTab = (id: string) =>
     requestAnimationFrame(() => document.getElementById(`${panelId}-${id}-tab`)?.focus())
+  const focusActiveTab = useEffectEvent(() => {
+    // 后台任务仍可打开资源，但不能夺取其他分屏的输入焦点。
+    if (active) document.getElementById(`${panelId}-${pages.activeId}-tab`)?.focus()
+  })
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => focusActiveTab())
+    return () => cancelAnimationFrame(frame)
+  }, [panelId, pages.activeId])
   const dispatch = (action: ContextPageAction) => {
+    if (action.type === 'view' && !useContextPagesStore.getState().sessions[sessionId]) return
+    if (['add', 'open', 'select', 'close', 'kind'].includes(action.type))
+      window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
     const next = updateContextPages(pages, action)
     useContextPagesStore.getState().update(sessionId, tab, action)
     const active = next.pages.find((page) => page.id === next.activeId)
@@ -169,27 +213,16 @@ export function SessionContextPanel({
   // 页头只保留一个“新增页面”入口：点 + 选种类开新页；单页关闭走标签上的 ×，
   // 整个面板的开关由主区“打开/关闭会话上下文”按钮承担。
   const addMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-40"
-          disabled={pages.pages.length >= MAX_CONTEXT_PAGES}
-          aria-label={addPageLabel}
-          title={pages.pages.length >= MAX_CONTEXT_PAGES ? pageLimitLabel : addPageLabel}
-        >
-          <Plus size={15} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-40">
-        {tabs.map(({ id, icon: Icon, label }) => (
-          <DropdownMenuItem key={id} onSelect={() => dispatch({ type: 'add', kind: id })}>
-            <Icon size={14} />
-            {label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="ghost"
+      size="icon"
+      disabled={pages.pages.length >= MAX_CONTEXT_PAGES}
+      aria-label={addPageLabel}
+      title={pages.pages.length >= MAX_CONTEXT_PAGES ? pageLimitLabel : addPageLabel}
+      onClick={() => dispatch({ type: 'add', kind: 'new' })}
+    >
+      <Plus size={15} />
+    </Button>
   )
   const content = (
     <div
@@ -198,8 +231,19 @@ export function SessionContextPanel({
     >
       <header
         data-window-drag-region
-        className="auxiliary-page-header flex h-12 shrink-0 items-center gap-0.5 border-b border-border/60 px-1.5"
+        className="auxiliary-page-header flex h-14 shrink-0 items-center gap-0.5 border-b border-border/60 px-1.5"
       >
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('chat:workbench.backToConversation')}
+            title={t('chat:workbench.backToConversation')}
+            onClick={onBack}
+          >
+            <ArrowLeft size={16} />
+          </Button>
+        )}
         <div
           ref={listRef}
           className="flex min-w-0 flex-1 items-center overflow-x-auto"
@@ -275,7 +319,73 @@ export function SessionContextPanel({
             className={active ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
             hidden={!active}
           >
-            {type.id === 'side-chat' ? (
+            {type.id === 'new' ? (
+              active && (
+                <TaskNewTab
+                  tools={tabs.map((tool) => ({
+                    ...tool,
+                    disabled:
+                      tool.id === 'terminal' || tool.id === 'processes'
+                        ? !terminal || !runtimeFeatureAvailable(capabilities, 'terminal')
+                        : tool.id === 'changes'
+                          ? !runtimeFeatureAvailable(capabilities, 'vcs')
+                          : false,
+                  }))}
+                  onOpenUrl={(url) => {
+                    dispatch({ type: 'open', kind: 'browser', replaceId: page.id })
+                    useContextPagesStore.getState().update(sessionId, 'browser', {
+                      type: 'browser',
+                      id: page.id,
+                      url,
+                      draft: url,
+                    })
+                  }}
+                  onSelect={(kind) => dispatch({ type: 'open', kind, replaceId: page.id })}
+                />
+              )
+            ) : type.id === 'changes' ? (
+              active && (
+                <TaskChangesPane
+                  sessionId={sessionId}
+                  cwd={cwd}
+                  streaming={streaming}
+                  view={page.view}
+                  onViewChange={(patch) => dispatch({ type: 'view', id: page.id, patch })}
+                />
+              )
+            ) : type.id === 'sources' ? (
+              active && (
+                <TaskSourcesPane
+                  sources={sources}
+                  view={page.view}
+                  onViewChange={(patch) => dispatch({ type: 'view', id: page.id, patch })}
+                />
+              )
+            ) : type.id === 'terminal' ? (
+              active && (
+                <TaskTerminalView
+                  sessionId={sessionId}
+                  cwd={cwd}
+                  terminalId={page.resourceId || undefined}
+                  onCreated={(id) =>
+                    useContextPagesStore
+                      .getState()
+                      .update(sessionId, tab, { type: 'resource', id: page.id, resourceId: id })
+                  }
+                />
+              )
+            ) : type.id === 'processes' ? (
+              active && (
+                <TaskProcessesPane
+                  view={page.view}
+                  onViewChange={(patch) => dispatch({ type: 'view', id: page.id, patch })}
+                  sessionId={sessionId}
+                  onOpenTerminal={(id) =>
+                    dispatch({ type: 'open', kind: 'terminal', resourceId: id })
+                  }
+                />
+              )
+            ) : type.id === 'side-chat' ? (
               <SideChatPane parentId={sessionId} active={active} />
             ) : type.id === 'browser' ? (
               <BrowserPane
@@ -286,6 +396,8 @@ export function SessionContextPanel({
               active &&
               (type.id === 'files' ? (
                 <SessionFilesPane
+                  view={page.view}
+                  onViewChange={(patch) => dispatch({ type: 'view', id: page.id, patch })}
                   sessionId={sessionId}
                   streaming={streaming}
                   requestConfirm={requestConfirm}

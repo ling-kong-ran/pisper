@@ -1,12 +1,13 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
 // 移动端 App 走单会话视图（MobileSessionPanel），不下载/执行本模块。
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {
   DockviewReact,
   type BuiltInContextMenuItem,
   type DockviewGroupPanel,
   type DockviewReadyEvent,
+  type DockviewApi,
   type GetTabContextMenuItemsParams,
   type IDockviewHeaderActionsProps,
   type ReactContextMenuItemConfig,
@@ -20,6 +21,7 @@ import { WebPreviewDockPanel } from './WebPreviewDockPanel'
 type ChatDockViewProps = {
   compactDock: boolean
   onDockReady: (event: DockviewReadyEvent) => void
+  onDockDispose: (api: DockviewApi) => void
   getTabContextMenuItems: (
     params: GetTabContextMenuItemsParams,
   ) => Array<BuiltInContextMenuItem | ReactContextMenuItemConfig>
@@ -29,9 +31,17 @@ type ChatDockViewProps = {
 export function ChatDockView({
   compactDock,
   onDockReady,
+  onDockDispose,
   getTabContextMenuItems,
   createSession,
 }: ChatDockViewProps) {
+  const apiRef = useRef<DockviewApi | null>(null)
+  useLayoutEffect(
+    () => () => {
+      if (apiRef.current) onDockDispose(apiRef.current)
+    },
+    [onDockDispose],
+  )
   const { t } = useI18n()
   const primaryShortcut = useShortcutLabel('primaryAction')
   const DockNewSessionAction = useMemo(
@@ -80,7 +90,10 @@ export function ChatDockView({
       components={dockComponents}
       watermarkComponent={Watermark}
       leftHeaderActionsComponent={DockNewSessionAction}
-      onReady={onDockReady}
+      onReady={(event) => {
+        apiRef.current = event.api
+        onDockReady(event)
+      }}
       getTabContextMenuItems={getTabContextMenuItems}
       disableFloatingGroups
       disableDnd={compactDock}

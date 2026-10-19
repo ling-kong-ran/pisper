@@ -1,3 +1,5 @@
+import { PageFrame } from '@/components/app/PageFrame'
+import { ListDetailLayout } from '@/components/app/ListDetailLayout'
 // 渠道页：外部消息渠道（飞书/微信/QQ/Telegram）连接管理、状态与测试。
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -231,6 +233,8 @@ function errorMessage(caught: unknown) {
 }
 
 export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: ChannelsPageProps) {
+  const [detailOpen, setDetailOpen] = useState(false)
+
   const { t, language } = useI18n()
   const [data, setData] = useState<ChannelsData>({
     providers: [],
@@ -439,387 +443,408 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     )
   const selectedConnection = data.connections?.[selectedPlatform]
   return (
-    <div className="flex flex-col gap-[12px]">
-      {error && (
-        <AppError>
-          <AlertTriangle size={13} />
-          {error}
-        </AppError>
-      )}
-      <div className="channel-cards max-[900px]:grid-cols-[1fr] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[12px]">
-        {PROVIDER_ENTRIES.map(([platform, provider]) => {
-          const connection = data.connections?.[platform]
-          const status = connection?.status || 'idle'
-          const tone = channelStatusTone(status)
-          const Icon = provider.Icon
-          return (
-            <Panel
-              className={`provider-card channel-platform-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&.selected]:border-[var(--accent-border)] [&.selected]:shadow-[0_10px_30px_-24px_var(--blue),0_0_0_2px_var(--selection-ring)] cursor-pointer [transition:border-color_var(--d1)_var(--ease-out),box-shadow_var(--d1)_var(--ease-out)] ${selectedPlatform === platform ? 'selected' : ''}`}
-              key={platform}
-              onClick={() => {
-                setSelectedPlatform(platform)
-                setCwd(connection?.defaultCwd || '')
-              }}
-            >
-              <div className="provider-title [&_h2]:text-[14px] [&_p]:mt-[3px] [&_p]:text-[var(--text-secondary)] [&_p]:text-[12px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] [margin-bottom:10px]">
-                <span
-                  className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${provider.tone}`}
-                >
-                  <Icon />
-                </span>
-                <div>
-                  <h2>{providerTitle(platform, t)}</h2>
-                  <p>{providerTransport(platform, t)}</p>
+    <PageFrame variant="list-detail">
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        {error && (
+          <AppError>
+            <AlertTriangle size={13} />
+            {error}
+          </AppError>
+        )}
+        <ListDetailLayout
+          selected={detailOpen}
+          onBack={() => setDetailOpen(false)}
+          backLabel={t('common:pageTemplate.backToList')}
+          list={
+            <div className="grid min-w-0 grid-cols-1 gap-3">
+              {PROVIDER_ENTRIES.map(([platform, provider]) => {
+                const connection = data.connections?.[platform]
+                const status = connection?.status || 'idle'
+                const tone = channelStatusTone(status)
+                const Icon = provider.Icon
+                return (
+                  <Panel
+                    className={`provider-card channel-platform-card [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&.selected]:border-[var(--accent-border)] [&.selected]:shadow-[0_10px_30px_-24px_var(--blue),0_0_0_2px_var(--selection-ring)] cursor-pointer [transition:border-color_var(--d1)_var(--ease-out),box-shadow_var(--d1)_var(--ease-out)] ${selectedPlatform === platform ? 'selected' : ''}`}
+                    key={platform}
+                    onClick={() => {
+                      setDetailOpen(true)
+                      setSelectedPlatform(platform)
+                      setCwd(connection?.defaultCwd || '')
+                    }}
+                  >
+                    <div className="provider-title [&_h2]:text-[14px] [&_p]:mt-[3px] [&_p]:text-[var(--text-secondary)] [&_p]:text-[12px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] [margin-bottom:10px]">
+                      <span
+                        className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${provider.tone}`}
+                      >
+                        <Icon />
+                      </span>
+                      <div>
+                        <h2>{providerTitle(platform, t)}</h2>
+                        <p>{providerTransport(platform, t)}</p>
+                      </div>
+                      <Badge tone={tone}>{channelStatusLabel(status, t)}</Badge>
+                    </div>
+                    <FieldLabel variant="control">
+                      {t('channels:channelsPage.twoWayCapability')}
+                      <span className="flex min-h-[31px] items-center overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:0_9px] text-[var(--text-tertiary)] text-[12px] font-[400] text-ellipsis whitespace-nowrap">
+                        {providerCapability(platform, t)}
+                      </span>
+                    </FieldLabel>
+                    <FieldLabel variant="control">
+                      {t('channels:channelsPage.replyModel')}
+                      <span className="flex min-h-[31px] items-center overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:0_9px] text-[var(--text-tertiary)] text-[12px] font-[400] text-ellipsis whitespace-nowrap">
+                        {connection?.replyModel
+                          ? `${connection.replyModel.provider}/${connection.replyModel.model}`
+                          : t('channels:channelsPage.useApplicationDefaultModel')}
+                      </span>
+                    </FieldLabel>
+                    <Button
+                      variant={connection ? 'outline' : 'default'}
+                      size="lg"
+                      className="[margin-top:12px] w-full"
+                      disabled={starting === platform}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        beginOnboarding(platform)
+                      }}
+                    >
+                      {starting === platform ? (
+                        <RefreshCw className="animate-spin" size={14} />
+                      ) : (
+                        <Plus size={14} />
+                      )}
+                      {connectActionLabel(platform, Boolean(connection), t)}
+                    </Button>
+                  </Panel>
+                )
+              })}
+            </div>
+          }
+          detail={
+            <div className="grid min-w-0 grid-cols-1 gap-4 @min-[1120px]/list-detail:grid-cols-[minmax(0,1fr)_280px]">
+              <Panel>
+                <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
+                  <SectionTitle title={t('channels:channelsPage.channelChats')} />
+                  <span>
+                    {t('channels:channelsPage.countLinked', { count: data.scopes.length })}
+                  </span>
                 </div>
-                <Badge tone={tone}>{channelStatusLabel(status, t)}</Badge>
-              </div>
-              <FieldLabel variant="control">
-                {t('channels:channelsPage.twoWayCapability')}
-                <span className="flex min-h-[31px] items-center overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:0_9px] text-[var(--text-tertiary)] text-[12px] font-[400] text-ellipsis whitespace-nowrap">
-                  {providerCapability(platform, t)}
-                </span>
-              </FieldLabel>
-              <FieldLabel variant="control">
-                {t('channels:channelsPage.replyModel')}
-                <span className="flex min-h-[31px] items-center overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:0_9px] text-[var(--text-tertiary)] text-[12px] font-[400] text-ellipsis whitespace-nowrap">
-                  {connection?.replyModel
-                    ? `${connection.replyModel.provider}/${connection.replyModel.model}`
-                    : t('channels:channelsPage.useApplicationDefaultModel')}
-                </span>
-              </FieldLabel>
-              <Button
-                variant={connection ? 'outline' : 'default'}
-                size="lg"
-                className="[margin-top:12px] w-full"
-                disabled={starting === platform}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  beginOnboarding(platform)
-                }}
-              >
-                {starting === platform ? (
-                  <RefreshCw className="animate-spin" size={14} />
+                {data.scopes.length ? (
+                  data.scopes.map((scope) => (
+                    <div
+                      className="route-row [&_div]:flex [&_div]:flex-col [&_div]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px]"
+                      key={scope.key}
+                    >
+                      <span className="route-icon grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
+                        {scope.platform === 'feishu' ? (
+                          <MessageSquare size={14} />
+                        ) : scope.platform === 'telegram' ? (
+                          <Send size={14} />
+                        ) : (
+                          <MessageCircle size={14} />
+                        )}
+                      </span>
+                      <div className="channel-route-copy [.route-row_&]:flex [.route-row_&]:min-w-0 [.route-row_&]:flex-col [.route-row_&]:gap-[3px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap">
+                        <strong>
+                          {scope.title}{' '}
+                          <Badge
+                            tone={
+                              scope.platform === 'feishu' ||
+                              scope.platform === 'qq' ||
+                              scope.platform === 'telegram'
+                                ? 'blue'
+                                : 'green'
+                            }
+                          >
+                            {providerName(scope.platform, t)}
+                          </Badge>
+                        </strong>
+                        <small>
+                          {scope.lastMessage || t('channels:channelsPage.noMessages')} ·{' '}
+                          {relativeTime(scope.updatedAt, language)}
+                        </small>
+                        <small>
+                          {scope.model || t('channels:channelsPage.defaultModel')} · {scope.cwd}
+                        </small>
+                      </div>
+                      <div className="channel-route-controls [.route-row_&]:flex [.route-row_&]:flex-row [.route-row_&]:items-center [.route-row_&]:gap-[4px]">
+                        <Badge tone="green">{t('channels:channelsPage.twoWay')}</Badge>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          title={t('channels:channelsPage.resetChat')}
+                          aria-label={`${t('channels:channelsPage.resetChat')}: ${scope.title}`}
+                          onClick={() => resetScope(scope)}
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
                 ) : (
-                  <Plus size={14} />
+                  <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center">
+                    <StarOrbit size={38} />
+                    <strong>{t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}</strong>
+                    <span>
+                      {t(
+                        'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
+                      )}
+                    </span>
+                  </div>
                 )}
-                {connectActionLabel(platform, Boolean(connection), t)}
-              </Button>
-            </Panel>
-          )
-        })}
-      </div>
-
-      <div
-        className={`two-one-grid max-[900px]:grid-cols-[1fr] grid gap-[12px] ${
-          selectedConnection ? 'grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]' : 'grid-cols-[1fr]'
-        }`}
-      >
-        <Panel>
-          <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
-            <SectionTitle title={t('channels:channelsPage.channelChats')} />
-            <span>{t('channels:channelsPage.countLinked', { count: data.scopes.length })}</span>
-          </div>
-          {data.scopes.length ? (
-            data.scopes.map((scope) => (
-              <div
-                className="route-row [&_div]:flex [&_div]:flex-col [&_div]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px]"
-                key={scope.key}
-              >
-                <span className="route-icon grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-                  {scope.platform === 'feishu' ? (
-                    <MessageSquare size={14} />
-                  ) : scope.platform === 'telegram' ? (
-                    <Send size={14} />
-                  ) : (
-                    <MessageCircle size={14} />
-                  )}
-                </span>
-                <div className="channel-route-copy [.route-row_&]:flex [.route-row_&]:min-w-0 [.route-row_&]:flex-col [.route-row_&]:gap-[3px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap">
-                  <strong>
-                    {scope.title}{' '}
-                    <Badge
-                      tone={
-                        scope.platform === 'feishu' ||
-                        scope.platform === 'qq' ||
-                        scope.platform === 'telegram'
-                          ? 'blue'
-                          : 'green'
+              </Panel>
+              {selectedConnection && (
+                <Panel className="test-panel [&_>_p]:m-[8px_0_12px] [&_>_p]:text-[var(--text-secondary)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.5]">
+                  <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
+                    <SectionTitle
+                      title={t('channels:channelsPage.nameSettings', {
+                        name: providerName(selectedPlatform, t),
+                      })}
+                    />
+                    <span>{providerTransport(selectedPlatform, t)}</span>
+                  </div>
+                  <div
+                    className={`channel-live-status [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap flex items-center gap-[9px] [margin:11px_0_12px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:10px] ${selectedConnection.status}`}
+                  >
+                    <span className="channel-status-dot [.channel-live-status.connected_&]:bg-[var(--status-green)] [.channel-live-status.connected_&]:shadow-[0_0_0_4px_var(--success-soft)] [.channel-live-status.connecting_&]:bg-[var(--amber)] [.channel-live-status.connecting_&]:shadow-[0_0_0_4px_var(--warning-soft)] [.channel-live-status.connecting_&]:[animation:pulse-dot_1.2s_infinite] [.channel-live-status.reconnecting_&]:bg-[var(--amber)] [.channel-live-status.reconnecting_&]:shadow-[0_0_0_4px_var(--warning-soft)] [.channel-live-status.reconnecting_&]:[animation:pulse-dot_1.2s_infinite] [.channel-live-status.failed_&]:bg-[var(--danger)] [.channel-live-status.failed_&]:shadow-[0_0_0_4px_var(--danger-soft)] w-[8px] h-[8px] [flex:0_0_auto] rounded-[var(--r-pill)] bg-[var(--status-muted)] shadow-[0_0_0_4px_var(--surface-muted)]" />
+                    <div>
+                      <strong>{channelStatusLabel(selectedConnection.status, t)}</strong>
+                      <small>
+                        {selectedConnection.lastError ||
+                          (selectedConnection.status === 'connected'
+                            ? t('channels:channelsPage.connectedTime', {
+                                time: relativeTime(selectedConnection.connectedAt, language),
+                              })
+                            : t('channels:channelsPage.establishingPersistentConnection'))}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
+                    <span>
+                      <strong>{t('channels:channelsPage.enableThisChannel')}</strong>
+                      <small>
+                        {t(
+                          'channels:channelsPage.turnOffToDisconnectWhileKeepingSignInCredentials',
+                        )}
+                      </small>
+                    </span>
+                    <Toggle
+                      value={selectedConnection.enabled}
+                      disabled={saving}
+                      ariaLabel={t('channels:channelsPage.enableThisChannel')}
+                      onChange={(enabled) =>
+                        update(
+                          selectedPlatform,
+                          { enabled },
+                          enabled
+                            ? t('channels:channelsPage.channelEnabled')
+                            : t('channels:channelsPage.channelPaused'),
+                        )
+                      }
+                    />
+                  </div>
+                  <FieldLabel variant="control">
+                    {t('channels:channelsPage.replyModel')}
+                    <AppSelect
+                      value={
+                        selectedConnection.replyModel
+                          ? `${selectedConnection.replyModel.provider}/${selectedConnection.replyModel.model}`
+                          : ''
+                      }
+                      onChange={(event) => {
+                        const [provider, ...parts] = event.target.value.split('/')
+                        update(
+                          selectedPlatform,
+                          {
+                            replyModel: event.target.value
+                              ? { provider, model: parts.join('/') }
+                              : null,
+                          },
+                          t('channels:channelsPage.channelReplyModelUpdated'),
+                        )
+                      }}
+                    >
+                      <option value="">
+                        {t('channels:channelsPage.useApplicationDefaultModel')}
+                      </option>
+                      {data.models.map((model) => (
+                        <option
+                          value={`${model.provider}/${model.model}`}
+                          key={`${model.provider}/${model.model}`}
+                        >
+                          {model.label}
+                        </option>
+                      ))}
+                    </AppSelect>
+                  </FieldLabel>
+                  <FieldLabel variant="control">
+                    {t('channels:channelsPage.approvalMode')}
+                    <AppSelect
+                      value={selectedConnection.executionMode}
+                      onChange={(event) =>
+                        update(
+                          selectedPlatform,
+                          {
+                            executionMode: event.target.value as ChannelConnection['executionMode'],
+                          },
+                          t('channels:channelsPage.approvalModeUpdated'),
+                        )
                       }
                     >
-                      {providerName(scope.platform, t)}
-                    </Badge>
-                  </strong>
-                  <small>
-                    {scope.lastMessage || t('channels:channelsPage.noMessages')} ·{' '}
-                    {relativeTime(scope.updatedAt, language)}
-                  </small>
-                  <small>
-                    {scope.model || t('channels:channelsPage.defaultModel')} · {scope.cwd}
-                  </small>
-                </div>
-                <div className="channel-route-controls [.route-row_&]:flex [.route-row_&]:flex-row [.route-row_&]:items-center [.route-row_&]:gap-[4px]">
-                  <Badge tone="green">{t('channels:channelsPage.twoWay')}</Badge>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    title={t('channels:channelsPage.resetChat')}
-                    aria-label={`${t('channels:channelsPage.resetChat')}: ${scope.title}`}
-                    onClick={() => resetScope(scope)}
-                  >
-                    <Trash2 size={13} />
-                  </Button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center">
-              <StarOrbit size={38} />
-              <strong>{t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}</strong>
-              <span>
-                {t(
-                  'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
-                )}
-              </span>
+                      <option value="approval-required">
+                        {t('channels:channelsPage.approvalRequired')}
+                      </option>
+                      <option value="workspace-write">
+                        {t('channels:channelsPage.workspaceWrite')}
+                      </option>
+                      <option value="full-access">{t('channels:channelsPage.fullAccess')}</option>
+                    </AppSelect>
+                  </FieldLabel>
+                  <FieldLabel variant="control">
+                    {t('channels:channelsPage.executionMode')}
+                    <AppSelect
+                      value={selectedConnection.runMode}
+                      onChange={(event) =>
+                        update(
+                          selectedPlatform,
+                          { runMode: event.target.value as ChannelConnection['runMode'] },
+                          t('channels:channelsPage.executionModeUpdated'),
+                        )
+                      }
+                    >
+                      <option value="plan">{t('channels:channelsPage.planMode')}</option>
+                      <option value="goal">{t('channels:channelsPage.goalMode')}</option>
+                      <option value="team">{t('channels:channelsPage.teamMode')}</option>
+                    </AppSelect>
+                  </FieldLabel>
+                  <FieldLabel variant="control">
+                    {t('channels:channelsPage.accessScope')}
+                    <AppSelect
+                      value={selectedConnection.accessMode}
+                      onChange={(event) =>
+                        update(
+                          selectedPlatform,
+                          { accessMode: event.target.value === 'all' ? 'all' : 'owner' },
+                          t('channels:channelsPage.accessScopeUpdated'),
+                        )
+                      }
+                    >
+                      <option value="owner" disabled={!selectedConnection.ownerConfigured}>
+                        {t('channels:channelsPage.qrCodeOwnerOnly')}
+                      </option>
+                      <option value="all">
+                        {selectedPlatform === 'feishu'
+                          ? t('channels:channelsPage.allMembersInTheCurrentTenant')
+                          : selectedPlatform === 'weixin'
+                            ? t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')
+                            : t('channels:channelsPage.allUsersWhoMessageTheBot')}
+                      </option>
+                    </AppSelect>
+                  </FieldLabel>
+                  <FieldLabel variant="control">
+                    {t('channels:channelsPage.defaultWorkingDirectoryForNewChats')}
+                    <span className="channel-setting-input [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[12px] dark:[&_input]:bg-[var(--solid)] dark:[&_input]:text-[var(--text)] grid h-[34px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[7px] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:3px_3px_3px_9px] text-[var(--text-muted)]">
+                      <FolderOpen size={13} />
+                      <input value={cwd} onChange={(event) => setCwd(event.target.value)} />
+                      <Button
+                        variant="outline"
+                        disabled={saving || cwd === selectedConnection.defaultCwd}
+                        onClick={() =>
+                          update(
+                            selectedPlatform,
+                            { defaultCwd: cwd },
+                            t('channels:channelsPage.defaultWorkingDirectorySaved'),
+                          )
+                        }
+                      >
+                        {t('channels:channelsPage.save')}
+                      </Button>
+                    </span>
+                  </FieldLabel>
+                  <AppNotice>
+                    <ShieldCheck size={15} />
+                    <span>
+                      <strong>{t('channels:channelsPage.localSecurityBoundary')}</strong>
+                      <small>
+                        {t(
+                          'channels:channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode',
+                        )}
+                      </small>
+                    </span>
+                  </AppNotice>
+                  <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="bg-surface-subtle"
+                      onClick={() => reconnect(selectedPlatform)}
+                      disabled={saving}
+                    >
+                      <RefreshCw size={14} />
+                      {t('channels:channelsPage.reconnect')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="lg"
+                      onClick={() => remove(selectedPlatform)}
+                    >
+                      <Unplug size={14} />
+                      {t('channels:channelsPage.disconnect')}
+                    </Button>
+                  </div>
+                </Panel>
+              )}
             </div>
-          )}
-        </Panel>
-        {selectedConnection && (
-          <Panel className="test-panel [&_>_p]:m-[8px_0_12px] [&_>_p]:text-[var(--text-secondary)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.5]">
-            <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
-              <SectionTitle
-                title={t('channels:channelsPage.nameSettings', {
-                  name: providerName(selectedPlatform, t),
-                })}
-              />
-              <span>{providerTransport(selectedPlatform, t)}</span>
-            </div>
-            <div
-              className={`channel-live-status [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap flex items-center gap-[9px] [margin:11px_0_12px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:10px] ${selectedConnection.status}`}
-            >
-              <span className="channel-status-dot [.channel-live-status.connected_&]:bg-[var(--status-green)] [.channel-live-status.connected_&]:shadow-[0_0_0_4px_var(--success-soft)] [.channel-live-status.connecting_&]:bg-[var(--amber)] [.channel-live-status.connecting_&]:shadow-[0_0_0_4px_var(--warning-soft)] [.channel-live-status.connecting_&]:[animation:pulse-dot_1.2s_infinite] [.channel-live-status.reconnecting_&]:bg-[var(--amber)] [.channel-live-status.reconnecting_&]:shadow-[0_0_0_4px_var(--warning-soft)] [.channel-live-status.reconnecting_&]:[animation:pulse-dot_1.2s_infinite] [.channel-live-status.failed_&]:bg-[var(--danger)] [.channel-live-status.failed_&]:shadow-[0_0_0_4px_var(--danger-soft)] w-[8px] h-[8px] [flex:0_0_auto] rounded-[var(--r-pill)] bg-[var(--status-muted)] shadow-[0_0_0_4px_var(--surface-muted)]" />
-              <div>
-                <strong>{channelStatusLabel(selectedConnection.status, t)}</strong>
-                <small>
-                  {selectedConnection.lastError ||
-                    (selectedConnection.status === 'connected'
-                      ? t('channels:channelsPage.connectedTime', {
-                          time: relativeTime(selectedConnection.connectedAt, language),
-                        })
-                      : t('channels:channelsPage.establishingPersistentConnection'))}
-                </small>
-              </div>
-            </div>
-            <div className="modal-toggle-row [&_>_span]:flex [&_>_span]:flex-col [&_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] dark:bg-[var(--surface-subtle)] flex min-h-[45px] items-center justify-between gap-[12px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_10px]">
-              <span>
-                <strong>{t('channels:channelsPage.enableThisChannel')}</strong>
-                <small>
-                  {t('channels:channelsPage.turnOffToDisconnectWhileKeepingSignInCredentials')}
-                </small>
-              </span>
-              <Toggle
-                value={selectedConnection.enabled}
-                disabled={saving}
-                ariaLabel={t('channels:channelsPage.enableThisChannel')}
-                onChange={(enabled) =>
-                  update(
-                    selectedPlatform,
-                    { enabled },
-                    enabled
-                      ? t('channels:channelsPage.channelEnabled')
-                      : t('channels:channelsPage.channelPaused'),
+          }
+        />
+
+        {onboarding && (
+          <OnboardingModal
+            job={onboarding}
+            onClose={closeOnboarding}
+            onRetry={() => beginOnboarding(onboarding.platform)}
+            onSubmitCredentials={async (credentials) => {
+              try {
+                const result = await apiJson<
+                  Omit<OnboardingJob, 'platform'> | ManualOnboardingDescriptor | ChannelsData
+                >(`/api/channels/${onboarding.platform}/onboarding`, {
+                  method: 'POST',
+                  body: JSON.stringify(credentials),
+                })
+                if ('connections' in result) {
+                  setData(result)
+                  setOnboarding(null)
+                  notify(
+                    t('channels:channelsPage.nameTwoWayConnectionEstablished', {
+                      name: providerName(onboarding.platform, t),
+                    }),
                   )
+                  await load()
+                } else if ('mode' in result && result.mode === 'manual') {
+                  setOnboarding({
+                    ...result,
+                    platform: onboarding.platform,
+                    status: 'starting',
+                    manual: true,
+                  })
+                } else {
+                  setOnboarding({
+                    ...result,
+                    platform: onboarding.platform,
+                    manual: result.mode === 'manual',
+                  })
                 }
-              />
-            </div>
-            <FieldLabel variant="control">
-              {t('channels:channelsPage.replyModel')}
-              <AppSelect
-                value={
-                  selectedConnection.replyModel
-                    ? `${selectedConnection.replyModel.provider}/${selectedConnection.replyModel.model}`
-                    : ''
-                }
-                onChange={(event) => {
-                  const [provider, ...parts] = event.target.value.split('/')
-                  update(
-                    selectedPlatform,
-                    {
-                      replyModel: event.target.value ? { provider, model: parts.join('/') } : null,
-                    },
-                    t('channels:channelsPage.channelReplyModelUpdated'),
-                  )
-                }}
-              >
-                <option value="">{t('channels:channelsPage.useApplicationDefaultModel')}</option>
-                {data.models.map((model) => (
-                  <option
-                    value={`${model.provider}/${model.model}`}
-                    key={`${model.provider}/${model.model}`}
-                  >
-                    {model.label}
-                  </option>
-                ))}
-              </AppSelect>
-            </FieldLabel>
-            <FieldLabel variant="control">
-              {t('channels:channelsPage.approvalMode')}
-              <AppSelect
-                value={selectedConnection.executionMode}
-                onChange={(event) =>
-                  update(
-                    selectedPlatform,
-                    {
-                      executionMode: event.target.value as ChannelConnection['executionMode'],
-                    },
-                    t('channels:channelsPage.approvalModeUpdated'),
-                  )
-                }
-              >
-                <option value="approval-required">
-                  {t('channels:channelsPage.approvalRequired')}
-                </option>
-                <option value="workspace-write">{t('channels:channelsPage.workspaceWrite')}</option>
-                <option value="full-access">{t('channels:channelsPage.fullAccess')}</option>
-              </AppSelect>
-            </FieldLabel>
-            <FieldLabel variant="control">
-              {t('channels:channelsPage.executionMode')}
-              <AppSelect
-                value={selectedConnection.runMode}
-                onChange={(event) =>
-                  update(
-                    selectedPlatform,
-                    { runMode: event.target.value as ChannelConnection['runMode'] },
-                    t('channels:channelsPage.executionModeUpdated'),
-                  )
-                }
-              >
-                <option value="plan">{t('channels:channelsPage.planMode')}</option>
-                <option value="goal">{t('channels:channelsPage.goalMode')}</option>
-                <option value="team">{t('channels:channelsPage.teamMode')}</option>
-              </AppSelect>
-            </FieldLabel>
-            <FieldLabel variant="control">
-              {t('channels:channelsPage.accessScope')}
-              <AppSelect
-                value={selectedConnection.accessMode}
-                onChange={(event) =>
-                  update(
-                    selectedPlatform,
-                    { accessMode: event.target.value === 'all' ? 'all' : 'owner' },
-                    t('channels:channelsPage.accessScopeUpdated'),
-                  )
-                }
-              >
-                <option value="owner" disabled={!selectedConnection.ownerConfigured}>
-                  {t('channels:channelsPage.qrCodeOwnerOnly')}
-                </option>
-                <option value="all">
-                  {selectedPlatform === 'feishu'
-                    ? t('channels:channelsPage.allMembersInTheCurrentTenant')
-                    : selectedPlatform === 'weixin'
-                      ? t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')
-                      : t('channels:channelsPage.allUsersWhoMessageTheBot')}
-                </option>
-              </AppSelect>
-            </FieldLabel>
-            <FieldLabel variant="control">
-              {t('channels:channelsPage.defaultWorkingDirectoryForNewChats')}
-              <span className="channel-setting-input [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[12px] dark:[&_input]:bg-[var(--solid)] dark:[&_input]:text-[var(--text)] grid h-[34px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[7px] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)] [padding:3px_3px_3px_9px] text-[var(--text-muted)]">
-                <FolderOpen size={13} />
-                <input value={cwd} onChange={(event) => setCwd(event.target.value)} />
-                <Button
-                  variant="outline"
-                  disabled={saving || cwd === selectedConnection.defaultCwd}
-                  onClick={() =>
-                    update(
-                      selectedPlatform,
-                      { defaultCwd: cwd },
-                      t('channels:channelsPage.defaultWorkingDirectorySaved'),
-                    )
-                  }
-                >
-                  {t('channels:channelsPage.save')}
-                </Button>
-              </span>
-            </FieldLabel>
-            <AppNotice>
-              <ShieldCheck size={15} />
-              <span>
-                <strong>{t('channels:channelsPage.localSecurityBoundary')}</strong>
-                <small>
-                  {t(
-                    'channels:channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode',
-                  )}
-                </small>
-              </span>
-            </AppNotice>
-            <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
-              <Button
-                variant="outline"
-                size="lg"
-                className="bg-surface-subtle"
-                onClick={() => reconnect(selectedPlatform)}
-                disabled={saving}
-              >
-                <RefreshCw size={14} />
-                {t('channels:channelsPage.reconnect')}
-              </Button>
-              <Button variant="destructive" size="lg" onClick={() => remove(selectedPlatform)}>
-                <Unplug size={14} />
-                {t('channels:channelsPage.disconnect')}
-              </Button>
-            </div>
-          </Panel>
+              } catch (caught) {
+                setOnboarding((current) =>
+                  current ? { ...current, status: 'failed', error: errorMessage(caught) } : current,
+                )
+              }
+            }}
+            notify={notify}
+          />
         )}
       </div>
-
-      {onboarding && (
-        <OnboardingModal
-          job={onboarding}
-          onClose={closeOnboarding}
-          onRetry={() => beginOnboarding(onboarding.platform)}
-          onSubmitCredentials={async (credentials) => {
-            try {
-              const result = await apiJson<
-                Omit<OnboardingJob, 'platform'> | ManualOnboardingDescriptor | ChannelsData
-              >(`/api/channels/${onboarding.platform}/onboarding`, {
-                method: 'POST',
-                body: JSON.stringify(credentials),
-              })
-              if ('connections' in result) {
-                setData(result)
-                setOnboarding(null)
-                notify(
-                  t('channels:channelsPage.nameTwoWayConnectionEstablished', {
-                    name: providerName(onboarding.platform, t),
-                  }),
-                )
-                await load()
-              } else if ('mode' in result && result.mode === 'manual') {
-                setOnboarding({
-                  ...result,
-                  platform: onboarding.platform,
-                  status: 'starting',
-                  manual: true,
-                })
-              } else {
-                setOnboarding({
-                  ...result,
-                  platform: onboarding.platform,
-                  manual: result.mode === 'manual',
-                })
-              }
-            } catch (caught) {
-              setOnboarding((current) =>
-                current ? { ...current, status: 'failed', error: errorMessage(caught) } : current,
-              )
-            }
-          }}
-          notify={notify}
-        />
-      )}
-    </div>
+    </PageFrame>
   )
 }
 

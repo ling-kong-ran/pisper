@@ -129,6 +129,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     [scrollElement],
   )
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    // ref 挂载测量发生在 React 提交期间；批处理更新避免在该阶段嵌套 flushSync。
+    useFlushSync: false,
     count: messages.length,
     getScrollElement: () => scrollElement,
     getItemKey,

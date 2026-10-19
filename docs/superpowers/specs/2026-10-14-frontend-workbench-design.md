@@ -1,5 +1,7 @@
 # Pisper 前端工作台设计方案
 
+> 2026-10-16 恢复整合说明：本文件记录原工作台设计/验收背景。其中自建项目文件浏览器、目录枚举接口和相应验收已被撤回，恢复时不再带入；当前边界以[系统文件选择](../../architecture/system-file-selection.md)为准。
+
 > 基线说明：本文按 2026-10-14 的 Rust 分支代码编写。`release` 已恢复到 `v0.5.81` 的 Node Runtime 基线，原 Rust 代码保存在 `rust-runtime`。下文实现位置和审计依据固定引用迁移前提交；恢复前端改造时，须重新核对 Node 分支的路径、能力和测试入口，不能直接执行旧路径对应的改动。
 
 - 日期：2026-10-14
@@ -355,7 +357,7 @@ Pisper 采用三层布局：始终可见的功能栏、可以隐藏的项目与�
 | 摘要、菜单与移动侧栏临时开关   | 按交互规则保留或关闭         | 默认关闭                                                 |
 | 实际进程和终端状态             | 由资源服务维持               | 重新查询或按已有连接协议恢复，不用旧 UI 快照伪造运行状态 |
 
-需要跨应用重启保存的偏好统一经过实际路径 `src/lib/storage/page-state-storage.ts` 中的 `pageStateStorage`，并登记到 `shared/browser-preferences.mjs`。不得新增只写 `localStorage` 的持久化偏好。
+需要跨应用重启保存的偏好统一经过实际路径 `src/lib/page-state-storage.ts` 中的 `pageStateStorage`，并登记到 `shared/browser-preferences.mjs`。不得新增只写 `localStorage` 的持久化偏好。
 
 临时网页 URL、凭据、对话内容、终端缓冲区和来源正文不得写入通用页面偏好。界面状态与领域数据分开恢复。
 
@@ -632,6 +634,6 @@ Android、iOS 和桌面 WebView 分别记录源码检查、浏览器模拟、实
 - [OpenCode 审阅面板](https://github.com/anomalyco/opencode/blob/dev/packages/app/src/pages/session/v2/review-panel-v2.tsx)：参考独立审阅工作面。
 - [Zed 项目与窗口说明](https://zed.dev/docs/windows-and-projects)：参考项目范围与工作区上下文。
 - [仓库开发流程](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/docs/development-workflow.md)、[结构决策规范](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/docs/architecture-decisions.md)、[前端边界](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/docs/architecture/frontend-boundaries.md)。
-- [页面状态持久化设计](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/docs/architecture/page-state-persistence.md)与[当前存储入口](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/lib/storage/page-state-storage.ts)。前者含旧路径说明，实际模块路径以当前源码为准；本轮不顺带修改历史文档。
+- [页面状态持久化设计](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/docs/architecture/page-state-persistence.md)与[当前存储入口](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/lib/page-state-storage.ts)。前者含旧路径说明，实际模块路径以当前源码为准；本轮不顺带修改历史文档。
 - [现有内容页状态](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/chat/model/session-context-pages-store.ts)、[内容页行为](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/chat/model/session-context-pages.ts)、[Dock 布局契约](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/features/chat/model/dock-layout.ts)。
 - [当前页面偏好白名单](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/shared/browser-preferences.mjs)、[当前移动壳显示规则](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/src/components/layout/mobile-shell-layout.ts)、[实际脚本入口](https://github.com/ling-kong-ran/pisper/blob/2b1c97afb529d8dc8170ad0c905c71b921ef5788/package.json)。

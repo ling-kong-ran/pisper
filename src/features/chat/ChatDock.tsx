@@ -1,3 +1,4 @@
+import { TASK_VIEW_WILL_CHANGE } from './events'
 // 聊天 Dock 面板容器：每个 dockview 面板对应一个会话视图，
 // 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -8,6 +9,10 @@ import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
+import { TaskWorkspace } from './TaskWorkspace'
+import { useContextPagesStore } from './session-context-pages-store'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { FocusSession } from './FocusSession'
 import { resolveSessionStreaming } from './session-streaming-state'
 import { ChatDockContext } from './chat-dock-context'
@@ -41,7 +46,15 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
       sessionId={sessionId}
       panelId={api.id}
       shortcutEnabled={active}
-      onFocusCapture={() => api.setActive()}
+      onFocusCapture={(event) => {
+        const root = event.currentTarget
+        // Portal 菜单的焦点也会沿 React 树冒泡；不能由旧菜单重新激活已切走的任务。
+        if (!root.contains(event.target)) return
+        if (!api.isActive)
+          queueMicrotask(() => {
+            if (api.isVisible && root.contains(document.activeElement)) api.setActive()
+          })
+      }}
       canSplitPanel={Boolean(context?.compactDock === false && api.group.size > 1)}
       canClosePanel
     />
@@ -77,17 +90,13 @@ type MobileSessionPanelProps = {
   onOpenHistory: () => void
 }
 
-const MOBILE_SESSION_TAB_LIMIT = 6
-
 function readMobileSessionTabs() {
   try {
     const value: unknown = JSON.parse(
       pageStateStorage.getItem(STORAGE_KEYS.mobileSessionTabs) || '[]',
     )
     return Array.isArray(value)
-      ? value
-          .filter((item): item is string => typeof item === 'string')
-          .slice(-MOBILE_SESSION_TAB_LIMIT)
+      ? value.filter((item): item is string => typeof item === 'string')
       : []
   } catch {
     return []
@@ -132,7 +141,7 @@ export function MobileSessionPanel({
       for (const id of [...seedIds, activeId]) {
         if (id && knownIds.has(id) && !next.includes(id)) next.push(id)
       }
-      const limited = next.slice(-MOBILE_SESSION_TAB_LIMIT)
+      const limited = next
       return limited.length === current.length &&
         limited.every((id, index) => id === current[index])
         ? current
@@ -257,7 +266,7 @@ type SessionPanelProps = {
   sessionId: string
   panelId: string
   shortcutEnabled: boolean
-  onFocusCapture?: () => void
+  onFocusCapture?: React.FocusEventHandler<HTMLDivElement>
   canSplitPanel: boolean
   canClosePanel: boolean
 }
@@ -273,6 +282,12 @@ function SessionPanel({
   canClosePanel,
 }: SessionPanelProps) {
   const context = useContext(ChatDockContext)
+  const capabilities = useRuntimeCapabilitiesStore((store) => store.capabilities)
+  const contentOpen = useContextPagesStore(
+    (store) => store.sessions[sessionId]?.contentOpen || false,
+  )
+  const updateWorkspace = useContextPagesStore((store) => store.update)
+
   // 面板只订阅自己会话的 state：其它会话的流式帧不会触发本面板重渲染。
   const subscribeSessionState = context?.subscribeSessionState
   const getSessionState = context?.getSessionState
@@ -359,8 +374,17 @@ function SessionPanel({
       onSplitRight: () => context?.splitDockPanel(panelId, 'right'),
       onSplitTop: () => context?.splitDockPanel(panelId, 'above'),
       onSplitBottom: () => context?.splitDockPanel(panelId, 'below'),
-      onClosePanel: () => context?.closeDockPanel(panelId),
-      onToggleContext: (open: boolean) => context?.toggleSessionContext(sessionId, open),
+      onClosePanel: () => {
+        window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
+        context?.closeDockPanel(panelId)
+      },
+      onToggleContext: (open: boolean) => {
+        window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
+        const workspace = useContextPagesStore.getState().sessions[sessionId]
+        if (open && !workspace?.pages.length)
+          updateWorkspace(sessionId, 'files', { type: 'open', kind: 'files' })
+        else updateWorkspace(sessionId, 'files', { type: 'workspace', contentOpen: open })
+      },
       onSend: (
         value: string,
         attachments: ChatAttachment[],
@@ -384,7 +408,7 @@ function SessionPanel({
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onAbort: () => context?.abort(sessionId),
     }),
-    [context, sessionId, session, panelId],
+    [context, sessionId, session, panelId, updateWorkspace],
   )
 
   if (!context || !session) {
@@ -405,65 +429,84 @@ function SessionPanel({
       className="session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-[var(--panel)]"
       onFocusCapture={onFocusCapture}
     >
-      <FocusSession
-        session={session}
-        shortcutEnabled={shortcutEnabled}
+      <TaskWorkspace
         messages={state.messages || EMPTY_LIST}
-        transcriptLoadState={
-          state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
-        }
-        messageStart={state.messageStart}
-        hasOlder={state.hasOlder}
-        loadingOlder={state.loadingOlder}
-        olderError={state.olderError}
-        model={state.model || session.model || context.defaultModel}
-        thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
-        availableThinkingLevels={state.availableThinkingLevels || EMPTY_LIST}
-        thinkingStatus={state.thinkingStatus || ''}
-        thinkingMessage={state.thinkingMessage || ''}
-        executionMode={state.executionMode || session.executionMode || 'approval-required'}
-        runMode={state.runMode || session.runMode || 'plan'}
-        goal={state.goal ?? session.goal ?? null}
-        team={team}
+        taskName={session.name || sessionId}
+        cwd={state.cwd || session.cwd || ''}
+        key={sessionId}
+        sessionId={sessionId}
+        panelId={panelId || `mobile-${sessionId}`}
+        active={shortcutEnabled}
+        mobile={context.mobileLayout}
         plan={visiblePlan}
-        currentActivity={state.currentActivity}
-        activityFeed={state.activityFeed || EMPTY_LIST}
-        tools={state.tools || EMPTY_LIST}
-        thinkingText={state.thinkingText || ''}
-        queuedInputs={state.queuedInputs || EMPTY_LIST}
-        withdrawingInputIds={state.withdrawingInputIds || EMPTY_LIST}
-        compaction={state.compaction}
-        contextUsage={state.contextUsage}
-        sessionUsage={state.sessionUsage}
-        sessionTreeRevision={state.sessionTreeRevision}
-        sessionTreePulse={sessionTreePulse}
-        cwd={state.cwd || session.cwd}
-        availableModels={context.availableModels}
-        pendingRuntimeSelection={state.pendingRuntimeSelection}
-        switchingModel={state.switchingModel}
-        switchingThinking={state.switchingThinking}
-        switchingCwd={state.switchingCwd}
-        switchingPermission={state.switchingPermission}
         streaming={streaming}
-        runStartedAt={state.runStartedAt}
-        lastActivityAt={state.lastActivityAt}
-        runFinishedAt={state.runFinishedAt}
-        runStopped={state.runStopped}
-        runNotice={state.runNotice}
-        approvals={state.approvals || EMPTY_LIST}
-        error={state.error || (context.activeId === sessionId ? context.globalError : '')}
-        pendingAsset={pending}
-        onAssetConsumed={context.onAssetConsumed}
-        notify={context.notify}
-        onOpenModelSettings={context.openModelSettings}
-        onCompactionThresholdChange={context.setCompactionThreshold}
-        canSplit={canSplitPanel}
-        canClosePanel={canClosePanel}
-        contextOpen={Boolean(context.contextTab && context.activeId === sessionId)}
-        contextCompact={context.contextCompact}
-        contextPanelId={context.contextPanelId}
-        {...handlers}
-      />
+        completed={Boolean(
+          state.lifecycle?.phase === 'completed' && !state.error && !state.runStopped,
+        )}
+        runStartedAt={typeof state.runStartedAt === 'string' ? state.runStartedAt : null}
+        plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
+        requestConfirm={context.requestConfirm}
+      >
+        <FocusSession
+          session={session}
+          shortcutEnabled={shortcutEnabled}
+          messages={state.messages || EMPTY_LIST}
+          transcriptLoadState={
+            state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
+          }
+          messageStart={state.messageStart}
+          hasOlder={state.hasOlder}
+          loadingOlder={state.loadingOlder}
+          olderError={state.olderError}
+          model={state.model || session.model || context.defaultModel}
+          thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
+          availableThinkingLevels={state.availableThinkingLevels || EMPTY_LIST}
+          thinkingStatus={state.thinkingStatus || ''}
+          thinkingMessage={state.thinkingMessage || ''}
+          executionMode={state.executionMode || session.executionMode || 'approval-required'}
+          runMode={state.runMode || session.runMode || 'plan'}
+          goal={state.goal ?? session.goal ?? null}
+          team={team}
+          plan={visiblePlan}
+          currentActivity={state.currentActivity}
+          activityFeed={state.activityFeed || EMPTY_LIST}
+          tools={state.tools || EMPTY_LIST}
+          thinkingText={state.thinkingText || ''}
+          queuedInputs={state.queuedInputs || EMPTY_LIST}
+          withdrawingInputIds={state.withdrawingInputIds || EMPTY_LIST}
+          compaction={state.compaction}
+          contextUsage={state.contextUsage}
+          sessionUsage={state.sessionUsage}
+          sessionTreeRevision={state.sessionTreeRevision}
+          sessionTreePulse={sessionTreePulse}
+          cwd={state.cwd || session.cwd}
+          availableModels={context.availableModels}
+          pendingRuntimeSelection={state.pendingRuntimeSelection}
+          switchingModel={state.switchingModel}
+          switchingThinking={state.switchingThinking}
+          switchingCwd={state.switchingCwd}
+          switchingPermission={state.switchingPermission}
+          streaming={streaming}
+          runStartedAt={state.runStartedAt}
+          lastActivityAt={state.lastActivityAt}
+          runFinishedAt={state.runFinishedAt}
+          runStopped={state.runStopped}
+          runNotice={state.runNotice}
+          approvals={state.approvals || EMPTY_LIST}
+          error={state.error || (context.activeId === sessionId ? context.globalError : '')}
+          pendingAsset={pending}
+          onAssetConsumed={context.onAssetConsumed}
+          notify={context.notify}
+          onOpenModelSettings={context.openModelSettings}
+          onCompactionThresholdChange={context.setCompactionThreshold}
+          canSplit={canSplitPanel}
+          canClosePanel={canClosePanel}
+          contextOpen={contentOpen}
+          contextCompact={context.mobileLayout}
+          contextPanelId={`${panelId || `mobile-${sessionId}`}-context`}
+          {...handlers}
+        />
+      </TaskWorkspace>
     </div>
   )
 }

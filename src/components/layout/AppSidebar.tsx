@@ -1,10 +1,9 @@
-// 工作台导航只负责展示；会话创建、搜索与设置跳转由应用壳传入。
-import { lazy, Suspense, useMemo } from 'react'
-import { Blocks, Home, MessageCirclePlus, Search, type LucideIcon } from 'lucide-react'
+// 导航外壳只接收项目列表插槽；任务数据和操作归聊天领域所有。
+import { lazy, Suspense, useMemo, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
+import { Home, SquarePen, Search, X, PanelLeftClose } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
-import type { Notify } from '@/app/route-context'
-import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import {
   getSettingsNavigation,
   settingsNavigationKey,
@@ -13,170 +12,138 @@ import {
 } from '@/app/settings-navigation'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
-import { useMobileShell } from '@/components/layout/MobileShellContext'
-import { Sidebar as ShadcnSidebar, useSidebar } from '@/components/ui/sidebar'
+import { Sidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { BrandLogo } from '@/components/BrandLogo'
-import { WorkbenchSidebarToggle } from './WorkbenchSidebarToggle'
-import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
-
-const SidebarSettingsButton = lazy(() =>
-  import('@/components/layout/SidebarSettingsButton').then((module) => ({
-    default: module.SidebarSettingsButton,
-  })),
-)
-
-const SidebarMoreTools = lazy(() => import('@/components/layout/SidebarMoreTools'))
-
-const SidebarRecentSessions = lazy(() =>
-  import('@/components/layout/SidebarRecentSessions').then((m) => ({
-    default: m.SidebarRecentSessions,
-  })),
-)
-
 import type { SidebarUpdate } from './SidebarUpdateStatus'
+
 const SidebarUpdateStatus = lazy(() => import('./SidebarUpdateStatus'))
 
 type AppSidebarProps = {
   page: string
   configSection: string
-  navigation: Array<[string, Array<[string, string, LucideIcon]>]>
-  installedTools: Array<{ id: string; name: string }>
   navigate: (page: string) => void
-  onOpenComponent: (id: string) => void
   navigateSettings: (destination: SettingsDestination) => void
   onNewChat: () => void
   onSearch: () => void
-  collapsed: boolean
   update: SidebarUpdate
   onOpenUpdates: () => void
-  requestText: (options?: PromptDialogOptions) => Promise<string | null>
-  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
-  notify: Notify
+  tasks: ReactNode
+  settingsSearch?: ReactNode
 }
 
 export function AppSidebar({
   page,
   configSection,
-  navigation,
-  installedTools,
   navigate,
-  onOpenComponent,
   navigateSettings,
   onNewChat,
   onSearch,
-  collapsed,
   update,
   onOpenUpdates,
-  requestText,
-  requestConfirm,
-  notify,
+  tasks,
+  settingsSearch,
 }: AppSidebarProps) {
   const { t } = useI18n()
-  const { isMobile, setOpenMobile } = useSidebar()
-  const compact = collapsed && !isMobile
+  const { isMobile, setOpenMobile, open, toggleSidebar } = useSidebar()
   const mobileApp = useIsMobileApp()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
-  const settingsActive = SETTINGS_PAGES.has(page)
   const settingsNavigation = useMemo(
     () => getSettingsNavigation(t, { mobileApp, capabilities }),
     [capabilities, mobileApp, t],
   )
+  const settingsActive = SETTINGS_PAGES.has(page)
   const activeSettingsKey = settingsNavigationKey(page, configSection)
-  const newChatShortcut = useShortcutLabel('primaryAction')
-  const searchShortcut = useShortcutLabel('commandPalette')
-  // 沿用壳层已过滤的能力清单；没有后端支持的入口不会出现在工作台。
-  const items = navigation.flatMap(([, entries]) => entries)
-  const workspaceItems = ['workflows', 'assets'].flatMap((id) =>
-    items.filter(([key]) => key === id),
-  )
-  const extraItems: Array<[string, string, LucideIcon]> = [
-    ...items.filter(([id]) => !['chat', 'workflows', 'assets'].includes(id)),
-    ...installedTools.map(({ id, name }): [string, string, LucideIcon] => [
-      `component:${id}`,
-      name,
-      Blocks,
-    ]),
-  ]
-  const shell = useMobileShell()
   const runAndClose = (action: () => void) => {
     action()
     if (isMobile) setOpenMobile(false)
   }
-  const openAssets = () => {
-    if (!shell.active) {
-      runAndClose(() => navigate('assets'))
-      return
-    }
-    if (shell.mode === 'phone' && shell.pane === 'context' && shell.tab === 'assets') {
-      shell.setPane('chat')
-      return
-    }
-    shell.openContext('assets')
-  }
-  const navButton = cn(
-    'w-full gap-2 rounded-lg text-sm font-normal text-foreground shadow-none hover:bg-sidebar-accent',
-    compact ? 'h-11 justify-center px-0' : 'h-8 justify-start px-2.5',
-  )
-  const navLabel = compact ? 'sr-only' : 'truncate'
-
+  const navButton =
+    'h-9 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal shadow-none hover:bg-sidebar-accent'
   return (
-    <ShadcnSidebar collapsible="icon" className="pisper-sidebar-container border-0">
+    <Sidebar
+      collapsible="offcanvas"
+      className="pisper-sidebar-container overflow-hidden border-0 min-[651px]:rounded-l-2xl"
+    >
       <aside
-        className="sidebar flex h-full w-full min-w-0 flex-col bg-sidebar text-foreground"
         id="workbench-sidebar"
         data-testid="workbench-sidebar"
+        className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-sidebar text-foreground min-[651px]:rounded-l-2xl"
       >
-        <div
-          className={cn(
-            'flex h-12 shrink-0 items-center gap-2 px-3',
-            compact ? 'justify-center' : 'justify-between',
+        <div className="flex h-14 shrink-0 items-center gap-1 px-3" data-window-drag-region>
+          <span className="min-w-0 flex-1 truncate pl-1 text-lg font-semibold">
+            {settingsActive ? t('navigation:navigation.settings') : APP_NAME}
+          </span>
+          {!settingsActive && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('navigation:workbench.search')}
+              title={t('navigation:workbench.search')}
+              onClick={() => runAndClose(onSearch)}
+            >
+              <Search size={18} />
+            </Button>
           )}
-          data-window-drag-region
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <BrandLogo className="size-6" size={24} />
-            <span className={cn(compact ? 'sr-only' : 'truncate', 'text-sm font-semibold')}>
-              {APP_NAME}
-            </span>
-          </div>
+          {!isMobile && open && (
+            <Button
+              id="workbench-sidebar-toggle"
+              variant="ghost"
+              className="size-9 shrink-0"
+              aria-label={t('navigation:appSidebar.collapseSidebar')}
+              title={t('navigation:appSidebar.collapseSidebar')}
+              aria-expanded={open}
+              aria-controls="workbench-sidebar"
+              onClick={() => {
+                flushSync(toggleSidebar)
+                document.getElementById('workbench-sidebar-toggle')?.focus()
+              }}
+            >
+              <PanelLeftClose size={18} />
+            </Button>
+          )}
+          {isMobile && (
+            <Button
+              variant="ghost"
+              className="ml-auto size-11"
+              aria-label={t('navigation:appSidebar.collapseSidebar')}
+              onClick={() => setOpenMobile(false)}
+            >
+              <X />
+            </Button>
+          )}
         </div>
+        {settingsSearch && <div className="relative z-20 shrink-0 px-2 pb-2">{settingsSearch}</div>}
         {settingsActive ? (
           <nav
-            className="min-h-0 flex-1 overflow-y-auto px-2 pb-4 pt-3"
+            className="min-h-0 flex-1 overflow-y-auto px-2 py-3"
             aria-label={t('config:settingsShell.settingsNavigation')}
           >
             <Button
               variant="ghost"
-              className={cn(navButton, 'mb-5')}
+              className={cn(navButton, 'mb-4')}
               onClick={() => runAndClose(() => navigate('chat'))}
               data-testid="workbench-home"
-              title={compact ? t('navigation:workbench.home') : undefined}
             >
-              <Home size={16} aria-hidden="true" />
-              <span className={navLabel}>{t('navigation:workbench.home')}</span>
+              <Home size={16} />
+              {t('navigation:workbench.home')}
             </Button>
             {settingsNavigation.map((group) => (
               <div key={group.label} className="mb-5 flex flex-col gap-0.5">
-                <span
-                  className={
-                    compact ? 'sr-only' : 'px-2.5 pb-1.5 text-[12px] text-muted-foreground'
-                  }
-                >
-                  {group.label}
-                </span>
+                <span className="px-2.5 pb-1.5 text-xs text-muted-foreground">{group.label}</span>
                 {group.items.map((item) => (
                   <Button
                     key={item.key}
                     variant="ghost"
-                    className={cn(navButton, activeSettingsKey === item.key && 'bg-sidebar-accent')}
+                    className={cn(
+                      navButton,
+                      activeSettingsKey === item.key && 'bg-sidebar-accent font-medium',
+                    )}
                     aria-current={activeSettingsKey === item.key ? 'page' : undefined}
                     onClick={() => runAndClose(() => navigateSettings(item.destination))}
-                    title={compact ? item.label : undefined}
                   >
                     <item.icon size={16} />
-                    <span className={navLabel}>{item.label}</span>
+                    <span className="truncate">{item.label}</span>
                   </Button>
                 ))}
               </div>
@@ -184,136 +151,29 @@ export function AppSidebar({
           </nav>
         ) : (
           <>
-            <nav
-              className="flex min-h-0 flex-col gap-1 overflow-y-auto px-2 py-3"
-              aria-label={t('navigation:appSidebar.mainNavigation')}
-            >
+            <div className="flex shrink-0 items-center gap-1 px-2 py-2">
               <Button
                 variant="ghost"
-                className={cn(navButton, page === 'chat' && 'bg-sidebar-accent')}
-                aria-current={page === 'chat' ? 'page' : undefined}
-                onClick={() => runAndClose(() => navigate('chat'))}
-                data-testid="workbench-home"
-                title={compact ? t('navigation:workbench.home') : undefined}
-              >
-                <Home size={16} aria-hidden="true" />
-                <span className={navLabel}>{t('navigation:workbench.home')}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                className={navButton}
+                className={cn(navButton, 'min-w-0 flex-1')}
                 onClick={() => runAndClose(onNewChat)}
                 data-testid="workbench-new-task"
-                title={compact ? t('navigation:workbench.newTask') : undefined}
               >
-                <MessageCirclePlus size={16} />
-                <span className={navLabel}>{t('navigation:workbench.newTask')}</span>
-                <kbd
-                  className={cn(
-                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
-                    compact && 'hidden',
-                  )}
-                >
-                  {newChatShortcut}
-                </kbd>
+                <SquarePen size={18} />
+                <span className="truncate">{t('navigation:workbench.newTask')}</span>
               </Button>
-              <Button
-                variant="ghost"
-                className={navButton}
-                onClick={() => runAndClose(onSearch)}
-                title={compact ? t('navigation:workbench.search') : undefined}
-              >
-                <Search size={16} />
-                <span className={navLabel}>{t('navigation:workbench.search')}</span>
-                <kbd
-                  className={cn(
-                    'ml-auto text-[10px] font-normal text-muted-foreground/60',
-                    compact && 'hidden',
-                  )}
-                >
-                  {searchShortcut}
-                </kbd>
-              </Button>
-              {workspaceItems.map(([id, label, Icon]) => {
-                const assetsOpen =
-                  id === 'assets' &&
-                  shell.active &&
-                  shell.tab === 'assets' &&
-                  (shell.mode === 'pad' || shell.pane === 'context')
-                const current = id === 'assets' ? assetsOpen || page === id : page === id
-                return (
-                  <Button
-                    key={id}
-                    variant="ghost"
-                    className={cn(navButton, current && 'bg-sidebar-accent')}
-                    aria-current={current ? 'page' : undefined}
-                    onClick={() =>
-                      id === 'assets' ? openAssets() : runAndClose(() => navigate(id))
-                    }
-                    title={compact ? label : undefined}
-                  >
-                    <Icon size={16} />
-                    <span className={navLabel}>{label}</span>
-                  </Button>
-                )
-              })}
-              {extraItems.length > 0 && (
-                <Suspense fallback={null}>
-                  <SidebarMoreTools
-                    items={extraItems}
-                    buttonClassName={navButton}
-                    compact={compact}
-                    onNavigate={(id) =>
-                      runAndClose(() =>
-                        id.startsWith('component:') ? onOpenComponent(id.slice(10)) : navigate(id),
-                      )
-                    }
-                  />
-                </Suspense>
-              )}
-            </nav>
-            <div className={cn('min-h-0 flex-1 flex-col', compact ? 'hidden' : 'flex')}>
-              <Suspense
-                fallback={<div className="mx-2 h-20 animate-pulse rounded-lg bg-sidebar-accent" />}
-              >
-                <SidebarRecentSessions
-                  navigate={navigate}
-                  requestText={requestText}
-                  requestConfirm={requestConfirm}
-                  notify={notify}
-                />
-              </Suspense>
             </div>
+            <div className="flex min-h-0 flex-1 flex-col">{tasks}</div>
           </>
         )}
-        <footer
-          className={cn(
-            'mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-2',
-            compact ? 'px-2' : 'px-3',
-          )}
-        >
-          {update.status &&
-            ['available', 'downloading', 'downloaded'].includes(update.status.state) && (
+        {update.status &&
+          ['available', 'downloading', 'downloaded'].includes(update.status.state) && (
+            <footer className="shrink-0 px-3 py-2">
               <Suspense fallback={null}>
-                <SidebarUpdateStatus update={update} collapsed={compact} onOpen={onOpenUpdates} />
+                <SidebarUpdateStatus update={update} collapsed={false} onOpen={onOpenUpdates} />
               </Suspense>
-            )}
-          <div className={cn('flex items-center', compact ? 'flex-col gap-1' : 'gap-2')}>
-            <div className={cn('min-w-0', compact ? 'w-full' : 'flex-1')}>
-              <Suspense fallback={<div className="h-11" aria-busy="true" />}>
-                <SidebarSettingsButton
-                  active={settingsActive}
-                  compact={compact}
-                  onOpen={() =>
-                    runAndClose(() => navigateSettings({ type: 'config', id: 'models' }))
-                  }
-                />
-              </Suspense>
-            </div>
-            <WorkbenchSidebarToggle inSidebar />
-          </div>
-        </footer>
+            </footer>
+          )}
       </aside>
-    </ShadcnSidebar>
+    </Sidebar>
   )
 }

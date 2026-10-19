@@ -14,6 +14,7 @@ type ConfigSearchBoxProps = {
   // 选中结果后跳转目标分区（高亮请求由组件内部发起）
   onSelect: (section: string, view?: 'appearance' | 'widgets') => void
   inputRef: RefObject<HTMLInputElement | null>
+  placement?: 'toolbar' | 'sidebar'
 }
 
 export function ConfigSearchBox({
@@ -21,6 +22,7 @@ export function ConfigSearchBox({
   onQueryChange,
   onSelect,
   inputRef,
+  placement = 'toolbar',
 }: ConfigSearchBoxProps) {
   const { t, language } = useI18n()
   const [open, setOpen] = useState(false)
@@ -60,7 +62,12 @@ export function ConfigSearchBox({
   return (
     <div
       ref={containerRef}
-      className="relative w-[min(250px,24vw)] max-[900px]:w-[190px] max-[650px]:col-start-1 max-[650px]:row-start-1 max-[650px]:w-full max-[650px]:min-w-0"
+      className={cn(
+        'relative',
+        placement === 'sidebar'
+          ? 'w-full'
+          : 'w-[min(250px,24vw)] max-[900px]:w-[190px] max-[650px]:col-start-1 max-[650px]:row-start-1 max-[650px]:w-full max-[650px]:min-w-0',
+      )}
     >
       <Search
         size={15}
@@ -71,7 +78,11 @@ export function ConfigSearchBox({
         value={query}
         title={t('navigation:pageHeader.search')}
         aria-label={t('navigation:pageHeader.search')}
-        className="h-[34px] pl-8 text-[13px] in-data-[density=compact]:h-[30px]"
+        className={cn(
+          'h-[34px] pl-8 text-sm',
+          placement === 'sidebar' &&
+            'h-9 rounded-full border-transparent bg-sidebar-accent shadow-none',
+        )}
         placeholder={t('config:configSearch.placeholder')}
         onChange={(event) => {
           onQueryChange(event.target.value)
@@ -99,7 +110,7 @@ export function ConfigSearchBox({
         }}
       />
       {showDropdown && (
-        <div className="absolute top-full left-0 z-50 mt-1.5 w-[max(100%,280px)] overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke)] bg-[var(--solid)] shadow-[var(--sh-floating)]">
+        <div className="absolute top-full left-0 z-50 mt-1.5 w-full overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--sh-floating)]">
           {results.length === 0 ? (
             <p className="px-3 py-3 text-[12px] text-[var(--text-muted)]">
               {t('config:configSearch.noResults')}

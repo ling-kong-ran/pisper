@@ -48,5 +48,10 @@
   "statusBar.reconnecting": "重连中…",
   "statusBar.connectionLost": "运行时连接已断开，正在重新连接…",
   "statusBar.connectionRestored": "运行时连接已恢复",
-  "api.invalidResponse": "服务器响应格式异常，请稍后重试。"
+  "api.invalidResponse": "服务器响应格式异常，请稍后重试。",
+  "pageTemplate.backToList": "返回列表",
+  "pageTemplate.openDetail": "打开详情与画布",
+  "pageTemplate.loading": "正在加载…",
+  "pageTemplate.retry": "重试",
+  "pageTemplate.empty": "暂无内容"
 }

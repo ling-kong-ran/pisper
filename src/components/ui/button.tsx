@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/80',
+        default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
         outline:
           'border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
         secondary:
@@ -18,7 +18,7 @@ const buttonVariants = cva(
           'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50',
         destructive:
           'bg-danger-soft text-danger hover:bg-danger-border focus-visible:border-danger-border focus-visible:ring-danger-border',
-        link: 'text-primary underline-offset-4 hover:underline',
+        link: 'text-brand underline-offset-4 hover:underline',
       },
       size: {
         default:
