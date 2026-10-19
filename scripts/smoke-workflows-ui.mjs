@@ -197,6 +197,12 @@ try {
         ...probe.children,
       ]
       const bg = (el) => getComputedStyle(el).backgroundColor
+      const rgba = (color) => {
+        const context = document.createElement('canvas').getContext('2d')
+        context.fillStyle = color
+        context.fillRect(0, 0, 1, 1)
+        return [...context.getImageData(0, 0, 1, 1).data]
+      }
       root.classList.add('dark')
       const darkInput = bg(inputTint)
       root.classList.remove('dark')
@@ -205,6 +211,10 @@ try {
         mutedTint: bg(mutedTint),
         darkInput,
         ringColor: getComputedStyle(ring).boxShadow,
+        ringColors: (
+          getComputedStyle(ring).boxShadow.match(/(?:rgba?|oklab|oklch|color)\([^)]*\)/g) || []
+        ).map(rgba),
+        solidInkRgba: rgba(bg(solidInkBg)),
         solidInk: bg(solidInkBg),
         solidMuted: bg(solidMuted),
         solidInput: bg(solidInput),
@@ -219,8 +229,12 @@ try {
   assert.notEqual(tint.mutedTint, tint.solidMuted, 'bg-muted/50 不得退化为实心灰')
   assert.notEqual(tint.darkInput, tint.solidInput, 'dark:bg-input/30 不得退化为实心灰')
   assert.ok(
-    tint.ringColor === 'none' ||
-      !tint.ringColor.includes(tint.solidInk.match(/\d+/g)?.slice(0, 3).join(', ') || ''),
+    tint.ringColors.some((color) => color[3] > 0) &&
+      tint.ringColors.every(
+        (color) =>
+          color[3] < 255 ||
+          color.slice(0, 3).some((value, index) => value !== tint.solidInkRgba[index]),
+      ),
     'ring-foreground/10 不得退化为全强度前景色',
   )
   report.checks.push(
@@ -528,7 +542,8 @@ try {
   // 未保存的草稿与 Inspector 状态必须跨应用壳断点保留，不能重新选择节点掩盖重挂载。
   await page.getByRole('spinbutton', { name: '留白（像素）', exact: true }).fill('9')
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.locator('[data-mobile-shell="phone"]').waitFor()
+  // 工作流使用全局工作台布局；通过视口与下方真实 Inspector 验收响应式切换。
+  await page.waitForFunction(() => window.innerWidth === 390)
   assert.ok(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   )

@@ -24,7 +24,7 @@ const fixtures = [
     channels: [73, 149, 237],
     lightStrong: '#1662bb',
     darkStrong: '#81b6f3',
-    lightOn: '#fff',
+    lightOn: '#000000',
     darkOn: '#18181b',
   },
   {
@@ -32,8 +32,8 @@ const fixtures = [
     channels: [56, 56, 56],
     lightStrong: '#050506',
     darkStrong: '#8a8a8a',
-    lightOn: '#fff',
-    darkOn: '#fff',
+    lightOn: '#ffffff',
+    darkOn: '#ffffff',
   },
   {
     color: '#ffffff',

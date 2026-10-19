@@ -1,3 +1,4 @@
+import { verifyPageTemplates } from './smoke-page-template-checks.mjs'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises'
@@ -25,18 +26,6 @@ async function within(promise, label, ms = 30000) {
   } finally {
     clearTimeout(timer)
   }
-}
-// 三屏会保留离屏 DOM；验收必须等目标屏可交互且滑动完成，不能把挂载当成可见。
-async function waitForMobilePane(page, label) {
-  await page.waitForFunction((label) => {
-    const pane = document.querySelector(
-      `[data-mobile-shell="phone"] section[aria-label="${label}"]`,
-    )
-    if (!pane || pane.inert || pane.getAttribute('aria-hidden') === 'true') return false
-    const bounds = pane.getBoundingClientRect()
-    return Math.abs(bounds.left) < 1 && Math.abs(bounds.right - innerWidth) < 1
-  }, label)
-  return page.getByRole('region', { name: label, exact: true })
 }
 // 思考等级和模型名称共用一个选择器，上下两行、键盘和触发器间留白都可操作。
 async function verifyUnifiedModelPicker(page) {
@@ -329,7 +318,7 @@ try {
   await page.getByTestId('workbench-new-task').click()
   await page.getByTestId('workbench-greeting').waitFor()
   const prompt = page.getByRole('textbox', { name: '任务描述' })
-  await page.locator('[data-brand="Pisper"]').waitFor()
+  await page.getByTestId('workbench-greeting').getByRole('heading').waitFor()
   const suggestions = page.getByRole('region', { name: '试试这些任务', exact: true })
   await suggestions.getByRole('button', { name: '解释代码', exact: true }).click()
   assert.ok((await prompt.inputValue()).length > 0)
@@ -337,13 +326,15 @@ try {
   assert.ok((await suggestions.boundingBox()).y > (await prompt.boundingBox()).y)
   await prompt.fill('')
   report.checks.push(
-    'New conversation has P watermark and task suggestions below the composer; clicking a suggestion fills but never sends',
+    'New conversation has a welcome heading and task suggestions below the composer; clicking a suggestion fills but never sends',
   )
   const nav = page.getByTestId('workbench-sidebar')
-  for (const label of ['工作流', '资产'])
-    assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 1)
-  for (const label of ['自动化', '插件', '终端'])
-    assert.equal(await nav.getByRole('button', { name: label, exact: true }).count(), 0)
+  const rail = page.getByTestId('activity-rail')
+  for (const label of ['工作台与项目', '资源', '自动化', '扩展', '设置'])
+    assert.equal(await rail.getByRole('button', { name: label, exact: true }).isVisible(), true)
+  await rail.getByRole('button', { name: '自动化', exact: true }).click()
+  await page.getByRole('menuitem', { name: '工作流', exact: true }).waitFor()
+  await page.keyboard.press('Escape')
   const sendBox = await page.getByRole('button', { name: '发送消息', exact: true }).boundingBox()
   assert.equal(sendBox.width, 32)
   assert.equal(sendBox.height, 32)
@@ -356,9 +347,9 @@ try {
     await route.fulfill({ response })
   })
   await prompt.fill('return home keeps this draft')
-  await nav.getByRole('button', { name: '设置', exact: true }).click()
+  await rail.getByRole('button', { name: '设置', exact: true }).click()
   await page.locator('[data-model-provider-split-panel]').waitFor()
-  await page.getByRole('heading', { name: '设置', level: 1, exact: true }).waitFor()
+  await page.getByRole('heading', { name: '模型配置', level: 1, exact: true }).waitFor()
   assert.match(page.url(), /config\/models/)
   const connectionList = page
     .locator('[data-model-provider-split-panel]')
@@ -565,7 +556,8 @@ try {
     .getByRole('button', { name: '界面设置', exact: true })
     .click()
   await page.waitForURL('**/#/config/interface')
-  await nav.getByRole('button', { name: '主页', exact: true }).click()
+  await rail.getByRole('button', { name: '工作台与项目', exact: true }).click()
+  await page.getByRole('menuitem', { name: '会话', exact: true }).click()
   await page.waitForURL('**/#/chat')
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'return home keeps this draft')
@@ -795,17 +787,18 @@ try {
   )
   console.log('TOOLS', tools)
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
-  await page.getByRole('tab', { name: '文件改动', exact: true }).waitFor()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
+  await page.getByRole('tab', { name: '任务文件快照', exact: true }).waitFor()
   for (const name of ['计划', '网页预览']) {
     await page.getByRole('button', { name: '新增辅助页面', exact: true }).click()
-    await page.getByRole('menuitem', { name, exact: true }).click()
-    await page.getByRole('menu', { name: '新增辅助页面', exact: true }).waitFor({ state: 'hidden' })
+    await page.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
+    await page.getByRole('button', { name, exact: true }).click()
     await page.getByRole('tab', { name, exact: true }).waitFor()
   }
-  for (const name of ['文件改动', '计划', '网页预览'])
+  for (const name of ['任务文件快照', '计划', '网页预览'])
     assert.equal(await page.getByRole('tab', { name, exact: true }).count(), 1)
-  await page.getByRole('tab', { name: '文件改动', exact: true }).focus()
+  await page.getByRole('tab', { name: '任务文件快照', exact: true }).focus()
   await page.keyboard.press('End')
   assert.equal(
     await page.getByRole('tab', { name: '网页预览', exact: true }).getAttribute('aria-selected'),
@@ -817,109 +810,96 @@ try {
     await page.getByRole('tab', { name: '计划', exact: true }).getAttribute('aria-selected'),
     'true',
   )
-  await page.getByRole('button', { name: '关闭会话上下文', exact: true }).last().click()
+  await page.getByRole('button', { name: '返回对话', exact: true }).last().click()
   await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).click()
   console.log('PERMISSIONS', await page.getByRole('menu').ariaSnapshot())
   await page.keyboard.press('Escape')
   report.checks.push('right context files/plan/web-preview keyboard tabs and close/reopen')
+  await rail.getByRole('button', { name: '资源', exact: true }).click()
+  assert.equal(await page.getByRole('menuitem', { name: '项目文件', exact: true }).count(), 0)
+  await page.getByRole('menuitem', { name: '来源', exact: true }).click()
+  await page.getByRole('tab', { name: '来源', exact: true }).waitFor()
+  assert.equal(
+    await page.getByRole('tab', { name: '来源', exact: true }).getAttribute('aria-selected'),
+    'true',
+  )
+  await page.getByRole('button', { name: '关闭辅助页面 · 来源', exact: true }).click()
+  await page.getByRole('button', { name: '返回对话', exact: true }).click()
+  report.checks.push('Global resource menu opens a content tab in the focused task')
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
+    const taskHeader = page.locator('.workbench-chat-header')
+    await taskHeader.getByRole('button', { name: '新建标签页', exact: true }).waitFor()
+    await taskHeader.evaluate(async (header) => {
+      header.getBoundingClientRect()
+      await Promise.all(
+        header
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      )
+    })
+    // 跨断点会重新挂载桌面/手机工作区；一次读取整组尺寸，避免跨调用混用两棵树。
+    const headerMetrics = await taskHeader.evaluate((header) => {
+      const rect = header.getBoundingClientRect()
+      return {
+        left: rect.left,
+        right: rect.right,
+        controls: ['项目与任务设置', '置顶摘要', '新建标签页'].map((name) => {
+          const button = [...header.querySelectorAll('button')].find(
+            (item) => item.getAttribute('aria-label') === name,
+          )
+          const bounds = button.getBoundingClientRect()
+          return {
+            name,
+            left: bounds.left,
+            right: bounds.right,
+            width: bounds.width,
+            height: bounds.height,
+          }
+        }),
+      }
+    })
+    let previousRight = headerMetrics.left
+    for (const bounds of headerMetrics.controls) {
+      assert.ok(
+        bounds.left >= previousRight && bounds.right <= headerMetrics.right + 1,
+        `${bounds.name} stays inside the header without overlapping at ${width}px`,
+      )
+      if (width <= 650)
+        assert.ok(
+          bounds.width >= 44 && bounds.height >= 44,
+          `${bounds.name} has a mobile touch target: ${JSON.stringify(bounds)}`,
+        )
+      previousRight = bounds.right
+    }
     if (width === 390) {
       // 浏览器没有系统栏；模拟 Android 原生注入的真实 inset，检查最终位置而非 CSS 写法。
       await page.evaluate(() => {
         document.documentElement.style.setProperty('--pisper-safe-area-top', '24px')
-        document.documentElement.style.setProperty('--pisper-safe-area-bottom', '34px')
+        document.documentElement.style.setProperty('--pisper-safe-area-bottom', '16px')
       })
-      await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
-      const contextPane = await waitForMobilePane(page, '工作区')
-      await contextPane.getByRole('tab', { name: '会话工具', exact: true }).waitFor()
-      assert.equal(
-        await contextPane
-          .getByRole('tab', { name: '会话工具', exact: true })
-          .getAttribute('aria-selected'),
-        'true',
-      )
-      await contextPane.getByRole('complementary', { name: '会话上下文', exact: true }).waitFor()
-      assert.equal(
-        await contextPane
-          .getByRole('tab', { name: '计划', exact: true })
-          .getAttribute('aria-selected'),
-        'true',
-      )
-      const bounds = await contextPane.evaluate((element) => {
+      await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+      await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
+      const content = page.locator('[data-session-context-panel]')
+      await content.waitFor()
+      const bounds = await content.evaluate((element) => {
         const rect = element.getBoundingClientRect()
-        const pager = document.querySelector(
-          '[role="tablist"][aria-label="切换会话列表、对话和工作区"]',
-        )
-        const pagerRect = pager.getBoundingClientRect()
-        return {
-          top: rect.top,
-          bottom: rect.bottom,
-          pagerTop: pagerRect.top,
-          pagerBottom: pagerRect.bottom,
-          viewportHeight: innerHeight,
-        }
+        return { top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight }
       })
-      assert.equal(bounds.pagerTop, 24)
-      assert.equal(bounds.top, bounds.pagerBottom)
-      assert.equal(bounds.bottom, bounds.viewportHeight - 34)
-      const shell = page.locator('.app-shell')
-      assert.equal(
-        await shell.evaluate((element) => getComputedStyle(element).paddingBottom),
-        '34px',
-      )
-      await page.evaluate(() => {
-        document.querySelector('.app-shell').dataset.mobileKeyboard = 'open'
-      })
-      await page.waitForFunction(
-        () => getComputedStyle(document.querySelector('.app-shell')).paddingBottom === '0px',
-      )
-      await page.evaluate(() => {
-        delete document.querySelector('.app-shell').dataset.mobileKeyboard
-      })
-      await page.waitForFunction(
-        () => getComputedStyle(document.querySelector('.app-shell')).paddingBottom === '34px',
-      )
-      await page.screenshot({
-        path: join(output, 'phone-390-workspace-safe-area.png'),
-        animations: 'disabled',
-      })
-      // 手机右屏退出使用壳层页签或 Escape；桌面的辅助页面列表应继续保留。
-      const pager = page.getByRole('tablist', { name: '切换会话列表、对话和工作区', exact: true })
-      await pager.getByRole('tab', { name: '对话', exact: true }).click()
-      await waitForMobilePane(page, '对话')
-      await prompt.waitFor()
-      await page.screenshot({
-        path: join(output, 'phone-390-chat-safe-area.png'),
-        animations: 'disabled',
-      })
-      await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
-      await waitForMobilePane(page, '工作区')
-      await page.keyboard.press('Escape')
-      await waitForMobilePane(page, '对话')
-      assert.equal(await page.getByRole('region', { name: '工作区', exact: true }).count(), 0)
-      await pager.getByRole('tab', { name: '工作区', exact: true }).click()
-      await waitForMobilePane(page, '工作区')
-      await page.keyboard.press('ControlOrMeta+,')
-      await waitForMobilePane(page, '对话')
-      await page.getByRole('heading', { name: '设置', level: 1, exact: true }).waitFor()
-      await pager.getByRole('tab', { name: '工作区', exact: true }).click()
-      await waitForMobilePane(page, '工作区')
-      await page.keyboard.press('ControlOrMeta+k')
-      const palette = page.getByRole('dialog', { name: '命令面板', exact: true })
-      await palette.getByRole('option', { name: /^工作流/ }).click()
-      await palette.waitFor({ state: 'hidden' })
-      await waitForMobilePane(page, '对话')
-      await page.getByRole('heading', { name: '工作流', level: 1, exact: true }).waitFor()
-      await page.goto(base + '/#/chat')
-      await prompt.waitFor()
+      assert.ok(bounds.top >= 24 && bounds.bottom <= bounds.viewportHeight - 16)
+      await content
+        .getByRole('button', { name: /关闭辅助页面/ })
+        .first()
+        .click()
+      assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
+      await content.waitFor({ state: 'hidden' })
       await page.evaluate(() => {
         document.documentElement.style.removeProperty('--pisper-safe-area-top')
         document.documentElement.style.removeProperty('--pisper-safe-area-bottom')
       })
       report.checks.push(
-        '390px workspace pane respects system safe areas, yields bottom inset to the keyboard, and returns to chat through pager, Escape, settings shortcut and command palette navigation',
+        '390px single content view respects system safe areas, tab close remains operable, and one native back returns to the conversation',
       )
     }
     const inline = page.locator('.focus-composer-visible-tools')
@@ -956,24 +936,31 @@ try {
       `composer clips controls at ${width}: ${JSON.stringify(footer)}`,
     )
     await prompt.focus()
+    if (width === 390) {
+      const draft = await prompt.inputValue()
+      await page.setViewportSize({ width, height: 500 })
+      await page.waitForFunction(() => {
+        const el = document.querySelector('.focus-composer textarea')
+        return (
+          el &&
+          el.getBoundingClientRect().bottom <= innerHeight &&
+          el.getBoundingClientRect().top >= 0
+        )
+      })
+      assert.equal(await prompt.inputValue(), draft)
+      await page.setViewportSize({ width, height: 900 })
+      await page.waitForFunction(() => innerHeight === 900)
+      assert.equal(await prompt.inputValue(), draft)
+    }
     await page.screenshot({ path: join(output, `light-${width}.png`), animations: 'disabled' })
   }
-  await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
-  for (const name of ['文件改动', '计划', '网页预览'])
-    assert.equal(await page.getByRole('tab', { name, exact: true }).count(), 1)
-  assert.equal(
-    await page.getByRole('tab', { name: '计划', exact: true }).getAttribute('aria-selected'),
-    'true',
-  )
-  await page.getByRole('button', { name: '关闭会话上下文', exact: true }).last().click()
-  report.checks.push(
-    'returning from phone restores the desktop context tabs and their selected page',
-  )
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
   const themeToggle = page.getByTestId('theme-toggle')
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   await page.emulateMedia({ colorScheme: 'light' })
   assert.equal(await themeToggle.getAttribute('aria-label'), '主题：浅色，点击切换为跟随系统')
   await themeToggle.click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   assert.equal(await themeToggle.getAttribute('aria-label'), '主题：跟随系统，点击切换为深色')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
   await page.emulateMedia({ colorScheme: 'dark' })
@@ -981,19 +968,25 @@ try {
   await page.emulateMedia({ colorScheme: 'light' })
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
   await themeToggle.click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await themeToggle.click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   assert.equal(await themeToggle.getAttribute('aria-label'), '主题：浅色，点击切换为跟随系统')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
   await themeToggle.click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   await themeToggle.click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await page.reload()
   await prompt.waitFor()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   await themeToggle.waitFor()
   assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
+  await page.keyboard.press('Escape')
   report.checks.push(
     'Theme toggle cycles system/dark/light with current and next labels, follows OS changes only in system mode and persists after reload',
   )
@@ -1018,8 +1011,10 @@ try {
   )
   await page.getByText('流式回复：验收通过', { exact: true }).waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: '发送消息', exact: true }).waitFor()
-  await page.getByRole('button', { name: '打开会话上下文', exact: true }).waitFor()
-  assert.equal(await page.getByRole('button', { name: '关闭会话上下文', exact: true }).count(), 0)
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  assert.equal(await page.getByRole('button', { name: '返回对话', exact: true }).count(), 0)
   report.checks.push('A completed ordinary text reply leaves the empty context panel closed')
   const chatRegions = await page.evaluate(() => {
     const messages = document
@@ -1357,72 +1352,6 @@ try {
   )
 
   const sideChatParentId = sessionId
-  // 截图来自真实生产 UI 的浏览器模拟，拖放文件只留在本次草稿并在截图后移除。
-  const draftBeforeScreenshots = await prompt.inputValue()
-  await page.setViewportSize({ width: 1440, height: 900 })
-  const droppedFile = await page.evaluateHandle(() => {
-    const transfer = new DataTransfer()
-    transfer.items.add(
-      new File(['Pisper layout and attachment verification\n'], 'layout-verification.txt', {
-        type: 'text/plain',
-      }),
-    )
-    return transfer
-  })
-  const composer = page.locator('.focus-composer')
-  await composer.dispatchEvent('dragenter', { dataTransfer: droppedFile })
-  await composer.getByRole('status').filter({ hasText: '松开以添加附件' }).waitFor()
-  await page.screenshot({
-    path: join(output, 'desktop-1440-drop-highlight.png'),
-    animations: 'disabled',
-  })
-  await composer.dispatchEvent('drop', { dataTransfer: droppedFile })
-  const attachment = page.locator('.attachment-chip').filter({ hasText: 'layout-verification.txt' })
-  await attachment.waitFor()
-  await composer
-    .getByRole('status')
-    .filter({ hasText: '松开以添加附件' })
-    .waitFor({ state: 'hidden' })
-  await page.screenshot({
-    path: join(output, 'desktop-1440-drop-attached.png'),
-    animations: 'disabled',
-  })
-  await attachment.getByRole('button').click()
-  await attachment.waitFor({ state: 'hidden' })
-  await droppedFile.dispose()
-  assert.equal(await prompt.inputValue(), draftBeforeScreenshots)
-  report.checks.push(
-    'desktop file drag shows the drop target, adds the selected attachment, and removal preserves the chat draft',
-  )
-
-  const pad = await page.context().newPage()
-  try {
-    pad.on('pageerror', (error) => report.pageErrors.push(`Pad: ${error.message}`))
-    await pad.setViewportSize({ width: 1024, height: 768 })
-    await pad.addInitScript(() => {
-      window.__PISPER_MOBILE_APP__ = true
-    })
-    await pad.route('**/api/client-info', (route) =>
-      route.fulfill({ json: { client: 'mobile-app' } }),
-    )
-    await pad.goto(base + '/#/chat')
-    await pad.locator('[data-mobile-shell="pad"]').waitFor()
-    await pad.getByRole('textbox', { name: '任务描述' }).waitFor()
-    await pad.locator('[data-mobile-context-screen]').waitFor()
-    const paneWidths = await pad
-      .locator('[data-mobile-shell="pad"] > div > section')
-      .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().width))
-    assert.equal(paneWidths.length, 3)
-    assert.ok(paneWidths.every((width) => width > 0))
-    assert.equal(Math.round(paneWidths.reduce((sum, width) => sum + width, 0)), 1024)
-    await pad.screenshot({ path: join(output, 'pad-1024-three-pane.png'), animations: 'disabled' })
-    report.checks.push(
-      '1024x768 simulated mobile client displays all three panes; screenshots are browser validation, not physical-device acceptance',
-    )
-  } finally {
-    await pad.close()
-  }
-
   await verifySideChat({ page, base, api, report, output, parentSessionId: sideChatParentId })
   sessionId = sideChatParentId
 
@@ -1480,17 +1409,17 @@ try {
     ['/decisions', 'decisions', '决策模型'],
     ['/memory', 'memory', '星忆'],
     ['/channels', 'channels', '渠道'],
-    ['/components', 'config', '设置', 'interface-custom-ui'],
+    ['/components', 'config', '界面设置', 'interface-custom-ui'],
     ...[
-      ['models', 'models-connections'],
-      ['notifications', 'notifications-browser'],
-      ['interface', 'interface-appearance'],
-      ['shortcuts', 'shortcuts-bindings'],
-      ['desktop-pet', 'desktop-pet-settings'],
-      ['updates', 'updates-main'],
-      ['remote-access', 'remote-access-main'],
-      ['about', 'about-project'],
-    ].map(([section, anchor]) => ['/config/' + section, 'config', '设置', anchor]),
+      ['models', 'models-connections', '模型配置'],
+      ['notifications', 'notifications-browser', '通知设置'],
+      ['interface', 'interface-appearance', '界面设置'],
+      ['shortcuts', 'shortcuts-bindings', '快捷键'],
+      ['desktop-pet', 'desktop-pet-settings', '桌面宠物'],
+      ['updates', 'updates-main', '应用更新'],
+      ['remote-access', 'remote-access-main', '远程访问'],
+      ['about', 'about-project', '关于'],
+    ].map(([section, anchor, heading]) => ['/config/' + section, 'config', heading, anchor]),
   ]
   report.routes = []
   for (const [route, pageId, heading, anchor] of routes) {
@@ -1517,6 +1446,7 @@ try {
     report.routes.push({ route, heading, resolvedHash: new URL(page.url()).hash })
   }
   report.checks.push('all 20 release feature/configuration routes render without a React error')
+  await verifyPageTemplates({ page, base, api, workspace, output, report })
   await page.goto(base + '/#/chat')
   await prompt.waitFor()
   await prompt.fill('layout and sidebar draft')
@@ -1529,18 +1459,15 @@ try {
   await page.waitForFunction(
     () =>
       document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
-        'collapsed' && document.activeElement?.id === 'workbench-sidebar-expand',
+        'collapsed' && document.activeElement?.id === 'workbench-sidebar-toggle',
   )
   assert.equal(await expandSidebar.getAttribute('aria-expanded'), 'false')
   const desktopViewport = page.viewportSize()
   await page.waitForFunction(
-    () => document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 64,
+    () => document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 0,
   )
-  for (const name of ['主页', '新任务', '搜索', '工作流', '资产', '更多工具', '设置']) {
-    const button = nav.getByRole('button', { name, exact: true })
-    assert.equal(await button.isVisible(), true)
-    assert.equal(await button.getAttribute('title'), name)
-  }
+  assert.equal(await rail.isVisible(), true)
+  assert.equal(await nav.evaluate((el) => Boolean(el.closest('[inert]'))), true)
   await page.setViewportSize({ width: desktopViewport.width, height: 400 })
   assert.ok(
     await expandSidebar.evaluate((el) => {
@@ -1553,36 +1480,29 @@ try {
     await page.setViewportSize({ width, height: 700 })
     await page.waitForFunction(
       () =>
-        document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 64,
+        document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 0,
     )
-    assert.equal(await sidebar.isVisible(), true, `${width}px must keep the desktop sidebar`)
+    assert.equal(await rail.isVisible(), true, `${width}px must keep the permanent rail`)
     assert.equal(await page.locator('[data-slot="sidebar"][data-mobile="true"]').count(), 0)
-    for (const name of ['主页', '新任务', '搜索', '工作流', '资产', '设置']) {
-      const icon = nav.getByRole('button', { name, exact: true }).locator('svg').first()
-      const bounds = await icon.boundingBox()
-      assert.ok(bounds && bounds.width > 0 && bounds.height > 0, `${width}px ${name} icon`)
+    for (const name of ['工作台与项目', '资源', '自动化', '扩展', '设置']) {
+      const bounds = await rail.getByRole('button', { name, exact: true }).boundingBox()
+      assert.ok(bounds && bounds.width >= 44 && bounds.height >= 44)
     }
   }
-  const contextBeforePhone =
-    (await page.getByRole('button', { name: '关闭会话上下文', exact: true }).count()) > 0
   await page.setViewportSize({ width: 650, height: 700 })
   await sidebar.waitFor({ state: 'hidden' })
-  if (contextBeforePhone) {
-    await waitForMobilePane(page, '工作区')
-    await page.keyboard.press('Escape')
-  }
-  await waitForMobilePane(page, '对话')
   await expandSidebar.waitFor()
   await page.setViewportSize(desktopViewport)
-  await sidebar.waitFor()
-  assert.equal(await nav.getByRole('region', { name: '最近会话', exact: true }).isVisible(), false)
-  await nav.getByRole('button', { name: '更多工具', exact: true }).click()
+  await sidebar.waitFor({ state: 'attached' })
+  assert.equal(await nav.evaluate((el) => Boolean(el.closest('[inert]'))), true)
+  await rail.getByRole('button', { name: '扩展', exact: true }).click()
   await page.getByRole('menu').waitFor()
   await page.keyboard.press('Escape')
-  await nav.getByRole('button', { name: '设置', exact: true }).click()
+  await rail.getByRole('button', { name: '设置', exact: true }).click()
   await page.waitForURL('**/#/config/models')
   assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
-  await nav.getByRole('button', { name: '主页', exact: true }).click()
+  await rail.getByRole('button', { name: '工作台与项目', exact: true }).click()
+  await page.getByRole('menuitem', { name: '会话', exact: true }).click()
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
   await page.reload()
@@ -1590,53 +1510,36 @@ try {
   assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
   // 草稿按既有契约只在内存保留；刷新仅检查折叠偏好，重建草稿验证后续布局切换。
   await prompt.fill('layout and sidebar draft')
-  const desktopContextOpen =
-    (await page.getByRole('button', { name: '关闭会话上下文', exact: true }).count()) > 0
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.locator('[data-mobile-shell="phone"]').waitFor()
-  if (desktopContextOpen) {
-    await waitForMobilePane(page, '工作区')
+  const preservedContextSheet = page.locator('[data-slot="sheet-content"]')
+  if (await preservedContextSheet.isVisible()) {
     await page.keyboard.press('Escape')
+    await preservedContextSheet.waitFor({ state: 'hidden' })
   }
-  await waitForMobilePane(page, '对话')
   await sidebar.waitFor({ state: 'hidden' })
   await expandSidebar.click()
-  const sessionsPane = await waitForMobilePane(page, '会话列表')
-  const mobileSidebar = sessionsPane.locator('[data-slot="sidebar"][data-mobile="pane"]')
+  const mobileSidebar = page.locator('[data-slot="sidebar"][data-mobile="true"]')
   await mobileSidebar.waitFor()
-  assert.ok(
-    await mobileSidebar
-      .getByTestId('workbench-home')
-      .locator('span')
-      .evaluate((el) => el.getBoundingClientRect().width > 20),
-  )
-  await mobileSidebar.getByRole('button', { name: '主页', exact: true }).click()
-  await waitForMobilePane(page, '对话')
-  assert.equal(await page.getByRole('region', { name: '会话列表', exact: true }).count(), 0)
-  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
-  await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
-  await waitForMobilePane(page, '工作区')
-  await page.keyboard.press('Escape')
-  await waitForMobilePane(page, '对话')
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[data-slot="sidebar"][data-mobile="true"]')
+    return el && el.getBoundingClientRect().x >= 44
+  })
+  assert.ok((await mobileSidebar.boundingBox()).x >= 44)
+  assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
+  await mobileSidebar.waitFor({ state: 'hidden' })
   await page.setViewportSize(desktopViewport)
-  await sidebar.waitFor()
+  await sidebar.waitFor({ state: 'attached' })
   await expandSidebar.waitFor()
-  assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
-  assert.equal(
-    (await page.getByRole('button', { name: '关闭会话上下文', exact: true }).count()) > 0,
-    desktopContextOpen,
-    'Phone navigation must not change the desktop context preference',
-  )
   await expandSidebar.press('Enter')
   await page.waitForFunction(
     () =>
       document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
-        'expanded' && document.activeElement?.id === 'workbench-sidebar-collapse',
+        'expanded' && document.activeElement?.id === 'workbench-sidebar-toggle',
   )
   assert.equal(await collapseSidebar.getAttribute('aria-expanded'), 'true')
   assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
   report.checks.push(
-    'Collapsed sidebar keeps its visible 64px icon rail at 800px and 651px, switches to the sessions pane at 650px, persists after reload, and phone navigation preserves desktop context, sidebar preference, keyboard focus and draft',
+    'Permanent activity rail remains visible at every width; hidden project sidebar uses zero width, mobile drawer closes one layer through native back, preferences and draft survive keyboard toggling and reload',
   )
   await page.goto(base + '/#/config/interface?view=widgets')
   await page.locator('[data-config-card="interface-custom-ui"]').waitFor()

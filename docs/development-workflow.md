@@ -32,6 +32,7 @@
 | --- | --- | --- |
 | 纯文档与规范 | `git diff --check`、本地链接、命令引用与规则一致性 | 文档被源码守卫读取或改变可执行契约时运行对应测试；不默认执行全量构建 |
 | TypeScript 或界面 | 受影响范围的类型检查、lint、i18n 检查 | 涉及多个前端区域或构建配置时运行 `npm run check` |
+| 任务工作区、导航、页面模板或主题 | `npm run check`、`npm test`、`npm run build`、`npm run test:workbench`、`npm run test:ui` | CI 先安装 Chromium；浏览器模拟不代替桌面 WebView、Android 或 iOS 真机验收 |
 | 文件移动、拆分、合并或公共入口 | 检查调用方、依赖方向、状态所有权、导出、路由、测试发现和受影响守卫；运行对应类型检查与行为测试 | 影响前端入口、懒加载或重型依赖时运行 `npm run build`；跨客户端按协议及平台行补充 |
 | Runtime 工具、服务或路由 | 相关 `runtime/tests/` 测试 | 修改公共 HTTP/SSE 输出时运行 `npm test`、`npm run tui:check` 和 `npm run tui:test` |
 | TUI Rust | `cargo fmt --manifest-path src-tui/Cargo.toml -- --check`、`npm run tui:check`、`npm run tui:test`、`cargo clippy --manifest-path src-tui/Cargo.toml --all-targets -- -D warnings` | 涉及帮助文本、终端交互或协议时补充对应覆盖测试 |
@@ -46,6 +47,8 @@
 工作流的文字/图片/视频输入、ZIP 依赖包与精灵图算法使用说明见[工作流文档](workflows.md)，职责与回滚边界见[工作流输入与精灵图架构](architecture/workflow-inputs-and-sprites.md)。`npm run test:workflows:ui` 提供隔离 Runtime 的浏览器验收，也由 `npm run test:ui` 执行；真实本地算法验收需按文档准备固定版本测试资源。
 
 ## 检查范围与结果解释
+
+Release 正文遵循[统一更新说明规范](release-notes.md)。各渠道共用生成器，发布工作流在提交版本或创建标签前验证正文，并核对客户端清单；更新说明规则调整本身不授权发布新版本。
 
 - `npm run typecheck` 覆盖 `src/`、Vite 配置和 `tsconfig.jscheck.json` 的指定文件及其依赖图，不等于全部 Runtime 已检查。当前 JS 配置列出 `runtime/http/route-registry.mjs`、`runtime/services/decision-remote-client.mjs`、`runtime/services/decision-service.mjs`、`runtime/runtime/workspace-directories.mjs`、`runtime/services/openai-request-transport.mjs` 和 `shared/app-update.mjs`，并检查它们引入的依赖（包括决策领域契约、模型注册表、Jev SDK 适配与答案校验）；扩大覆盖时记录实际纳入的范围，避免用宽泛 `any` 消除错误。
 - `npm test` 当前只匹配 `runtime/tests/*.test.mjs`，其中包含 Runtime、前端纯逻辑、协议、构建和源码守卫。新增其他目录或嵌套目录时，同步执行入口、CI 和测试资产路径，验证默认命令确实发现新测试；不要求为了目录整齐搬迁现有测试。
@@ -83,3 +86,14 @@
 ### 决策模型扩展
 
 决策服务通过静态注册表选择供应商、协议和型号能力，新增协议由窄适配器实现。自动审批策略按精确型号登记，阈值绑定供应商、型号、端点和策略版本；无策略或绑定不匹配时回落会话权限。现有 Jev 默认型号采用兼容策略，不代表新模型自动获得同样的概率解释。迁移、回滚及三端范围见[决策模型边界](architecture/decision-models.md)，测试入口为 `runtime/tests/decision-models.test.mjs` 及原决策协议测试。
+
+
+## 前端工作台验收入口
+
+`npm run test:workbench` 使用真实 React、Dockview、任务标签、终端视图与生产 CSS；只在 HTTP 和原生桥接边界使用隔离数据。先运行 `npm run build`。覆盖任务切换、草稿与阅读位置、资源归属、迟到响应、逐文件差异、来源预览与附件添加、进程生命周期、分屏恢复及移动摘要/返回。截图写入工具创建的临时目录，路径在命令末尾输出；不依赖开发者本地的技能缓存目录。
+
+`npm run test:ui` 在隔离的 Node Runtime 中验证真实 HTTP/SSE、配置失败与重试、会话树、临时聊天、导航及四类页面模板；并继续执行工作流验收。`scripts/smoke-page-template-checks.mjs` 检查中英文、长标题、大字号、宽窄窗口、列表详情返回、无重复整页滚动与组件宿主尺寸。测试只创建禁用的计划任务，不执行计划内容。
+
+四类页面的外边距和滚动所有权由 `PageFrame`、`ListDetailLayout`、`PageToolbar`、`PageState` 及现有应用原语共同提供。迁移页的应用壳不再额外添加整页滚动和边距；未迁移路由保持原行为。嵌入设置页的组件目录使用 `embedded` 模式，复用外层滚动。
+
+Android 返回适配位于 `src-tauri/mobile/android/MainActivity.kt`；只能向已验证的本机代理来源调用前端返回处理器。源码生成仍运行 `scripts/setup-mobile-android.mjs`。针对 Kotlin 的编译验证可在生成工程执行 `./gradlew :app:compileArm64DebugKotlin -x :app:rustBuildArm64Debug --offline --no-daemon`；这里明确排除的是未改动的 Rust 构建，不代表通过 APK 打包、原生链接或设备运行。正式发布仍按移动端发布矩阵执行，不得使用该局部检查替代发布验收。

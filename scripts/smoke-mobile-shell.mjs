@@ -287,7 +287,11 @@ try {
   await page.waitForFunction(() => window.pickerEvidence.errors.includes('native_picker_failed'))
 
   await page.getByRole('button', { name: 'newTerminal', exact: true }).click()
+  await page.getByRole('button', { name: 'terminal:workspace.create', exact: true }).click()
   await page.waitForFunction(() => window.evidence.created === 1)
+  const terminal = page.locator('[data-terminal-id]')
+  await terminal.waitFor()
+  assert.equal(await page.evaluate(() => window.evidence.terminalOptions[0].cwd), '/workspaces/one')
   await page.getByRole('tab', { name: 'navigation:mobileShell.sessionTools', exact: true }).click()
   await page
     .getByRole('textbox', { name: 'session tool draft', exact: true })
@@ -304,16 +308,16 @@ try {
     () => document.querySelector('section[aria-label="navigation:mobileShell.context"]').inert,
   )
   await page.evaluate(() => window.controls.setPane('context'))
-  await page.locator('.terminal-tab').waitFor()
+  await terminal.waitFor()
   await page.evaluate(() => window.controls.setTab('extensions'))
   const toggle = page.getByRole('switch').first()
   await toggle.waitFor()
   await toggle.click()
   await page.getByText('plugins:pluginsPage.unsaved', { exact: true }).waitFor()
   await page.evaluate(() => window.controls.setTab('terminal'))
-  await page.locator('.terminal-tab').waitFor()
+  await terminal.waitFor()
   assert.equal(
-    await page.evaluate(() => window.evidence.closeAll),
+    await page.evaluate(() => window.evidence.closed),
     0,
     'Pane/tab changes must keep the running terminal',
   )
@@ -482,9 +486,9 @@ try {
   await page.waitForFunction(
     () => !document.querySelector('section[aria-label="navigation:mobileShell.context"]').inert,
   )
-  assert.equal(await page.evaluate(() => window.evidence.closeAll), 0)
+  assert.equal(await page.evaluate(() => window.evidence.closed), 0)
   await page.evaluate(() => window.controls.setMounted(false))
-  await page.waitForFunction(() => window.evidence.closeAll === 1)
+  await page.waitForFunction(() => window.evidence.closed === 1)
   assert.deepEqual(errors, [])
   console.log(
     'PASS mobile shell: system file selection, workspace paths, terminal lifetime, independent save, run safety, layout and touch navigation',

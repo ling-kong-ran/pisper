@@ -77,7 +77,7 @@ test('request timing accrues per-turn first-token and duration stats on sessionM
 
 test('sidebar and usage popover wire project context menu and session stats panel', async () => {
   const [sidebar, appSidebar, controls, focus, app, runtime, projection] = await Promise.all([
-    source('../../src/components/layout/SidebarRecentSessions.tsx'),
+    source('../../src/features/chat/ProjectTaskList.tsx'),
     source('../../src/components/layout/AppSidebar.tsx'),
     source('../../src/features/chat/FocusRuntimeControls.tsx'),
     source('../../src/features/chat/FocusSession.tsx'),
@@ -88,8 +88,9 @@ test('sidebar and usage popover wire project context menu and session stats pane
 
   // 侧边栏右键菜单：空白区域新建项目 + 按项目删除；分组行右键针对该项目。
   // 区块整体从 AppSidebar 懒加载，避免右键菜单原语进入应用壳的 eager 入口。
-  assert.match(appSidebar, /SidebarRecentSessions/)
-  assert.match(appSidebar, /requestConfirm=\{requestConfirm\}/)
+  assert.match(app, /ProjectTaskList/)
+  assert.match(appSidebar, /tasks: ReactNode/)
+  assert.match(app, /requestConfirm=\{appDialog\.confirm\}/)
   assert.match(sidebar, /<ContextMenu[\s\S]*?onOpenChange=/)
   assert.match(sidebar, /id="sidebar-recent-sessions"/)
   assert.match(sidebar, /navigation:appSidebar\.newProject/)
@@ -104,13 +105,10 @@ test('sidebar and usage popover wire project context menu and session stats pane
   assert.match(sidebar, /<WorkspacePicker[\s\S]*?onSelect=/)
   assert.match(sidebar, /announceSessionsUpdated\(\s*result\.deletedIds\.length/)
   assert.match(
-    appSidebar,
+    sidebar,
     /requestText: \(options\?: PromptDialogOptions\) => Promise<string \| null>/,
   )
-  assert.match(
-    appSidebar,
-    /requestConfirm: \(options\?: ConfirmDialogOptions\) => Promise<boolean>/,
-  )
+  assert.match(sidebar, /requestConfirm: \(options\?: ConfirmDialogOptions\) => Promise<boolean>/)
   assert.match(app, /requestText=\{appDialog\.prompt\}/)
   assert.match(app, /requestConfirm=\{appDialog\.confirm\}/)
   assert.match(app, /notify=\{notify\}/)

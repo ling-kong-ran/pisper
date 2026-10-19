@@ -34,23 +34,25 @@ test('auxiliary pages maintain independent browser state through select, change 
   assert.deepEqual(original, createContextPages('browser'))
 })
 test('page limit and stale actions cannot damage existing pages', () => {
-  let state = createContextPages()
-  for (let i = 1; i < MAX_CONTEXT_PAGES; i++) state = update(state, { type: 'add', kind: 'files' })
+  let state = createContextPages('files')
+  for (let i = 1; i < MAX_CONTEXT_PAGES; i++) state = update(state, { type: 'add', kind: 'new' })
   assert.equal(update(state, { type: 'add', kind: 'browser' }), state)
   for (const type of ['select', 'close', 'kind', 'browser'])
     assert.equal(update(state, { type, id: 'missing', kind: 'plan', url: 'bad' }), state)
   assert.equal(new Set(state.pages.map((page) => page.id)).size, MAX_CONTEXT_PAGES)
 })
-test('closing the last page resets reopen state and closing an inactive page retains selection', () => {
+test('closing the last page returns to conversation and closing an inactive page retains selection', () => {
   let state = update(createContextPages('browser'), { type: 'add', kind: 'plan' })
   state = update(state, { type: 'close', id: 'page-1' })
   assert.equal(state.activeId, 'page-2')
   state = update(state, { type: 'close', id: 'page-2' })
-  assert.deepEqual(state, createContextPages())
+  assert.deepEqual(state.pages, [])
+  assert.equal(state.activeId, '')
+  assert.equal(state.contentOpen, false)
 })
 
 test('side chat uses one tab per parent while repeated opening restores its selection', () => {
-  let state = update(createContextPages(), { type: 'add', kind: 'side-chat' })
+  let state = update(createContextPages('files'), { type: 'add', kind: 'side-chat' })
   const side = state.activeId
   state = update(state, { type: 'add', kind: 'browser' })
   state = update(state, { type: 'add', kind: 'side-chat' })

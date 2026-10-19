@@ -73,7 +73,10 @@ test('diff dialog navigates files separately and renders one side-by-side diff',
     viewer,
     /<section[\s\S]*?className="min-w-\[880px\][^"\n]*"[\s\S]*?key=\{selectedEntry\.file\.path\}/,
   )
-  assert.doesNotMatch(viewer, /files\.map\(\(file/)
+  const dialog = viewer
+    .split('export function GitDiffDialog')[1]
+    .split('export function InlineGitDiff')[0]
+  assert.doesNotMatch(dialog, /files\.map\(\(file/)
   assert.match(viewer, /useVirtualizer<HTMLDivElement, HTMLDivElement>/)
   assert.match(viewer, /data-pisper-diff-row-count=\{items\.length\}/)
   assert.match(viewer, /data-pisper-rendered-count=\{virtualItems\.length\}/)

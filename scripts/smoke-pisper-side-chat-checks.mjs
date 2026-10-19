@@ -11,22 +11,16 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
   assert.equal(await activeSession(), parentSessionId)
 
   const viewport = page.viewportSize()
-  // 手机右屏打开时主输入框会被 aria-hidden，仍须检查其草稿没有被侧聊覆盖。
+  // 手机抽屉打开时主输入框会被 aria-hidden，仍须检查其草稿没有被侧聊覆盖。
   const mainInput = page.locator('textarea[aria-label="任务描述"]')
   const mainDraft = await mainInput.inputValue()
   const mainDraftMarker = 'PI parent draft stays separate from temporary chat'
-  // 右屏离开视口后仍保留挂载，按可访问区域判断显示状态，不能把保留的 DOM 当作打开。
-  const panel = page
-    .getByRole('region', { name: '临时聊天', exact: true })
-    .and(page.locator(`[data-side-chat-parent="${parentSessionId}"]`))
+  const panel = page.locator(`[data-side-chat-parent="${parentSessionId}"]`)
   const input = panel.getByRole('textbox', { name: '临时聊天消息', exact: true })
   const send = panel.getByRole('button', { name: '发送临时消息', exact: true })
   const stop = panel.getByRole('button', { name: '停止临时回复', exact: true })
   const closeTab = page.getByRole('button', { name: '关闭辅助页面 · 临时聊天', exact: true })
-  const contextWasOpen = await page
-    .getByRole('button', { name: '关闭会话上下文', exact: true })
-    .first()
-    .isVisible()
+  const contextWasOpen = await page.locator('[data-session-context-panel]').isVisible()
   const selectedTab = page.getByRole('tab', { selected: true }).first()
   const previousTab = (await selectedTab.count()) ? await selectedTab.textContent() : null
   const sidePath = `/api/sessions/${parentSessionId}/side-chat`
@@ -52,10 +46,12 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
   }
   async function openSideChat() {
     const add = page.getByRole('button', { name: '新增辅助页面', exact: true })
-    if (!(await add.isVisible()))
-      await page.getByRole('button', { name: '打开会话上下文', exact: true }).click()
+    if (!(await add.isVisible())) {
+      await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+      await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
+    }
     await add.click()
-    await page.getByRole('menuitem', { name: '临时聊天', exact: true }).click()
+    await page.getByRole('button', { name: '临时聊天', exact: true }).click()
     await input.waitFor()
     assert.equal(await page.getByRole('tab', { name: '临时聊天', exact: true }).count(), 1)
   }
@@ -157,12 +153,11 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
 
     stage = 'mobile-stop'
     await page.setViewportSize({ width: 390, height: 844 })
-    // 已打开的辅助页面移入右屏同一会话容器；用户关闭后仍可手动重开。
-    await page
-      .locator('[data-mobile-session-tools-host]')
-      .getByRole('tab', { name: '临时聊天', exact: true })
-      .waitFor()
-    await page.keyboard.press('Escape')
+    // 手机使用单面内容视图；返回只隐藏内容，保留临时聊天状态。
+    await page.locator('.mobile-session-shell').waitFor()
+    await mainInput.waitFor({ state: 'hidden' })
+    await page.locator('[data-session-context-panel]').waitFor()
+    assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
     await panel.waitFor({ state: 'hidden' })
     await openSideChat()
     await assertInputFits()
@@ -345,7 +340,7 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
       const tab = page.getByRole('tab', { name: previousTab, exact: true })
       if (await tab.isVisible()) await tab.click()
     } else if (!contextWasOpen) {
-      const close = page.getByRole('button', { name: '关闭会话上下文', exact: true }).last()
+      const close = page.getByRole('button', { name: '返回对话', exact: true }).last()
       if (await close.isVisible()) await close.click()
     }
     if (await mainInput.isVisible()) await mainInput.fill(mainDraft)

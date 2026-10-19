@@ -206,7 +206,7 @@ test('project membership and confirmation count use the full directory despite s
     sessionWorkspaceKey({ id: 'relative', cwd: '__no_workspace__' }),
   )
 
-  const sidebar = await readFile('src/components/layout/SidebarRecentSessions.tsx', 'utf8')
+  const sidebar = await readFile('src/features/chat/ProjectTaskList.tsx', 'utf8')
   assert.match(sidebar, /const targets = sessionsInWorkspace\(freshSessions, group\.key\)/)
   assert.match(sidebar, /count: targets\.length/)
   assert.match(

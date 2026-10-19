@@ -25,7 +25,11 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
   const marker = 'PI history mark fixture'
   const dialog = page.getByRole('dialog', { name: '追忆', exact: true })
   const entry = (id) => dialog.locator(`[data-pisper-tree-entry="${id}"]`)
-  await page.getByRole('button', { name: '追忆', exact: true }).click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '追忆', exact: true }).click()
+  await page.waitForFunction(() =>
+    document.querySelector('[role="dialog"]')?.contains(document.activeElement),
+  )
   await entry(first.id).click()
   await dialog.getByRole('textbox', { name: '节点标记', exact: true }).fill(marker)
   await dialog.getByRole('button', { name: '保存标记', exact: true }).click()
@@ -46,7 +50,8 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
     'History marks, global index and search work; continuing retains both active and inactive branches',
   )
 
-  await page.getByRole('button', { name: '追忆', exact: true }).click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '追忆', exact: true }).click()
   await entry(first.id).click()
   await dialog.getByRole('button', { name: '从此处另开', exact: true }).click()
   const fork = page.getByRole('dialog', { name: '从此处另开对话', exact: true })
@@ -66,7 +71,11 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
     const child = await api(`/api/sessions/${childId}/tree`)
     assert.equal(child.lineage.parentSessionId, sessionId)
     assert.equal(child.lineage.sourceEntryId, first.id)
-    await page.getByRole('button', { name: '追忆', exact: true }).click({ force: true })
+    // Dock 的新面板需一次绘制；仍在旧 550ms 导航回调之前返回，保留竞态保护。
+    await page.clock.runFor(32)
+    await page.getByRole('button', { name: '项目与任务设置', exact: true }).click({ force: true })
+    await page.getByRole('menuitem', { name: '追忆', exact: true }).click({ force: true })
+    await page.clock.runFor(32)
     await dialog.getByRole('button', { name: /返回原对话：/ }).click({ force: true })
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await activeSession(), sessionId)
@@ -85,17 +94,22 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
     'Derived conversation preserves lineage; immediate return stays on parent after all creation callbacks complete',
   )
 
-  await page.getByRole('button', { name: '追忆', exact: true }).click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '追忆', exact: true }).click()
   await entry(first.id).click()
   await dialog.getByRole('button', { name: '删除标记', exact: true }).click()
   await dialog.getByRole('button', { name: '删除标记', exact: true }).waitFor({ state: 'hidden' })
   assert.equal((await tree()).nodes.find((node) => node.id === first.id).label, '')
   await dialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
   await page.reload()
-  await page.getByRole('button', { name: '追忆', exact: true }).click()
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '追忆', exact: true }).click()
   await entry(second.id).waitFor()
   assert.equal((await tree()).nodes.find((node) => node.id === first.id).label, '')
   await page.screenshot({ path: join(output, 'history-tree.png'), animations: 'disabled' })
   await dialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
+  await page.waitForFunction(
+    () => document.activeElement?.getAttribute('aria-label') === '项目与任务设置',
+  )
   report.checks.push('History label deletion, original turns and continued branches survive reload')
 }

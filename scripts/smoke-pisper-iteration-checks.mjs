@@ -90,6 +90,7 @@ export async function verifyPisperIteration({
   )
 
   await page.goto(base + '/#/config/interface')
+  await page.getByText('高级', { exact: true }).click()
   const fontGroup = page.getByRole('radiogroup', { name: '字体大小', exact: true })
   for (const [label, scale, size] of [
     ['小', 'small', 13.5],
@@ -101,24 +102,29 @@ export async function verifyPisperIteration({
       (scale) => document.documentElement.dataset.fontScale === scale,
       scale,
     )
+    await page.waitForFunction((size) => {
+      const label = document.querySelector('#workbench-sidebar button[aria-current="page"] span')
+      return label && Math.abs(parseFloat(getComputedStyle(label).fontSize) - size) < 0.001
+    }, size)
     const dimensions = await page
-      .getByRole('button', { name: '设置', exact: true })
+      .locator('#workbench-sidebar button[aria-current="page"]')
       .evaluate((el) => ({
         font: parseFloat(getComputedStyle(el.querySelector('span')).fontSize),
         height: el.getBoundingClientRect().height,
         icon: el.querySelector('svg').getBoundingClientRect().width,
         root: getComputedStyle(document.documentElement).fontSize,
       }))
-    assert.deepEqual(dimensions, { font: size, height: 44, icon: 16, root: '16px' })
+    assert.deepEqual(dimensions, { font: size, height: 36, icon: 16, root: '16px' })
   }
   await page.reload()
+  await page.getByText('高级', { exact: true }).click()
   await fontGroup.waitFor()
   assert.equal(
     await fontGroup.getByRole('radio', { name: '标准', exact: true }).getAttribute('aria-checked'),
     'true',
   )
   report.checks.push(
-    'Font scales are limited to 13.5/14/14.5px and persist; root spacing, 44px Settings row and 16px icon remain unchanged',
+    'Font scales are limited to 13.5/14/14.5px and persist; root spacing, 36px desktop settings row and 16px icon remain unchanged',
   )
 
   const openWorkflowSettings = async () => {

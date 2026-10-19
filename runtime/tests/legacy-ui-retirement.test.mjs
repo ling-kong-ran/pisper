@@ -28,11 +28,12 @@ test('business UI no longer depends on the legacy primitive barrel', async () =>
 })
 
 test('app primitives compose shadcn controls and share project Tailwind tokens', async () => {
-  const [primitives, settings, styles, schedules] = await Promise.all([
+  const [primitives, settings, styles, schedules, listDetail] = await Promise.all([
     readFile('src/components/ui/app-primitives.tsx', 'utf8'),
     readFile('src/features/config/settings-primitives.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
     readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
+    readFile('src/components/app/ListDetailLayout.tsx', 'utf8'),
   ])
 
   for (const primitive of ['badge', 'card', 'switch', 'tabs']) {
@@ -43,8 +44,9 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.match(styles, /--card: var\(--panel\)/)
   assert.match(styles, /--ring: var\(--focus\)/)
   assert.match(styles, /--shadow-surface: var\(--sh-surface\)/)
-  assert.match(schedules, /split-list-detail[^"\n]*max-\[900px\]:grid-cols-1/)
-  assert.match(schedules, /split-list-detail[^"\n]*overflow-x-hidden/)
+  assert.match(schedules, /<ListDetailLayout/)
+  assert.match(listDetail, /grid-cols-1 @min-\[760px\]\/list-detail:grid-cols-/)
+  assert.match(listDetail, /min-w-0 overflow-hidden/)
   assert.doesNotMatch(schedules, /!grid-cols-\[310px_minmax\(0,1fr\)\]/)
   assert.doesNotMatch(schedules, /minmax\(420px,1fr\)/)
   assert.doesNotMatch(styles, /\.panel(?:\W|$)/)

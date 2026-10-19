@@ -140,7 +140,25 @@ test('bundle budget rejects size, eager vendor, and CSS ownership regressions', 
   assert.ok(failures.includes('React Bits CSS is owned by the application entry'))
 })
 
-test('PI bundle rejects unused split-view code and decorative welcome styles', () => {
+test('workbench split-view vendor must have a lazy owner and stay outside the entry', () => {
+  const report = passingReport()
+  report.keyByName.set('vendor-dockview', '_vendor-dockview')
+  report.manifest['_vendor-dockview'] = {
+    file: 'assets/vendor-dockview.js',
+    name: 'vendor-dockview',
+    imports: [],
+  }
+  report.manifest['src/features/chat/ChatDockView.tsx'] = {
+    file: 'assets/ChatDockView.js',
+    isDynamicEntry: true,
+    imports: ['_vendor-dockview'],
+  }
+  assert.deepEqual(validateBundle(report), [])
+  report.entryClosure.add('_vendor-dockview')
+  assert.ok(validateBundle(report).includes('route-only vendor is eager: vendor-dockview'))
+})
+
+test('workbench bundle rejects unowned split-view code and decorative welcome styles', () => {
   const report = passingReport()
   report.keyByName.set('vendor-dockview', '_vendor-dockview')
   report.manifest['src/features/chat/WelcomeEffects.tsx'] = {
@@ -150,6 +168,6 @@ test('PI bundle rejects unused split-view code and decorative welcome styles', (
   }
 
   const failures = validateBundle(report)
-  assert.ok(failures.includes('unused split-view vendor is bundled'))
+  assert.ok(failures.includes('split-view vendor must be owned by lazy ChatDockView'))
   assert.ok(failures.includes('PI welcome must not load decorative React Bits CSS'))
 })

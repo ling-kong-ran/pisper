@@ -98,7 +98,7 @@ test('session open requests accept horizontal and vertical dispositions', () => 
   assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"bottom"}'), null)
 })
 
-test('single-session UI hides split entry points while preserving session management', async () => {
+test('task workspaces use lazy desktop splits while preserving mobile session management', async () => {
   const [dock, focus, dockHook, history, page, catalog, app, header, actions] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
@@ -121,9 +121,10 @@ test('single-session UI hides split entry points while preserving session manage
   assert.match(history, /requestSessionSelection\(id\)/)
   assert.doesNotMatch(history, /splitTo(?:Left|Right|Top|Bottom)/)
   assert.match(actions, /canSplit &&[\s\n]*splitActions\.map/)
-  assert.match(page, /singleSessionLayout: true/)
-  assert.match(page, /<SingleSessionPanel onCreateSession=\{createSession\}/)
-  assert.doesNotMatch(page, /<(?:LazyChatDockView|MobileSessionPanel)\b/)
+  assert.match(page, /singleSessionLayout: mobileLayout/)
+  assert.match(page, /<LazyChatDockView/)
+  assert.match(page, /<MobileSessionPanel/)
+  assert.match(dock, /<TaskWorkspace/)
   const singlePanel = dock.slice(
     dock.indexOf('export function SingleSessionPanel'),
     dock.indexOf('type MobileSessionPanelProps'),

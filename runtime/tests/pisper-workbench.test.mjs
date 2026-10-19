@@ -48,7 +48,7 @@ test('Pisper greeting font measurement remains bounded and tolerates hidden cont
   }
 })
 
-test('Pisper shell has one chat header, no split selector, and retains optional backend tools', async () => {
+test('Pisper shell separates global navigation from task tools and keeps capability filtering', async () => {
   const app = await readFile('src/App.tsx', 'utf8')
   const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   const sidebar = await readFile('src/components/layout/AppSidebar.tsx', 'utf8')
@@ -56,36 +56,29 @@ test('Pisper shell has one chat header, no split selector, and retains optional 
   assert.match(app, /page !== 'chat' &&/)
   assert.match(app, /requestSessionCreation\(''\)/)
   assert.equal(app.match(/onNewChat=\{startNewChat\}/g)?.length, 2)
-  assert.match(focus, /<WorkbenchSidebarToggle/)
+  assert.match(app, /<WorkbenchHeader/)
+  assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)
   assert.match(focus, /<QuickPromptIdeas/)
   assert.match(focus, /<ExecutionModeSelect/)
-  assert.match(sidebar, /<SidebarRecentSessions/)
-  assert.match(sidebar, /<SidebarMoreTools/)
+  assert.match(app, /<ProjectTaskList/)
+  assert.match(sidebar, /\{tasks\}/)
+  assert.match(app, /<WorkbenchNavigation/)
   // 工作流/资产取自壳层已按能力过滤的清单；可选后台工具仍通过更多菜单或设置访问。
   const navigation = await readFile('src/app/navigation.ts', 'utf8')
   assert.match(
     navigation,
     /items\.filter\(\(\[page\]\) => runtimePageAvailable\(capabilities, page\)\)/,
   )
-  assert.match(sidebar, /\['workflows', 'assets'\]\.flatMap/)
-  assert.match(sidebar, /navigateSettings\(\{ type: 'config', id: 'models' \}\)/)
+  assert.match(
+    await readFile('src/app/WorkbenchNavigation.tsx', 'utf8'),
+    /getActivityNavigation\(t, capabilities\)/,
+  )
+  assert.match(app, /navigateSettings\(\{ type: 'config', id: 'models' \}\)/)
 })
 
-test('dedicated sidebar toggle stays separate from branding and Windows controls remain a narrow capability', async () => {
-  const toggle = await readFile('src/components/layout/WorkbenchSidebarToggle.tsx', 'utf8')
-  const sidebar = await readFile('src/components/layout/AppSidebar.tsx', 'utf8')
+test('Windows controls remain a narrow capability', async () => {
   const bridge = await readFile('src-tauri/src/desktop_shell/desktop_bridge.rs', 'utf8')
-  // 桌面图标栏常驻；移动端仍由页头入口打开抽屉，具体交互由 UI 回归覆盖。
-  assert.match(toggle, /!isMobile && !inSidebar/)
-  assert.match(sidebar, /collapsible="icon"/)
-  const primitive = await readFile('src/components/ui/sidebar.tsx', 'utf8')
-  assert.match(primitive, /inert=\{state === 'collapsed' && collapsible === 'offcanvas'\}/)
-  assert.doesNotMatch(toggle, /<BrandLogo/)
-  assert.match(sidebar, /<BrandLogo/)
-  assert.match(toggle, /<PanelLeftClose/)
-  assert.match(toggle, /<PanelLeftOpen/)
-  assert.match(toggle, /aria-expanded=\{expanded\}/)
-  assert.match(sidebar, /<WorkbenchSidebarToggle inSidebar/)
+  // 开关位置、折叠后的不可聚焦性与键盘焦点由 smoke-frontend-workbench 的真实组件验证。
   assert.match(bridge, /window.label\(\) != "main"/)
   assert.match(bridge, /Unsupported window action/)
 })

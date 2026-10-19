@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { TooltipProvider } from '../../src/components/ui/tooltip.tsx'
 import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
@@ -151,7 +152,7 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
   assert.match(
     focus,
-    /<AppCardHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
+    /<TaskWorkspaceHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
   assert.doesNotMatch(focus, /sessionActionsMenu|<SessionActionsMenu/)
   assert.match(message, /<BrandLogo size=\{20\} \/>/)
@@ -200,12 +201,16 @@ test('image previews portal above session-level controls', async () => {
 test('empty completed replies stay empty and request diagnostics never replace the reply body', () => {
   const render = (message) =>
     renderToStaticMarkup(
-      React.createElement(FocusChatMessage, {
-        sessionId: 'test',
-        message: { id: 'reply', role: 'agent', ...message },
-        agentState: 'idle',
-        showRunActivity: false,
-      }),
+      React.createElement(
+        TooltipProvider,
+        null,
+        React.createElement(FocusChatMessage, {
+          sessionId: 'test',
+          message: { id: 'reply', role: 'agent', ...message },
+          agentState: 'idle',
+          showRunActivity: false,
+        }),
+      ),
     )
   const rawError = '503 upstream unavailable: <html>provider response</html>'
   const empty = render({ text: '' })

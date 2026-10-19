@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { createRouteRegistry } from '../http/route-registry.mjs'
 import { memoryAssetRoutes } from '../http/routes/memory-assets.mjs'
+import { parseTaskContentRequest } from '../../src/features/chat/public-workspace.ts'
 import {
   resolveWorkspaceDirectory,
   normalizeWorkspacePath,
@@ -16,6 +17,12 @@ test('HTTP clients cannot enumerate host directories through the retired file br
   assert.equal(registry.match('GET', '/api/directories'), null)
   assert.equal(registry.match('GET', '/api/workspace-entries'), null)
   assert.ok(registry.match('GET', '/api/assets'))
+})
+
+test('restored workbench navigation rejects the retired file browser resource', () => {
+  assert.equal(parseTaskContentRequest({ kind: 'workspace-files' }), null)
+  assert.equal(parseTaskContentRequest({ kind: 'changes' }), 'changes')
+  assert.equal(parseTaskContentRequest({ kind: 'sources' }), 'sources')
 })
 
 test('workspace paths remain platform-native without exposing Windows namespace prefixes', () => {

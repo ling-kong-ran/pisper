@@ -63,6 +63,18 @@ function fixture(t, { reducedMotion, threshold, rounded = false } = {}) {
   return { controller, node, document, media, event, tick, settle, scroll, frames, writes, unread }
 }
 
+test('restoring a task reading position cancels bottom following until the reader resumes', (t) => {
+  const f = fixture(t)
+  f.controller.restorePosition(120)
+  f.node.scrollHeight += 800
+  f.controller.contentChanged()
+  f.settle()
+  assert.equal(f.node.scrollTop, 120)
+  f.controller.scrollToBottom()
+  f.settle()
+  assert.equal(f.node.scrollTop, 1500)
+})
+
 test('content bursts and virtual measurements coalesce into one continuous follow animation', (t) => {
   const f = fixture(t)
   f.node.scrollHeight += 300

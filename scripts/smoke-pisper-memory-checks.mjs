@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 export async function verifyMemoryLifecycle({ page, base, api, runtime, report, output }) {
   await page.goto(base + '/#/memory')
-  const layout = page.locator('.memory-layout')
+  const layout = page.locator('.page-memory [data-page-template="list-detail"]')
   await layout.waitFor()
   await layout.getByRole('button', { name: '新建星域', exact: true }).click()
   let dialog = page.getByRole('dialog', { name: '新建星域', exact: true })
@@ -21,7 +21,7 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     .fill('Persistent acceptance fixture with nebula keyword.')
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await dialog.waitFor({ state: 'hidden' })
-  const details = layout.locator('.detail-stack')
+  const details = layout.locator('[data-slot="page-inspector"]')
   await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
   await details.getByRole('button', { name: '编辑', exact: true }).click()
   dialog = page.getByRole('dialog', { name: '编辑星辰', exact: true })

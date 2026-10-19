@@ -31,7 +31,7 @@ const fixture = await build({
       import React, { useState } from 'react'
       import { createRoot } from 'react-dom/client'
       import { QueryClientProvider } from '@tanstack/react-query'
-      import { SidebarRecentSessions } from './src/components/layout/SidebarRecentSessions.tsx'
+      import { ProjectTaskList } from './src/features/chat/ProjectTaskList.tsx'
       import { ChatHistoryPage } from './src/features/chat/ChatHistoryPage.tsx'
       import { SidebarProvider } from './src/components/ui/sidebar.tsx'
       import { AppDialog } from './src/components/layout/AppDialog.tsx'
@@ -50,7 +50,7 @@ const fixture = await build({
           <SidebarProvider>
             <div data-smoke-layout>
               <aside className="nav-list" data-smoke-sidebar>
-                <SidebarRecentSessions {...props} />
+                <ProjectTaskList {...props} />
               </aside>
               <main data-smoke-history data-view={view}>
                 {view === 'chatHistory' && <ChatHistoryPage {...props} query="" />}
@@ -201,16 +201,18 @@ try {
       try {
         await page.waitForFunction(
           (expected) =>
-            document.querySelector('.nav-history-item > span')?.textContent === expected &&
+            Array.from(document.querySelectorAll('[data-smoke-sidebar] button > span')).find(
+              (span) => span.textContent === expected,
+            )?.textContent === expected &&
             document.querySelector('.chat-history-copy strong')?.textContent === expected,
           name,
           { timeout: 3_000 },
         )
       } catch (error) {
-        const actual = await page.evaluate(() => ({
-          sidebar: document.querySelector('.nav-history-item > span')?.textContent,
-          history: document.querySelector('.chat-history-copy strong')?.textContent,
-        }))
+        const actual = {
+          sidebar: await sidebar.innerText(),
+          history: await history.innerText(),
+        }
         throw new Error(
           `Rename did not synchronize: ${JSON.stringify({ expected: name, ...actual })}`,
           { cause: error },
@@ -223,16 +225,27 @@ try {
     }
     const openRename = async (entry, name) => {
       if (entry === 'sidebar') {
-        await sidebar.getByRole('button', { name, exact: true }).click({ button: 'right' })
+        await sidebar
+          .getByRole('button')
+          .filter({ has: page.getByText(name, { exact: true }) })
+          .click({ button: 'right' })
+        // 分屏操作由恢复后的项目任务菜单持有，历史页只负责会话管理。
+        const splitMenu = page.getByRole('menuitem', { name: '在分屏中打开', exact: true })
+        assert.equal(await splitMenu.count(), width > 900 ? 1 : 0)
+        if (width > 900) {
+          await splitMenu.focus()
+          await splitMenu.press('ArrowRight')
+          await page.getByRole('menuitem', { name: '拆分到左侧', exact: true }).waitFor()
+          for (const direction of ['左侧', '右侧', '上方', '下方'])
+            assert.equal(
+              await page.getByRole('menuitem', { name: `拆分到${direction}`, exact: true }).count(),
+              1,
+            )
+          await page.keyboard.press('ArrowLeft')
+        }
         await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       } else {
         await history.getByRole('button', { name: `${name} 的更多操作`, exact: true }).click()
-        for (const direction of ['左侧', '右侧', '上方', '下方']) {
-          assert.equal(
-            await page.getByRole('menuitem', { name: `拆分到${direction}`, exact: true }).count(),
-            width > 900 ? 1 : 0,
-          )
-        }
         await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       }
       await dialog.waitFor()
@@ -257,7 +270,7 @@ try {
 
     try {
       await page.goto(`${origin}/__session-rename-smoke__`)
-      await sidebar.locator('.nav-history-view-all').click()
+      await sidebar.getByRole('button', { name: /查看全部历史会话/ }).click()
       await assertSynchronized(initialName)
       let currentName = initialName
       // 手动标题只改第 20 字后的内容，防止自动标题的截断规则误用于手动重命名。
@@ -320,18 +333,33 @@ try {
         history.getByRole('button', { name: `${currentName} 的更多操作` }).click()
       await openActions()
       await page.getByRole('menuitem', { name: '置顶', exact: true }).click()
-      await sidebar.getByRole('button', { name: `已置顶 ${currentName}` }).waitFor()
+      await sidebar
+        .getByRole('button')
+        .filter({ has: page.getByText(currentName, { exact: true }) })
+        .filter({ has: page.getByLabel('已置顶', { exact: true }) })
+        .waitFor()
       assert.equal(
         (await runtime.listSessions()).find((item) => item.id === created.id)?.pinned,
         true,
       )
       await page.reload()
       await assertSynchronized(currentName)
-      await sidebar.getByRole('button', { name: `已置顶 ${currentName}` }).waitFor()
+      await sidebar
+        .getByRole('button')
+        .filter({ has: page.getByText(currentName, { exact: true }) })
+        .filter({ has: page.getByLabel('已置顶', { exact: true }) })
+        .waitFor()
       await openActions()
       await page.getByRole('menuitem', { name: '归档', exact: true }).click()
       await history.getByRole('heading', { name: '暂无未归档会话' }).waitFor()
-      assert.equal(await sidebar.getByRole('button', { name: `已置顶 ${currentName}` }).count(), 0)
+      assert.equal(
+        await sidebar
+          .getByRole('button')
+          .filter({ has: page.getByText(currentName, { exact: true }) })
+          .filter({ has: page.getByLabel('已置顶', { exact: true }) })
+          .count(),
+        0,
+      )
       assert.equal(
         (await runtime.listSessions()).find((item) => item.id === created.id)?.archived,
         true,

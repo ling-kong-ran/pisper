@@ -68,41 +68,38 @@ test('production build emits an audited manifest with explicit non-recursive chu
   assert.match(buildScript, /'vite'/)
 })
 
-test('desktop terminal reattaches its xterm runtime after the panel host is remounted', async () => {
-  const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
-
-  assert.match(terminal, /existing\.element\.parentElement !== host/)
-  assert.match(terminal, /host\.append\(existing\.element\)/)
-  assert.match(terminal, /existing\.resizeObserver\.observe\(host\)/)
+test('desktop terminal reattaches its cached renderer without taking ownership of the PTY', async () => {
+  const [renderer, provider, view] = await Promise.all([
+    readFile('src/features/terminal/terminal-renderer.ts', 'utf8'),
+    readFile('src/features/terminal/TerminalProvider.tsx', 'utf8'),
+    readFile('src/features/terminal/TaskTerminalView.tsx', 'utf8'),
+  ])
+  assert.match(renderer, /host\.append\(element\)/)
+  assert.match(renderer, /observer\.observe\(host\)/)
+  assert.match(provider, /renderers\.get\(key\)/)
+  assert.match(view, /return \(\) => renderer\.detach\(\)/)
+  assert.doesNotMatch(renderer, /terminalClose/)
 })
 
-test('desktop terminals are scoped to the active chat session without stopping hidden processes', async () => {
-  const [app, terminal, scope] = await Promise.all([
+test('desktop terminal resources retain original task scope while views select the current task', async () => {
+  const [app, panel, registry, scope] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
+    readFile('src/features/terminal/terminal-registry.ts', 'utf8'),
     readFile('src/features/terminal/terminal-session-scope.ts', 'utf8'),
   ])
-
+  assert.match(app, /<TerminalProvider bridge=\{window\.pisperDesktop\}/)
   assert.match(app, /activeSessionId=\{activeSessionId\}/)
   assert.match(app, /resolveSessionCwd=\{resolveSessionCwd\}/)
-  assert.match(terminal, /sessionId: string/)
-  assert.match(terminal, /const visibleTabs = visibleSessionTerminals\(tabs, activeSessionId\)/)
-  assert.match(
-    terminal,
-    /const activeId = activeSessionTerminalId\(tabs, activeIds, activeSessionId\)/,
-  )
-  assert.match(
-    terminal,
-    /setActiveIds\(\(current\) => \(\{ \.\.\.current, \[sessionId\]: id \}\)\)/,
-  )
-  assert.match(terminal, /visibleTabs\.map\(\(tab\) =>/)
+  assert.match(panel, /record\.sessionId === activeSessionId \|\| record\.orphaned/)
+  assert.match(registry, /sessionId: string/)
   assert.match(scope, /terminal\.sessionId === activeSessionId/)
-  assert.doesNotMatch(terminal, /activeSessionId[\s\S]{0,100}terminalClose/)
+  assert.doesNotMatch(scope, /sessionId: fallbackSessionId/)
+  assert.doesNotMatch(panel, /terminalClose/)
 })
 
 test('opening the desktop terminal preserves a shrinkable chat layout above it', async () => {
   const terminal = await readFile('src/features/terminal/TerminalPanel.tsx', 'utf8')
-
   assert.match(terminal, /CHAT_RESERVED_HEIGHT = 420/)
   assert.match(terminal, /maximumTerminalHeight\(window\.innerHeight\)/)
   const app = await readFile('src/App.tsx', 'utf8')
@@ -112,28 +109,23 @@ test('opening the desktop terminal preserves a shrinkable chat layout above it',
   assert.doesNotMatch(chat, /chat-layout[^"\n]*min-h-\[510px\]/)
 })
 
-test('desktop terminal stays mounted but hides when closed and follows the active color theme', async () => {
-  const [terminal, styles] = await Promise.all([
-    readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
+test('terminal views may unmount while the application owns resources and theme adaptation', async () => {
+  const [renderer, provider, styles] = await Promise.all([
+    readFile('src/features/terminal/terminal-renderer.ts', 'utf8'),
+    readFile('src/features/terminal/TerminalProvider.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
-
+  assert.match(provider, /registry\.dispose\(\)/)
+  assert.match(provider, /window\.addEventListener\('pagehide', dispose\)/)
   assert.match(styles, /--terminal-bg: #f8fafc;/)
   assert.match(styles, /:root\[data-theme='dark'\][\s\S]*?--terminal-bg: #111318;/)
-  assert.match(terminal, /!hidden/)
-  const moreTools = await readFile('src/components/layout/SidebarMoreTools.tsx', 'utf8')
-  assert.doesNotMatch(moreTools, /onTerminal|TerminalSquare/)
-  const header = await readFile('src/components/layout/PageHeader.tsx', 'utf8')
-  assert.match(header, /onClick=\{onToggleTerminal\}/)
-  assert.doesNotMatch(terminal, /if \(!open\) return null/)
-  assert.match(terminal, /\[border-bottom:1px_solid_var\(--terminal-border\)\]/)
-  assert.match(terminal, /terminal-title[^"\n]*text-\[var\(--terminal-muted\)\]/)
+  assert.match(renderer, /document\.documentElement\.dataset\.theme === 'dark'/)
+  assert.match(renderer, /background: color\('--terminal-bg'/)
+  assert.match(renderer, /themeObserver\.disconnect\(\)/)
   assert.match(
     styles,
     /\.terminal-xterm \.xterm \.xterm-viewport \{ background-color: var\(--terminal-bg\); \}/,
   )
-  assert.match(terminal, /document\.documentElement\.dataset\.theme === 'dark'/)
-  assert.match(terminal, /background: color\('--terminal-bg'/)
 })
 
 test('workflow notifications separate system permission from external channel setup', async () => {
@@ -245,14 +237,14 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
   assert.match(focusSession, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)
   assert.match(focusSession, /toolbarAllocation\.overflow\.map\(renderComposerTool\)/)
   assert.match(focusSession, /<ComposerToolTray[\s\S]*?anchorRef={toolTrayAnchorRef}/)
-  assert.match(capacity, /new ResizeObserver\(update\)/)
+  assert.match(capacity, /new ResizeObserver\(scheduleUpdate\)/)
   assert.match(toolTray, /<AnchoredPopupMenu/)
   assert.match(toolTray, /placement = 'top'/)
   assert.match(toolTray, /placement=\{placement\}/)
   assert.match(toolTray, /flex-col items-stretch/)
   assert.doesNotMatch(toolTray, /AnimatedContent|AnimatedList|overflow-x-auto/)
   assert.match(pageHeader, /page === 'chat'[\s\S]*?!min-h-12[\s\S]*?max-\[650px\]:!flex-nowrap/)
-  assert.match(pageHeader, /page === 'chat' && 'hidden'/)
+  // 描述实际不可见由工作台 UI 用例验证，不绑定 Tailwind 条件表达式。
   assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
   assert.doesNotMatch(en['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
 })
@@ -398,7 +390,7 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(chatPage, /navigateSessionTree\(session\.id, boundaryEntryId, false\)/)
   assert.match(chatApi, /navigateSessionTreeTarget:/)
   assert.match(chatApi, /includeTree: false/)
-  assert.equal([...chatMessage.matchAll(/<TooltipContent side="top" sideOffset=\{6\}>/g)].length, 4)
+  // 图标按钮与文字菜单的可达性由 workbench 消息交互用例验证，不绑定 Tooltip 数量。
   assert.doesNotMatch(
     chatMessage,
     /title=\{t\('chat:chatMessage\.(?:labelThisTurn|deriveFromHere)'\)\}/,
@@ -423,12 +415,14 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   )
   assert.match(app, /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\)/)
   assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
-  // 主导航归左屏，设置页横滑导航继续保留；实际切屏由 mobile shell 浏览器测试覆盖。
-  assert.match(app, /<MobileThreePane[\s\S]*?enabled=\{mobileLayout\}[\s\S]*?sessions=\{/)
-  assert.doesNotMatch(app, /mobileLayout \? MobileThreePane : DesktopPanes/)
+  assert.match(app, /<WorkbenchNavigation[\s\S]*?page=\{page\}/)
+  assert.match(app, /<WorkbenchHeader/)
   assert.match(sidebar, /settingsActive \? \(/)
   assert.match(sidebar, /onClick=\{\(\) => runAndClose\(\(\) => navigate\('chat'\)\)\}/)
-  assert.match(app, /getNavigation\(t, capabilities\)/)
+  assert.match(
+    await readFile('src/app/WorkbenchNavigation.tsx', 'utf8'),
+    /getActivityNavigation\(t, capabilities\)/,
+  )
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
   assert.doesNotMatch(app, /<MobilePrimaryNavigation/)
@@ -524,14 +518,14 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.match(appearance, /import\('@\/features\/custom-ui\/public'\)/)
   assert.doesNotMatch(appearance, /from '@\/features\//)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
-  // PI 界面在各尺寸都只挂载活动会话；保留底层协议但不下载分屏视图。
+  // 桌面分屏按需加载；手机只显示所选任务，不能把 Dockview 样式拖入入口。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
-  assert.doesNotMatch(chat, /import\('\.\/ChatDockView'\)/)
-  assert.match(chat, /<SingleSessionPanel/)
-  assert.match(chat, /singleSessionLayout: true/)
+  assert.match(chat, /import\('\.\/ChatDockView'\)/)
+  assert.match(chat, /<MobileSessionPanel/)
+  assert.match(chat, /singleSessionLayout: mobileLayout/)
   assert.match(chatDock, /className="mobile-session-tabs/)
   assert.match(chatDock, /role="tablist"/)
-  assert.match(chatDock, /MOBILE_SESSION_TAB_LIMIT = 6/)
+  assert.doesNotMatch(chatDock, /MOBILE_SESSION_TAB_LIMIT/)
   assert.match(chatDock, /STORAGE_KEYS\.mobileSessionTabs/)
   assert.match(chatDock, /onCreateSession/)
   assert.match(dockView, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
