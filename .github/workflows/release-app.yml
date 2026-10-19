@@ -446,6 +446,7 @@ jobs:
           RELEASE_BRANCH: release
         run: |
           set -Eeuo pipefail
+          title="$(node scripts/validate-release-notes.mjs release-body-app.md app "$RELEASE_VERSION" "$RELEASE_TAG")"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -491,7 +492,6 @@ jobs:
           pushed=1
 
           mapfile -d '' assets < <(find artifacts -type f -print0)
-          title="Pisper App $RELEASE_TAG"
           gh release create "$RELEASE_TAG" \
             --draft \
             --verify-tag \

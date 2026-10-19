@@ -6,14 +6,9 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  APP_VERSION_FILE,
-  appReleaseTag,
-  appTagPattern,
-  appVersionFromTag,
-  isAppOwnedPath,
-  normalizeRepoPath,
-} from './app-paths.mjs'
+import { APP_VERSION_FILE, appReleaseTag, appTagPattern, appVersionFromTag } from './app-paths.mjs'
+import { appReleaseSubjects } from './release-changes.mjs'
+import { formatReleaseNotes, releaseNotesDate } from './release-notes-format.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tag = String(process.argv[2] || '').trim()
@@ -32,50 +27,27 @@ await writeFile(versionPath, `${JSON.stringify({ version }, null, 2)}\n`, 'utf8'
 
 const tags = runGit(['tag', '--list', '--sort=-version:refname']).split(/\r?\n/).filter(Boolean)
 const latestTag = tags.find((value) => value !== tag && appTagPattern().test(value)) || ''
-const range = latestTag ? `${latestTag}..${sourceRef}` : sourceRef
-const commits = runGit(['log', '--format=%H', range]).split(/\r?\n/).filter(Boolean)
-
-const subjects = []
-for (const commit of commits) {
-  const paths = runGit([
-    'diff-tree',
-    '--root',
-    '--no-commit-id',
-    '--name-only',
-    '--diff-filter=ACMRTUXB',
-    '-r',
-    commit,
-  ])
-    .split(/\r?\n/)
-    .map(normalizeRepoPath)
-    .filter(Boolean)
-  if (!paths.some(isAppOwnedPath)) continue
-  const subject = runGit(['show', '-s', '--format=%s', commit])
-  if (subject) subjects.push(subject)
-}
-
-const date = new Date().toISOString().slice(0, 10)
-const body = [
-  `## Pisper App ${tag}（${date}）`,
-  '',
-  'Android 安装包（APK，已签名）与 iOS 构建产物见附件。',
-  latestTag ? `自 ${latestTag} 以来的变更：` : '首个 App 版本，包含：',
-  '',
-  ...subjects.map((subject) => `- ${subject}`),
-  '',
-  '> Android 与 iOS App 内置同源 Node/Pisper Runtime；rooted Android 会自动使用能力更完整的 chroot 载体，并始终降权到 App UID 运行。',
-  '> iOS 产物当前为未签名构建，需自行重签名（AltStore/Sideloadly/开发者账号）后安装。',
-  '',
-].join('\n')
-await writeFile(join(root, 'release-body-app.md'), body, 'utf8')
+const date = releaseNotesDate()
+const repository = String(process.env.GITHUB_REPOSITORY || 'ling-kong-ran/pisper')
+const body = formatReleaseNotes({
+  component: 'app',
+  version,
+  tag,
+  previousTag: latestTag,
+  date,
+  repository,
+  sourceSha: runGit(['rev-parse', '--verify', `${sourceRef}^{commit}`]),
+  subjects: appReleaseSubjects(runGit, latestTag, sourceRef),
+})
+await writeFile(join(root, 'release-body-app.md'), `${body}\n`, 'utf8')
 
 const latestApp = {
   version,
   tag,
-  url: `https://github.com/ling-kong-ran/pisper/releases/tag/${tag}`,
+  url: `https://github.com/${repository}/releases/tag/${tag}`,
   apk: 'app-universal-release-signed.apk',
   ipa: 'pisper-ios-unsigned.ipa',
-  notes: subjects.map((subject) => `- ${subject}`).join('\n'),
+  notes: body,
   releaseDate: date,
 }
 await mkdir(join(root, 'docs'), { recursive: true })

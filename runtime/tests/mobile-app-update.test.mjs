@@ -61,7 +61,7 @@ test('App manifest 提供平台资产、更新说明与发布日期', async () =
   ]) {
     assert.match(prepare, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
-  assert.match(prepare, /notes: subjects/)
+  assert.match(prepare, /notes: body/)
   assert.match(prepare, /releaseDate: date/)
 })
 

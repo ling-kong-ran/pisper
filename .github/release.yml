@@ -1,3 +1,4 @@
+# 正式发布使用 scripts/release-notes-format.mjs；此配置仅提供 GitHub 的备用分类。
 changelog:
   exclude:
     labels:
@@ -8,19 +9,18 @@ changelog:
     - title: 新增功能
       labels:
         - feature
+    - title: 优化改进
+      labels:
         - enhancement
+        - performance
+        - refactor
+        - style
+        - ui
+        - ux
     - title: 问题修复
       labels:
         - bug
         - fix
-    - title: 性能与体验
-      labels:
-        - performance
-        - ui
-        - ux
-    - title: 文档
-      labels:
-        - documentation
     - title: 其他变更
       labels:
         - '*'

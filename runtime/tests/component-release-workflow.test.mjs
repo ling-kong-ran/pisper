@@ -57,7 +57,7 @@ test('component staging and notes use the immutable pre-release version as migra
   assert.match(staging, /fallbackReleaseTag\(component, tags, currentVersion\)/)
   assert.match(notes, /const baselineVersion = readComponentVersionAtRef\(sourceRef\)/)
   assert.match(notes, /fallbackReleaseTag\([\s\S]*baselineVersion,/)
-  assert.match(notes, /componentReleaseSubjects\([\s\S]*selectedComponent/)
+  assert.match(notes, /componentReleaseSubjects\([\s\S]*component, previousTag, sourceRef/)
   assert.doesNotMatch(notes, /releases\/generate-notes/)
 })
 

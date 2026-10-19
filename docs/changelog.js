@@ -11,7 +11,12 @@ const filterButtons = [...document.querySelectorAll('[data-release-filter]')]
 
 const categoryMeta = [
   { key: 'added', label: '新增功能', prefixes: new Set(['feat', 'feature']) },
-  { key: 'fixed', label: '修复问题', prefixes: new Set(['fix', 'bugfix']) },
+  {
+    key: 'improved',
+    label: '优化改进',
+    prefixes: new Set(['perf', 'refactor', 'style', 'ui', 'ux', 'enhancement']),
+  },
+  { key: 'fixed', label: '问题修复', prefixes: new Set(['fix', 'bugfix']) },
   { key: 'other', label: '其他变更', prefixes: null },
 ]
 
@@ -45,21 +50,48 @@ function releaseChannel(tag) {
 
 function parseReleaseCommits(body) {
   const pattern = /^\s*(?:[-*+]\s+|\d+[.)]\s+)?([a-z][\w-]*)(?:\(([^)]+)\))?(!)?:\s+(.+?)\s*$/i
+  const categorized = /^## 更新内容\s*$/m.test(body)
+  let category = null
+  let inUpdates = false
   return String(body || '')
     .split(/\r?\n/)
     .map((line) => {
-      const match = line.match(pattern)
-      if (!match) return null
+      if (categorized) {
+        if (/^## /.test(line)) {
+          inUpdates = line.trim() === '## 更新内容'
+          category = null
+          return null
+        }
+        if (!inUpdates) return null
+        if (/^### /.test(line)) {
+          category = categoryMeta.find((item) => line.trim() === `### ${item.label}`)?.key || null
+          return null
+        }
+        if (!category || !/^\s*- /.test(line)) return null
+      }
+      // 生成器将提交文字转义为 Markdown；这里用 textContent 展示，恢复纯文本即可。
+      const text = line
+        .replace(/\\([\\\[\]`*_~|#+.)-])/g, '$1')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+      const match = text.match(pattern)
+      if (!match)
+        return categorized
+          ? { prefix: '', scope: '', subject: text.replace(/^\s*- /, ''), category }
+          : null
       return {
         prefix: match[1].toLowerCase(),
         scope: match[2] || '',
         subject: match[4],
+        category,
       }
     })
     .filter(Boolean)
 }
 
 function commitCategory(commit) {
+  if (commit.category) return commit.category
   const category = categoryMeta.find(
     (candidate) => candidate.prefixes && candidate.prefixes.has(commit.prefix),
   )
@@ -83,7 +115,8 @@ function createCommit(commit) {
   prefix.textContent = `${commit.prefix}${commit.scope ? `(${commit.scope})` : ''}:`
   const subject = document.createElement('span')
   subject.textContent = commit.subject
-  item.append(prefix, subject)
+  if (commit.prefix) item.append(prefix)
+  item.append(subject)
   return item
 }
 
@@ -132,24 +165,24 @@ function createReleaseEntry(release) {
   const columns = document.createElement('div')
   columns.className = 'release-columns'
   for (const category of categoryMeta) {
+    const entries = commits.filter((commit) => commitCategory(commit) === category.key)
+    if (!entries.length) continue
     const section = document.createElement('section')
     section.className = `release-category release-category-${category.key}`
     const heading = document.createElement('h3')
     heading.textContent = category.label
     const list = document.createElement('ul')
-    const entries = commits.filter((commit) => commitCategory(commit) === category.key)
-    if (entries.length) {
-      for (const commit of entries) list.append(createCommit(commit))
-      section.append(heading, list)
-    } else {
-      section.classList.add('is-empty')
-      const empty = document.createElement('p')
-      empty.textContent = '暂无记录'
-      section.append(heading, empty)
-    }
+    for (const commit of entries) list.append(createCommit(commit))
+    section.append(heading, list)
     columns.append(section)
   }
   entry.append(header, columns)
+  if (!commits.length) {
+    const empty = document.createElement('p')
+    empty.className = 'release-empty'
+    empty.textContent = '此版本没有可分类的提交记录，请查看完整说明。'
+    entry.append(empty)
+  }
   return entry
 }
 
@@ -180,7 +213,9 @@ function renderReleases() {
   if (!items.length) {
     const empty = document.createElement('p')
     empty.className = 'release-empty'
-    empty.textContent = releases.length ? '这个组件暂时没有发布记录。' : '暂时没有可展示的发布记录。'
+    empty.textContent = releases.length
+      ? '这个组件暂时没有发布记录。'
+      : '暂时没有可展示的发布记录。'
     releaseList.append(empty)
   } else {
     for (const release of items) releaseList.append(createReleaseEntry(release))

@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { componentReleaseSubjects } from './release-changes.mjs'
+import { formatReleaseNotes, releaseNotesDate } from './release-notes-format.mjs'
 import {
   assertReleaseComponent,
   fallbackReleaseTag,
@@ -48,9 +49,17 @@ const previousTag = fallbackReleaseTag(
   tags.filter((value) => value !== tag),
   baselineVersion,
 )
-const generated = generateComponentNotes({ component, tag, previousTag, sourceRef })
-const date = new Date().toISOString().slice(0, 10)
-const markdown = normalizeMarkdown(generated.body, component, version)
+const date = releaseNotesDate()
+const markdown = formatReleaseNotes({
+  component,
+  version,
+  tag,
+  previousTag,
+  sourceSha: run('git', ['rev-parse', '--verify', `${sourceRef}^{commit}`]),
+  repository,
+  date,
+  subjects: componentReleaseSubjects((args) => run('git', args), component, previousTag, sourceRef),
+})
 
 if (component !== 'tui') {
   await mkdir(dirname(releaseNotesPath), { recursive: true })
@@ -62,30 +71,3 @@ if (component !== 'tui') {
 }
 await writeFile(releaseBodyPath, `${markdown}\n`, 'utf8')
 console.log(`已从组件相关的 Git 提交生成 Pisper ${component} ${version} 更新日志。`)
-
-function generateComponentNotes({
-  component: selectedComponent,
-  tag: currentTag,
-  previousTag: previous,
-  sourceRef: source,
-}) {
-  const subjects = componentReleaseSubjects(
-    (args) => run('git', args),
-    selectedComponent,
-    previous,
-    source,
-  ).filter((value) => !/^chore\(release(?:-[^)]+)?\):/i.test(value))
-  const notes = subjects.length
-    ? subjects.map((subject) => `- ${subject}`).join('\n')
-    : '- Maintenance release'
-  const compare = previous
-    ? `\n\n**完整变更**：https://github.com/${repository}/compare/${previous}...${currentTag}`
-    : ''
-  return { body: `## What's Changed\n\n${notes}${compare}` }
-}
-
-function normalizeMarkdown(body, selectedComponent, currentVersion) {
-  const content = String(body || '').trim() || '- Maintenance release'
-  const label = selectedComponent === 'desktop' ? 'Desktop' : selectedComponent.toUpperCase()
-  return `## Pisper ${label} ${currentVersion}\n\n${content}`
-}
