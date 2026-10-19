@@ -55,10 +55,11 @@
     "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui && npm run test:mobile:ui",
     "test:mobile:ui": "node scripts/smoke-mobile-shell.mjs",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
-    "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs"
+    "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs",
+    "test:workbench": "node scripts/smoke-frontend-workbench.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.2.0",
+    "@earendil-works/pi-coding-agent": "^1.3.0",
     "@homebridge/ciao": "^1.3.12",
     "@injaneity/pi-computer-use": "0.5.1",
     "@jsquash/webp": "1.5.0",

@@ -24,8 +24,8 @@ test('model configuration exposes built-in Kimi and GLM providers', async (t) =>
 
   assert.equal(openai.baseUrl, 'https://api.openai.com/v1')
   assert.equal(kimi.name, 'Kimi Code')
-  assert.equal(kimi.api, 'anthropic-messages')
-  assert.equal(kimi.baseUrl, 'https://api.kimi.com/coding/')
+  assert.equal(kimi.api, 'openai-completions')
+  assert.equal(kimi.baseUrl, 'https://api.kimi.com/coding/v1')
   assert.ok(kimi.models.some((model) => model.id === 'k3'))
   assert.equal(glm.name, 'GLM')
   assert.equal(glm.api, 'openai-completions')
@@ -81,6 +81,29 @@ test('configured OpenAI protocol applies to built-in Kimi models', async (t) => 
   const model = runtime.modelRuntime.getModel('kimi-coding', 'k3')
   assert.equal(model.api, 'openai-responses')
   assert.equal(model.baseUrl, 'https://api.kimi.com/coding/v1')
+})
+
+test('explicit legacy Kimi Anthropic configuration keeps its protocol and normalized endpoint', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-kimi-legacy-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.saveConfig({
+    provider: 'kimi-coding',
+    providerType: 'chat',
+    api: 'anthropic-messages',
+    baseUrl: 'https://api.kimi.com/coding/v1',
+    model: 'k3',
+    apiKey: 'test-key',
+    thinkingLevel: 'medium',
+    toolMode: 'workspace',
+  })
+  const model = runtime.modelRuntime.getModel('kimi-coding', 'k3')
+  assert.equal(model.api, 'anthropic-messages')
+  assert.equal(model.baseUrl, 'https://api.kimi.com/coding')
 })
 
 test('removed tool modes use the full default without a migration file', async (t) => {

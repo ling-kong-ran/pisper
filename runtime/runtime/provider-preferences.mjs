@@ -76,7 +76,7 @@ const PROVIDER_DEFAULT_BASE_URLS = {
   deepseek: 'https://api.deepseek.com',
   xai: 'https://api.x.ai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
-  'kimi-coding': 'https://api.kimi.com/coding/',
+  'kimi-coding': 'https://api.kimi.com/coding/v1',
   'zai-coding-cn': 'https://open.bigmodel.cn/api/paas/v4',
 }
 
