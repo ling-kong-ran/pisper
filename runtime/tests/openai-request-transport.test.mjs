@@ -8,6 +8,114 @@ import { createOpenAIRequestFetch } from '../services/openai-request-transport.m
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { generateOpenAICompatible } from '../services/visual-generation/openai-compatible.mjs'
 
+test('OpenAI Responses relay fills omitted function-call arguments from deltas', async () => {
+  const events = [
+    {
+      type: 'response.function_call_arguments.delta',
+      output_index: 2,
+      delta: '{"path":"README.md"}',
+    },
+    {
+      type: 'response.function_call_arguments.done',
+      output_index: 2,
+    },
+  ]
+  const source = events
+    .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+    .join('')
+  const bytes = new TextEncoder().encode(source)
+  const response = await createOpenAIRequestFetch(
+    async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(bytes.slice(0, 19))
+            controller.enqueue(bytes.slice(19))
+            controller.close()
+          },
+        }),
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      ),
+    { normalizeResponses: true },
+  )('https://relay.example/v1/responses', { headers: {} })
+
+  const body = await response.text()
+  const doneData = body
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => JSON.parse(line.slice(5)))
+    .find((event) => event.type === 'response.function_call_arguments.done')
+  assert.ok(doneData)
+  assert.equal(doneData.arguments, '{"path":"README.md"}')
+})
+
+test('OpenAI Responses Runtime accepts relay tool-call done events without arguments', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-responses-relay-stream-'))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'responses-relay',
+    name: 'Responses relay',
+    api: 'openai-responses',
+    baseUrl: 'https://relay.example/v1',
+    apiKey: 'test-key',
+    model: 'relay-model',
+  })
+
+  const argumentsText = '{"path":"README.md"}'
+  const events = [
+    { type: 'response.created', response: { id: 'resp_1' } },
+    {
+      type: 'response.output_item.added',
+      output_index: 0,
+      item: {
+        id: 'fc_1',
+        call_id: 'call_1',
+        type: 'function_call',
+        name: 'read',
+        arguments: '',
+      },
+    },
+    { type: 'response.function_call_arguments.delta', output_index: 0, delta: argumentsText },
+    { type: 'response.function_call_arguments.done', output_index: 0 },
+    {
+      type: 'response.output_item.done',
+      output_index: 0,
+      item: {
+        id: 'fc_1',
+        call_id: 'call_1',
+        type: 'function_call',
+        name: 'read',
+        arguments: argumentsText,
+      },
+    },
+    {
+      type: 'response.completed',
+      response: { id: 'resp_1', status: 'completed', output: [] },
+    },
+  ]
+  const result = await runtime.modelRuntime.completeSimple(
+    runtime.modelRuntime.getModel('responses-relay', 'relay-model'),
+    { messages: [{ role: 'user', content: 'Read the README', timestamp: Date.now() }] },
+    {
+      maxTokens: 32,
+      fetch: async () =>
+        new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          headers: { 'Content-Type': 'text/event-stream' },
+        }),
+    },
+  )
+
+  assert.equal(result.stopReason, 'toolUse')
+  assert.deepEqual(result.content.find((block) => block.type === 'toolCall').arguments, {
+    path: 'README.md',
+  })
+})
+
 for (const kind of ['record', 'tuples', 'headers', 'request']) {
   test(`OpenAI header filtering preserves transport options and supports ${kind}`, async () => {
     const values = {

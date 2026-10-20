@@ -515,7 +515,13 @@ export class ProviderPreferences {
           model,
           input,
           usesOpenAISdk(model)
-            ? { ...options, fetch: createOpenAIRequestFetch(options?.fetch) }
+            ? {
+                ...options,
+                fetch: createOpenAIRequestFetch(options?.fetch, {
+                  normalizeResponses:
+                    model.api === 'openai-responses' || model.api === 'azure-openai-responses',
+                }),
+              }
             : options,
         )
     }
