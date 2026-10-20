@@ -1,5 +1,10 @@
 // Responses 中转站有时省略 function_call_arguments.done.arguments；从 delta 还原，
 // 避免 Pi 的流解析器对缺失值调用 startsWith，同时保持响应体流式转发。
+/**
+ * @param {string} block
+ * @param {Map<string | number, string>} toolArguments
+ * @returns {string}
+ */
 function normalizeResponsesEventBlock(block, toolArguments) {
   const lines = block.split(/\r\n|\r|\n/)
   const dataLines = []
@@ -11,41 +16,57 @@ function normalizeResponsesEventBlock(block, toolArguments) {
   }
   if (!dataLines.length) return block
 
+  /** @type {unknown} */
   let event
   try {
     event = JSON.parse(dataLines.join('\n'))
   } catch {
     return block
   }
-  if (!event || typeof event !== 'object') return block
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return block
+  const responseEvent = /** @type {Record<string, unknown>} */ (event)
 
-  const outputIndex = event.output_index ?? 'unknown'
-  if (event.type === 'response.output_item.added' && event.item?.type === 'function_call') {
+  const outputIndex =
+    typeof responseEvent.output_index === 'string' || typeof responseEvent.output_index === 'number'
+      ? responseEvent.output_index
+      : 'unknown'
+  const item = responseEvent.item
+  const functionCall =
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? /** @type {Record<string, unknown>} */ (item)
+      : undefined
+  if (
+    responseEvent.type === 'response.output_item.added' &&
+    functionCall?.type === 'function_call'
+  ) {
     toolArguments.set(
       outputIndex,
-      typeof event.item.arguments === 'string' ? event.item.arguments : '',
+      typeof functionCall.arguments === 'string' ? functionCall.arguments : '',
     )
     return block
   }
-  if (event.type === 'response.function_call_arguments.delta') {
-    if (typeof event.delta === 'string') {
-      toolArguments.set(outputIndex, (toolArguments.get(outputIndex) || '') + event.delta)
+  if (responseEvent.type === 'response.function_call_arguments.delta') {
+    if (typeof responseEvent.delta === 'string') {
+      toolArguments.set(outputIndex, (toolArguments.get(outputIndex) || '') + responseEvent.delta)
     }
     return block
   }
-  if (event.type !== 'response.function_call_arguments.done') return block
+  if (responseEvent.type !== 'response.function_call_arguments.done') return block
 
   const argumentsText =
-    typeof event.arguments === 'string' ? event.arguments : (toolArguments.get(outputIndex) ?? '')
+    typeof responseEvent.arguments === 'string'
+      ? responseEvent.arguments
+      : (toolArguments.get(outputIndex) ?? '')
   toolArguments.delete(outputIndex)
-  if (typeof event.arguments === 'string') return block
+  if (typeof responseEvent.arguments === 'string') return block
 
-  event.arguments = argumentsText
-  lines[dataIndexes[0]] = `data: ${JSON.stringify(event)}`
+  responseEvent.arguments = argumentsText
+  lines[dataIndexes[0]] = `data: ${JSON.stringify(responseEvent)}`
   for (const index of dataIndexes.slice(1).reverse()) lines.splice(index, 1)
   return lines.join('\n')
 }
 
+/** @param {Response} response @returns {Response} */
 function normalizeResponsesStream(response) {
   if (
     !response.body ||
