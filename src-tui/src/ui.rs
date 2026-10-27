@@ -2433,7 +2433,8 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     if status_is_running(app) {
         spans.extend(run_animation_spans(app.status_frame));
         spans.push(Span::raw("  "));
-    } else if let Some((label, color)) = activity {
+    }
+    if let Some((label, color)) = activity {
         spans.push(Span::styled(
             label,
             Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -2479,13 +2480,16 @@ fn status_is_running(app: &App) -> bool {
     app.approval.is_none() && !app.status_error && app.is_running_state()
 }
 
-/// 状态栏的活动提示（审批中/错误）。
+/// 状态栏的活动提示（审批中/错误/连接恢复）。
 fn status_activity(app: &App) -> Option<(String, Color)> {
     if app.approval.is_some() {
         return Some(("Approval required".to_owned(), AMBER));
     }
     if app.status_error {
         return Some((single_line(&app.status, 28), RED));
+    }
+    if app.is_streaming() && app.status.starts_with("reconnecting stream") {
+        return Some((single_line(&app.status, 28), AMBER));
     }
     None
 }
@@ -5752,6 +5756,26 @@ mod tests {
             .collect::<String>();
         assert!(tool_bottom.trim_start().starts_with("▂▄▆█▆▄▂"));
         assert!(!tool_bottom.contains("Running bash"));
+    }
+
+    /// 即使后台回合仍在运行，连接恢复提示也必须出现在真实渲染结果里。
+    #[test]
+    fn reconnecting_stream_is_visible_and_stops_the_thinking_spinner() {
+        let mut app = live_test_app(
+            "thinking",
+            LiveTurn {
+                thinking: "partial reasoning".to_owned(),
+                streaming: true,
+                ..LiveTurn::default()
+            },
+        );
+        let session_id = app.session.id.clone();
+        app.stream_reconnecting(&session_id, 1, 5);
+        let buffer = render_test_buffer(&app, 80, 24);
+        let rendered = buffer_text(&buffer);
+        assert!(rendered.contains("reconnecting stream · 1/5"));
+        assert!(!rendered.contains("⠋ thinking"));
+        assert!(rendered.contains("partial reasoning"));
     }
 
     /// 验证会话消息使用全宽左边缘（无启动 Logo 遮挡）。

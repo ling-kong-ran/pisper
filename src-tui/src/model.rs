@@ -571,6 +571,12 @@ pub enum RuntimeEvent {
     },
     /// 单条对话流事件。
     Stream(StreamEvent),
+    /// 本终端的流正在重挂；只改变连接提示，不代表后台任务已停止。
+    StreamReconnecting {
+        session_id: String,
+        attempt: u32,
+        max_attempts: u32,
+    },
     /// 图片附件缩略图加载结果。
     ImageThumbnailLoaded {
         key: String,

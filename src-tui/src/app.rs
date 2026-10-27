@@ -3287,6 +3287,15 @@ impl App {
         }
     }
 
+    /// 连接恢复只更新所属会话的提示，保留部分回复、审批与运行状态。
+    pub fn stream_reconnecting(&mut self, session_id: &str, attempt: u32, max_attempts: u32) {
+        if self.session.id != session_id || !self.is_streaming() || self.abort_pressed {
+            return;
+        }
+        self.status = format!("reconnecting stream · {attempt}/{max_attempts}");
+        self.status_error = false;
+    }
+
     /// 对话流整体失败：结束当前回合并复位运行相关状态。
     pub fn stream_failed(&mut self, message: String) {
         if let Some(live) = self.live.as_mut() {
@@ -4164,6 +4173,46 @@ mod tests {
             app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
             Action::Quit
         ));
+    }
+
+    /// 重挂提示不能留在思考中，也不能结束后台任务或清空部分输出。
+    #[test]
+    fn reconnecting_stream_preserves_the_turn_and_ignores_other_sessions() {
+        let mut app = test_app(Vec::new());
+        app.live = Some(LiveTurn {
+            thinking: "partial reasoning".to_owned(),
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        app.status = "thinking".to_owned();
+        app.stream_reconnecting("other-session", 1, 5);
+        assert_eq!(app.status, "thinking");
+        app.stream_reconnecting("session-1", 1, 5);
+        assert_eq!(app.status, "reconnecting stream · 1/5");
+        assert!(app.is_streaming());
+        assert_eq!(
+            app.live.as_ref().map(|live| live.thinking.as_str()),
+            Some("partial reasoning")
+        );
+        app.stream_failed("connection recovery failed".to_owned());
+        assert!(!app.is_streaming());
+        assert!(app.status_error);
+        app.stream_reconnecting("session-1", 2, 5);
+        assert_eq!(app.status, "connection recovery failed");
+    }
+
+    /// 恢复连接的迟到通知不能覆盖用户明确请求的停止状态。
+    #[test]
+    fn reconnecting_stream_keeps_the_user_stop_request() {
+        let mut app = test_app(Vec::new());
+        app.live = Some(LiveTurn {
+            streaming: true,
+            ..LiveTurn::default()
+        });
+        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        let stopping = app.status.clone();
+        app.stream_reconnecting("session-1", 1, 5);
+        assert_eq!(app.status, stopping);
     }
 
     /// 验证粘贴文本折叠展示但提交时保留完整原文。

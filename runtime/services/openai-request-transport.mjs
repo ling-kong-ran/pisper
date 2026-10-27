@@ -1,9 +1,9 @@
-// Responses 中转站有时省略 function_call_arguments.done.arguments；从 delta 还原，
-// 避免 Pi 的流解析器对缺失值调用 startsWith，同时保持响应体流式转发。
+// Responses 传输兼容：从 delta 还原中转站缺失的工具参数，
+// 并在协议终态结束 SDK 读取，避免网关结算后因 HTTP 未关闭而继续等待。
 /**
  * @param {string} block
  * @param {Map<string | number, string>} toolArguments
- * @returns {string}
+ * @returns {{ block: string, terminal: boolean }}
  */
 function normalizeResponsesEventBlock(block, toolArguments) {
   const lines = block.split(/\r\n|\r|\n/)
@@ -14,17 +14,27 @@ function normalizeResponsesEventBlock(block, toolArguments) {
     dataIndexes.push(index)
     dataLines.push(lines[index].slice(5).replace(/^ /, ''))
   }
-  if (!dataLines.length) return block
+  const unchanged = { block, terminal: false }
+  if (!dataLines.length) return unchanged
+  const data = dataLines.join('\n')
+  if (data.trim() === '[DONE]') return { block, terminal: true }
 
   /** @type {unknown} */
   let event
   try {
-    event = JSON.parse(dataLines.join('\n'))
+    event = JSON.parse(data)
   } catch {
-    return block
+    return unchanged
   }
-  if (!event || typeof event !== 'object' || Array.isArray(event)) return block
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return unchanged
   const responseEvent = /** @type {Record<string, unknown>} */ (event)
+  if (
+    responseEvent.type === 'response.completed' ||
+    responseEvent.type === 'response.incomplete' ||
+    responseEvent.type === 'response.failed' ||
+    responseEvent.type === 'error'
+  )
+    return { block, terminal: true }
 
   const outputIndex =
     typeof responseEvent.output_index === 'string' || typeof responseEvent.output_index === 'number'
@@ -43,27 +53,42 @@ function normalizeResponsesEventBlock(block, toolArguments) {
       outputIndex,
       typeof functionCall.arguments === 'string' ? functionCall.arguments : '',
     )
-    return block
+    return unchanged
   }
   if (responseEvent.type === 'response.function_call_arguments.delta') {
     if (typeof responseEvent.delta === 'string') {
       toolArguments.set(outputIndex, (toolArguments.get(outputIndex) || '') + responseEvent.delta)
     }
-    return block
+    return unchanged
   }
-  if (responseEvent.type !== 'response.function_call_arguments.done') return block
+  if (responseEvent.type !== 'response.function_call_arguments.done') return unchanged
 
   const argumentsText =
     typeof responseEvent.arguments === 'string'
       ? responseEvent.arguments
       : (toolArguments.get(outputIndex) ?? '')
   toolArguments.delete(outputIndex)
-  if (typeof responseEvent.arguments === 'string') return block
+  if (typeof responseEvent.arguments === 'string') return unchanged
 
   responseEvent.arguments = argumentsText
   lines[dataIndexes[0]] = `data: ${JSON.stringify(responseEvent)}`
   for (const index of dataIndexes.slice(1).reverse()) lines.splice(index, 1)
-  return lines.join('\n')
+  return { block: lines.join('\n'), terminal: false }
+}
+
+// SSE 的空行结束一个事件。逐行识别 CRLF/LF/CR，不能把单个 CRLF
+// 回溯成两个换行，否则分块恰好落在 CR/LF 之间时会提前截断终态帧。
+/** @param {string} buffer @returns {number} */
+function sseEventEnd(buffer) {
+  const newline = /\r\n|\r|\n/g
+  let lineStart = 0
+  let match
+  while ((match = newline.exec(buffer))) {
+    if (match.index === lineStart) return newline.lastIndex
+    if (match[0] === '\r' && newline.lastIndex === buffer.length) return 0
+    lineStart = newline.lastIndex
+  }
+  return 0
 }
 
 /** @param {Response} response @returns {Response} */
@@ -82,19 +107,27 @@ function normalizeResponsesStream(response) {
     new TransformStream({
       transform(chunk, controller) {
         buffer += decoder.decode(chunk, { stream: true })
-        let separator
-        while ((separator = /(?:\r\n|\r|\n){2}/.exec(buffer))) {
-          const block = buffer.slice(0, separator.index)
-          buffer = buffer.slice(separator.index + separator[0].length)
-          controller.enqueue(
-            encoder.encode(normalizeResponsesEventBlock(block, toolArguments) + separator[0]),
-          )
+        let end
+        while ((end = sseEventEnd(buffer))) {
+          const result = normalizeResponsesEventBlock(buffer.slice(0, end), toolArguments)
+          buffer = buffer.slice(end)
+          controller.enqueue(encoder.encode(result.block))
+          if (result.terminal) {
+            // response.completed 等已经是模型终态；SDK 仍迭代到 HTTP EOF。
+            // 关闭投影并取消上游剩余读取，避免网关已结算而 Agent 永远等在 Thinking。
+            buffer = ''
+            toolArguments.clear()
+            controller.terminate()
+            return
+          }
         }
       },
       flush(controller) {
         buffer += decoder.decode()
         if (buffer)
-          controller.enqueue(encoder.encode(normalizeResponsesEventBlock(buffer, toolArguments)))
+          controller.enqueue(
+            encoder.encode(normalizeResponsesEventBlock(buffer, toolArguments).block),
+          )
       },
     }),
   )

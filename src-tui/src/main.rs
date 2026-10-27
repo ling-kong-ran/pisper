@@ -454,6 +454,10 @@ async fn run_event_loop(
                                 }
                                 true
                             }
+                            RuntimeEvent::StreamReconnecting { session_id, attempt, max_attempts } => {
+                                app.stream_reconnecting(&session_id, attempt, max_attempts);
+                                false
+                            }
                             RuntimeEvent::StreamFailed(message) => {
                                 app.stream_failed(message);
                                 true

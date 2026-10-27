@@ -31,6 +31,8 @@ use crate::{
 
 const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const STARTUP_REQUEST_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+// Runtime 每 15 秒发送一次心跳；连续三个周期连注释帧都收不到时才重挂连接。
+const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// sidecar HTTP API 客户端（可廉价克隆，内部共享连接池）。
 /// `client` 用于普通 REST 请求，`stream_client` 用于长连接 SSE 对话流，
@@ -59,6 +61,10 @@ pub struct ChatRequest {
 impl ApiClient {
     /// 创建客户端：解析 base URL、注入鉴权头，并按用途构造两类连接池。
     pub fn new(base: &str, token: &str) -> Result<Self> {
+        Self::with_stream_idle_timeout(base, token, STREAM_IDLE_TIMEOUT)
+    }
+
+    fn with_stream_idle_timeout(base: &str, token: &str, idle_timeout: Duration) -> Result<Self> {
         let base = Url::parse(base).context("invalid sidecar URL")?;
         let mut headers = header::HeaderMap::new();
         headers.insert(
@@ -79,11 +85,13 @@ impl ApiClient {
             .pool_idle_timeout(Duration::from_secs(4))
             .build()
             .context("failed to create HTTP client")?;
-        // 对话流可能持续很久，因此只限制建连时间，由 SSE 心跳和终态协议决定结束。
+        // 不限制整轮任务时长。半开连接不会产生 EOF，必须用逐次读取超时让它
+        // 进入已有的 run 游标续传；心跳也会重置计时，不误杀长思考或长命令。
         let stream_client = Client::builder()
             .default_headers(headers)
             .no_proxy()
             .connect_timeout(Duration::from_secs(5))
+            .read_timeout(idle_timeout)
             .pool_idle_timeout(Duration::from_secs(4))
             .build()
             .context("failed to create streaming HTTP client")?;
@@ -557,10 +565,15 @@ impl ApiClient {
         loop {
             attempts += 1;
             if attempts > STREAM_RESUME_MAX_ATTEMPTS {
-                return Err(last_error.unwrap_or_else(|| {
-                    anyhow!("chat stream interrupted and resume attempts exhausted")
-                }));
+                return Err(last_error
+                    .unwrap_or_else(|| anyhow!("stream ended before a terminal event"))
+                    .context("chat stream interrupted and resume attempts exhausted"));
             }
+            let _ = sender.send(RuntimeEvent::StreamReconnecting {
+                session_id: request.session_id.clone(),
+                attempt: attempts,
+                max_attempts: STREAM_RESUME_MAX_ATTEMPTS,
+            });
             tokio::time::sleep(std::time::Duration::from_millis(
                 STREAM_RESUME_BASE_DELAY_MS * 2u64.pow(attempts - 1),
             ))
@@ -607,6 +620,9 @@ impl ApiClient {
         }
     }
 }
+
+#[cfg(test)]
+mod stream_tests;
 
 /// 通知分发结果：系统通知是否开启、渠道错误信息（供诊断）。
 #[derive(Debug, Deserialize)]

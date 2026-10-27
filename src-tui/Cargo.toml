@@ -39,3 +39,7 @@ zeroize = "1"
 
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5.4"
+
+[dev-dependencies]
+# 真实回环 SSE 回归需要异步监听与分块读写，不连接外部 Provider。
+tokio = { version = "1", features = ["net", "io-util"] }

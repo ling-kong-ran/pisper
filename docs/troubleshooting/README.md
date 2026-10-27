@@ -4,6 +4,8 @@
 
 旧 Windows 上的画布缺失、颜色退化与字体排查见 [旧 WebView2 显示兼容性](legacy-webview.md)。
 
+同目录运行多个独立 TUI、连接停滞后仍显示 Thinking 的排查与恢复边界见 [TUI 并行终端与流恢复](tui-parallel-streams.md)。
+
 ## 基本流程
 
 1. 记录失败命令、源提交、Node/npm/Rust/平台版本、运行目标和首次失败时间。
