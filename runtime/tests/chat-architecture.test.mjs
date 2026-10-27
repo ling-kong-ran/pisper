@@ -243,6 +243,83 @@ test('live and terminal reconciliation preserve explicit Plan and Team clears', 
   assert.equal(terminal.messages[0].streaming, false)
 })
 
+test('parallel terminals keep the stuck command when one ends or a new turn thinks', () => {
+  const stuck = {
+    type: 'tool',
+    id: 'bash-stuck',
+    name: 'bash',
+    status: 'running',
+    startedAt: '2026-08-02T02:00:00.000Z',
+    updatedAt: '2026-08-02T02:00:00.000Z',
+  }
+  const fresh = {
+    type: 'tool',
+    id: 'bash-fresh',
+    name: 'bash',
+    status: 'running',
+    startedAt: '2026-08-02T02:00:09.000Z',
+    updatedAt: '2026-08-02T02:00:09.000Z',
+  }
+  let state = sessionState({
+    streaming: true,
+    tools: [stuck, fresh],
+    currentActivity: fresh,
+    activityFeed: [stuck, fresh],
+    thinkingText: 'Planning the next command.',
+    lastActivityAt: fresh.updatedAt,
+    messages: [{ id: 'agent-1', role: 'agent', text: '', streaming: true }],
+  })
+  const sessionStatesRef = { current: { 'session-1': state } }
+  const updateSessionState = (_id, update) => {
+    state = applySessionUpdate(state, update)
+    sessionStatesRef.current['session-1'] = state
+  }
+  const scheduler = { push() {}, flush() {}, cancel() {} }
+  const dispatcher = createStreamEventDispatcher({
+    sessionId: 'session-1',
+    agentId: 'agent-1',
+    sessionStatesRef,
+    updateSessionState,
+    updateSessions: (update) => (typeof update === 'function' ? update([]) : update),
+    typewriter: { ...scheduler, setTarget() {} },
+    thinkingScheduler: scheduler,
+    toolScheduler: scheduler,
+    t: (message) => message,
+  })
+
+  dispatcher.dispatch('tool_end', {
+    id: 'bash-fresh',
+    name: 'bash',
+    finishedAt: '2026-08-02T02:00:10.000Z',
+  })
+  assert.equal(state.currentActivity.id, 'bash-stuck')
+  assert.equal(state.currentActivity.status, 'running')
+  assert.equal(state.tools.find((tool) => tool.id === 'bash-fresh').status, 'done')
+  assert.deepEqual(
+    state.activityFeed.filter((item) => item.status === 'running').map((item) => item.id),
+    ['bash-stuck'],
+  )
+
+  dispatcher.dispatch('agent_lifecycle', {
+    lifecycle: {
+      phase: 'thinking',
+      event: 'turn_start',
+      turn: 2,
+      updatedAt: '2026-08-02T02:00:11.000Z',
+    },
+    currentActivity: { type: 'model', stage: 'thinking', updatedAt: '2026-08-02T02:00:11.000Z' },
+  })
+  assert.equal(state.currentActivity.id, 'bash-stuck')
+  assert.equal(state.lastActivityAt, '2026-08-02T02:00:10.000Z')
+
+  dispatcher.dispatch('thinking_reset', {
+    thinkingText: 'Planning the next command.',
+    updatedAt: '2026-08-02T02:00:12.000Z',
+  })
+  assert.equal(state.currentActivity.id, 'bash-stuck')
+  assert.notEqual(state.currentActivity.stage, 'thinking')
+})
+
 test('stream dispatcher applies Plan updates in place and clears them on done', () => {
   let state = sessionState({
     streaming: true,

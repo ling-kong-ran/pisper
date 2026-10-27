@@ -245,11 +245,20 @@ export function bridgeAgentSessionEvent(event, live, emit) {
 
   live.lifecycle = lifecycle
   const activity = lifecycleActivity(lifecycle)
-  if (activity) live.currentActivity = activity
+  // 工具仍在执行时，生命周期里的 model 阶段（thinking / processing_result）
+  // 不能覆盖当前工具，也不能随着 agent_lifecycle 发给前端。
+  // 并行终端里先结束或新开一轮会带上 thinking，写回去后卡住的那个会继续显示思考中。
+  const toolRunning =
+    Array.isArray(live.tools) && live.tools.some((tool) => tool?.status === 'running')
+  const preserveRunningTool = Boolean(toolRunning && activity?.type === 'model')
+  if (activity && !preserveRunningTool) live.currentActivity = activity
+  const projectedActivity = preserveRunningTool
+    ? live.currentActivity || null
+    : activity || live.currentActivity || null
   if (!hasDirectProjection(event))
     emit('agent_lifecycle', {
       lifecycle,
-      currentActivity: activity || live.currentActivity || null,
+      currentActivity: projectedActivity,
     })
-  return { lifecycle, currentActivity: activity }
+  return { lifecycle, currentActivity: projectedActivity }
 }

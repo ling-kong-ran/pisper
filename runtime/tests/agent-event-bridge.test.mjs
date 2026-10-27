@@ -6,6 +6,7 @@ import {
   finishAgentLifecycle,
   initialAgentLifecycle,
 } from '../runtime/agent-event-bridge.mjs'
+import { activityAfterToolEnd } from '../runtime/stream-projection.mjs'
 
 const EXPECTED_AGENT_SESSION_EVENTS = [
   'agent_start',
@@ -125,6 +126,74 @@ test('AgentSession lifecycle bridge projects boundaries, retry completion, and s
     JSON.stringify(lifecycleEvents),
     /private streamed content|private tool output|secret/,
   )
+})
+
+test('a running sibling terminal is not replaced by a thinking lifecycle', () => {
+  const events = []
+  const stuck = {
+    type: 'tool',
+    id: 'bash-stuck',
+    name: 'bash',
+    status: 'running',
+    updatedAt: '2026-08-03T00:00:00.000Z',
+  }
+  const live = {
+    lastActivityAt: '2026-08-03T00:00:00.000Z',
+    lifecycle: initialAgentLifecycle('2026-08-03T00:00:00.000Z'),
+    currentActivity: stuck,
+    tools: [
+      stuck,
+      {
+        type: 'tool',
+        id: 'bash-fresh',
+        name: 'bash',
+        status: 'running',
+        updatedAt: '2026-08-03T00:00:09.000Z',
+      },
+    ],
+  }
+  const emit = (event, data) => events.push({ event, data })
+  live.lastActivityAt = '2026-08-03T00:00:10.000Z'
+  bridgeAgentSessionEvent(
+    {
+      type: 'tool_execution_end',
+      toolCallId: 'bash-fresh',
+      toolName: 'bash',
+      isError: false,
+    },
+    live,
+    emit,
+  )
+  assert.equal(live.currentActivity.id, 'bash-stuck')
+  assert.equal(live.currentActivity.status, 'running')
+  assert.equal(
+    events.some((item) => item.data?.currentActivity?.stage === 'processing_result'),
+    false,
+  )
+
+  live.lastActivityAt = '2026-08-03T00:00:11.000Z'
+  const projected = bridgeAgentSessionEvent({ type: 'turn_start' }, live, emit)
+  assert.equal(live.currentActivity.id, 'bash-stuck')
+  assert.equal(projected.currentActivity.id, 'bash-stuck')
+  assert.equal(events.at(-1).event, 'agent_lifecycle')
+  assert.equal(events.at(-1).data.currentActivity.id, 'bash-stuck')
+  assert.notEqual(events.at(-1).data.currentActivity.stage, 'thinking')
+
+  const finished = {
+    type: 'tool',
+    id: 'bash-fresh',
+    name: 'bash',
+    status: 'done',
+  }
+  assert.equal(
+    activityAfterToolEnd(
+      [stuck, finished],
+      { type: 'tool', id: 'bash-fresh', status: 'running' },
+      finished,
+    ).id,
+    'bash-stuck',
+  )
+  assert.equal(activityAfterToolEnd([finished], stuck, finished), finished)
 })
 
 test('AgentSession metadata bridge hides custom entry data and normalizes public fields', () => {

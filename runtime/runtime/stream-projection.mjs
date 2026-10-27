@@ -110,6 +110,26 @@ export function setLiveActivity(live, activity) {
   live.activityFeed = activity ? pushLiveActivity(live.activityFeed, activity) : []
 }
 
+// 同一会话里可以同时跑多个终端/工具。只要还有一个在运行，
+// 模型的 thinking/processing 阶段就不能盖掉它，否则卡住的那个会继续显示为思考中。
+export function liveToolsRunning(tools) {
+  return (Array.isArray(tools) ? tools : []).some((tool) => tool?.status === 'running')
+}
+
+// 一个工具结束后，把当前活动留给仍在运行的兄弟工具。
+// 健康终端的结束事件不能把卡住的终端换成模型阶段。
+export function activityAfterToolEnd(tools, currentActivity, finishedActivity) {
+  const stillRunning = (Array.isArray(tools) ? tools : []).filter(
+    (tool) => tool?.status === 'running',
+  )
+  const siblingStillCurrent =
+    currentActivity?.type === 'tool' &&
+    currentActivity.status === 'running' &&
+    stillRunning.some((tool) => tool.id && tool.id === currentActivity.id)
+  if (siblingStillCurrent) return currentActivity
+  return stillRunning.at(-1) || finishedActivity
+}
+
 // 计算计划项变化摘要（新增/更新/移除），供前端展示计划变更。
 export function livePlanChanges(previous, next) {
   const previousItems = new Map((previous?.items || []).map((item) => [item.id, item]))

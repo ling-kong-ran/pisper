@@ -216,6 +216,7 @@
   "agentRunActivity.understandingTheTask": "Understanding the task",
   "agentRunActivity.usingTool": "Using {tool}",
   "agentRunActivity.waitingForTheModel": "Waiting for the model",
+  "agentRunActivity.waitingForTheCommand": "Waiting for the command",
   "agentRunActivity.waitingToRetry": "Waiting to retry",
   "agentRunActivity.finalizingTheRun": "Finalizing this run",
   "agentRunActivity.teamProgress": "Team · {completed}/{total} tasks",

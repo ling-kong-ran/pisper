@@ -14,6 +14,7 @@ import {
   RUN_INACTIVITY_THRESHOLD_MS,
   settleToolCalls,
   planChanges,
+  visibleLiveActivities,
 } from '../../src/features/chat/run-activity.ts'
 
 test('chat activity derives meaningful stages and inactivity states', () => {
@@ -58,6 +59,72 @@ test('chat activity derives meaningful stages and inactivity states', () => {
   assert.equal(waiting.stage, 'waiting_tool')
   assert.equal(waiting.inactiveMs, RUN_INACTIVITY_THRESHOLD_MS)
   assert.equal(deriveRunActivity({ streaming: false, stopped: true }).stage, 'stopped')
+})
+
+test('a stalled terminal stays waiting while its sibling command is still active', () => {
+  const now = Date.parse('2026-07-20T10:00:20.000Z')
+  const stalled = {
+    type: 'tool',
+    id: 'bash-stuck',
+    name: 'bash',
+    status: 'running',
+    startedAt: '2026-07-20T10:00:00.000Z',
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  }
+  const fresh = {
+    type: 'tool',
+    id: 'bash-fresh',
+    name: 'bash',
+    status: 'running',
+    startedAt: '2026-07-20T10:00:19.000Z',
+    updatedAt: '2026-07-20T10:00:19.000Z',
+  }
+  const tools = [stalled, fresh]
+  const derived = deriveRunActivity({
+    streaming: true,
+    tools,
+    lastActivityAt: fresh.updatedAt,
+    now,
+  })
+  assert.equal(derived.stage, 'waiting_tool')
+  assert.equal(derived.activeTool.id, 'bash-stuck')
+  assert.ok(derived.inactiveMs >= RUN_INACTIVITY_THRESHOLD_MS)
+
+  const primary = primaryRunActivity({
+    currentActivity: { type: 'model', stage: 'thinking', updatedAt: fresh.updatedAt },
+    tools,
+    thinkingText: 'Still reasoning about the next step.',
+    lastActivityAt: fresh.updatedAt,
+    now,
+  })
+  assert.equal(primary.type, 'model')
+  assert.equal(primary.stage, 'waiting_tool')
+
+  const healthy = deriveRunActivity({
+    streaming: true,
+    tools: [fresh],
+    lastActivityAt: fresh.updatedAt,
+    now,
+  })
+  assert.equal(healthy.stage, 'validating')
+
+  const runningPrimary = primaryRunActivity({
+    currentActivity: { type: 'model', stage: 'thinking', updatedAt: fresh.updatedAt },
+    tools: [fresh],
+    thinkingText: 'Still reasoning about the next step.',
+    now,
+  })
+  assert.equal(runningPrimary.type, 'tool')
+  assert.equal(runningPrimary.id, 'bash-fresh')
+
+  assert.deepEqual(
+    visibleLiveActivities([stalled, fresh]).map((item) => item.id),
+    ['bash-stuck', 'bash-fresh'],
+  )
+  assert.deepEqual(
+    visibleLiveActivities([stalled, { ...fresh, status: 'done' }]).map((item) => item.id),
+    ['bash-stuck', 'bash-fresh'],
+  )
 })
 
 test('unknown Subagent states render neutrally instead of as failures', () => {

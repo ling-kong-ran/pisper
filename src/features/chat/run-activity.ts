@@ -51,6 +51,24 @@ export function latestRunningTool(tools: ToolActivity[] = []) {
   return [...tools].reverse().find((tool) => tool?.status === 'running') || null
 }
 
+// 工具自己的进度时钟。兄弟终端的输出会刷新会话级 lastActivityAt，
+// 不能拿它判断这个终端是否已经卡住。
+export function runningToolInactiveMs(tool: ToolActivity | null | undefined, now = Date.now()) {
+  if (tool?.status !== 'running') return 0
+  const own = timestamp(tool.updatedAt || tool.startedAt)
+  return own ? Math.max(0, now - own) : 0
+}
+
+export function runningToolStalled(tool: ToolActivity | null | undefined, now = Date.now()) {
+  const own = timestamp(tool?.updatedAt || tool?.startedAt)
+  return Boolean(tool?.status === 'running' && own && now - own >= RUN_INACTIVITY_THRESHOLD_MS)
+}
+
+// 并行终端里优先露出已经卡住的那个，避免健康终端把整段会话留在思考中。
+export function stalledRunningTool(tools: ToolActivity[] = [], now = Date.now()) {
+  return [...tools].reverse().find((tool) => runningToolStalled(tool, now)) || null
+}
+
 // 推导“主活动”：压缩进行中优先，其次当前 agent 活动，
 // 否则按 工具运行 → 处理结果 → 思考 → 回复 的优先级合成 model 阶段。
 export function primaryRunActivity({
@@ -59,15 +77,39 @@ export function primaryRunActivity({
   text,
   thinkingText,
   lastActivityAt,
+  tools = [],
+  now = Date.now(),
 }: {
   currentActivity?: EntityRecord | null
   compaction?: EntityRecord | null
   text?: unknown
   thinkingText?: unknown
   lastActivityAt?: string | null
+  tools?: ToolActivity[]
+  now?: number
 } = {}): EntityRecord {
   if (compaction?.active)
     return { type: 'compaction', compaction, updatedAt: compaction.startedAt || lastActivityAt }
+  const stalled = stalledRunningTool(tools, now)
+  if (stalled) {
+    return {
+      type: 'model',
+      stage: 'waiting_tool',
+      inactiveMs: runningToolInactiveMs(stalled, now),
+      updatedAt: stalled.updatedAt || stalled.startedAt || lastActivityAt,
+    }
+  }
+  const running = latestRunningTool(tools)
+  if (running) {
+    if (
+      currentActivity?.type === 'tool' &&
+      currentActivity.status === 'running' &&
+      currentActivity.id &&
+      currentActivity.id === running.id
+    )
+      return currentActivity
+    return running.type ? running : { ...running, type: 'tool' }
+  }
   if (currentActivity && ['model', 'compaction', 'retry'].includes(currentActivity.type))
     return currentActivity
   const stage =
@@ -81,6 +123,22 @@ export function primaryRunActivity({
           ? 'responding'
           : 'thinking'
   return { type: 'model', stage, updatedAt: currentActivity?.updatedAt || lastActivityAt }
+}
+
+// 实时活动条要同时留下所有仍在运行的终端，不能只渲染最后一条。
+// 先结束的健康命令会变成 feed 末尾，把卡住的那条挤出视野。
+export function visibleLiveActivities(feed: EntityRecord[] = []) {
+  const items = Array.isArray(feed) ? feed : []
+  const running = items.filter(
+    (item) =>
+      (item?.type === 'tool' && item.status === 'running') ||
+      (item?.type === 'agent' &&
+        ['queued', 'starting', 'running'].includes(String(item.agent?.status || ''))),
+  )
+  const last = items.at(-1)
+  if (!last) return running
+  if (running.some((item) => activityRenderKey(item) === activityRenderKey(last))) return running
+  return [...running, last]
 }
 
 // 活动流滚动版本：把活动列表编码为字符串，用于触发滚动定位的依赖比较。
@@ -237,10 +295,21 @@ export function deriveRunActivity({
   }
 
   const activeTool = latestRunningTool(tools)
+  const stalledTool = stalledRunningTool(tools, now)
   const lastActivity = timestamp(lastActivityAt)
   const inactiveMs = lastActivity ? Math.max(0, now - lastActivity) : 0
   if (compaction?.active) return { stage: 'compacting', inactiveMs, activeTool: null }
-  if (inactiveMs >= RUN_INACTIVITY_THRESHOLD_MS) {
+  // 某个终端自身已无进度时，即使另一个终端刚刷新了会话时钟，也要标成等待工具。
+  if (stalledTool) {
+    return {
+      stage: 'waiting_tool',
+      inactiveMs: runningToolInactiveMs(stalledTool, now),
+      activeTool: stalledTool,
+    }
+  }
+  const activeOwn = timestamp(activeTool?.updatedAt || activeTool?.startedAt)
+  const activeFresh = Boolean(activeOwn && now - activeOwn < RUN_INACTIVITY_THRESHOLD_MS)
+  if (inactiveMs >= RUN_INACTIVITY_THRESHOLD_MS && !activeFresh) {
     return { stage: activeTool ? 'waiting_tool' : 'waiting_model', inactiveMs, activeTool }
   }
   if (activeTool?.name && AGENT_TOOLS.has(activeTool.name))

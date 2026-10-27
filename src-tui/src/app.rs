@@ -3113,11 +3113,16 @@ impl App {
             "thinking_reset" => {
                 live.thinking_target = string_field(&event.data, "thinkingText");
                 live.thinking.clone_from(&live.thinking_target);
-                self.status = "thinking".to_owned();
+                // 同一会话里另一个终端还在跑时，思考增量不能把状态栏盖回 thinking。
+                if !live.tools.iter().any(|tool| tool.status == "running") {
+                    self.status = "thinking".to_owned();
+                }
             }
             "thinking_patch" => {
                 apply_patch(&mut live.thinking_target, &event.data);
-                self.status = "thinking".to_owned();
+                if !live.tools.iter().any(|tool| tool.status == "running") {
+                    self.status = "thinking".to_owned();
+                }
             }
             "text_patch" => {
                 apply_patch(&mut live.text_target, &event.data);
@@ -3153,7 +3158,17 @@ impl App {
             "tool_update" => update_tool(live, &event.data, false),
             "tool_end" => {
                 update_tool(live, &event.data, true);
-                self.status = "streaming".to_owned();
+                // 先结束的终端不能把仍在运行的兄弟终端从状态栏上抹掉。
+                let running_name = live
+                    .tools
+                    .iter()
+                    .rev()
+                    .find(|tool| tool.status == "running")
+                    .map(|tool| tool.name.clone());
+                self.status = match running_name {
+                    Some(name) => format!("running {name}"),
+                    None => "streaming".to_owned(),
+                };
             }
             "context_usage" => self.context_percent = event.data["percent"].as_f64(),
             "queue_update" => {
@@ -5035,6 +5050,44 @@ mod tests {
             tool.agent.as_ref().unwrap()["canonicalName"],
             "log-analysis"
         );
+    }
+
+    /// 并行终端里，卡住的那条不能被兄弟终端的结束或思考事件盖成 thinking。
+    #[test]
+    fn a_stuck_terminal_stays_running_when_its_sibling_ends_or_thinks() {
+        let mut app = test_app(Vec::new());
+        app.set_input("run two commands");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.apply_stream_event(StreamEvent {
+            name: "tool_start".to_owned(),
+            data: json!({ "id": "bash-stuck", "name": "bash", "args": {} }),
+            id: None,
+        });
+        app.apply_stream_event(StreamEvent {
+            name: "tool_start".to_owned(),
+            data: json!({ "id": "bash-fresh", "name": "bash", "args": {} }),
+            id: None,
+        });
+        app.apply_stream_event(StreamEvent {
+            name: "thinking_patch".to_owned(),
+            data: json!({ "text": "still planning" }),
+            id: None,
+        });
+        assert_eq!(app.status, "running bash");
+        app.apply_stream_event(StreamEvent {
+            name: "tool_end".to_owned(),
+            data: json!({ "id": "bash-fresh", "name": "bash" }),
+            id: None,
+        });
+        assert_eq!(app.status, "running bash");
+        assert_eq!(app.live.as_ref().unwrap().tools[0].status, "running");
+        assert_eq!(app.live.as_ref().unwrap().tools[1].status, "done");
+        app.apply_stream_event(StreamEvent {
+            name: "thinking_reset".to_owned(),
+            data: json!({ "thinkingText": "" }),
+            id: None,
+        });
+        assert_eq!(app.status, "running bash");
     }
 
     /// 验证运行中提交的消息进入运行时队列（QueueInput），队列清空后不再有挂起动作。

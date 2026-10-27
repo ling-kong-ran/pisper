@@ -288,11 +288,21 @@ export function createStreamEventDispatcher({
         const retryRestarted =
           lifecycle?.event === 'turn_start' &&
           (current.lifecycle?.phase === 'retrying' || current.currentActivity?.type === 'retry')
+        // 并行终端仍在跑时，回合生命周期会带上 model/thinking。
+        // 若写回当前活动并刷新会话时钟，卡住的终端会重新显示为思考中。
+        const toolRunning = (current.tools || []).some((tool) => tool?.status === 'running')
+        const incoming = data.currentActivity
+        const incomingWouldHideTool =
+          toolRunning && (!incoming || incoming.type === 'model' || incoming.type === 'retry')
         return {
           ...current,
           lifecycle,
-          currentActivity: data.currentActivity || current.currentActivity,
-          lastActivityAt: lifecycle?.updatedAt || eventAt,
+          currentActivity: incomingWouldHideTool
+            ? current.currentActivity
+            : incoming || current.currentActivity,
+          lastActivityAt: incomingWouldHideTool
+            ? current.lastActivityAt
+            : lifecycle?.updatedAt || eventAt,
           runNotice:
             retryFinished && lifecycle?.retry?.success
               ? ''
@@ -373,14 +383,20 @@ export function createStreamEventDispatcher({
       state.thinkingText = ''
       state.thinkingPrefix = String(data.thinkingText || '').slice(-MAX_LIVE_THINKING_CHARS)
       thinkingScheduler.cancel()
-      updateSessionState(sessionId, {
-        thinkingText: state.thinkingPrefix,
-        currentActivity: {
-          type: 'model',
-          stage: 'thinking',
-          updatedAt: data.updatedAt || eventAt,
-        },
-        lastActivityAt: data.updatedAt || eventAt,
+      updateSessionState(sessionId, (current) => {
+        const toolRunning = (current.tools || []).some((tool) => tool?.status === 'running')
+        return {
+          ...current,
+          thinkingText: state.thinkingPrefix,
+          currentActivity: toolRunning
+            ? current.currentActivity
+            : {
+                type: 'model',
+                stage: 'thinking',
+                updatedAt: data.updatedAt || eventAt,
+              },
+          lastActivityAt: toolRunning ? current.lastActivityAt : data.updatedAt || eventAt,
+        }
       })
     } else if (event === 'thinking_patch') {
       state.thinkingText = applyTextPatch(state.thinkingText, data).slice(-MAX_LIVE_THINKING_CHARS)
@@ -467,26 +483,35 @@ export function createStreamEventDispatcher({
           activityFeed = pushCurrentActivity(activityFeed, toolActivity)
         }
         if (agentActivity) activityFeed = pushCurrentActivity(activityFeed, agentActivity)
+        const tools = current.tools.map((item) =>
+          item.id === data.id
+            ? {
+                ...item,
+                status: data.error ? 'error' : 'done',
+                message: data.message || '',
+                updatedAt: finishedAt,
+                finishedAt,
+                ...(data.output !== undefined ? { output: data.output } : {}),
+                ...(data.previewImage ? { previewImage: data.previewImage } : {}),
+                ...(data.target ? { target: data.target } : {}),
+              }
+            : item,
+        )
+        const stillRunning = tools.filter((item) => item.status === 'running')
+        const siblingStillCurrent =
+          current.currentActivity?.type === 'tool' &&
+          current.currentActivity.status === 'running' &&
+          stillRunning.some((item) => item.id && item.id === current.currentActivity?.id)
         return {
           ...current,
           lastActivityAt: finishedAt,
-          tools: current.tools.map((item) =>
-            item.id === data.id
-              ? {
-                  ...item,
-                  status: data.error ? 'error' : 'done',
-                  message: data.message || '',
-                  updatedAt: finishedAt,
-                  finishedAt,
-                  ...(data.output !== undefined ? { output: data.output } : {}),
-                  ...(data.previewImage ? { previewImage: data.previewImage } : {}),
-                  ...(data.target ? { target: data.target } : {}),
-                }
-              : item,
-          ),
-          currentActivity: data.error
-            ? toolActivity
-            : agentActivity || (preserveEvent ? current.currentActivity : toolActivity),
+          tools,
+          currentActivity: siblingStillCurrent
+            ? current.currentActivity
+            : stillRunning.at(-1) ||
+              (data.error
+                ? toolActivity
+                : agentActivity || (preserveEvent ? current.currentActivity : toolActivity)),
           activityFeed,
         }
       })

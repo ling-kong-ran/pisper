@@ -151,8 +151,10 @@ import {
   beginTextBlock,
   finishedCompaction,
   isInternalParentMessage,
+  activityAfterToolEnd,
   livePlanChanges,
   liveThinkingTail,
+  liveToolsRunning,
   pushLiveActivity,
   queuedSessionInputs,
   setLiveActivity,
@@ -2201,11 +2203,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           beginTextBlock(activeTextBlocks, blockIndex, live, emit)
           const delta = String(update.delta || '')
           live.text += delta
-          setLiveActivity(live, {
-            type: 'model',
-            stage: 'responding',
-            updatedAt: live.lastActivityAt,
-          })
+          if (!liveToolsRunning(live.tools)) {
+            setLiveActivity(live, {
+              type: 'model',
+              stage: 'responding',
+              updatedAt: live.lastActivityAt,
+            })
+          }
           if (delta) emit('text_delta', { delta })
         }
         if (update.type === 'text_end') {
@@ -2218,11 +2222,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         if (update.type === 'thinking_delta') {
           activeThinkingBlocks.add(blockIndex)
           appendThinking(update.delta)
-          setLiveActivity(live, {
-            type: 'model',
-            stage: 'thinking',
-            updatedAt: live.lastActivityAt,
-          })
+          if (!liveToolsRunning(live.tools)) {
+            setLiveActivity(live, {
+              type: 'model',
+              stage: 'thinking',
+              updatedAt: live.lastActivityAt,
+            })
+          }
         }
         if (update.type === 'thinking_end') {
           activeThinkingBlocks.delete(blockIndex)
@@ -2424,7 +2430,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           PLAN_ALL_TOOL_NAMES.includes(event.toolName) && live.currentActivity?.type === 'plan'
         if (event.isError || !preserveEvent)
           live.activityFeed = pushLiveActivity(live.activityFeed, finishedActivity)
-        if (live.currentActivity?.id === event.toolCallId) live.currentActivity = finishedActivity
+        const nextActivity = activityAfterToolEnd(
+          live.tools,
+          live.currentActivity,
+          finishedActivity,
+        )
+        if (nextActivity !== live.currentActivity) {
+          live.currentActivity = nextActivity
+          if (nextActivity?.status === 'running')
+            live.activityFeed = pushLiveActivity(live.activityFeed, nextActivity)
+        }
         emit('tool_end', {
           id: event.toolCallId,
           name: event.toolName,
@@ -2440,11 +2455,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         thinkingPrefix = live.thinkingText
         thinkingTurnText = ''
         live.thinkingText = thinkingPrefix
-        setLiveActivity(live, {
-          type: 'model',
-          stage: 'thinking',
-          updatedAt: live.lastActivityAt,
-        })
+        if (!liveToolsRunning(live.tools)) {
+          setLiveActivity(live, {
+            type: 'model',
+            stage: 'thinking',
+            updatedAt: live.lastActivityAt,
+          })
+        }
         emit('thinking_reset', { thinkingText: thinkingPrefix, updatedAt: live.lastActivityAt })
         const activeGoal = this.goals.get(session.sessionId)
         goalTurnId = activeGoal?.status === 'active' ? activeGoal.id : ''

@@ -3,11 +3,12 @@
 import { lazy, Suspense } from 'react'
 import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { EntityRecord, ResourceInvocation } from '@/types/chat'
+import type { ChatMessage, EntityRecord, ResourceInvocation } from '@/types/chat'
 
 // 状态文案切换时的一次性光泽扫过（ShinyText 动画只跑一遍），懒加载避免进入主包。
 const ShinyText = lazy(() =>
@@ -112,13 +113,42 @@ export function ComposerResourceChip({
 export function ComposerStatusPill({
   compaction,
   streaming,
-  statusLabel,
+  messages = [],
+  tools = [],
+  currentActivity,
+  thinkingText,
+  error,
+  runStopped,
+  runNotice,
+  lastActivityAt,
 }: {
   compaction?: EntityRecord | null
   streaming?: boolean
-  statusLabel?: string
+  messages?: ChatMessage[]
+  tools?: EntityRecord[]
+  currentActivity?: EntityRecord | null
+  thinkingText?: string
+  error?: string
+  runStopped?: boolean
+  runNotice?: string
+  lastActivityAt?: string | null
 }) {
   const { t } = useI18n()
+  const statusLabel = useFocusSessionStatusLabel(
+    {
+      streaming,
+      messages,
+      tools,
+      currentActivity,
+      thinkingText,
+      compaction,
+      error,
+      runStopped,
+      runNotice,
+      lastActivityAt,
+    },
+    t,
+  )
   return (
     <div
       className={`focus-composer-status [&.idle]:hidden [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:flex-none [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--text-muted)] [&.running]:text-[var(--success-strong)] [&.running_>_i]:bg-[var(--success)] [&.running_>_i]:shadow-[0_0_0_3px_var(--success-soft)] [&.running_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite] inline-flex min-h-[22px] self-start items-center gap-[7px] [margin:0_0_-2px_5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:3px_9px_3px_7px] text-[var(--text-muted)] text-[11px] font-[600] shadow-[0_8px_18px_-16px_var(--shadow-strong)] ${compaction?.active ? 'compacting [.focus-composer-status&]:text-[var(--warning-strong)] [.focus-composer-status&_>_i]:bg-[var(--warning-strong)] [.focus-composer-status&_>_i]:shadow-[0_0_0_3px_var(--warning-soft)] [.focus-composer-status&_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite]' : streaming ? 'running' : 'idle'}`}

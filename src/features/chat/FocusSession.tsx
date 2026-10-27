@@ -69,7 +69,6 @@ import {
   QueuedInputsTray,
 } from '@/features/chat/focus-session-composer-bits'
 import type { FocusSessionProps } from '@/features/chat/focus-session-props'
-import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
 import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
 import { useComposerToolbarStore } from '@/features/chat/composer-toolbar-store'
@@ -230,20 +229,6 @@ export const FocusSession = memo(function FocusSession({
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const centeredWelcome = !hasConversation
-  const composerStatusLabel = useFocusSessionStatusLabel(
-    {
-      streaming,
-      messages,
-      currentActivity,
-      thinkingText,
-      compaction,
-      error,
-      runStopped,
-      runNotice,
-      lastActivityAt,
-    },
-    t,
-  )
   const toolTrayId = `composer-tool-tray-${session.id}`
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
@@ -734,7 +719,14 @@ export const FocusSession = memo(function FocusSession({
       <ComposerStatusPill
         compaction={compaction}
         streaming={streaming}
-        statusLabel={composerStatusLabel}
+        messages={messages}
+        tools={tools}
+        currentActivity={currentActivity}
+        thinkingText={thinkingText}
+        error={error}
+        runStopped={runStopped}
+        runNotice={runNotice}
+        lastActivityAt={lastActivityAt}
       />
       <div
         className={cn(

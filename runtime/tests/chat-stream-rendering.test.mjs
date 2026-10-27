@@ -50,7 +50,7 @@ test('chat renders thinking and tool activity above one uninterrupted response b
   assert.match(activity, /agent-thinking-window/)
   assert.match(activity, /thinkingScrollRef/)
   assert.match(activity, /<MarkdownMessage streaming=\{streaming\}>\{thinking\}<\/MarkdownMessage>/)
-  assert.match(activity, /agent-thinking-window[^`]*\$\{streaming \? 'running' : 'completed'\}/)
+  assert.match(activity, /agent-thinking-window[^`]*\$\{thinkingLive \? 'running' : 'completed'\}/)
   assert.match(activity, /agentRunActivity\.reasoningInProgress/)
   assert.match(activity, /className="agent-thinking-dots[^"\n]*"/)
   assert.doesNotMatch(activity, /<details[^>]*agent-team-panel[^>]*\sopen(?:=|\s|>)/)
@@ -87,7 +87,13 @@ test('SSE activity isolates one total-duration clock from the streamed activity 
 
   assert.match(durationLabel, /const now = useRunActivityClock\(streaming\)/)
   assert.match(durationLabel, /runDurationMs\(startedAt, finishedAt, now\)/)
-  assert.doesNotMatch(activityCard, /agent-run-duration|activityDurationMs|useRunActivityClock/)
+  // 总时长时钟仍只在标题里走；运行中的工具卡片自带秒针，用来在没有新 SSE 时把卡住的命令标成等待。
+  assert.doesNotMatch(activityCard, /agent-run-duration|activityDurationMs/)
+  assert.match(
+    activityCard,
+    /const trackTool = Boolean\(streaming && activity\.type === 'tool' && activity\.status === 'running'\)/,
+  )
+  assert.match(activityCard, /const now = useRunActivityClock\(trackTool\)/)
   assert.doesNotMatch(activityPanel, /const now = useRunActivityClock/)
   assert.doesNotMatch(activityPanel, /showOverview|agent-run-overview|ShinyText/)
   assert.match(activityPanel, /<RunDurationLabel/)

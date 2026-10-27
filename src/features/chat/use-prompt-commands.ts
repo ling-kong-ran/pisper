@@ -146,20 +146,21 @@ export function usePromptCommands({
       const thinkingScheduler = createStreamingTextScheduler(
         (thinkingText, activityAt) => {
           if (!ownsStream()) return
-          updateSessionState(sessionId, (current) =>
-            ownsStream()
-              ? {
-                  ...current,
-                  thinkingText,
-                  lastActivityAt: activityAt || current.lastActivityAt,
-                  currentActivity: {
-                    type: 'model',
-                    stage: 'thinking',
-                    updatedAt: activityAt || current.lastActivityAt,
-                  },
-                }
-              : current,
-          )
+          updateSessionState(sessionId, (current) => {
+            if (!ownsStream()) return current
+            const toolRunning = (current.tools || []).some((tool) => tool?.status === 'running')
+            if (toolRunning) return { ...current, thinkingText }
+            return {
+              ...current,
+              thinkingText,
+              lastActivityAt: activityAt || current.lastActivityAt,
+              currentActivity: {
+                type: 'model',
+                stage: 'thinking',
+                updatedAt: activityAt || current.lastActivityAt,
+              },
+            }
+          })
         },
         { intervalMs: 80 },
       )

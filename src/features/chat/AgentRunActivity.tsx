@@ -27,7 +27,10 @@ import {
   agentActivityState,
   formatRunDuration,
   primaryRunActivity,
+  RUN_INACTIVITY_THRESHOLD_MS,
+  runningToolInactiveMs,
   runDurationMs,
+  visibleLiveActivities,
 } from './run-activity'
 
 const EMPTY_LIST: EntityRecord[] = []
@@ -211,6 +214,15 @@ function activityPresentation(
     detail = toolInfo.text
     command = Boolean(toolInfo.command)
     output = cleanInline(activity.message)
+    if (
+      !failed &&
+      !completed &&
+      streaming &&
+      runningToolInactiveMs(activity, now) >= RUN_INACTIVITY_THRESHOLD_MS
+    ) {
+      tone = 'waiting'
+      title = t('chat:agentRunActivity.waitingForTheCommand')
+    }
   } else if (activity.type === 'plan') {
     tone = 'plan'
     const activityPlan = planFromActivity(activity)
@@ -278,13 +290,20 @@ function activityPresentation(
     else if (activity.stage === 'waiting_retry') title = t('chat:agentRunActivity.waitingToRetry')
     else if (activity.stage === 'finalizing') title = t('chat:agentRunActivity.finalizingTheRun')
     else if (activity.stage === 'working') title = t('chat:agentRunActivity.advancingTheTask')
-    else
+    else if (activity.stage === 'waiting_tool') {
+      tone = 'waiting'
+      title = t('chat:agentRunActivity.waitingForTheCommand')
+      detail = t('chat:agentRunActivity.noNewProgressForCountS', {
+        count: Math.max(1, Math.floor((Number(activity.inactiveMs) || inactiveMs) / 1000)),
+      })
+    } else
       title = String(thinkingText || '').trim()
         ? t('chat:agentRunActivity.reasoningAboutTheNextStep')
         : String(text || '').trim()
           ? t('chat:agentRunActivity.preparingTheResponse')
           : t('chat:agentRunActivity.understandingTheTask')
-    if (String(thinkingText || '').trim()) detail = cleanInline(thinkingText)
+    if (activity.stage !== 'waiting_tool' && String(thinkingText || '').trim())
+      detail = cleanInline(thinkingText)
   }
 
   return { tone, title, detail, output, command, startedAt, changes }
@@ -303,8 +322,12 @@ export function runActivityStatusLabel(
     stopped,
     notice,
     lastActivityAt,
+    tools,
+    now = Date.now(),
   }: Omit<ActivityPresentationContext, 't' | 'now'> & {
     currentActivity?: EntityRecord | null
+    tools?: EntityRecord[]
+    now?: number
   },
   t: Translate,
 ): string {
@@ -315,6 +338,8 @@ export function runActivityStatusLabel(
     text,
     thinkingText,
     lastActivityAt,
+    tools,
+    now,
   })
   return activityPresentation(activity, {
     t,
@@ -326,7 +351,7 @@ export function runActivityStatusLabel(
     stopped,
     notice,
     lastActivityAt,
-    now: Date.now(),
+    now,
   }).title
 }
 
@@ -494,6 +519,8 @@ const ActivityCard = memo(function ActivityCard({
   notice,
   lastActivityAt,
 }: ActivityCardProps) {
+  const trackTool = Boolean(streaming && activity.type === 'tool' && activity.status === 'running')
+  const now = useRunActivityClock(trackTool)
   const presentation = activityPresentation(activity, {
     t,
     streaming,
@@ -504,7 +531,7 @@ const ActivityCard = memo(function ActivityCard({
     stopped,
     notice,
     lastActivityAt,
-    now: Date.now(),
+    now,
   })
   const showCommandOutput = activity.name === 'bash' && latest && Boolean(activity.output)
   if (activity.type === 'retry') {
@@ -607,6 +634,17 @@ function AgentRunActivity({
   }, [thinking])
 
   const activities = activityFeed.length ? activityFeed : tools
+  const toolSource = tools.length ? tools : activities.filter((item) => item.type === 'tool')
+  const thinkingLive =
+    Boolean(streaming) &&
+    primaryRunActivity({
+      currentActivity: activities.at(-1),
+      tools: toolSource,
+      text,
+      thinkingText,
+      lastActivityAt,
+    }).stage === 'thinking'
+  const liveActivities = visibleLiveActivities(activities)
   // computer use 实时镜像跟随 agent 当前操作的目标窗口；仅流式期间激活，
   // 且镜像回退到同一活动的静态预览图。
   const computerUseTarget = streaming && !compact ? latestComputerUseTarget(activities) : null
@@ -652,7 +690,7 @@ function AgentRunActivity({
       />
     ))
   const activityCards = renderActivityCards(activities)
-  const liveActivityCards = renderActivityCards(activities.slice(-1))
+  const liveActivityCards = renderActivityCards(liveActivities)
 
   return (
     <section
@@ -661,7 +699,7 @@ function AgentRunActivity({
     >
       {thinking && (
         <details
-          className={`agent-thinking-window [&[open]]:border-[transparent] [&.completed]:border-[transparent] [&.completed[open]]:border-[transparent] overflow-hidden [margin:1px_0_8px] [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-transparent [transition:border-color_var(--d1)_var(--ease-out)] ${streaming ? 'running' : 'completed'}`}
+          className={`agent-thinking-window [&[open]]:border-[transparent] [&.completed]:border-[transparent] [&.completed[open]]:border-[transparent] overflow-hidden [margin:1px_0_8px] [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-transparent [transition:border-color_var(--d1)_var(--ease-out)] ${thinkingLive ? 'running' : 'completed'}`}
           data-pisper-activity-type="reasoning"
         >
           <summary
@@ -676,10 +714,10 @@ function AgentRunActivity({
             </span>
             <span className="agent-run-copy [&_strong]:overflow-hidden [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_strong]:leading-[1.4] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [.agent-run-activity.compact_&_strong]:text-[12px] [.agent-run-activity.compact_&_small]:text-[11px] flex min-w-0 flex-col gap-[3px] [padding-top:1px]">
               <strong>
-                {streaming
+                {thinkingLive
                   ? t('chat:agentRunActivity.reasoningInProgress')
                   : t('chat:agentRunActivity.reasoningCompleted')}
-                {streaming ? (
+                {thinkingLive ? (
                   <span
                     className="agent-thinking-dots [&_i]:w-[3px] [&_i]:h-[3px] [&_i]:rounded-[50%] [&_i]:bg-[currentColor] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-end gap-[2px] [margin-left:5px]"
                     aria-hidden="true"
