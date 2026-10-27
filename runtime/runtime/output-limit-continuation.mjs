@@ -46,11 +46,25 @@ function enqueueOutputLimitContinuation(session, attempt) {
   return true
 }
 
-// 给会话装上输出上限续跑。只拦截回合结束后的 _checkCompaction(message, true)：
-// 回合中的压缩检查和发送前检查都不带这个参数，不能在那里插入续跑。
+// 给会话装上输出上限续跑。只拦截回合收尾的压缩检查；
+// 回合中的压缩检查和发送前检查不能插入续跑。
 export function installOutputLimitContinuation(session) {
   if (!session || session[OUTPUT_LIMIT_CONTINUATION_PATCH]) return session
-  const state = { consecutive: 0 }
+  const state = { consecutive: 0, postAgentRuns: 0 }
+
+  // Pi 1.4 的收尾流程不再显式传 true；仅在真实回合收尾内识别默认参数，
+  // 不能放宽发送前和工具回合中的压缩检查。
+  if (typeof session._handlePostAgentRun === 'function') {
+    const handlePostAgentRun = session._handlePostAgentRun.bind(session)
+    session._handlePostAgentRun = async function handlePostAgentRunWithOutputLimit(...args) {
+      state.postAgentRuns += 1
+      try {
+        return await handlePostAgentRun(...args)
+      } finally {
+        state.postAgentRuns -= 1
+      }
+    }
+  }
 
   if (typeof session.subscribe === 'function') {
     session.subscribe((event) => {
@@ -63,8 +77,8 @@ export function installOutputLimitContinuation(session) {
     const checkCompaction = session._checkCompaction.bind(session)
     session._checkCompaction = async function checkCompactionWithOutputLimitContinuation(...args) {
       const result = await checkCompaction(...args)
-      // 只有 prompt 结束后的检查才会显式传入 true。提前压缩和发送前检查必须保持原行为。
-      if (args[1] !== true) return result
+      // 兼容旧版显式标志和新版收尾上下文；提前压缩和发送前检查必须保持原行为。
+      if (args[1] !== true && !(args[1] === undefined && state.postAgentRuns > 0)) return result
       const message = args[0]
       if (message?.stopReason !== 'length') {
         state.consecutive = 0

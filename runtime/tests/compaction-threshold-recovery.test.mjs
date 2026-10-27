@@ -207,20 +207,21 @@ test('switching to a smaller model recompresses the previous summary with the cu
       compactSession: (...args) => {
         // 只替换网络响应，让 SDK 真实执行旧摘要更新或分段拼接的选择。
         args[7] = async (_model, context, options) => {
+          const maxTokens = options.maxTokens ?? _model.maxTokens
           const requestTokens = context.messages.reduce(
             (total, message) => total + estimateTokens(message),
             Math.ceil((context.systemPrompt?.length || 0) / 4),
           )
           assert.ok(
-            requestTokens + options.maxTokens < model.contextWindow,
+            requestTokens + maxTokens < model.contextWindow,
             'the summarization fixture must fit the new model window including its output',
           )
           requests.push(context)
           return {
             result: async () => ({
               role: 'assistant',
-              content: [{ type: 'text', text: 's'.repeat(options.maxTokens * 4) }],
-              usage: { ...usage, output: options.maxTokens, totalTokens: options.maxTokens },
+              content: [{ type: 'text', text: 's'.repeat(maxTokens * 4) }],
+              usage: { ...usage, output: maxTokens, totalTokens: maxTokens },
               stopReason: 'stop',
               timestamp: 100,
             }),

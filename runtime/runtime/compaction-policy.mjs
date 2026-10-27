@@ -157,9 +157,18 @@ export function pisperCompactionExtension(pi, { compactSession = compact } = {})
         ),
       },
     }
+    // Pi 1.4 的摘要生成改用模型 maxTokens，不再读取 reserveTokens。
+    // 只限制本次摘要的模型副本，保留旧版 80% 输出预算，不修改会话模型。
+    const summaryModel = {
+      ...model,
+      maxTokens: Math.min(
+        tokenCount(model.maxTokens, Number.MAX_SAFE_INTEGER),
+        Math.max(1, Math.floor(preparation.settings.reserveTokens * 0.8)),
+      ),
+    }
     const result = await compactSession(
       preparation,
-      model,
+      summaryModel,
       auth.apiKey,
       auth.headers,
       event.customInstructions,

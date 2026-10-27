@@ -16,6 +16,8 @@
 
 ## 依赖和生成产物
 
+- 本轮发布将 `@earendil-works/pi-coding-agent` 从 1.3.0 更新至 1.4.0，来源为 [Pi 官方仓库](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 与 npm 注册表，许可证为 MIT，包解压约 23.4 MB；完整依赖及 SHA-512 固定在 `package-lock.json`。沿用现有 Runtime/SEA 打包与移动端裁剪入口，不引入平台副本。升级须验证 Runtime 契约、Web/TUI、Windows SEA 与启动冒烟，并由发布工作流构建其余平台产物；浏览器和本机检查不替代移动真机验收。
+
 - 新增或升级 npm、Rust、原生、模型和二进制依赖前，记录用途、来源、版本、许可证、维护状态、安全风险、体积影响和平台兼容性。
 - 升级依赖后至少检查锁文件、类型检查、相关测试、构建产物、许可证、安全报告和 Node/Rust/原生工具链要求。检查应分别说明源码宿主、打包宿主与用户运行环境。安全修复或会改变发布产物的依赖更新按实际影响判断是否需要发布。
 - Pi 0.86 的 `agent.state.systemPrompt` 是历史消息派生的只读值。Pisper 通过 `before_agent_start` 注入每轮身份和运行时约束，缓存诊断读取当前 `session.systemPrompt` 的投影，不改写历史 system 消息。提示词测试同时覆盖旧可写状态和新只读状态；内置 Provider 测试验证当前目录中的型号能保存和解析，不把上游某个历史型号当作永久契约。

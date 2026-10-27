@@ -123,6 +123,24 @@ test('turn-boundary and pre-prompt compaction checks do not inject a continuatio
   assert.equal(queued.length, 0)
 })
 
+test('Pi 1.4 default compaction arguments continue only inside post-run handling', async () => {
+  const { session, queued } = sessionDouble()
+  let fail = false
+  session._handlePostAgentRun = async function () {
+    if (fail) throw new Error('post-run failed')
+    return this._checkCompaction(lengthStop())
+  }
+  installOutputLimitContinuation(session)
+  assert.equal(await session._handlePostAgentRun(), true)
+  assert.equal(queued.length, 1)
+  queued.pop()
+  assert.equal(await session._checkCompaction(lengthStop()), false)
+  fail = true
+  await assert.rejects(session._handlePostAgentRun(), /post-run failed/)
+  assert.equal(await session._checkCompaction(lengthStop()), false)
+  assert.equal(queued.length, 0)
+})
+
 test('consecutive max-output stops stop after the continuation cap', async () => {
   const { session, queued } = sessionDouble()
   installOutputLimitContinuation(session)

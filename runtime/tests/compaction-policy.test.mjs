@@ -217,6 +217,7 @@ test('Pisper compaction uses no reasoning and keeps the summary output budget bo
         ] = args
         assert.equal(preparation.settings.reserveTokens, COMPACTION_SUMMARY_RESERVE_TOKENS)
         assert.equal(model.id, 'reasoning-model')
+        assert.equal(model.maxTokens, Math.floor(COMPACTION_SUMMARY_RESERVE_TOKENS * 0.8))
         assert.equal(apiKey, 'secret')
         assert.deepEqual(headers, { 'x-test': 'yes' })
         assert.equal(instructions, 'Preserve decisions')
