@@ -61,6 +61,18 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
           sizes.scrollHeight <= sizes.height + 1,
           `${route} app host must not own a second page scroll`,
         )
+        if (width <= 650 && route === '/config/interface') {
+          await page.locator('[data-mobile-navigation="settings"] button').first().waitFor()
+          const heights = await page
+            .locator('[data-mobile-navigation="settings"] button')
+            .evaluateAll((buttons) =>
+              buttons.map((button) => button.getBoundingClientRect().height),
+            )
+          assert.ok(
+            heights.length > 0 && heights.every((height) => height >= 44),
+            `${width}px mobile settings navigation touch targets: ${JSON.stringify(heights)}`,
+          )
+        }
         if (route === '/schedules') {
           const list = page.locator('[data-slot="page-list"]')
           await list.getByRole('button', { name: /Template verification/ }).click()

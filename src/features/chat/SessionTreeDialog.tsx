@@ -5,7 +5,7 @@ import { TreePine, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsMobileViewport } from '@/hooks/use-mobile'
 import { useIsMobileApp } from '@/stores/client-store'
 import type { SessionSummary } from '@/types/chat'
 import { chatErrorMessage } from './chat-errors'
@@ -45,8 +45,8 @@ export function SessionTreeDialog({
 }) {
   const { t, language } = useI18n()
   const mobileApp = useIsMobileApp()
-  const phoneViewport = useIsPhoneViewport()
-  const mobileLayout = mobileApp || phoneViewport
+  const mobileViewport = useIsMobileViewport()
+  const mobileLayout = mobileApp || mobileViewport
   const [data, setData] = useState<SessionTreeResponse | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [view, setView] = useState<TreeView>('conversation')

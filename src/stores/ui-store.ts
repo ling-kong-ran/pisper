@@ -8,7 +8,7 @@ import { pageStateStorage } from '@/lib/page-state-storage'
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'
 export type AccentPreset = 'neutral' | 'blue' | 'teal' | 'violet' | 'coral' | 'custom'
-export type FontScale = 'small' | 'default' | 'large'
+export type FontScale = 'small' | 'default' | 'large' | 'xlarge'
 export type RadiusMode = 'sharp' | 'default' | 'soft'
 export type MotionMode = 'system' | 'full' | 'reduced'
 

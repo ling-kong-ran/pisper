@@ -33,6 +33,8 @@ export type ChatDockContextValue = {
   // 通用通知与「打开模型设置」入口（视觉生成引导等场景使用）。
   notify: Notify
   openModelSettings: () => void
+  reportActiveSessionRun: (state: { sessionId: string; streaming: boolean } | null) => void
+  createSession: () => Promise<unknown>
   loadSessionMessages: (id: string, options?: { force?: boolean; limit?: number }) => Promise<void>
   loadOlderMessages: (id: string) => Promise<boolean>
   sendPrompt: (

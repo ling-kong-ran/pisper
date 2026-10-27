@@ -1,7 +1,8 @@
 // 只注入父组件生命周期输入与 HTTP 数据；被验收的资源和模板均为生产组件。
 import { createRoot } from 'react-dom/client'
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { LanguageProvider } from '@/app/i18n-provider'
+import { applyUiPreferenceAttributes } from '@/app/ui-preferences'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/startup-queries'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -17,8 +18,11 @@ import { WorkbenchHeader } from '@/components/layout/WorkbenchHeader'
 import { PageHeader } from '@/components/layout/PageHeader'
 import QuickPromptIdeas from '@/features/chat/QuickPromptIdeas'
 import { FocusChatMessage } from '@/features/chat/ChatMessage'
+import { ModelThinkingControl } from '@/features/chat/FocusRuntimeControls'
+import { ChatRequestNotice } from '@/features/chat/ChatRequestNotice'
 import { InterfaceSettings } from '@/features/config/InterfaceSettings'
 import { requestConfigCardHighlight, useConfigCardHighlight } from '@/features/config/config-search'
+import { useUiStore } from '@/stores/ui-store'
 
 function MessageFixture() {
   const [streaming, setStreaming] = useState(false)
@@ -69,6 +73,49 @@ function WelcomeFixture() {
         onChange={(event) => setDraft(event.target.value)}
       />
       <QuickPromptIdeas plansAvailable onPromptSelect={setDraft} />
+    </div>
+  )
+}
+
+function ModelEmptyFixture() {
+  const [opened, setOpened] = useState(false)
+  return (
+    <div className="p-4">
+      <ModelThinkingControl
+        model="openai/gpt-5"
+        models={[]}
+        thinkingLevel="medium"
+        levels={[]}
+        status="unsupported"
+        message="No model is configured for this session."
+        onModelChange={() => {}}
+        onThinkingChange={() => {}}
+        onOpenModelSettings={() => setOpened(true)}
+      />
+      <output aria-label="Model settings navigation">{opened ? 'opened' : ''}</output>
+    </div>
+  )
+}
+
+export function RequestNoticeFixture() {
+  const [attempts, setAttempts] = useState(0)
+  const [pending, setPending] = useState(false)
+  const finish = useRef<(() => void) | null>(null)
+  return (
+    <div className="mx-auto w-full max-w-3xl p-4">
+      <ChatRequestNotice
+        error={`Gateway disconnected\n${'diagnostic-frame-'.repeat(60)}`}
+        pending={pending}
+        onRetry={() => {
+          setAttempts((value) => value + 1)
+          return new Promise<void>((resolve) => {
+            finish.current = resolve
+          })
+        }}
+      />
+      <output aria-label="Retry attempts">{attempts}</output>
+      <Button onClick={() => finish.current?.()}>Finish retry</Button>
+      <Button onClick={() => setPending((value) => !value)}>Toggle automatic retry</Button>
     </div>
   )
 }
@@ -152,6 +199,10 @@ function ReviewFixture() {
   const [streaming, setStreaming] = useState(false)
   const [selected, setSelected] = useState(false)
   const [view, setView] = useState(createContextPages('files').pages[0].view)
+  const preferences = useUiStore()
+  useEffect(() => {
+    applyUiPreferenceAttributes(preferences)
+  }, [preferences])
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -179,6 +230,10 @@ function ReviewFixture() {
                 requestConfirm={() => Promise.resolve(true)}
               />
             </>
+          ) : mode === 'request-notice' ? (
+            <RequestNoticeFixture />
+          ) : mode === 'model-empty' ? (
+            <ModelEmptyFixture />
           ) : mode === 'skills' ? (
             <SkillsPage
               notify={() => {}}

@@ -17,9 +17,9 @@ export function WorkbenchHeader({
   toggleLabel: string
   actions?: ReactNode
 }) {
-  const { isMobile } = useSidebar()
+  const { isMobile, persistent } = useSidebar()
   // 展开时开关归侧栏标题所有；收起后在同一顶部位置恢复入口，不占第二行。
-  if (sidebarOpen && !isMobile) return null
+  if (persistent || (sidebarOpen && !isMobile)) return null
   return (
     <header
       data-window-drag-region
@@ -34,7 +34,7 @@ export function WorkbenchHeader({
         aria-expanded={sidebarOpen}
         aria-controls="workbench-sidebar"
         onClick={() => {
-          // 桌面开关随侧栏迁移，保留键盘操作位置；移动端交给抽屉管理焦点。
+          // 桌面开关随侧栏迁移，保留键盘操作位置；移动端交给当前导航容器管理焦点。
           if (isMobile) onToggleSidebar()
           else {
             flushSync(onToggleSidebar)

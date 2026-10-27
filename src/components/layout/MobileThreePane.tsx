@@ -1,9 +1,9 @@
-// 手机一次只显示一屏，默认停在对话；Pad 横屏同时放下左中右，不再占用底栏高度。
-import { useEffect, useRef, type ReactNode } from 'react'
+// 手机和平板均一次显示一屏，通过底部导航和手势切换，旋转时保留页面状态。
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
+import { List, MessageSquare, PanelsTopLeft } from 'lucide-react'
 import {
-  mobileShellPaneIndex,
   moveMobileShellPane,
   shouldIgnoreMobileSwipe,
   swipeDeltaToDirection,
@@ -39,7 +39,7 @@ export function MobileThreePane({
 
   useEffect(() => {
     const node = trackRef.current
-    if (!node || mode !== 'phone') return
+    if (!node || !enabled || mode === 'off') return
     let startX = 0
     let startY = 0
     let tracking = false
@@ -92,31 +92,55 @@ export function MobileThreePane({
       node.removeEventListener('touchend', end)
       node.removeEventListener('touchcancel', cancel)
     }
-  }, [mode])
+  }, [enabled, mode])
 
   const panes = [
-    { id: 'sessions' as const, label: t('navigation:mobileShell.sessions'), node: sessions },
-    { id: 'chat' as const, label: t('navigation:mobileShell.chat'), node: chat },
-    { id: 'context' as const, label: t('navigation:mobileShell.context'), node: context },
+    {
+      id: 'sessions' as const,
+      label: t('navigation:mobileShell.sessions'),
+      icon: List,
+      node: sessions,
+    },
+    {
+      id: 'chat' as const,
+      label: t('navigation:mobileShell.chat'),
+      icon: MessageSquare,
+      node: chat,
+    },
+    {
+      id: 'context' as const,
+      label: t('navigation:mobileShell.context'),
+      icon: PanelsTopLeft,
+      node: context,
+    },
   ]
   const desktop = !enabled || mode === 'off'
-  const phone = !desktop && mode === 'phone'
+  const paged = !desktop
+  const onPagerKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: MobileShellPane) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    const next =
+      event.key === 'Home'
+        ? 'sessions'
+        : event.key === 'End'
+          ? 'context'
+          : moveMobileShellPane(current, event.key === 'ArrowLeft' ? -1 : 1)
+    event.preventDefault()
+    onPaneChange(next)
+    requestAnimationFrame(() => document.getElementById(`mobile-shell-tab-${next}`)?.focus())
+  }
 
   return (
     <div
       className={cn(
-        'relative h-full min-h-0 min-w-0 flex-1 overflow-hidden',
-        desktop
-          ? 'contents'
-          : phone
-            ? 'flex flex-col'
-            : 'grid min-h-0 grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,360px)] grid-rows-[minmax(0,1fr)]',
+        'relative h-full min-h-0 min-w-0 flex-1 overflow-clip',
+        desktop ? 'contents' : 'flex flex-col',
       )}
       data-mobile-shell={mode}
     >
-      {phone && (
+      {paged && (
         <div
-          className="[[data-mobile-keyboard='open']_&]:hidden flex h-7 flex-none items-center justify-center gap-1 border-b border-[var(--stroke-soft)] bg-[var(--sidebar-bg)] px-2"
+          className="[[data-mobile-keyboard='open']_&]:hidden order-last flex min-h-14 flex-none items-center justify-center gap-1 border-t border-[var(--stroke-soft)] bg-[var(--sidebar-bg)] px-2 py-1"
+          data-mobile-navigation="panes"
           role="tablist"
           aria-label={t('navigation:mobileShell.pager')}
         >
@@ -125,47 +149,53 @@ export function MobileThreePane({
             return (
               <button
                 key={item.id}
+                id={`mobile-shell-tab-${item.id}`}
                 type="button"
                 role="tab"
                 aria-selected={selected}
+                aria-controls={`mobile-shell-pane-${item.id}`}
+                tabIndex={selected ? 0 : -1}
                 className={cn(
-                  'h-6 rounded-full px-2.5 text-[11px] font-medium',
+                  'flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   selected
                     ? 'bg-[var(--star-soft)] text-[var(--star-strong)]'
                     : 'text-[var(--text-muted)]',
                 )}
                 onClick={() => onPaneChange(item.id)}
+                onKeyDown={(event) => onPagerKeyDown(event, item.id)}
               >
-                {item.label}
+                <item.icon className="size-5" aria-hidden="true" />
+                <span className="truncate">{item.label}</span>
               </button>
             )
           })}
         </div>
       )}
-      {/* 不用 transform 建立新的 fixed 包含块，页面内确认框仍以视口定位。 */}
+      {/* 只切换显示状态，不移动轨道；非当前屏保留组件状态但退出布局。 */}
       <div
         ref={trackRef}
-        className={cn(
-          'min-h-0 min-w-0 flex-1 touch-pan-y',
-          phone ? 'flex w-[300%] transition-[margin-left] duration-200 ease-out' : 'contents',
-        )}
-        style={phone ? { marginLeft: `-${mobileShellPaneIndex(pane) * 100}%` } : undefined}
+        className={cn('min-h-0 min-w-0 flex-1 touch-pan-y', paged ? 'block w-full' : 'contents')}
       >
         {panes.map((item) => (
           <section
             key={item.id}
+            id={`mobile-shell-pane-${item.id}`}
+            role={paged ? 'tabpanel' : undefined}
             className={cn(
               // 所有断点保留同一棵页面树；只改布局，避免丢失尚未保存的表单。
               desktop
                 ? item.id === 'context'
                   ? 'hidden'
                   : 'contents'
-                : 'flex h-full min-h-0 min-w-0 flex-col overflow-hidden',
-              !desktop && (phone ? 'w-1/3' : 'min-w-0'),
+                : pane !== item.id
+                  ? 'hidden'
+                  : 'flex h-full min-h-0 min-w-0 flex-col overflow-hidden',
+              paged && 'w-full',
             )}
             aria-label={item.label}
-            aria-hidden={phone && pane !== item.id ? true : undefined}
-            {...(phone && pane !== item.id ? { inert: true } : {})}
+            aria-labelledby={paged ? `mobile-shell-tab-${item.id}` : undefined}
+            aria-hidden={paged && pane !== item.id ? true : undefined}
+            {...(paged && pane !== item.id ? { inert: true } : {})}
           >
             {item.node}
           </section>

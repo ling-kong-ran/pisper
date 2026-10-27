@@ -438,7 +438,7 @@ try {
     savedReadingPosition,
   )
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.locator('.mobile-session-shell').waitFor()
+  await page.locator('.single-session-shell').waitFor()
   const mobilePane = page.locator('[data-task-workspace="a"]')
   assert.equal(
     await mobilePane.locator('.focus-composer textarea').isVisible(),
@@ -446,11 +446,12 @@ try {
     'content-only view must hide the conversation',
   )
   assert.equal(
-    await mobilePane.getByRole('button', { name: '新建标签页', exact: true }).isVisible(),
+    await mobilePane.getByRole('button', { name: '新会话', exact: true }).isVisible(),
     true,
     'task header stays visible in content mode',
   )
-  await mobilePane.getByRole('button', { name: '置顶摘要', exact: true }).click()
+  await mobilePane.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '置顶摘要', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '置顶摘要', exact: true })
   await sheet.waitFor()
   await page.screenshot({
@@ -477,7 +478,7 @@ try {
     'background cannot receive pointer input while summary is modal',
   )
   await sheet.press('Escape')
-  await page.waitForFunction(() => document.activeElement?.id === 'task-a-summary-toggle')
+  await page.waitForFunction(() => document.activeElement?.id === 'task-a-more')
   assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
   assert.equal(
     await page.evaluate(() => window.workbenchFixture.state().a.pages.length),
@@ -488,8 +489,18 @@ try {
   assert.equal(await mobilePane.locator('.focus-composer textarea').inputValue(), 'A 的未发送草稿')
   await page.evaluate(() => window.workbenchFixture.open('b'))
   await page.locator('[data-task-workspace="b"]').waitFor()
+  assert.equal(await page.locator('[data-task-workspace]').count(), 1)
+  assert.equal(await page.locator('.mobile-session-tabs').count(), 0)
+  assert.equal(await page.locator('[data-single-session]').getAttribute('data-single-session'), 'b')
+  await page.evaluate(() => window.workbenchFixture.open('a'))
+  await mobilePane.locator('.focus-composer textarea').waitFor({ state: 'visible' })
+  assert.equal(await mobilePane.locator('.focus-composer textarea').inputValue(), 'A 的未发送草稿')
+  await page.evaluate(() => window.workbenchFixture.open('b'))
+  await page.locator('[data-task-workspace="b"]').waitFor()
+  assert.equal(await page.locator('[data-task-workspace]').count(), 1)
+  assert.equal(await page.locator('.mobile-session-tabs').count(), 0)
   await page.setViewportSize({ width: 1600, height: 1000 })
-  await page.locator('.mobile-session-shell').waitFor({ state: 'detached' })
+  await page.locator('.single-session-shell').waitFor({ state: 'detached' })
   await page.locator('[data-task-workspace="c"]').waitFor()
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
@@ -879,6 +890,131 @@ try {
     await reviewPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     true,
   )
+  await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=request-notice`)
+  const notice = reviewPage.getByRole('group')
+  const retry = notice.getByRole('button', { name: '重试', exact: true })
+  for (const width of [273, 320, 390, 768, 1024]) {
+    await reviewPage.setViewportSize({ width, height: 900 })
+    const metrics = await notice.evaluate((node) => {
+      const title = node.querySelector('[role="status"]')
+      return {
+        width: node.clientWidth,
+        scroll: node.scrollWidth,
+        title: title.getBoundingClientRect().width,
+        titleHeight: title.getBoundingClientRect().height,
+        lineHeight: parseFloat(getComputedStyle(title).lineHeight),
+        buttons: [...node.querySelectorAll('button')].map((button) => ({
+          width: button.getBoundingClientRect().width,
+          height: button.getBoundingClientRect().height,
+        })),
+      }
+    })
+    assert.ok(metrics.scroll <= metrics.width + 1, JSON.stringify(metrics))
+    assert.ok(
+      metrics.title > 100 && metrics.titleHeight <= metrics.lineHeight * 2,
+      JSON.stringify(metrics),
+    )
+    assert.ok(metrics.buttons.every((button) => button.width >= 44 && button.height >= 44))
+    await notice.getByRole('button', { name: '查看详情', exact: true }).click()
+    const details = notice.getByLabel('请求详情', { exact: true })
+    await details.waitFor()
+    assert.ok(await details.evaluate((node) => node.scrollWidth <= node.clientWidth + 1))
+    await notice.getByRole('button', { name: '收起详情', exact: true }).click()
+    await details.waitFor({ state: 'hidden' })
+  }
+  await retry.click()
+  assert.equal(await retry.isDisabled(), true)
+  assert.equal(await reviewPage.getByLabel('Retry attempts').textContent(), '1')
+  await reviewPage.getByRole('button', { name: 'Finish retry', exact: true }).click()
+  await reviewPage.waitForFunction(() =>
+    [...document.querySelectorAll('[role="group"] button')].some(
+      (button) => button.textContent.includes('重试') && !button.disabled,
+    ),
+  )
+  assert.equal(await retry.isEnabled(), true)
+  await reviewPage.getByRole('button', { name: 'Toggle automatic retry', exact: true }).click()
+  assert.equal(await retry.isDisabled(), true)
+  await reviewPage.getByRole('button', { name: 'Toggle automatic retry', exact: true }).click()
+  await reviewPage.setViewportSize({ width: 320, height: 844 })
+  await reviewPage.screenshot({
+    path: join(output, 'request-notice-phone.png'),
+    animations: 'disabled',
+  })
+  const tabletPage = await browser.newPage({
+    viewport: { width: 1024, height: 768 },
+    hasTouch: true,
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 14; Tablet) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+  })
+  await tabletPage.goto(`http://127.0.0.1:${address.port}/__workbench`)
+  await tabletPage.locator('[data-single-session]').waitFor()
+  for (const width of [273, 390, 768, 1024, 1366]) {
+    await tabletPage.setViewportSize({ width, height: 900 })
+    // 复现触屏窄宿主，确保工具仍按实际可用宽度收纳。
+    await tabletPage.locator('[data-single-session]').evaluate((node) => {
+      node.style.maxWidth = '360px'
+      document.documentElement.dataset.fontScale = 'xlarge'
+    })
+    await tabletPage.waitForFunction(() => {
+      const footer = document.querySelector('.focus-composer-footer')
+      const tools = footer?.querySelector('.focus-composer-visible-tools')
+      return (
+        footer &&
+        tools &&
+        footer.scrollWidth <= footer.clientWidth + 1 &&
+        tools.scrollWidth <= tools.clientWidth + 1
+      )
+    })
+    const footer = tabletPage.locator('.focus-composer-footer')
+    const layout = await footer.evaluate((node) => ({
+      height: node.getBoundingClientRect().height,
+      buttons: [...node.querySelectorAll('button')].map((button) => ({
+        width: button.getBoundingClientRect().width,
+        height: button.getBoundingClientRect().height,
+      })),
+    }))
+    assert.ok(layout.height <= 48, JSON.stringify(layout))
+    assert.ok(
+      layout.buttons.every((button) => button.width >= 44 && button.height >= 44),
+      JSON.stringify(layout),
+    )
+    await footer.getByRole('button', { name: '展开快捷操作', exact: true }).click()
+    const tray = tabletPage.getByRole('toolbar', { name: '快捷操作', exact: true })
+    await tray.waitFor()
+    assert.equal(await tray.locator('[data-composer-tool-id="model"]').count(), 1)
+    const bounds = await tray.boundingBox()
+    assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1)
+    await tabletPage.keyboard.press('Escape')
+    await tray.waitFor({ state: 'hidden' })
+  }
+  await tabletPage.screenshot({
+    path: join(output, 'composer-tablet-column.png'),
+    animations: 'disabled',
+  })
+  await tabletPage.close()
+  await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=model-empty`)
+  const emptyModelTrigger = reviewPage.getByRole('button', {
+    name: /^模型与智力 · 未配置模型/,
+  })
+  await emptyModelTrigger.click()
+  const emptyModelPopover = reviewPage.locator('.model-effort-popover')
+  await emptyModelPopover
+    .getByText('尚未配置可用模型，请先完成供应商认证并选择对话模型。', { exact: true })
+    .waitFor()
+  assert.equal(
+    await emptyModelPopover
+      .getByText('No model is configured for this session.', {
+        exact: true,
+      })
+      .count(),
+    0,
+  )
+  assert.equal((await emptyModelTrigger.getAttribute('aria-label'))?.includes('No model'), false)
+  await emptyModelPopover.getByRole('button', { name: '去设置模型', exact: true }).click()
+  assert.equal(
+    await reviewPage.locator('output[aria-label="Model settings navigation"]').textContent(),
+    'opened',
+  )
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=message`)
   await reviewPage.evaluate(() => {
     window.__copiedReply = ''
@@ -995,6 +1131,24 @@ try {
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=appearance`)
   const languagePicker = reviewPage.getByRole('combobox', { name: '界面语言', exact: true })
   await languagePicker.waitFor({ timeout: 5000 })
+  for (const width of [390, 320]) {
+    await reviewPage.setViewportSize({ width, height: 844 })
+    const cards = await reviewPage
+      .getByRole('radiogroup', { name: '颜色模式', exact: true })
+      .getByRole('radio')
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect()
+          return { x: rect.x, y: rect.y, width: rect.width }
+        }),
+      )
+    assert.equal(cards.length, 4)
+    assert.equal(new Set(cards.map((card) => Math.round(card.x))).size, 2)
+    assert.equal(new Set(cards.map((card) => Math.round(card.y))).size, 2)
+    assert.ok(cards.every((card) => Math.abs(card.width - cards[0].width) < 1))
+    assert.ok(cards[2].y > cards[0].y)
+  }
+  await reviewPage.setViewportSize({ width: 390, height: 844 })
   await languagePicker.press('Enter')
   await reviewPage.getByRole('option', { name: 'English', exact: true }).waitFor()
   await reviewPage.keyboard.press('Escape')
@@ -1046,6 +1200,8 @@ try {
   const advancedSettings = reviewPage.getByText('高级', { exact: true })
   await advancedSettings.waitFor({ timeout: 5000 })
   const fontGroup = reviewPage.getByRole('radiogroup', { name: '字体大小', exact: true })
+  assert.equal(await fontGroup.isVisible(), true)
+  await advancedSettings.press('Enter')
   assert.equal(await fontGroup.isVisible(), false)
   await advancedSettings.press('Enter')
   await fontGroup.waitFor()
@@ -1081,7 +1237,18 @@ try {
     )
     await reviewPage.keyboard.up('ArrowLeft')
   }
+  await fontGroup.getByRole('radio', { name: '特大', exact: true }).click()
+  await reviewPage.waitForFunction(() => document.documentElement.dataset.fontScale === 'xlarge')
+  assert.equal(
+    await reviewPage.evaluate(() => parseFloat(getComputedStyle(document.body).fontSize)),
+    16,
+  )
   await fontGroup.getByRole('radio', { name: '大', exact: true }).click()
+  await reviewPage.waitForFunction(() => document.documentElement.dataset.fontScale === 'large')
+  assert.equal(
+    await reviewPage.evaluate(() => parseFloat(getComputedStyle(document.body).fontSize)),
+    14.5,
+  )
   await advancedSettings.press('Space')
   assert.equal(await fontGroup.isVisible(), false)
   await reviewPage.getByRole('button', { name: 'Locate font setting' }).click()

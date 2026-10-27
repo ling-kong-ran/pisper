@@ -58,7 +58,7 @@ export function MobileSettingsNavigation({
           <button
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex flex-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors',
+              'flex min-h-11 flex-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-[length:var(--app-small-size)] font-medium transition-colors',
               active
                 ? 'border-[var(--star-strong)] bg-[var(--star-soft)] text-[var(--star-strong)]'
                 : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]',

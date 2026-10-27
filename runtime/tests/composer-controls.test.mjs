@@ -179,5 +179,8 @@ test('Plan remains a labeled real execution control, distinct from approval mode
   assert.match(session, /onRunModeChange\(nextMode\)/)
   assert.match(session, /value=\{executionMode\}/)
   assert.match(session, /onChange=\{onExecutionModeChange\}/)
-  assert.match(session, /focus-composer-visible-tools[^"\n]*flex-wrap/)
+  // 平板分栏和手机都按实测空间收纳，不能强制保留数量后靠换行兜底。
+  assert.doesNotMatch(session, /focus-composer-visible-tools[^"\n]*flex-wrap/)
+  assert.doesNotMatch(session, /Math\.max\(toolbarCapacity/)
+  assert.match(session, /availableComposerToolIds,[\s\S]*?toolbarCapacity,/)
 })

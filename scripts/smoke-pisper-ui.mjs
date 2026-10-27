@@ -54,6 +54,463 @@ async function verifyUnifiedModelPicker(page) {
     true,
   )
 }
+
+async function verifyProductionMobileShell({ browser, base, report, output }) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    locale: 'zh-CN',
+  })
+  const page = await context.newPage()
+  page.setDefaultTimeout(20000)
+  page.on('pageerror', (error) => report.pageErrors.push(error.message))
+  page.on('response', (response) => {
+    if (response.url().includes('/api/') && response.status() >= 400)
+      report.failedApi.push({ path: new URL(response.url()).pathname, status: response.status() })
+  })
+  try {
+    await page.addInitScript(() => {
+      window.__PISPER_MOBILE_APP__ = true
+      window.__PISPER_MOBILE_PLATFORM__ = 'android'
+      localStorage.setItem('pisper-language', 'zh-CN')
+      localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+    })
+    await page.route('**/api/app-update*', (route) =>
+      route.fulfill({
+        json: {
+          state: 'current',
+          currentVersion: '0.0.0',
+          currentCommit: '0'.repeat(40),
+          availableCommit: '0'.repeat(40),
+          behindBy: 0,
+          branch: DEFAULT_BRANCH,
+          notes: '',
+          releaseDate: null,
+          releaseUrl: '',
+          canDownload: false,
+          checkedAt: Date.now(),
+          message: 'Local mobile shell fixture.',
+        },
+      }),
+    )
+    await page.goto(base + '/#/chat')
+    const prompt = page.getByRole('textbox', { name: '任务描述', exact: true })
+    await prompt.waitFor()
+    await page.locator('[data-mobile-shell="phone"]').waitFor()
+    const pager = page.getByRole('tablist', {
+      name: '切换会话列表、对话和工作区',
+      exact: true,
+    })
+    const sessionsTab = pager.getByRole('tab', { name: '会话列表', exact: true })
+    const chatTab = pager.getByRole('tab', { name: '对话', exact: true })
+    const contextTab = pager.getByRole('tab', { name: '工作区', exact: true })
+    const assertPane = async (id) => {
+      await page.waitForFunction(
+        (expected) =>
+          document.getElementById(`mobile-shell-tab-${expected}`)?.getAttribute('aria-selected') ===
+          'true',
+        id,
+      )
+      await page.waitForFunction((expected) => {
+        const root = document.querySelector('[data-mobile-shell]:not([data-mobile-shell="off"])')
+        const pane = document.getElementById(`mobile-shell-pane-${expected}`)
+        if (!root || !pane) return false
+        return (
+          root.scrollLeft === 0 &&
+          root.scrollWidth <= root.clientWidth + 1 &&
+          Math.abs(root.getBoundingClientRect().x - pane.getBoundingClientRect().x) < 1
+        )
+      }, id)
+      for (const pane of ['sessions', 'chat', 'context']) {
+        const section = page.locator(`#mobile-shell-pane-${pane}`)
+        assert.equal(
+          await section.evaluate((node) => node.inert),
+          pane !== id,
+          `${pane} inert state must follow the selected ${id} pane`,
+        )
+        assert.equal(
+          await section.evaluate((node) => getComputedStyle(node).display === 'none'),
+          pane !== id,
+          `${pane} must not participate in layout when ${id} is selected`,
+        )
+      }
+    }
+    const heights = await pager
+      .getByRole('tab')
+      .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))
+    assert.deepEqual(heights.length, 3)
+    assert.ok(heights.every((height) => height >= 44))
+    await assertPane('chat')
+    const single = page.locator('[data-single-session]')
+    const newSessionButton = single.getByRole('button', { name: '新会话', exact: true })
+    const assertSessionHeaderFits = async () => {
+      await single.waitFor()
+      assert.equal(await single.count(), 1)
+      assert.equal(await page.locator('.mobile-session-tabs').count(), 0)
+      assert.equal(await page.locator('#workbench-sidebar-toggle').count(), 0)
+      const bounds = await single.locator('.workbench-chat-header').evaluate((node) => ({
+        width: node.clientWidth,
+        scroll: node.scrollWidth,
+      }))
+      assert.ok(bounds.scroll <= bounds.width + 1, JSON.stringify(bounds))
+      const targets = await single.locator('.workbench-chat-header button').evaluateAll((nodes) =>
+        nodes
+          .filter((node) => node.checkVisibility())
+          .map((node) => {
+            const rect = node.getBoundingClientRect()
+            return { width: rect.width, height: rect.height }
+          }),
+      )
+      assert.ok(
+        targets.every((target) => target.width >= 44 && target.height >= 44),
+        JSON.stringify(targets),
+      )
+      const nav = await pager.boundingBox()
+      const shell = await page.locator('[data-mobile-shell]').boundingBox()
+      assert.ok(
+        Math.abs(nav.y + nav.height - shell.y - shell.height) < 1,
+        'Phone and tablet navigation stays at the bottom',
+      )
+    }
+    const createMobileSession = async () => {
+      const previous = await single.getAttribute('data-single-session')
+      await newSessionButton.click()
+      await page.waitForFunction((id) => {
+        const next = document
+          .querySelector('[data-single-session]')
+          ?.getAttribute('data-single-session')
+        return next && next !== id
+      }, previous)
+    }
+    const renameMobileSession = async (title) => {
+      await single.getByRole('button', { name: '重命名会话', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
+      await dialog.getByRole('textbox', { name: '会话标题', exact: true }).fill(title)
+      await dialog.getByRole('button', { name: '保存', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+    }
+    const assertPromptIdeasFit = async () => {
+      const ideas = page.getByRole('region', { name: '试试这些任务', exact: true })
+      await ideas.waitFor()
+      const next = ideas.getByRole('button', { name: '下一组任务', exact: true })
+      const previous = ideas.getByRole('button', { name: '上一组任务', exact: true })
+      assert.equal(await next.isDisabled(), false)
+      assert.ok((await next.boundingBox()).height >= 44)
+      await next.click()
+      await ideas.getByRole('button', { name: '制定计划', exact: true }).waitFor()
+      await previous.click()
+      await ideas.getByRole('button', { name: '解释代码', exact: true }).waitFor()
+      assert.equal(await previous.isDisabled(), true)
+      const dimensions = await ideas.locator('.welcome-chips').evaluate((node) => ({
+        left: node.getBoundingClientRect().left,
+        right: node.getBoundingClientRect().right,
+        width: node.clientWidth,
+        scroll: node.scrollWidth,
+        cards: [...node.children].map((card) => {
+          const rect = card.getBoundingClientRect()
+          return { left: rect.left, right: rect.right }
+        }),
+      }))
+      assert.ok(
+        dimensions.scroll <= dimensions.width + 1,
+        `Prompt ideas must not scroll horizontally: ${JSON.stringify(dimensions)}`,
+      )
+      assert.ok(
+        dimensions.cards.every(
+          (card) => card.left >= dimensions.left - 1 && card.right <= dimensions.right + 1,
+        ),
+        `Prompt cards must be fully visible: ${JSON.stringify(dimensions)}`,
+      )
+    }
+    await page.setViewportSize({ width: 273, height: 860 })
+    await assertPane('chat')
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+      'The app must not force horizontal clipping below 320px',
+    )
+    await assertSessionHeaderFits()
+    const narrowComposer = await page.locator('.focus-composer-footer').evaluate((node) => ({
+      width: node.clientWidth,
+      scroll: node.scrollWidth,
+    }))
+    assert.ok(
+      narrowComposer.scroll <= narrowComposer.width + 1,
+      `Composer must fit at 273px: ${JSON.stringify(narrowComposer)}`,
+    )
+    await page.setViewportSize({ width: 390, height: 844 })
+    await assertPane('chat')
+    await createMobileSession()
+    await assertSessionHeaderFits()
+    await assertPromptIdeasFit()
+    await page.setViewportSize({ width: 273, height: 860 })
+    await assertPromptIdeasFit()
+    await page.setViewportSize({ width: 570, height: 932 })
+    await createMobileSession()
+    await assertSessionHeaderFits()
+    await assertPromptIdeasFit()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await assertSessionHeaderFits()
+    await assertPane('chat')
+    await chatTab.focus()
+    await chatTab.press('End')
+    await assertPane('context')
+    await contextTab.press('Home')
+    await assertPane('sessions')
+    await sessionsTab.press('ArrowRight')
+    await assertPane('chat')
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'mobile-shell-tab-chat')
+
+    await prompt.fill('mobile three pane draft')
+    await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+    await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
+    await assertPane('context')
+    await page
+      .locator('[data-mobile-session-tools-host] [data-session-context-panel]')
+      .waitFor({ state: 'visible' })
+    assert.equal(
+      await page.getByRole('tab', { name: '会话工具', exact: true }).getAttribute('aria-selected'),
+      'true',
+    )
+    await page.getByRole('button', { name: '返回对话', exact: true }).click()
+    await assertPane('chat')
+    assert.equal(await prompt.inputValue(), 'mobile three pane draft')
+
+    const cdp = await context.newCDPSession(page)
+    for (const [type, touchPoints] of [
+      ['touchStart', [{ x: 320, y: 280 }]],
+      ['touchMove', [{ x: 220, y: 280 }]],
+      ['touchMove', [{ x: 80, y: 280 }]],
+      ['touchEnd', []],
+    ])
+      await cdp.send('Input.dispatchTouchEvent', { type, touchPoints })
+    await assertPane('context')
+    assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
+    await assertPane('chat')
+
+    await renameMobileSession('手机会话 A')
+    await prompt.fill('A 的手机草稿')
+    await createMobileSession()
+    await renameMobileSession('手机会话 B')
+    assert.equal(await prompt.inputValue(), '')
+    await sessionsTab.click()
+    await assertPane('sessions')
+    await page.getByRole('button', { name: /^手机会话 A / }).click()
+    await assertPane('chat')
+    assert.equal(await prompt.inputValue(), 'A 的手机草稿')
+    await assertSessionHeaderFits()
+    await page.screenshot({
+      path: join(output, 'mobile-single-session.png'),
+      animations: 'disabled',
+    })
+
+    for (const viewport of [
+      { width: 1024, height: 768 },
+      { width: 768, height: 1024 },
+      { width: 1366, height: 1024 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await assertPane('chat')
+      await assertSessionHeaderFits()
+      assert.equal(await prompt.inputValue(), 'A 的手机草稿')
+      await sessionsTab.click()
+      await assertPane('sessions')
+      assert.ok(await page.getByRole('button', { name: '收起侧栏', exact: true }).isVisible())
+      await chatTab.click()
+      await assertPane('chat')
+      for (const [type, touchPoints] of [
+        ['touchStart', [{ x: 600, y: 100 }]],
+        ['touchMove', [{ x: 450, y: 100 }]],
+        ['touchEnd', []],
+      ])
+        await cdp.send('Input.dispatchTouchEvent', { type, touchPoints })
+      await assertPane('context')
+      assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
+      await assertPane('chat')
+      await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+      await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
+      await assertPane('context')
+      await page.locator('[data-mobile-session-tools-host] [data-session-context-panel]').waitFor()
+      await page.getByRole('button', { name: '返回对话', exact: true }).click()
+      await assertPane('chat')
+    }
+    await page.screenshot({ path: join(output, 'mobile-shell-pad.png'), animations: 'disabled' })
+    report.checks.push(
+      'Production phone and tablet share bottom navigation, single-pane isolation, real swipes, session tools, native back and drafts across rotation',
+    )
+  } catch (error) {
+    await page.screenshot({ path: join(output, 'mobile-shell-failure.png') }).catch(() => {})
+    throw error
+  } finally {
+    await context.close()
+  }
+}
+
+async function verifyTouchTabletShell({ browser, base, report, output, iPad = false }) {
+  // 无原生标记的浏览器也必须自动识别平板，避免只验证 App 注入的客户端类型。
+  const context = await browser.newContext({
+    viewport: { width: 768, height: 1024 },
+    hasTouch: true,
+    userAgent: iPad
+      ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15'
+      : 'Mozilla/5.0 (Linux; Android 14; Tablet) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+    locale: 'zh-CN',
+  })
+  try {
+    const page = await context.newPage()
+    page.on('pageerror', (error) => report.pageErrors.push(error.message))
+    if (iPad)
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'platform', { value: 'MacIntel' })
+        Object.defineProperty(navigator, 'maxTouchPoints', { value: 5 })
+      })
+    await page.addInitScript(() => {
+      localStorage.setItem('pisper-language', 'zh-CN')
+      localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+    })
+    await page.goto(base + '/#/chat')
+    const pager = page.locator('[data-mobile-navigation="panes"]')
+    await pager.waitFor()
+    assert.equal(await page.evaluate(() => window.__PISPER_MOBILE_APP__), undefined)
+    const prompt = page.getByRole('textbox', { name: '任务描述', exact: true })
+    await prompt.fill('tablet browser rotation draft')
+    const assertSelected = async (id) => {
+      await page.waitForFunction((selected) => {
+        return ['sessions', 'chat', 'context'].every((pane) => {
+          const section = document.getElementById(`mobile-shell-pane-${pane}`)
+          return (
+            section &&
+            section.inert === (pane !== selected) &&
+            (getComputedStyle(section).display === 'none') === (pane !== selected)
+          )
+        })
+      }, id)
+      const bounds = await pager.boundingBox()
+      assert.ok(bounds && Math.abs(bounds.y + bounds.height - page.viewportSize().height) < 2)
+    }
+    const cdp = await context.newCDPSession(page)
+    for (const viewport of [
+      { width: 768, height: 1024 },
+      { width: 820, height: 1180 },
+      { width: 834, height: 1194 },
+      { width: 1024, height: 1366 },
+      { width: 1366, height: 1024 },
+      { width: 1024, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await assertSelected('chat')
+      assert.equal(await page.locator('[data-single-session]').count(), 1)
+      assert.equal(await prompt.inputValue(), 'tablet browser rotation draft')
+      const footer = await page
+        .locator('.focus-composer-footer')
+        .evaluate((node) => ({ width: node.clientWidth, scroll: node.scrollWidth }))
+      assert.ok(footer.scroll <= footer.width + 1)
+      if (viewport.height > viewport.width)
+        await page.screenshot({
+          path: join(output, `${iPad ? 'ipad' : 'android-tablet'}-portrait-${viewport.width}.png`),
+          animations: 'disabled',
+        })
+      await pager.getByRole('tab', { name: '会话列表', exact: true }).click()
+      await assertSelected('sessions')
+      for (const [type, touchPoints] of [
+        ['touchStart', [{ x: 600, y: 400 }]],
+        ['touchMove', [{ x: 450, y: 400 }]],
+        ['touchEnd', []],
+      ])
+        await cdp.send('Input.dispatchTouchEvent', { type, touchPoints })
+      await assertSelected('chat')
+      await pager.getByRole('tab', { name: '工作区', exact: true }).click()
+      await assertSelected('context')
+      // 旋转保持所选视图，而不是强制返回对话。
+      await page.setViewportSize({ width: viewport.height, height: viewport.width })
+      await assertSelected('context')
+      await pager.getByRole('tab', { name: '对话', exact: true }).click()
+      await assertSelected('chat')
+    }
+    await page.screenshot({
+      path: join(output, iPad ? 'ipad-browser-three-views.png' : 'tablet-browser-three-views.png'),
+      animations: 'disabled',
+    })
+    report.checks.push(
+      `${iPad ? 'iPad desktop-mode' : 'Android tablet'} browsers automatically use bottom navigation and swipe views in both orientations without native flags`,
+    )
+  } finally {
+    await context.close()
+  }
+}
+
+async function verifyDesktopShell({ browser, base, report, output }) {
+  for (const hasTouch of [false, true]) {
+    const context = await browser.newContext({
+      viewport: { width: 1366, height: 1024 },
+      hasTouch,
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+      locale: 'zh-CN',
+    })
+    try {
+      const page = await context.newPage()
+      page.on('pageerror', (error) => report.pageErrors.push(error.message))
+      await page.addInitScript(() => {
+        localStorage.setItem('pisper-language', 'zh-CN')
+        localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+      })
+      await page.goto(base + '/#/chat')
+      const prompt = page.getByRole('textbox', { name: '任务描述', exact: true })
+      await prompt.fill('desktop keeps its own layout')
+      for (const width of [1366, 1280, 1025, 1024, 834, 820, 768, 650, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 })
+        const narrow = width <= 1024
+        await page
+          .locator(
+            narrow
+              ? '[data-mobile-shell]:not([data-mobile-shell="off"])'
+              : '[data-mobile-shell="off"]',
+          )
+          .waitFor()
+        if (narrow) {
+          await page.locator('[data-single-session]').waitFor()
+          assert.equal(await page.locator('.dockview-theme-pisper').count(), 0)
+          const pager = page.locator('[data-mobile-navigation="panes"]')
+          await pager.waitFor()
+          for (const name of ['会话列表', '工作区', '对话']) {
+            await pager.getByRole('tab', { name, exact: true }).click()
+            await page.waitForFunction(
+              (label) =>
+                document.querySelector('[data-mobile-navigation="panes"] [aria-selected="true"]')
+                  ?.textContent === label,
+              name,
+            )
+          }
+          const nav = await pager.boundingBox()
+          assert.ok(nav && Math.abs(nav.y + nav.height - 900) < 2)
+          if (width === 390 && !hasTouch)
+            await page.screenshot({
+              path: join(output, 'narrow-desktop-mobile-layout.png'),
+              animations: 'disabled',
+            })
+        } else {
+          assert.equal(await page.locator('[data-mobile-navigation="panes"]').count(), 0)
+          assert.equal(await page.locator('[data-single-session]').count(), 0)
+          await page.locator('.dockview-theme-pisper').waitFor()
+        }
+        assert.equal(await prompt.inputValue(), 'desktop keeps its own layout')
+      }
+      if (hasTouch)
+        await page.screenshot({
+          path: join(output, 'touch-desktop-layout.png'),
+          animations: 'disabled',
+        })
+    } finally {
+      await context.close()
+    }
+  }
+  report.checks.push(
+    'Desktop browsers switch to bottom three-view navigation at 1024px and return to Dockview at 1025px, preserving drafts; wide touch computers stay desktop',
+  )
+}
+
 // 始终使用全新的临时后端，不连接已安装应用，也不读取真实密钥。
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-ui-'))
@@ -830,7 +1287,9 @@ try {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
     const taskHeader = page.locator('.workbench-chat-header')
-    await taskHeader.getByRole('button', { name: '新建标签页', exact: true }).waitFor()
+    await taskHeader
+      .getByRole('button', { name: width <= 1024 ? '新会话' : '新建标签页', exact: true })
+      .waitFor()
     await taskHeader.evaluate(async (header) => {
       header.getBoundingClientRect()
       await Promise.all(
@@ -840,33 +1299,36 @@ try {
       )
     })
     // 跨断点会重新挂载桌面/手机工作区；一次读取整组尺寸，避免跨调用混用两棵树。
-    const headerMetrics = await taskHeader.evaluate((header) => {
-      const rect = header.getBoundingClientRect()
-      return {
-        left: rect.left,
-        right: rect.right,
-        controls: ['项目与任务设置', '置顶摘要', '新建标签页'].map((name) => {
-          const button = [...header.querySelectorAll('button')].find(
-            (item) => item.getAttribute('aria-label') === name,
-          )
-          const bounds = button.getBoundingClientRect()
-          return {
-            name,
-            left: bounds.left,
-            right: bounds.right,
-            width: bounds.width,
-            height: bounds.height,
-          }
-        }),
-      }
-    })
+    const headerMetrics = await taskHeader.evaluate(
+      (header, names) => {
+        const rect = header.getBoundingClientRect()
+        return {
+          left: rect.left,
+          right: rect.right,
+          controls: names.map((name) => {
+            const button = [...header.querySelectorAll('button')].find(
+              (item) => item.getAttribute('aria-label') === name,
+            )
+            const bounds = button.getBoundingClientRect()
+            return {
+              name,
+              left: bounds.left,
+              right: bounds.right,
+              width: bounds.width,
+              height: bounds.height,
+            }
+          }),
+        }
+      },
+      width <= 1024 ? ['新会话', '项目与任务设置'] : ['项目与任务设置', '置顶摘要', '新建标签页'],
+    )
     let previousRight = headerMetrics.left
     for (const bounds of headerMetrics.controls) {
       assert.ok(
         bounds.left >= previousRight && bounds.right <= headerMetrics.right + 1,
         `${bounds.name} stays inside the header without overlapping at ${width}px`,
       )
-      if (width <= 650)
+      if (width <= 1024)
         assert.ok(
           bounds.width >= 44 && bounds.height >= 44,
           `${bounds.name} has a mobile touch target: ${JSON.stringify(bounds)}`,
@@ -888,12 +1350,14 @@ try {
         return { top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight }
       })
       assert.ok(bounds.top >= 24 && bounds.bottom <= bounds.viewportHeight - 16)
-      await content
-        .getByRole('button', { name: /关闭辅助页面/ })
-        .first()
-        .click()
+      const closeTabButtons = content.getByRole('button', { name: /关闭辅助页面/ })
+      const tabCount = await closeTabButtons.count()
+      await closeTabButtons.first().click()
+      assert.equal(await closeTabButtons.count(), tabCount - 1)
       assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
-      await content.waitFor({ state: 'hidden' })
+      await page.waitForFunction(
+        () => document.getElementById('mobile-shell-pane-chat')?.inert === false,
+      )
       await page.evaluate(() => {
         document.documentElement.style.removeProperty('--pisper-safe-area-top')
         document.documentElement.style.removeProperty('--pisper-safe-area-bottom')
@@ -928,6 +1392,17 @@ try {
       false,
       `document overflow at ${width}`,
     )
+    const emptyScroller = await page
+      .locator('.focus-session.is-empty > div.overflow-auto')
+      .evaluate((node) => ({ width: node.clientWidth, scroll: node.scrollWidth }))
+    assert.ok(
+      emptyScroller.scroll <= emptyScroller.width + 1,
+      `empty conversation overflows at ${width}: ${JSON.stringify(emptyScroller)}`,
+    )
+    if (width <= 1024) {
+      assert.equal(await page.locator('.mobile-session-tabs').count(), 0)
+      assert.equal(await page.locator('#workbench-sidebar-toggle').count(), 0)
+    }
     const footer = await page
       .locator('.focus-composer-footer')
       .evaluate((node) => ({ width: node.clientWidth, scroll: node.scrollWidth }))
@@ -1476,7 +1951,7 @@ try {
     }),
   )
   await page.setViewportSize(desktopViewport)
-  for (const width of [800, 651]) {
+  for (const width of [1280, 1025]) {
     await page.setViewportSize({ width, height: 700 })
     await page.waitForFunction(
       () =>
@@ -1491,7 +1966,7 @@ try {
   }
   await page.setViewportSize({ width: 650, height: 700 })
   await sidebar.waitFor({ state: 'hidden' })
-  await expandSidebar.waitFor()
+  assert.equal(await expandSidebar.count(), 0)
   await page.setViewportSize(desktopViewport)
   await sidebar.waitFor({ state: 'attached' })
   assert.equal(await nav.evaluate((el) => Boolean(el.closest('[inert]'))), true)
@@ -1517,16 +1992,30 @@ try {
     await preservedContextSheet.waitFor({ state: 'hidden' })
   }
   await sidebar.waitFor({ state: 'hidden' })
-  await expandSidebar.click()
-  const mobileSidebar = page.locator('[data-slot="sidebar"][data-mobile="true"]')
+  await page.getByRole('tab', { name: '会话列表', exact: true }).click()
+  const mobileSidebar = page.locator('[data-slot="sidebar"][data-mobile="pane"]')
   await mobileSidebar.waitFor()
   await page.waitForFunction(() => {
-    const el = document.querySelector('[data-slot="sidebar"][data-mobile="true"]')
-    return el && el.getBoundingClientRect().x >= 44
+    const root = document.querySelector('[data-mobile-shell="phone"]')
+    const sidebar = document.querySelector('[data-slot="sidebar"][data-mobile="pane"]')
+    if (!root || !sidebar) return false
+    return (
+      root.scrollLeft === 0 &&
+      Math.abs(root.getBoundingClientRect().x - sidebar.getBoundingClientRect().x) < 1
+    )
   })
-  assert.ok((await mobileSidebar.boundingBox()).x >= 44)
+  const mobileSidebarBounds = await mobileSidebar.boundingBox()
+  const mobileShellBounds = await page.locator('[data-mobile-shell="phone"]').boundingBox()
+  assert.ok(
+    mobileSidebarBounds &&
+      mobileShellBounds &&
+      Math.abs(mobileSidebarBounds.x - mobileShellBounds.x) < 1,
+    'Mobile sidebar must align with the shell instead of sliding beneath the activity rail',
+  )
   assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
-  await mobileSidebar.waitFor({ state: 'hidden' })
+  await page.waitForFunction(
+    () => document.getElementById('mobile-shell-pane-chat')?.inert === false,
+  )
   await page.setViewportSize(desktopViewport)
   await sidebar.waitFor({ state: 'attached' })
   await expandSidebar.waitFor()
@@ -1539,7 +2028,7 @@ try {
   assert.equal(await collapseSidebar.getAttribute('aria-expanded'), 'true')
   assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
   report.checks.push(
-    'Permanent activity rail remains visible at every width; hidden project sidebar uses zero width, mobile drawer closes one layer through native back, preferences and draft survive keyboard toggling and reload',
+    'Permanent activity rail remains visible at every width; hidden project sidebar uses zero width, mobile sidebar pane closes one layer through native back, preferences and draft survive keyboard toggling and reload',
   )
   await page.goto(base + '/#/config/interface?view=widgets')
   await page.locator('[data-config-card="interface-custom-ui"]').waitFor()
@@ -1561,6 +2050,14 @@ try {
     modelId: model,
     report,
   })
+  await page.setViewportSize({ width: 1280, height: 768 })
+  await page.locator('[data-mobile-shell="off"]').waitFor()
+  assert.equal(await page.locator('[data-mobile-shell="off"] > [role="tablist"]').count(), 0)
+  assert.equal(await page.locator('.mobile-session-shell').count(), 0)
+  await verifyProductionMobileShell({ browser, base, report, output })
+  await verifyTouchTabletShell({ browser, base, report, output })
+  await verifyTouchTabletShell({ browser, base, report, output, iPad: true })
+  await verifyDesktopShell({ browser, base, report, output })
 
   assert.deepEqual(report.pageErrors, [])
   assert.deepEqual(report.failedApi, report.expectedFailedApi)
@@ -1570,7 +2067,21 @@ try {
   report.status = 'failed'
   report.failure = String(error)
   if (page && !page.isClosed()) {
-    await page.screenshot({ path: join(output, 'failure.png') })
+    console.log(
+      await page.evaluate(() => ({
+        viewport: [innerWidth, innerHeight],
+        shell: document.querySelector('[data-mobile-shell]')?.dataset.mobileShell,
+        chatInert: document.getElementById('mobile-shell-pane-chat')?.inert,
+        conversationInert: document.querySelector('[data-workspace-conversation]')?.inert,
+        composerCount: document.querySelectorAll('textarea[aria-label="任务描述"]').length,
+      })),
+    )
+    // 截图失败不能盖住原来的交互错误，否则报告会丢失真正的失败位置。
+    await page
+      .screenshot({ path: join(output, 'failure.png'), timeout: 5000 })
+      .catch((captureError) => {
+        report.screenshotFailure = String(captureError)
+      })
     console.log((await page.locator('body').ariaSnapshot()).slice(-8000))
   }
   throw error

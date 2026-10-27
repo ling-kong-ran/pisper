@@ -3,9 +3,7 @@ import { TASK_VIEW_WILL_CHANGE } from './events'
 // 负责把面板事件（关闭/激活）桥接到会话状态与布局持久化。
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { AlertTriangle, History, MessageSquare, Plus, X } from 'lucide-react'
-import { STORAGE_KEYS } from '@/app/storage'
-import { pageStateStorage } from '@/lib/page-state-storage'
+import { AlertTriangle, MessageSquare, Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
@@ -16,7 +14,8 @@ import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { FocusSession } from './FocusSession'
 import { resolveSessionStreaming } from './session-streaming-state'
 import { ChatDockContext } from './chat-dock-context'
-import { closeMobileSessionTab, sessionIdFromPanel } from './dock-layout'
+import { useMobileShell } from '@/components/layout/MobileShellContext'
+import { sessionIdFromPanel } from './dock-layout'
 
 const FOCUS_MESSAGE_PAGE_SIZE = 40
 // 空数组兜底共享同一引用，避免每次渲染新建数组击穿 FocusSession 的 memo。
@@ -69,195 +68,27 @@ export function SingleSessionPanel({
   onCreateSession: () => Promise<unknown>
 }) {
   const context = useContext(ChatDockContext)
-  const activeId = context?.activeId || ''
-  if (!activeId) return <ChatDockWatermark onNewSession={onCreateSession} />
+  const activeId =
+    context?.sessions.find((session) => session.id === context.activeId)?.id ||
+    context?.sessions[0]?.id ||
+    ''
   return (
-    <SessionPanel
-      key={activeId}
-      sessionId={activeId}
-      panelId={`single-${activeId}`}
-      shortcutEnabled
-      canSplitPanel={false}
-      canClosePanel={false}
-    />
-  )
-}
-
-type MobileSessionPanelProps = {
-  sessionIds?: string[]
-  onSelectSession: (sessionId: string) => void
-  onCreateSession: () => void | Promise<unknown>
-  onOpenHistory: () => void
-}
-
-function readMobileSessionTabs() {
-  try {
-    const value: unknown = JSON.parse(
-      pageStateStorage.getItem(STORAGE_KEYS.mobileSessionTabs) || '[]',
-    )
-    return Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
-// 移动端保留可横向浏览的会话标签，但内容区一次只挂载一个会话，
-// 避免为了标签交互把桌面 Dockview 与分屏布局带入 App。
-export function MobileSessionPanel({
-  sessionIds = [],
-  onSelectSession,
-  onCreateSession,
-  onOpenHistory,
-}: MobileSessionPanelProps) {
-  const { t } = useI18n()
-  const context = useContext(ChatDockContext)
-  const activeId = context?.activeId || ''
-  const [tabIds, setTabIds] = useState(readMobileSessionTabs)
-  const seededSessionIdsRef = useRef(false)
-  const activeTabRef = useRef<HTMLButtonElement>(null)
-  const tabs = useMemo(() => {
-    const sessionsById = new Map(context?.sessions.map((session) => [session.id, session]))
-    return tabIds.flatMap((id) => {
-      const session = sessionsById.get(id)
-      return session ? [session] : []
-    })
-  }, [context?.sessions, tabIds])
-  const activeSession = context?.sessions.find((session) => session.id === activeId)
-  const visibleTabs =
-    activeSession && !tabs.some((session) => session.id === activeSession.id)
-      ? [...tabs, activeSession]
-      : tabs
-  // 页面恢复时 localStorage 里的活动 id 可能暂时不在新目录中，不能把它直接交给面板。
-  const sessionId = activeSession?.id || visibleTabs[0]?.id || ''
-
-  useEffect(() => {
-    const knownIds = new Set(context?.sessions.map((session) => session.id))
-    const seedIds = !seededSessionIdsRef.current && sessionIds.length ? sessionIds : []
-    if (seedIds.length) seededSessionIdsRef.current = true
-    setTabIds((current) => {
-      const next = current.filter((id) => knownIds.has(id))
-      for (const id of [...seedIds, activeId]) {
-        if (id && knownIds.has(id) && !next.includes(id)) next.push(id)
-      }
-      const limited = next
-      return limited.length === current.length &&
-        limited.every((id, index) => id === current[index])
-        ? current
-        : limited
-    })
-  }, [activeId, context?.sessions, sessionIds])
-
-  useEffect(() => {
-    pageStateStorage.setItem(STORAGE_KEYS.mobileSessionTabs, JSON.stringify(tabIds))
-  }, [tabIds])
-
-  useEffect(() => {
-    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
-  }, [sessionId])
-
-  const closeSessionTab = (closingId: string) => {
-    const result = closeMobileSessionTab(
-      visibleTabs.map((session) => session.id),
-      closingId,
-      sessionId,
-    )
-    setTabIds(result.tabIds)
-    if (result.activeId !== sessionId) onSelectSession(result.activeId)
-  }
-
-  return (
-    <div className="mobile-session-shell flex h-full min-h-0 min-w-0 flex-col bg-[var(--panel)]">
-      <div className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)]">
-        <button
-          type="button"
-          className="flex min-h-11 flex-none items-center gap-1.5 border-0 border-r border-[var(--stroke-soft)] bg-transparent px-3 text-[length:var(--app-small-size)] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-          title={t('navigation:appSidebar.viewAllCountChats', {
-            count: context?.sessions.length || 0,
-          })}
-          aria-label={t('navigation:appSidebar.viewAllCountChats', {
-            count: context?.sessions.length || 0,
-          })}
-          onClick={onOpenHistory}
-        >
-          <History size={16} aria-hidden="true" />
-          <span>{t('navigation:appSidebar.viewAll')}</span>
-        </button>
-        <div
-          className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          role="tablist"
-          aria-label={t('chat:chatPage.openChats')}
-        >
-          {visibleTabs.map((session) => {
-            const title = session.name || t('chat:chatPage.untitledChat')
-            const active = session.id === sessionId
-            return (
-              <div
-                className={`group relative flex h-full min-w-[148px] max-w-[228px] flex-none items-stretch border-b-[3px] transition-colors ${active ? 'border-[var(--brand-blue)] bg-[var(--solid)] text-[var(--text)]' : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'}`}
-                key={session.id}
-              >
-                <button
-                  ref={active ? activeTabRef : undefined}
-                  type="button"
-                  role="tab"
-                  id={`mobile-session-tab-${session.id}`}
-                  aria-selected={active}
-                  aria-controls="mobile-session-tabpanel"
-                  className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent py-0 pl-3 text-left text-[length:var(--app-font-size)] font-medium focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-                  title={title}
-                  onClick={() => onSelectSession(session.id)}
-                >
-                  <MessageSquare size={15} className="flex-none" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">{title}</span>
-                  {session.streaming && (
-                    <span
-                      aria-hidden="true"
-                      className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--brand-blue)]"
-                    />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="grid min-h-11 w-11 flex-none place-items-center border-0 bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-                  title={t('chat:chatPage.closeChat', { title })}
-                  aria-label={t('chat:chatPage.closeChat', { title })}
-                  onClick={() => closeSessionTab(session.id)}
-                >
-                  <X size={14} aria-hidden="true" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-        <button
-          type="button"
-          className="grid h-full w-[52px] flex-none place-items-center border-0 border-l border-[var(--stroke-soft)] bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-          title={t('chat:chatPage.newChat')}
-          aria-label={t('chat:chatPage.newChat')}
-          onClick={() => void onCreateSession()}
-        >
-          <Plus size={20} aria-hidden="true" />
-        </button>
-      </div>
-      <div
-        className="min-h-0 min-w-0 flex-1"
-        role="tabpanel"
-        id="mobile-session-tabpanel"
-        aria-labelledby={sessionId ? `mobile-session-tab-${sessionId}` : undefined}
-      >
-        {sessionId ? (
-          <SessionPanel
-            sessionId={sessionId}
-            panelId=""
-            shortcutEnabled
-            canSplitPanel={false}
-            canClosePanel={false}
-          />
-        ) : (
-          <ChatDockWatermark onNewSession={onCreateSession} />
-        )}
-      </div>
+    <div
+      className="single-session-shell flex h-full min-h-0 min-w-0 flex-col"
+      data-single-session={activeId}
+    >
+      {activeId ? (
+        <SessionPanel
+          key={activeId}
+          sessionId={activeId}
+          panelId={`single-${activeId}`}
+          shortcutEnabled
+          canSplitPanel={false}
+          canClosePanel={false}
+        />
+      ) : (
+        <ChatDockWatermark onNewSession={onCreateSession} mobile />
+      )}
     </div>
   )
 }
@@ -283,9 +114,13 @@ function SessionPanel({
 }: SessionPanelProps) {
   const context = useContext(ChatDockContext)
   const capabilities = useRuntimeCapabilitiesStore((store) => store.capabilities)
-  const contentOpen = useContextPagesStore(
+  const shell = useMobileShell()
+  const storedContentOpen = useContextPagesStore(
     (store) => store.sessions[sessionId]?.contentOpen || false,
   )
+  const contentOpen = shell.active
+    ? shortcutEnabled && shell.tab === 'session-tools' && shell.pane === 'context'
+    : storedContentOpen
   const updateWorkspace = useContextPagesStore((store) => store.update)
 
   // 面板只订阅自己会话的 state：其它会话的流式帧不会触发本面板重渲染。
@@ -303,6 +138,12 @@ function SessionPanel({
   const session = context?.sessions.find((item) => item.id === sessionId)
   const state = sessionState || DEFAULT_SESSION_STATE
   const streaming = resolveSessionStreaming(state, session)
+  useEffect(() => {
+    const report = context?.reportActiveSessionRun
+    if (!shortcutEnabled || !report) return
+    report({ sessionId, streaming })
+    return () => report(null)
+  }, [context?.reportActiveSessionRun, sessionId, shortcutEnabled, streaming])
   const plan = resolveSessionPlan(sessionState, session)
   const team =
     sessionState && Object.hasOwn(sessionState, 'team')
@@ -384,6 +225,9 @@ function SessionPanel({
         if (open && !workspace?.pages.length)
           updateWorkspace(sessionId, 'files', { type: 'open', kind: 'files' })
         else updateWorkspace(sessionId, 'files', { type: 'workspace', contentOpen: open })
+        if (!shell.active) return
+        if (open) shell.openContext('session-tools')
+        else shell.setPane('chat')
       },
       onSend: (
         value: string,
@@ -408,7 +252,7 @@ function SessionPanel({
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onAbort: () => context?.abort(sessionId),
     }),
-    [context, sessionId, session, panelId, updateWorkspace],
+    [context, sessionId, session, panelId, updateWorkspace, shell],
   )
 
   if (!context || !session) {
@@ -516,9 +360,14 @@ type ChatDockWatermarkProps = {
   onNewSession?: () => void | Promise<unknown>
   // 新建会话的快捷键提示（桌面端 Ctrl/⌘ N），移动端没有快捷键、不传。
   newSessionShortcut?: string
+  mobile?: boolean
 }
 
-export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDockWatermarkProps) {
+export function ChatDockWatermark({
+  onNewSession,
+  newSessionShortcut,
+  mobile = false,
+}: ChatDockWatermarkProps) {
   const { t } = useI18n()
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
@@ -527,7 +376,9 @@ export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDock
         {t('chat:chatDock.openAChatToBegin')}
       </strong>
       <span className="max-w-[320px] leading-[1.55]">
-        {t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}
+        {mobile
+          ? t('chat:chatDock.openAChatFromTheSessionList')
+          : t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}
       </span>
       {onNewSession ? (
         <button

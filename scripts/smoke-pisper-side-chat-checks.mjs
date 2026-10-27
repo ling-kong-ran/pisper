@@ -11,7 +11,7 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
   assert.equal(await activeSession(), parentSessionId)
 
   const viewport = page.viewportSize()
-  // 手机抽屉打开时主输入框会被 aria-hidden，仍须检查其草稿没有被侧聊覆盖。
+  // 手机右屏打开时主输入框所在页会被 inert，仍须检查其草稿没有被侧聊覆盖。
   const mainInput = page.locator('textarea[aria-label="任务描述"]')
   const mainDraft = await mainInput.inputValue()
   const mainDraftMarker = 'PI parent draft stays separate from temporary chat'
@@ -153,12 +153,21 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
 
     stage = 'mobile-stop'
     await page.setViewportSize({ width: 390, height: 844 })
-    // 手机使用单面内容视图；返回只隐藏内容，保留临时聊天状态。
-    await page.locator('.mobile-session-shell').waitFor()
-    await mainInput.waitFor({ state: 'hidden' })
+    // 已打开的辅助内容迁移到右屏；返回只切屏，保留临时聊天状态。
+    await page.locator('[data-mobile-shell="phone"]').waitFor()
     await page.locator('[data-session-context-panel]').waitFor()
+    assert.equal(
+      await mainInput.evaluate((node) => node.closest('#mobile-shell-pane-chat')?.inert),
+      true,
+    )
     assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
-    await panel.waitFor({ state: 'hidden' })
+    await page.waitForFunction(
+      () => document.getElementById('mobile-shell-pane-chat')?.inert === false,
+    )
+    assert.equal(
+      await panel.evaluate((node) => node.closest('#mobile-shell-pane-context')?.inert),
+      true,
+    )
     await openSideChat()
     await assertInputFits()
     await input.fill('side-chat stop-test [pi-ui-sse]')

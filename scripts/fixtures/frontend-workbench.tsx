@@ -77,6 +77,7 @@ export function Fixture() {
                 notify={setNotice}
                 navigate={() => {}}
                 registerPrimaryAction={() => () => {}}
+                reportActiveSessionRun={() => {}}
                 pendingAsset={null}
                 onAssetConsumed={() => {}}
                 requestText={() => Promise.resolve(null)}

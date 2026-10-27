@@ -5,16 +5,17 @@ const TOOL_TRIGGER_WIDTH = 36
 const TOOL_SLOT_WIDTH = 40
 
 export function useComposerToolbarCapacity(ref: RefObject<HTMLElement | null>) {
-  const [capacity, setCapacity] = useState(Number.POSITIVE_INFINITY)
+  const [capacity, setCapacity] = useState(0)
 
   useLayoutEffect(() => {
     const element = ref.current
     if (!element) return undefined
 
     const update = () => {
-      const narrowViewport = window.innerWidth <= 650
-      const availableWidth =
-        element.getBoundingClientRect().width - (narrowViewport ? 44 : TOOL_TRIGGER_WIDTH)
+      const triggerWidth =
+        element.querySelector('.composer-tools-trigger')?.getBoundingClientRect().width ||
+        TOOL_TRIGGER_WIDTH
+      const availableWidth = element.getBoundingClientRect().width - triggerWidth - 4
       setCapacity(Math.max(0, availableWidth / TOOL_SLOT_WIDTH))
     }
 

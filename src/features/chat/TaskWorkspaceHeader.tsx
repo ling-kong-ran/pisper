@@ -27,6 +27,7 @@ import type { Notify } from '@/app/route-context'
 import { cn } from '@/lib/utils'
 import { useContextPagesStore } from './session-context-pages-store'
 import { ChatDockContext } from './chat-dock-context'
+import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { requestSessionSelection } from './events'
 import type { SessionSplitDisposition } from './dock-layout'
 
@@ -50,6 +51,7 @@ export function TaskWorkspaceHeader({
 }) {
   const { t } = useI18n()
   const context = useContext(ChatDockContext)
+  const shell = useMobileShell()
   const summaryOpen = useContextPagesStore(
     (store) => store.sessions[sessionId]?.summaryOpen || false,
   )
@@ -61,9 +63,32 @@ export function TaskWorkspaceHeader({
     ['below', t('chat:focusSession.splitToBottom'), PanelBottom],
   ]
   const others = context?.sessions.filter((session) => session.id !== sessionId) || []
+  const mobile = Boolean(context?.mobileLayout)
+  const openNewContent = () => {
+    const result = useContextPagesStore
+      .getState()
+      .update(sessionId, 'new', { type: 'add', kind: 'new' })
+    if (result === 'limit') notify?.(t('chat:sessionContext.pageLimit'), 'info')
+    else if (shell.active) shell.openContext('session-tools')
+  }
+  const toggleSummary = () =>
+    useContextPagesStore
+      .getState()
+      .update(sessionId, 'new', { type: 'workspace', summaryOpen: !summaryOpen })
   return (
     <header {...props} className={cn('flex min-w-0 shrink-0 items-center gap-1', className)}>
       {children}
+      {mobile && (
+        <Button
+          variant="ghost"
+          className="size-11 shrink-0"
+          aria-label={t('navigation:pageHeader.newChat')}
+          title={t('navigation:pageHeader.newChat')}
+          onClick={() => void context?.createSession()}
+        >
+          <Plus size={20} />
+        </Button>
+      )}
       <DropdownMenu
         onOpenChange={(open) => {
           if (open) splitTarget.current = ''
@@ -73,7 +98,7 @@ export function TaskWorkspaceHeader({
           <Button
             variant="ghost"
             id={`task-${sessionId}-more`}
-            className="size-9 shrink-0 max-[650px]:size-11"
+            className={cn('size-9 shrink-0 max-[650px]:size-11', mobile && 'size-11')}
             aria-label={t('chat:workbench.more')}
             title={t('chat:workbench.more')}
           >
@@ -82,7 +107,10 @@ export function TaskWorkspaceHeader({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className="min-w-56 rounded-2xl p-1.5 [&_[data-slot=dropdown-menu-item]]:min-h-9 [&_[data-slot=dropdown-menu-item]]:font-normal max-[650px]:[&_[data-slot=dropdown-menu-item]]:min-h-11"
+          className={cn(
+            'min-w-56 rounded-2xl p-1.5 [&_[data-slot=dropdown-menu-item]]:min-h-9 [&_[data-slot=dropdown-menu-item]]:font-normal max-[650px]:[&_[data-slot=dropdown-menu-item]]:min-h-11',
+            mobile && '[&_[data-slot=dropdown-menu-item]]:min-h-11',
+          )}
           onCloseAutoFocus={(event) => {
             if (!splitTarget.current) return
             event.preventDefault()
@@ -100,6 +128,18 @@ export function TaskWorkspaceHeader({
             <FolderOpen />
             {t('chat:workbench.workspace')}
           </DropdownMenuItem>
+          {mobile && (
+            <>
+              <DropdownMenuItem onSelect={toggleSummary}>
+                <ListFilter />
+                {t('chat:workbench.summary')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={openNewContent}>
+                <Plus />
+                {t('chat:workbench.newTab')}
+              </DropdownMenuItem>
+            </>
+          )}
           {actions && <DropdownMenuSeparator />}
           {actions}
           {!context?.mobileLayout && others.length > 0 && (
@@ -139,37 +179,32 @@ export function TaskWorkspaceHeader({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button
-        variant="ghost"
-        className="size-9 shrink-0 max-[650px]:size-11"
-        id={`task-${sessionId}-summary-toggle`}
-        aria-label={t('chat:workbench.summary')}
-        title={t('chat:workbench.summary')}
-        aria-expanded={summaryOpen}
-        aria-controls={`task-${sessionId}-summary`}
-        onClick={() =>
-          useContextPagesStore
-            .getState()
-            .update(sessionId, 'new', { type: 'workspace', summaryOpen: !summaryOpen })
-        }
-      >
-        <ListFilter size={16} />
-      </Button>
-      <Button
-        variant="ghost"
-        className="size-9 shrink-0 max-[650px]:size-11"
-        id={`task-${sessionId}-new-content-tab`}
-        aria-label={t('chat:workbench.newTab')}
-        title={t('chat:workbench.newTab')}
-        onClick={() => {
-          const result = useContextPagesStore
-            .getState()
-            .update(sessionId, 'new', { type: 'add', kind: 'new' })
-          if (result === 'limit') notify?.(t('chat:sessionContext.pageLimit'), 'info')
-        }}
-      >
-        <Plus size={16} />
-      </Button>
+      {!mobile && (
+        <Button
+          variant="ghost"
+          className="size-9 shrink-0 max-[650px]:size-11"
+          id={`task-${sessionId}-summary-toggle`}
+          aria-label={t('chat:workbench.summary')}
+          title={t('chat:workbench.summary')}
+          aria-expanded={summaryOpen}
+          aria-controls={`task-${sessionId}-summary`}
+          onClick={toggleSummary}
+        >
+          <ListFilter size={16} />
+        </Button>
+      )}
+      {!mobile && (
+        <Button
+          variant="ghost"
+          className="size-9 shrink-0 max-[650px]:size-11"
+          id={`task-${sessionId}-new-content-tab`}
+          aria-label={t('chat:workbench.newTab')}
+          title={t('chat:workbench.newTab')}
+          onClick={openNewContent}
+        >
+          <Plus size={16} />
+        </Button>
+      )}
     </header>
   )
 }

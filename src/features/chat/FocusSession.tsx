@@ -25,7 +25,7 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import { useUiStore } from '@/stores/ui-store'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
-import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsMobileViewport } from '@/hooks/use-mobile'
 import { workspaceName } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useIsMobileApp } from '@/stores/client-store'
@@ -188,8 +188,8 @@ export const FocusSession = memo(function FocusSession({
   const shortcuts = useShortcutStore((state) => state.bindings)
   const COMMAND_PALETTE_SHORTCUT = useShortcutLabel('commandPalette')
   const mobileApp = useIsMobileApp()
-  const phoneViewport = useIsPhoneViewport()
-  const mobileLayout = mobileApp || phoneViewport
+  const mobileViewport = useIsMobileViewport()
+  const mobileLayout = mobileApp || mobileViewport
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
   const teamAvailable = runtimeFeatureAvailable(capabilities, 'multiAgent')
@@ -402,6 +402,7 @@ export const FocusSession = memo(function FocusSession({
         status={thinkingStatus}
         message={thinkingMessage}
         onThinkingChange={onThinkingLevelChange}
+        onOpenModelSettings={onOpenModelSettings}
         modelDisabled={switchingModel || switchingThinking}
         thinkingDisabled={switchingThinking || switchingModel}
         deferred={streaming}
@@ -479,17 +480,27 @@ export const FocusSession = memo(function FocusSession({
   const toolbarAllocation = allocateComposerToolbar(
     toolbarLayout,
     availableComposerToolIds,
-    // Respect the actual composer width; small layouts may move secondary settings into +.
-    Math.max(toolbarCapacity, mobileLayout ? 5 : 8.5),
-    mobileLayout
-      ? { permission: 2.3, 'run-mode': 1.8, model: 3.6 }
-      : { permission: 2.6, 'run-mode': 2, model: 3.9 },
+    // 容器不足时必须收纳，不能用屏幕类型强制保留工具，否则平板分栏也会换行。
+    toolbarCapacity,
+    {
+      attachment: 1.2,
+      resource: 1.2,
+      visual: 1.2,
+      commands: 1.2,
+      'compact-context': 1.2,
+      permission: mobileLayout ? 2.7 : 3.2,
+      'run-mode': 3.3,
+      model: 5.6,
+    },
   )
   const renderComposerTool = (id: ComposerToolId) => (
     <div
       className={cn(
         'composer-toolbar-slot flex min-w-0 flex-none items-center gap-2',
         id === 'model' && 'ml-auto [.composer-tool-tray_&]:ml-0',
+        id === 'run-mode' && 'max-w-32 [&>div]:max-w-full [.composer-tool-tray_&]:max-w-none',
+        'pointer-coarse:min-h-11 pointer-coarse:[&>div]:min-h-11 pointer-coarse:[&_button]:min-h-11 pointer-coarse:[&_button]:min-w-11',
+        mobileLayout && 'min-h-11 [&>div]:min-h-11 [&_button]:min-h-11 [&_button]:min-w-11',
         !['model', 'permission', 'run-mode'].includes(id) &&
           'h-10 [&>button]:!size-10 [&>div]:!size-10 [&>div>button]:!size-10',
       )}
@@ -571,13 +582,18 @@ export const FocusSession = memo(function FocusSession({
           )}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1" data-window-drag-region>
-            {workspaceBlock}
-            <span className="text-muted-foreground/40" aria-hidden="true">
-              /
-            </span>
+            {!mobileLayout && workspaceBlock}
+            {!mobileLayout && (
+              <span className="text-muted-foreground/40" aria-hidden="true">
+                /
+              </span>
+            )}
             <button
               type="button"
-              className="group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] font-medium hover:bg-muted"
+              className={cn(
+                'group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] font-medium hover:bg-muted',
+                mobileLayout && 'min-h-11 flex-1 text-[length:var(--app-font-size)]',
+              )}
               title={t('chat:focusSession.renameChat')}
               aria-label={t('chat:focusSession.renameChat')}
               onClick={onRename}
@@ -638,7 +654,7 @@ export const FocusSession = memo(function FocusSession({
       <button
         ref={toolTrayAnchorRef}
         type="button"
-        className={`composer-tools-trigger grid size-9 min-w-9 max-[650px]:w-11 max-[650px]:min-w-11 h-10 flex-none place-items-center rounded-lg border-0 bg-transparent text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground ${toolsOpen ? 'active bg-foreground/5 text-foreground' : ''}`}
+        className={`composer-tools-trigger grid size-9 min-w-9 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11 flex-none place-items-center rounded-lg border-0 bg-transparent text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground ${toolsOpen ? 'active bg-foreground/5 text-foreground' : ''} ${mobileLayout ? 'size-11 min-w-11' : ''}`}
         title={quickActionsLabel}
         aria-label={quickActionsLabel}
         aria-expanded={toolsOpen}
@@ -647,7 +663,7 @@ export const FocusSession = memo(function FocusSession({
       >
         {toolsOpen ? <X size={17} /> : <Plus size={18} />}
       </button>
-      <div className="focus-composer-visible-tools flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
+      <div className="focus-composer-visible-tools flex min-w-0 flex-1 items-center gap-0.5">
         {toolbarAllocation.inline.map(renderComposerTool)}
       </div>
       <ComposerToolTray
@@ -792,6 +808,7 @@ export const FocusSession = memo(function FocusSession({
         <div className="focus-composer-footer flex min-w-0 items-end gap-1">
           {toolsBlock}
           <ComposerSendButton
+            touch={mobileLayout}
             streaming={streaming}
             queueing={queueing}
             disabled={

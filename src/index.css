@@ -548,6 +548,9 @@
 :root[data-font-scale='large'] {
   --ui-font-size: 14.5px;
 }
+:root[data-font-scale='xlarge'] {
+  --ui-font-size: 16px;
+}
 
 :root[data-radius='sharp'] {
   --r-xs: 3px;
@@ -571,7 +574,7 @@
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); background-clip: content-box; border: 3px solid transparent; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
 ::selection { background: var(--selection-bg); }
-html, body, #root { width: 100%; height: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+html, body, #root { width: 100%; height: 100%; min-width: 0; min-height: 100%; margin: 0; }
 body { overflow: hidden; font-size: var(--app-font-size); line-height: 1.5; }
 :root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
 /* 默认辅助字号留在 base 层，组件的排版角色可覆盖它并跟随用户字号。 */
