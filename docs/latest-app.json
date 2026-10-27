@@ -1,9 +1,9 @@
 {
-  "version": "0.1.58",
-  "tag": "app-v0.1.58",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.58",
+  "version": "0.1.59",
+  "tag": "app-v0.1.59",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.59",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.58\n\n- 发布日期：2026-10-19（北京时间）\n- 发布标签：`app-v0.1.58`\n- 对比基线：`app-v0.1.57`\n\n## 更新内容\n\n### 新增功能\n\n- feat(workbench): 统一三层布局、任务工作区与移动端导航\n\n### 问题修复\n\n- fix(runtime): 升级 Pi 1.3.0 并适配 Kimi Code 默认协议和地址\n- fix(release): 统一各发布渠道的更新说明格式与发布前校验\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.57...app-v0.1.58)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/06cc5b0c7b40434a8a9a93301a34cb6a5524416f)",
-  "releaseDate": "2026-10-19"
+  "notes": "## Pisper App 0.1.59\n\n- 发布日期：2026-10-28（北京时间）\n- 发布标签：`app-v0.1.59`\n- 对比基线：`app-v0.1.58`\n\n## 更新内容\n\n### 问题修复\n\n- fix(runtime): 兼容 Pi 1.4 的回合收尾与压缩预算\n- fix(ui): 完善手机和平板三视图导航与会话输入交互\n- fix(runtime): 等待记忆任务关闭并处理 Windows 组件导入冲突\n- fix(streaming): settle gateway completion and recover stalled TUI streams\n- fix(runtime): add JS types for Responses transport\n- fix(runtime): tolerate incomplete Responses tool events\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.58...app-v0.1.59)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/e7a724e800b1fb62bb280a29f405397f74913201)",
+  "releaseDate": "2026-10-28"
 }
