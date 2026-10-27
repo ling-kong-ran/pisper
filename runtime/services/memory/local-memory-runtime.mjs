@@ -384,12 +384,17 @@ export class LocalMemoryRuntime {
     `)
   }
 
-  dispose() {
+  async dispose() {
     this.semanticGeneration += 1
     this.semanticQueue.clear()
-    this.db?.close()
-    this.db = null
-    this.ftsAvailable = false
+    this.semanticSummarizer = null
+    try {
+      if (this.semanticPromise) await this.semanticPromise
+    } finally {
+      this.db?.close()
+      this.db = null
+      this.ftsAvailable = false
+    }
   }
 
   requireDb() {

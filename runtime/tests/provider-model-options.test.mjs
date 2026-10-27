@@ -62,17 +62,20 @@ test('deleting a default model preserves credentials and session bindings, and s
   assert.equal((await runtime.getConfig()).defaultModel, '')
   await runtime.dispose()
   const restored = new AgentRuntimeService({ cwd: directory, dataDir: directory })
-  t.after(() => restored.dispose())
-  await restored.init()
-  const restoredConfig = await restored.getConfig()
-  assert.equal(restoredConfig.defaultProvider, '')
-  assert.equal(restoredConfig.defaultModel, '')
-  assert.deepEqual(restoredConfig.providers.find((p) => p.id === 'capability-relay').models, [])
-  const added = await restored.addProviderModels('capability-relay', [{ id: 'fixture-model' }])
-  assert.equal(added.defaultProvider, 'capability-relay')
-  assert.equal(added.defaultModel, 'fixture-model')
-  const newSession = await restored.createSession('After restoring default')
-  assert.equal(newSession.model, 'capability-relay/fixture-model')
+  try {
+    await restored.init()
+    const restoredConfig = await restored.getConfig()
+    assert.equal(restoredConfig.defaultProvider, '')
+    assert.equal(restoredConfig.defaultModel, '')
+    assert.deepEqual(restoredConfig.providers.find((p) => p.id === 'capability-relay').models, [])
+    const added = await restored.addProviderModels('capability-relay', [{ id: 'fixture-model' }])
+    assert.equal(added.defaultProvider, 'capability-relay')
+    assert.equal(added.defaultModel, 'fixture-model')
+    const newSession = await restored.createSession('After restoring default')
+    assert.equal(newSession.model, 'capability-relay/fixture-model')
+  } finally {
+    await restored.dispose()
+  }
 })
 
 test('deleted discovered models stay removed after catalog refresh and can be explicitly added again', async (t) => {

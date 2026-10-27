@@ -87,7 +87,13 @@ export function unpackCustomUiZip(input) {
   return { id, assets }
 }
 
-export async function importCustomUiZip({ root, bytes, normalizeManifest, reservedIds = [] }) {
+export async function importCustomUiZip({
+  root,
+  bytes,
+  normalizeManifest,
+  reservedIds = [],
+  renameDirectory = rename,
+}) {
   const { id, assets } = unpackCustomUiZip(bytes)
   if (reservedIds.includes(id)) throw new CustomUiImportError('component_id_reserved', 409)
   const manifestBytes = assets.get('manifest.json')
@@ -117,11 +123,13 @@ export async function importCustomUiZip({ root, bytes, normalizeManifest, reserv
       await writeFile(file, content, { flag: 'wx', mode: 0o600 })
     }
     try {
-      await rename(stage, target)
+      await renameDirectory(stage, target)
     } catch (error) {
-      // 两个导入可能同时通过存在性检查；已完成的非空组件目录仍不能被覆盖。
-      if (error.code === 'EEXIST' || error.code === 'ENOTEMPTY')
-        throw new CustomUiImportError('component_already_installed', 409)
+      // Windows 的目录重命名冲突也可能返回 EPERM；只有目标已存在才视为重复安装。
+      if (error.code === 'EEXIST' || error.code === 'ENOTEMPTY' || error.code === 'EPERM') {
+        const targetEntry = await lstat(target).catch(() => null)
+        if (targetEntry) throw new CustomUiImportError('component_already_installed', 409)
+      }
       throw error
     }
     return { id, name: manifest.name, version: manifest.version }

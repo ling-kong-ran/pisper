@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { strToU8, zipSync } from 'fflate'
-import { CustomUiService } from '../services/custom-ui-service.mjs'
+import { CustomUiService, normalizeComponentManifest } from '../services/custom-ui-service.mjs'
 import {
   CustomUiImportError,
+  importCustomUiZip,
   unpackCustomUiZip,
   CUSTOM_UI_MANIFEST_MAX_BYTES,
 } from '../services/custom-ui-import.mjs'
@@ -195,6 +196,37 @@ test('concurrent component imports publish one complete directory and remove all
     (await readdir(join(dataDir, 'custom-ui'))).every(
       (name) => !name.startsWith('.component-import-'),
     ),
+  )
+})
+
+test('Windows-style rename EPERM maps only existing targets to duplicate installs', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-component-import-windows-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await mkdir(join(root, 'race'), { recursive: true })
+  const lockedRename = async () => {
+    throw Object.assign(new Error('locked'), { code: 'EPERM' })
+  }
+  await assert.rejects(
+    importCustomUiZip({
+      root,
+      bytes: bundle('race'),
+      normalizeManifest: normalizeComponentManifest,
+      renameDirectory: lockedRename,
+    }),
+    { code: 'component_already_installed', statusCode: 409 },
+  )
+  await assert.rejects(
+    importCustomUiZip({
+      root,
+      bytes: bundle('other'),
+      normalizeManifest: normalizeComponentManifest,
+      renameDirectory: lockedRename,
+    }),
+    { code: 'EPERM' },
+  )
+  assert.ok(
+    (await readdir(root)).every((name) => !name.startsWith('.component-import-')),
+    'failed renames must clean their staging directories',
   )
 })
 

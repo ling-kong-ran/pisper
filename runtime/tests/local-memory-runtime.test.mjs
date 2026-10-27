@@ -77,7 +77,7 @@ async function withMemory(run, options = {}) {
     await memory.init()
     await run(memory, cwd, path, directory)
   } finally {
-    memory.dispose()
+    await memory.dispose()
     await rm(directory, { recursive: true, force: true })
   }
 }
@@ -504,14 +504,14 @@ test('an incompatible existing memory schema is destroyed and rebuilt', async ()
     await first.init()
     const item = first.remember({ spaceId: 'global', title: '旧数据', content: '无需兼容。' })
     first.requireDb().exec('PRAGMA user_version = 2')
-    first.dispose()
+    await first.dispose()
     const restored = new LocalMemoryRuntime({ path, cwd })
     await restored.init()
     assert.equal(restored.getMemory(item.id), null)
     assert.equal(restored.requireDb().prepare('PRAGMA user_version').get().user_version, 4)
-    restored.dispose()
+    await restored.dispose()
   } finally {
-    first.dispose()
+    await first.dispose()
     await rm(directory, { recursive: true, force: true })
   }
 })
@@ -588,6 +588,45 @@ test('conversation extraction remains user-triggered and rejects fabricated evid
     assistant: '好的。',
   })
   assert.deepEqual(result.memories, [])
+})
+
+test('dispose waits for in-flight semantic work before closing SQLite', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-dispose-'))
+  const cwd = join(directory, 'project')
+  const path = join(directory, 'memory.sqlite')
+  await mkdir(cwd)
+  let markEntered
+  const entered = new Promise((resolve) => {
+    markEntered = resolve
+  })
+  let releaseSummary = () => {}
+  const memory = new LocalMemoryRuntime({
+    path,
+    cwd,
+    semanticSummarizer: {
+      summarize(entries) {
+        markEntered()
+        return new Promise((resolve) => {
+          releaseSummary = () => resolve(entries.map(() => ''))
+        })
+      },
+    },
+  })
+  try {
+    await memory.init()
+    memory.remember({ spaceId: 'global', title: '关闭顺序', content: '等待语义任务收尾。' })
+    await entered
+    const disposing = memory.dispose()
+    assert.notEqual(memory.db, null)
+    releaseSummary()
+    await disposing
+    assert.equal(memory.db, null)
+    await memory.dispose()
+  } finally {
+    releaseSummary()
+    await memory.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('semantic summarizer expands retrieval and failure falls back to lexical search', async () => {

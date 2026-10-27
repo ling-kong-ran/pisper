@@ -154,6 +154,7 @@ test('source timeout switches to a verified mirror while user cancellation never
       .map((file) => ({ ...file, fallbackUrls: [`https://mirror.invalid/${file.name}`] })),
   }
   const requests = []
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const waiting = Promise.withResolvers()
   const { service } = await fixture(t, {
     definitions: [definition],
@@ -168,6 +169,8 @@ test('source timeout switches to a verified mirror while user cancellation never
     },
   })
   await service.download('background')
+  await waiting.promise
+  t.mock.timers.tick(16)
   assert.equal((await finished(service)).status, 'ready')
   assert.equal(requests.length, 2)
   await service.remove('background')

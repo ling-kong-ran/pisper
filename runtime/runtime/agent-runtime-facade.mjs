@@ -822,7 +822,7 @@ export class AgentRuntimeFacade {
     this.pendingSessions.clear()
     await this.mcp.dispose()
     this.toolPlugins.dispose()
-    this.memory.dispose()
+    await this.memory.dispose()
     await Promise.allSettled([
       this.sessionMetaWrite,
       this.usageWrite,
