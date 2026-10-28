@@ -389,7 +389,9 @@ export function ChatPage({
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
       syncLiveSession: liveSync.syncLiveSession,
-      send: (id, text) => sendPrompt(text, id, [], false, false, null, null, { activate: false }),
+      send: async (id, text) => {
+        await sendPrompt(text, id, [], false, false, null, null, { activate: false })
+      },
       retry: (id) => retryLastTurn(id, { activate: false }),
       abort: promptCommands.abort,
       approve: sessionCommands.resolveToolApproval,

@@ -263,10 +263,12 @@ export class ChannelService {
   }
 
   save() {
-    const snapshot = JSON.parse(JSON.stringify(this.state))
     this.writeQueue = this.writeQueue
       .catch(() => {})
-      .then(() => writeJsonAtomic(this.path, snapshot, { mode: 0o600 }))
+      // 在写入队列执行时取快照，避免排队中的旧快照撤销刚确认的模板偏好。
+      .then(() =>
+        writeJsonAtomic(this.path, JSON.parse(JSON.stringify(this.state)), { mode: 0o600 }),
+      )
     return this.writeQueue
   }
 
@@ -769,14 +771,36 @@ export class ChannelService {
   async updateTemplate(event, platform, input) {
     if (!NOTIFICATION_EVENTS[event] || !TEMPLATE_PLATFORMS.has(platform))
       throw new Error('通知模板类型不存在。')
-    const template = this.state.templates[event]
-    if (Object.hasOwn(input || {}, 'enabled')) template.enabled = Boolean(input.enabled)
+    const patch = {}
+    if (Object.hasOwn(input || {}, 'enabled')) patch.enabled = Boolean(input.enabled)
+    if (Object.hasOwn(input || {}, 'channelEnabled')) {
+      if (typeof input.channelEnabled !== 'boolean') {
+        throw Object.assign(new Error('通知渠道开关必须是布尔值。'), {
+          code: 'INVALID_NOTIFICATION_CHANNEL_ENABLED',
+        })
+      }
+      patch.channelEnabled = input.channelEnabled
+    }
     if (Object.hasOwn(input || {}, 'content')) {
       const content = String(input.content || '').trim()
       if (!content) throw new Error('通知模板不能为空。')
-      template.channels[platform].content = content.slice(0, 12_000)
+      patch.content = content.slice(0, 12_000)
     }
-    await this.save()
+    // 模板修改与现有持久化队列串行；只有磁盘确认后才发布到投递使用的状态。
+    this.writeQueue = this.writeQueue
+      .catch(() => {})
+      .then(async () => {
+        const template = this.state.templates[event]
+        const variant = { ...template.channels[platform] }
+        if (Object.hasOwn(patch, 'channelEnabled')) variant.enabled = patch.channelEnabled
+        if (Object.hasOwn(patch, 'content')) variant.content = patch.content
+        const next = { ...template, channels: { ...template.channels, [platform]: variant } }
+        if (Object.hasOwn(patch, 'enabled')) next.enabled = patch.enabled
+        const templates = { ...this.state.templates, [event]: next }
+        await writeJsonAtomic(this.path, { ...this.state, templates }, { mode: 0o600 })
+        this.state.templates = templates
+      })
+    await this.writeQueue
     return this.getState()
   }
 
@@ -794,7 +818,7 @@ export class ChannelService {
     const contentOverride = typeof content === 'string' ? content.slice(0, 12_000) : null
     const deliveries = []
     for (const platform of PLATFORMS) {
-      if (!selected.has(platform)) continue
+      if (!selected.has(platform) || template.channels?.[platform]?.enabled === false) continue
       const connection = this.state.connections[platform]
       if (!connection?.enabled) continue
       const scope = this.latestScope(platform)

@@ -84,5 +84,9 @@
   "memoryPage.view": "查看",
   "memoryPage.visibleTotalMemories": "{visible}/{total} 星辰",
   "memoryPage.zoomIn": "放大",
-  "memoryPage.zoomOut": "缩小"
+  "memoryPage.zoomOut": "缩小",
+  "memoryPage.invalidAutoApproveThreshold": "自动确认阈值响应无效",
+  "memoryPage.loadingAutoApproveThreshold": "正在读取自动确认阈值…",
+  "memoryPage.autoApproveThresholdUnavailable": "无法读取或保存自动确认阈值。",
+  "memoryPage.retryAutoApproveThreshold": "重试"
 }

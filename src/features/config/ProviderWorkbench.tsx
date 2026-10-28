@@ -24,9 +24,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { cn } from '@/lib/utils'
 import { PROVIDER_ICONS } from './provider-constants'
-import { ProviderConnectionEditor, type ProviderConnectionDraft } from './ProviderConnectionEditor'
+import {
+  ProviderConnectionEditor,
+  isProviderConnectionDirty,
+  type ProviderConnectionDraft,
+} from './ProviderConnectionEditor'
 import { ProviderModelEditor } from './ProviderModelEditor'
 import { getProviderWorkbenchState } from './provider-workbench-state'
 import { SettingsSwitch } from './settings-primitives'
@@ -71,6 +76,14 @@ export function ProviderWorkbench(props: Props) {
     props.toggling ||
     props.deletingModel,
   )
+  useUnsavedChanges({
+    id: `provider-drafts-${defaultBadgeId}`,
+    dirty: providers.some((provider) =>
+      Boolean(drafts[provider.id] && isProviderConnectionDirty(provider, drafts[provider.id]!)),
+    ),
+    saving: busy,
+    discard: () => setDrafts({}),
+  })
   return (
     <section
       data-config-card="models-connections"

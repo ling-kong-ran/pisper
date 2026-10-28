@@ -1,6 +1,13 @@
 // 附件选择：支持粘贴、拖拽与手机系统文件选择，统一转换成 ChatAttachment；
 // 超过大小上限（10MB）的附件被拒绝并提示。
-import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+} from 'react'
 import { storedLanguage, translateText, type I18nValues } from '@/app/i18n.ts'
 import type { ChatAttachment } from '@/types/chat'
 
@@ -141,6 +148,7 @@ export function pathAttachments(paths: Iterable<string>): ChatAttachment[] {
 export function useAttachmentSelection(
   initialAttachments: ChatAttachment[] = [],
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void,
+  ownerKey?: string,
 ) {
   const t = useCallback(
     (message: string, values?: I18nValues) => translateText(message, storedLanguage(), values),
@@ -148,6 +156,22 @@ export function useAttachmentSelection(
   )
   const [attachments, setAttachments] = useState<ChatAttachment[]>(() => [...initialAttachments])
   const [attachmentError, setAttachmentError] = useState('')
+  const [preparingAttachments, setPreparingAttachments] = useState<{ id: string; name: string }[]>(
+    [],
+  )
+  const preparations = useRef(new Map<string, { name: string; cancelled: boolean }>())
+  const preparationSequence = useRef(0)
+  const ownerRef = useRef(ownerKey)
+  ownerRef.current = ownerKey
+  useEffect(() => {
+    const ownedPreparations = preparations.current
+    setPreparingAttachments([])
+    setAttachmentError('')
+    return () => {
+      for (const item of ownedPreparations.values()) item.cancelled = true
+      ownedPreparations.clear()
+    }
+  }, [ownerKey])
   const attachmentsRef = useRef<ChatAttachment[]>([...initialAttachments])
 
   const replaceAttachments = useCallback(
@@ -161,23 +185,45 @@ export function useAttachmentSelection(
 
   const addFiles = useCallback(
     async (fileList: Iterable<File> | null | undefined) => {
-      try {
-        setAttachmentError('')
-        const prepared = await prepareClipboardFiles(fileList || [], t)
-        const combined = [...attachmentsRef.current, ...prepared].slice(0, 8)
-        const binaryBytes = combined
-          .filter((item) => item.kind !== 'path')
-          .reduce((total, item) => total + (item.size || 0), 0)
-        if (binaryBytes > MAX_TOTAL_ATTACHMENT_BYTES)
-          throw new Error(t('chat:attachments.totalAttachmentSizeCannotExceed20MB'))
-        replaceAttachments(combined)
-        return true
-      } catch (error) {
-        setAttachmentError(error instanceof Error ? error.message : String(error))
-        return false
+      const owner = ownerKey
+      const files = [...(fileList || [])].slice(0, 8)
+      const jobs = files.map((file) => {
+        const id = `preparing-${++preparationSequence.current}`
+        const job = { name: file.name, cancelled: false }
+        preparations.current.set(id, job)
+        return { id, job, file }
+      })
+      const publish = () =>
+        setPreparingAttachments(
+          [...preparations.current].map(([id, item]) => ({ id, name: item.name })),
+        )
+      publish()
+      setAttachmentError('')
+      let added = false
+      for (const { id, job, file } of jobs) {
+        try {
+          const prepared = await prepareClipboardFiles([file], t)
+          // 文件读取无法真正取消；提交结果必须同时持有原会话和准备项的身份。
+          if (job.cancelled || ownerRef.current !== owner || !preparations.current.has(id)) continue
+          const combined = [...attachmentsRef.current, ...prepared].slice(0, 8)
+          const binaryBytes = combined
+            .filter((item) => item.kind !== 'path')
+            .reduce((total, item) => total + (item.size || 0), 0)
+          if (binaryBytes > MAX_TOTAL_ATTACHMENT_BYTES)
+            throw new Error(t('chat:attachments.totalAttachmentSizeCannotExceed20MB'))
+          replaceAttachments(combined)
+          added = true
+        } catch (error) {
+          if (!job.cancelled && ownerRef.current === owner)
+            setAttachmentError(error instanceof Error ? error.message : String(error))
+        } finally {
+          preparations.current.delete(id)
+          if (ownerRef.current === owner) publish()
+        }
       }
+      return added
     },
-    [replaceAttachments, t],
+    [ownerKey, replaceAttachments, t],
   )
 
   const pasteFiles = useCallback(
@@ -202,15 +248,30 @@ export function useAttachmentSelection(
 
   const removeAttachment = useCallback(
     (id: string) => {
+      const pending = preparations.current.get(id)
+      if (pending) {
+        pending.cancelled = true
+        preparations.current.delete(id)
+        setPreparingAttachments(
+          [...preparations.current].map(([key, item]) => ({ id: key, name: item.name })),
+        )
+        return
+      }
       replaceAttachments(attachmentsRef.current.filter((item) => item.id !== id))
     },
     [replaceAttachments],
   )
 
-  const clearAttachments = useCallback(() => replaceAttachments([]), [replaceAttachments])
+  const clearAttachments = useCallback(() => {
+    for (const item of preparations.current.values()) item.cancelled = true
+    preparations.current.clear()
+    setPreparingAttachments([])
+    replaceAttachments([])
+  }, [replaceAttachments])
 
   const addAttachments = useCallback(
     (items: ChatAttachment[]) => {
+      if (ownerRef.current !== ownerKey) return
       setAttachmentError('')
       const next = [...attachmentsRef.current]
       for (const item of items) {
@@ -218,7 +279,7 @@ export function useAttachmentSelection(
       }
       replaceAttachments(next.slice(0, 8))
     },
-    [replaceAttachments],
+    [ownerKey, replaceAttachments],
   )
 
   const setError = useCallback((error: unknown) => {
@@ -228,6 +289,7 @@ export function useAttachmentSelection(
   return {
     attachments,
     attachmentError,
+    preparingAttachments,
     addFiles,
     pasteFiles,
     dropFiles,

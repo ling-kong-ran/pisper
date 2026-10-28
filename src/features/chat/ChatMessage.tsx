@@ -770,10 +770,10 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             cwd={cwd}
             streaming={streaming}
             className={cn(
-              'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)]',
+              'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)] [font-family:var(--font-content-family)] font-[400]',
               message.role === 'agent'
-                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h2]:text-[1.125em]! [&_h3]:text-[1em]! [&_li]:py-0! [&_li+li]:mt-0! [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
-                : "rounded-[22px] border border-transparent bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.625] text-[var(--user-bubble-text)] shadow-none [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
+                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h1]:text-[1.5em]! [&_h1]:leading-[1.333333]! [&_h2]:text-[1.25em]! [&_h2]:leading-[1.4]! [&_h3]:text-[1.125em]! [&_h3]:leading-[1.555556]! [&_h1]:mt-[1em]! [&_h2]:mt-[1em]! [&_h3]:mt-[1em]! [&_h1]:mb-[.25em]! [&_h2]:mb-[.25em]! [&_h3]:mb-[.25em]! [&_li]:py-0! [&_li+li]:mt-[.25em]! [&_p]:mt-0! [&_p]:mb-[.25em]! [&_ul]:my-[.25em]! [&_ol]:my-[.25em]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
+                : "rounded-[22px] border border-transparent bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.625] text-[var(--user-bubble-text)] shadow-none [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}
@@ -788,7 +788,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         )}
       </div>
       {message.role === 'user' && displayText && (
-        <div className="message-actions mt-1 -mr-1.5 flex flex-wrap justify-end gap-1 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md">
+        <div className="message-actions mt-1 -mr-1.5 flex flex-wrap justify-end min-h-5 gap-0 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md">
           <MessageCopyButton text={displayText} copyLabel={t('chat:chatMessage.copyMessage')} />
         </div>
       )}
@@ -798,7 +798,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       {message.role === 'agent' &&
         !streaming &&
         (displayText || message.turnBoundaryEntryId || retryUserMessageId) && (
-          <div className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+          <div className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center min-h-5 gap-0 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
             {displayText && <MessageCopyButton text={displayText} />}
             {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
               <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />

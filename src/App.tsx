@@ -21,6 +21,7 @@ import { createPrimaryActionRegistry } from '@/app/primary-action'
 import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
+import { clampSidebarWidth } from '@/lib/sidebar-width'
 import { getNavigation, getPageMeta } from '@/app/navigation'
 import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
 import {
@@ -38,7 +39,6 @@ import { TerminalProvider } from '@/features/terminal/public'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { WorkbenchHeader } from '@/components/layout/WorkbenchHeader'
 import { MobileSettingsNavigation } from '@/components/layout/MobileNavigation'
-import { AppDialog } from '@/components/layout/AppDialog'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
 import { chatApi } from '@/features/chat/chat-api'
 import {
@@ -57,7 +57,7 @@ import {
 import { markStartupPhase } from '@/lib/startup-diagnostics'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
-import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsCompactSidebarViewport, useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
@@ -94,6 +94,9 @@ const CommandPalette = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({
     default: module.CommandPalette,
   })),
+)
+const AppDialog = lazy(() =>
+  import('@/components/layout/AppDialog').then((module) => ({ default: module.AppDialog })),
 )
 const QuickCreate = lazy(() =>
   import('@/components/layout/AppOverlays').then((module) => ({ default: module.QuickCreate })),
@@ -211,19 +214,38 @@ function App() {
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  const drawerSidebar = mobileLayout
+  const compactSidebarViewport = useIsCompactSidebarViewport()
+  const drawerSidebar = mobileLayout || compactSidebarViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
+  const preferredSidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
+  const persistentSettingsSidebar = !drawerSidebar && SETTINGS_PAGES.has(page)
+  const sidebarCollapsed = !persistentSettingsSidebar && preferredSidebarCollapsed
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
+  const preferredSidebarWidth = useUiStore((state) => state.sidebarWidth)
+  const setSidebarWidth = useUiStore((state) => state.setSidebarWidth)
+  const [sidebarWidthPreview, setSidebarWidthPreview] = useState<number | null>(null)
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const update = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const sidebarWidth = clampSidebarWidth(
+    sidebarWidthPreview ?? preferredSidebarWidth,
+    viewportWidth - 52,
+  )
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const density = useUiStore((state) => state.density)
   const accent = useUiStore((state) => state.accent)
   const customAccent = useUiStore((state) => state.customAccent)
   const fontScale = useUiStore((state) => state.fontScale)
+  const uiFontSize = useUiStore((state) => state.uiFontSize)
+  const codeFontSize = useUiStore((state) => state.codeFontSize)
   const radius = useUiStore((state) => state.radius)
   const motion = useUiStore((state) => state.motion)
-  const [toast, setToast] = useState<ToastState | null>(null)
+  const [toastQueue, setToastQueue] = useState<ToastState[]>([])
+  const toast = toastQueue[0]
   const [modal, setModal] = useState<string | null>(null)
   const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
   const requestedConfigSection =
@@ -292,8 +314,17 @@ function App() {
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
   useEffect(() => {
-    applyUiPreferenceAttributes({ accent, density, fontScale, motion, radius, customAccent })
-  }, [accent, density, fontScale, motion, radius, customAccent])
+    applyUiPreferenceAttributes({
+      accent,
+      density,
+      fontScale,
+      motion,
+      radius,
+      customAccent,
+      uiFontSize,
+      codeFontSize,
+    })
+  }, [accent, density, fontScale, motion, radius, customAccent, uiFontSize, codeFontSize])
 
   useEffect(() => {
     pageStateStorage.setItem(
@@ -322,10 +353,11 @@ function App() {
     return undefined
   }, [theme])
 
-  // 应用内 Toast：每次递增 id 保证连续提示正确触发切换动画。
+  // 每条通知独立完成展示，避免连续成功/失败反馈互相覆盖。
   const notify = useCallback((message: string, tone: ToastTone = 'success') => {
     toastSequence.current += 1
-    setToast({ id: toastSequence.current, message, tone })
+    const next = { id: toastSequence.current, message, tone }
+    setToastQueue((queue) => [...queue, next])
   }, [])
 
   useEffect(() => {
@@ -396,7 +428,7 @@ function App() {
     (event: string, data: unknown, options?: { force?: boolean }) => {
       const template = notificationSettings.templates?.find((item) => item.id === event)
       const content = template?.channels?.browser?.content
-      if (!template?.enabled || !content) return
+      if (!template?.enabled || template.channels?.browser?.enabled === false || !content) return
       showSystemNotification(
         template.name,
         renderNotificationContent(content, (data || {}) as Record<string, unknown>),
@@ -699,7 +731,12 @@ function App() {
 
   if (!startupReady || !capabilitiesLoaded)
     return (
-      <div className="app-startup dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full min-h-[100vh] items-center justify-center gap-[10px] bg-[var(--bg)] text-[var(--text-muted)] text-[13px]">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="app-startup dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full min-h-[100vh] items-center justify-center gap-[10px] bg-[var(--bg)] text-[var(--text-muted)] text-[13px]"
+      >
         <BrandLogo size={30} className="startup-logo [.app-startup_&]:mr-[2px]" />
         <strong>{t('common:app.wakingPisper')}</strong>
       </div>
@@ -737,15 +774,17 @@ function App() {
           <SidebarProvider
             style={
               {
-                '--sidebar-width': '288px',
+                '--sidebar-width': `${sidebarWidth}px`,
                 '--workbench-leading-inset': drawerSidebar || sidebarCollapsed ? '44px' : '0px',
               } as CSSProperties
             }
             className="app-body flex min-h-0 flex-1 overflow-hidden bg-[var(--app-chrome)]"
             data-mobile-app={mobileLayout || undefined}
-            mobile={mobileLayout}
+            data-resizing={sidebarWidthPreview !== null || undefined}
+            mobile={drawerSidebar}
+            persistent={persistentSettingsSidebar}
             open={!sidebarCollapsed}
-            onOpenChange={(open) => setSidebarCollapsed(!open)}
+            onOpenChange={(open) => !persistentSettingsSidebar && setSidebarCollapsed(!open)}
             openMobile={mobileNav}
             onOpenMobileChange={setMobileNav}
           >
@@ -757,7 +796,7 @@ function App() {
                 onToggleSidebar={() =>
                   drawerSidebar
                     ? setMobileNav((value) => !value)
-                    : setSidebarCollapsed(!sidebarCollapsed)
+                    : !persistentSettingsSidebar && setSidebarCollapsed(!sidebarCollapsed)
                 }
                 onSearch={() => {
                   if (page === 'chat') {
@@ -804,6 +843,9 @@ function App() {
               navigateSettings={navigateSettings}
               onNewChat={startNewChat}
               onSearch={() => setPaletteOpen(true)}
+              width={sidebarWidth}
+              onWidthPreview={setSidebarWidthPreview}
+              onWidthCommit={setSidebarWidth}
               settingsSearch={
                 page === 'config' && !drawerSidebar && !sidebarCollapsed ? (
                   <Suspense fallback={null}>
@@ -835,7 +877,7 @@ function App() {
               }
             />
             <SidebarInset
-              className={`main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background min-[651px]:rounded-r-2xl ${sidebarCollapsed || drawerSidebar ? 'rounded-l-2xl' : ''}`}
+              className={`main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background ${!drawerSidebar ? 'rounded-r-2xl' : ''} ${sidebarCollapsed || drawerSidebar ? 'rounded-l-2xl' : ''}`}
             >
               <WorkbenchHeader
                 title={activeMeta[0]}
@@ -843,7 +885,7 @@ function App() {
                 onToggleSidebar={() =>
                   drawerSidebar
                     ? setMobileNav((value) => !value)
-                    : setSidebarCollapsed(!sidebarCollapsed)
+                    : !persistentSettingsSidebar && setSidebarCollapsed(!sidebarCollapsed)
                 }
                 toggleLabel={
                   (drawerSidebar ? mobileNav : !sidebarCollapsed)
@@ -925,15 +967,27 @@ function App() {
               message={toast.message}
               tone={toast.tone}
               closeLabel={t('common:ui.closeDialog')}
-              onOpenChange={(open) => !open && setToast(null)}
+              onOpenChange={(open) =>
+                !open && setToastQueue((queue) => queue.filter((entry) => entry.id !== toast.id))
+              }
             />
           )}
           <ToastViewport hotkey={[]} label={t('common:ui.notifications')} />
-          <AppDialog
-            dialog={appDialog.dialog}
-            onClose={appDialog.close}
-            onFinish={appDialog.finish}
-          />
+          {appDialog.dialog && (
+            <Suspense
+              fallback={
+                <span role="status" className="sr-only">
+                  {t('common:pageTemplate.loading')}
+                </span>
+              }
+            >
+              <AppDialog
+                dialog={appDialog.dialog}
+                onClose={appDialog.close}
+                onFinish={appDialog.finish}
+              />
+            </Suspense>
+          )}
           <Suspense fallback={null}>
             {modelOnboardingOpen && (
               <ModelOnboardingDialog

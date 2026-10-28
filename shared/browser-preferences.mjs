@@ -1,5 +1,7 @@
 // 只同步真正需要跨随机回环端口保留的界面偏好；一次性请求和预览 URL 不进入持久化文件。
 export const BROWSER_PREFERENCE_KEYS = Object.freeze([
+  // ui-store 持有主题/排印/布局；sidebarWidth 默认340，旧快照缺字段时补默认并约束240–520。
+  // UI Store v2：UI/代码数值字号分别默认14/12，旧三档恢复13.5/14/14.5；不保存输入草稿。
   'pisper-ui',
   'pisper-session-context-layout',
   'pisper-composer-toolbar',

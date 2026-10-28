@@ -973,8 +973,8 @@ try {
     return { gap: second.top - first.bottom, height: first.height }
   })
   assert.ok(
-    listSpacing.gap <= 1,
-    `single-line list items should share the text rhythm: ${listSpacing.gap}`,
+    Math.abs(listSpacing.gap - proseMetrics.font / 4) < 1,
+    `adjacent list items follow the content-font quarter spacing: ${listSpacing.gap}`,
   )
   assert.ok(listSpacing.height <= proseMetrics.line + 1)
   for (const width of [320, 390, 768, 1440]) {
@@ -986,8 +986,10 @@ try {
       await reviewPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       true,
     )
-    assert.ok(
-      (await prose.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))) > 16,
+    assert.equal(
+      await prose.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+      16,
+      'UI font size changes do not scale the separate content font role',
     )
   }
   await reviewPage.screenshot({ path: join(output, 'message-typography.png') })
@@ -1055,13 +1057,27 @@ try {
     const radios = group.getByRole('radio')
     const selected = group.getByRole('radio', { checked: true })
     await selected.focus()
-    assert.equal(
-      await radios.evaluateAll((items) => items.filter((item) => item.tabIndex === 0).length),
-      1,
-      `${label}: one keyboard entry`,
+    const nativeGroup = await radios.evaluateAll((items) =>
+      items.every((item) => item instanceof HTMLInputElement && item.type === 'radio'),
     )
+    if (nativeGroup)
+      assert.equal(
+        await radios.evaluateAll((items) => new Set(items.map((item) => item.name)).size),
+        1,
+        `${label}: native radios share one keyboard group`,
+      )
+    else
+      assert.equal(
+        await radios.evaluateAll((items) => items.filter((item) => item.tabIndex === 0).length),
+        1,
+        `${label}: one keyboard entry`,
+      )
     const current = await radios.evaluateAll((items) =>
-      items.findIndex((item) => item.getAttribute('aria-checked') === 'true'),
+      items.findIndex((item) =>
+        item instanceof HTMLInputElement
+          ? item.checked
+          : item.getAttribute('aria-checked') === 'true',
+      ),
     )
     const next = radios.nth((current + 1) % (await radios.count()))
     const nextHandle = await next.elementHandle()
@@ -1069,14 +1085,20 @@ try {
     // Radix 在下一事件循环移动焦点；按下后等待选择，再抬键，模拟完整键盘动作。
     await reviewPage.keyboard.down('ArrowRight')
     await reviewPage.waitForFunction(
-      (element) => element.getAttribute('aria-checked') === 'true',
+      (element) =>
+        element instanceof HTMLInputElement
+          ? element.checked
+          : element.getAttribute('aria-checked') === 'true',
       nextHandle,
     )
     await reviewPage.keyboard.up('ArrowRight')
     assert.equal(await nextHandle.evaluate((element) => element === document.activeElement), true)
     await reviewPage.keyboard.down('ArrowLeft')
     await reviewPage.waitForFunction(
-      (element) => element.getAttribute('aria-checked') === 'true',
+      (element) =>
+        element instanceof HTMLInputElement
+          ? element.checked
+          : element.getAttribute('aria-checked') === 'true',
       selectedHandle,
     )
     await reviewPage.keyboard.up('ArrowLeft')
@@ -1091,6 +1113,7 @@ try {
   const accentPicker = reviewPage.getByRole('combobox', { name: '强调色', exact: true })
   await accentPicker.click()
   await reviewPage.getByRole('option', { name: '自定义', exact: true }).click()
+  await reviewPage.getByRole('button', { name: '自定义强调色', exact: true }).click()
   const hexInput = reviewPage.getByRole('textbox', { name: '输入 HEX 颜色', exact: true })
   await hexInput.fill('#broken')
   assert.equal(await hexInput.getAttribute('aria-invalid'), 'true')

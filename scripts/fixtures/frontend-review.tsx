@@ -128,12 +128,14 @@ function NavigationFixture({ mobile = false }: { mobile?: boolean }) {
 
 function AppearanceFixture({ startFromModels = false }: { startFromModels?: boolean }) {
   const [section, setSection] = useState(startFromModels ? 'models' : 'interface')
-  useConfigCardHighlight(section)
+  const searchTarget = useConfigCardHighlight(section)
   return (
     <div className="mx-auto w-full p-4" style={{ maxWidth: 728 }}>
       <Button
         onClick={() => {
-          requestConfigCardHighlight('interface-style', 'interface')
+          requestConfigCardHighlight('interface-style', 'interface', {
+            expandGroup: 'interface-advanced',
+          })
           if (!startFromModels) setSection('interface')
         }}
       >
@@ -142,7 +144,13 @@ function AppearanceFixture({ startFromModels = false }: { startFromModels?: bool
       {section === 'models' && (
         <Button onClick={() => setSection('interface')}>Finish navigation</Button>
       )}
-      {section === 'interface' && <InterfaceSettings notify={() => {}} />}
+      {section === 'interface' && (
+        <InterfaceSettings
+          notify={() => {}}
+          defaultAdvancedExpanded={searchTarget?.expandGroup === 'interface-advanced'}
+          navigationKey={searchTarget?.navigationKey}
+        />
+      )}
     </div>
   )
 }

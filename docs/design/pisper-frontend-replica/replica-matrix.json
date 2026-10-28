@@ -1,0 +1,2017 @@
+[
+  {
+    "id": "UIR001",
+    "surface": "UI字号、字重与字体角色",
+    "target": "参考运行时按UI字号/14缩放并round：xs12、sm13、base14、lg16、xl28、2xl36、3xl48；Electron sm/xs13/12且UI weight430。内容、UI、代码分开；OpenAI Sans只在指定消费处使用，不是全局必选。",
+    "current": "Pisper xs12、sm14、base16、lg18、xl20、2xl24、3xl30；系统/CJK栈，共用字号比例，默认14，小13.5、大14.5。标题和正文大量局部固定px覆盖。",
+    "change": "建立参考的语义排印映射并逐个消费迁移。先对齐UI辅助13/12及权重，再对齐标题和正文独立比例；不能只把root改14px，也不能全站换OpenAI Sans。",
+    "referenceIds": ["V005", "V007", "V008", "V010", "V011", "V014", "V032"],
+    "referenceAnchor": "visual",
+    "evidence": [
+      {
+        "path": "src/index.css",
+        "line": 24,
+        "endLine": 29,
+        "excerpt": "  /* 优先使用平台界面字体，让中英文、数字和标点采用系统匹配的字形。 */\n  --app-font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif;\n  font-family: var(--app-font-family);\n  color: var(--text);\n  background: var(--bg);\n  text-size-adjust: 100%;"
+      },
+      {
+        "path": "src/index.css",
+        "line": 133,
+        "endLine": 136,
+        "excerpt": "  --ui-font-size: 14px;\n  --app-font-size: var(--ui-font-size);\n  --app-small-size: calc(var(--ui-font-size) * 6 / 7);\n  --app-message-font-size: calc(var(--ui-font-size) * 8 / 7);"
+      },
+      {
+        "path": "src/index.css",
+        "line": 705,
+        "endLine": 714,
+        "excerpt": "@theme inline {\n  --text-xs: calc(var(--ui-font-size) * 6 / 7);\n  --text-sm: var(--ui-font-size);\n  --text-base: calc(var(--ui-font-size) * 8 / 7);\n  --text-lg: calc(var(--ui-font-size) * 9 / 7);\n  --text-xl: calc(var(--ui-font-size) * 10 / 7);\n  --text-2xl: calc(var(--ui-font-size) * 12 / 7);\n  --text-3xl: calc(var(--ui-font-size) * 15 / 7);\n  --font-heading: var(--font-sans);\n  --font-sans: var(--app-font-family);"
+      },
+      {
+        "path": "src/components/layout/PageHeader.tsx",
+        "line": 111,
+        "endLine": 118,
+        "excerpt": "      <div className=\"mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1\">\n        <h1\n          className={cn(\n            'shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]',\n            page === 'config' && 'text-2xl',\n          )}\n        >\n          {meta[0]}"
+      }
+    ],
+    "acceptance": [
+      "同窗口同字号中英文行折返、按钮基线、标题高度与参考对应。",
+      "默认/最小/最大UI字号和独立代码字号分别采样；保留字体加载fallback。"
+    ],
+    "unknowns": [
+      "当前ChatGPT配置与最终computed font-family未测；中文fallback依赖宿主。",
+      "参考共享UI、browser覆盖和明确ChatGPT消息排印必须分开。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR002",
+    "surface": "主题角色与颜色生成层",
+    "target": "参考有surface/under/editor/elevated/foreground层级；fallback浅#fff、深#181818，前景#1a1c1f/#dfdfdf；运行时accent/contrast/surface/ink再覆盖，用户消息背景为文字5%混合。",
+    "current": "Pisper默认浅背景#fff、主文字#000，surface-subtle#f5f5f5，独立固定辅助灰与语义色；已有角色色自定义，不等于参考派生算法。",
+    "change": "按参考角色建一一映射和派生层，校对hover/active/selected/disabled/焦点及dark覆盖。只在统一主题条件下冻结最终采样色；保持业务状态色语义。",
+    "referenceIds": ["V046", "V047", "V052", "V055", "V056", "V058", "V059", "V060"],
+    "referenceAnchor": "visual",
+    "evidence": [
+      {
+        "path": "src/index.css",
+        "line": 66,
+        "endLine": 84,
+        "excerpt": "  /* ── 中性色：纯白与冷灰 ── */\n  --bg: #ffffff;\n  --panel: #ffffff;\n  --solid: #fff;\n  --stroke: #e5e5e5;\n  --stroke-soft: #ededed;\n  --stroke-hover: #d4d4d4;\n  /* 浅色主题的普通文字统一纯黑，层级通过字号、字重和布局表达。 */\n  --text: #000000;\n  --text-soft: #404040;\n  --text-secondary: #525252;\n  --text-tertiary: #737373;\n  --text-muted: #737373;\n  --ink-strong: #111827;\n  --on-ink: #fff;\n  --surface-subtle: #f5f5f5;\n  --surface-muted: #eeeeee;\n  --surface-hover: #e9e9e9;\n  --surface-highlight: #f5f5f5;"
+      },
+      {
+        "path": "src/index.css",
+        "line": 91,
+        "endLine": 113,
+        "excerpt": "  /* ── 语义色：warning 独立使用橙色 ── */\n  --success: #16a34a;\n  --success-soft: #f0fdf4;\n  --success-strong: #15803d;\n  --success-border: #bbf7d0;\n  --success-subtle: #ecfdf5;\n  --danger: #dc2626;\n  --danger-soft: #fef2f2;\n  --danger-border: #fecaca;\n  --amber: #ea580c;\n  --warning-soft: #ffedd5;\n  --warning-strong: #c2410c;\n  --warning-border: #fed7aa;\n  --warning-subtle: #fff7ed;\n  --warning-code-bg: #451a03;\n  --info-soft: #edf5ff;\n  --status-green: #22c55e;\n  --status-muted: #9ca3af;\n\n  /* 用户消息靠位置和轻量底色区分，避免与主操作争夺注意力。 */\n  --user-bubble-bg: #f4f4f4;\n  --user-bubble-text: var(--text);\n  --user-bubb"
+      }
+    ],
+    "acceptance": [
+      "明暗两套对照surface、卡片、浮层、边框和消息气泡；透明色在真实背景上验收。",
+      "禁用和悬停不得被旧--star/--blue别名覆盖。"
+    ],
+    "unknowns": ["fallback不是截图最终色；当前主题accent/contrast参数尚未记录。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR003",
+    "surface": "圆角与连续曲率",
+    "target": "共享半径base md8/lg10/xl12/2xl16等为根16px条件换算；支持superellipse时部分乘1.25；browser另有覆盖。共享composer5.5spacing，browser7spacing。",
+    "current": "Pisper基础r-xs6/r-sm9/r-md13/r-lg18，Tailwind radius以r-sm再乘系数；composer写死28px，AppDialog消费radius-dialog即r-md。",
+    "change": "分清桌面目标与browser目标，建立表面、按钮、输入器、菜单和弹窗的半径角色；按参考feature-detect设置曲率与回退，不用全局统一round-xl替代。",
+    "referenceIds": ["V065", "V066", "V067", "V068", "V069", "V070"],
+    "referenceAnchor": "visual",
+    "evidence": [
+      {
+        "path": "src/index.css",
+        "line": 115,
+        "endLine": 120,
+        "excerpt": "  /* ── 圆角 / 阴影 / 动效 ── */\n  --r-xs: 6px;\n  --r-sm: 9px;\n  --r-md: 13px;\n  --r-lg: 18px;\n  --r-pill: 999px;"
+      },
+      {
+        "path": "src/index.css",
+        "line": 773,
+        "endLine": 779,
+        "excerpt": "  --radius-sm: calc(var(--radius) * 0.6);\n  --radius-md: calc(var(--radius) * 0.8);\n  --radius-lg: var(--radius);\n  --radius-xl: calc(var(--radius) * 1.4);\n  --radius-2xl: calc(var(--radius) * 1.8);\n  --radius-3xl: calc(var(--radius) * 2.2);\n  --radius-4xl: calc(var(--radius) * 2.6);"
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 740,
+        "endLine": 744,
+        "excerpt": "        className={cn(\n          'focus-composer relative flex min-w-0 flex-col gap-3 rounded-[28px] border border-border/70 bg-background dark:bg-surface-subtle p-3 shadow-[0_2px_8px_0_rgb(0_0_0/0.04)] transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[56px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-fon"
+      }
+    ],
+    "acceptance": ["对比四角轮廓、细边框与裁剪；引擎不支持corner-shape时记录回退差异。"],
+    "unknowns": ["Tauri WebView与参考Electron的曲率支持可能不同；需要目标系统实测。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR004",
+    "surface": "描边、阴影与遮罩",
+    "target": "参考elevation-stroke可为0.5px；composer有1px黑4%描边及多层阴影；模态backdrop浅#0000004d、深#00000080；确认框有独立shadow。",
+    "current": "DialogOverlay默认bg-black/10并backdrop-blur-xs；AppDialog另用shadow-dialog，资产手写遮罩用--modal-overlay。多个表面实现不同。",
+    "change": "将普通Dialog、confirmation、菜单、popover、composer分成明确表面token；按实例映射遮罩与阴影，避免一组重阴影通用。",
+    "referenceIds": ["V071", "V072", "V073", "V074", "D032", "D033"],
+    "referenceAnchor": "visual",
+    "evidence": [
+      {
+        "path": "src/components/ui/dialog.tsx",
+        "line": 26,
+        "endLine": 37,
+        "excerpt": "function DialogOverlay({\n  className,\n  ...props\n}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {\n  return (\n    <DialogPrimitive.Overlay\n      data-slot=\"dialog-overlay\"\n      className={cn(\n        'fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',\n        className,\n      )}\n      {...props}"
+      },
+      {
+        "path": "src/components/layout/AppDialog.tsx",
+        "line": 38,
+        "endLine": 40,
+        "excerpt": "        <DialogContent\n          showCloseButton={false}\n          className=\"max-w-[430px] gap-0 rounded-dialog border border-surface-highlight bg-popover p-[18px] text-popover-foreground shadow-dialog ring-0\""
+      },
+      {
+        "path": "src/index.css",
+        "line": 121,
+        "endLine": 125,
+        "excerpt": "  --sh-1: 0 1px 2px rgba(15, 23, 42, .05);\n  --sh-edge: rgba(15, 23, 42, .04);\n  --sh-2: 0 10px 28px -16px rgba(15, 23, 42, .18);\n  --sh-star: 0 6px 20px -8px rgba(24, 24, 27, .28);\n  --sh-surface: 0 1px 2px var(--sh-edge), 0 14px 32px -24px var(--shadow);"
+      },
+      {
+        "path": "src/index.css",
+        "line": 188,
+        "endLine": 188,
+        "excerpt": "  --modal-overlay: rgba(15, 23, 42, .36);"
+      }
+    ],
+    "acceptance": ["相同背景下核对遮罩明暗、阴影扩散和边缘；叠层无双重scrim。"],
+    "unknowns": ["参考的主题覆盖和具体弹窗variant需按实例锁定。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR005",
+    "surface": "按钮尺寸、对齐和视觉状态",
+    "target": "参考default只有横8/纵2px并leading18，无固定总高；compact24、menuRow28、dialog最小36、formField38、formAction42、touch44；可balanced三列保证标签几何居中。",
+    "current": "Pisperdefault固定h32，xs24/sm28/lg36与图标24/28/32/36，普通inline-flex gap；默认disabled opacity50%，按下有translate-y-px。",
+    "change": "新增按实际用途命名的类型化变体，将真实消费者映射到参考尺寸/字重/内距。优先toolbar、menuRow、dialogAction、formField、composer，不复制未使用的所有变体。",
+    "referenceIds": ["C001", "C266", "C267", "V082", "V083"],
+    "referenceAnchor": "controls",
+    "evidence": [
+      {
+        "path": "src/components/ui/button.tsx",
+        "line": 7,
+        "endLine": 40,
+        "excerpt": "const buttonVariants = cva(\n  \"group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_"
+      }
+    ],
+    "acceptance": [
+      "双侧图标宽度不等仍居中；相邻按钮基线/高度统一；hover/pressed/selected/invalid/disabled逐态截图。"
+    ],
+    "unknowns": ["固定rem换算需确认根字号；不能由variant名称猜实际消费尺寸。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR006",
+    "surface": "按钮loading、可访问禁用与布局稳定",
+    "target": "参考loading合并disabled、插入spinner，sizingLabels渲染隐藏备选文案保持宽度；链接禁用移除href和Tab顺序并拦截中键/激活键。",
+    "current": "PisperButton仅variant/size/asChild，其余props透传；无内建loading/sizingLabels。原生type未统一默认button。业务按钮自行控制spinner/disabled，asChild语义由消费者承担。",
+    "change": "为参考需要的按钮增加可组合loading/稳定标签宽度行为，区分原生disabled与可聚焦解释型aria-disabled；将默认type与表单提交用途显式化。",
+    "referenceIds": ["C268", "C269", "C270", "C271", "C272"],
+    "referenceAnchor": "controls",
+    "evidence": [
+      {
+        "path": "src/components/ui/button.tsx",
+        "line": 44,
+        "endLine": 63,
+        "excerpt": "function Button({\n  className,\n  variant = 'default',\n  size = 'default',\n  asChild = false,\n  ...props\n}: React.ComponentProps<'button'> &\n  VariantProps<typeof buttonVariants> & {\n    asChild?: boolean\n  }) {\n  const Comp = asChild ? Slot.Root : 'button'\n\n  return (\n    <Comp\n      data-slot=\"button\"\n      data-variant={variant}\n      data-size={size}\n      className={cn(buttonVariants({ variant, size, className }))}\n      {...props}\n    />"
+      },
+      {
+        "path": "src/features/chat/focus-session-composer-bits.tsx",
+        "line": 199,
+        "endLine": 218,
+        "excerpt": "    <button\n      type={streaming ? 'button' : 'submit'}\n      className={`send-button grid !size-8 !min-w-8 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-[var(--d1)] cursor-pointer hover:not(:disabled):opacity-85 active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}\n      title={\n        streaming\n          ? t('chat:focusSession.stop')\n          : sendShortcut\n            ? `${se"
+      }
+    ],
+    "acceptance": [
+      "Save→Saving→Saved横向不跳；重复点击、Enter、Space和中键均按状态门禁；表单中非提交按钮不误提交。"
+    ],
+    "unknowns": ["不声称现有所有按钮都抖动或误提交；差距是公共契约缺失，需逐消费者验收。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR007",
+    "surface": "Dropdown的非modal策略、偏移和宽度",
+    "target": "参考ChatGPT动作菜单包装默认modal=false、sideOffset1；默认宽度受内容与视口约束，matchTriggerWidth为可选。checkbox默认closeOnSelect=false。",
+    "current": "PisperRoot透传Radix，依赖默认modal=true；ActivityRail显式false但ChatHistory等无覆盖。Content默认offset4并匹配trigger宽度；项密度与圆角由本地token。",
+    "change": "为对照页面明确non-modal并适配菜单宽度/offset，复用原语的roving focus与typeahead；逐项区分选中关闭与复选保持，不全站盲改需要modal的入口。",
+    "referenceIds": ["D038", "D040", "D041", "D042", "D043", "D048", "D049"],
+    "referenceAnchor": "dialog-primitives",
+    "evidence": [
+      {
+        "path": "src/components/ui/dropdown-menu.tsx",
+        "line": 9,
+        "endLine": 10,
+        "excerpt": "function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {\n  return <DropdownMenuPrimitive.Root data-slot=\"dropdown-menu\" {...props} />"
+      },
+      {
+        "path": "src/components/ui/dropdown-menu.tsx",
+        "line": 25,
+        "endLine": 40,
+        "excerpt": "function DropdownMenuContent({\n  className,\n  align = 'start',\n  sideOffset = 4,\n  ...props\n}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {\n  return (\n    <DropdownMenuPrimitive.Portal>\n      <DropdownMenuPrimitive.Content\n        data-slot=\"dropdown-menu-content\"\n        sideOffset={sideOffset}\n        align={align}\n        className={cn(\n          'z-[200] max-h-(--radix-dropdown-menu-content-available-height) w-(--radix-dropdown-menu-trigger-width) min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 te"
+      },
+      {
+        "path": "src/features/chat/ChatHistoryPage.tsx",
+        "line": 366,
+        "endLine": 380,
+        "excerpt": "                <DropdownMenu>\n                  <DropdownMenuTrigger asChild>\n                    <Button\n                      type=\"button\"\n                      variant=\"ghost\"\n                      size=\"icon\"\n                      className=\"mr-2 size-11 shrink-0\"\n                      aria-label={t('chat:chatHistoryPage.moreActionsForChat', {\n                        name: session.name || t('chat:chatHistoryPage.untitledChat'),\n                      })}\n                    >\n                      <MoreHorizontal size={18} />\n                    </Button>\n                  </DropdownMenuT"
+      },
+      {
+        "path": "src/components/layout/ActivityRail.tsx",
+        "line": 43,
+        "endLine": 45,
+        "excerpt": "            <DropdownMenu key={group.id} modal={false}>\n              <DropdownMenuTrigger asChild>\n                <Button"
+      },
+      {
+        "path": "node_modules/@radix-ui/react-dropdown-menu/dist/index.mjs",
+        "line": 27,
+        "endLine": 32,
+        "excerpt": "    dir,\n    open: openProp,\n    defaultOpen,\n    onOpenChange,\n    modal = true\n  } = props;"
+      }
+    ],
+    "acceptance": [
+      "打开动作菜单后外部滚动/指针与参考一致；Esc回trigger；方向/Home/End/typeahead/子菜单方向与复选保持逐项验收。"
+    ],
+    "unknowns": ["业务调用可覆盖默认；本项不将ActivityRail已显式false误判为缺失。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR008",
+    "surface": "Tooltip的延迟、箭头与交互提示",
+    "target": "参考入口默认200ms，但delayOpen可用250ms，Context/共享机制可覆盖；键盘焦点立即显示、touch不走hover；交互提示有选区保留、安全区和Tab/回焦点契约。",
+    "current": "Pisper全局TooltipProvider设300ms，基础Provider默认0；Content有旋转方块箭头、offset0、px12/py6、max-w-xs、z200。局部嵌套Provider可能覆盖延迟。",
+    "change": "逐入口复刻delay与tooltip类型；普通快捷键提示和可交互说明分开。核对箭头是否确属参考实例，不因基础组件默认而强制全站带箭头。",
+    "referenceIds": ["C002", "C003", "C004", "C005", "C273", "C274", "C275", "C276"],
+    "referenceAnchor": "controls",
+    "evidence": [
+      {
+        "path": "src/app/providers.tsx",
+        "line": 11,
+        "endLine": 17,
+        "excerpt": "  useEffect(() => installStartupQueryEvents(window), [])\n  return (\n    <QueryClientProvider client={queryClient}>\n      <LanguageProvider>\n        <TooltipProvider delayDuration={300}>{children}</TooltipProvider>\n      </LanguageProvider>\n    </QueryClientProvider>"
+      },
+      {
+        "path": "src/components/ui/tooltip.tsx",
+        "line": 8,
+        "endLine": 18,
+        "excerpt": "function TooltipProvider({\n  delayDuration = 0,\n  ...props\n}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {\n  return (\n    <TooltipPrimitive.Provider\n      data-slot=\"tooltip-provider\"\n      delayDuration={delayDuration}\n      {...props}\n    />\n  )"
+      },
+      {
+        "path": "src/components/ui/tooltip.tsx",
+        "line": 29,
+        "endLine": 48,
+        "excerpt": "function TooltipContent({\n  className,\n  sideOffset = 0,\n  children,\n  ...props\n}: React.ComponentProps<typeof TooltipPrimitive.Content>) {\n  return (\n    <TooltipPrimitive.Portal>\n      <TooltipPrimitive.Content\n        data-slot=\"tooltip-content\"\n        sideOffset={sideOffset}\n        className={cn(\n          'z-[200] inline-flex w-fit max-w-xs origin-(--radix-tooltip-content-transform-origin) items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=ri"
+      }
+    ],
+    "acceptance": [
+      "鼠标悬停/转移/点击、键盘focus、Esc、touch、选中文本依状态验收；不留下幽灵tooltip。"
+    ],
+    "unknowns": ["每个参考实例延迟与箭头外观需按实际消费锁定；不能宣称全站统一200ms。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR009",
+    "surface": "Popover的锚定、Portal与焦点",
+    "target": "参考共享Popover默认non-modal、offset8、非center默认alignOffset−5、collisionPadding20；Portal优先上下文/最近dialog；打开焦点及hover安全区专门处理。",
+    "current": "PisperContent默认center/offset4，w72、p2.5、rounded-lg、shadow-md，直接默认Portal，100ms淡入缩放；未包含参考的显式最近dialog容器策略。",
+    "change": "对对应实例增加定位/碰撞/容器策略及焦点适配，区分hover与click；嵌套Dialog中的颜色/模型/字体选择优先验收。",
+    "referenceIds": ["C258", "C259", "C260", "C261", "C262"],
+    "referenceAnchor": "controls",
+    "evidence": [
+      {
+        "path": "src/components/ui/popover.tsx",
+        "line": 14,
+        "endLine": 35,
+        "excerpt": "function PopoverContent({\n  className,\n  align = 'center',\n  sideOffset = 4,\n  ...props\n}: React.ComponentProps<typeof PopoverPrimitive.Content>) {\n  return (\n    <PopoverPrimitive.Portal>\n      <PopoverPrimitive.Content\n        data-slot=\"popover-content\"\n        align={align}\n        sideOffset={sideOffset}\n        className={cn(\n          'z-[200] flex w-72 origin-(--radix-popover-content-transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[s"
+      }
+    ],
+    "acceptance": [
+      "贴屏幕边缘不裁切；Dialog内部popover保持焦点和层级；缩放后位置正确；关闭只关闭最上层。"
+    ],
+    "unknowns": ["600/300ms仅参考特定Transition实例，不能无条件应用所有浮层。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR010",
+    "surface": "Dialog尺寸分级、body滚动和confirmation",
+    "target": "参考共享默认520px、wide600px（条件换算），普通max92vw；ChatGPT常规rounded-2xl，scrollable/viewport/tall分支不同；confirmation独立表面；隐藏X的dirty确认有Keep editing/Discard。",
+    "current": "Pisper原语sm:max-w-sm、p4、overflow-y-auto作用于整个Content；AppDialog额外430px/p18，title17/24/bold、说明13/20。多数调用自行覆盖尺寸。",
+    "change": "建立DialogShell尺寸/表面/body-scroll契约，实际页面选择default/wide/compact等参考实例；标题、正文、footer独立布局，busy时统一关闭策略；不要把默认520套给所有弹窗。",
+    "referenceIds": [
+      "D020",
+      "D021",
+      "D022",
+      "D023",
+      "D024",
+      "D030",
+      "D031",
+      "D032",
+      "D033",
+      "N034",
+      "N035"
+    ],
+    "referenceAnchor": "dialog-primitives",
+    "evidence": [
+      {
+        "path": "src/components/ui/dialog.tsx",
+        "line": 42,
+        "endLine": 61,
+        "excerpt": "function DialogContent({\n  className,\n  overlayClassName,\n  children,\n  showCloseButton = true,\n  ...props\n}: React.ComponentProps<typeof DialogPrimitive.Content> & {\n  showCloseButton?: boolean\n  overlayClassName?: string\n}) {\n  return (\n    <DialogPortal>\n      <DialogOverlay className={overlayClassName} />\n      <DialogPrimitive.Content\n        data-slot=\"dialog-content\"\n        className={cn(\n          'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-"
+      },
+      {
+        "path": "src/components/layout/AppDialog.tsx",
+        "line": 35,
+        "endLine": 58,
+        "excerpt": "  return (\n    <Dialog open={Boolean(dialog)} onOpenChange={(open) => !open && onClose()}>\n      {dialog && (\n        <DialogContent\n          showCloseButton={false}\n          className=\"max-w-[430px] gap-0 rounded-dialog border border-surface-highlight bg-popover p-[18px] text-popover-foreground shadow-dialog ring-0\"\n          onOpenAutoFocus={(event) => {\n            if (dialog.type !== 'prompt') return\n            event.preventDefault()\n            inputRef.current?.focus()\n            inputRef.current?.select()\n          }}\n        >\n          <form onSubmit={submit}>\n            <div cla"
+      },
+      {
+        "path": "src/hooks/useAppDialog.ts",
+        "line": 30,
+        "endLine": 34,
+        "excerpt": "  const finish = useCallback((value: string | boolean | null) => {\n    resolver.current?.(value)\n    resolver.current = null\n    setDialog(null)\n  }, [])"
+      }
+    ],
+    "acceptance": [
+      "低高度与缩放时头尾可达、正文独立滚动；Tab圈定、Esc/外点、保存中、失败保留、关闭回焦点逐态一致。"
+    ],
+    "unknowns": ["各业务弹窗需要参考实例而非基础默认；本轮没有逐弹窗截图或computed box。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR011",
+    "surface": "Sheet与移动/窄窗呈现",
+    "target": "参考responsive sheet在<40rem贴底、最大28rem宽、只顶部圆角；>=40rem居中四角，并留safe-area。特殊image sheet满宽顶部40px，与普通sheet不同。",
+    "current": "PisperSheet为Radix Dialog定位的侧向面板，right/left宽3/4、sm:max-w-sm，和ChatGPT responsive sheet不是同一呈现；手机壳另以650px切换。",
+    "change": "保留右侧inspector与贴底sheet不同角色，为真实参考采用responsive sheet的页面新增呈现变体；按实例断点与safe-area恢复。",
+    "referenceIds": ["D034", "N077", "N001"],
+    "referenceAnchor": "dialog-primitives",
+    "evidence": [
+      {
+        "path": "src/components/ui/sheet.tsx",
+        "line": 40,
+        "endLine": 63,
+        "excerpt": "}\n\nfunction SheetContent({\n  className,\n  children,\n  side = 'right',\n  showCloseButton = true,\n  overlayClassName,\n  ...props\n}: React.ComponentProps<typeof SheetPrimitive.Content> & {\n  side?: 'top' | 'right' | 'bottom' | 'left'\n  showCloseButton?: boolean\n  overlayClassName?: string\n}) {\n  return (\n    <SheetPortal>\n      <SheetOverlay className={overlayClassName} />\n      <SheetPrimitive.Content\n        data-slot=\"sheet-content\"\n        data-side={side}\n        className={cn(\n          'fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg tran"
+      },
+      {
+        "path": "src/hooks/use-mobile.ts",
+        "line": 4,
+        "endLine": 19,
+        "excerpt": "const PHONE_BREAKPOINT = 651\n\n// 通用 Sidebar 和浮动组件共用手机视口边界；原生移动 App 由调用方补充判断。\nexport function useIsMobile() {\n  return useIsPhoneViewport()\n}\n\n// 手机布局不能只依赖 Runtime 回显的客户端类型，否则移动浏览器和代理握手失败时\n// 会错误退回桌面分栏。原生能力仍应使用 useIsMobileApp 单独判断。\nexport function useIsPhoneViewport() {\n  const [isPhone, setIsPhone] = React.useState(\n    () => window.matchMedia(`(max-width: ${PHONE_BREAKPOINT - 1}px)`).matches,\n  )\n\n  React.useEffect(() => {\n    const media = window.matchMedia(`(max-width: ${PHONE_BREAKPOINT - 1}px)`)"
+      }
+    ],
+    "acceptance": ["639/640及767/768等目标边界按所选分支采样；键盘/旋转后关闭及footer仍可达。"],
+    "unknowns": ["参考断点是组件能力；只有真实消费者选择该size才适用。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR012",
+    "surface": "动效、缩放与减少动态效果",
+    "target": "参考基础150/200/300ms及enter(.19,1,.22,1)、exit(.8,0,.4,1)、move(.65,0,.35,1)；Dialog高度ResizeObserver/RAF忽略<0.5px变化，遵循reduced motion。",
+    "current": "Pisperd1=140ms/d2=220ms、不同ease；原语浮层duration100并fade/zoom；已有系统和用户reduced motion规则。",
+    "change": "按组件对齐进入/退出/高度变化节奏；保留减少动态效果分支。新增高度观察由弹窗所有者清理，不把动画类当作状态完成信号。",
+    "referenceIds": ["V084", "V083", "D027", "D035"],
+    "referenceAnchor": "visual",
+    "evidence": [
+      {
+        "path": "src/index.css",
+        "line": 128,
+        "endLine": 131,
+        "excerpt": "  --ease-out: cubic-bezier(.22, 1, .36, 1);\n  --ease-spring: cubic-bezier(.34, 1.35, .44, 1);\n  --d1: 140ms;\n  --d2: 220ms;"
+      },
+      {
+        "path": "src/index.css",
+        "line": 702,
+        "endLine": 703,
+        "excerpt": ":root[data-motion='reduced'] *, :root[data-motion='reduced'] *::before, :root[data-motion='reduced'] *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; }\n@media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) *, :root:not([data-motion='full']) *::before, :root:not([data-motion='full']) *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; } }"
+      },
+      {
+        "path": "src/components/ui/dialog.tsx",
+        "line": 55,
+        "endLine": 61,
+        "excerpt": "      <DialogPrimitive.Content\n        data-slot=\"dialog-content\"\n        className={cn(\n          'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-[var(--stroke-soft)] duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',\n          className,\n"
+      }
+    ],
+    "acceptance": [
+      "同状态切换录像核对开始/结束/缓动；reduced motion无残留缩放和滚动动画；卸载无观察器/RAF遗留。"
+    ],
+    "unknowns": ["没有帧级运行测量；参考源码并未证明所有Dialog统一淡入缩放。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIR013",
+    "surface": "通用状态、错误恢复与提示语义",
+    "target": "参考区分首次加载、保留旧内容刷新、真正零数据、查询零结果、读取失败、提交失败、取消和禁用；loading role/status/busy与retry独立。",
+    "current": "Pisper已有PageState，但PageLoader与启动div未统一语义；App单Toast覆盖旧通知；技能页error未消费，Memory阈值失败伪装默认，部分读请求缺身份保护。",
+    "change": "以相同页面状态复刻布局：占位高度、图标/说明/重试位置及焦点都进入验收；优先修复会导致参考状态不可表达的数据状态模型。",
+    "referenceIds": ["E001", "E002", "E004", "E005", "E006", "S048"],
+    "referenceAnchor": "crosscutting",
+    "evidence": [
+      {
+        "path": "src/components/app/PageState.tsx",
+        "line": 14,
+        "endLine": 31,
+        "excerpt": "}) {\n  return (\n    <div\n      role={kind === 'error' ? 'alert' : 'status'}\n      aria-busy={kind === 'loading'}\n      className=\"flex min-h-64 w-full min-w-0 flex-col items-center justify-center gap-3 px-4 py-8 text-center\"\n    >\n      {kind === 'loading' && (\n        <LoaderCircle className=\"size-5 animate-spin text-content-muted\" aria-hidden=\"true\" />\n      )}\n      <h2 className=\"text-base font-medium text-content\">{title}</h2>\n      {description && (\n        <p className=\"max-w-md break-words text-sm text-content-muted\">{description}</p>\n      )}\n      {action}\n    </div>\n  )\n}"
+      },
+      {
+        "path": "src/components/layout/PageLoader.tsx",
+        "line": 7,
+        "endLine": 17,
+        "excerpt": "export function PageLoader() {\n  const { t } = useI18n()\n\n  return (\n    <AppEmptyState>\n      <RefreshCw className=\"animate-spin\" size={24} />\n      <h2>{t('navigation:pageLoader.lightingUpThisPage')}</h2>\n      <p>{t('navigation:pageLoader.bringingTheNeededCapabilitiesIntoPlace')}</p>\n    </AppEmptyState>\n  )\n}"
+      },
+      {
+        "path": "src/App.tsx",
+        "line": 325,
+        "endLine": 329,
+        "excerpt": "  // 应用内 Toast：每次递增 id 保证连续提示正确触发切换动画。\n  const notify = useCallback((message: string, tone: ToastTone = 'success') => {\n    toastSequence.current += 1\n    setToast({ id: toastSequence.current, message, tone })\n  }, [])"
+      },
+      {
+        "path": "src/features/skills/SkillsPage.tsx",
+        "line": 113,
+        "endLine": 131,
+        "excerpt": "  const [data, setData] = useState<SkillsData | null>(null)\n  const [selectedId, setSelectedId] = useState('')\n  const [filter, setFilter] = useState<SkillFilter>('all')\n  const [busy, setBusy] = useState(false)\n  const [loading, setLoading] = useState(true)\n  const [, setError] = useState('')\n\n  // 加载技能列表（按活动会话作用域取项目技能），失效选中回退首项。\n  const load = useCallback(async () => {\n    setError('')\n    try {\n      const result = await apiJson<SkillsData>(skillsApiPath('/api/skills', activeSessionId))\n      setData(result)\n      setSelectedId((current) =>\n        result.skills.some((skill) => skill.id ==="
+      }
+    ],
+    "acceptance": [
+      "断网不能显示“没有数据”；旧内容刷新失败仍可读；每个重试busy防重复且结果只作用当前查询。"
+    ],
+    "unknowns": ["状态视觉必须依各页面参考，不设计全站唯一空态代替。"],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC001",
+    "surface": "聊天壳：内容侧栏与导航rail的宽度/断点",
+    "target": "原报告N001：可调整侧栏默认340，有限值clamp下限240/上限520/可用宽-240，responsive壳768px断点。N007的browser rail为w-13即根16px下52px、row36px；不能将browser rail条件直接套成所有Electron分支。",
+    "current": "实际主壳SidebarProvider显式288px，组件236px默认在...style前被覆盖；移动Sheet另设236px。桌面sidebar容器min-[651px]显示。ActivityRail独立宽52px，但触发器size-11=44px；当前未发现侧栏拖宽持久化。",
+    "change": "以选定目标壳分支重建侧栏宽度权威值及拖拽/夹限/持久化；默认288→340并对齐768响应式分支。保留独立rail结构；52px可保持，row36只在目标browser分支对齐，避免误把移动Sheet236算桌面现状。",
+    "referenceIds": ["N001", "N004", "N007"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "evidence": [
+      {
+        "path": "src/App.tsx",
+        "line": 740,
+        "endLine": 742,
+        "excerpt": "                '--sidebar-width': '288px',\n                '--workbench-leading-inset': drawerSidebar || sidebarCollapsed ? '44px' : '0px',\n              } as CSSProperties"
+      },
+      {
+        "path": "src/components/ui/sidebar.tsx",
+        "line": 151,
+        "endLine": 154,
+        "excerpt": "            '--sidebar-width': SIDEBAR_WIDTH,\n            '--sidebar-width-icon': SIDEBAR_WIDTH_ICON,\n            ...style,\n          } as React.CSSProperties"
+      },
+      {
+        "path": "src/components/ui/sidebar.tsx",
+        "line": 240,
+        "endLine": 241,
+        "excerpt": "              '--sidebar-width': SIDEBAR_WIDTH_MOBILE,\n              width: 'min(280px, calc(100vw - var(--activity-rail-width)))',"
+      },
+      {
+        "path": "src/components/ui/sidebar.tsx",
+        "line": 284,
+        "endLine": 284,
+        "excerpt": "          'absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-(--activity-rail-width) data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--activity-rail-width)-var(--sidebar-width))] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] min-[651px]:flex',"
+      },
+      {
+        "path": "src/components/layout/ActivityRail.tsx",
+        "line": 48,
+        "endLine": 48,
+        "excerpt": "                    'relative size-11 shrink-0 rounded-xl text-muted-foreground',"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/navigation-panels-evidence.json",
+        "line": 6,
+        "endLine": 6,
+        "excerpt": "    \"excerpt\": \"function zYt(){return tb(_h(WYt,340))}function BYt(e){vh(WYt,tb(e))}function VYt(){return zYt()}function HYt(e){}function tb(e,t=1/0,n=240){return Number.isFinite(e)?Math.max(n,Math.min(e,520,t-240)):Math.max(340,n)}var UYt,WYt;function nb(){return(nb=t((()=>{Rie(),ahe(),Th(),Mhe(),UYt=`(min-width: 768px)`,WYt=`sidebar-width`})))()}function GYt({defaultWidth:e,mainContentWidth:t,shellHeight:n}){return e===600?Math.max(320,Math.min(n*rXt,t-tXt),Math.min(nXt,t-iXt)):e}function KYt(e,t,n=`regular`){let r=Number.isFinite(e)?e:600,i=ZYt(t,n);return Math.max(Math.min(320,i),Math.\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/navigation-panels-evidence.json",
+        "line": 54,
+        "endLine": 54,
+        "excerpt": "    \"excerpt\": \"`group/sidebar-rail relative flex min-h-0 shrink-0 flex-col items-center gap-2 px-2 pb-2 select-none browser:w-13 browser:gap-0 browser:px-0 browser:pt-0 browser:[--height-token-nav-row:36px] browser:[--height-token-row:36px] browser:[--padding-row-cell-x:8px] browser:[--padding-row-x:8px] browser:max-md:border-e browser:max-md:border-subtle browser:max-md:dark:border-default`,pe,`pt-[calc((var(--sidebar-navigation-header-height,calc(var(--spacing)*10))-var(--spacing)*9)/2)]`,`[[data-app-shell-page-surface=true]_&]:pb-1`),t[67]=pe,t[68]=M),N=!0,t[69]===_?P=t[70]:(P=_.format\","
+      }
+    ],
+    "acceptance": [
+      "同一目标壳、100%缩放下测侧栏初始宽/最小/最大和拖拽恢复；窄窗不侵占主区。",
+      "在767/768及650/651附近比较参考与Pisper显隐、焦点和rail留白；移动单独验收。"
+    ],
+    "unknowns": [
+      "目标安装包存在legacy/rail与browser/electron分支；1:1基线须固定具体分支，当前未运行判断。",
+      "所有px均为源码或根16px换算；无computed style/截图测量。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC002",
+    "surface": "侧栏聊天列表：分组、密度和可见动作",
+    "target": "参考统一聊天侧栏有Pinned和Recents，并支持By project/By connection/In one list组织与updated_at/manual排序。行级Archive、Pin/Unpin、Project、Rename、Section由item builder决定可见性；没有证据允许画成任何账号固定全部菜单。",
+    "current": "聊天侧栏标题为Projects，按cwd项目分组，组下行固定h-8=32px、pl-8缩进，右侧始终显示相对时间；pinned仅作为行内Pin并由排序优先，不是独立Pinned区。",
+    "change": "按参考Pinned/Recents主分组及组织/排序入口重排导航呈现；目录项目保留为By project数据投影。行密度改为目标消费的row token，不为凑1:1把N007的rail36px无条件当聊天行高度；时间、状态和更多按钮按已证实消费者可见规则布局。",
+    "referenceIds": ["N016", "N018", "N019", "N020", "N021", "V076", "V077"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "evidence": [
+      {
+        "path": "src/features/chat/ProjectTaskList.tsx",
+        "line": 528,
+        "endLine": 528,
+        "excerpt": "          <span>{t('navigation:workbench.projects')}</span>"
+      },
+      {
+        "path": "src/features/chat/ProjectTaskList.tsx",
+        "line": 639,
+        "endLine": 639,
+        "excerpt": "                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}"
+      },
+      {
+        "path": "src/features/chat/ProjectTaskList.tsx",
+        "line": 653,
+        "endLine": 658,
+        "excerpt": "                          {session.pinned && (\n                            <Pin\n                              className=\"mr-1 size-3 shrink-0\"\n                              aria-label={t('navigation:appSidebar.pinned')}\n                            />\n                          )}"
+      },
+      {
+        "path": "src/features/chat/ProjectTaskList.tsx",
+        "line": 676,
+        "endLine": 679,
+        "excerpt": "                            dateTime={session.modified}\n                          >\n                            {relativeTime(session.modified, language)}\n                          </time>"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/navigation-panels-evidence.json",
+        "line": 126,
+        "endLine": 126,
+        "excerpt": "    \"excerpt\": \"id:`sidebarElectron.pinnedThreads`,defaultMessage:`Pinned`,description:`List label for pinned threads in the sidebar`}),t[95]=R,t[96]=jn);let Mn=jn,Nn=`Recents`,Pn;t[97]===R?Pn=t[98]:(Pn=R.formatMessage({id:`sidebarElectron.chatGptWork.recents`,defaultMessage:`Recents`,description:`Short sidebar section label for the unified list of recent ChatGPT chats and Codex tasks`}),t[97]=R,t[98]=Pn);let Fn=Pn;if(f){Nn=`Unreads`;let e;t[99]===R?e=t[100]:(e=R.formatMessage(YHc.unreadsTitle),t[99]=R,t[100]=e),Fn=e}let In=uKi(Pt.chatAttentionStates),Ln=a2c({catalogPageState:qe,canFetchNe\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/navigation-panels-evidence.json",
+        "line": 150,
+        "endLine": 150,
+        "excerpt": "    \"excerpt\": \"id:`sort-sidebar`,icon:Wpe,message:iZc.sort,submenu:nZc([`updated_at`,`manual`],a===`projects`?x:b,e)})}!c&&a===`chats`&&S.push(...Gma(u,m&&r===`project`?f:null,h)),g&&a===`chats`&&(S.length>0&&S.push({id:`section-separator`,type:`separator`}),S.push(POc(u))),t[11]=b,t[12]=v,t[13]=g,t[14]=r,t[15]=c,\","
+      }
+    ],
+    "acceptance": [
+      "相同会话夹具下检查Pinned/Recents、按项目/单列表和手动/更新时间切换，置顶与归档状态保持。",
+      "检查单行截断、hover/focus/右键/触屏更多动作与列表独立滚动；窄侧栏标题不得与时间重叠。"
+    ],
+    "unknowns": [
+      "参考聊天行最终高度依赖text-base/row变量与运行时字体，不能静态认定32→36。",
+      "参考条目构建的所有权限组合未穷尽；只对已证菜单复刻。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC003",
+    "surface": "消息主列与轮次间距",
+    "target": "V076记录browser/chrome-extension/electron body的thread-content-max-width=48rem，宽Markdown另56rem；V079根conversation-item-gap16px/grouped4px。具体consumer和局部覆写仍须沿同一壳核对。",
+    "current": "实际FocusSession父容器显式注入--chat-content-width:768px，消息和输入器主列均以768px为上限；ChatMessage/FocusTranscript的1040px只是未注入时回退，不是当前聊天主列。轮次mb回退32px；用户泡最大78%，700/470容器阈值变86%/94%。",
+    "change": "保持已经一致的768px普通主列，并在锁定根字号/zoom后映射参考48rem；不要按1040px回退值误改宽度。宽代码/表格另核参考56rem消费规则；轮距32px映射目标16/4px前核实实际消费者。普通用户气泡最大宽不可照搬紧凑456px分支。",
+    "referenceIds": ["V076", "V079", "V064"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#visual",
+    "evidence": [
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 725,
+        "endLine": 725,
+        "excerpt": "        'message group/message mx-auto mb-[var(--chat-message-gap,32px)] w-full max-w-[var(--chat-content-width,1040px)] min-w-0 gap-0',"
+      },
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 753,
+        "endLine": 753,
+        "excerpt": "            : \"w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%] [[data-chat-message-style='plain']_&]:w-full [[data-chat-message-style='plain']_&]:max-w-full\","
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 702,
+        "endLine": 702,
+        "excerpt": "      className=\"focus-composer-shell relative z-20 mx-auto flex w-[min(768px,calc(100%_-_48px))] shrink-0 flex-col gap-2 pt-2 pb-4 @max-[700px]:w-[calc(100%_-_24px)]\""
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 606,
+        "endLine": 606,
+        "excerpt": "    \"excerpt\": \":is([data-codex-window-type=browser],[data-codex-window-type=chrome-extension],[data-codex-window-type=electron]) body{--padding-row-y:calc(var(--spacing) * 1.25);--height-token-nav-row:calc(var(--text-base) * 1.5 + var(--padding-row-y) * 2);--padding-panel-base:calc(var(--spacing) * 5);--padding-panel:var(--padding-panel-base);--thread-content-max-width:48rem;--composer-adjacent-max-width:calc(var(--thread-content-max-width) + var(--composer-inline-overhang) + var(--composer-inline-overhang) - var(--home-composer-inline-inset) - var(--home-composer-inline-inset));\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 630,
+        "endLine": 630,
+        "excerpt": "    \"excerpt\": \"--opacity-composer-placeholder:.5;--spacing-composer-single-line-controls:calc(var(--spacing) * 1.25);--padding-composer-single-line-footer-block:var(--spacing);--composer-suggestion-inline-inset:calc(var(--padding-toolbar) + var(--home-composer-inline-inset));--inset-toolbar:var(--height-toolbar);--safe-area-left:0px;--safe-area-right:0px;--codex-chat-font-size:var(--codex-chat-font-size-override,var(--font-ui-size,13px));--codex-chat-code-font-size:var(--codex-chat-code-font-size-override,var(--font-code-size,12px));--conversation-item-gap:16px;--conversation-grouped-item-gap"
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 885,
+        "endLine": 885,
+        "excerpt": "        `focus-session [--chat-content-width:768px] [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,"
+      }
+    ],
+    "acceptance": [
+      "默认目标条件下保持消息与输入器768px主列对齐；父容器注入与独立预览回退分开验证。",
+      "分别验收普通消息、宽代码/表格、用户长消息及16/4px轮次分组间距，避免旧固定覆盖。"
+    ],
+    "unknowns": [
+      "V079是根层token，当前未证每类普通ChatGPT turn都最终取16/4px，实施前须补消费者/运行核验。",
+      "普通用户泡最终半径和最大宽未从所读证据恢复；V064仅紧凑助手泡，不得用它替代。",
+      "未运行Pisper或参考界面，未宣称像素相同。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC004",
+    "surface": "助手正文的段落、标题和列表排版",
+    "target": "V033：正文F，行高1.625F，小字max(code,.875F)，S=F/4。V035/V036：H1=1.5F/2F行高，H2=1.25F/1.75F，H3=1.125F/1.75F；段落默认底S，用户直接段落margin-block0。",
+    "current": "助手正文leading1.625已相同；但FocusChatMessage强制h2=1.125em、h3=1em及段落上下1em，覆盖通用Markdown样式。全局Markdown标题margin .9em/.4em、line-height1.3、h1=1.45em；用户段落是否完全归零也需核对局部覆写。",
+    "change": "保持正文1.625行高，替换聊天专用标题/段落/列表间距为参考F/S比例；去掉使H2/H3过小的局部覆盖。以聊天Markdown宿主消费局部样式，避免将全局字体/主题重建混入此项。",
+    "referenceIds": ["V033", "V035", "V036", "V038", "V039"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#visual",
+    "evidence": [
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 775,
+        "endLine": 775,
+        "excerpt": "                ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h2]:text-[1.125em]! [&_h3]:text-[1em]! [&_li]:py-0! [&_li+li]:mt-0! [&_p]:my-[var(--chat-message-paragraph-gap,1em)]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'"
+      },
+      {
+        "path": "src/index.css",
+        "line": 629,
+        "endLine": 629,
+        "excerpt": ".markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4 { margin: .9em 0 .4em; color: var(--text); line-height: 1.3; }"
+      },
+      {
+        "path": "src/index.css",
+        "line": 630,
+        "endLine": 630,
+        "excerpt": ".markdown-body h1 { font-size: 1.45em; }.markdown-body h2 { font-size: 1.28em; }.markdown-body h3 { font-size: 1.14em; }"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 262,
+        "endLine": 262,
+        "excerpt": "    \"excerpt\": \"._MarkdownRoot_1fgd0_2{--markdown-host-font-size:var(--codex-chat-font-size);--markdown-host-small-font-size:var(--codex-chat-code-font-size);--markdown-font-size:var(--markdown-host-font-size);--markdown-line-height:calc(var(--markdown-font-size) * var(--leading-relaxed));--markdown-small-font-size:max(var(--markdown-host-small-font-size), calc(var(--markdown-font-size) * .875));--markdown-space:calc(var(--markdown-font-size) / 4);--text-primary:currentColor;--border-medium:var(--color-border-strong);--border-light:var(--color-border-subtle);\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 278,
+        "endLine": 278,
+        "excerpt": "    \"excerpt\": \"._Heading_1fgd0_2:where(h1){margin:calc(var(--markdown-space) * 4) 0 calc(var(--markdown-space) * 2);font-size:calc(var(--markdown-font-size) * 1.5);line-height:calc(var(--markdown-space) * 8)}._Heading_1fgd0_2:where(h2){margin:calc(var(--markdown-space) * 4) 0 var(--markdown-space);font-size:calc(var(--markdown-font-size) * 1.25);line-height:calc(var(--markdown-space) * 7)}\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 302,
+        "endLine": 302,
+        "excerpt": "    \"excerpt\": \"._Paragraph_1fgd0_2,._VisualizationBlock_1fgd0_2{margin:0 0 var(--markdown-space)}._VisualizationBlock_1fgd0_2{font-family:var(--font-sans);display:flow-root}\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 310,
+        "endLine": 310,
+        "excerpt": "    \"excerpt\": \"._MarkdownRoot_1fgd0_2[data-markdown-text-tone=user-message]{color:var(--color-text-user-message)}._MarkdownRoot_1fgd0_2[data-markdown-text-tone=user-message]>._Paragraph_1fgd0_2{margin-block:0}\","
+      }
+    ],
+    "acceptance": [
+      "用固定正文/H1–H6/多段列表/表格/代码夹具比较字号比例、baseline与段间距；正文1.625保持。",
+      "用户多段消息直接段落无额外上下边距；超长词、中文及行内代码按同一宽度断行。"
+    ],
+    "unknowns": [
+      "最终F受目标运行时设置与壳分支影响，不能统一写死16px；全局字体与主题由主代理另审。",
+      "实际浏览器CSS级联、Markdown生成DOM与像素排版仍待运行验证。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC005",
+    "surface": "消息动作栏：保持完成回复可见，补齐布局/反馈细节",
+    "target": "I247–I249证明普通已完成助手回复alwaysShowActions=true；未完成不暴露同一完整动作集合。共享动作行flex/min-h-5/gap-.5、browser gap0。用户copied成功替换图标/名称，并暂时移除点击回调。",
+    "current": "完成助手动作栏常驻已相同，用户动作默认hover/focus/无hover显示；助手gap1、按钮28px且650px下44px。复制等待剪贴板成功才提示已复制已相同，但成功反馈期仍可再次点击，且只写纯文本。",
+    "change": "保持完成助手动作常驻，避免错误改成全部hover-only；按目标共享动作行的gap/按钮变体对齐局部密度。复制反馈期锁定点击并按需要复刻text/plain+text/html；用户edit、评分、版本与分支入口按参考能力布局另接交互。",
+    "referenceIds": ["I247", "I248", "I249", "I250", "I251"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#conversation",
+    "evidence": [
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 736,
+        "endLine": 738,
+        "excerpt": "      {message.role === 'agent' && streaming && (\n        <span className=\"mb-3 flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]\">\n          <span"
+      },
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 801,
+        "endLine": 801,
+        "excerpt": "          <div className=\"message-actions mt-2 -ml-1.5 flex flex-wrap items-center gap-1 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]\">"
+      },
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 791,
+        "endLine": 791,
+        "excerpt": "        <div className=\"message-actions mt-1 -mr-1.5 flex flex-wrap justify-end gap-1 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md\">"
+      },
+      {
+        "path": "src/features/chat/MessageCopyButton.tsx",
+        "line": 50,
+        "endLine": 52,
+        "excerpt": "            disabled={state === 'pending'}\n            onClick={() => void copy()}\n          >"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 382,
+        "endLine": 382,
+        "excerpt": "    \"excerpt\": \"||t[134]!==N||t[135]!==O||t[136]!==P?(Oe=(e,t)=>(0,$.jsxs)($.Fragment,{children:[z?t:null,(0,$.jsx)(Xv,{actionRowRef:l,tooltipSide:`bottom`,alwaysShowActions:Y,turnId:Y?P:void 0,copyText:J?me:void 0,getCopyText:J?F:void 0,getCopyHtml:I,onCopyText:q==null?()=>{cs(L,zu,{action:Jf.CHATGPT_CONVERSATION_CONTROL_ACTION_TYPE_ASSISTANT_TURN_COPY_CLICKED,conversationId:V??void 0,messageId:ce,productExperie\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 390,
+        "endLine": 390,
+        "excerpt": "    \"excerpt\": \"?(0,tS.jsxs)(`div`,{className:q(`flex min-h-5 min-w-0 flex-wrap items-center gap-0.5 browser:gap-0`,P||ee?void 0:`opacity-0 group-focus-within:opacity-100 group-hover:opacity-100`),children:[re==null?null:(0,tS.jsx)(Or,{iconOnly:!0,iconClassName:`icon-xs`,buttonText:H.formatMessage({id:`assistantMessageContent.copyResponseTooltip`,defaultMessage:`Copy respon\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 406,
+        "endLine": 406,
+        "excerpt": "    \"excerpt\": \"copies the user's message`}),n[63]=V,n[64]=R,n[65]=o):o=n[65];let s=o,c=R?void 0:it,l;n[66]===R?l=n[67]:(l=R?(0,$.jsx)(me,{className:`icon-xs`}):(0,$.jsx)(ye,{className:`icon-xs`}),n[66]=R,n[67]=l);let u;n[68]!==s||n[69]!==c||n[70]!==l?(u=(0,$.jsx)(t,{className:`focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0`,color:`ghost`,size:`icon`,\\\"aria-l\","
+      }
+    ],
+    "acceptance": [
+      "完成助手不悬停仍有动作，流式中无错误暴露；键盘focus/触屏操作可见。",
+      "复制失败不显示Copied；Copied图标/可访问名称同步，成功指示期间重复激活不重复写入。"
+    ],
+    "unknowns": [
+      "参考每种动作按钮最终边长/图标值取具体变体与壳，未证明所有动作一律28或44px；不将反应按钮40px规则推广全栏。",
+      "HTML复制需现有安全渲染契约；本项未实现或运行。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC006",
+    "surface": "输入器局部几何：框体、内容区与附件托盘",
+    "target": "V070共享composer半径5.5spacing/round，V069 browser改7spacing/superellipse1.1；V078根输入行高5spacing、最小高11spacing、左右3spacing、placeholder .5，存在后续局部覆写。V072/073 composer有多层边缘/近阴影/80px远阴影，<40rem远阴影40px。",
+    "current": "输入器固定rounded28px、p3、gap3、普通border和单层0 2px 8px/4%阴影；textarea最小56px、最大220px、内px1/py1.5；选择附件后外置AttachmentTray。28px仅数值上接近browser换算，不等同共享桌面22px/角形。",
+    "change": "依据选定目标壳对齐输入器外框与文本区密度，恢复目标composer局部边缘/阴影和窄屏变化；将附件前后占位/最小高一起纳入，避免只把半径改为28就声称一致。全局半径/颜色token由主代理处理。",
+    "referenceIds": ["V069", "V070", "V072", "V073", "V078"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#visual",
+    "evidence": [
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 741,
+        "endLine": 741,
+        "excerpt": "          'focus-composer relative flex min-w-0 flex-col gap-3 rounded-[28px] border border-border/70 bg-background dark:bg-surface-subtle p-3 shadow-[0_2px_8px_0_rgb(0_0_0/0.04)] transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[56px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:f"
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 723,
+        "endLine": 723,
+        "excerpt": "      <AttachmentTray attachments={selection.attachments} onRemove={selection.removeAttachment} />"
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 769,
+        "endLine": 773,
+        "excerpt": "          rows={1}\n          aria-label={t('chat:focusSession.taskDescription')}\n          value={value}\n          onChange={(event) => {\n            updateValue(event.target.value)"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 558,
+        "endLine": 558,
+        "excerpt": "    \"excerpt\": \"--composer-radius:calc(var(--spacing) * 5.5);--composer-corner-shape:round;--thread-composer-bottom-inset:calc(var(--spacing) * 4);--color-text-composer-primary:var(--color-text-primary-solid);\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 622,
+        "endLine": 622,
+        "excerpt": "    \"excerpt\": \"--line-height-composer:calc(var(--spacing) * 5);--min-height-composer:calc(var(--spacing) * 11);--min-rows-composer-work-home:1;--padding-composer-input:0 calc(var(--spacing) * 3);--spacing-composer-input-footer:var(--spacing);--padding-composer-empty-attachments:calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 1.5);--spacing-composer-footer-bottom:calc(var(--spacing) * 2);--opacity-composer-placeholder:.5;--spacing-composer-single-line-controls:calc(var(--spacing) * 1.25);--padding-composer-single-line-footer-block:var(--spacing);\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 574,
+        "endLine": 574,
+        "excerpt": "    \"excerpt\": \":root{--elevation-stroke:0 0 0 .5px var(--color-border-strong);--elevation-stroke-subtle:0 0 0 .5px var(--lightningcss-light,rgb(from var(--color-border-strong) r g b / .04))var(--lightningcss-dark,rgb(from var(--color-border-strong) r g b / .06));--elevation-prominent:var(--elevation-stroke), 0 3px 7.5px #0000000a, 0 0 20px #0000000d;--elevation-sidebar:var(--elevation-stroke), 0 3px 7.5px #00000008, 0 0 16px #00000005;--elevation-composer:0 0 0 1px #0000000a, 0 2px 8px 0 #0000000a, 0 4px 80px 8px #00000006;--elevation-composer-dark:inset 0 0 1px 0 #fff3}\","
+      }
+    ],
+    "acceptance": [
+      "空白/一行/多行/附件/错误五状态比较输入框高度、内边距、底部留白及正文不被遮挡。",
+      "固定目标browser或electron检查半径/角形与阴影；<40rem前后验证远阴影变化。"
+    ],
+    "unknowns": [
+      "V078是根默认，最终min-height与单/多行consumer需补核；不能现在断言参考空框总高44px。",
+      "WebView是否支持corner-shape、实际placeholder alpha与主题合成阴影待运行测量。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC007",
+    "surface": "输入器主动作与工具栏的条件交互",
+    "target": "I209/I214中Send/Stop、loading、disabled分别计算；有草稿且允许steering/queue时生成中可仍走Send；等待文件有专用名称和禁用/加载。带blockedReason保留可聚焦解释。V080按composer-footer容器300/440/520px收缩标签。",
+    "current": "ComposerSendButton只凭streaming固定选Stop，queueing才spinner；streaming时虽可Enter走steer，鼠标主按钮仍停止。附件本地读取无准备占位。工具栏按ResizeObserver估算容量，默认permission/run-mode/model，常见@700/@470缩小，不等于参考容器标签收缩。",
+    "change": "复刻已证状态矩阵并把stopping/preparing/可发送草稿显示传入主按钮，鼠标与键盘动作一致；依据目标能力保留队列差异；工具footer按参考容器规则折叠标签，非简单整体缩小按钮。",
+    "referenceIds": ["I209", "I210", "I214", "I216", "V080", "V081"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#conversation",
+    "evidence": [
+      {
+        "path": "src/features/chat/focus-session-composer-bits.tsx",
+        "line": 200,
+        "endLine": 200,
+        "excerpt": "      type={streaming ? 'button' : 'submit'}"
+      },
+      {
+        "path": "src/features/chat/focus-session-composer-bits.tsx",
+        "line": 209,
+        "endLine": 215,
+        "excerpt": "      aria-label={streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')}\n      onClick={streaming ? onAbort : undefined}\n      disabled={disabled}\n    >\n      {streaming ? (\n        <Square size={12} fill=\"currentColor\" />\n      ) : queueing ? ("
+      },
+      {
+        "path": "src/features/chat/use-focus-composer.ts",
+        "line": 139,
+        "endLine": 146,
+        "excerpt": "    if (streaming) {\n      if ((!value.trim() && !selection.attachments.length) || queueing) return\n      setQueueing(true)\n      const queued = await onQueue?.(value, selection.attachments, 'steer')\n      setQueueing(false)\n      if (!queued) return\n      clearDraft()\n      setComposerExecutionMode('plan')"
+      },
+      {
+        "path": "src/features/chat/composer-toolbar-layout.ts",
+        "line": 30,
+        "endLine": 33,
+        "excerpt": "export const DEFAULT_COMPOSER_TOOLBAR_LAYOUT: ComposerToolbarLayout = {\n  inline: ['permission', 'run-mode', 'model'],\n  overflow: COMPOSER_TOOL_IDS.filter((id) => !['permission', 'run-mode', 'model'].includes(id)),\n}"
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 483,
+        "endLine": 487,
+        "excerpt": "    Math.max(toolbarCapacity, mobileLayout ? 5 : 8.5),\n    mobileLayout\n      ? { permission: 2.3, 'run-mode': 1.8, model: 3.6 }\n      : { permission: 2.6, 'run-mode': 2, model: 3.9 },\n  )"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 70,
+        "endLine": 70,
+        "excerpt": "    \"excerpt\": \"Ti=!Xt&&qn==null&&(An&&Zt||bi&&(vi===`streaming`||Yn||Si&&!Jt||!Kt&&!Jt||!qr&&!_i)),Ei;t[76]!==wr||t[77]!==Ti||t[78]!==an?(Ei=Bwt({intl:wr,isStopAction:Ti,rateLimitSendBlocked:an}),t[76]=wr,t[77]=Ti,t[78]=an,t[79]=Ei):Ei=t[79];let{submitActionLabel:Di,rateLimitHardBlockLabel:Oi}=Ei,ki;t[80]===wr?ki=t[81]:(ki=wr.formatMessage(S4.fileUploadPending),t[80]=wr,t[81]=ki);le\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 110,
+        "endLine": 110,
+        "excerpt": "    \"excerpt\": \"let V=P||void 0,H=i||void 0,ee=i||x&&p==null,te;t[19]!==P||t[20]!==b?(te=e=>{if(P){e.preventDefault();return}b?.(e)},t[19]=P,t[20]=b,t[21]=te):te=t[21];let ne;t[22]!==s||t[23]!==o||t[24]!==F||t[25]!==n||t[26]!==B||t[27]!==V||t[28]!==H||t[29]!==ee||t[30]!==te||t[31]!==E?(ne=(0,Mk.jsx)(`button`,{ref:n,type:E,className:B,\\\"aria-disabled\\\":V,\\\"aria-busy\\\":H,\\\"aria-label\\\":o,\\\"aria-describedby\\\":s,disabled:ee,onClick:te,children:F}),t[22]=s,t[23]=o,t[24]=F,t[25]=n,t[26]=B,t[27]=V,t[28]=H,t[29]=ee,t[30]=te,t[31]=E,t[32]=ne):ne=t[32];let re=ne;if(p==null||m===null||!x&&!N){if(!O&&g==n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/typography-visual-evidence.json",
+        "line": 638,
+        "endLine": 638,
+        "excerpt": "    \"excerpt\": \"@container composer-footer (width<=300px){._ComposerFooterLabel_1cdoa_2[data-composer-footer-collapse=xs]{display:none}}@container composer-footer (width<=440px){._ComposerFooterLabel_1cdoa_2[data-composer-footer-collapse=sm],._ComposerFooterLabel_1cdoa_2[data-composer-footer-collapse=secondary]{display:none}}@container composer-footer (width<=520px){[data-composer-navigation-target=permissions] ._ComposerFooterLabel_1cdoa_2:where([data-codex-window-type=browser] ._ComposerFooterLabel_1cdoa_2){display:none}}\","
+      }
+    ],
+    "acceptance": [
+      "空草稿/非空草稿/运行/排队/准备附件/停止中各组合逐项比主图标、名称、忙碌和点击动作。",
+      "在容器299/300/439/440/519/520px检查标签折叠；按钮仍可达且不会把有原因禁用变成无法获知原因。"
+    ],
+    "unknowns": [
+      "原参考qn/Yn等共享别名语义未完全恢复，不能擅自映射为某个Pisper功能；未知分支须补证。",
+      "平台能力不同的入口不能凭菜单外观假定服务端支持；本项只是复刻目标。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC008",
+    "surface": "聊天搜索/命令菜单：几何与结果行外观",
+    "target": "G002–G006实际global-command-menu宽min(520px,92vw/zoom)，列表max min(440,max(120,90vh/zoom-64))，top按最大高度预算居中但至少16px/zoom；真正surface/shadow/radius在内部cmdk-root。行默认opacity.75、disabled.25，hover/selected/focus/active统一ghost-hover且opacity1。",
+    "current": "实际AppOverlays宽min560px/calc(100vw-40)，top16vh（小屏8vh），列表min380px/50vh，46px搜索头，结果9px/10px padding，13px字号；active用star-soft/strong，hint最大180px，非参考w-24说明列。",
+    "change": "为当前聊天搜索消费者建立专用布局，改为参考520/440高度预算与top/zoom公式；结果行对齐默认/禁用/激活层次、说明列w-24和可选secondaryContent。全局Dialog原语主题由主代理处理，避免改所有弹窗。",
+    "referenceIds": ["G002", "G003", "G004", "G005", "G006", "G014", "G015"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#global-chat-search",
+    "evidence": [
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 205,
+        "endLine": 205,
+        "excerpt": "        className=\"command-palette max-[650px]:w-full w-[min(560px,calc(100vw_-_40px))] overflow-hidden [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] shadow-[0_28px_80px_-24px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] top-[16vh]! max-w-[calc(100vw-40px)]! translate-y-0! gap-0 p-0 ring-0 max-sm:top-[8vh]! sm:max-w-[560px]!\""
+      },
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 235,
+        "endLine": 235,
+        "excerpt": "          className=\"max-h-[min(380px,50vh)] overflow-y-auto [padding:6px]\""
+      },
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 242,
+        "endLine": 242,
+        "excerpt": "              className={`palette-item [&_>_svg]:flex-none [&_>_svg]:text-[var(--text-muted)] [&.active]:bg-[var(--star-soft)] [&.active]:text-[var(--text)] [&.active_>_svg]:text-[var(--star-strong)] flex w-full items-center gap-[10px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:9px_10px] text-[var(--text-secondary)] text-[13px] text-left cursor-pointer ${entry.meta ? 'has-meta' : ''}    ${index === selectedIndex ? 'active' : ''}`}"
+      },
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 263,
+        "endLine": 263,
+        "excerpt": "              <span className=\"palette-item-hint max-[650px]:max-w-[34vw] max-w-[180px] flex-none overflow-hidden text-[var(--text-muted)] text-[11px] text-ellipsis whitespace-nowrap\">"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/global-chat-search-evidence.json",
+        "line": 14,
+        "endLine": 14,
+        "excerpt": "    \"excerpt\": \".command-menu-dialog{--command-menu-list-max-height:min(300px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)));--command-menu-max-height:calc(var(--command-menu-list-max-height) + 64px);top:max(calc(var(--spacing) * 4 / var(--codex-window-zoom,1)), calc((100vh / var(--codex-window-zoom,1) - var(--command-menu-max-height)) / 2));width:min(520px, calc(92vw / var(--codex-window-zoom,1)));zoom:var(--codex-window-zoom,1)}.global-command-menu-dialog{--command-menu-list-max-height:min(440px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)))}.search-command-me\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/global-chat-search-evidence.json",
+        "line": 38,
+        "endLine": 38,
+        "excerpt": "    \"excerpt\": \"[cmdk-item]{border-radius:var(--radius-md)}:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]):where([data-theme=dark]){border-color:var(--color-border)}@container style(--theme-variant:dark){:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]):where(:not([data-theme])){border-color:var(--color-border)}}[cmdk-item]{content-visibility:auto;border-radius:var(--radius-lg);width:100%;cursor:var(--cursor-interaction);color:var(--color-text);padding:var(--padding-row-y) var(--padding-row-x);min-height:calc(var(--spacing) * 6);-webkit\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/global-chat-search-evidence.json",
+        "line": 46,
+        "endLine": 46,
+        "excerpt": "    \"excerpt\": \"[cmdk-item]:hover:not([aria-disabled=true]),[cmdk-item][data-selected=true],[cmdk-item][aria-selected=true],[cmdk-item]:focus-visible,[cmdk-item]:active:not([aria-disabled=true]){background-color:var(--color-background-primary-ghost-hover);opacity:1}[cmdk-item][data-command-menu-loading=true],[cmdk-item][data-command-menu-loading=true]:hover,[cmdk-item][data-command-menu-loading=true][data-selected=true],[cmdk-item][data-command-menu-loading=true][aria-selected=true],[cmdk-item][data-command-menu-loading=true]:focus-visible,[cmdk-item][data-command-menu-loading=true]:active\","
+      }
+    ],
+    "acceptance": [
+      "相同结果数量下在大窗/短窗/窄窗及不同缩放比较外宽、最大高、顶部位置与说明列。",
+      "hover/方向键选中/focus-visible/禁用/active状态用同一层次；长标题与摘要截断不挤占说明。"
+    ],
+    "unknowns": [
+      "参考text-sm最终值来自运行时，不能把Pisper13px直接判定必须变12px；字体由主代理单独对齐。",
+      "当前未测实际缩放、弹窗视口越界与主题最终像素值。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC009",
+    "surface": "聊天搜索/命令菜单：结果生命周期和键盘交互",
+    "target": "G013/G017/G024：请求失败保留菜单并给可选择Retry；根菜单Tab按有效section首项跳转且忽略IME/组合修饰；仅同query冻结指针进入时结果，离开/取消/点击清快照，避免网络更新令鼠标下条目更换；选择ChatGPT结果导航后关闭，未承诺命中messageId定位。",
+    "current": "AppOverlays异步标签失败清空结果，混合actions/pages/labels/sessions扁平数组，无section跳转或指针结果冻结。键盘Arrow/Enter/Escape无isComposing检查；onMouseEnter只改activeIndex，网络结果到达可改变同索引条目。",
+    "change": "在现有实际消费者复刻分组/加载/空/失败Retry、IME安全的Tab/Arrow/Enter/Escape与同query指针快照；普通结果导航后关闭的现状保持，标签节点定位作为额外能力明确呈现，不伪称参考有消息命中自动定位。",
+    "referenceIds": ["G013", "G016", "G017", "G019", "G024"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#global-chat-search",
+    "evidence": [
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 74,
+        "endLine": 91,
+        "excerpt": "    setLabelsSearching(true)\n    const timer = window.setTimeout(() => {\n      void chatApi\n        .searchSessionTreeLabels(keyword, 12)\n        .then((data) => {\n          if (!active) return\n          setLabelMatches(data.labels || [])\n          setLabelsSearching(false)\n        })\n        .catch(() => {\n          if (!active) return\n          setLabelMatches([])\n          setLabelsSearching(false)\n        })\n    }, 140)\n    return () => {\n      active = false\n      window.clearTimeout(timer)"
+      },
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 183,
+        "endLine": 197,
+        "excerpt": "    if (event.key === 'ArrowDown') {\n      event.preventDefault()\n      setActiveIndex((current) => (entries.length ? (current + 1) % entries.length : 0))\n    } else if (event.key === 'ArrowUp') {\n      event.preventDefault()\n      setActiveIndex((current) =>\n        entries.length ? (current - 1 + entries.length) % entries.length : 0,\n      )\n    } else if (event.key === 'Enter') {\n      event.preventDefault()\n      void runEntry(entries[selectedIndex])\n    } else if (event.key === 'Escape') {\n      event.preventDefault()\n      onClose()\n    }"
+      },
+      {
+        "path": "src/components/layout/AppOverlays.tsx",
+        "line": 248,
+        "endLine": 248,
+        "excerpt": "              onMouseEnter={() => !pendingEntryId && setActiveIndex(index)}"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/global-chat-search-evidence.json",
+        "line": 134,
+        "endLine": 134,
+        "excerpt": "    \"excerpt\": \" va(){return(va=e((()=>{ga=Ge(),Y(),Yn(),bt(),_a=Ye()})))()}function ya(e,t){if(e.key!==`Tab`||e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey||e.nativeEvent.isComposing)return!1;let n=e.currentTarget.closest(`[cmdk-root]`);if(n==null)return!1;let r=Array.from(n.querySelectorAll(`[data-command-menu-search-section]:not([hidden])`)).flatMap(e=>{let t=e.querySelector(`[cmdk-item]:not([aria-disabled=\\\"true\\\"])`);return t==null?[]:[t]});if(r.length<2)return!1;let i=n.querySelector(`[cmdk-item][aria-selected=\\\"true\\\"]`)?.closest(`[data-command-menu-search-section]`),a=t?r.findInde"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/global-chat-search-evidence.json",
+        "line": 190,
+        "endLine": 190,
+        "excerpt": "    \"excerpt\": \" chat`,description:`Fallback title for a task without a title in the command menu`}),t[0]=y,t[1]=S);let C=S,w=b?.search===h?b.results:f;if(w.length===0&&!g)return null;let T=a||g,E=w.length>0||void 0,D=g||void 0,O;t[2]!==w.length||t[3]!==o||t[4]!==s||t[5]!==g?(O=o==null||w.length===0?void 0:(0,Q.jsxs)(`span`,{className:`flex items-center justify-between px-2 pt-2 text-sm text-codex-description`,children:[(0,Q.jsxs)(`span`,{className:`flex items-center gap-2`,children:[(0,Q.jsx)(_,{...o}),g?(0,Q.jsx)(Me,{as:`span`,className:`icon-xxs`}):null]}),s==null?null:(0,Q.jsx)(Va,{com\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/global-chat-search-evidence.json",
+        "line": 150,
+        "endLine": 150,
+        "excerpt": "    \"excerpt\": \"function mo(e,t,n,r){switch(t.kind){case`local`:case`remote`:qn(e,t.threadKey,n,r,t.kind===`local`&&t.hostId!==`local`?t.hostId:void 0);return;case`chatgpt`:r(Qe(t.conversationId));return;case`dot`:e.get(Er,`703400933`)&&e.get(Oi)&&r(t.href);return}}function ho(e){let t=(0,Z.c)(48),{close:n,conversationsMeta:r,firstShortcutIndex:i,forceMount:a,groupLabel:o,groupShortcutCommandId:s,isLoading:c,navigateToLocalConversation:l,onResultOpen:u,onSelectResult:d,results:f,showShortcutAccessory:p,showChatGptSourceLabel:m,trimmedSearch:h}=e,g=c!==void 0&&c,v=p===void 0||p,y=oe(),[b,x]=(0,"
+      }
+    ],
+    "acceptance": [
+      "输入法候选确认不激活条目/关闭，Tab跨组、Shift+Tab反向、方向键选择均有可见反馈。",
+      "鼠标停在同查询一行时异步结果更新不误点别项；更改查询立即解除旧快照。",
+      "搜索失败可Retry且菜单保持；真实无结果与初始无聊天分别呈现。"
+    ],
+    "unknowns": [
+      "ChatGPT正文检索数据源本身未在Pisper实现，视觉假数据不能冒充功能闭环；旧功能盘点PC004作为附录依赖。",
+      "参考独立/根子菜单Escape返回语义存在分支，复刻前需固定所采用根/钻取模式。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "id": "UIC010",
+    "surface": "用户消息编辑与正文选择引用的就地交互",
+    "target": "I252–I255：仅符合当前可编辑prompt/附件等条件的用户消息显示编辑，内联编辑提交中Cancel禁用、Send loading，失败保留草稿；I271/272选中文本引用保留sourceMessageId/sourceOccurrence/text，进入可移除附件并可定位原消息。",
+    "current": "用户消息仅复制；树导航能回填editorText，但不是消息处内联编辑状态。当前textarea输入器未发现带来源身份的文本选区引用chip/回到原消息交互。",
+    "change": "为1:1交互补用户消息可编辑态、内联Cancel/Send状态和失败留稿；复用现有树基础保存旧版本但不以导航回填替代编辑UI。新增选区引用气泡/附件及原消息定位，保持普通复制入口。",
+    "referenceIds": ["I252", "I253", "I254", "I255", "I271", "I272"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#conversation",
+    "evidence": [
+      {
+        "path": "src/features/chat/ChatMessage.tsx",
+        "line": 790,
+        "endLine": 792,
+        "excerpt": "      {message.role === 'user' && displayText && (\n        <div className=\"message-actions mt-1 -mr-1.5 flex flex-wrap justify-end gap-1 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md\">\n          <MessageCopyButton text={displayText} copyLabel={t('chat:chatMessage.copyMessage')} />"
+      },
+      {
+        "path": "src/features/chat/SessionTreeDialog.tsx",
+        "line": 313,
+        "endLine": 315,
+        "excerpt": "        await onNavigated(next.editorText)\n        onClose()\n      }"
+      },
+      {
+        "path": "src/features/chat/FocusSession.tsx",
+        "line": 767,
+        "endLine": 773,
+        "excerpt": "        <textarea\n          ref={promptRef}\n          rows={1}\n          aria-label={t('chat:focusSession.taskDescription')}\n          value={value}\n          onChange={(event) => {\n            updateValue(event.target.value)"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 422,
+        "endLine": 422,
+        "excerpt": "    \"excerpt\": \"||r[50]!==x||r[51]!==S||r[52]!==m||r[53]!==P||r[54]!==ie||r[55]!==ce?(Ve=async()=>{let e=wt(S);P||ce.get(Ce)||!e&&!ae||(De(!0),await(async()=>{let{message:t,renderFormat:n,inlineSystemHints:r}=Tt(S,x,S.getText(),m);await ie(e?t.trim():``,e?n:void 0,r)})().finally(()=>{De(!1)}))},r[49]=ae,r[50]=x,r[51]=S,r[52]=m,r[53]=P,r[54]=ie,r[55]=ce,r[56]=Ve):Ve=r[56];let He=Ve,L;r[57]===He?L=r[58]:(L=e=>{e.preventDefault(),He()},r[57]=He,r[58]=L);let Ue=O.ui?.active??!1,Ke=O.ui?.query??`\","
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 438,
+        "endLine": 438,
+        "excerpt": "    \"excerpt\": \"u||t[140]!==Y||t[141]!==O||t[142]!==U?(hi=async(e,t,r,i)=>{if(!vn)try{await Yh(O,{conversationId:n,isTemporaryChat:u,messageId:e,prompt:t,inlineSystemHints:i,renderFormat:r})}catch(e){let t=e,n=$s(t);throw O.get(Te).danger(ke.formatMessage({id:`chatgptConversations.editMessageFailed`,defaultMessage:`Failed to edit message`,description:`Toast shown in a Chat mode conversation when submitting an edit to a user message fails`}),{errorAnalytics:{toastId:`chatgptConversations.editMessageFailed`,operation:`edit_message`,apiErrorCode:n.errorCode,retryable:!0,errorCategory:`conversatio"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/composer-message-evidence.json",
+        "line": 566,
+        "endLine": 566,
+        "excerpt": "    \"excerpt\": \",onPromptChange:e=>{vE(n,De,e,{isTemporaryChat:B}),se?.(e)},onUserInput:le,onAddSelectedTextAttachment:e=>{Ese(n,Ee,e)},onSelectedTextAttachmentRemove:e=>{Hte(n,Ee,e)},onStop:(t=`mouse`)=>{if(cr&&er.current!=null){er.current.controller.abort();return}if(e.execution!=null){er.current?.controller.abor\","
+      }
+    ],
+    "acceptance": [
+      "符合条件消息显示编辑，不可编辑附件/运行状态按参考约束；取消还原、失败保留、成功退出及旧版本可达。",
+      "选中文本生成引用chip可查看/移除/返回来源；重复相同文本依occurrence区分，切会话无错误引用。"
+    ],
+    "unknowns": [
+      "参考所有rich卡片/附件的可编辑准入未穷尽，不能擅自允许全部历史消息编辑。",
+      "编辑/引用需要协议与存储契约配合；本次未写实现，未运行确认可达。"
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "设置导航外壳",
+    "target": "应用壳内独立设置导航；Search settings含清除与无结果，完整页canCollapse:false，可见集合与可搜索集合分开。",
+    "current": "AppSidebar虽已切换分组设置导航，仍复用collapsible=offcanvas；桌面open时折叠按钮仍显示；搜索由settingsSearch插槽装配。",
+    "change": "修改AppSidebar设置消费者：完整桌面设置导航不再提供折叠动作；小屏保留关闭导航。沿settings-navigation映射目标页面，能力过滤和搜索集合一致，不以账户占位页冒充复刻。",
+    "referenceIds": ["N030", "N031", "N032"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "桌面完整设置页搜索常驻且无侧栏折叠动作，分组/选中项/深链一致。",
+      "无结果、清除与键盘选择一致；小屏关闭导航不离开设置页。"
+    ],
+    "unknowns": [
+      "参考没有该导航完整computed width、行高和滚动条的测量；不能将Pisper h-9/px-2.5当作目标尺寸。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS001",
+    "evidence": [
+      {
+        "path": "src/components/layout/AppSidebar.tsx",
+        "line": 64,
+        "endLine": 71,
+        "excerpt": "    <Sidebar\n      collapsible=\"offcanvas\"\n      className=\"pisper-sidebar-container overflow-hidden border-0 min-[651px]:rounded-l-2xl\"\n    >\n      <aside\n        id=\"workbench-sidebar\"\n        data-testid=\"workbench-sidebar\"\n        className=\"flex h-full w-full min-w-0 flex-col overflow-hidden bg-sidebar text-foreground min-[651px]:rounded-l-2xl\""
+      },
+      {
+        "path": "src/components/layout/AppSidebar.tsx",
+        "line": 88,
+        "endLine": 101,
+        "excerpt": "          {!isMobile && open && (\n            <Button\n              id=\"workbench-sidebar-toggle\"\n              variant=\"ghost\"\n              className=\"size-9 shrink-0\"\n              aria-label={t('navigation:appSidebar.collapseSidebar')}\n              title={t('navigation:appSidebar.collapseSidebar')}\n              aria-expanded={open}\n              aria-controls=\"workbench-sidebar\"\n              onClick={() => {\n                flushSync(toggleSidebar)\n                document.getElementById('workbench-sidebar-toggle')?.focus()\n              }}\n            >"
+      },
+      {
+        "path": "src/components/layout/AppSidebar.tsx",
+        "line": 116,
+        "endLine": 124,
+        "excerpt": "        {settingsSearch && <div className=\"relative z-20 shrink-0 px-2 pb-2\">{settingsSearch}</div>}\n        {settingsActive ? (\n          <nav\n            className=\"min-h-0 flex-1 overflow-y-auto px-2 py-3\"\n            aria-label={t('config:settingsShell.settingsNavigation')}\n          >\n            <Button\n              variant=\"ghost\"\n              className={cn(navButton, 'mb-4')}"
+      },
+      {
+        "path": "src/app/settings-navigation.ts",
+        "line": 194,
+        "endLine": 203,
+        "excerpt": "  return groups\n    .map((group) => ({\n      ...group,\n      items: group.items.filter((item) =>\n        item.destination.type === 'config'\n          ? runtimeConfigSectionAvailable(capabilities, item.destination.id)\n          : runtimePageAvailable(capabilities, item.destination.id),\n      ),\n    }))\n    .filter((group) => group.items.length > 0)"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1491,
+        "endLine": 1491,
+        "excerpt": "文件：`webview/assets/settings-page-cd654a99d29b.js`；Unicode offset：`35007`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1494,
+        "endLine": 1494,
+        "excerpt": "tMessage:`Clear settings search`,description:`Button label to clear settings search input`}),t[1]=a,t[2]=c);let l;t[3]===a?l=t[4]:(l=a.formatMessage({id:`settings.search.label`,defaultMessage:`Search settings`,description:`Accessible label for the settings search input`}),t[3]=a,t[4]=l);let u;t[5]===a?u=t[6]:(u=a.formatMessage({id:`settings.search.placeholder`,defaultMessage:`Search`,description:`Placeholder text for the settings search input`}),"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1515,
+        "endLine": 1515,
+        "excerpt": "文件：`webview/assets/use-visible-settings-sections-9bd5da3d2a1e.js`；Unicode offset：`36835`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1518,
+        "endLine": 1518,
+        "excerpt": "case`appearance`:return{visible:!0,pending:!1};case`chronicle`:return{visible:a&&!_t.isLoading&&_t.available,pending:_t.isLoading};case`voice`:return{visible:le?.dictationHistory!=null||He||Ke||Be||We,pending:F||Ue||Ge};case`debug`:return{visible:Xa({buildFlavor:`prod`,isGpuTearingDebugEnabled:qe}),pending:F};case`pets`:return{visible:g,pending:!1};case`git-settings`:case`worktrees`:case`local-environments`:case`environments`:return{visible:!0,pending:!1};case`import`:return{visible:!F&&me&&!he,pending:F};case`ads-controls`:return{visible:ge,pending:_e||U};case`archived-cha"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "内容标题、分组与设置行",
+    "target": "Appearance以Visual style标题和nested设置行组织模式/theme/颜色/UI font，Advanced单独展开；标签说明与右侧control形成行，不是每项一张装饰卡片。",
+    "current": "InterfaceSettings模式和强调色各有rounded-2xl border p-4框；Advanced含两列字体/圆角卡及装饰live preview。SettingsCard直接等于AppCard；PageFrame声明776/1040px宽度。",
+    "change": "在config领域建立section/row组合，明确title/description/control/nested接口；移除目标页不含的Pisper装饰预览，按参考行结构编排。PageFrame仅管页面滚动约束，不全局改AppCard影响其它业务。",
+    "referenceIds": ["N042", "N043", "N045"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "Visual style/Advanced层级与目标一致；每行控件在右，窄屏合理换行。",
+      "同组设置不再出现Pisper额外卡片/装饰预览。"
+    ],
+    "unknowns": [
+      "N042短原文可证明nested行，不足以推导全部行padding、描边和分隔线；需要共享设置row完整实现。",
+      "776/1040px是Pisper当前值，不是ChatGPT目标宽度测量。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS002",
+    "evidence": [
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 369,
+        "endLine": 380,
+        "excerpt": "        <div className=\"mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border p-4\">\n          <span className=\"text-sm font-medium\">{t('config:interfaceSettings.colorMode')}</span>\n          <ChoiceGrid\n            label={t('config:interfaceSettings.colorMode')}\n            options={themeOptions}\n            value={theme}\n            onChange={update(setTheme)}\n            preview\n          />\n        </div>\n\n        <div className=\"mt-4 rounded-2xl border border-border p-4\">"
+      },
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 470,
+        "endLine": 480,
+        "excerpt": "        <div className=\"mt-3 flex flex-col gap-4\">\n          <div\n            data-config-card=\"interface-style\"\n            className=\"grid grid-cols-[minmax(0,1fr)_minmax(240px,.72fr)] gap-4 rounded-2xl border border-border p-4 max-[900px]:grid-cols-1\"\n          >\n            <div>\n              <div className=\"flex items-center gap-2 text-sm font-medium text-foreground\">\n                <Type size={15} />\n                {t('config:interfaceSettings.interfaceStyle')}\n              </div>\n              <div className=\"mt-3 grid grid-cols-2 gap-3 max-[470px]:grid-cols-1\">"
+      },
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 509,
+        "endLine": 516,
+        "excerpt": "            <div\n              className=\"overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke)] bg-[var(--main-surface-bg)] shadow-[var(--sh-surface)]\"\n              aria-label={t('config:interfaceSettings.livePreview')}\n            >\n              <div className=\"flex h-8 items-center gap-1.5 border-b border-[var(--stroke)] bg-[var(--surface-subtle)] px-3\">\n                <span className=\"size-1.5 rounded-full bg-[var(--brand-blue)]\" />\n                <span className=\"text-[11px] font-bold text-[var(--text-muted)]\">\n                  {t('config:interfaceSettings.livePreview')}"
+      },
+      {
+        "path": "src/features/config/settings-primitives.tsx",
+        "line": 12,
+        "endLine": 19,
+        "excerpt": "export type SettingsBadgeTone = StatusBadgeTone\n\nexport const SettingsCard = AppCard\nexport const SettingsSectionTitle = AppSectionTitle\nexport const SettingsBadge = StatusBadge\n\nexport function SettingsSwitch(props: ComponentProps<typeof AppSwitch>) {\n  return <AppSwitch density=\"compact\" {...props} />"
+      },
+      {
+        "path": "src/components/app/PageFrame.tsx",
+        "line": 4,
+        "endLine": 10,
+        "excerpt": "const widths = {\n  workbench: 'h-full max-w-none',\n  'list-detail': 'flex h-full max-w-none flex-col',\n  collection: 'w-full max-w-none p-4 @min-[760px]/page:p-6',\n  settings: 'w-full max-w-[776px] px-4 pb-6 @min-[760px]/page:px-6',\n  'settings-wide': 'w-full max-w-[1040px] px-4 pb-6 @min-[760px]/page:px-6',\n} as const"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1636,
+        "endLine": 1636,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`113394`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1639,
+        "endLine": 1639,
+        "excerpt": "function tc(e){let n=(0,Q.c)(31),{defaultAdvancedExpanded:r}=e,i=r!==void 0&&r,a=(0,Lc.useId)(),[o,s]=(0,Lc.useState)(i),[c,u]=(0,Lc.useState)(!1),d=L(Wn),f;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,$.jsx)(H.Header,{title:(0,$.jsx)(b,{id:`settings.appearance.visualStyle`,defaultMessage:`Visual style`,description:`Heading for mode, theme, color, and font preferences`})}),n[0]=f):f=n[0];let p;n[1]===Symbol.for(`react.memo_cache_sentinel`)?(p=(0,$.jsxs)(Qe,{children:[(0,$.jsx)(B,{variant:`nested`,label:(0,$.jsx)(`span`,{className:`font-"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1672,
+        "endLine": 1672,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`48861`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1675,
+        "endLine": 1675,
+        "excerpt": "s=o?.isSystemBackdropSupported!==!1,c;t[0]!==a||t[1]!==r?(c=r?[`light`,`dark`]:[a],t[0]=a,t[1]=r,t[2]=c):c=t[2];let l=c,u;return t[3]!==n||t[4]!==s||t[5]!==l?(u=(0,X.jsx)(`div`,{className:`flex flex-col gap-[var(--padding-panel)]`,children:l.map(e=>(0,X.jsx)($a,{section:n,showTranslucentSidebarToggle:s,showVariantTitle:l.length>1,variant:e},e))}),t[3]=n,t[4]=s,t[5]=l,t[6]=u):u=t[6],u}function $a(e){let n=(0,fo.c)(7),{section:r,showTranslucentSide"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "Appearance模式选择实例",
+    "target": "system/light/dark三列radiogroup：w-68 max-w-full grid-cols-3 gap-4；label内sr-only原生radio；缩略图aspect-4/3 rounded-lg且focus-visible outline。提交optimistic:false；Advanced有aria-controls/aria-expanded。",
+    "current": "Pisper四种模式含scheduled；preview ChoiceGrid是flex wrap，选项w-20、缩略图h-14，使用RadioGroupOption；Advanced用details/summary。",
+    "change": "严格复刻呈现改为三列、4:3和目标radio焦点/选中语义；scheduled若保留则移到Pisper扩展区。Advanced改受控目标实例；持久化暴露pending/error以实现非乐观提交。",
+    "referenceIds": ["N038", "N039", "N040", "N041", "N043"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "三种模式顺序、三列、4:3与焦点/键盘行为一致。",
+      "保存失败不呈现成功切换；Advanced有明确控制关联。"
+    ],
+    "unknowns": [
+      "utility/token声明不是最终屏幕像素；w-68/gap-4/rounded-lg受根rem、主题、corner radius scale和缩放约束。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS003",
+    "evidence": [
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 85,
+        "endLine": 91,
+        "excerpt": "      className={cn(\n        preview\n          ? 'flex w-auto flex-wrap justify-end gap-3'\n          : 'mt-4 grid grid-cols-4 gap-2 max-[650px]:grid-cols-1 max-[1300px]:grid-cols-2',\n        className,\n      )}\n      aria-label={label}"
+      },
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 98,
+        "endLine": 111,
+        "excerpt": "            <RadioGroupOption\n              key={option.value}\n              type=\"button\"\n              value={option.value}\n              aria-label={`${option.label} ${option.description}`}\n              title={option.description}\n              className={cn(\n                'group flex w-20 flex-col items-center gap-1.5 rounded-xl p-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',\n                selected && 'text-foreground',\n              )}\n            >\n              <span\n                aria-hidden=\"true\"\n                className={cn("
+      },
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 260,
+        "endLine": 277,
+        "excerpt": "  const themeOptions: Choice<ThemeMode>[] = [\n    {\n      value: 'system',\n      label: t('config:interfaceSettings.followSystem'),\n      description: t('config:interfaceSettings.followSystemDescription'),\n      icon: MonitorCog,\n    },\n    {\n      value: 'scheduled',\n      label: t('config:interfaceSettings.automaticByTime'),\n      description: t('config:interfaceSettings.automaticByTimeDescription'),\n      icon: Clock3,\n    },\n    {\n      value: 'light',\n      label: t('config:interfaceSettings.light'),\n      description: t('config:interfaceSettings.lightDescription'),\n      icon: Sun,"
+      },
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 461,
+        "endLine": 469,
+        "excerpt": "      <details className=\"group/advanced\">\n        <summary className=\"flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-1 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden\">\n          {t('config:interfaceSettings.advanced')}\n          <ChevronDown\n            aria-hidden=\"true\"\n            size={16}\n            className=\"transition-transform group-open/advanced:rotate-180\"\n          />\n        </summary>"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1588,
+        "endLine": 1588,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`137390`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1591,
+        "endLine": 1591,
+        "excerpt": "function yc(){let e=(0,Q.c)(11),t=T(p),r=I(),i=n(R.theme)??`system`,a;e[0]===t?a=e[1]:(a=function(e){z(t,R.theme,e,{optimistic:!1})},e[0]=t,e[1]=a);let o=a,s;e[2]===r?s=e[3]:(s=r.formatMessage(J.theme),e[2]=r,e[3]=s);let c;e[4]!==o||e[5]!==r||e[6]!==i?(c=Uc.map(e=>(0,$.jsx)(kc,{ariaLabel:r.formatMessage(e.label),mode:e.id,selected:i===e.id,onSelect:()=>{o(e.id)}},e.id)),e[4]=o,e[5]=r,e[6]=i,e[7]=c):c=e[7];let l;return e[8]!==s||e[9]!==c?(l=(0,$.jsx)(`div`,{\"aria-label\":s,className:`grid w-68 max-w-full grid-cols-3 gap-4`,role:`radiogroup`,children:c}),e[8]=s,e[9]=c,e[10]=l):l=e[10],l}function"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1648,
+        "endLine": 1648,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`114760`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1651,
+        "endLine": 1651,
+        "excerpt": "\"aria-controls\":a,\"aria-expanded\":o,color:`ghostTertiary`,radius:`small`,size:`inline`,onClick:h,children:[g,_]}),n[9]=a,n[10]=o,n[11]=h,n[12]=_,n[13]=v):v=n[13];let y;n[14]===Symbol.for(`react.memo_cache_sentinel`)?(y=()=>u(!1),n[14]=y):y=n[14];let x;n[15]===c?x=n[16]:(x=(0,$.jsx)(Xo,{separateModes:c,onResetSeparateModes:y}),n[15]=c,n[16]=x);let S;n[17]!==x"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "Appearance颜色、字体、字号实例",
+    "target": "Accent/Background/Foreground分角色编辑；色值胶囊h-7 w-24，end popover sideOffset=8、rounded-xl/p-3，色盘h-34 w-34；contrast 0–100 step1。族按钮max-w-36且小屏取消上限。UI字号默认14范围11–16，代码12范围8–24，number step1 w-16旁px，pointerUp/blur/Enter有变化才提交。",
+    "current": "强调色为预设Select，custom时另出原生type=color及矩形HEX输入；共用字号small/default/large，CSS13.5/14/14.5px，字体角色未分离。",
+    "change": "把角色色、contrast和字体调整放目标设置行，以受控色盘popover取代宿主原生color面板；字体和字号按角色建state/schema/提交边界，保留HEX合法草稿。这里只记录实际实例，通用token由主审计统一。",
+    "referenceIds": ["N047", "N048", "N049", "N050", "N053", "N036", "N037", "N055", "N056"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "色盘对齐、焦点和关闭一致，只有完整合法HEX提交。",
+      "字号schema、恢复旧值和提交时点一致，不每次键入写盘。",
+      "字体加载/空结果/自定义CSS回退；明暗角色编辑不相互覆盖。"
+    ],
+    "unknowns": [
+      "中文最终fallback、computed颜色与系统字体桥平台可用性尚未验证。",
+      "尺寸保留utility/token含义，UI14不等于根1rem14；不得把参考声明当实测像素。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS004",
+    "evidence": [
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 429,
+        "endLine": 439,
+        "excerpt": "          {accent === 'custom' && (\n            <div className=\"mt-3 flex flex-wrap items-center justify-end gap-3\">\n              <input\n                type=\"color\"\n                value={normalizeHexColor(customAccent) || '#1677e8'}\n                onChange={(event) => update(setCustomAccent)(event.target.value)}\n                aria-label={t('config:interfaceSettings.customAccentColor')}\n                className=\"h-9 w-14 cursor-pointer rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] p-1\"\n              />\n              <input\n                type=\"text\""
+      },
+      {
+        "path": "src/features/config/InterfaceSettings.tsx",
+        "line": 480,
+        "endLine": 490,
+        "excerpt": "              <div className=\"mt-3 grid grid-cols-2 gap-3 max-[470px]:grid-cols-1\">\n                <div className=\"grid content-start gap-1.5\">\n                  <span className=\"text-[12px] text-[var(--text-muted)]\">\n                    {t('config:interfaceSettings.fontSize')}\n                  </span>\n                  <CompactChoices\n                    label={t('config:interfaceSettings.fontSize')}\n                    options={fontOptions}\n                    value={fontScale}\n                    onChange={update(setFontScale)}\n                  />"
+      },
+      {
+        "path": "src/stores/ui-store.ts",
+        "line": 8,
+        "endLine": 13,
+        "excerpt": "export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'\nexport type DensityMode = 'comfortable' | 'compact'\nexport type AccentPreset = 'neutral' | 'blue' | 'teal' | 'violet' | 'coral' | 'custom'\nexport type FontScale = 'small' | 'default' | 'large'\nexport type RadiusMode = 'sharp' | 'default' | 'soft'\nexport type MotionMode = 'system' | 'full' | 'reduced'"
+      },
+      {
+        "path": "src/index.css",
+        "line": 545,
+        "endLine": 550,
+        "excerpt": ":root[data-font-scale='small'] {\n  --ui-font-size: 13.5px;\n}\n:root[data-font-scale='large'] {\n  --ui-font-size: 14.5px;\n}"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1696,
+        "endLine": 1696,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`40767`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1699,
+        "endLine": 1699,
+        "excerpt": "function Ma(e){let t=e.toUpperCase().replace(/[^0-9A-F#]/g,``).replaceAll(`#`,``);return t.length===0?`#`:`#${t.slice(0,6)}`}function Na(e){return/^#[0-9A-F]{6}$/.test(e)?e.toLowerCase():null}var Pa,Fa,Ia;function La(){return(La=e((()=>{Pa=pt(),Fa=yt(),Ai(),oe(),Ia=V()}"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1804,
+        "endLine": 1804,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`153594`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1807,
+        "endLine": 1807,
+        "excerpt": "d=e=>{a.current!=null&&a.current!==e.currentTarget.value&&s(e.currentTarget),a.current=null},f=e=>{s(e.currentTarget)},m=e=>{e.key===`Enter`&&(e.preventDefault(),s(e.currentTarget))},e[6]=s,e[7]=d,e[8]=f,e[9]=m);let h;e[10]===r?h=e[11]:(h=r.formatMessage({id:`settings.general.appearance.sansFontSize`,defaultMessage:`Sans font si"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "Notifications类别行与多渠道菜单",
+    "target": "每类别一行：左名称/说明，右启用渠道的逗号摘要或Off；end/menuWide的CheckboxItem多选。点击即PATCH，account/category/channel竞争键处理迟到响应，无整页Save。",
+    "current": "NotificationTemplates是左事件列表+右模板编辑的两列网格，含渠道页签、textarea、变量、预览、保存和发送测试。",
+    "change": "新增目标类别/渠道行呈现，用Pisper事件和渠道适配；模板编辑移到独立高级子页，不占目标主页面。逐渠道版本/回滚状态不能继续用单一content状态替代。",
+    "referenceIds": ["T020", "T021", "T022", "T023"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#account-security-notifications",
+    "acceptance": [
+      "每事件一行显示渠道摘要或Off，多选菜单可键盘操作。",
+      "快速开关与迟到失败不覆盖较新选择；初载/错误/重试独立。",
+      "高级模板子页保留离开保护，并明确测试草稿或保存版本。"
+    ],
+    "unknowns": [
+      "T023索引claim写类别多选，但其原始短摘落于通知声音菜单（task alerts/platform/Item）；需复查该消费者完整类别行，不能只凭该短摘确定CheckboxItem或精确尺寸。",
+      "动态类别/渠道受账户资格影响；Pisper映射不能凭空补邮件/家庭类别。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS005",
+    "evidence": [
+      {
+        "path": "src/features/config/NotificationSettings.tsx",
+        "line": 587,
+        "endLine": 593,
+        "excerpt": "  return (\n    <div className=\"two-one-grid max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] gap-[12px] [margin-top:0]\">\n      <Panel data-config-card=\"notifications-templates\">\n        <div className=\"channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]\">\n          <SectionTitle title={t('config:notificationSettings.notificationTemplates')} />\n          <span>{t('config:notificationSettings.sharedByChatsScheduledTasksAndWorkflows')}</span>\n        </div>"
+      },
+      {
+        "path": "src/features/config/NotificationSettings.tsx",
+        "line": 524,
+        "endLine": 532,
+        "excerpt": "  const [eventId, setEventId] = useState(data.templates[0]?.id || '')\n  const [platform, setPlatform] = useState<NotificationPlatform>('feishu')\n  const selected = data.templates.find((item) => item.id === eventId) || data.templates[0]\n  const variant = selected?.channels?.[platform]\n  const [content, setContent] = useState(variant?.content || '')\n  const [saving, setSaving] = useState(false)\n  const latestScope = data.scopes.find((scope) => scope.platform === platform)\n  const canTest =\n    platform === 'browser' ? data.browser.enabled && permission === 'granted' : Boolean(latestScope)"
+      },
+      {
+        "path": "src/features/config/NotificationSettings.tsx",
+        "line": 661,
+        "endLine": 664,
+        "excerpt": "        <FieldLabel variant=\"control\">\n          {t('config:notificationSettings.messageContent')}\n          <textarea value={content} onChange={(event) => setContent(event.target.value)} />\n        </FieldLabel>"
+      },
+      {
+        "path": "src/features/config/NotificationSettings.tsx",
+        "line": 675,
+        "endLine": 687,
+        "excerpt": "        <div className=\"flex justify-end gap-[8px] [margin-top:18px]\">\n          <Button\n            variant=\"outline\"\n            size=\"lg\"\n            className=\"bg-surface-subtle\"\n            disabled={saving || !canTest}\n            onClick={test}\n          >\n            <Send size={14} />\n            {t('config:notificationSettings.sendTest')}\n          </Button>\n          <Button size=\"lg\" disabled={saving || !content.trim()} onClick={save}>\n            {saving ? <RefreshCw className=\"animate-spin\" size={14} /> : <Save size={14} />}"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 11912,
+        "endLine": 11912,
+        "excerpt": "文件：`webview/assets/notifications-settings-3f11a446e75a.js`；Unicode offset：`15647`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 11915,
+        "endLine": 11915,
+        "excerpt": ":C,isPending:w,isError:te,isFetching:E,refetch:D}=T(S),O,k;t[15]===o?(O=t[16],k=t[17]):(O=async e=>{let t=`${e.accountId}\\0${e.category}\\0${e.channel}`;d.current+=1;let n=d.current;l.current.set(t,n);let r=[ot,e.userId,e.accountId];await o.cancelQueries({queryKey:r}),e.controller.signal.throwIfAborted();let i=o.getQueryData(r)?.settings.find(t=>{let{category:n}=t;return n===e.category})?.options.find(t=>{let{channel:n}=t;return n===e.channel})?.enabled;return o.setQueryData(r,t=>Ze(t,e,e.enabled)),{mutationId:n,mutationKey:t,previousEnabled:i,queryKey:r}},k=(e,t,n)=>{if(t.c"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 11948,
+        "endLine": 11948,
+        "excerpt": "文件：`webview/assets/notifications-settings-3f11a446e75a.js`；Unicode offset：`11775`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 11951,
+        "endLine": 11951,
+        "excerpt": "f desktop task alerts`}),t[15]=F,t[16]=I):(F=t[15],I=t[16]);let L;return t[17]!==P||t[18]!==x||t[19]!==m||t[20]!==p?.platform||t[21]!==d?(L=(0,X.jsx)(B,{label:F,description:I,control:e=>(0,X.jsxs)(o,{contentWidth:`menuWide`,disabled:x,align:`end`,triggerButton:(0,X.jsx)(ve,{disabled:x,loading:m,...e,children:(0,X.jsx)(`span`,{className:`truncate`,children:typeof d==`object`?d.name:N.find(e=>e.value===d)?.label})}),children:[N.filter(e=>p?.platform===`darwin`||e.value===\"default\"||e.value===`classic`||e.value===`none`).map(e=>(0,X.jsx)(S.Item,{disabled:x,rightIconAsset:d===e"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "Voice输入设备设置行",
+    "target": "设置页麦克风行：标签/说明+右触发器，System default/Selected microphone/Unavailable microphone状态。end/menuWide菜单保留默认、设备勾选、loading spinner、Unable to load microphones、No microphones found；不支持时解释并禁用。",
+    "current": "SpeechModelsDialog主要是ASR/TTS资源列表、进度和声音试听；录音器直接默认getUserMedia，无输入设备设置行和菜单状态。",
+    "change": "新增Voice设置消费者和设备行，将模型资源管理保留子对话框；枚举、权限刷新、偏好保存和真实采集分别有明确边界。不能用模型错误代替设备错误。",
+    "referenceIds": ["M005", "M009", "M011", "M012", "M013", "M014", "M015", "M017"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#voice-device-settings-deep",
+    "acceptance": [
+      "默认、勾选、加载、失败、零设备、失效选择及不支持状态与参考一致。",
+      "临时权限流finally stop；保存失败不伪成功，实际录音消费所选deviceId。"
+    ],
+    "unknowns": [
+      "参考只确认输入设备选择，未证明扬声器、音量滑杆、电平计或持续devicechange；不得新增后称为1:1。",
+      "menuWide实际px、系统权限框、真实设备名未经运行验证。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS006",
+    "evidence": [
+      {
+        "path": "src/features/chat/SpeechModelsDialog.tsx",
+        "line": 120,
+        "endLine": 131,
+        "excerpt": "        {!manager.catalog && !manager.error && (\n          <LoaderCircle\n            className=\"mx-auto my-4 size-5 animate-spin\"\n            aria-label={t('chat:speechModels.loading')}\n          />\n        )}\n        <div className=\"min-w-0 divide-y\">\n          {manager.models.map((model) => {\n            const downloading = ['downloading', 'verifying'].includes(model.status)\n            const percent = model.totalBytes\n              ? Math.min(100, Math.floor((model.downloadedBytes / model.totalBytes) * 100))\n              : 0"
+      },
+      {
+        "path": "src/features/chat/voice-input.ts",
+        "line": 371,
+        "endLine": 379,
+        "excerpt": "  const stream = await navigator.mediaDevices.getUserMedia({\n    audio: {\n      channelCount: 1,\n      echoCancellation: true,\n      noiseSuppression: true,\n      autoGainControl: true,\n    },\n    video: false,\n  })"
+      },
+      {
+        "path": "src/features/chat/VoiceInputControl.tsx",
+        "line": 28,
+        "endLine": 41,
+        "excerpt": "type VoiceStage = 'idle' | 'requesting' | 'recording' | 'transcribing' | 'error'\n\nfunction errorMessage(error: unknown, fallback: string) {\n  if (error instanceof DOMException && error.name === 'NotAllowedError') return 'permission'\n  const message =\n    typeof error === 'string'\n      ? error\n      : error instanceof Error\n        ? error.message\n        : typeof error === 'object' && error && 'message' in error\n          ? String(error.message)\n          : ''\n  if (message.includes('microphone_permission_denied')) return 'permission'\n  return message || fallback"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 14606,
+        "endLine": 14606,
+        "excerpt": "文件：`webview/assets/voice-settings-397876358672.js`；Unicode offset：`23913`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 14609,
+        "endLine": 14609,
+        "excerpt": "function On(){let e=(0,Hn.c)(61),t=_(d),n=M(),i=r(h.microphoneInputDeviceId),a=typeof navigator<`u`&&navigator.mediaDevices?.enumerateDevices!=null,o;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(o={enabled:a,queryFn:Mn,queryKey:qn,staleTime:T.FIVE_SECONDS},e[0]=o):o=e[0];let s=I(o),c,u,f;if(e[1]!==s.data||e[2]!==n||e[3]!==i){c=s.data??[];let t;e[7]===n?t=e[8]:(t=n.formatMessage({id:`settings.general.microphoneInput.systemDefault`,defaultMessage:`System default`,description:`Default microphone input option label`}),e[7]=n,e[8]=t),f=t;let r;e[9]===i?r=e[10]:(r=e=>e.deviceI"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 14750,
+        "endLine": 14750,
+        "excerpt": "文件：`webview/assets/voice-settings-397876358672.js`；Unicode offset：`29096`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 14753,
+        "endLine": 14753,
+        "excerpt": "async function Mn(){if(typeof navigator>`u`)return[];let e=navigator.mediaDevices;return e?.enumerateDevices==null?[]:(await e.enumerateDevices()).filter(e=>e.kind===`audioinput`&&e.deviceId.length>0&&e.deviceId!==\"default\")}function Nn(e){let t=(0,Hn.c)(16),{isDictationEnabled:n}=e,r=N(Ve),{data:i}=N(zt),a=_t(Me),o;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(o=(0,$.jsx)(J.Header,{ti"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "搜索深定位及展开",
+    "target": "搜索携带targetId/targetText/navigationKey；Appearance深定位通过defaultAdvancedExpanded展开Advanced，普通访问不必展开；不可见选项不在搜索集合。",
+    "current": "索引只给section/card；运行策略card=models-connections，真实表单在models-advanced折叠中。flashConfigCard仅展开HTMLDetailsElement，固定smooth滚动和1.2s ring。",
+    "change": "扩展显式目标/展开契约，由目标页先展开再定位；修正运行策略锚点。普通访问和搜索访问分开，不把Pisper当前高亮颜色/时长当参考行为。",
+    "referenceIds": ["N033", "N042"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "Advanced折叠时搜运行策略/字体/视觉模型直接显示实际目标，普通访问保留默认。",
+      "同页/跨页懒加载/重复点击不被旧请求抢定位。"
+    ],
+    "unknowns": [
+      "已证明深定位语义，未掌握目标高亮完整颜色/时长/scrollIntoView参数；不能指定1.2s或smooth为1:1要求。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS007",
+    "evidence": [
+      {
+        "path": "src/features/config/config-search.ts",
+        "line": 139,
+        "endLine": 143,
+        "excerpt": "    id: 'models-runtime-policy',\n    section: 'models',\n    card: 'models-connections',\n    titleKey: 'config:configPage.agentRuntimePolicy',\n    keywords: ['runtime', 'agent', 'policy', '运行策略', '运行时', '执行策略'],"
+      },
+      {
+        "path": "src/features/config/config-search.ts",
+        "line": 444,
+        "endLine": 453,
+        "excerpt": "// 对目标卡片做 1.2s 高亮闪烁：平滑滚动到视口中央，用现有焦点 token\n// （--focus / --focus-ring）临时加强 ring 与描边，到点后还原原内联样式。\nfunction flashConfigCard(pending: PendingHighlight) {\n  let target = document.querySelector<HTMLElement>(`[data-config-card=\"${pending.card}\"]`)\n  // 目标卡片不存在（如条件渲染的卡片）时回退到分区根容器，保证点击总有反馈。\n  if (!target)\n    target = document.querySelector<HTMLElement>(`[data-config-card=\"${CONFIG_SECTION_ANCHOR}\"]`)\n  if (!target) return\n  // 搜索命中折叠分组中的选项时先展开祖先，避免滚动到不可见控件。\n  for (let ancestor = target.parentElement; ancestor; ancestor = ancestor.parentElement) {"
+      },
+      {
+        "path": "src/features/config/config-search.ts",
+        "line": 462,
+        "endLine": 469,
+        "excerpt": "  target.style.transition = 'box-shadow .3s ease, border-color .3s ease'\n  target.style.boxShadow = '0 0 0 3px var(--focus-ring)'\n  target.style.borderColor = 'var(--focus)'\n  window.setTimeout(() => {\n    target.style.boxShadow = previous.boxShadow\n    target.style.borderColor = previous.borderColor\n    target.style.transition = previous.transition\n  }, 1200)"
+      },
+      {
+        "path": "src/features/config/ModelsSettings.tsx",
+        "line": 168,
+        "endLine": 172,
+        "excerpt": "      <Collapsible\n        open={manageOpenEffective}\n        onOpenChange={setManageOpenPersisted}\n        data-config-card=\"models-advanced\"\n      >"
+      },
+      {
+        "path": "src/features/config/ModelsSettings.tsx",
+        "line": 200,
+        "endLine": 205,
+        "excerpt": "          <div className=\"[margin-top:12px]\">\n            <RuntimePolicySettings\n              config={config}\n              notify={notify}\n              onConfigChanged={settings.applyConfig}\n            />"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1527,
+        "endLine": 1527,
+        "excerpt": "文件：`webview/assets/settings-page-cd654a99d29b.js`；Unicode offset：`21260`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1530,
+        "endLine": 1530,
+        "excerpt": "e.sectionSlug===`appearance`?{...e,messages:e.messages.filter(e=>!s&&Lr.includes(e.id)?!1:l||!e.id.startsWith(Rr))}:e.sectionSlug===`agent`?{...e,terms:m}:e.sectionSlug===`general-settings`?{...e,terms:g}:e,t[17]=m,t[18]=l,t[19]=s,t[20]=g,t[21]=e):e=t[21],_=i.map(e),t[11]=m,t[12]=i,t[13]=l,t[14]=s,t[15]=g,t[16]=_}else _=t[16];return _}function Pr(e){return{locale:e.locale,language:e.locale}}function Fr(e){return[e.displayName??e.name,...e.description==null?[]:[e.description]]}var Ir,Lr,Rr;functi"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1636,
+        "endLine": 1636,
+        "excerpt": "文件：`webview/assets/general-settings-679bf39c78a4.js`；Unicode offset：`113394`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1639,
+        "endLine": 1639,
+        "excerpt": "function tc(e){let n=(0,Q.c)(31),{defaultAdvancedExpanded:r}=e,i=r!==void 0&&r,a=(0,Lc.useId)(),[o,s]=(0,Lc.useState)(i),[c,u]=(0,Lc.useState)(!1),d=L(Wn),f;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,$.jsx)(H.Header,{title:(0,$.jsx)(b,{id:`settings.appearance.visualStyle`,defaultMessage:`Visual style`,description:`Heading for mode, theme, color, and font preferences`})}),n[0]=f):f=n[0];let p;n[1]===Symbol.for(`react.memo_cache_sentinel`)?(p=(0,$.jsxs)(Qe,{children:[(0,$.jsx)(B,{variant:`nested`,label:(0,$.jsx)(`span`,{className:`font-"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "离开未保存设置确认",
+    "target": "compact Discard changes?确认隐藏右上关闭；Keep editing只清pendingNavigation；Discard是form submit preventDefault，先取导航、清pending、再执行一次。",
+    "current": "ProviderWorkbench仅保存当前页面驻留草稿；非saving时旧ProviderDialogs的Escape直接onClose；设置切分区和搜索无统一dirty拦截。",
+    "change": "应用壳持有待导航，config以窄接口登记dirty/saving/放弃回调；用共享Dialog的实际实例复刻内容、动作、关闭条件，不能用window.confirm或普通取消当同款；凭据草稿仍仅内存。",
+    "referenceIds": ["N034", "N035"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "导航/设置搜索/后退统一确认，Keep editing保留草稿和页面。",
+      "Discard只执行一次原导航，不重复拦截；焦点恢复可预测。",
+      "保存失败留草稿，saving另有明确关闭保护。"
+    ],
+    "unknowns": [
+      "compact最终宽高、动作variant及默认焦点不能仅从N034/N035短摘编造；需共享Dialog完整消费者证据。",
+      "原生beforeunload与站内确认不同，不能声称浏览器关闭时显示同一自定义弹窗。",
+      "Static source comparison only; no UI, device, platform, or computed-style verification."
+    ],
+    "id": "UIS008",
+    "evidence": [
+      {
+        "path": "src/features/config/ProviderWorkbench.tsx",
+        "line": 58,
+        "endLine": 60,
+        "excerpt": "  // 草稿仅在本次页面驻留期间存活，切换 Provider 不丢编辑，也不落盘密钥。\n  const [drafts, setDrafts] = useState<Record<string, ProviderConnectionDraft | undefined>>({})\n  const [connectionSaving, setConnectionSaving] = useState(false)"
+      },
+      {
+        "path": "src/features/config/ProviderDialogs.tsx",
+        "line": 115,
+        "endLine": 126,
+        "excerpt": "  useEffect(() => {\n    if (embedded || saving) return\n    const handleKeyDown = (event: KeyboardEvent) => {\n      if (event.key === 'Escape') {\n        event.preventDefault()\n        event.stopPropagation()\n        onClose()\n      }\n    }\n    window.addEventListener('keydown', handleKeyDown)\n    return () => window.removeEventListener('keydown', handleKeyDown)\n  }, [embedded, onClose, saving])"
+      },
+      {
+        "path": "src/features/config/ConfigPage.tsx",
+        "line": 44,
+        "endLine": 56,
+        "excerpt": "  if (section === 'notifications') {\n    content = (\n      <NotificationSettings\n        notify={notify}\n        onBrowserNotificationChange={onBrowserNotificationChange}\n      />\n    )\n  } else if (section === 'interface') {\n    const appearance = <InterfaceSettings notify={notify} />\n    content = renderInterfaceSettings ? renderInterfaceSettings(appearance) : appearance\n  } else if (section === 'shortcuts') {\n    content = <ShortcutSettings requestConfirm={requestConfirm} />\n  } else if (section === 'desktop-pet') {"
+      },
+      {
+        "path": "src/features/config/ConfigSearch.tsx",
+        "line": 47,
+        "endLine": 57,
+        "excerpt": "  const select = (match: ConfigSearchMatch) => {\n    setOpen(false)\n    onQueryChange('')\n    // 先登记高亮请求再切分区：跨分区时由 ConfigPage 在新区内容挂载后消费，\n    // 同分区时由事件监听即时触发。\n    requestConfigCardHighlight(match.entry.card, match.entry.section)\n    if (match.entry.section === 'interface') {\n      const view = match.entry.card === 'interface-custom-ui' ? 'widgets' : 'appearance'\n      // 同一分区内也需要切换标签，路由查询参数仍由应用壳统一生成。\n      onSelect(match.entry.section, view)\n    } else onSelect(match.entry.section)"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1539,
+        "endLine": 1539,
+        "excerpt": "文件：`webview/assets/settings-unsaved-changes-dialog-59e2e623bec8.js`；Unicode offset：`388`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1542,
+        "endLine": 1542,
+        "excerpt": "h=e=>{e.preventDefault();let t=s;f(),t?.()},a[2]=f,a[3]=s,a[4]=h):h=a[4];let g;a[5]===Symbol.for(`react.memo_cache_sentinel`)?(g=(0,v.jsx)(r,{children:(0,v.jsx)(n,{id:`settings.unsavedChanges.discardTitle`,defaultMessage:`Discard changes?`,description:`Title for the confirmation dialog shown before leaving Settings with unsaved changes`})}),a[5]=g):g=a[5];let y;a[6]===Symbol.for(`react.memo_cache_sentinel`)?(y=(0,v.jsx)(c,{children:(0,v.jsx)(i,{title:g,subtitle:(0,v.jsx)(o,{children:(0,v.jsx)(n,{id:`settings.unsavedChanges.discardDesc"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1551,
+        "endLine": 1551,
+        "excerpt": "文件：`webview/assets/settings-unsaved-changes-dialog-59e2e623bec8.js`；Unicode offset：`2063`。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/evidence-details.md",
+        "line": 1554,
+        "endLine": 1554,
+        "excerpt": "open:p,showDialogClose:!1,size:`compact`,onOpenChange:m,children:w}),a[16]=p,a[17]=w,a[18]=m,a[19]=T):T=a[19],T}var _,v;function y(){return(y=e((()=>{_=m(),s(),f(),p(),a(),v=h()})))()}export{y as n,g as t};"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "资产库集合页",
+    "target": "复刻Library标题/搜索/视图工具栏、根分类、独立结果滚动区；筛选菜单选择后保持展开，活动筛选可逐项清除；有选择时预留pb-24。列表响应式列头只对应现有字段，不将纯目录grid断点用于图片。",
+    "current": "AssetsPage为PageFrame(collection)+Segmented+资源数量摘要+260px最小列宽卡片，卡片最小292px；缺少参考的筛选和结果区层级。",
+    "change": "落点AssetsPage与集合页组合组件：重排标题工具栏、现有类型/会话筛选、滚动及状态区域，匹配表面、边框、焦点和文字层级。仅重排现有能力，不新增文件夹/共享/容量/云来源业务。",
+    "referenceIds": [
+      "B052",
+      "B053",
+      "B054",
+      "B055",
+      "B057",
+      "B060",
+      "B063",
+      "B064",
+      "B065",
+      "B067",
+      "B068",
+      "B105"
+    ],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#gpt-library-deep",
+    "acceptance": [
+      "同viewport/主题/字号下比较壳、工具栏和结果区",
+      "加载/错误/空集合/无匹配分开",
+      "刷新失败保留已有结果",
+      "不复制纯目录grid断点到混合图片"
+    ],
+    "unknowns": [
+      "参考未完整恢复混合图片布局算法和虚拟化",
+      "无computed style和真实截图测量，像素未测"
+    ],
+    "id": "UIF001",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2732,
+        "endLine": 2733,
+        "excerpt": "Library 页面具有标题/面包屑、容量 banner、搜索与视图工具栏、根目录分类导航、结果滚动区、选择工具栏几个区域。顶层为 `h-full min-h-0 contain-layout`，结果容器 min-h-0/flex-1；存在选择时给内容增加 pb-24，避免浮动操作区遮挡末尾。拖放由结果区域 onDragOver/onDrop 处理。页面可由调用方替换 title、controls、navigation、results，因此同一组件在 Space 的外观不一定等同于 `/library`。[B052](evidence-details.md#b052) [B057](evidence-details.md#b057) [B060](evidence-details.md#b060)\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2744,
+        "endLine": 2745,
+        "excerpt": "列表使用可排序列头，Name、Size、Source/Space、Shared by、时间及末端动作按条件组成。Shared by 在 `@3xl/library-row` 才出现，时间列在 `@lg/library-row` 才出现；排序按钮具 focus-visible ring-2，排序不可用或 loading 时 disabled，父 columnheader 设置 aria-sort 为 ascending/descending/none，方向图标随状态变化。[B067](evidence-details.md#b067) [B068](evidence-details.md#b068)\n"
+      },
+      {
+        "path": "src/features/assets/AssetsPage.tsx",
+        "line": 191,
+        "endLine": 197,
+        "excerpt": "    <PageFrame variant=\"collection\">\n      <div className=\"flex min-w-0 flex-col gap-3\">\n        <PageToolbar>\n          <Segmented\n            options={ASSET_TABS.map((item) => assetTabLabel(item, t))}\n            value={assetTabLabel(tab, t)}\n            onChange={(label) =>"
+      },
+      {
+        "path": "src/features/assets/AssetsPage.tsx",
+        "line": 222,
+        "endLine": 222,
+        "excerpt": "          <div className=\"asset-grid max-[650px]:grid-cols-[1fr] functional grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(260px,1fr))] content-start gap-3\">"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "资产预览弹窗与图片lightbox",
+    "target": "对照参考lightbox失败fallback/Retry、非循环前后导航与关闭恢复焦点；Dialog采用portal、role=dialog、标题描述关联、焦点圈定和消费者约定的Escape/外部点击。Library独立文件预览文本max-w-3xl/sans/pre-wrap，图片object-contain。",
+    "current": "手写遮罩div与section，最大1200/900px，文本等宽12px；遮罩mousedown关闭，有关闭按钮，未接共享Dialog焦点和Escape，图片缺少fallback/Retry。",
+    "change": "落点AssetsPage的AssetPreviewModal/AssetLinkModal：用现有Dialog或对应Sheet复刻目标presentation，正文独立滚动、动作区固定、文本与媒体按参考分派，补失败/重试和焦点恢复。链接窗仅延伸共享Dialog语言；单图不伪造多图导航。",
+    "referenceIds": [
+      "N075",
+      "N076",
+      "N080",
+      "N081",
+      "N082",
+      "D006",
+      "D007",
+      "D011",
+      "B095",
+      "B096",
+      "B097",
+      "B100",
+      "B101",
+      "B103"
+    ],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#navigation",
+    "acceptance": [
+      "Tab圈定焦点，Escape关闭并恢复触发器",
+      "正文长内容不挤走动作",
+      "图片失败可Retry",
+      "首尾不循环，单图无无效导航"
+    ],
+    "unknowns": [
+      "lightbox实际宽高/缩放/遮罩和字体像素未测",
+      "独立文件路由与modal为不同surface，须指定目标截图",
+      "未运行键盘/读屏/媒体解码"
+    ],
+    "id": "UIF002",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 295,
+        "endLine": 298,
+        "excerpt": "图片 lightbox 保持选中索引及失败 URL 集合。原图预览解析失败时可回退 fallbackSrc；原图和 fallback 都失败时展示 Couldn't load this image 与 Try again，重试从失败集合移除对应地址。位置显示 current of total，只有多图时呈现。（[N080](evidence-details.md#n080)）\n\n关闭时阻止默认 autofocus，再恢复原焦点；前后导航到首尾时 handler 为 undefined，逻辑不是循环轮播。图片 overlay 使用 readOnly/no-referrer；是否走 overlay 由实验参数 image_overlay_enabled 和 portal/平台上下文共同决定，不是包内唯一查看器。（[N081](evidence-details.md#n081)、[N082](evidence-details.md#n082)）\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 968,
+        "endLine": 969,
+        "excerpt": "共享 Dialog root 的 `modal` 默认为 true，未提供受控值时 `defaultOpen` 默认为 false。它保存 trigger/content 引用和独立的 content/title/description ID，并计数标题及描述节点是否真实存在。触发器是 button，带 `aria-haspopup=\"dialog\"`、`aria-expanded`，打开时才关联 `aria-controls`。Content 是 `role=\"dialog\"`，只在对应节点存在时设置 `aria-labelledby` / `aria-describedby`，而不是始终生成悬空引用。[[D006](evidence-details.md#d006)] [[D007](evidence-details.md#d007)] [[D011](evidence-details.md#d011)]\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2790,
+        "endLine": 2791,
+        "excerpt": "| 普通文本                     | 最大 max-w-3xl，横向工具栏内边距，上下 pt/pb-8，`!font-sans text-base leading-7`，pre-wrap 与 wrap-anywhere，ltr | 使用 sans，并非固定等宽代码编辑器                   |\n| Markdown                     | 独立滚动、bg-surface、max-w-3xl，复用 Markdown 视图                                                              | 字体细则沿 Markdown 组件继续解析                    |"
+      },
+      {
+        "path": "src/features/assets/AssetsPage.tsx",
+        "line": 365,
+        "endLine": 369,
+        "excerpt": "function AssetPreviewModal({\n  asset,\n  onClose,\n  onUse,\n  onOpen,"
+      },
+      {
+        "path": "src/features/assets/AssetsPage.tsx",
+        "line": 381,
+        "endLine": 384,
+        "excerpt": "      onMouseDown={(event) => event.target === event.currentTarget && onClose()}\n    >\n      <section\n        className={`modal asset-preview-modal flex max-h-[calc(100dvh_-_40px)] flex-col overflow-hidden [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:p-3 ${asset.kind === 'image' || isVideo ? 'w-[min(96vw,1200px)]' : 'w-[min(96vw,900px)]'}`}"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "计划列表和详情编辑",
+    "target": "Scheduled标题/说明/搜索/状态筛选、role=list/gap-1；详情固定toolbar、独立滚动body gap-6、固定footer border-t/p-panel；Prompt p-4/text-base/pre-wrap/select-text；dirty显示Cancel/Save，dirty运行先保存。",
+    "current": "SchedulesPage为ListDetailLayout和min-height68px任务行，详情内联表单；save与run独立，运行不会提交draft。",
+    "change": "落点SchedulesPage：按参考重做列表header/密度和详情toolbar/body/footer，保留本地工作流/时区/通知字段；接入dirty、取消草稿和Save and run的现有PATCH+POST链。只重排已有历史，不新增云任务系统。",
+    "referenceIds": [
+      "F003",
+      "F004",
+      "F006",
+      "F007",
+      "F008",
+      "F009",
+      "F011",
+      "F013",
+      "F019",
+      "F020",
+      "F021",
+      "F024",
+      "F025",
+      "F027",
+      "F031",
+      "F051",
+      "F052",
+      "F055"
+    ],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#scheduled-settings-deep",
+    "acceptance": [
+      "长prompt滚动不挤走底栏",
+      "Cancel恢复已保存draft",
+      "dirty运行先保存成功，保存失败不运行",
+      "pending防重复且状态可访问",
+      "窄布局返回列表保留选择"
+    ],
+    "unknowns": [
+      "参考list与表格/分组有不同模式，需指定目标",
+      "toolbar/panel/text-base为动态token，实际像素未测",
+      "不把本地Runtime计划当云计划"
+    ],
+    "id": "UIF003",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 3279,
+        "endLine": 3280,
+        "excerpt": "页面有标题、说明、搜索、状态筛选、任务行和可选创建动作。搜索不自动聚焦；列表加载时不配置搜索控件。普通列表使用 `role=list`、纵向 `gap-1`；另一个导航模式可以使用表格/分组布局，因此不能将当前包画成唯一固定卡片布局。默认状态筛选是 active；本地与云任务分别接收 action pending、错误和回调，云加载失败不自动等同于整个共享页面无数据。[[F003](evidence-details.md#f003)、[F004](evidence-details.md#f004)、[F005](evidence-details.md#f005)、[F006](evidence-details.md#f006)、[F007](evidence-details.md#f007)]\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 3294,
+        "endLine": 3295,
+        "excerpt": "云详情消费共享计划详情容器：外层 `flex h-full min-h-0 flex-col bg-surface`；顶部是 `h-toolbar`、`gap-2`、`px-toolbar` 的不收缩工具栏，动作组靠行尾。主体 `min-h-0 flex-1`，内容区纵向 `gap-6`；footer 独立 `shrink-0 border-t border-default p-panel`，不会作为正文的一部分随着长提示文本被挤出。这里保留 toolbar/panel 令牌，不从名字猜固定像素宽度。[[F031](evidence-details.md#f031)、[F051](evidence-details.md#f051)、[F052](evidence-details.md#f052)]\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 3298,
+        "endLine": 3299,
+        "excerpt": "有改动时 footer 才出现 Cancel 和 Save，横向 `justify-end gap-2`。Cancel 是 outline/toolbar，恢复当前服务器对象生成的草稿；Save 是 toolbar submit，保存中显示 loading，校验不通过或任一相关操作 pending 时禁用。取消编辑与删除任务不是同一动作。[F021](evidence-details.md#f021)\n"
+      },
+      {
+        "path": "src/features/schedules/SchedulesPage.tsx",
+        "line": 584,
+        "endLine": 591,
+        "excerpt": "  // 立即运行任务：POST run 后刷新列表确认状态。\n  const run = async () => {\n    if (!selected) return\n    setSaving(true)\n    setError('')\n    try {\n      await apiJson(`/api/schedules/${encodeURIComponent(selected.id)}/run`, {\n        method: 'POST',"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "插件/MCP详情与权限说明",
+    "target": "Apps/插件详情面包屑、compact头、flex-wrap gap-4/basis-64文案组、heading-base与text-xs摘要；真实溢出才Read more/less；设置行role=alert+右侧ghost Retry。权限菜单外观仅在语义一致时借用。",
+    "current": "插件为能力卡片/来源过滤；MCP为列表详情、Host配置、指标、工具开关和活动。manifest风险/permissions及enabled不等同OAuth scope/账户批准。",
+    "change": "落点PluginsPage/McpPage/McpHostPanel：匹配面包屑、摘要、设置行、错误重试密度；明确连接/启停/风险/Host区域。MCP Host和指标是视觉语言延伸，不新增虚假Always ask/Read-only批准策略。",
+    "referenceIds": [
+      "J003",
+      "J004",
+      "J005",
+      "J006",
+      "J008",
+      "J009",
+      "J010",
+      "J083",
+      "J084",
+      "J085",
+      "J086",
+      "J087"
+    ],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#apps-integrations-deep",
+    "acceptance": [
+      "摘要实际溢出才展开",
+      "长名称不挤出动作",
+      "失败保留面包屑和标题并可Retry",
+      "启停/批准/认证措辞分开",
+      "Host不冒称参考一一对应页"
+    ],
+    "unknowns": [
+      "头部尺寸和字体token实际像素未测",
+      "参考共享宿主标签有资格门控",
+      "Pisper权限语义不同，只复刻可对应视觉层"
+    ],
+    "id": "UIF004",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2893,
+        "endLine": 2895,
+        "excerpt": "- 带应用资产的页面采用 compact 密度；头部 `flex-wrap gap-4`，图文组 `flex-1 basis-64 gap-3`，标题为 `heading-base break-words text-default`，摘要为 `text-xs leading-4 text-secondary`。\n- 摘要初始 `line-clamp-3`。只有检测到真实溢出，或已经展开时，才显示 `Read more / Read less`；按钮用 `ghostMuted`、`inline` 尺寸，带 `aria-controls` 和 `aria-expanded`。\n- `View details` 的 HTTPS 目标走外部浏览器桥接；本地目标保留应用内导航。"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2899,
+        "endLine": 2900,
+        "excerpt": "设置错误组件把 `role=\"alert\"` 消息置于标准设置行 label，右侧是 `ghost` 风格 `Try again`。因此读取失败可保留当前详情骨架、标题和导航，不必替换为全屏红色错误页。[J006](evidence-details.md#j006)\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2905,
+        "endLine": 2906,
+        "excerpt": "当前全局值来自 `settings.apps_privacy_control`，缺省为 `review_important_actions`。控件是右侧触发按钮加 RadioGroup 菜单；保存中触发器和选项禁用，选择当前值不会重复提交。全局列表过滤 `full_access`，因此默认页主要提供以下三个语义层级。[J008](evidence-details.md#j008) [J009](evidence-details.md#j009)\n"
+      },
+      {
+        "path": "src/features/mcp/McpPage.tsx",
+        "line": 236,
+        "endLine": 243,
+        "excerpt": "          <McpHostPanel notify={notify} requestConfirm={requestConfirm} />\n          {loading && !error && <p role=\"status\">{t('mcp:loading')}</p>}\n          {error && (\n            <Alert\n              role=\"status\"\n              className=\"mb-3 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere]\"\n            >\n              <span>{error.message}</span>"
+      },
+      {
+        "path": "src/features/plugins/PluginsPage.tsx",
+        "line": 152,
+        "endLine": 154,
+        "excerpt": "        pluginPermissions: plugin.permissions || [],\n        pluginSystemAccess: Boolean(plugin.systemAccess),\n      })),"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "技能页状态与列表详情",
+    "target": "对照Manage extensions共享宿主的Skills标签及Apps状态语言：全高内容区、工具栏换行、搜索、已有列表旁错误、无安装空态、宿主不可用。参考未深挖独立Skills详情，因此不宣称直接像素对应。",
+    "current": "全局/项目列表详情与过滤Segmented；const [,setError]丢弃错误值，首屏失败后按空技能渲染，开关/reload失败也只setError。",
+    "change": "落点SkillsPage的error/load/update/save及PageFrame/ListDetailLayout：首屏错误+Retry，刷新失败保留列表；统一搜索、标题、空态、详情表面和间距。保留Pisper作用域与自动调用，不新增市场业务。",
+    "referenceIds": ["J083", "J084", "J085", "J086", "J087", "B011", "B014"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#apps-integrations-deep",
+    "acceptance": [
+      "首屏失败不显示无技能成功空态",
+      "可访问错误与键盘Retry",
+      "刷新失败保留数据与选择",
+      "无技能/无匹配/作用域空各自准确",
+      "开关失败有反馈"
+    ],
+    "unknowns": [
+      "仅有共享宿主Skills入口证据，缺少独立详情参考",
+      "行高/栏宽/加载几何未测",
+      "独有字段仅作视觉语言延伸"
+    ],
+    "id": "UIF005",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2888,
+        "endLine": 2889,
+        "excerpt": "Apps 内容区使用 `flex-col gap-6`。错误横幅可以与已经取得的应用列表同时存在；没有任何已安装应用时才进入 `No installed apps` 空态。主机不提供插件能力时，展示居中说明 `Plugins are not available for this host` 和切换主机提示。这种状态不应绘制为网络错误，也不应提供一个看似能够恢复所有功能的通用重试按钮。[J085](evidence-details.md#j085) [J086](evidence-details.md#j086)\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2886,
+        "endLine": 2887,
+        "excerpt": "共享管理页的根容器是 `flex h-full min-h-0 flex-col`。标题栏下方为可压缩的 `flex-1` 内容，面板在非全宽模式使用 `overflow-y-auto`、`p-panel` 和稳定滚动条槽，避免数据加载后列表横向跳动。顶部切换栏与搜索容器使用 `flex-wrap`、`justify-between`、`gap-3`；搜索宽度为 `w-56`，即在既有 4 px 空间比例下为 224 px。窄窗口会换行，而不是继续压缩到不可输入。[J083](evidence-details.md#j083) [J084](evidence-details.md#j084)\n"
+      },
+      {
+        "path": "src/features/skills/SkillsPage.tsx",
+        "line": 118,
+        "endLine": 120,
+        "excerpt": "  const [, setError] = useState('')\n\n  // 加载技能列表（按活动会话作用域取项目技能），失效选中回退首项。"
+      },
+      {
+        "path": "src/features/skills/SkillsPage.tsx",
+        "line": 199,
+        "endLine": 203,
+        "excerpt": "  const skills = data?.skills || []\n  const filteredSkills = skills.filter(\n    (skill) =>\n      skillMatchesFilter(skill, filter) &&\n      `${skill.name} ${skill.description}`.toLowerCase().includes(query.toLowerCase()),"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "图像结果工作台与历史缩略图",
+    "target": "对应Images My images缩略图：aspect-square/rounded-xl/surface-secondary/object-cover、lazy/async、原生button、aria-label/focus ring；loading status，续页失败保留结果并底部alert+Retry；参考选择器背景inert、Escape/遮罩dismiss。",
+    "current": "主要在WorkflowImageResult、节点inspector与游戏资产组件；有动作/方向/帧索引/播放/onion/original状态，不是参考/images推荐首页。",
+    "change": "落点WorkflowImageResult/WorkflowImageNodeInspector和资产图片卡：统一缩略图、选中焦点、解码/生成失败、预览/下载动作层次与参数控件token。保留DAG与sprite操作；仅视觉语言延伸，不新增推荐/模板业务或改名宣称复刻。",
+    "referenceIds": [
+      "B125",
+      "B126",
+      "B127",
+      "B128",
+      "B129",
+      "B130",
+      "B131",
+      "N080",
+      "N081",
+      "N084",
+      "N085",
+      "N086"
+    ],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#gpt-library-deep",
+    "acceptance": [
+      "缩略图键盘焦点与aria-label完整",
+      "生成失败和解码失败分开",
+      "预览关闭恢复选中焦点",
+      "参数/帧切换保留结果",
+      "验收标明独有工作台延伸"
+    ],
+    "unknowns": [
+      "混合布局和推荐卡片算法未穷尽",
+      "当前比例/间距/按钮/动画像素未测",
+      "sprite帧/方向/onion没有ChatGPT对应"
+    ],
+    "id": "UIF006",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2827,
+        "endLine": 2828,
+        "excerpt": "历史缩略图是原生 button，aspect-square、rounded-xl、bg-surface-secondary、overflow-hidden、focus-visible ring-2；图片使用 object-cover、loading=lazy、decoding=async，alt 空而按钮 aria-label 提供标题。阻止输出的资源显示占位图标；普通资源加载失败/已删除会把该 id 标记为当前 dataUpdatedAt 版本不可用，从列表隐藏，后续数据刷新有机会重新评估，不能误称永久删除。点击选中并打开已有图片查看流程。[B130](evidence-details.md#b130)\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 2825,
+        "endLine": 2826,
+        "excerpt": "My images 标题为 lg/semibold，标题与 Open Library/Open Space 按钮可换行、justify-between/gap-3；有 Library 权限才显示快捷入口，目标分别为 `/library?tab=images` 或 `/space/files?tab=images`。首次加载使用居中 spinner 与 role=status 的 Loading images；无错误、非pending且结果为空时才显示 Images you create with ChatGPT will appear here。历史图片请求失败保留已有项，底部 role=alert + Try again；若是续页失败重试 next page，否则 refetch 整体查询，fetching 时按钮 disabled。[B128](evidence-details.md#b128) [B129](evidence-details.md#b129) [B131](evidence-details.md#b131)\n"
+      },
+      {
+        "path": "src/features/workflows/WorkflowImageResult.tsx",
+        "line": 88,
+        "endLine": 95,
+        "excerpt": "  const [action, setAction] = useState('')\n  const [direction, setDirection] = useState('')\n  const [index, setIndex] = useState(0)\n  const [playing, setPlaying] = useState(false)\n  const [onion, setOnion] = useState(false)\n  const [original, setOriginal] = useState(false)\n  const [downloadError, setDownloadError] = useState(false)\n  const [downloading, setDownloading] = useState(false)"
+      },
+      {
+        "path": "src/app/router.tsx",
+        "line": 49,
+        "endLine": 51,
+        "excerpt": "      { path: PAGE_PATHS.gameAssetWorkbench, lazy: gameAssetWorkbenchRoute },\n      { path: PAGE_PATHS.decisions, lazy: decisionsRoute },\n      { path: PAGE_PATHS.workflows, lazy: workflowsRoute },"
+      }
+    ],
+    "runtimeVerified": false
+  },
+  {
+    "surface": "自定义UI预览与生态App宿主",
+    "target": "参考App宿主loading/error/ready；modal尺寸来自合法heightHint/widthHint，fullscreen是独立分支；不允许交互关闭时拦截Escape/外部点击。只映射宿主壳，非内部HTML或账户业务。",
+    "current": "CustomUiFrame准备view显示status，失败Retry，ready加载sandbox allow-scripts iframe；本地manifest组件可导入/预览/浮窗，不是ChatGPT远端App协议。",
+    "change": "落点CustomUiFrame/CustomUiToolPage/CustomUiWidget：统一加载/失败与modal/fullscreen宿主层级、生命周期和关闭契约；保持opaque origin、CSP与权限桥。仅现有支持的presentation生效，不为外观把组件变为可信同源DOM。",
+    "referenceIds": ["E041", "E042", "E043", "E044", "E045", "E046", "E050"],
+    "referenceAnchor": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md#conversation-states",
+    "acceptance": [
+      "状态切换宿主尺寸/导航稳定",
+      "Retry不残留重复view",
+      "modal/fullscreen关闭契约分别验收",
+      "预览inert不触发写桥",
+      "内部组件未取证不宣称像素复刻"
+    ],
+    "unknowns": [
+      "协议不同，仅宿主视觉语言延伸",
+      "远端内部UI及尺寸未取证，像素未测",
+      "错误是否内联Retry须按具体参考消费者而非统一臆定"
+    ],
+    "id": "UIF007",
+    "evidence": [
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 1264,
+        "endLine": 1265,
+        "excerpt": "生态 widget 的宿主使用 loading、error、ready 三态。modal 可从传入 heightHint 或 widget.height_hint 取得非负高度；widthHint 传给 appLauncher 尺寸弹窗。ready 且 request.mode=fullscreen 时进入独立全屏宿主，不能套用 modal 的外框行为。[[E041](evidence-details.md#e041)]\n"
+      },
+      {
+        "path": "docs/design/chatgpt-frontend/ChatGPT前端设计方案.md",
+        "line": 1272,
+        "endLine": 1273,
+        "excerpt": "| 不允许交互关闭   | allowsInteractiveDismissal=false                                            | Escape preventDefault，并忽略外部点击；不能因此推断所有关闭控制都消失 |\n"
+      },
+      {
+        "path": "src/features/custom-ui/CustomUiFrame.tsx",
+        "line": 50,
+        "endLine": 57,
+        "excerpt": "  if (failed) {\n    return (\n      <div\n        role=\"status\"\n        className=\"flex h-full min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-auto p-3 text-center text-xs text-[var(--text-muted)]\"\n      >\n        <p>{t('custom-ui:customUiPage.componentFailedToLoad')}</p>\n        <Button variant=\"outline\" size=\"sm\" onClick={() => setAttempt((value) => value + 1)}>"
+      },
+      {
+        "path": "src/features/custom-ui/CustomUiFrame.tsx",
+        "line": 80,
+        "endLine": 84,
+        "excerpt": "      sandbox=\"allow-scripts\"\n      inert={preview || undefined}\n      tabIndex={preview ? -1 : undefined}\n      className={cn(\n        'block h-full min-h-0 w-full min-w-0 border-0 bg-transparent',"
+      }
+    ],
+    "runtimeVerified": false
+  }
+]

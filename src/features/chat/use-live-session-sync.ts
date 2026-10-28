@@ -67,9 +67,38 @@ export function reconcileMessagePage(current: SessionState, data: ApiRecord) {
   return {
     messages,
     messageStart,
+    hasNewer: false,
     hasOlder: messageStart > 0,
     olderCursor: messageStart > 0 ? String(messageStart) : null,
   }
+}
+
+// 历史阅读窗口向前移动时淘汰尾页，不能淘汰用户刚请求的旧页。
+export function reconcileOlderMessagePage(current: SessionState, data: ApiRecord) {
+  const existingIds = new Set(current.messages.map((message) => message.id))
+  const older = data.messages.filter((message: ChatMessage) => !existingIds.has(message.id))
+  const merged = [...older, ...current.messages]
+  const messages = merged.slice(0, MAX_FOCUS_MESSAGES)
+  return {
+    messages,
+    messageStart: data.pageInfo.start,
+    hasOlder: data.pageInfo.hasMore,
+    olderCursor: data.pageInfo.nextCursor,
+    hasNewer: Boolean(current.hasNewer || merged.length > messages.length),
+  }
+}
+
+// SSE 保有最新消息数组的所有权，历史阅读只形成有界投影，不能淘汰本地 agent ID。
+export function reconcileOlderMessageWindow(current: SessionState, data: ApiRecord): SessionState {
+  const source = current.historyWindow ? { ...current, ...current.historyWindow } : current
+  const page = reconcileOlderMessagePage(source, data)
+  return current.historyWindow || page.hasNewer
+    ? { ...current, historyWindow: page }
+    : { ...current, ...page }
+}
+
+export function restoreLatestMessageWindow(current: SessionState): SessionState {
+  return { ...current, historyWindow: null }
 }
 
 // 模型在记录用户消息前就失败时，服务端历史仍停留在上一轮。错误后的快照
@@ -268,8 +297,17 @@ export function useLiveSessionSync({
     ) => {
       if (!id) return
       const current = sessionStatesRef.current[id]
+      if (force && current?.historyWindow) {
+        updateSessionState(id, restoreLatestMessageWindow)
+        // 本地流必须继续使用原始 agent ID；返回最新只切换投影，不从 live 快照换消息。
+        if (localStreamSessionsRef.current.has(id)) return
+        if (current.streaming || current.recovering) {
+          await syncLiveSession(id, { force })
+          return
+        }
+      }
       if (current?.recovering) {
-        await syncLiveSession(id)
+        await syncLiveSession(id, { force })
         return
       }
       if (
@@ -319,31 +357,31 @@ export function useLiveSessionSync({
         updateSessionState(id, { loading: false, error: chatErrorMessage(error) })
       }
     },
-    [sessionStatesRef, syncLiveSession, updateSessionState, updateSessions],
+    [localStreamSessionsRef, sessionStatesRef, syncLiveSession, updateSessionState, updateSessions],
   )
 
   // 加载更早消息：无游标/加载中时直接返回，成功后前置合并。
   const loadOlderMessages = useCallback(
     async (id: string) => {
       const current = sessionStatesRef.current[id]
-      if (!id || !current?.hasOlder || !current.olderCursor || current.loadingOlder) return false
+      const window = current?.historyWindow ? { ...current, ...current.historyWindow } : current
+      if (!id || !window?.hasOlder || !window.olderCursor || current.loadingOlder) return false
+      const requestedWindow = current.historyWindow ?? null
       updateSessionState(id, { loadingOlder: true, olderError: '' })
       try {
         const data = await chatApi.getMessages(id, {
           limit: FOCUS_MESSAGE_PAGE_SIZE,
-          before: current.olderCursor,
+          before: window.olderCursor,
         })
         updateSessionState(id, (latest) => {
-          const existingIds = new Set(latest.messages.map((message) => message.id))
-          const older = data.messages.filter((message) => !existingIds.has(message.id))
-          const merged = [...older, ...latest.messages]
-          const overflow = Math.max(0, merged.length - MAX_FOCUS_MESSAGES)
+          const latestWindow = latest.historyWindow || latest
+          if (
+            (latest.historyWindow ?? null) !== requestedWindow ||
+            latestWindow.olderCursor !== window.olderCursor
+          )
+            return { ...latest, loadingOlder: false }
           return {
-            ...latest,
-            messages: overflow ? merged.slice(overflow) : merged,
-            messageStart: data.pageInfo.start + overflow,
-            hasOlder: data.pageInfo.hasMore,
-            olderCursor: data.pageInfo.nextCursor,
+            ...reconcileOlderMessageWindow(latest, data),
             loadingOlder: false,
             olderError: '',
           }

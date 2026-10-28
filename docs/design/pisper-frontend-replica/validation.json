@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-20",
+  "replicaUnits": 38,
+  "capabilityItems": 116,
+  "exactExcerptMatches": 564,
+  "sourceFilesHashMatched": 163,
+  "localLinksChecked": 2272,
+  "duplicateIds": 0,
+  "errors": [],
+  "trackedProductDiffEmpty": true,
+  "applicationTestsExecuted": false,
+  "runtimeVerified": false,
+  "formatCheck": "passed",
+  "scope": "document/source-reference integrity only; not UI accuracy or product tests"
+}

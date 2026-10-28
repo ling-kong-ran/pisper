@@ -1,0 +1,501 @@
+{
+  "goal": "按38个UI单元和R0–R6完成前端设计与交互还原；品牌/文案为明确例外",
+  "baselineHead": "2132634988120c6be991437d97476ad47af9d387",
+  "branch": "codex/chatgpt-frontend-replica",
+  "reference": {
+    "version": "26.1013.40934",
+    "build": "20770",
+    "checked": "2026-10-20",
+    "runtimeVisualComparison": false
+  },
+  "status": "in_progress",
+  "units": [
+    {
+      "id": "UIR001",
+      "surface": "UI字号、字重与字体角色",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "UI role 12/13/14/16/28/36/48 with rounded scale; UI430 and content400 separated"
+      ],
+      "remaining": [
+        "Independent numeric font preferences and consumer migration",
+        "Actual font fallback and paired reference measurement"
+      ]
+    },
+    {
+      "id": "UIR002",
+      "surface": "主题角色与颜色生成层",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Light/dark foreground and base surface fallback aligned"
+      ],
+      "remaining": [
+        "Full runtime role derivation and removal of legacy overrides"
+      ]
+    },
+    {
+      "id": "UIR003",
+      "surface": "圆角与连续曲率",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Shared radius scale and composer22 round fallback"
+      ],
+      "remaining": [
+        "Continuous curvature feature detection and same-engine calibration"
+      ]
+    },
+    {
+      "id": "UIR004",
+      "surface": "描边、阴影与遮罩",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Dialog/composer/popover surface shadows and light30%/dark50% scrim"
+      ],
+      "remaining": [
+        "Per-instance rendered comparison and remaining handwritten overlays"
+      ]
+    },
+    {
+      "id": "UIR005",
+      "surface": "按钮尺寸、对齐和视觉状态",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Button semantic variants and real toolbar/dialog consumers"
+      ],
+      "remaining": [
+        "Balanced icon alignment and per-instance calibration"
+      ]
+    },
+    {
+      "id": "UIR006",
+      "surface": "按钮loading、可访问禁用与布局稳定",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "loading/sizingLabels/default button type/focusable disabled/link activation guards",
+        "Loading AX name regression fixed"
+      ],
+      "remaining": [
+        "Representative legacy consumers migration and paired state screenshots"
+      ]
+    },
+    {
+      "id": "UIR007",
+      "surface": "Dropdown的非modal策略、偏移和宽度",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Nonmodal default, offset1, content width, optional trigger width, checkbox keep-open"
+      ],
+      "remaining": [
+        "Per-consumer runtime visual comparison"
+      ]
+    },
+    {
+      "id": "UIR008",
+      "surface": "Tooltip的延迟、箭头与交互提示",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Default200ms and optional arrow"
+      ],
+      "remaining": [
+        "Interactive tooltip and hover safe-area consumers"
+      ]
+    },
+    {
+      "id": "UIR009",
+      "surface": "Popover的锚定、Portal与焦点",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "offset8/collision20/dialog portal ownership"
+      ],
+      "remaining": [
+        "Edge cases across remaining dialog consumers"
+      ]
+    },
+    {
+      "id": "UIR010",
+      "surface": "Dialog尺寸分级、body滚动和confirmation",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "520/430/600 size variants; body scroll; async confirmation close gates"
+      ],
+      "remaining": [
+        "All dialog instance mapping and rendered comparison"
+      ]
+    },
+    {
+      "id": "UIR011",
+      "surface": "Sheet与移动/窄窗呈现",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIR012",
+      "surface": "动效、缩放与减少动态效果",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "150/200/300 motion tokens and easing"
+      ],
+      "remaining": [
+        "Reference height animation, zoom and reduced-motion calibration"
+      ]
+    },
+    {
+      "id": "UIR013",
+      "surface": "通用状态、错误恢复与提示语义",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "FIFO toast; accessible startup loading; search/settings error retry"
+      ],
+      "remaining": [
+        "All feature loading/empty/error/disabled states"
+      ]
+    },
+    {
+      "id": "UIC001",
+      "surface": "聊天壳：内容侧栏与导航rail的宽度/断点",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Default340, clamp240–520 with content reserve; pointer preview and persisted commit; keyboard resize"
+      ],
+      "remaining": [
+        "Actual reference shell branch and geometry comparison"
+      ]
+    },
+    {
+      "id": "UIC002",
+      "surface": "侧栏聊天列表：分组、密度和可见动作",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIC003",
+      "surface": "消息主列与轮次间距",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Existing768 content alignment preserved; bounded historical reading separated from authoritative live messages; native virtualizer anchor"
+      ],
+      "remaining": [
+        "Wide content rules and exact consumer turn spacing"
+      ]
+    },
+    {
+      "id": "UIC004",
+      "surface": "助手正文的段落、标题和列表排版",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Content role separated; heading and paragraph proportions aligned"
+      ],
+      "remaining": [
+        "Full Markdown fixtures and runtime reference typography"
+      ]
+    },
+    {
+      "id": "UIC005",
+      "surface": "消息动作栏：保持完成回复可见，补齐布局/反馈细节",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Copy feedback temporarily prevents repeat activation"
+      ],
+      "remaining": [
+        "Action layout and rich copy/other documented states"
+      ]
+    },
+    {
+      "id": "UIC006",
+      "surface": "输入器局部几何：框体、内容区与附件托盘",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Composer radius and elevation; attachment draft acceptance lifecycle"
+      ],
+      "remaining": [
+        "Exact row heights, tray placement and paired states"
+      ]
+    },
+    {
+      "id": "UIC007",
+      "surface": "输入器主动作与工具栏的条件交互",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Send/stop/steer/preparing states and accepted submission ownership"
+      ],
+      "remaining": [
+        "Complete production interaction verification and remaining reference state comparison"
+      ]
+    },
+    {
+      "id": "UIC008",
+      "surface": "聊天搜索/命令菜单：几何与结果行外观",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "520/92vw search width and height budget, groups and metadata column"
+      ],
+      "remaining": [
+        "Reference computed geometry comparison"
+      ]
+    },
+    {
+      "id": "UIC009",
+      "surface": "聊天搜索/命令菜单：结果生命周期和键盘交互",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Abortable label search, selectable retry, IME guards, section Tab, pointer snapshot, async navigation failure"
+      ],
+      "remaining": [
+        "Body full-text search requires backend; current result sources remain session metadata and labels"
+      ]
+    },
+    {
+      "id": "UIC010",
+      "surface": "用户消息编辑与正文选择引用的就地交互",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIS001",
+      "surface": "设置导航外壳",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Desktop settings sidebar remains expanded and hides collapse action"
+      ],
+      "remaining": [
+        "Reference navigation measurements and complete responsive states"
+      ]
+    },
+    {
+      "id": "UIS002",
+      "surface": "内容标题、分组与设置行",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "SettingsSection/SettingsRow; appearance decorative cards removed"
+      ],
+      "remaining": [
+        "Other settings consumers and exact row spacing evidence"
+      ]
+    },
+    {
+      "id": "UIS003",
+      "surface": "Appearance模式选择实例",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Three native radio previews, controlled Advanced, scheduled mode preserved in extension"
+      ],
+      "remaining": [
+        "Nonoptimistic persistence acknowledgement and pending/error"
+      ]
+    },
+    {
+      "id": "UIS004",
+      "surface": "Appearance颜色、字体、字号实例",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Accent popover and validated draft commit"
+      ],
+      "remaining": [
+        "Background/foreground/contrast schema; independent font families and numeric sizes"
+      ]
+    },
+    {
+      "id": "UIS005",
+      "surface": "Notifications类别行与多渠道菜单",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIS006",
+      "surface": "Voice输入设备设置行",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIS007",
+      "surface": "搜索深定位及展开",
+      "status": "partial",
+      "verification": [
+        "See batch-1 verification; partial implementation does not assert pixel parity"
+      ],
+      "implemented": [
+        "Explicit targetId/expandGroup/navigationKey; stale navigation cancellation; capability filtering"
+      ],
+      "remaining": [
+        "Remaining target coverage and reference visual calibration"
+      ]
+    },
+    {
+      "id": "UIS008",
+      "surface": "离开未保存设置确认",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF001",
+      "surface": "资产库集合页",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF002",
+      "surface": "资产预览弹窗与图片lightbox",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF003",
+      "surface": "计划列表和详情编辑",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF004",
+      "surface": "插件/MCP详情与权限说明",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF005",
+      "surface": "技能页状态与列表详情",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF006",
+      "surface": "图像结果工作台与历史缩略图",
+      "status": "pending",
+      "verification": []
+    },
+    {
+      "id": "UIF007",
+      "surface": "自定义UI预览与生态App宿主",
+      "status": "pending",
+      "verification": []
+    }
+  ],
+  "batches": [
+    {
+      "id": "batch-1",
+      "status": "in_progress",
+      "tasks": [
+        "shared-controls",
+        "chat-composer-messages",
+        "settings-rows",
+        "theme-shell-search"
+      ],
+      "review": {
+        "controls": "Independent review passed; additional task-menu lifecycle regression under diagnosis",
+        "settings": "Reviewed; latest explicitly submitted Memory value persists without clearing later edits",
+        "chat": "Three reproduced history/live/retry issues fixed and independently verified",
+        "shell": "Separate 768 sidebar breakpoint implemented and independently reviewed"
+      },
+      "verification": {
+        "targetedShellTheme": "18 passed",
+        "targetedComposerAndShell": "23 passed",
+        "guards": "42 passed after documented behavioral/source-contract migration",
+        "typecheck": "passed before batch-2 edits",
+        "lint": "passed before batch-2 edits, existing warnings",
+        "i18n": "passed before batch-2 edits",
+        "format": "Only 2 unrelated task scratch Markdown files fail; task-owned scratch formatted",
+        "startup": "1 passed, isolated Node24 runtime",
+        "test": "2757 total: 2755 passed, 2 skipped, 0 failed (batch-1 checkpoint)",
+        "build": "passed; eager JS 298.58 kB within existing budget; 341 chunks compatibility checked",
+        "replicaUi": "passed: controls + shell + chat + settings; real CSS and 5 settings visual scenarios",
+        "workbench": "failed: task menu closes during rapid reopen; diagnosis active",
+        "ui": "production smoke passed Select Escape this run, then task-menu theme item disappeared; diagnosis active",
+        "evidence": "implementation-evidence/batch-1/manifest.json"
+      }
+    },
+    {
+      "id": "batch-2",
+      "status": "in_progress",
+      "tasks": [
+        "notification-categories-real-channel-preferences",
+        "asset-collection-and-preview"
+      ],
+      "scope": "Pisper existing capabilities; no new branding or invented account capabilities",
+      "verification": {
+        "status": "TDD implementation in progress; no completion claim"
+      }
+    }
+  ],
+  "unresolved": [
+    "目标运行时 computed styles 与成对截图",
+    "R5 功能依赖页面未实现",
+    "桌面及移动真机验收未执行"
+  ],
+  "limitations": [
+    "Status partial means source/behavior work has landed, not complete 1:1 acceptance",
+    "Reference values came from local shipped-artifact REA; paired runtime screenshots not available",
+    "No Tauri, Android or iOS device acceptance claimed",
+    "No new third-party dependency installed in batch-1"
+  ]
+}

@@ -1,0 +1,242 @@
+[
+  {
+    "id": "J201",
+    "claim": "SpaceSiteDetails实际消费Sites设置、分析/事件、数据库、插件、计划页面；分析/事件由flag门控。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/site-details-b300d809b5b5.js",
+    "offset": 1284,
+    "excerpt": "ngs`:return(0,T.jsx)(u,{navigation:m});case`analytics`:return(0,T.jsx)(c,{navigation:m,section:b===`analytics/events`&&p?`events`:`overview`});case`database`:return(0,T.jsx)(s,{navigation:m});case`plugins`:return(0,T.jsx)(l,{navigation:m});case`automations`:return(0,T.jsx)(_,{navigation:m})}},t[9]=p,t[10]=m,t[11]=y,t[12]=b,t[13]=E):E=t[13];let D;return t[14]!==m||t[15]!==v||t[16]!==y||t[17]!==E?(D=(0,T.jsx)(S,{navigation:m,projectId:v,selectedTab:y,children:E}),t[14]=m,t[15]=v,t[16]=y,t[17]=E,t[18]=D):D=t[18],D}var w,T;function E(){return(E=e((()=>{w=a(),t(),r(),v(),d(),p(),b(),y(),m(),T=o()})"
+  },
+  {
+    "id": "J202",
+    "claim": "Sites库支持容器响应式1–4列网格及表格视图。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-page-cdcbf54849d6.js",
+    "offset": 26967,
+    "excerpt": "12]=x,t[13]=S):S=t[13];let C=S,w,T;if(t[14]!==u||t[15]!==c||t[16]!==d||t[17]!==l){let e=l===`grid`?`grid-cols-1 gap-6 @md:grid-cols-2 @2xl:grid-cols-3 @5xl:grid-cols-4`:Rn(c,u&&d),n=l===`grid`&&`pt-4`;t[20]===n?T=t[21]:(T=R(`@container pb-3`,n),t[20]=n,t[21]=T),w=R(`grid`,e),t[14]=u,t[15]=c,t[16]=d,t[17]=l,t[18]=w,t[19]=T}else w=t[18],T=t[19];let D=l===`grid`?`sites-grid`:`sites-table`,O;t[22]!==c||t[23]!==l?(O=l===`list`?(0,$.jsx)(zn,{shared:c}):null,t[22]=c,t[23]=l,t[24]=O):O=t[24];let k;if(t[25]!==C||t[26]!==i||t[27]!==a||t[28]!==s||t[29]!==c||t[30]!==l){let e;t[32]!==C||t[33]!==i||t[34]!=="
+  },
+  {
+    "id": "J203",
+    "claim": "Sites搜索与All/Pinned/Owned/Shared分组，独立加载、分页失败及多种空态。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-page-cdcbf54849d6.js",
+    "offset": 12084,
+    "excerpt": "d`||W||kt(e)))??null,Pt=J.some(vn),Ft=S.formatMessage({id:`appgenPage.sites.search`,defaultMessage:`Search sites`,description:`Accessible label and placeholder for searching Sites`}),It;t[36]!==n?.state||t[37]!==o||t[38]!==Ot?(It=()=>{Oe(o,{action:_.CODEX_APPGEN_INTERACTION_ACTION_CREATE_SITE_CLICKED,source:c.CODEX_APPGEN_INTERACTION_SOURCE_SITES}),xe(o,Ot,{type:`create`},n?.state)},t[36]=n?.state,t[37]=o,t[38]=Ot,t[39]=It):It=t[39];let Lt=It,Rt;t[40]!==n?.state||t[41]!==o||t[42]!==Ot?(Rt=(e,t,r)=>{xe(o,Ot,{type:r===void 0?`edit`:r,liveUrl:t,projectId:e.id,projectTitle:e.title,latestEditContex"
+  },
+  {
+    "id": "J204",
+    "claim": "详情页中心内容最大3xl、gap6，背景surface，顶部包含返回Sites。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-site-detail-layout-8df79b05350a.js",
+    "offset": 20131,
+    "excerpt": "nel pt-panel pb-panel md:pt-16`,onScroll:W,children:(0,$.jsx)(`div`,{className:`mx-auto flex w-full max-w-3xl flex-col gap-6 pb-8`,children:H})}),t[114]=H,t[115]=G);let Ie;return t[116]!==U||t[117]!==G?(Ie=(0,$.jsxs)(`div`,{className:`flex h-full min-h-0 flex-col bg-surface`,children:[U,G]}),t[116]=U,t[117]=G,t[118]=Ie):Ie=t[118],Ie}function jt(){}function Mt(e){let n=(0,Z.c)(15),{onBack:r,onEdit:i,site:a}=e,o=a?.status===`suspended`?null:a?.live_url,s,c;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,$.jsx)(f,{className:`rtl:rotate-180`}),c=(0,$.jsx)(l,{id:`appgenSiteDetail.header.sites`"
+  },
+  {
+    "id": "J205",
+    "claim": "详情站点标题24/32常规字重，缩略图104×60，URL次要色14/20。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-site-detail-layout-8df79b05350a.js",
+    "offset": 22558,
+    "excerpt": "ndary/92`,children:[l,u]}),t[5]=l,t[6]=d);let f;t[7]===n.title?f=t[8]:(f=(0,$.jsx)(`h1`,{className:`text-2xl leading-8 font-normal wrap-anywhere text-default`,children:n.title}),t[7]=n.title,t[8]=f);let p;t[9]===Symbol.for(`react.memo_cache_sentinel`)?(p=(0,$.jsx)(T,{\"aria-hidden\":!0,className:`shrink-0`}),t[9]=p):p=t[9];let m;t[10]!==c||t[11]!==n.slug?(m=(0,$.jsxs)(`div`,{className:`flex min-w-0 items-center gap-1 text-sm leading-5 text-tertiary`,children:[p,c==null?(0,$.jsx)(`span`,{className:`min-w-0 truncate`,children:n.slug}):(0,$.jsx)(Je,{className:`min-w-0 truncate text-sm`,appearance:`"
+  },
+  {
+    "id": "J206",
+    "claim": "编辑路由验证账户，错误/跨账户引导和浏览器回退分开。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/site-edit-route-fe5ff45fc5a1.js",
+    "offset": 7171,
+    "excerpt": "e:`select-none`,layout:`page`,title:(0,Y.jsx)(o,{id:`siteEditRoute.accountMismatch`,defaultMessage:`Switch accounts to edit this site`,description:`Heading in Codex desktop when a Site edit link belongs to another ChatGPT workspace`}),description:(0,Y.jsx)(o,{id:`siteEditRoute.accountMismatchDescription`,defaultMessage:`Sign in to the Site’s workspace in ChatGPT and reopen this link, or continue editing in the browser tab that opened ChatGPT`,description:`Recovery guidance when ChatGPT desktop cannot automatically switch to the workspace in a Site edit link`})}),e[71]=t):t=e[71],t}if(Oe===`una"
+  },
+  {
+    "id": "J207",
+    "claim": "编辑站点恢复会话或预填可编辑草稿；不等同点击即提交修改。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/site-edit-route-fe5ff45fc5a1.js",
+    "offset": 2546,
+    "excerpt": "==null?`${e.get(U).formatMessage({id:`appgenConversation.editPrompt.requestChanges`,defaultMessage:`Make these changes to {siteMention}:`,description:`Prefilled prompt for editing an existing site from the Sites page. {siteMention} is the serialized Site mention and must remain intact. The user types their requested changes after the colon.`},{siteMention:u})} `:d;return{path:`/`,state:{...ne,prefillPrompt:m,project:null,codexAppMode:o}}}async function Me(e,t,n,r){let i=e.get(G);if(t.path===`/`){let n=!1;if(q(e,{...r,activeProject:null,prefillPrompt:t.state.prefillPrompt,siteEditSource:t.state"
+  },
+  {
+    "id": "J208",
+    "claim": "Site settings可作为xwide弹窗，高720px最大92vh并给无障碍关闭名。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-settings-dialog-12467699a476.js",
+    "offset": 1276,
+    "excerpt": "9]=b):b=a[9];let x;return a[10]!==_||a[11]!==v||a[12]!==b?(x=(0,g.jsx)(s,{open:!0,contentClassName:`h-[720px] max-h-[92vh]`,contentProps:m,dialogCloseLabel:_,size:`xwide`,onOpenChange:v,children:b}),a[10]=_,a[11]=v,a[12]=b,a[13]=x):x=a[13],x}var h,g;function _(){return(_=e((()=>{h=u(),o(),l(),a(),f(),g=d()})))()}_();export{m as AppgenSettingsDialog};\n//# sourceMappingURL=appgen-settings-dialog-12467699a476.js.map"
+  },
+  {
+    "id": "J209",
+    "claim": "站点标题900ms防抖保存，composition避免中文输入误存，失焦/Enter提交。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-settings-page-c27067b2a0e1.js",
+    "offset": 67827,
+    "excerpt": "arget.value;U.current=t,V(t),pe(Cr),G.current!=null&&clearTimeout(G.current),Me.current||(G.current=setTimeout(J,900))},n[98]=J,n[99]=V,n[100]=pe,n[101]=U,n[102]=G,n[103]=St):St=n[103];let Ct;n[104]===G?Ct=n[105]:(Ct=()=>{Me.current=!0,G.current!=null&&clearTimeout(G.current)},n[104]=G,n[105]=Ct);let Tt;n[106]!==J||n[107]!==G?(Tt=()=>{Me.current=!1,G.current!=null&&clearTimeout(G.current),G.current=setTimeout(J,900)},n[106]=J,n[107]=G,n[108]=Tt):Tt=n[108];let Et;n[109]===J?Et=n[110]:(Et=e=>{e.key===`Enter`&&!e.nativeEvent.isComposing&&e.nativeEvent.keyCode!==229&&(e.preventDefault(),J())},n[10"
+  },
+  {
+    "id": "J210",
+    "claim": "设置校验标题非空、变量key非空/唯一、公开secret需新值，失败保留编辑。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-settings-page-c27067b2a0e1.js",
+    "offset": 65158,
+    "excerpt": "d`,role:`alert`,children:(0,$.jsx)(l,{id:`appgenSettings.environmentKeys.duplicate`,defaultMessage:`Environment variable keys must be unique`,description:`Validation shown when environment settings use a duplicate key`})}),n[86]=e):e=n[86],dt=e}else if(De===`stored-secret-needs-value`){let e;n[87]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(`p`,{className:`text-sm text-red`,role:`alert`,children:(0,$.jsx)(l,{id:`appgenSettings.environmentVariables.storedSecretNeedsValue`,defaultMessage:`Enter a new value before making a stored secret public`,description:`Validation shown when a stor"
+  },
+  {
+    "id": "J211",
+    "claim": "域名设置显示DNS待生效/失败；支持详情复制、刷新、添加与移除确认。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-settings-page-c27067b2a0e1.js",
+    "offset": 15818,
+    "excerpt": "uncate`,children:(0,Z.jsx)(l,{id:`appgenSettings.customDomains.pending.description`,defaultMessage:`Pending DNS changes. May take 24h to reflect.`,description:`Status copy for a custom domain waiting on DNS changes`})})]}):r.status===`failed`?(0,Z.jsxs)(`div`,{className:`flex items-center gap-1 text-xs text-chart-red`,children:[(0,Z.jsx)(v,{className:`shrink-0`,asset:m}),(0,Z.jsx)(l,{id:`appgenSettings.customDomains.failed.description`,defaultMessage:`DNS setup failed. Review your records.`,description:`Status copy for a custom domain with failed DNS verification`})]}):null,n[6]=r.status,n[7]="
+  },
+  {
+    "id": "J212",
+    "claim": "删除变量有不可撤销确认；Secret开关与Replace secret，部分地区要求secret。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-settings-page-c27067b2a0e1.js",
+    "offset": 37253,
+    "excerpt": "sentinel`)?(u=(0,$n.jsx)(ne,{children:(0,$n.jsx)(l,{id:`envEntryDeleteDialog.title`,defaultMessage:`Delete environment variable?`,description:`Title of the confirmation dialog before deleting a Site environment variable or secret`})}),n[5]=u):u=n[5];let d;n[6]===i?d=n[7]:(d=(0,$n.jsx)(U,{children:(0,$n.jsx)(R,{title:u,subtitle:(0,$n.jsx)(ce,{className:`wrap-anywhere select-text`,children:i.trim()===``?(0,$n.jsx)(l,{id:`envEntryDeleteDialog.description.unnamed`,defaultMessage:`Site features that depend on this variable may stop working. This cannot be undone.`,description:`Warning before deleti"
+  },
+  {
+    "id": "J213",
+    "claim": "站点永久删除确认提交中拦截外部关闭，危险按钮loading。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-settings-page-c27067b2a0e1.js",
+    "offset": 81508,
+    "excerpt": ";return n[46]!==m.isPending||n[47]!==N||n[48]!==b||n[49]!==x?(P=(0,$.jsx)(W,{open:!0,size:`compact`,shouldIgnoreClickOutside:m.isPending,showDialogClose:b,onOpenChange:x,children:N}),n[46]=m.isPending,n[47]=N,n[48]=b,n[49]=x,n[50]=P):P=n[50],P}function Ar(e){let n=(0,Mr.c)(6),{onRetry:r}=e,i;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(i=(0,$.jsx)(l,{id:`appgenSettings.error.retry`,defaultMessage:`Retry`,description:`Button to retry loading Site settings after a load failure`}),n[0]=i):i=n[0];let a;n[1]===r?a=n[2]:(a=(0,$.jsx)(t,{color:`outline`,onClick:r,children:i}),n[1]=r,n[2]=a);let o;n"
+  },
+  {
+    "id": "J214",
+    "claim": "共享范围区分个人/邀请/工作区/公开，并有Editor/Viewer角色说明。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-share-dialog-bcce6979b321.js",
+    "offset": 5319,
+    "excerpt": "l,{id:`appgenShareDialog.profilePin.publicOnly`,defaultMessage:`You can only pin Sites shared with “Anyone on the Internet” to your profile`,description:`Tooltip explaining that a personal profile can showcase only publicly shared Sites. The quoted text matches the Anyone on the Internet option in the sharing dropdown.`}),t[0]=c,t[1]=e),f=e}else if(!s&&n){let e;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,J.jsx)(l,{id:`appgenShareDialog.profilePin.limit`,defaultMessage:`Your profile showcase is full. Remove an item before pinning this Site.`,description:`Tooltip explaining why another "
+  },
+  {
+    "id": "J215",
+    "claim": "首次发布owner限制，未发布Copy/Visit禁用；有待保存变更时操作组另行处理。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-share-dialog-bcce6979b321.js",
+    "offset": 38539,
+    "excerpt": ",E;t[4]===b?E=t[5]:(E=b.formatMessage({id:`appgenShareDialog.publish.ownerRequired`,defaultMessage:`Only the owner can publish the first version`,description:`Tooltip explaining why only the owner can publish a Site`}),t[4]=b,t[5]=E);let k=E,A;t[6]!==r||t[7]!==a?(A=a&&r===`public`?(0,Q.jsx)(l,{id:`appgenShareDialog.publish`,defaultMessage:`Publish`,description:`Button label for publishing a site to the public internet`}):void 0,t[6]=r,t[7]=a,t[8]=A):A=t[8];let j=a||o,N;t[9]!==r||t[10]!==S||t[11]!==T||t[12]!==a||t[13]!==o||t[14]!==b||t[15]!==f||t[16]!==p||t[17]!==k||t[18]!==y||t[19]!==m||t[20]!"
+  },
+  {
+    "id": "J216",
+    "claim": "共享读取与保存失败分开，保留重试与成员移除确认。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-share-dialog-bcce6979b321.js",
+    "offset": 13915,
+    "excerpt": "?(wn=function(){g.get(oe).danger(_.formatMessage({id:`appgenShareDialog.save.error`,defaultMessage:`Unable to save sharing settings`,description:`Error toast shown when saving site sharing settings fails`}),{errorAnalytics:{toastId:`tpp_sites_response_share_modal_access_save_error`}})},t[59]=_,t[60]=g,t[61]=wn):wn=t[61];let X=wn,En;t[62]!==z||t[63]!==q||t[64]!==_n||t[65]!==J||t[66]!==Y||t[67]!==Sn||t[68]!==o||t[69]!==s||t[70]!==Ee||t[71]!==g||t[72]!==X||t[73]!==f||t[74]!==U?(En=async function(){if(z==null||q==null){o();return}if(J&&q!==`admins_only`){try{await U.mutateAsync({access_mode:q})}ca"
+  },
+  {
+    "id": "J217",
+    "claim": "特定预览发布入口是订阅升级弹窗，不能误写成已发布成功。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/publish-dialog-b03d8180cd00.js",
+    "offset": 2494,
+    "excerpt": "tion`,type:`button`,onClick:l,children:(0,w.jsx)(n,{id:`sitesPreview.share.upgrade`,defaultMessage:`Upgrade to publish`,description:`Opens subscription pricing from the saved website preview's upgrade dialog`})}),i[5]=l,i[6]=m);let h;i[7]===m?h=i[8]:(h=(0,w.jsxs)(c,{variant:`chatgpt`,children:[d,(0,w.jsxs)(`div`,{className:`flex flex-col items-center gap-6 p-6 text-center select-none`,children:[f,p,m]})]}),i[7]=m,i[8]=h);let g;return i[9]!==u||i[10]!==h?(g=(0,w.jsx)(s,{open:!0,size:`default`,variant:`promotional`,onOpenChange:u,children:h}),i[9]=u,i[10]=h,i[11]=g):g=i[11],g}var C,w,T;function "
+  },
+  {
+    "id": "J218",
+    "claim": "分析数字卡20/28medium，标签12次要色，圆角边框p4。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-1f348cc25d33.js",
+    "offset": 4989,
+    "excerpt": "xs text-secondary`,children:n}),t[0]=n,t[1]=i);let a;t[2]===r?a=t[3]:(a=(0,V.jsx)(`div`,{className:`truncate text-xl leading-7 font-medium text-default`,children:r}),t[2]=r,t[3]=a);let o;return t[4]!==i||t[5]!==a?(o=(0,V.jsxs)(`div`,{className:`flex min-w-0 flex-col gap-2 rounded-xl border border-default bg-primary-soft-alpha p-4`,children:[i,a]}),t[4]=i,t[5]=a,t[6]=o):o=t[6],o}function Xe(e){let t=(0,B.c)(8),{children:n,className:r,label:i}=e,a;t[0]===r?a=t[1]:(a=g(`flex flex-col gap-1`,r),t[0]=r,t[1]=a);let o;t[2]===i?o=t[3]:(o=(0,V.jsx)(`span`,{className:`text-xs text-secondary`,children:i}"
+  },
+  {
+    "id": "J219",
+    "claim": "分析图表有role img/描述及sr-only数据列表，浅深色适配。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-1f348cc25d33.js",
+    "offset": 2590,
+    "excerpt": "=r||t[15]!==f||t[16]!==p||t[17]!==y?(b=(0,R.jsx)(`div`,{className:f,\"aria-details\":p,\"aria-label\":r,role:`img`,children:y}),t[14]=r,t[15]=f,t[16]=p,t[17]=y,t[18]=b):b=t[18];let x;t[19]!==n||t[20]!==l?(x=n.length===0?null:(0,R.jsx)(`ul`,{id:l,className:`sr-only`,children:n.map(He)}),t[19]=n,t[20]=l,t[21]=x):x=t[21];let S;return t[22]!==b||t[23]!==x?(S=(0,R.jsxs)(R.Fragment,{children:[b,x]}),t[22]=b,t[23]=x,t[24]=S):S=t[24],S}function He(e){return(0,R.jsx)(`li`,{children:e},e)}function Ue(e,t,n,r){let i=typeof n==`string`?n:n.dataKey;return e.map(e=>{let n=We(e[i]);if(n==null)return null;let a=t"
+  },
+  {
+    "id": "J220",
+    "claim": "事件页独立查询表单，事件选择最小240px，日期范围与Run query加载。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-1f348cc25d33.js",
+    "offset": 12434,
+    "excerpt": "nel`)?(k=(0,K.jsx)(s,{asset:S}),A=(0,K.jsx)(o,{id:`appgenAnalytics.events.runQuery`,defaultMessage:`Run query`,description:`Button label for running a custom event query`}),n[25]=k,n[26]=A):(k=n[25],A=n[26]);let j;n[27]===y?j=n[28]:(j=(0,K.jsxs)(t,{color:`primary`,loading:y,size:`toolbar`,type:`submit`,children:[k,A]}),n[27]=y,n[28]=j);let M;n[29]!==C||n[30]!==T||n[31]!==O||n[32]!==j?(M=(0,K.jsxs)(`form`,{className:`flex flex-wrap items-end gap-3 rounded-xl border border-default bg-primary-soft-alpha p-4`,onSubmit:C,children:[T,O,j]}),n[29]=C,n[30]=T,n[31]=O,n[32]=j,n[33]=M):M=n[33];let N;retu"
+  },
+  {
+    "id": "J221",
+    "claim": "事件目录加载失败、无事件、查询失败、区间无发生四种状态独立。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-1f348cc25d33.js",
+    "offset": 8406,
+    "excerpt": "eact.memo_cache_sentinel`)?(n=(0,K.jsx)(o,{id:`appgenAnalytics.events.catalogError`,defaultMessage:`Unable to load custom events`,description:`Error shown when the custom event catalog cannot load`}),t[2]=n):n=t[2];let r;t[3]===e?r=t[4]:(r=(0,K.jsx)(st,{onRetry:e,children:n}),t[3]=e,t[4]=r),l=r}else if(i==null){let e;t[5]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,K.jsx)(ot,{}),t[5]=e):e=t[5],l=e}else if(c==null){let e;t[6]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,K.jsx)(k,{className:`min-h-72`,title:(0,K.jsx)(`h3`,{children:(0,K.jsx)(o,{id:`appgenAnalytics.events.emptyTitle`,defau"
+  },
+  {
+    "id": "J222",
+    "claim": "站点disabled有分析不可用页；Overview读取/上周对比失败分别重试。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-1f348cc25d33.js",
+    "offset": 31082,
+    "excerpt": "been disabled`}),description:(0,$.jsx)(o,{id:`appgenAnalytics.disabled.description`,defaultMessage:`Analytics are unavailable while this site is disabled`,description:`Explanation that analytics cannot be loaded while a Site is disabled`})}):(0,$.jsxs)(`div`,{className:`flex flex-col gap-6`,children:[l?(0,$.jsx)(ne,{ariaLabel:c.formatMessage({id:`appgenAnalytics.navigation.label`,defaultMessage:`Analytics sections`,description:`Accessible label for navigation between site analytics sections`}),selectedKey:i,tabs:[{key:`overview`,name:(0,$.jsx)(o,{id:`appgenAnalytics.navigation.overview`,defaul"
+  },
+  {
+    "id": "J223",
+    "claim": "插件详情部分失败保留ID回退，当前插件读取失败、访问关闭、未发布、空态各自呈现。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-cb7605b67e7d.js",
+    "offset": 2128,
+    "excerpt": "=t[5]:(e=c?(0,Y.jsx)(D,{content:(0,Y.jsx)(u,{id:`appgenPlugins.metadataUnavailable`,defaultMessage:`Some plugin details couldn’t be loaded. Plugin IDs are shown where names are unavailable.`,description:`Notice in a Site's Plugins settings tab when the current plugin configuration loaded but some display names or logos could not be retrieved. Plugin IDs are stable technical identifiers shown as a fallback.`})}):null,t[4]=c,t[5]=e);let r;t[6]!==l||t[7]!==f||t[8]!==p||t[9]!==n?(r=n.length===0?(0,Y.jsx)(Ne,{onAdd:l}):n.map(e=>(0,Y.jsx)(Me,{plugin:e,onEdit:()=>f(e),onRemove:()=>p(e)},e.id)),t[6]=l"
+  },
+  {
+    "id": "J224",
+    "claim": "站点插件Add/Edit/Remove/Publish转未发送的聊天草稿，不直接写插件或发布。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/page-cb7605b67e7d.js",
+    "offset": 13321,
+    "excerpt": "sage({id:`appgenPlugins.prompt.publish`,defaultMessage:`Help me publish {siteMention}`,description:`Editable, unsent chat draft after selecting Open chat to publish in an unpublished site's Plugins settings. {siteMention} is a serialized site mention chip. The user reviews and sends the draft.`},{siteMention:w})),N=()=>x(i.formatMessage({id:`appgenPlugins.prompt.add`,defaultMessage:`Help me connect a plugin to {siteMention} so site visitors can use data from their own accounts. Ask me which workspace-enabled plugin to connect.`,description:`Editable, unsent chat draft after a site owner select"
+  },
+  {
+    "id": "J225",
+    "claim": "计划任务菜单Open/Resume/Pause/Run now/Delete；事件触发不能手动运行。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-automations-page-def01c41ab5c.js",
+    "offset": 5142,
+    "excerpt": "xt:q(n.automation)?(0,Y.jsx)(m,{id:`automations.actions.runNow.triggerBasedTooltip`,defaultMessage:`Automations triggered by events can’t be run manually`,description:`Tooltip on the disabled Run now menu action for automations that run only when an external event triggers them`}):d.tooltipText,onSelect:d.onSelect,children:(0,Y.jsx)(m,{id:`automations.actions.runNow`,defaultMessage:`Run now`,description:`Menu action on the Scheduled page that runs the selected task immediately`})}):null,(0,Y.jsx)(Ue,{item:n,source:`site_scheduled_tab`,disabled:!1}),t==null?null:(0,Y.jsx)(E.Item,{tone:`danger`,"
+  },
+  {
+    "id": "J226",
+    "claim": "计划任务按active/paused/completed筛选，空态与读取失败重试分开。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-automations-page-def01c41ab5c.js",
+    "offset": 9120,
+    "excerpt": "`,children:(0,Q.jsx)(m,{id:`appgenAutomations.emptyFilter`,defaultMessage:`{status, select, active {No active tasks} paused {No paused tasks} completed {No completed tasks} other {No tasks}}`,description:`Empty state when none of this Site's tasks match the selected status filter`,values:{status:l}})}):null,i=e!=null&&e.length>0?(0,Q.jsx)(`div`,{className:`p-3`,children:e.map((t,n)=>(0,Q.jsx)(qe,{item:t,showDivider:n<e.length-1},t.automation.id))}):null,a;n[32]!==t||n[33]!==r||n[34]!==i?(a=(0,Q.jsxs)(V,{dividers:!1,children:[t,r,i]}),n[32]=t,n[33]=r,n[34]=i,n[35]=a):a=n[35],A=a}n[3]=l,n[4]=T,n"
+  },
+  {
+    "id": "J227",
+    "claim": "数据库左右布局：176px表列表，窄屏上移且最大160px；右侧数据独立滚动。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-database-page-a86988f41d76.js",
+    "offset": 8256,
+    "excerpt": "div`,{className:`flex min-h-72 min-w-0 max-sm:flex-col`,children:[(0,K.jsxs)(`div`,{className:`flex w-44 min-w-0 shrink-0 flex-col border-r border-default max-sm:max-h-40 max-sm:w-full max-sm:border-r-0 max-sm:border-b`,children:[(0,K.jsx)(`div`,{className:`px-3 pt-3 pb-1 text-xs font-medium tracking-wide text-tertiary uppercase`,children:(0,K.jsx)(i,{id:`appgenSettings.database.tables`,defaultMessage:`Tables`,description:`Heading above the list of Site database tables`})}),(0,K.jsx)(`div`,{className:`flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5`,children:a.tables.map(e=>{let t=e"
+  },
+  {
+    "id": "J228",
+    "claim": "数据库表头sticky，12px等宽单元格，最大320px宽且换行，底部分页。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-database-page-a86988f41d76.js",
+    "offset": 12325,
+    "excerpt": "sName:`w-full min-w-max border-collapse text-start text-xs`,children:[(0,K.jsx)(`thead`,{className:`sticky top-0 z-10 bg-primary-soft-alpha`,children:(0,K.jsx)(`tr`,{children:u.columns.map(B)})}),(0,K.jsx)(`tbody`,{children:u.rows.map((e,t)=>(0,K.jsx)(`tr`,{className:`border-b border-border/70 last:border-b-0`,children:u.columns.map(t=>(0,K.jsx)(`td`,{className:`max-w-80 px-3 py-2 align-top font-mono break-all whitespace-pre-wrap text-secondary`,children:(0,K.jsx)(U,{value:e[t]})},t))},u.offset+t))})]})}),u.rows.length>0||u.offset>0?(0,K.jsx)(V,{canGoPrevious:r,isPlaceholderData:l,rows:u,onNex"
+  },
+  {
+    "id": "J229",
+    "claim": "数据库初载/翻页/刷新有不同status，错误、无数据库、无表、空表和空页分开。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-database-page-a86988f41d76.js",
+    "offset": 9985,
+    "excerpt": "className:`icon-2xs`}),l?(0,K.jsx)(i,{id:`appgenSettings.database.rows.pageLoading`,defaultMessage:`Loading page…`,description:`Loading status while the next Site database table page is being fetched`}):(0,K.jsx)(i,{id:`appgenSettings.database.rows.refreshing`,defaultMessage:`Refreshing data…`,description:`Loading status while Site database data is being refreshed`})]}):null,n[2]=s,n[3]=l,n[4]=u,n[5]=g):g=n[5];let v;n[6]!==h||n[7]!==g?(v=(0,K.jsxs)(`div`,{className:`flex min-h-11 items-center justify-between gap-2 border-b border-default px-3 py-2`,children:[h,g]}),n[6]=h,n[7]=g,n[8]=v):v=n[8]"
+  },
+  {
+    "id": "J230",
+    "claim": "Sites各懒加载子页有专用骨架/status；主体失败保留重试，非跳走空白。",
+    "scope": "ChatGPT/Work Sites共享页面本地静态证据；未执行目标脚本、联网、编辑或发布站点；深层编辑器标为partial",
+    "path": "webview/assets/appgen-site-detail-layout-8df79b05350a.js",
+    "offset": 1269,
+    "excerpt": ".jsx)(`span`,{className:`sr-only`,children:(0,K.jsx)(l,{id:`appgenSettings.loading`,defaultMessage:`Loading site settings…`,description:`Accessible status while the Site settings page or dialog loads its initial data and displays placeholder rows`})}),[{key:`general`,rows:5},{key:`environment`,rows:2},{key:`danger`,rows:1}].map($e)]}),e[0]=t):t=e[0],t}function $e(e){let{key:t,rows:n}=e;return(0,K.jsxs)(z,{children:[(0,K.jsx)(z.Header,{title:(0,K.jsx)(R,{className:`w-32`,size:`lg`}),subtitle:(0,K.jsx)(R,{className:`mt-2 w-1/2`,size:`sm`})}),(0,K.jsx)(z.Content,{children:(0,K.jsx)(E,{variant:`fl"
+  }
+]

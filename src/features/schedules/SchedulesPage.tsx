@@ -1285,6 +1285,7 @@ function CreateScheduleModal({
             {t('schedules:schedulesPage.cancel')}
           </Button>
           <Button
+            type="submit"
             size="lg"
             disabled={
               saving ||

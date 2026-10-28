@@ -97,7 +97,7 @@ export class NotificationSettingsService {
       platforms: [...selected].filter((platform) => platform !== 'browser'),
       ...(contentOverride === undefined ? {} : { content: contentOverride }),
     })
-    if (selected.has('browser')) {
+    if (selected.has('browser') && template.channels?.browser?.enabled !== false) {
       const rendered = this.channels.renderNotification(event, 'browser', data)
       await this.publishBrowser(
         titleOverride || rendered.title,

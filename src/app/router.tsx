@@ -3,6 +3,7 @@
 // 按需加载，避免首屏一次性打包所有功能页。未知路径兜底跳回聊天页。
 import { Navigate, createHashRouter } from 'react-router-dom'
 import App from '@/App'
+import { UnsavedChangesProvider } from './UnsavedChangesProvider'
 import { PageLoader } from '@/components/layout/PageLoader'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { PAGE_PATHS } from './routes'
@@ -27,7 +28,11 @@ import {
 
 export const router = createHashRouter([
   {
-    element: <App />,
+    element: (
+      <UnsavedChangesProvider>
+        <App />
+      </UnsavedChangesProvider>
+    ),
     errorElement: <RouteErrorBoundary />,
     hydrateFallbackElement: <PageLoader />,
     children: [

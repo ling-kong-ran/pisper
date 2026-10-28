@@ -19,6 +19,7 @@ export type FocusSessionProps = {
   messages: ChatMessage[]
   transcriptLoadState?: TranscriptLoadState
   messageStart?: number | null
+  hasNewer?: boolean
   hasOlder?: boolean
   loadingOlder?: boolean
   olderError?: string
@@ -69,6 +70,7 @@ export type FocusSessionProps = {
   notify?: Notify
   onOpenModelSettings?: () => void
   onAssetConsumed?: () => void
+  onLoadLatest?: () => Promise<void> | void
   onLoadOlder?: () => Promise<boolean> | boolean
   onModelChange: (model: string) => Promise<void> | void
   onThinkingLevelChange: (level: string) => Promise<void> | void
@@ -97,11 +99,13 @@ export type FocusSessionProps = {
     teamMode: boolean,
     goalTokenBudget: number | null,
     invocation?: ResourceInvocation | null,
-  ) => Promise<void> | void
+    onAccepted?: () => void,
+  ) => Promise<boolean | void> | boolean | void
   onQueue?: (
     value: string,
     attachments: ChatAttachment[],
     behavior: string,
+    onAccepted?: () => void,
   ) => Promise<boolean> | boolean
   onWithdrawQueuedInput?: (inputId: string) => Promise<WithdrawnInput | null>
   onAbort: () => Promise<void> | void

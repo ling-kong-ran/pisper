@@ -64,6 +64,7 @@ export async function assetsRoute() {
     return (
       <AssetsPage
         query={context.query}
+        activeSessionId={context.activeSessionId}
         notify={context.notify}
         registerPrimaryAction={context.registerPrimaryAction}
         requestConfirm={context.requestConfirm}

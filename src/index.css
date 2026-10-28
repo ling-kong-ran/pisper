@@ -70,8 +70,8 @@
   --stroke: #e5e5e5;
   --stroke-soft: #ededed;
   --stroke-hover: #d4d4d4;
-  /* 浅色主题的普通文字统一纯黑，层级通过字号、字重和布局表达。 */
-  --text: #000000;
+  /* UI、内容和浮层共用语义色，业务强调色仍由 Pisper 偏好控制。 */
+  --text: #1a1c1f;
   --text-soft: #404040;
   --text-secondary: #525252;
   --text-tertiary: #737373;
@@ -114,26 +114,55 @@
 
   /* ── 圆角 / 阴影 / 动效 ── */
   --r-xs: 6px;
-  --r-sm: 9px;
-  --r-md: 13px;
-  --r-lg: 18px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --radius-scale: 1;
+  --corner-radius-scale: 1;
+  --control-corner-shape: round;
+  --radius-form-dialog: 24px;
+  --composer-radius: 22px;
+  --composer-corner-shape: round;
+  --overlay-scrim: rgb(0 0 0 / .3);
+  --elevation-stroke: 0 0 0 .5px var(--stroke);
+  --elevation-composer: 0 0 0 1px #0000000a, 0 2px 8px 0 #0000000a, 0 4px 80px 8px #00000006;
+  --shadow-composer: var(--elevation-composer);
   --r-pill: 999px;
   --sh-1: 0 1px 2px rgba(15, 23, 42, .05);
   --sh-edge: rgba(15, 23, 42, .04);
   --sh-2: 0 10px 28px -16px rgba(15, 23, 42, .18);
   --sh-star: 0 6px 20px -8px rgba(24, 24, 27, .28);
   --sh-surface: 0 1px 2px var(--sh-edge), 0 14px 32px -24px var(--shadow);
-  --sh-dialog: 0 26px 70px -25px var(--shadow-strong);
-  --sh-floating: 0 18px 36px -18px var(--shadow-strong);
-  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --sh-dialog: var(--elevation-stroke), 0 16px 32px -8px #00000030;
+  --sh-floating: var(--elevation-stroke), 0 8px 16px -4px #0000001f;
+  --ease-enter: cubic-bezier(.19, 1, .22, 1);
+  --ease-exit: cubic-bezier(.8, 0, .4, 1);
+  --ease-move: cubic-bezier(.65, 0, .35, 1);
+  --ease-out: var(--ease-enter);
   --ease-spring: cubic-bezier(.34, 1.35, .44, 1);
-  --d1: 140ms;
-  --d2: 220ms;
-  --d3: 360ms;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --d1: var(--duration-fast);
+  --d2: var(--duration-normal);
+  --d3: var(--duration-slow);
   --ui-font-size: 14px;
   --app-font-size: var(--ui-font-size);
   --app-small-size: calc(var(--ui-font-size) * 6 / 7);
-  --app-message-font-size: calc(var(--ui-font-size) * 8 / 7);
+  --font-ui-weight: 430;
+  --font-content-family: var(--app-font-family);
+  --font-content-size: 16px;
+  --font-content-weight: 400;
+  --font-code-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-code-size: 12px;
+  --app-message-font-size: var(--font-content-size);
+  --font-ui-xs: 12px;
+  --font-ui-sm: 13px;
+  --font-ui-base: 14px;
+  --font-ui-lg: 16px;
+  --font-ui-xl: 28px;
+  --font-ui-2xl: 36px;
+  --font-ui-3xl: 48px;
 
   /* ── 表面与场景：侧栏/内容区/卡片三层递进 ── */
   --sidebar-bg: #f5f5f5;
@@ -185,7 +214,7 @@
   --approval-border: #a7f3d0;
   --notification-border: #d1d5db;
   --notification-soft: #f8fafc;
-  --modal-overlay: rgba(15, 23, 42, .36);
+  --modal-overlay: var(--overlay-scrim);
   --nav-scrim: rgba(15, 23, 42, .3);
   --code-text: #ede9e2;
   --code-inline-bg: rgba(15, 23, 42, .07);
@@ -280,7 +309,9 @@
 
 :root[data-theme='dark'] {
     color-scheme: dark;
-    --app-chrome: #000000;
+    --app-chrome: #181818;
+    --overlay-scrim: rgb(0 0 0 / .5);
+    --shadow-composer: var(--elevation-composer), inset 0 0 1px 0 #fff3;
     --primary: #e2e2e5;
     --primary-hover: #f2f2f4;
     --primary-foreground: #1a1a1f;
@@ -314,13 +345,13 @@
     --node-pulse-color: rgba(255, 255, 255, .26);
 
     /* ── 中性色：中性偏暖深灰 ── */
-    --bg: #0f0f0f;
-    --panel: #0f0f0f;
+    --bg: #181818;
+    --panel: #181818;
     --solid: #262626;
     --stroke: #383838;
     --stroke-soft: #2b2b2b;
     --stroke-hover: #525252;
-    --text: #ededed;
+    --text: #dfdfdf;
     --text-soft: #dedede;
     --text-secondary: #c2c2c2;
     --text-tertiary: #a3a3a3;
@@ -550,12 +581,14 @@
 }
 
 :root[data-radius='sharp'] {
+  --radius-scale: .65;
   --r-xs: 3px;
   --r-sm: 5px;
   --r-md: 8px;
   --r-lg: 12px;
 }
 :root[data-radius='soft'] {
+  --radius-scale: 1.4;
   --r-xs: 9px;
   --r-sm: 13px;
   --r-md: 18px;
@@ -572,7 +605,7 @@
 ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
 ::selection { background: var(--selection-bg); }
 html, body, #root { width: 100%; height: 100%; min-width: 320px; min-height: 100%; margin: 0; }
-body { overflow: hidden; font-size: var(--app-font-size); line-height: 1.5; }
+body { overflow: hidden; font-size: var(--app-font-size); font-weight: var(--font-ui-weight); line-height: 1.5; }
 :root[data-page-visibility='hidden'] *, :root[data-page-visibility='hidden'] *::before, :root[data-page-visibility='hidden'] *::after { animation-play-state: paused !important; }
 /* 默认辅助字号留在 base 层，组件的排版角色可覆盖它并跟随用户字号。 */
 @layer base {
@@ -580,7 +613,10 @@ body { overflow: hidden; font-size: var(--app-font-size); line-height: 1.5; }
 }
 /* 控件字体继承由 Tailwind preflight 提供，避免未分层 reset 覆盖组件字号与字重。 */
 button, a, select { -webkit-tap-highlight-color: transparent; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@layer base {
+  /* 基础焦点兜底留在 base 层，使控件自己的 ring/outline 状态可以覆盖它。 */
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+}
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes star-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }.terminal-xterm,.terminal-xterm .xterm { width: 100%; height: 100%; }.terminal-xterm .xterm .xterm-viewport { background-color: var(--terminal-bg); }
@@ -639,7 +675,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 /* 行内代码仅保留等宽字形，避免文件路径与正文混排时出现灰色底块。 */
 .markdown-body code { border-radius: 0; background: transparent; padding: 0; font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; font-size: .92em; }
 .markdown-body pre { max-width: 100%; overflow: auto; margin: .65em 0; border: 1px solid var(--code-border); border-radius: var(--r-sm); background: var(--ink-strong); padding: 10px; color: var(--code-text); }
-.markdown-body pre code { background: transparent; padding: 0; color: inherit; line-height: 1.55; }
+.markdown-body pre code { background: transparent; padding: 0; color: inherit; font-family: var(--font-code-family); font-size: var(--font-code-size); line-height: 1.55; }
 .markdown-body table { display: block; width: max-content; max-width: 100%; overflow: auto; margin: .65em 0; border-collapse: collapse; }
 .markdown-body th,.markdown-body td { border: 1px solid var(--control-muted); padding: 5px 7px; text-align: left; }
 .markdown-body th { background: var(--surface-highlight); font-weight: 700; }
@@ -702,14 +738,23 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 :root[data-motion='reduced'] *, :root[data-motion='reduced'] *::before, :root[data-motion='reduced'] *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) *, :root:not([data-motion='full']) *::before, :root:not([data-motion='full']) *::after { scroll-behavior: auto!important; animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; } }
 
+@media (max-width: 639px) {
+  :root { --elevation-composer: 0 0 0 1px #0000000a, 0 2px 8px 0 #0000000a, 0 4px 40px 8px #00000006; }
+}
+
 @theme inline {
-  --text-xs: calc(var(--ui-font-size) * 6 / 7);
-  --text-sm: var(--ui-font-size);
-  --text-base: calc(var(--ui-font-size) * 8 / 7);
-  --text-lg: calc(var(--ui-font-size) * 9 / 7);
-  --text-xl: calc(var(--ui-font-size) * 10 / 7);
-  --text-2xl: calc(var(--ui-font-size) * 12 / 7);
-  --text-3xl: calc(var(--ui-font-size) * 15 / 7);
+  --text-xs: var(--font-ui-xs);
+  --text-sm: var(--font-ui-sm);
+  --text-base: var(--font-ui-base);
+  --text-lg: var(--font-ui-lg);
+  --text-xl: var(--font-ui-xl);
+  --text-2xl: var(--font-ui-2xl);
+  --text-3xl: var(--font-ui-3xl);
+  --text-heading-app: 28px;
+  --text-heading-lg: 24px;
+  --text-heading-md: 20px;
+  --font-weight-normal: var(--font-ui-weight);
+  --font-mono: var(--font-code-family);
   --font-heading: var(--font-sans);
   --font-sans: var(--app-font-family);
   --color-info: var(--status-blue);
@@ -770,13 +815,13 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-sm: calc(6px * var(--radius-scale) * var(--corner-radius-scale));
+  --radius-md: calc(8px * var(--radius-scale) * var(--corner-radius-scale));
+  --radius-lg: calc(10px * var(--radius-scale) * var(--corner-radius-scale));
+  --radius-xl: calc(12px * var(--radius-scale) * var(--corner-radius-scale));
+  --radius-2xl: calc(16px * var(--radius-scale) * var(--corner-radius-scale));
+  --radius-3xl: calc(20px * var(--radius-scale) * var(--corner-radius-scale));
+  --radius-4xl: calc(24px * var(--radius-scale) * var(--corner-radius-scale));
 }
 
 @layer base {

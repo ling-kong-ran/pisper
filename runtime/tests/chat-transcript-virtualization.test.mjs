@@ -104,7 +104,9 @@ test('virtualization source owns only message rows and preserves stable render b
   assert.ok(packageJson.devDependencies['@tanstack/react-virtual'])
   assert.match(virtualSource, /useVirtualizer<HTMLDivElement, HTMLDivElement>/)
   assert.match(virtualSource, /getScrollElement: \(\) => scrollElement/)
-  assert.match(virtualSource, /messagesRef\.current\[index\]\?\.id/)
+  // 这里只保护虚拟器显式接收身份键；消息序列变化后的锚点由真实浏览器翻页用例验证，
+  // 不限定通过闭包数组还是 ref 读取 ID，否则缓存失效的正确修复反而会被拦截。
+  assert.match(virtualSource, /getItemKey[,:\s]/)
   assert.match(virtualSource, /measureElement: measuredElementHeight/)
   assert.match(virtualSource, /new ResizeObserver\(scheduleMeasure\)/)
   assert.match(virtualSource, /onContentSizeChange\(\)/)
@@ -136,7 +138,9 @@ test('virtualization source owns only message rows and preserves stable render b
   assert.match(transcriptSource, /pointer-events-none absolute inset-x-0 bottom-\[6px\]/)
   assert.match(transcriptSource, /onContentSizeChange=\{maintainBottom\}/)
   assert.match(transcriptSource, /onTargetScroll=\{pauseFollowing\}/)
-  assert.match(transcriptSource, /pauseFollowing\(\)[\s\S]*prependSnapshot\.current =/)
+  // 前置翻页仍应退出自动跟随；有界窗口的锚点由虚拟器按消息ID维护，
+  // 不能再强制保留旧的scrollHeight差值快照（尾页淘汰会使差值失真）。
+  assert.match(transcriptSource, /pauseFollowing\(\)[\s\S]*onLoadOlder\?\.\(\)/)
   assert.match(transcriptSource, /scroll-auto \[overflow-anchor:none\]/)
   assert.match(virtualSource, /onTargetScroll\(\)[\s\S]*virtualizer\.scrollToIndex/)
   assert.match(autoScrollSource, /setScrollElement\(node\)/)

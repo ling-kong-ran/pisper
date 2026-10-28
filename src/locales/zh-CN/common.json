@@ -1,4 +1,9 @@
 {
+  "unsaved.title": "放弃更改？",
+  "unsaved.description": "尚未保存的更改将丢失。",
+  "unsaved.keepEditing": "继续编辑",
+  "unsaved.discard": "放弃",
+  "unsaved.saving": "正在保存更改，请在保存完成后再次选择目标。",
   "agentStatusAvatar.idle": "Pisper Agent",
   "agentStatusAvatar.waiting": "Agent 等待输入",
   "agentStatusAvatar.thinking": "Agent 思考中",
@@ -15,6 +20,7 @@
   "markdownMessage.revealLocalPathTimeout": "文件管理器尚未返回结果，可复制路径手动打开。",
   "markdownMessage.copyPath": "复制路径",
   "markdownMessage.copyPathFailed": "无法复制路径，请手动选择并复制。",
+  "ui.actionFailed": "操作失败，请重试。",
   "ui.cancel": "取消",
   "ui.closeDialog": "关闭对话框",
   "ui.notifications": "通知",

@@ -141,25 +141,28 @@ export function MobileContextScreen({
         {loaded('assets') && (
           <div
             hidden={tab !== 'assets'}
-            className="h-full overflow-auto px-3 py-3 [&_.asset-grid]:!grid-cols-1"
+            className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 [&_.asset-grid]:!grid-cols-1"
           >
             <Button
-              className="mb-3"
+              className="mb-3 shrink-0 self-start"
               disabled={!assetsAction.action}
               onClick={() => assetsAction.action?.()}
             >
               {t('assets:assetsPage.addLink')}
             </Button>
-            <Suspense fallback={null}>
-              <AssetsPage
-                key={activeSessionId}
-                query={query}
-                notify={notify}
-                registerPrimaryAction={assetsAction.register}
-                requestConfirm={requestConfirm}
-                onUse={onUseAsset}
-              />
-            </Suspense>
+            <div className="min-h-0 flex-1">
+              <Suspense fallback={null}>
+                <AssetsPage
+                  key={activeSessionId}
+                  activeSessionId={activeSessionId}
+                  query={query}
+                  notify={notify}
+                  registerPrimaryAction={assetsAction.register}
+                  requestConfirm={requestConfirm}
+                  onUse={onUseAsset}
+                />
+              </Suspense>
+            </div>
           </div>
         )}
         {tab === 'changes' &&

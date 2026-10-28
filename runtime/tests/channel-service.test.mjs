@@ -663,3 +663,99 @@ test('official registerApp flow requests only bidirectional bot capabilities', a
   assert.deepEqual(options.addons.events.items.tenant, ['im.message.receive_v1'])
   assert.ok(options.addons.scopes.tenant.includes('im:message:send_as_bot'))
 })
+
+test('channel notification subscriptions default on, persist separately, and filter only the selected event', async (t) => {
+  const { directory, path, service, gateways } = await fixture({
+    stored: {
+      version: 5,
+      templates: {
+        'chat.completed': { enabled: true, channels: { feishu: { content: 'old content' } } },
+      },
+    },
+  })
+  t.after(async () => {
+    await service.dispose()
+    await service.writeQueue
+    await rm(directory, { recursive: true, force: true })
+  })
+  service.state.connections.feishu = { enabled: true }
+  service.state.scopes['feishu:test'] = { platform: 'feishu', peerId: 'test' }
+  const original = service.getState().templates.find((template) => template.id === 'chat.completed')
+  assert.equal(original.channels.feishu.enabled, true, 'Legacy content must retain delivery')
+  await service.updateTemplate('chat.completed', 'feishu', { channelEnabled: false })
+  const changed = service.getState().templates.find((template) => template.id === 'chat.completed')
+  assert.equal(changed.enabled, true)
+  assert.equal(changed.channels.feishu.content, 'old content')
+  assert.equal(changed.channels.feishu.enabled, false)
+  assert.equal(changed.channels.weixin.enabled, true)
+  await service.notify('chat.completed', { chat: {} })
+  assert.equal(gateways.feishu.sent.length, 0)
+  await service.notify('chat.waiting', { chat: {} })
+  assert.equal(gateways.feishu.sent.length, 1)
+  await service.updateTemplate('chat.completed', 'feishu', { content: 'changed body' })
+  const stored = JSON.parse(await readFile(path, 'utf8'))
+  assert.equal(stored.templates['chat.completed'].channels.feishu.enabled, false)
+  assert.equal(stored.templates['chat.completed'].channels.feishu.content, 'changed body')
+  await service.testNotification('chat.completed', 'feishu')
+  assert.equal(
+    gateways.feishu.sent.length,
+    2,
+    'Explicit saved-template tests retain their separate semantics',
+  )
+})
+
+test('failed template persistence does not publish unconfirmed subscription or content', async (t) => {
+  const { directory, path, service } = await fixture()
+  t.after(async () => {
+    await service.dispose()
+    await service.writeQueue.catch(() => {})
+    await rm(directory, { recursive: true, force: true })
+  })
+  const before = structuredClone(service.getState().templates)
+  await writeFile(join(directory, 'blocked-parent'), 'file')
+  service.path = join(directory, 'blocked-parent', 'channels.json')
+  await assert.rejects(
+    service.updateTemplate('chat.completed', 'feishu', {
+      channelEnabled: false,
+      content: 'not committed',
+    }),
+  )
+  assert.deepEqual(service.getState().templates, before)
+  service.path = path
+  await service.updateTemplate('chat.completed', 'weixin', { channelEnabled: false })
+  const stored = JSON.parse(await readFile(path, 'utf8'))
+  assert.equal(stored.templates['chat.completed'].channels.feishu.enabled, true)
+  assert.equal(stored.templates['chat.completed'].channels.weixin.enabled, false)
+})
+
+test('serialized template changes survive concurrent fields and a following ordinary save', async (t) => {
+  const { directory, path, service } = await fixture()
+  t.after(async () => {
+    await service.dispose()
+    await service.writeQueue
+    await rm(directory, { recursive: true, force: true })
+  })
+  await Promise.all([
+    service.updateTemplate('chat.completed', 'feishu', { channelEnabled: false }),
+    service.updateTemplate('chat.completed', 'weixin', { channelEnabled: false }),
+    service.updateTemplate('chat.completed', 'feishu', { content: 'new body' }),
+    service.save(),
+  ])
+  const stored = JSON.parse(await readFile(path, 'utf8'))
+  const channels = stored.templates['chat.completed'].channels
+  assert.equal(channels.feishu.enabled, false)
+  assert.equal(channels.weixin.enabled, false)
+  assert.equal(channels.feishu.content, 'new body')
+  const restarted = await fixture({ stored: { version: 5, templates: stored.templates } })
+  t.after(async () => {
+    await restarted.service.dispose()
+    await restarted.service.writeQueue
+    await rm(restarted.directory, { recursive: true, force: true })
+  })
+  const restored = restarted.service
+    .getState()
+    .templates.find((item) => item.id === 'chat.completed')
+  assert.equal(restored.channels.feishu.enabled, false)
+  assert.equal(restored.channels.weixin.enabled, false)
+  assert.equal(restored.channels.browser.enabled, true)
+})

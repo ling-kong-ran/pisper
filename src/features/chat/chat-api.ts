@@ -197,9 +197,11 @@ export const chatApi = {
     fetchStartupQuery<SessionListResponse>('sessions', refresh),
 
   // 搜索会话树标签（供命令面板/跳转）。
-  searchSessionTreeLabels: (query: string, limit = 20) => {
+  searchSessionTreeLabels: (query: string, limit = 20, signal?: AbortSignal) => {
     const params = new URLSearchParams({ query, limit: String(limit) })
-    return requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?${params}`)
+    return requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?${params}`, {
+      signal,
+    })
   },
 
   listSessionTreeLabels: (limit = 500) =>

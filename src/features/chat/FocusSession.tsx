@@ -112,6 +112,7 @@ export const FocusSession = memo(function FocusSession({
   messages,
   transcriptLoadState = 'ready',
   messageStart,
+  hasNewer,
   hasOlder,
   loadingOlder,
   olderError,
@@ -161,6 +162,7 @@ export const FocusSession = memo(function FocusSession({
   onOpenModelSettings,
   onAssetConsumed,
   onLoadOlder,
+  onLoadLatest,
   onModelChange,
   onThinkingLevelChange,
   onExecutionModeChange,
@@ -196,7 +198,8 @@ export const FocusSession = memo(function FocusSession({
   const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
   const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
   const visualAvailable = runtimeFeatureAvailable(capabilities, 'visualGeneration')
-  const { value, updateValue, selection, clearDraft, restoreDraft } = useComposerDraft(session.id)
+  const { value, updateValue, selection, clearDraft, restoreDraft, captureSubmission } =
+    useComposerDraft(session.id)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
@@ -277,6 +280,10 @@ export const FocusSession = memo(function FocusSession({
     teamTokenBudget,
     setTeamTokenBudget,
     queueing,
+    submitting,
+    stopping,
+    submitError,
+    stop,
     compactingManually,
     invocation,
     setInvocation,
@@ -295,17 +302,21 @@ export const FocusSession = memo(function FocusSession({
     value,
     selection,
     clearDraft,
+    captureSubmission,
     promptRef,
     onCompact,
     onGoalPause,
     onSend,
     onQueue,
+    onAbort,
     setToolsOpen,
     requestTranscriptBottom,
   })
   const latestAgentMessage = messages.at(-1)?.role === 'agent' ? messages.at(-1) : null
-  const currentError = error || (!streaming ? String(latestAgentMessage?.error || '') : '')
-  const canRetryLastTurn = !streaming && messages.some((message) => message.role === 'user')
+  const currentError =
+    submitError || error || (!streaming ? String(latestAgentMessage?.error || '') : '')
+  const canRetryLastTurn =
+    !hasNewer && !submitError && !streaming && messages.some((message) => message.role === 'user')
 
   useEffect(() => {
     setResourcePickerOpen(false)
@@ -489,7 +500,12 @@ export const FocusSession = memo(function FocusSession({
     <div
       className={cn(
         'composer-toolbar-slot flex min-w-0 flex-none items-center gap-2',
-        id === 'model' && 'ml-auto [.composer-tool-tray_&]:ml-0',
+        id === 'model' &&
+          'ml-auto flex-1 [.composer-tool-tray_&]:ml-0 [.composer-tool-tray_&]:flex-none [&_.model-effort-pill]:max-w-full @max-[300px]/composer-footer:[&_.model-effort-pill>span:first-child]:hidden',
+        id === 'permission' &&
+          '@max-[520px]/composer-footer:[&_.permission-mode-trigger>span]:hidden @max-[520px]/composer-footer:[&_.permission-mode-trigger>svg]:block!',
+        id === 'run-mode' &&
+          '@max-[440px]/composer-footer:[&_.task-execution-mode-trigger>span]:hidden @max-[440px]/composer-footer:[&_.task-execution-mode-trigger>svg]:block!',
         !['model', 'permission', 'run-mode'].includes(id) &&
           'h-10 [&>button]:!size-10 [&>div]:!size-10 [&>div>button]:!size-10',
       )}
@@ -602,6 +618,8 @@ export const FocusSession = memo(function FocusSession({
       messages={messages}
       transcriptLoadState={transcriptLoadState}
       messageStart={messageStart}
+      hasNewer={hasNewer}
+      onLoadLatest={onLoadLatest}
       hasOlder={hasOlder}
       loadingOlder={loadingOlder}
       olderError={olderError}
@@ -720,7 +738,6 @@ export const FocusSession = memo(function FocusSession({
       {invocation && (
         <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />
       )}
-      <AttachmentTray attachments={selection.attachments} onRemove={selection.removeAttachment} />
       {selection.attachmentError && (
         <span className="text-[var(--danger)] text-[13px]">{selection.attachmentError}</span>
       )}
@@ -738,7 +755,7 @@ export const FocusSession = memo(function FocusSession({
       />
       <div
         className={cn(
-          'focus-composer relative flex min-w-0 flex-col gap-3 rounded-[28px] border border-border/70 bg-background dark:bg-surface-subtle p-3 shadow-[0_2px_8px_0_rgb(0_0_0/0.04)] transition-[border-color,box-shadow] focus-within:border-ring/50 focus-within:shadow-md [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-[56px] [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-1 [&_textarea]:py-1.5 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:font-normal [&_textarea]:leading-relaxed [&_textarea]:text-foreground [&_textarea]:placeholder:text-muted-foreground',
+          'focus-composer relative flex min-w-0 flex-col gap-2 rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-border/50 bg-background dark:bg-surface-subtle p-3 shadow-[var(--shadow-composer)] transition-[border-color,box-shadow] focus-within:border-ring/50 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-0 [&_textarea]:py-3 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-foreground [&_textarea]:placeholder:text-foreground/50',
           attachmentDropActive && 'border-ring ring-2 ring-ring/30',
         )}
         onDragEnter={showAttachmentDrop}
@@ -757,6 +774,11 @@ export const FocusSession = memo(function FocusSession({
             {t('chat:focusSession.dropAttachment')}
           </div>
         )}
+        <AttachmentTray
+          attachments={selection.attachments}
+          preparing={selection.preparingAttachments}
+          onRemove={selection.removeAttachment}
+        />
         <ComposerCommandMenu
           placement="top"
           sessionId={session.id}
@@ -789,11 +811,21 @@ export const FocusSession = memo(function FocusSession({
           enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
           placeholder={composerPlaceholder}
         />
-        <div className="focus-composer-footer flex min-w-0 items-end gap-1">
+        <div className="focus-composer-footer @container/composer-footer flex min-w-0 items-end gap-1">
           {toolsBlock}
           <ComposerSendButton
             streaming={streaming}
             queueing={queueing}
+            submitting={submitting}
+            stopping={stopping}
+            preparing={selection.preparingAttachments.length > 0}
+            hasDraft={Boolean(value.trim() || selection.attachments.length || invocation)}
+            canQueue={Boolean(onQueue)}
+            blockedReason={
+              !streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)
+                ? t('chat:focusSession.waitingForModel')
+                : undefined
+            }
             disabled={
               !streaming &&
               (Boolean(pendingRuntimeSelection) ||
@@ -802,7 +834,7 @@ export const FocusSession = memo(function FocusSession({
                 queueing ||
                 (!value.trim() && !selection.attachments.length && !invocation))
             }
-            onAbort={onAbort}
+            onAbort={() => void stop()}
           />
         </div>
       </div>
@@ -925,7 +957,9 @@ export const FocusSession = memo(function FocusSession({
         sessionName={session.name || session.id}
         messages={messages}
         streaming={streaming}
-        sendPrompt={onSend}
+        sendPrompt={async (...args) => {
+          await onSend(...args)
+        }}
         onAbort={onAbort}
         onClose={() => setVoiceModeOpen(false)}
       />

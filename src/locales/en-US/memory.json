@@ -84,5 +84,9 @@
   "memoryPage.view": "View",
   "memoryPage.visibleTotalMemories": "{visible}/{total} memories",
   "memoryPage.zoomIn": "Zoom in",
-  "memoryPage.zoomOut": "Zoom out"
+  "memoryPage.zoomOut": "Zoom out",
+  "memoryPage.invalidAutoApproveThreshold": "Invalid automatic approval threshold response",
+  "memoryPage.loadingAutoApproveThreshold": "Loading automatic approval threshold…",
+  "memoryPage.autoApproveThresholdUnavailable": "Unable to read or save the automatic approval threshold.",
+  "memoryPage.retryAutoApproveThreshold": "Retry"
 }

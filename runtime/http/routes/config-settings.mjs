@@ -9,6 +9,16 @@ function notificationText(value, fallback, maxLength) {
   )
 }
 
+// 旧设置没有渠道级字段时保持原先行为；新设置同时尊重事件和 browser 偏好。
+function systemNotificationEnabled(settings, event) {
+  const template = settings.templates?.find((item) => item.id === event)
+  return (
+    settings.browser?.enabled === true &&
+    template?.enabled !== false &&
+    template?.channels?.browser?.enabled !== false
+  )
+}
+
 export const configSettingsRoutes = [
   {
     method: 'GET',
@@ -141,7 +151,7 @@ export const configSettingsRoutes = [
       }
       json(202, {
         accepted: true,
-        systemNotificationEnabled: settings.browser?.enabled === true,
+        systemNotificationEnabled: systemNotificationEnabled(settings, 'chat.completed'),
         channelError,
       })
     },
@@ -172,7 +182,7 @@ export const configSettingsRoutes = [
       }
       json(202, {
         accepted: true,
-        systemNotificationEnabled: settings.browser?.enabled === true,
+        systemNotificationEnabled: systemNotificationEnabled(settings, 'chat.waiting'),
         channelError,
       })
     },
@@ -190,10 +200,18 @@ export const configSettingsRoutes = [
     path: '/api/settings/notifications/templates/:templateId/:channel',
     where: { channel: notificationChannels },
     async handler({ runtime, params, body, json }) {
-      json(
-        200,
-        await runtime.saveNotificationTemplate(params.templateId, params.channel, await body()),
-      )
+      const input = await body()
+      if (
+        Object.hasOwn(input || {}, 'channelEnabled') &&
+        typeof input.channelEnabled !== 'boolean'
+      ) {
+        json(400, {
+          error: '通知渠道开关必须是布尔值。',
+          code: 'INVALID_NOTIFICATION_CHANNEL_ENABLED',
+        })
+        return
+      }
+      json(200, await runtime.saveNotificationTemplate(params.templateId, params.channel, input))
     },
   },
   {

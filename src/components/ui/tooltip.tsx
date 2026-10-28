@@ -6,7 +6,7 @@ import { Tooltip as TooltipPrimitive } from 'radix-ui'
 import { cn } from '@/lib/utils'
 
 function TooltipProvider({
-  delayDuration = 0,
+  delayDuration = 200,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
@@ -30,8 +30,11 @@ function TooltipContent({
   className,
   sideOffset = 0,
   children,
+  showArrow = false,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & {
+  showArrow?: boolean
+}) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
@@ -44,7 +47,9 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-[200] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
+        {showArrow && (
+          <TooltipPrimitive.Arrow className="z-[200] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
+        )}
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

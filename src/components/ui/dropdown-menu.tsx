@@ -6,8 +6,39 @@ import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 import { cn } from '@/lib/utils'
 import { CheckIcon, ChevronRightIcon } from 'lucide-react'
 
-function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+const DropdownMenuTriggerContext =
+  React.createContext<React.RefObject<HTMLButtonElement | null> | null>(null)
+
+function useMenuElementRef<T extends HTMLElement>(
+  ownedRef: React.RefObject<T | null>,
+  forwardedRef: React.Ref<T> | undefined,
+) {
+  return React.useCallback(
+    (element: T | null) => {
+      ownedRef.current = element
+      if (typeof forwardedRef === 'function') {
+        const cleanup = forwardedRef(element)
+        if (typeof cleanup === 'function')
+          return () => {
+            ownedRef.current = null
+            cleanup()
+          }
+      } else if (forwardedRef) forwardedRef.current = element
+    },
+    [ownedRef, forwardedRef],
+  )
+}
+
+function DropdownMenu({
+  modal = false,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
+  return (
+    <DropdownMenuTriggerContext.Provider value={triggerRef}>
+      <DropdownMenuPrimitive.Root data-slot="dropdown-menu" modal={modal} {...props} />
+    </DropdownMenuTriggerContext.Provider>
+  )
 }
 
 function DropdownMenuPortal({
@@ -17,25 +48,63 @@ function DropdownMenuPortal({
 }
 
 function DropdownMenuTrigger({
+  ref,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
-  return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
+  const contextRef = React.useContext(DropdownMenuTriggerContext)
+  const fallbackRef = React.useRef<HTMLButtonElement | null>(null)
+  const triggerRef = useMenuElementRef(contextRef ?? fallbackRef, ref)
+  return (
+    <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" ref={triggerRef} {...props} />
+  )
 }
 
 function DropdownMenuContent({
   className,
   align = 'start',
-  sideOffset = 4,
+  sideOffset = 1,
+  matchTriggerWidth = false,
+  collisionPadding = 8,
+  ref,
+  onInteractOutside,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+  matchTriggerWidth?: boolean
+}) {
+  const triggerRef = React.useContext(DropdownMenuTriggerContext)
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+  const composedRef = useMenuElementRef(contentRef, ref)
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
+        ref={composedRef}
+        onInteractOutside={(event) => {
+          onInteractOutside?.(event)
+          const originalEvent = event.detail.originalEvent
+          const trigger = triggerRef?.current
+          const targetIsTrigger =
+            originalEvent.target instanceof Node && trigger?.contains(originalEvent.target)
+          // 触发器已经处理开关；退场层不能把快速重开自己的 pointerdown 再当外点关闭。
+          // 同理，退场时回到自身触发器的 focusin 不应污染下一次关闭的回焦点状态。
+          if (
+            !event.defaultPrevented &&
+            targetIsTrigger &&
+            ((originalEvent instanceof PointerEvent &&
+              originalEvent.type === 'pointerdown' &&
+              originalEvent.button === 0 &&
+              !originalEvent.ctrlKey) ||
+              (originalEvent.type === 'focusin' &&
+                contentRef.current?.getAttribute('data-state') === 'closed'))
+          )
+            event.preventDefault()
+        }}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         align={align}
+        collisionPadding={collisionPadding}
         className={cn(
-          'z-[200] max-h-(--radix-dropdown-menu-content-available-height) w-(--radix-dropdown-menu-trigger-width) min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:overflow-hidden data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          'z-[200] max-h-(--radix-dropdown-menu-content-available-height) w-max max-w-[calc(100vw-16px)] min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:overflow-hidden data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          matchTriggerWidth && 'w-(--radix-dropdown-menu-trigger-width)',
           className,
         )}
         {...props}
@@ -76,9 +145,12 @@ function DropdownMenuCheckboxItem({
   children,
   checked,
   inset,
+  closeOnSelect = false,
+  onSelect,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem> & {
   inset?: boolean
+  closeOnSelect?: boolean
 }) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
@@ -89,6 +161,10 @@ function DropdownMenuCheckboxItem({
         className,
       )}
       checked={checked}
+      onSelect={(event) => {
+        onSelect?.(event)
+        if (!closeOnSelect) event.preventDefault()
+      }}
       {...props}
     >
       <span

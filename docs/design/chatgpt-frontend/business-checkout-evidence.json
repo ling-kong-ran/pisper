@@ -1,0 +1,274 @@
+[
+  {
+    "id": "F101",
+    "claim": "Business页按账户、资格及产品能力分流",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 41442,
+    "excerpt": "function Tn(e){let t=(0,On.c)(5),{accountId:n,isLoading:r}=Le(),{profileId:i}=L(),[a]=g(),o=T(`/business-profiles/:profileId/products`)!=null||i==null&&(a.get(`tab`)===`products`||a.get(`section`)===`products`),s=K(Ne,me),c=K(he,me),l=K(Ne,q),u=K(he,q),d=D(ye);if(r||u||!l&&d||o&&(c||!s&&d)){let e;return t[0]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(lt,{}),t[0]=e):e=t[0],e}if(!l||n==null||o&&!s){let e;return t[1]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(at,{}),t[1]=e):e=t[1],e}let f;return t[2]!==n||t[3]!==i?(f=i==null?(0,$.jsx)(En,{accountId:n},n"
+  },
+  {
+    "id": "F102",
+    "claim": "Business初始失败与分页失败区分，401/403/404提升为整页错误",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 42358,
+    "excerpt": ";let{data:l,error:u,isError:f,isFetchNextPageError:p,isFetchingNextPage:m,hasNextPage:_,fetchNextPage:v,refetch:y}=h(c);if(f&&(!p||u instanceof P&&[401,403,404].includes(u.status))){let e;t[5]===y?e=t[6]:(e=()=>void y(),t[5]=y,t[6]=e);let n;return t[7]!==u||t[8]!==e?(n=(0,$.jsx)(ft,{error:u,onRetry:e}),t[7]=u,t[8]=e,t[9]=n):n=t[9],n}if(l==null){let e;return t[10]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(lt,{}),t[10]=e):e=t[10],e}let b;t[11]===l.pages?b=t[12]:(b=l.pages.flatMap(Dn),t[11]=l.pages,t[12]=b);let x=b;if(i.get(`tab`)===`products`){let e;t[13]===v?e=t"
+  },
+  {
+    "id": "F103",
+    "claim": "空Business列表或create参数显示创建介绍，非已创建状态",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 43162,
+    "excerpt": "sinesses:e}),t[15]=n,t[16]=x,t[17]=_,t[18]=f,t[19]=m,t[20]=e,t[21]=r):r=t[21],r}if(x.length===0||i.get(`create`)===`1`){let e=x.length>0,n;return t[22]===e?n=t[23]:(n=(0,$.jsx)(bn,{canGoBack:e}),t[22]=e,t[23]=n),n}let S;t[24]===i?S=t[25]:(S=$e(i.get(`section`)),t[24]=i,t[25]=S);let C=S,w,T;t[26]===v?(w=t[27],T=t[28]):(w=()=>void v(),T=()=>void v(),t[26]=v,t[27]=w,t[28]=T);let E;return t[29]!==x||t[30]!==C||t[31]!==_||t[32]!==f||t[33]!==m||t[34]!==w||t[35]!==T?(E=(0,$.jsx)(Wt,{businesses:x,destination:C,hasMore:_,isLoadingMore:m,loadError:f,onLoadMore:w,onRetry:T}),t[29]=x,t"
+  },
+  {
+    "id": "F104",
+    "claim": "Business搜索页主标题22px/28px与md标题token",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 37841,
+    "excerpt": " w;n[8]===Symbol.for(`react.memo_cache_sentinel`)?(w=(0,Q.jsx)(`h2`,{className:`text-center text-[22px] leading-7 font-normal tracking-[-0.26px] text-balance text-default md:text-heading-app md:leading-8.5 md:tracking-[0.38px]`,children:(0,Q.jsx)(u,{id:`businessProfiles.search.title`,defaultMessage:`Reach new customers and grow your business with ChatGPT`,description:`Headline on the business search and creation page, inviting owners to add a profile so customers can discover their business in ChatGPT.`})}),n[8]=w):w=n[8];let T,D;n[9]===Symbol.for(`react.memo_cache_sentinel"
+  },
+  {
+    "id": "F105",
+    "claim": "搜索下拉Escape关闭，提交仅设置介绍弹窗状态",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 38457,
+    "excerpt": "t.contains(e.relatedTarget)||v(!1)},n[9]=T,n[10]=D):(T=n[9],D=n[10]);let O;n[11]===_?O=n[12]:(O=e=>{e.key===`Escape`&&_&&(e.preventDefault(),v(!1))},n[11]=_,n[12]=O);let k;n[13]===l?k=n[14]:(k=e=>{e.preventDefault(),l.trim()&&(y.current?.focus(),v(!1),p(!1),h(!0))},n[13]=l,n[14]=k);let A;n[15]===Symbol.for(`react.memo_cache_sentinel`)?(A=e=>{d(e),p(!1),v(!0)},n[15]=A):A=n[15];let j;n[16]!==l||n[17]!==o?(j=(0,Q.jsx)(Fe,{id:`business-profile-search`,inputRef:y,inputRole:`searchbox`,label:o,placeholder:o,searchQuery:l,variant:`discovery`,onSearchQueryChange:A}),n[16]=l,n[17]=o"
+  },
+  {
+    "id": "F106",
+    "claim": "Business搜索输入和Create建议消费搜索组件",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 38820,
+    "excerpt": "[15]=A):A=n[15];let j;n[16]!==l||n[17]!==o?(j=(0,Q.jsx)(Fe,{id:`business-profile-search`,inputRef:y,inputRole:`searchbox`,label:o,placeholder:o,searchQuery:l,variant:`discovery`,onSearchQueryChange:A}),n[16]=l,n[17]=o,n[18]=j):j=n[18];let M;n[19]!==l||n[20]!==f||n[21]!==_?(M=l.trim()&&_&&!f?(0,Q.jsx)(`div`,{className:`absolute inset-x-0 top-full z-10 mt-2`,children:(0,Q.jsx)(Me,{variant:`search`,children:(0,Q.jsxs)(ve,{highlighted:!1,type:`submit`,variant:`search`,onPointerDown:xn,children:[(0,Q.jsx)(`span`,{className:`min-w-0 flex-1 truncate`,children:(0,Q.jsx)(u,{id:`busi"
+  },
+  {
+    "id": "F107",
+    "claim": "Business主区居中限宽、纵向gap6",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 40437,
+    "excerpt": "n[27]=P);let F;n[28]!==N||n[29]!==P||n[30]!==O||n[31]!==k?(F=(0,Q.jsxs)(`div`,{className:`mx-auto my-auto flex w-full max-w-lg flex-col gap-6 py-8`,children:[C,w,(0,Q.jsxs)(`form`,{role:`search`,onFocusCapture:T,onBlurCapture:D,onKeyDown:O,onSubmit:k,children:[N,P]})]}),n[28]=N,n[29]=P,n[30]=O,n[31]=k,n[32]=F):F=n[32];let I,L,R;n[33]===Symbol.for(`react.memo_cache_sentinel`)?(I=()=>h(!1),L=()=>{h(!1),p(!0)},R=()=>y.current?.focus({preventScroll:!0}),n[33]=I,n[34]=L,n[35]=R):(I=n[33],L=n[34],R=n[35]);let z;n[36]===m?z=n[37]:(z=(0,Q.jsx)(cn,{open:m,onClose:I,onContinue:L,onRe"
+  },
+  {
+    "id": "F108",
+    "claim": "创建介绍关闭后回到原搜索框",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 29019,
+    "excerpt": "e,s;n[0]===o?s=n[1]:(s={\"aria-describedby\":void 0,onCloseAutoFocus:e=>{e.preventDefault(),o()}},n[0]=o,n[1]=s);let c;n[2]===i?c=n[3]:(c=e=>{e||i()},n[2]=i,n[3]=c);let l;n[4]===a?l=n[5]:(l=e=>{e.preventDefault(),a()},n[4]=a,n[5]=l);let d;n[6]===Symbol.for(`react.memo_cache_sentinel`)?(d=(0,Z.jsxs)(`picture`,{children:[(0,Z.jsx)(`source`,{media:`(max-width: 639px)`,srcSet:_t}),(0,Z.jsx)(`img`,{alt:``,className:`aspect-2/1 w-full object-cover`,src:gt})]}),n[6]=d):d=n[6];let f;n[7]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,Z.jsx)(A,{className:`text-center text-heading-md "
+  },
+  {
+    "id": "F109",
+    "claim": "创建介绍响应图片与标题样式",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 29298,
+    "excerpt": "el`)?(d=(0,Z.jsxs)(`picture`,{children:[(0,Z.jsx)(`source`,{media:`(max-width: 639px)`,srcSet:_t}),(0,Z.jsx)(`img`,{alt:``,className:`aspect-2/1 w-full object-cover`,src:gt})]}),n[6]=d):d=n[6];let f;n[7]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,Z.jsx)(A,{className:`text-center text-heading-md leading-7 font-semibold sm:text-heading-lg`,children:(0,Z.jsx)(u,{id:`businessProfiles.creationOnboarding.title`,defaultMessage:`Create your business profile on ChatGPT`,description:`Heading of the introduction shown when a business owner selects Create from the business search "
+  },
+  {
+    "id": "F110",
+    "claim": "创建介绍正文padding与主按钮",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 34853,
+    "excerpt": "ol text-default select-none`,children:[d,(0,Z.jsxs)(`div`,{className:`flex flex-col gap-6 p-6 sm:px-8 sm:pt-4 sm:pb-10`,children:[T,(0,Z.jsx)(t,{className:`w-full`,type:`submit`,size:`responsiveBeaconAction`,color:`primary`,children:(0,Z.jsx)(u,{id:`businessProfiles.creationOnboarding.continue.label`,defaultMessage:`Get started`,description:`Primary button in ChatGPT's business profile creation introduction. Closes the introduction and currently shows a coming-soon status on the search page because creation is not yet available. Does not create or verify a business. Short a"
+  },
+  {
+    "id": "F111",
+    "claim": "创建介绍采用responsiveSheet/promotional外壳",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 35599,
+    "excerpt": "E}),n[19]=l,n[20]=D);let O;return n[21]!==r||n[22]!==s||n[23]!==D||n[24]!==c?(O=(0,Z.jsx)(R,{open:r,size:`responsiveSheet`,variant:`promotional`,closeButtonSize:`large`,contentProps:s,onOpenChange:c,children:D}),n[21]=r,n[22]=s,n[23]=D,n[24]=c,n[25]=O):O=n[25],O}var ln,Z;function un(){return(un=e((()=>{ln=H(),c(),a(),le(),I(),V(),ie(),M(),_(),vt(),yt(),Z=U()})))()}var dn,fn,pn,mn,hn,gn,_n,vn;function yn(){return(yn=e((()=>{dn=`_artwork_7bvsl_1`,fn=`_artworkArc_7bvsl_8`,pn=`_bag_7bvsl_27`,mn=`_toolbox_7bvsl_32`,hn=`_cloche_7bvsl_37`,gn=`_map_7bvsl_42`,_n=`_banknote_7bvsl_47`"
+  },
+  {
+    "id": "F112",
+    "claim": "Get started关闭介绍并显示coming soon，不调用创建服务",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 40725,
+    "excerpt": "[30]=O,n[31]=k,n[32]=F):F=n[32];let I,L,R;n[33]===Symbol.for(`react.memo_cache_sentinel`)?(I=()=>h(!1),L=()=>{h(!1),p(!0)},R=()=>y.current?.focus({preventScroll:!0}),n[33]=I,n[34]=L,n[35]=R):(I=n[33],L=n[34],R=n[35]);let z;n[36]===m?z=n[37]:(z=(0,Q.jsx)(cn,{open:m,onClose:I,onContinue:L,onReturnFocus:R}),n[36]=m,n[37]=z);let B;return n[38]!==F||n[39]!==z||n[40]!==x?(B=(0,Q.jsxs)(_e,{contentWidth:`profile`,balanceScrollbarGutter:!0,headerPlacement:`toolbar`,controls:x,title:S,children:[F,z]}),n[38]=F,n[39]=z,n[40]=x,n[41]=B):B=n[41],B}function xn(e){return e.preventDefault()"
+  },
+  {
+    "id": "F113",
+    "claim": "创建占位状态使用role status",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/page-1408cc1e45bf.js",
+    "offset": 40048,
+    "excerpt": "]:(P=f?(0,Q.jsx)(`p`,{role:`status`,className:`mt-4 text-center text-sm text-secondary`,children:(0,Q.jsx)(u,{id:`businessProfiles.search.comingSoon`,defaultMessage:`Business search and creation are coming soon.`,description:`Status shown after submitting the placeholder business search form. Search and creation are not yet available, and no business has been created.`})}):null,n[26]=f,n[27]=P);let F;n[28]!==N||n[29]!==P||n[30]!==O||n[31]!==k?(F=(0,Q.jsxs)(`div`,{className:`mx-auto my-auto flex w-full max-w-lg flex-col gap-6 py-8`,children:[C,w,(0,Q.jsxs)(`form`,{role:`sear"
+  },
+  {
+    "id": "F114",
+    "claim": "工作区恢复结算按Standard/Premium席位各自聚合成员约束",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 302449,
+    "excerpt": "function Hh({checkoutPlanDetails:e,canManagePaidMembers:t,paidMembersQueries:n,showPremiumSeats:r}){let i=[{query:n?.standard,seatTarget:r?e?.standardQuantity:e?.quantity},...r?[{query:n?.premium,seatTarget:e?.premiumQuantity}]:[]],a=i.reduce((e,{query:n,seatTarget:r})=>{let i=Vh({canManagePaidMembers:t,hasPaidMembersError:n?.isError===!0,isPaidMembersFetching:n?.isFetching??!1,paidMemberCount:n?.data?.total,seatTarget:r});return{canConfirmCheckout:e.canConfirmCheckout&&i.canConfirmCheckout,isMemberRemovalRequired:e.isMemberRemovalRequired||i.isMemberRemovalRequired}},{canC"
+  },
+  {
+    "id": "F115",
+    "claim": "提交前重新拉取付费成员；refresh-error和removals-required分别阻止继续",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 303330,
+    "excerpt": "async function Uh({canManagePaidMembers:e,seatRequirements:t,workspaceId:n}){if(!e)return`ready`;if(n==null||t==null||t.length===0||t.some(({refetchPaidMembers:e,seatTarget:t})=>e==null||t==null))return`refresh-error`;let r=await Promise.all(t.map(({refetchPaidMembers:e})=>e?.()));return r.some(e=>e==null||e.isError||e.data==null)?`refresh-error`:r.some((e,n)=>e!=null&&e.data!=null&&e.data.total>(t[n].seatTarget??0))?`removals-required`:`ready`}function Wh(){return(Wh=e((()=>{})))()}function Gh({workspaceId:e,checkoutSessionId:t,processorEntity:n,seatType:r,currentUserId:i,"
+  },
+  {
+    "id": "F116",
+    "claim": "付费成员搜索300ms去抖、重置页码；进行中限制分页",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 304876,
+    "excerpt": "berToRemove:f,canRemoveSelectedMember:_,members:e,onFilterInputChange:e=>{a||(d(e),m.current!=null&&clearTimeout(m.current),m.current=setTimeout(()=>{l({page:0,filter:e.trim()}),m.current=null},300))},onPageChange:e=>{!a&&!r&&l(t=>({...t,page:e}))},onOpenRemove:e=>{a||h.current||!Bh(e,i)||(b(),p(e))},onCloseRemove:()=>{h.current||(b(),p(null))},onConfirmRemove:()=>{f!=null&&_&&!h.current&&(h.current=!0,g(f.id))},onRetry:()=>{a||o()}})})}var Kh,qh;function Jh(){return(Jh=e((()=>{Kh=Qe(),Wh(),qh=Je()})))()}var Yh,Xh;function Zh(){return(Zh=e((()=>{Yh=Je(),Xh=e=>(0,Yh.jsx)(`sv"
+  },
+  {
+    "id": "F117",
+    "claim": "成员移除进行中阻止关闭与重复确认",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 305058,
+    "excerpt": "rrent=null},300))},onPageChange:e=>{!a&&!r&&l(t=>({...t,page:e}))},onOpenRemove:e=>{a||h.current||!Bh(e,i)||(b(),p(e))},onCloseRemove:()=>{h.current||(b(),p(null))},onConfirmRemove:()=>{f!=null&&_&&!h.current&&(h.current=!0,g(f.id))},onRetry:()=>{a||o()}})})}var Kh,qh;function Jh(){return(Jh=e((()=>{Kh=Qe(),Wh(),qh=Je()})))()}var Yh,Xh;function Zh(){return(Zh=e((()=>{Yh=Je(),Xh=e=>(0,Yh.jsx)(`svg`,{width:`1em`,height:`1em`,viewBox:`0 0 24 24`,fill:`currentColor`,...e,children:(0,Yh.jsx)(`path`,{fillRule:`evenodd`,d:`M14.707 7.293a1 1 0 0 1 0 1.414L11.414 12l3.293 3.293a1 1 "
+  },
+  {
+    "id": "F118",
+    "claim": "成员搜索有searchbox、200字符限制和readonly状态",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 310497,
+    "excerpt": "=w,t[20]=F);let L;t[21]!==C||t[22]!==T||t[23]!==r||t[24]!==P||t[25]!==F?(L=(0,Ig.jsx)(`input`,{id:T,name:`reactivation-member-filter`,role:`searchbox`,type:`text`,className:Ag.filter,autoComplete:`off`,maxLength:200,readOnly:C,value:r,onChange:P,placeholder:F}),t[21]=C,t[22]=T,t[23]=r,t[24]=P,t[25]=F,t[26]=L):L=t[26];let R;t[27]===Symbol.for(`react.memo_cache_sentinel`)?(R=(0,Ig.jsx)(`div`,{className:Ag.searchIcon,children:(0,Ig.jsx)(ng,{width:16,height:16,\"aria-hidden\":!0})}),t[27]=R):R=t[27];let z;t[28]!==L||t[29]!==N?(z=(0,Ig.jsxs)(`div`,{className:`relative w-full`,chil"
+  },
+  {
+    "id": "F119",
+    "claim": "付费成员表加载role status",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 312284,
+    "excerpt": "ren:(0,Ig.jsx)(`td`,{colSpan:3,className:Ag.loadingCell,children:(0,Ig.jsxs)(`div`,{className:Ag.loading,role:`status`,children:[(0,Ig.jsx)(Vt,{className:`h-4 w-4`}),(0,Ig.jsx)(h,{id:`selectTeamPlanModal.reactivationMembers.loading`,defaultMessage:`Loading members...`,description:`Loading state shown while the paid-member list is loading during workspace reactivation.`})]})})}),t[34]=a,t[35]=B);let V;t[36]!==C||t[37]!==o||t[38]!==s||t[39]!==a||t[40]!==g?(V=!a&&o&&(0,Ig.jsx)(`tr`,{children:(0,Ig.jsx)(`td`,{colSpan:3,className:Ag.messageCell,children:(0,Ig.jsxs)(`div`,{role:`"
+  },
+  {
+    "id": "F120",
+    "claim": "付费成员表错误role alert与Try again",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 312734,
+    "excerpt": "40]!==g?(V=!a&&o&&(0,Ig.jsx)(`tr`,{children:(0,Ig.jsx)(`td`,{colSpan:3,className:Ag.messageCell,children:(0,Ig.jsxs)(`div`,{role:`alert`,className:Ag.error,children:[(0,Ig.jsx)(h,{id:`selectTeamPlanModal.reactivationMembers.error`,defaultMessage:`Couldn't load paid members.`,description:`Error state in the gated reactivation paid-member list.`}),(0,Ig.jsx)(Ye,{type:`button`,color:`secondary`,variant:`outline`,size:`md`,disabled:C||s,onClick:g,children:(0,Ig.jsx)(h,{id:`checkout.businessReactivation.members.retry`,defaultMessage:`Try again`,description:`Retry loading members"
+  },
+  {
+    "id": "F121",
+    "claim": "付费成员搜索36px高14px字胶囊输入框和focus ring",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-b42c28092b19.css",
+    "offset": 5207,
+    "excerpt": "._filter_1kqj6_35{border:1px solid var(--checkout-border-default,var(--border-default));background:var(--checkout-bg-primary,var(--bg-primary));width:100%;height:36px;color:var(--checkout-text-primary,var(--text-primary));-webkit-user-select:text;user-select:text;border-radius:9999px;padding-inline-start:32px;font-size:14px}._filter_1kqj6_35::placeholder{color:var(--checkout-text-tertiary,var(--text-tertiary))}._filter_1kqj6_35:focus-visible{outline:2px solid var(--checkout-border-heavy,var(--border-heavy));outline-offset:1px}._searchIcon_1kqj6_56{pointer-events:none;color:var(--checkout-text-"
+  },
+  {
+    "id": "F122",
+    "claim": "付费成员表8px圆角、14px正文、12px表头",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-b42c28092b19.css",
+    "offset": 5925,
+    "excerpt": "._tableContainer_1kqj6_66{border:1px solid var(--checkout-border-default,var(--border-default));background:var(--checkout-bg-primary,var(--bg-primary));border-radius:8px;overflow-x:auto}._table_1kqj6_66{table-layout:fixed;border-collapse:separate;border-spacing:0;text-align:start;width:100%;font-size:14px}._table_1kqj6_66 th,._table_1kqj6_66 td{vertical-align:middle;border-block-end:.5px solid var(--checkout-border-default,var(--border-default));padding:8px 12px}._table_1kqj6_66 th{color:var(--checkout-text-secondary,var(--text-secondary));text-align:start;font-size:12px;font-weight:400}._tabl"
+  },
+  {
+    "id": "F123",
+    "claim": "分页32px胶囊、页码等宽字体以及RTL箭头",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-b42c28092b19.css",
+    "offset": 8067,
+    "excerpt": "._pagination_1kqj6_197{justify-content:center;display:flex}._pageControls_1kqj6_202{border:1px solid var(--checkout-border-default,var(--border-default));border-radius:9999px;align-items:center;height:32px;font-size:14px;display:inline-flex;overflow:hidden}._pageCount_1kqj6_212{letter-spacing:.1em;color:var(--checkout-text-tertiary,var(--text-tertiary));padding-inline:8px;font-family:ui-monospace,monospace}._pagingIcon_1kqj6_219:is(:lang(ae),:lang(ar),:lang(arc),:lang(bcc),:lang(bqi),:lang(ckb),:lang(dv),:lang(fa),:lang(glk),:lang(he),:lang(ku),:lang(mzn),:lang(nqo),:lang(pnb),:lang(ps),:lang("
+  },
+  {
+    "id": "F124",
+    "claim": "成员表640px断点与三列比例",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-b42c28092b19.css",
+    "offset": 8727,
+    "excerpt": "@media (width>=640px){._nameColumn_1kqj6_101{width:50%}._table_1kqj6_66 td._nameColumn_1kqj6_101,._table_1kqj6_66 td._actionColumn_1kqj6_106{padding-inline:12px}._dateColumn_1kqj6_110{width:30%;display:table-cell}._table_1kqj6_66 ._actionColumn_1kqj6_106{width:20%}._mobileDate_1kqj6_141{display:none}}}\n"
+  },
+  {
+    "id": "F125",
+    "claim": "付款复核与当前报价、数量和过期时间绑定",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 380529,
+    "excerpt": "function Nn(){if(ce==null)throw Error(`Payment review unavailable`);ct.assertCurrent(ce.quote);let e=v.getLatestCheckoutState?.()??v;if(!jo(ce,e,U,n.expires_at))throw q(null),new $i(b.formatMessage({id:`checkout.inline.reviewUpdatedTotal`,defaultMessage:`Review the updated payment total before buying credits`,description:`The previously reviewed price changed; a new explicit review is required before payment`}))}async function Pn(e,t){e.signal.throwIfAborted(),d?.assertCurrent(),q(null),un.current.billingCompleted||dn.clear(un.current);let r,i=await _o({checkoutSessionId:v."
+  },
+  {
+    "id": "F126",
+    "claim": "准备复核先中止检查、更新账单/数量，再设置review步骤",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 380945,
+    "excerpt": "async function Pn(e,t){e.signal.throwIfAborted(),d?.assertCurrent(),q(null),un.current.billingCompleted||dn.clear(un.current);let r,i=await _o({checkoutSessionId:v.id,quantity:U,paymentMethodId:t?.id,quote:ct,signal:e.signal,assertCurrent:()=>d?.assertCurrent(),prepareQuantity:()=>jf({checkout:v,processorEntity:n.processor_entity,creditPurchaseQuantity:U??v.lineItems[0]?.quantity,...n.credit_purchase_amount_enabled===!0?{creditPurchaseAmountMinorUnits:G,creditPurchaseAmountCurrency:v.currency}:{},autoTopUpEnabled:!1,enrollInAutoReloadDiscount:!1}),getBilling:()=>t==null?vt:"
+  },
+  {
+    "id": "F127",
+    "claim": "支付字段载入错误独立提供重新加载结算",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 384605,
+    "excerpt": "onEnabledChange:e=>{et({taxEnabled:e}),Ln(vt,Ze,e)},onChange:e=>{et({taxId:e}),Ln(vt,e)}}),Un,Wn;if(ht)Un=new $i(b.formatMessage({id:`CheckoutForm.paymentElementLoadError`,defaultMessage:`Payment details did not load`,description:`Error shown in credit or subscription checkout when the hosted payment fields fail to load. The Retry button reloads checkout before payment can be submitted. Short sentence; no placeholders.`})),Wn=s;else if(ze){Un=ze;let e;t[39]===Be?e=t[40]:(e=()=>{Be()},t[39]=Be,t[40]=e),Wn=e}else if(a.error){Un=a.error;let e;t[41]!==a||t[42]!==Mn?(e=()=>{Mn()"
+  },
+  {
+    "id": "F128",
+    "claim": "报价失败、session错误和preparing-review重试不同阶段",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 385216,
+    "excerpt": "43]=e):e=t[43],Wn=e}else if(lt.error){if(Un=lt.error,Wn=()=>Ln(vt),Ve!=null&&Dv(lt.error))Wn=s;else if(re?.step===`preparing-review`){let e;t[44]===In?e=t[45]:(e=()=>In(void 0,!0),t[44]=In,t[45]=e),Wn=e}}else if(Un=An??(C||F.sessionUpdateError?Error(C??F.sessionUpdateError??void 0):null),F.sessionUpdateError)Wn=s;else if(re?.step===`preparing-review`){let e;t[46]===In?e=t[47]:(e=()=>In(void 0,!0),t[46]=In,t[47]=e),Wn=e}let Gn=ht||yt||M!=null||F.isSubmitBlocked||z==null||R==null||lt.pending||lt.error!=null||re==null&&!lt.ready&&!jn({canConfirm:v.canConfirm,isWalletOnlyChecko"
+  },
+  {
+    "id": "F129",
+    "claim": "需人工批准结算的subscription-limit/blocked/approved分支",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 420825,
+    "excerpt": "/checkout/approve`,{requestBody:{checkout_session_id:n.checkout_session_id,processor_entity:n.processor_entity},additionalHeaders:e,signal:s.signal});if(t.result===`subscription_limit`)throw new ta(h.formatMessage(_a.subscriptionLimit),t.result);if(t.result===`blocked`)throw new ta(h.formatMessage({id:`CheckoutForm.bannerMessagePaymentApprovalBlocked`,defaultMessage:`Payment was not approved`,description:`Text for banner message that appears when a payment is blocked`}));if(t.result!==`approved`)throw Error(`Checkout approval declined`)}:void 0};s.signal.throwIfAborted(),fe"
+  },
+  {
+    "id": "F130",
+    "claim": "支付pending与success分别通知宿主或跳回，不当作同一状态",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 379633,
+    "excerpt": "let x={...n,checkout_session_id:g.session?.id??n.checkout_session_id};if(g.type===`pending`){if(d!=null){await d.onCompleted(x,v.lineItems[0]?.quantity??null,!0);return}S?await de(`${as({...x,confirm_return_url:g.returnUrl},ue)}&pending=true`,{replace:!0}):window.location.assign(g.returnUrl);return}if(be&&Qr(h,n,d!=null,Z),pe&&Ws(h,n,v.lineItems.find(Tv)?.recurring?.interval),!g.redirectInitiated){if(d!=null){await d.onCompleted(x,v.lineItems[0]?.quantity??null);return}await de((S?as({...x,confirm_return_url:g.returnUrl??n.confirm_return_url},ue):ls(x,ue,en))+(mt?`&wallet_c"
+  },
+  {
+    "id": "F131",
+    "claim": "托管结算按钮关闭当前展示再交外部浏览器，不等于完成付款",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 453554,
+    "excerpt": "function Vy(e){let t=(0,Hy.c)(10),{presentation:r,returnPath:i,url:a}=e,o;t[0]!==r||t[1]!==a?(o=e=>{r?.onClose(),un({event:e,href:a,disposition:`current-tab`,openTarget:`external-browser`,initiator:`open_in_browser_bridge`})},t[0]=r,t[1]=a,t[2]=o):o=t[2];let s;t[3]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,Wy.jsx)(h,{id:`checkout.hosted`,defaultMessage:`Continue to secure checkout`,description:`Continue to the hosted payment page when the payment service selects hosted checkout instead of an embedded form`}),t[3]=s):s=t[3];let c;t[4]===o?c=t[5]:(c=(0,Wy.jsx)(n,{color:"
+  },
+  {
+    "id": "F132",
+    "claim": "托管支付只显示Continue to secure checkout动作",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 453779,
+    "excerpt": ",t[0]=r,t[1]=a,t[2]=o):o=t[2];let s;t[3]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,Wy.jsx)(h,{id:`checkout.hosted`,defaultMessage:`Continue to secure checkout`,description:`Continue to the hosted payment page when the payment service selects hosted checkout instead of an embedded form`}),t[3]=s):s=t[3];let c;t[4]===o?c=t[5]:(c=(0,Wy.jsx)(n,{color:`primary`,onClick:o,children:s}),t[4]=o,t[5]=c);let l;return t[6]!==r||t[7]!==i||t[8]!==c?(l=(0,Wy.jsx)(go,{returnPath:i,presentation:r,children:c}),t[6]=r,t[7]=i,t[8]=c,t[9]=l):l=t[9],l}var Hy,Uy,Wy;function Gy(){return(Gy=e"
+  },
+  {
+    "id": "F133",
+    "claim": "重试付款仅declined、宿主回调与数量存在时可执行",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 425525,
+    "excerpt": "function jt(e,t,n,r){e.throwIfAborted(),l?.assertCurrent();let i=G??g.lineItems[0]?.quantity;if(de!==`declined`||l?.onRetryPayment==null||i==null)throw Error(`Checkout payment cannot be retried`);await l.onRetryPayment(i,t,n,e,r)}async function Mt(e,t){e.signal.throwIfAborted(),l?.assertCurrent(),ue(null),lt.current.billingCompleted||ut.clear(lt.current);let r,i=await _o({checkoutSessionId:g.id,quantity:G,paymentMethodId:t?.id,quote:fe,signal:e.signal,assertCurrent:()=>l?.assertCurrent(),prepareQuantity:()=>jf({checkout:g,processorEntity:n.processor_entity,creditPurchaseQua"
+  },
+  {
+    "id": "F134",
+    "claim": "内嵌loading与整页loading外壳分别呈现",
+    "scope": "第六轮：Business入口与Checkout条件分支；静态消费者，未进行账户写入或交易",
+    "path": "webview/assets/checkout-page-7458ea132fa0.js",
+    "offset": 452708,
+    "excerpt": "W,t[73]=r,t[74]=c,t[75]=s,t[76]=n,t[77]=P,t[78]=e,t[79]=i,t[80]=a):a=t[80],se=a}if(s!=null&&oe){let e=n.checkout_kind===Q.StandaloneCredit?`credits`:`default`,i;return t[81]!==r||t[82]!==s||t[83]!==e?(i=(0,Wy.jsx)(Cs,{loading:!0,context:e,presentation:s,onRetry:r}),t[81]=r,t[82]=s,t[83]=e,t[84]=i):i=t[84],i}let K=n.checkout_kind===Q.StandaloneCredit?`credits`:`default`,ce=n.checkout_provider!==`open_ai`,q;t[85]!==K||t[86]!==ce?(q=(0,Wy.jsx)(lr,{context:K,provider:ce}),t[85]=K,t[86]=ce,t[87]=q):q=t[87];let le;return t[88]!==se||t[89]!==oe||t[90]!==q?(le=(0,Wy.jsx)(Rt,{loadin"
+  }
+]

@@ -1,0 +1,458 @@
+[
+  {
+    "id": "R101",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 216825,
+    "excerpt": "4]=M.accountId,t[15]=M.userId,t[16]=F):F=t[16];let I=M.accountId??P?.accountId??null,L=M.userId??P?.userId??null,R=r&&M.authMethod===`chatgpt`,z;t[17]!==s||t[18]!==P||t[19]!==M||t[20]!==r||t[21]!==v||t[22]!==l||t[23]!==g||t[24]!==k||t[25]!==o||t[26]!==h||t[27]!==j||t[28]!==n||t[29]!==m||t[30]!==c||t[31]!==w?(z=e=>r&&!v&&(c==null||e.page?.is_self===!0)?g===`tab`?(0,$.jsx)(im,{Layout:s,onUsernameChanged:l,isProfileV2Enabled:!1,redirectToUsername:!1,rightAlignHeaderControls:h,presentation:`tab`,today:n,visit:w}):(0,$.jsx)(wt,{to:`/settings/profile`,replace:!0}):(0,$.jsx)(am,{L",
+    "claim": "Profile实际ChatGPT认证消费者门禁。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R102",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 219894,
+    "excerpt": "null,Me=Ae!=null,[Ne,Pe]=(0,Am.useState)(!1),Ie;t[7]===Symbol.for(`react.memo_cache_sentinel`)?(Ie=e=>{Pe(e.contentRect.width<672)},t[7]=Ie):Ie=t[7];let Le=b(Ie),Re=b(lm),ze=Y?.profile_details.username,Be;t[8]===ze?Be=t[9]:(Be=oo(ze),t[8]=ze,t[9]=Be);let Ve=Be,He=Y?.profile_details.username,Ue;t[10]===He?Ue=t[11]:(Ue=co(He),t[10]=He,t[11]=Ue);let We=Ue,Ge;t[12]!==a||t[13]!==Ve||t[14]!==v||t[15]!==Y?.profile_details||t[16]!==d||t[17]!==g?(Ge=v===`page`&&d&&a&&g==null&&Ve&&Y?.profile_details.username?.trim()||null,t[12]=a,t[13]=Ve,t[14]=v,t[15]=Y?.profile_details,t[16]=d,t[17",
+    "claim": "Profile容器宽度小于672进入窄版编辑。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R103",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 230814,
+    "excerpt": "v`,{className:`h-7 w-13 rounded-t-full rounded-b-md bg-text/15`})]}),(0,$.jsx)(D,{id:`profile.notFound`,defaultMessage:`Profile not found or private`,description:`Message on the signed-in profile page when the requested profile does not exist or the viewer does not have access`})]}):(0,$.jsxs)(`div`,{role:`alert`,className:`flex flex-col items-center justify-center gap-4 text-center text-sm leading-5 text-tertiary`,children:[(0,$.jsx)(ga,{className:`icon-sm`}),(0,$.jsxs)(`div`,{className:`flex flex-col gap-1`,children:[g==null?(0,$.jsx)(D,{id:`profile.fetchError`,defaultMes",
+    "claim": "Profile合并未找到/私密不可用态。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R104",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 251951,
+    "excerpt": "enter px-4 py-3 text-center text-sm text-tertiary`,children:(0,$.jsx)(D,{id:`profile.stats.unavailable`,defaultMessage:`Profile stats unavailable`,description:`Empty state shown when profile stats fail to load`})}),e[0]=t):t=e[0],t}function gm(e){let t=(0,km.c)(12),{columnCount:n,monthLabelCount:r}=e,i=`repeat(${n}, minmax(1px, 1fr))`,a;t[0]===i?a=t[1]:(a={gridTemplateColumns:i},t[0]=i,t[1]=a);let o;t[2]===n?o=t[3]:(o=Array.from({length:n*7},vm),t[2]=n,t[3]=o);let s;t[4]!==a||t[5]!==o?(s=(0,$.jsx)(`div`,{className:`grid grid-flow-col grid-rows-[repeat(7,minmax(1px,1fr))] ga",
+    "claim": "Profile统计独立失败，不等于整页失败。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R105",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 253248,
+    "excerpt": "ubtle px-4 text-center text-sm text-tertiary`,children:(0,$.jsx)(D,{id:`profile.tokenUsage.unavailable`,defaultMessage:`Token usage unavailable`,description:`Empty state shown when profile token usage fails to load`})}),e[0]=t):t=e[0],t}function bm(e){let t=(0,km.c)(34),{displayOptions:n,insights:r,isHidden:i,isLoading:a,isUnavailable:o,isProfileV2:s}=e,c=n.showTopPlugins&&!a&&!o&&r!=null,l;t[0]===c?l=t[1]:(l={enabled:c,hostId:at},t[0]=c,t[1]=l);let u=zn(l),d;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(d=[],t[2]=d):d=t[2];let f;t[3]===u?f=t[4]:(f={enabled:u,hostId:at,ro",
+    "claim": "Token图表独立不可用态。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R106",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 219264,
+    "excerpt": "e||t[4]!==de||t[5]!==T.personal?(be=de&&T.personal&&!ve?(0,$.jsx)(D,{id:`profile.view.personalReadOnly`,defaultMessage:`Switch to your personal account to edit your personal profile`,description:`Short tooltip shown on hover or keyboard focus of disabled profile and showcase Edit buttons to owners viewing their personal profile from a workspace account. Calmly explains that they must switch to their personal account to edit. Keep concise for the small tooltip.`}):null,t[3]=ve,t[4]=de,t[5]=T.personal,t[6]=be):be=t[6];let xe=be,[Se,Ce]=(0,Am.useState)(null),[Te,Ee]=(0,Am.useS",
+    "claim": "跨工作区查看个人页的编辑禁用原因。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R107",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 125064,
+    "excerpt": "n===`bio`?140:64,i;t[0]!==u||t[1]!==d?(i=e=>{d(null),u(e)},t[0]=u,t[1]=d,t[2]=i):i=t[2];let a;return t[3]!==s||t[4]!==c||t[5]!==n||t[6]!==o||t[7]!==p||t[8]!==l||t[9]!==f||t[10]!==e||t[11]!==i||t[12]!==r?(a=(0,Ru.jsx)(Aa,{field:n,value:r,formId:o,disabled:s,error:c,isBioTooLong:l,maxLength:e,intl:p,onChange:i,onCancel:f}),t[3]=s,t[4]=c,t[5]=n,t[6]=o,t[7]=p,t[8]=l,t[9]=f,t[10]=e,t[11]=i,t[12]=r,t[13]=a):a=t[13],a}let m=`${o}-${n}`,h=`${m}-error`,g;t[14]===Symbol.for(`react.memo_cache_sentinel`)?(g={displayName:64,bio:140},t[14]=g):g=t[14];let _=g[n],v=c==null?void 0:h,y=c!=nu",
+    "claim": "Profile内联字段长度由bio140/displayName64映射。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R108",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 125647,
+    "excerpt": "|n===`bio`&&l,b=n===`bio`,x;t[15]!==n||t[16]!==u||t[17]!==d?(x=e=>{let t=e.target.value;d(null),n===`bio`&&(t=t.replace(/\\r\\n|[\\r\\n\\u2028\\u2029]/g,` `)),u(t)},t[15]=n,t[16]=u,t[17]=d,t[18]=x):x=t[18];let S;t[19]===n?S=t[20]:(S=e=>{e.nativeEvent.isComposing||n===`bio`&&e.key===`Enter`&&e.preventDefault()},t[19]=n,t[20]=S);let C;t[21]!==s||t[22]!==o||t[23]!==m||t[24]!==_||t[25]!==v||t[26]!==y||t[27]!==b||t[28]!==x||t[29]!==S||t[30]!==r?(C={id:m,form:o,disabled:s,maxLength:_,value:r,\"aria-describedby\":v,\"aria-invalid\":y,autoComplete:`off`,spellCheck:b,onChange:x,onKeyDown:S},t",
+    "claim": "Bio换行归一为空格。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R109",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 122527,
+    "excerpt": ">[e.catalogId,e]))})))()}function Ou(e){return e.formatMessage({id:`profile.edit.stickerLayoutConflict`,defaultMessage:`Your stickers changed elsewhere. The latest layout is loaded; reapply your sticker edits and save again.`,description:`Save conflict message explaining that another window or device changed the stickers, the editor loaded that layout, and the user's unsaved sticker changes must be reapplied`})}function ku(e){let t=(0,ju.c)(7),{activityEnabled:n,disabled:r,isProfileShared:i,options:a,onChange:o}=e,s=_e(),c;return t[0]!==n||t[1]!==r||t[2]!==s||t[3]!==i||t[4]",
+    "claim": "贴纸版本409读回最新布局并要求重新应用编辑。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R110",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 134126,
+    "excerpt": "s/me/sticker-layout`,{additionalHeaders:{\"ChatGPT-Account-ID\":d},expectedErrorStatuses:[409],requestBody:{placements:Fe,expected_version:ne.layout_version}});K.setQueryData(J.queryKey,e),g=!1}i&&await P(c.showDot),L(),x()}catch(e){let t=e;if(M({profileDetailsUpdateApiStatus:m,usernameUpdateApiStatus:Xt.CODEX_PROFILE_EDIT_SAVE_API_STATUS_NOT_ATTEMPTED}),t instanceof ln){Oe($u(t.uploadError,oe));return}if(g&&t instanceof tt&&t.status===409){ze(!0),await K.invalidateQueries({queryKey:J.queryKey,refetchType:`none`}),await rt();return}let n=Co(t);if(n===`display_name`){xe(Qu(t,o",
+    "claim": "贴纸写入携带layout_version，不允许静默覆盖。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R111",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 139651,
+    "excerpt": "et Bt;t[104]!==It||t[105]!==zt?(Bt=(0,Z.jsxs)(Ft,{children:[It,zt]}),t[104]=It,t[105]=zt,t[106]=Bt):Bt=t[106];let Vt=Bt,Ht=!p||V,Ut=p?`inline`:`centered`,Wt;t[107]!==se||t[108]!==We||t[109]!==x?(Wt=e=>{!e&&se&&!We&&x()},t[107]=se,t[108]=We,t[109]=x,t[110]=Wt):Wt=t[110];let Gt=p?Zu:void 0,Kt;t[111]===j?Kt=t[112]:(Kt=j==null?void 0:e=>{e.preventDefault(),j()},t[111]=j,t[112]=Kt);let qt;t[113]!==Gt||t[114]!==Kt?(qt={onInteractOutside:Gt,onCloseAutoFocus:Kt,onOpenAutoFocus:Xu,tabIndex:-1},t[113]=Gt,t[114]=Kt,t[115]=qt):qt=t[115];let Jt=p?`absolute inset-0 overflow-hidden bg-sur",
+    "claim": "编辑宽版非模态，窄版模态。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R112",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 144757,
+    "excerpt": "children:an}),t[185]=p,t[186]=Ht,t[187]=Ut,t[188]=Wt,t[189]=qt,t[190]=Jt,t[191]=an,t[192]=on):on=t[192];let sn=on,cn=V?`fixed w-full`:`absolute w-80`,un;t[193]===cn?un=t[194]:(un=Je(`inset-y-0 end-0 z-50 max-w-full border-s border-default bg-surface`,cn),t[193]=cn,t[194]=un);let dn=!se,fn=!se,pn;t[195]!==V||t[196]!==ce?(pn=V?{zoom:ce,width:`calc(100vw / ${ce})`,height:`calc(100dvh / ${ce})`}:void 0,t[195]=V,t[196]=ce,t[197]=pn):pn=t[197];let mn=le?0:pe,hn;t[198]===mn?hn=t[199]:(hn={x:mn},t[198]=mn,t[199]=hn);let gn;t[200]===Symbol.for(`react.memo_cache_sentinel`)?(gn={x:0},",
+    "claim": "编辑窄版全屏，宽版绝对定位w80。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R113",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 146632,
+    "excerpt": "function Xu(e){e.preventDefault(),e.currentTarget instanceof HTMLElement&&e.currentTarget.focus({preventScroll:!0})}function Zu(e){return e.preventDefault()}function Qu(e,t){return Eo(e,t)??t.formatMessage({id:`profile.displayNameUpdateError`,defaultMessage:`Unable to update display name`,description:`Fallback error shown when profile display name update fails`})}function $u(e,t){return Eo(e,t)??t.formatMessage({id:`profile.photoUpdateError`,defaultMessage:`Unable to update profile picture`,description:`Fallback error shown when profile picture update fails`})}function ed(e",
+    "claim": "打开编辑焦点设置且preventScroll；外部点击preventDefault。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R114",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 136436,
+    "excerpt": "We||t[60]!==k||t[61]!==B||t[62]!==ht||t[63]!==gt||t[64]!==vt?(bt=(0,Z.jsx)(`input`,{id:B,ref:me,tabIndex:ht,type:`file`,accept:`image/*`,\"aria-label\":gt,className:`sr-only`,disabled:We,onClick:k,onChange:vt}),t[59]=We,t[60]=k,t[61]=B,t[62]=ht,t[63]=gt,t[64]=vt,t[65]=bt):bt=t[65];let Ct=bt,wt;t[66]!==c.displayName||t[67]!==$e||t[68]!==p||t[69]!==We||t[70]!==A||t[71]!==Ct||t[72]!==f||t[73]!==et?(wt=p?(0,Z.jsxs)(Z.Fragment,{children:[(0,Z.jsx)(q,{edgeRounding:`surface`,label:(0,Z.jsx)(`span`,{className:`font-normal`,children:(0,Z.jsx)(D,{id:`profile.edit.uploadPhoto`,defaultMe",
+    "claim": "头像文件输入image通配，禁用随保存态。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R115",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 34893,
+    "excerpt": ",`success`)},t[3]=a,t[4]=s,t[5]=c,t[6]=m):m=t[6];let h;t[7]!==u||t[8]!==i||t[9]!==s?(h=e=>{let{preview:t,zoomControls:r,hasCropError:a,canSave:o,saveCrop:c}=e;return(0,$s.jsx)(_t,{open:!0,onOpenChange:e=>{!e&&!u&&i()},showDialogClose:!u,size:`default`,children:(0,$s.jsxs)(St,{as:`form`,className:`gap-5`,onSubmit:e=>{e.preventDefault(),c()},children:[(0,$s.jsx)(je,{className:`sr-only`,children:(0,$s.jsx)(D,{...ec.title})}),(0,$s.jsx)(Ye,{className:`sr-only`,children:(0,$s.jsx)(D,{id:`profile.photoCrop.description`,defaultMessage:`Drag the image to reposition it, and adjust z",
+    "claim": "头像裁剪错误与保存门禁。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R116",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 115058,
+    "excerpt": "dren:o||a?(0,xu.jsx)(fl,{isLoading:o,onRetry:l}):(0,xu.jsx)(`div`,{ref:k,className:`relative grid h-64 scrollbar-stable grid-cols-4 gap-2 overflow-y-scroll overscroll-contain p-2`,style:{height:T},children:Tu.map(e=>(0,xu.jsx)(gu,{asset:e,disabled:n||h&&f==null||d.length>=32,label:m.formatMessage(e.label,{action:`add`}),onAdd:()=>ee(e)},e.path))})}),t[58]=ee,t[59]=n,t[60]=T,t[61]=m,t[62]=a,t[63]=o,t[64]=h,t[65]=k,t[66]=l,t[67]=f,t[68]=d,t[69]=fe):fe=t[69];let X;t[70]===Symbol.for(`react.memo_cache_sentinel`)?(X=(0,xu.jsx)(`p`,{className:`w-full pt-1.5 text-xs leading-4 text",
+    "claim": "贴纸目录四列网格。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R117",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 104442,
+    "excerpt": "tabIndex:t===0?0:void 0,\"aria-hidden\":t!==0||void 0,\"aria-label\":t===0?s.formatMessage({id:`profile.edit.rotateSticker`,defaultMessage:`Rotate sticker`,description:`Accessible name for the sticker rotation control in the profile editor`}):void 0,\"aria-valuemin\":t===0?nu:void 0,\"aria-valuemax\":t===0?ru:void 0,\"aria-valuenow\":t===0?Math.round(n.rotation_degrees):void 0,onPointerDown:e=>{if(e.button!==0)return;e.stopPropagation();let t=ql(e.currentTarget);t!=null&&(d.current={...t,pointerId:e.pointerId,pointerRadians:Jl(e,t),rotationDegrees:n.rotation_degrees},e.currentTarget.",
+    "claim": "贴纸旋转有slider语义与键盘操作。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R118",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 106488,
+    "excerpt": "=null},onPointerCancel:()=>{u.current=null},onLostPointerCapture:()=>{u.current=null},onKeyDown:e=>{let t=l(),r=n.scale;if(e.key===`Home`)r=wl;else if(e.key===`End`)r=t;else if(e.key===`ArrowRight`||e.key===`ArrowUp`)r+=iu;else if(e.key===`ArrowLeft`||e.key===`ArrowDown`)r-=iu;else return;e.preventDefault(),a(Math.min(t,Math.max(wl,r)))},children:(0,tu.jsx)(`span`,{className:`pointer-events-none absolute top-1/2 left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue`,\"aria-hidden\":!0})},e)),m;return t[4]!==f||t[5]!==p?(m=(0,tu.jsxs)(tu.Fragment,{children:[",
+    "claim": "贴纸缩放支持Home/End与方向键且夹紧范围。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R119",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 110878,
+    "excerpt": " V;t[19]===z?V=t[20]:(V=e=>{e.preventDefault(),e.stopPropagation(),z()},t[19]=z,t[20]=V);let H;t[21]!==B||t[22]!==V?(H={accelerator:`Backspace`,enabled:B,onKeyDown:V},t[21]=B,t[22]=V,t[23]=H):H=t[23],gn(H);let U=h&&!n&&_!=null,W;t[24]===z?W=t[25]:(W=e=>{e.preventDefault(),e.stopPropagation(),z()},t[24]=z,t[25]=W);let G;t[26]!==U||t[27]!==W?(G={accelerator:`Delete`,enabled:U,onKeyDown:W},t[26]=U,t[27]=W,t[28]=G):G=t[28],gn(G);let K;t[29]!==n||t[30]!==s||t[31]!==f||t[32]!==d||t[33]!==N||t[34]!==g?(K=function(e){if(n||f==null||d.length>=32)return;let t=d.length%8,r=t%4,i=Math.",
+    "claim": "选中贴纸删除快捷键，另有Delete。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R120",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 32185,
+    "excerpt": "owcase.showLess`,defaultMessage:`Show less`,description:`Button below the expanded current tab of the profile Showcase. Collapses the grid to its first six items.`}):(0,Ps.jsx)(D,{id:`profile.showcase.showMore`,defaultMessage:`Show more`,description:`Button below the current tab of the profile Showcase. Reveals the remaining selected sites and skills beyond the first six items.`}),t?(0,Ps.jsx)(R,{asset:It}):(0,Ps.jsx)(B,{})]})}function js(e){return e.kind===`site`?{id:e.artifact_id,kind:`site`,site:e}:{id:e.artifact_id,kind:`skill`,pin:e}}var Ms,Ns,Ps,Fs;function Is(){retur",
+    "claim": "Showcase展开收起六项，aria-expanded。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R121",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 32832,
+    "excerpt": "e(),Yn(),Ti(),Un(),gr(),qt(),Xr(),fn(),Ko(),Os(),Ps=Zt(),Tt(),Fs=(0,Ns.lazy)(async()=>({default:(await Ue(async()=>{let{ProfileShowcaseEditor:e}=await import(`./dialog-aed815aff6ba.js`).then(e=>(e.n(),e.t));return{ProfileShowcaseEditor:e}},__vite__mapDeps([7,1,2,3,4,5,6,11,8,9,10]),import.meta.url)).ProfileShowcaseEditor}))})))()}function Ls(e){let t=(0,Rs.c)(2),{children:n}=e,r;return t[0]===n?r=t[1]:(r=(0,zs.jsx)(`div`,{className:`absolute -right-3/10 -bottom-1/16 flex aspect-12/13 w-3/5 items-center justify-center`,children:n}),t[0]=n,t[1]=r),r}var Rs,zs;function Bs(){re",
+    "claim": "Showcase编辑器lazy独立模块，当前仅确认调用界面。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R122",
+    "path": "webview/assets/profile-339e4ccb6258.css",
+    "offset": 439,
+    "excerpt": "profile-loading-shimmer-highlight) 50%, transparent 66%);background-position:-100vw 0;background-repeat:no-repeat;background-size:100vw 100vh;background-attachment:fixed;animation:2.6s steps(48,end) infinite _profile-loading-page-sweep_5c9a7_2}._profileLoadingBlock_5c9a7_2[data-surface=inset]{--profile-loading-background:transparent}._profilePhotoEditBadge_5c9a7_2{background-color:var(--color-media-control-background)}._profilePhotoInput_5c9a7_2:hover ._profilePhotoEditBadge_5c9a7_2,._profilePhotoInput_5c9a7_2:focus-within ._profilePhotoEditBadge_5c9a7_2{background-color:va",
+    "claim": "Profile shimmer时长2.6秒、48阶、无限。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R123",
+    "path": "webview/assets/profile-339e4ccb6258.css",
+    "offset": 1842,
+    "excerpt": "prefers-reduced-motion:reduce){._profileLoadingBlock_5c9a7_2{background-image:none;animation:none}}@keyframes _profile-loading-page-sweep_5c9a7_2{to{background-position:100vw 0}}}\n",
+    "claim": "Profile减少动态偏好关闭shimmer背景与动画。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R124",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 3580,
+    "excerpt": "ral`,hasCloseButton:!1})},n[15]=g,n[16]=_,n[17]=m,n[18]=F):F=n[18];let I;n[19]!==M||n[20]!==N||n[21]!==P||n[22]!==F?(I={scope:M,onMutate:N,mutationFn:P,onSuccess:F},n[19]=M,n[20]=N,n[21]=P,n[22]=F,n[23]=I):I=n[23];let{mutate:L,isPending:R,isError:z,variables:B}=ee(I),V=b?.profile_details.username??null,H;n[24]===V?H=n[25]:(H=Oe(V),n[24]=V,n[25]=H);let U=H,W;n[26]===V?W=n[27]:(W=Ae(V),n[26]=V,n[27]=W);let G=W,X=b?.page.visibility,Z=V&&U&&(f||X?.value===`public`)?`https://chatgpt.com/u/${encodeURIComponent(V)}`:null,Q;n[28]===Symbol.for(`react.memo_cache_sentinel`)?(Q=(0,J.js",
+    "claim": "Profile分享可见性mutation序列化范围。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R125",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 3016,
+    "excerpt": "[12];let P;n[13]===o?P=n[14]:(P=e=>ge.safePatch(`/profiles/me`,{additionalHeaders:{\"ChatGPT-Account-ID\":o},requestBody:{profile_visibility:e}}),n[13]=o,n[14]=P);let F;n[15]!==g||n[16]!==_||n[17]!==m?(F=(e,t,n)=>{n?.saved(t),g.setQueriesData({queryKey:_.queryKey},e=>e==null||!e.is_self?e:{...e,page:{...e.page,visibility:{...e.page.visibility,value:t}}}),m.get(se).success((0,J.jsx)(a,{id:`profile.sharing.visibilityUpdated`,defaultMessage:`Visibility updated`,description:`Success toast after the profile visibility setting has been saved`}),{variant:`successNeutral`,hasCloseBut",
+    "claim": "分享可见性PATCH，成功更新缓存。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R126",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 5215,
+    "excerpt": "try`,defaultMessage:`Try again`,description:`Button to retry loading profile sharing settings`})})]}):(0,J.jsxs)(`div`,{role:`status`,children:[(0,J.jsx)(y,{}),(0,J.jsx)(`span`,{className:`sr-only`,children:(0,J.jsx)(a,{id:`profile.sharing.loading`,defaultMessage:`Loading sharing settings`,description:`Accessible status while profile sharing permissions load`})})]})}):(0,J.jsx)(Se,{thumbnailLabel:(0,J.jsx)(a,{id:`profile.sharing.thumbnail`,defaultMessage:`Profile thumbnail`,description:`Label above a preview of the person's profile photo and chosen photo shape in the profil",
+    "claim": "分享加载具status语义。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R127",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 4794,
+    "excerpt": "l?(0,J.jsx)(`div`,{className:`flex flex-col gap-2 text-sm`,children:x?(0,J.jsxs)(J.Fragment,{children:[(0,J.jsx)(`div`,{role:`alert`,children:(0,J.jsx)(a,{id:`profile.sharing.loadError`,defaultMessage:`Couldn’t load sharing settings`,description:`Error in the profile sharing dialog when permissions could not be loaded`})}),(0,J.jsx)(t,{color:`secondary`,onClick:()=>void S(),children:(0,J.jsx)(a,{id:`profile.sharing.retry`,defaultMessage:`Try again`,description:`Button to retry loading profile sharing settings`})})]}):(0,J.jsxs)(`div`,{role:`status`,children:[(0,J.jsx)(y,{})",
+    "claim": "分享错误alert与Retry。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R128",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 6557,
+    "excerpt": "ame:`flex flex-col`,children:[(0,J.jsx)(t,{\"aria-describedby\":e===`public`?`profile-sharing-public-description`:void 0,\"aria-pressed\":X?.value===e,color:e===`public`&&X?.value===e?`ghostAccentSubtle`:`ghostSubtle`,disabled:!b.is_self||!b.can_edit||!X?.can_edit||!X.selectable_options?.includes(e)||e===`public`&&!U||R,className:`-mx-2`,radius:`large`,size:`settingsOption`,onClick:()=>{e!==X?.value&&(w?.selected(e),L(e))},children:(0,J.jsxs)(xe,{icon:e===`private`?(0,J.jsx)(le,{}):(0,J.jsx)(ne,{}),label:(0,J.jsx)(a,{...Y[e]}),isPublicSelected:e===`public`&&X?.value===e,childre",
+    "claim": "可见性选择以pressed状态表示选中。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R129",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 6702,
+    "excerpt": "e,color:e===`public`&&X?.value===e?`ghostAccentSubtle`:`ghostSubtle`,disabled:!b.is_self||!b.can_edit||!X?.can_edit||!X.selectable_options?.includes(e)||e===`public`&&!U||R,className:`-mx-2`,radius:`large`,size:`settingsOption`,onClick:()=>{e!==X?.value&&(w?.selected(e),L(e))},children:(0,J.jsxs)(xe,{icon:e===`private`?(0,J.jsx)(le,{}):(0,J.jsx)(ne,{}),label:(0,J.jsx)(a,{...Y[e]}),isPublicSelected:e===`public`&&X?.value===e,children:[R&&B===e&&(0,J.jsx)(y,{}),X?.value===e&&(0,J.jsx)(te,{className:`text-default`})]})}),e===`public`&&(0,J.jsx)(be,{id:`profile-sharing-public-d",
+    "claim": "分享选项需服务端允许并受权限/pending约束。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R130",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 2147,
+    "excerpt": ",t[1]=o,t[2]=s):s=t[2],s}function V(e){return(0,U.jsx)(P,{appearance:`secondary`,href:`https://help.openai.com/articles/20001539`,initiator:`open_in_browser_bridge`,openTarget:`external-browser`,children:e})}var H,U;function W(){return(W=e((()=>{H=C(),_(),N(),M(),U=T()})))()}function G(e){let n=(0,K.c)(52),{accountId:o,userId:c,username:l,imageUrl:u,isWorkspace:f,onClose:p}=e,m=s(r),h=re(),g=ue(),_=j(o,c),v;n[0]!==o||n[1]!==l||n[2]!==c?(v=j(o,c,l),n[0]=o,n[1]=l,n[2]=c,n[3]=v):v=n[3];let{data:b,isError:x,refetch:S}=ie(v),C;n[4]!==b||n[5]!==m?(C=ke(m,b),n[4]=b,n[5]=m,n[6]=C):",
+    "claim": "复制链接成功提示两秒。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R131",
+    "path": "webview/assets/dialog-c20a789ab4a4.js",
+    "offset": 10616,
+    "excerpt": "r opening X with a draft containing the profile link`},linkedin:{id:`profile.sharing.linkedin`,defaultMessage:`Share on LinkedIn`,description:`Accessible label for opening LinkedIn with a draft containing the profile link`},reddit:{id:`profile.sharing.reddit`,defaultMessage:`Share on Reddit`,description:`Accessible label for opening Reddit with a draft containing the profile link`}})})))()}X();export{G as ProfileShareDialogContent};\n//# sourceMappingURL=dialog-c20a789ab4a4.js.map",
+    "claim": "公开个人Profile才有社交分享入口。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R132",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 62766,
+    "excerpt": "he term consistent with navigation.`}),actions:x,title:(0,$.jsx)(h,{id:`settings.teams.page.emptyTitle`,defaultMessage:`No teams yet`,description:`Message shown when the user belongs to no workspace teams`})}):null,t[18]=x,t[19]=_?.length,t[20]=A):A=t[20];let j;t[21]!==a||t[22]!==_?(j=_!=null&&_.length>0?(0,$.jsx)(ge,{children:_.map(e=>(0,$.jsx)(E,{description:e.description||void 0,icon:(0,$.jsx)(Ke,{avatar:e.avatar,size:`small`}),label:e.name,onClick:()=>void a(`/settings/teams/${encodeURIComponent(e.id)}`)},e.id))}):null,t[21]=a,t[22]=_,t[23]=j):j=t[23];let M;return t[24]",
+    "claim": "Team列表初始空态。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R133",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 59759,
+    "excerpt": "description:`Button to leave the current team`}})})))()}function Ur(){let e=(0,qr.c)(22),{accountId:t}=Et(),n=xe(),r=P(`/settings/teams/:teamId/join`),{teamId:i}=H();if(t==null){let t;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,$.jsx)(h,{...J.title}),e[0]=t):t=e[0];let n;return e[1]===Symbol.for(`react.memo_cache_sentinel`)?(n=(0,$.jsx)(ct,{title:t,children:(0,$.jsx)(Se,{icon:(0,$.jsx)(Vt,{}),title:(0,$.jsx)(h,{...J.unavailable})})}),e[1]=n):n=e[1],n}if(r!=null&&i!=null){let t,r,a,o,s;if(e[2]!==n.search||e[3]!==n.state||e[4]!==i){let c=new URLSearchParams(n.search)",
+    "claim": "Team详情使用settings teams路由。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R134",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 67246,
+    "excerpt": "con:(0,$.jsx)(pe,{className:`text-secondary`}),title:(0,$.jsx)(h,{id:`settings.teams.preview.notMember`,defaultMessage:`You’re not a member of this team`,description:`Notice on a team page when the viewer belongs to the workspace but not this team`}),content:(0,$.jsx)(h,{id:`settings.teams.preview.accessDescription`,defaultMessage:`You can view members here. Activity and shared resources are available to team members.`,description:`Explains what workspace members can see when previewing a team they do not belong to`})})),t[70]=r,t[71]=V,t[72]=H,t[73]=m,t[74]=z,t[75]=i,t[76]",
+    "claim": "非成员预览不可等同已加入工作区团队。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R135",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 36732,
+    "excerpt": "=w,t[26]=T,t[27]=E):E=t[27];let D;return t[28]!==f||t[29]!==E?(D=(0,vr.jsx)(`fieldset`,{className:`min-w-0`,disabled:f,\"aria-busy\":f,children:E}),t[28]=f,t[29]=E,t[30]=D):D=t[30],D}function pr(e){return{key:e,name:(0,vr.jsx)(h,{...J[e]}),panelId:`team-${e}-panel`}}function mr(){}function hr(){}function gr(){}var _r,vr;function yr(){return(yr=e((()=>{_r=W(),V(),Mt(),Je(),_t(),Pe(),dr(),vr=K()})))()}function br(e){let t=(0,Sr.c)(68),{accountId:r,team:i,field:a}=e,o=g(l),c=I(),u=(0,Cr.useId)(),d=(0,Cr.useId)(),f=(0,Cr.useId)(),[m,_]=(0,Cr.useState)(null),[v,y]=(0,Cr.useState)(",
+    "claim": "Team加载保留骨架/禁用控件并声明busy。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R136",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 40450,
+    "excerpt": "),t[43]=E,t[44]=f,t[45]=ce):ce=t[45];let ue;t[46]!==a||t[47]!==te?(ue=a===`name`?(0,X.jsx)(Qe,{...te,variant:`settings`,maxLength:200,required:!0}):(0,X.jsx)(De,{...te,variant:`settings`,autoResize:!0,maxLength:2e3,onFocus:xr,rows:3}),t[46]=a,t[47]=te,t[48]=ue):ue=t[48];let de;t[49]!==v||t[50]!==u?(de=v!=null&&(0,X.jsx)(`span`,{id:u,className:`text-sm text-danger`,role:`alert`,children:v}),t[49]=v,t[50]=u,t[51]=de):de=t[51];let V;t[52]===Symbol.for(`react.memo_cache_sentinel`)?(V=(0,X.jsx)(n,{color:`secondary`,size:`dialog`,onClick:()=>{C.current=!0,_(null),y(null)},childre",
+    "claim": "Team名称输入上限200。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R137",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 40531,
+    "excerpt": "(0,X.jsx)(Qe,{...te,variant:`settings`,maxLength:200,required:!0}):(0,X.jsx)(De,{...te,variant:`settings`,autoResize:!0,maxLength:2e3,onFocus:xr,rows:3}),t[46]=a,t[47]=te,t[48]=ue):ue=t[48];let de;t[49]!==v||t[50]!==u?(de=v!=null&&(0,X.jsx)(`span`,{id:u,className:`text-sm text-danger`,role:`alert`,children:v}),t[49]=v,t[50]=u,t[51]=de):de=t[51];let V;t[52]===Symbol.for(`react.memo_cache_sentinel`)?(V=(0,X.jsx)(n,{color:`secondary`,size:`dialog`,onClick:()=>{C.current=!0,_(null),y(null)},children:(0,X.jsx)(h,{id:`settings.teams.detail.cancel`,defaultMessage:`Cancel`,descript",
+    "claim": "Team描述上限2000。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R138",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 38651,
+    "excerpt": "`)?(N=e=>{_(e.currentTarget.value),y(null)},t[11]=N):N=t[11];let P;t[12]!==a||t[13]!==b||t[14]!==O?(P=e=>{e.nativeEvent.isComposing||b||e.key===`Enter`&&(a===`name`||!e.shiftKey)&&(e.preventDefault(),O())},t[12]=a,t[13]=b,t[14]=O,t[15]=P):P=t[15];let F;t[16]!==E||t[17]!==A||t[18]!==j||t[19]!==M||t[20]!==P?(F={\"aria-label\":E,\"aria-invalid\":A,\"aria-describedby\":j,autoFocus:!0,value:M,onChange:N,onKeyDown:P},t[16]=E,t[17]=A,t[18]=j,t[19]=M,t[20]=P,t[21]=F):F=t[21];let te=F,ne=m!=null&&!b,re;t[22]!==O||t[23]!==w?(re=e=>{e?(C.current=!1,y(null),_(w)):O()},t[22]=O,t[23]=w,t[24]=r",
+    "claim": "Team编辑键盘避免IME组合期间提交。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R139",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 41693,
+    "excerpt": "ue,t[57]=de,t[58]=fe):fe=t[58];let pe;t[59]!==fe||t[60]!==f?(pe=(0,X.jsx)(s,{\"aria-labelledby\":f,size:`large`,opaque:!0,onCloseAutoFocus:se,onEscapeKeyDown:z,children:fe}),t[59]=fe,t[60]=f,t[61]=pe):pe=t[61];let me;return t[62]!==re||t[63]!==L||t[64]!==oe||t[65]!==pe||t[66]!==ne?(me=(0,X.jsxs)(k,{open:ne,onOpenChange:re,children:[L,oe,pe]}),t[62]=re,t[63]=L,t[64]=oe,t[65]=pe,t[66]=ne,t[67]=me):me=t[67],me}function xr(e){let t=e.currentTarget;t.setSelectionRange(t.value.length,t.value.length)}var Sr,Cr,X;function wr(){return(wr=e((()=>{Sr=W(),T(),Cr=Ce(),V(),ye(),F(),Ee(),G(",
+    "claim": "Team编辑关闭的焦点处理。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R140",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 49812,
+    "excerpt": "e for a workspace team with no membership entries`}):(0,Q.jsx)(h,{id:`settings.teams.members.noResults`,defaultMessage:`No matching members`,description:`Empty state when no team members match the search text`}),r;t[41]===n?r=t[42]:(r=(0,Q.jsx)(xt,{layout:`settings-row`,children:n}),t[41]=n,t[42]=r),N=r}else N=i?.map(e=>(0,Q.jsx)(Lr,{canManageMembers:a,isLastMember:A,isPending:x,member:e,onRemove:()=>g(e),onTransferOwnership:y&&O?.role===`owner`&&e.principal_type===`user`&&e.principal_id!==p&&!e.is_service_account?()=>v(e):void 0},_n(e)));t[13]=r,t[14]=a,t[15]=O?.role,t[16]",
+    "claim": "成员过滤空态与无成员区分。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R141",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 44410,
+    "excerpt": "??r.principal_id,c;t[0]===s?c=t[1]:(c=(0,jr.jsx)(h,{id:`settings.teams.members.transferOwnership.title`,defaultMessage:`Make {name} the team owner?`,description:`Title of the team ownership transfer confirmation dialog. {name} is the selected member's display name, email, or ID; they will become the team's new owner.`,values:{name:s}}),t[0]=s,t[1]=c);let u,d;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(u=(0,jr.jsx)(h,{id:`settings.teams.members.transferOwnership.description`,defaultMessage:`You’ll stay in the team as a member. Any shared connections the new owner can’t a",
+    "claim": "团队所有权转让有独立确认。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R142",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 13939,
+    "excerpt": "(e||!d)?(0,Y.jsx)(Se,{icon:(0,Y.jsx)(tn,{}),title:e?(0,Y.jsx)(h,{id:`settings.teams.activity.noMatches`,defaultMessage:`No matching activity in the loaded history`,description:`Empty search results for the activity entries loaded so far; older entries may still be available`}):(0,Y.jsx)(h,{id:`settings.teams.activity.empty`,defaultMessage:`No activity yet`,description:`Empty state for a team with no recorded activity`})}):null,S=s==null?null:Object.entries((0,er.default)(s,e=>o.formatDate(e.created_at,{dateStyle:`full`}))).map(e=>{let[t,n]=e;return(0,Y.jsxs)($e,{className:`",
+    "claim": "Activity仅当前已载入历史匹配为空。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R143",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 5303,
+    "excerpt": "s`,children:(0,Cn.jsx)(h,{id:`settings.teams.activity.search.continue`,defaultMessage:`No additional matches found yet. Load more to keep searching`,description:`Status after searching a batch of older team activity without finding another match. More history remains; the Load more button continues the search`})}):null,t[16]=d,t[17]=p,t[18]=s,t[19]=x):x=t[19];let S;t[20]!==p||t[21]!==m||t[22]!==y||t[23]!==s?(S=p?(0,Cn.jsx)(n,{className:`self-center`,color:`ghostSecondary`,disabled:m,loading:s===`loading`,onClick:()=>void y(),children:(0,Cn.jsx)(h,{id:`settings.teams.activit",
+    "claim": "Activity加载更多入口。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R144",
+    "path": "webview/assets/team-dialogs-ca2ac4bed303.js",
+    "offset": 37058,
+    "excerpt": "48]!==S||n[49]!==F||n[50]!==j||n[51]!==X||n[52]!==L||n[53]!==R?(Z=(0,$.jsx)(E,{open:!0,contentOverflow:C,contentProps:S,shouldIgnoreClickOutside:F,showDialogClose:L,size:j,onOpenChange:R,children:X}),n[47]=C,n[48]=S,n[49]=F,n[50]=j,n[51]=X,n[52]=L,n[53]=R,n[54]=Z):Z=n[54],Z}function pe(e){let t=(0,ge.c)(32),{accountId:n,team:o,onClose:s,onSaved:u}=e,d=l(i),f=m(),[p,h]=(0,_e.useState)(o?.name??``),[g,_]=(0,_e.useState)(o?.description??``),[v,y]=(0,_e.useState)(),b=o!=null,S,C,E;t[0]===o?(S=t[1],C=t[2],E=t[3]):(S=o==null?(0,$.jsx)(c,{id:`settings.teams.create.title`,defaultMe",
+    "claim": "Team通用提交弹窗pending禁止外部关闭。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R145",
+    "path": "webview/assets/team-dialogs-ca2ac4bed303.js",
+    "offset": 35674,
+    "excerpt": ":U=n[18];let W;n[19]===I?W=n[20]:(W=I==null?null:(0,$.jsx)(T,{children:(0,$.jsx)(`div`,{className:`text-sm text-danger`,role:`alert`,children:(0,$.jsx)(c,{...I})})}),n[19]=I,n[20]=W);let G;n[21]!==F||n[22]!==_?(G=_?.(F),n[21]=F,n[22]=_,n[23]=G):G=n[23];let K;n[24]!==F||n[25]!==p||n[26]!==m||n[27]!==_||n[28]!==o||n[29]!==O?(K=O&&_==null||m!=null?(0,$.jsx)(t,{color:`secondary`,disabled:F,onClick:m??p,type:`button`,children:o??(m==null?(0,$.jsx)(c,{id:`settings.teams.dialog.cancel`,defaultMessage:`Cancel`,description:`Button that closes a team or membership dialog without savi",
+    "claim": "Team弹窗失败保留错误alert。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R146",
+    "path": "webview/assets/team-dialogs-ca2ac4bed303.js",
+    "offset": 39791,
+    "excerpt": "faultMessage:`Name`,description:`Label for the name of the new workspace team`})}),(0,$.jsx)(G,{autoFocus:!0,disabled:e,maxLength:200,placeholder:o==null?f.formatMessage({id:`settings.teams.create.namePlaceholder`,defaultMessage:`Team name`,description:`Placeholder for the name of a new workspace team`}):void 0,onChange:e=>h(e.target.value),required:!0,value:p})]})}),(0,$.jsx)(T,{spacing:`large`,children:(0,$.jsxs)(`label`,{className:`flex flex-col gap-2 text-sm font-medium text-default`,children:[(0,$.jsx)(`span`,{className:o==null?`sr-only`:void 0,children:(0,$.jsx)(c,{id",
+    "claim": "Team create/edit名称上限200。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R147",
+    "path": "webview/assets/team-dialogs-ca2ac4bed303.js",
+    "offset": 40449,
+    "excerpt": "tion:`Label for the optional description of the new workspace team`})}),(0,$.jsx)(R,{disabled:e,focusIndicator:`border`,maxLength:2e3,placeholder:o==null?f.formatMessage({id:`settings.teams.create.descriptionPlaceholder`,defaultMessage:`Description—what does your team work on?`,description:`Placeholder prompting for an optional description of what a new workspace team works on`}):void 0,onChange:e=>_(e.target.value),rows:o==null?3:void 0,value:g,variant:o==null?`compact`:`default`})]})})]}),t[16]=n,t[17]=v,t[18]=g,t[19]=f,t[20]=p,t[21]=o,t[22]=k):k=t[22];let A;return t[23]!",
+    "claim": "Team create/edit描述上限2000。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R148",
+    "path": "webview/assets/team-dialogs-ca2ac4bed303.js",
+    "offset": 38351,
+    "excerpt": "kspace. Team does not refer to a subscription plan. Short plain-text message with no placeholders.`}):e instanceof x&&e.status===409?q.nameConflict:e instanceof x&&e.status===403?q.saveForbidden:q.saveError,t[0]=o,t[1]=S,t[2]=C,t[3]=E);let D;t[4]!==n||t[5]!==s||t[6]!==u||t[7]!==d?(D=e=>{if(d.get(B)!==n){s();return}s(),u?.(e)},t[4]=n,t[5]=s,t[6]=u,t[7]=d,t[8]=D):D=t[8];let O;t[9]!==n||t[10]!==v||t[11]!==g||t[12]!==p||t[13]!==d||t[14]!==o?(O=p.trim()===``?void 0:async()=>{let e=o==null?r.start(`team_create`,{},{shouldEmitAnalytics:()=>d.get(B)===n}):null;try{let t=await d.get",
+    "claim": "Team名称冲突409有独立错误。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R149",
+    "path": "webview/assets/team-dialogs-ca2ac4bed303.js",
+    "offset": 41390,
+    "excerpt": "onClose:o,onDeleted:s}=e,u=l(i),d;t[0]===a.name?d=t[1]:(d=(0,$.jsx)(c,{id:`settings.teams.delete.title`,defaultMessage:`Delete {teamName}?`,description:`Title of the confirmation dialog for permanently deleting the named workspace team`,values:{teamName:a.name}}),t[0]=a.name,t[1]=d);let f,p;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,$.jsx)(c,{id:`settings.teams.delete.description`,defaultMessage:`This team will be permanently deleted`,description:`Warning that confirms deleting a workspace team is permanent`}),p=(0,$.jsx)(c,{...q.delete}),t[2]=f,t[3]=p):(f=t[2],p=",
+    "claim": "删除团队danger确认。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R150",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 133806,
+    "excerpt": "NOT_ATTEMPTED,h=!1,g=!1;await(async()=>{try{if(f>0&&(m=Xt.CODEX_PROFILE_EDIT_SAVE_API_STATUS_FAILED,await F(u),m=Xt.CODEX_PROFILE_EDIT_SAVE_API_STATUS_SUCCEEDED),s&&(h=!0,await I(c.displayOptions,He),h=!1),G&&Fe!=null&&d!=null&&ne!=null){g=!0,await K.cancelQueries({queryKey:J.queryKey});let e=await Dr.safePut(`/profiles/me/sticker-layout`,{additionalHeaders:{\"ChatGPT-Account-ID\":d},expectedErrorStatuses:[409],requestBody:{placements:Fe,expected_version:ne.layout_version}});K.setQueryData(J.queryKey,e),g=!1}i&&await P(c.showDot),L(),x()}catch(e){let t=e;if(M({profileDetailsU",
+    "claim": "Profile保存按个人资料、显示选项、贴纸、dot顺序await；可能部分成功。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R151",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 134574,
+    "excerpt": "),await K.invalidateQueries({queryKey:J.queryKey,refetchType:`none`}),await rt();return}let n=Co(t);if(n===`display_name`){xe(Qu(t,oe));return}if(n===`profile_asset_pointer`){Oe($u(t,oe));return}if(n===`description`){we(ed(t,oe));return}if(h||i||g||Ke||a||f>1){Ae(ed(t,oe));return}if(r){xe(Qu(t,oe));return}Oe($u(t,oe))}})().finally(()=>{Pe(!1)})},t[20]=W,t[21]=o,t[22]=c,t[23]=He,t[24]=Ve,t[25]=Ue,t[26]=oe,t[27]=Ke,t[28]=se,t[29]=G,t[30]=p,t[31]=Qe,t[32]=x,t[33]=C,t[34]=I,t[35]=P,t[36]=M,t[37]=F,t[38]=L,t[39]=d,t[40]=K,t[41]=rt,t[42]=ne,t[43]=J.queryKey,t[44]=Fe,t[45]=it):it=",
+    "claim": "Profile错误按display_name、profile_asset_pointer、description及组合更新分派。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R152",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 132406,
+    "excerpt": "|t[10]!==p?(Ge=p&&c.bio.trim()!==Be.trim(),t[8]=c.bio,t[9]=Be,t[10]=p,t[11]=Ge):Ge=t[11];let Ke=Ge,Xe=Ke&&c.bio.length>140,Ze;t[12]!==c.displayName||t[13]!==Re||t[14]!==Xe||t[15]!==We?(Ze=We||Re||Xe||c.displayName.trim().length===0,t[12]=c.displayName,t[13]=Re,t[14]=Xe,t[15]=We,t[16]=Ze):Ze=t[16];let Qe=Ze,$e=c.photo?.previewUrl??R,et=$e!=null&&$e!==l,nt;t[17]!==oe||t[18]!==ae?(nt=async function(){let e=await ae();e.isSuccess?(Ie(null),ze(!1),Ae(Ou(oe))):Ae(ed(e.error,oe))},t[17]=oe,t[18]=ae,t[19]=nt):nt=t[19];let rt=nt,it;t[20]!==W||t[21]!==o||t[22]!==c||t[23]!==He||t[24]!",
+    "claim": "Profile保存门禁包含空名称、bio超限、贴纸冲突和busy。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R153",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 39077,
+    "excerpt": "[18]=j,t[19]=M,t[20]=P,t[21]=F):F=t[21];let te=F,ne=m!=null&&!b,re;t[22]!==O||t[23]!==w?(re=e=>{e?(C.current=!1,y(null),_(w)):O()},t[22]=O,t[23]=w,t[24]=re):re=t[24];let L;t[25]!==d||t[26]!==E?(L=(0,X.jsx)(`span`,{id:d,hidden:!0,children:E}),t[25]=d,t[26]=E,t[27]=L):L=t[27];let ie=a===`name`?`ghostActive`:`ghostSecondary`,R;t[28]!==m||t[29]!==b||t[30]!==w?(R=(b?m?.trim():w)||(0,X.jsx)(h,{id:`settings.teams.inline.addDescription`,defaultMessage:`Add a description`,description:`Action in the team header to add an optional team description`}),t[28]=m,t[29]=b,t[30]=w,t[31]=R):R",
+    "claim": "Team inline popover关闭默认提交，取消路径另处理。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R154",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 41733,
+    "excerpt": "59]!==fe||t[60]!==f?(pe=(0,X.jsx)(s,{\"aria-labelledby\":f,size:`large`,opaque:!0,onCloseAutoFocus:se,onEscapeKeyDown:z,children:fe}),t[59]=fe,t[60]=f,t[61]=pe):pe=t[61];let me;return t[62]!==re||t[63]!==L||t[64]!==oe||t[65]!==pe||t[66]!==ne?(me=(0,X.jsxs)(k,{open:ne,onOpenChange:re,children:[L,oe,pe]}),t[62]=re,t[63]=L,t[64]=oe,t[65]=pe,t[66]=ne,t[67]=me):me=t[67],me}function xr(e){let t=e.currentTarget;t.setSelectionRange(t.value.length,t.value.length)}var Sr,Cr,X;function wr(){return(wr=e((()=>{Sr=W(),T(),Cr=Ce(),V(),ye(),F(),Ee(),G(),Pe(),Ft(),B(),X=K()})))()}function Tr(",
+    "claim": "Team inline Escape放弃且阻止冒泡。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R155",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 56274,
+    "excerpt": "mbol.for(`react.memo_cache_sentinel`)?(e=(0,Q.jsx)(h,{id:`settings.teams.members.leaveLastDescription`,defaultMessage:`You’re the last member of this team. You can delete the team instead.`,description:`Explains that the last member must delete the team instead of leaving it; the confirmation button says Delete team`}),t[0]=e):e=t[0],p=e}else if(r){let e=i.display_name??i.email??i.principal_id,n;t[1]===e?n=t[2]:(n=(0,Q.jsx)(h,{id:`settings.teams.members.removeLastDescription`,defaultMessage:`{name} is the last member of this team. You can delete the team instead.`,descripti",
+    "claim": "最后成员离开转为删除团队确认。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R156",
+    "path": "webview/assets/team-settings-page-c5bfa9c52e95.js",
+    "offset": 55101,
+    "excerpt": ">n&&a.principal_type===`user`?(0,Q.jsx)(`div`,{role:`group`,...e,children:(0,Q.jsxs)(c,{align:`end`,contentWidth:`xs`,triggerButton:(0,Q.jsx)(O,{disabled:i,label:l.formatMessage({id:`settings.teams.members.actions`,defaultMessage:`Member actions`,description:`Accessible label for a team member's actions menu`})}),children:[s==null?null:(0,Q.jsx)(N.Item,{onSelect:s,children:(0,Q.jsx)(h,{...pn.transferOwnership})}),(0,Q.jsx)(N.Item,{disabled:m,focusableWhenDisabled:!0,onSelect:o,tooltipText:m?(0,Q.jsx)(h,{...p?pn.ownerLeaveForbidden:pn.ownerRemoveForbidden}):void 0,children:(",
+    "claim": "Team成员操作菜单窄宽度。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  },
+  {
+    "id": "R157",
+    "path": "webview/assets/profile-c6f63150187e.js",
+    "offset": 128086,
+    "excerpt": "[56]=F);let I;return t[57]!==P||t[58]!==F?(I=(0,Ru.jsxs)(`div`,{className:`grid min-h-[72px] grid-cols-[minmax(0,1fr)_minmax(0,220px)] items-center gap-4 px-4 py-3`,children:[P,F]}),t[57]=P,t[58]=F,t[59]=I):I=t[59],I}var Iu,Lu,Ru,zu;function Bu(){return(Bu=e((()=>{Iu=Kt(),Ga(),Mt(),Lu=en(),lt(),_n(),ot(),k(),Ru=Zt(),zu=a({displayName:{id:`profile.nameInputLabel`,defaultMessage:`Display name`,description:`Accessible label for the editable profile display name`},bio:{id:`profile.bioInputLabel`,defaultMessage:`Bio`,description:`Label for the personal biography in the profile e",
+    "claim": "Profile编辑字段行最小72逻辑像素。",
+    "scope": "ChatGPT公开Profile与工作区Team设置；交付包静态实现，非运行实测，未执行账户修改或分享"
+  }
+]

@@ -1,0 +1,202 @@
+[
+  {
+    "id": "R201",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 306678,
+    "excerpt": "=m||t[3]!==d||t[4]!==p){let e;t[8]===d?e=t[9]:(e=e=>e===d,t[8]=d,t[9]=e),v=vr.find(e),_=`dashboard`,p===`members`&&m.can_manage_members?_=`members`:p===`insights`?_=`insights`:p===`products`&&(_=`products`),y=p===`members`&&!m.can_manage_members||p===``||p===`chats`||p.startsWith(`chats/`)||d!=null&&(v==null||!_r(r,v)||!h.editable_sections.includes(v)&&!(r.available_sections??r.fields.map(Il)).includes(v)),t[0]=h,t[1]=r,t[2]=m,t[3]=d,t[4]=p,t[5]=_,t[6]=v,t[7]=y}else _=t[5],v=t[6],y=t[7];if(y){let e;t[10]===m.business_profile_id?e=t[11]:(e=gr(m.business_profile_id),t[10]=m.business_pr",
+    "claim": "Business详情tabs按成员管理资格/商品门禁显示，无效编辑section重定向。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R202",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 309473,
+    "excerpt": "];let N;t[45]===o?N=t[46]:(N=o.formatMessage({id:`businessProfiles.navigationLabel`,defaultMessage:`Business navigation`,description:`Accessible label for dashboard, insights, members, and products tabs in the business manager`}),t[45]=o,t[46]=N);let P;t[47]!==_||t[48]!==A||t[49]!==M||t[50]!==N?(P=(0,zl.jsx)(an,{children:(0,zl.jsx)(Zt,{tabs:A,selectedKey:j,onSelect:M,variant:`filter`,scrollable:!0,ariaLabel:N})}),t[47]=_,t[48]=A,t[49]=M,t[50]=N,t[51]=P):P=t[51];let ee=P,F;if(_===`dashboard`){let e;t[52]===r?e=t[53]:(e=(0,zl.jsx)(pi,{manager:r}),t[52]=r,t[53]=e),F=e}else if(_===`membe",
+    "claim": "可滚动filter tabs，dashboard/insights/members/products真实子消费者。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R203",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 317427,
+    "excerpt": "s??k.capabilities,fields:k.fields.map(t=>e?.[t.field_key]?.field??t)},j&&(c==null||A instanceof Re&&[401,403,404,426].includes(A.status))){let e;t[55]===M?e=t[56]:(e=()=>void M(),t[55]=M,t[56]=e);let n;t[57]!==A||t[58]!==e?(n=(0,Xl.jsx)(qr,{error:A,onRetry:e}),t[57]=A,t[58]=e,t[59]=n):n=t[59];let r;t[60]!==a||t[61]!==n?(r=(0,Xl.jsxs)(Xl.Fragment,{children:[a,n]}),t[60]=a,t[61]=n,t[62]=r):r=t[62],F=r;break bb0}if(c==null){let e;t[63]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Xl.jsx)(Ll,{}),t[63]=e):e=t[63];let n;t[64]===a?n=t[65]:(n=(0,Xl.jsxs)(Xl.Fragment,{children:[a,e]}),t[64",
+    "claim": "管理页读失败对权限错误撤下缓存视图；普通刷新失败保留草稿。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R204",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 320030,
+    "excerpt": "or(`react.memo_cache_sentinel`)?(r=(0,Xl.jsx)(S,{id:`businessProfiles.refreshError`,defaultMessage:`Couldn’t refresh your profile. Your unsaved edits are still here`,description:`A temporary background refresh failed without discarding the business owner's local draft`}),i=(0,Xl.jsx)(S,{id:`businessProfiles.refreshRetry`,defaultMessage:`Try again`,description:`Retry refreshing the saved business profile without discarding local edits`}),t[0]=r,t[1]=i):(r=t[0],i=t[1]);let a;return t[2]===n?a=t[3]:(a=(0,Xl.jsx)(me,{role:`alert`,type:`warning`,density:`compact`,stackOnNarrow:!0,content:",
+    "claim": "背景刷新失败compact warning、Retry、窄屏堆叠。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R205",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 32839,
+    "excerpt": "n`,\"aria-label\":a.formatMessage({id:`businessProfiles.dashboard.dismissSuggestions`,defaultMessage:`Dismiss suggestions`,description:`Hide the suggested next actions for this visit to the business dashboard`}),onClick:()=>l(!0),children:(0,gi.jsx)(Ce,{})})}),(0,gi.jsx)(`div`,{className:`grid min-w-0 grid-cols-1 gap-3 @xl:grid-cols-3`,children:d.recommendations.map(e=>{let{section:t,state:n}=e,r=(0,gi.jsx)(Ne,{});return t===`hours`&&(r=(0,gi.jsx)(Oe,{})),(0,gi.jsx)(bn,{icon:(0,gi.jsx)(`span`,{children:r}),label:(0,gi.jsx)(S,{..._i[t]}),description:(0,gi.jsx)(S,{id:`businessProfiles.da",
+    "claim": "Dashboard推荐可在本次访问关闭；单列到三列。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R206",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 34467,
+    "excerpt": "n:(0,gi.jsx)(S,{id:`businessProfiles.dashboard.sectionCount`,defaultMessage:`{completed} of {total} sections complete`,description:`Number of applicable business profile information sections with information present and no latest failure; optional photos are excluded`,values:{completed:d.completed,total:d.total}})}):void 0;t[22]===x?f=t[23]:(f=(0,gi.jsx)(`div`,{className:`p-6 select-none`,children:(0,gi.jsx)(Kt.Header,{className:`flex-col @xl:flex-row`,title:b,subtitle:g,actions:x})}),t[22]=x,t[23]=f);let C;t[24]===p?C=t[25]:(C=e=>{let{section:t,state:n,failedFields:r,canEdit:i}=e,a=",
+    "claim": "Checklist是适用资料段完整性，非评分或核验已完成。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R207",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 122306,
+    "excerpt": "W=t[78];let G;t[79]!==a||t[80]!==ce||t[81]!==W?(G=(0,so.jsxs)(`div`,{className:`mx-auto flex w-full max-w-lg flex-col gap-6 px-6 py-8 @5xl/business-editor:px-0 @5xl/business-editor:py-16`,children:[ce,W,a]}),t[79]=a,t[80]=ce,t[81]=W,t[82]=G):G=t[82];let le;t[83]!==oe||t[84]!==G?(le=(0,so.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-col overflow-y-auto`,children:[oe,G]}),t[83]=oe,t[84]=G,t[85]=le):le=t[85];let K;t[86]===o?K=t[87]:(K=o.formatMessage(uo.preview),t[86]=o,t[87]=K);let ue;t[88]!==r||t[89]!==h||t[90]!==i?(ue=h?(0,so.jsx)(Qa,{manager:r,section:i}):null,t[88]=r,t[89]=h,t[",
+    "claim": "编辑主列最大lg、gap24、px24py32，宽容器py64。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R208",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 122916,
+    "excerpt": "[91];let pe;t[92]!==K||t[93]!==ue?(pe=(0,so.jsx)(`aside`,{ref:m,className:`my-4 me-4 hidden min-h-0 w-105 shrink-0 overflow-y-auto rounded-3xl border border-default bg-surface shadow-sm @5xl/business-editor:block`,\"aria-label\":K,children:ue}),t[92]=K,t[93]=ue,t[94]=pe):pe=t[94];let me;return t[95]!==le||t[96]!==pe?(me=(0,so.jsxs)(`div`,{className:`@container/business-editor flex h-full min-h-0 flex-1 overflow-hidden`,children:[le,pe]}),t[95]=le,t[96]=pe,t[97]=me):me=t[97],me}function ro(e){return{key:e,name:(0,so.jsx)(S,{...uo[e]})}}function io(e){return e.section}var ao,oo,so,co,lo,",
+    "claim": "编辑右侧420px预览，3xl圆角、边框、阴影，窄屏改viewport对话框。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R209",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 126386,
+    "excerpt": "===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,xo.jsx)(S,{id:`businessProfiles.about.button.save`,defaultMessage:`Save changes`,description:`Shared primary button beneath Category and Business note in the Business Profile About editor. Submits the owner's unsaved edits in this tab; individual changes may still need review before publication. Short button label.`}),t[16]=e):e=t[16],b=e}let x;t[17]!==y||t[18]!==_||t[19]!==l.discardLocal||t[20]!==l.submit||t[21]!==r||t[22]!==b?(x=r?(0,xo.jsxs)(`div`,{className:`flex flex-col items-stretch gap-3 select-none sm:flex-row sm:items-center ",
+    "claim": "编辑保存/重试/忙碌文案与脏字段、校验门禁。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R210",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 313847,
+    "excerpt": "xt-secondary`,children:(0,zl.jsx)(S,{id:`businessProfiles.insights.loadModuleError`,defaultMessage:`Couldn’t load insights. Reload the page to try again.`,description:`Recovery instruction when loading the business insights page code fails`})})}),Hl=i({dashboard:{id:`businessProfiles.dashboard`,defaultMessage:`Dashboard`,description:`Business manager dashboard tab`},members:{id:`businessProfiles.members.title`,defaultMessage:`Members`,description:`Business manager Members tab and member list accessible name`},insights:{id:`businessProfiles.insights`,defaultMessage:`Insights`,descript",
+    "claim": "Insights代码加载失败独立alert，恢复为重载页面。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R211",
+    "path": "webview/assets/page-cb284d78f87b.js",
+    "offset": 19504,
+    "excerpt": "ragment,{children:[(0,Q.jsx)(T,{variant:`outlined`,dividers:!1,children:(0,Q.jsx)(`div`,{className:`grid grid-cols-1 divide-y divide-border-subtle sm:grid-cols-3 sm:divide-x sm:divide-y-0`,children:Y.map(e=>(0,Q.jsx)(n,{color:`ghostActive`,size:`inline`,focusRing:`inset`,allowShrink:!0,\"aria-pressed\":v===e,\"aria-controls\":m,onClick:()=>y(e),children:(0,Q.jsxs)(`span`,{className:`flex w-full min-w-0 flex-col gap-2 p-6 text-start`,children:[(0,Q.jsx)(`span`,{className:`text-sm text-secondary select-none`,children:(0,Q.jsx)(l,{...$[e]})}),(0,Q.jsx)(`span`,{className:`text-2xl font-semib",
+    "claim": "Insights三统计响应布局，24px padding、24px半粗数字、图表。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R212",
+    "path": "webview/assets/page-cb284d78f87b.js",
+    "offset": 21822,
+    "excerpt": " bookings. Explains UTC reporting dates and gaps for missing data.`})}),(0,Q.jsx)(`div`,{className:`h-64 w-full sm:h-72`,children:(0,Q.jsx)(be,{width:`100%`,height:`100%`,minWidth:1,minHeight:1,children:(0,Q.jsxs)(Ut,{accessibilityLayer:!0,data:[...r],margin:{top:32,right:0,left:0,bottom:0},children:[(0,Q.jsx)(`defs`,{children:(0,Q.jsxs)(`linearGradient`,{id:_,x1:`0`,x2:`0`,y1:`0`,y2:`1`,children:[(0,Q.jsx)(`stop`,{offset:`0`,stopColor:`var(--color-blue)`,stopOpacity:.2}),(0,Q.jsx)(`stop`,{offset:`1`,stopColor:`var(--color-blue)`,stopOpacity:0})]})}),(0,Q.jsx)(at,{stroke:`var(--color",
+    "claim": "Insights图高256/288px、UTC解释及缺日断点。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R213",
+    "path": "webview/assets/page-cb284d78f87b.js",
+    "offset": 31099,
+    "excerpt": "sight data request is in progress`},partial:{id:`businessProfiles.insights.partial`,defaultMessage:`Some data is still unavailable. Incomplete totals are hidden, and missing days appear as gaps.`,description:`Reporting coverage is incomplete for some dates or metrics`},unavailable:{id:`businessProfiles.insights.unavailable`,defaultMessage:`Data isn’t available for these dates yet`,description:`No reporting data is available; this does not mean zero activity`},unsupported:{id:`businessProfiles.insights.unsupported`,defaultMessage:`Insights aren’t available for this business yet`,descr",
+    "claim": "Insights partial/unavailable/unsupported/forbidden/error语义不同，缺失不是0。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R214",
+    "path": "webview/assets/page-cb284d78f87b.js",
+    "offset": 33106,
+    "excerpt": "t});if(i.business_profile_id!==n||i.start_date!==e.start_date||i.end_date!==e.end_date)throw Error(`Insights response does not match the requested business and dates`);return i},a=await i(s),o=zn(s,a.metadata.available_end_date_exclusive);return o==null?a:i(o)},t[7]=r,t[8]=n,t[9]=s,t[10]=u):u=t[10];let d;t[11]!==c||t[12]!==l||t[13]!==u?(d={queryKey:c,enabled:l,queryFn:u,retry:!1,refetchOnMount:`always`,staleTime:0,gcTime:0},t[11]=c,t[12]=l,t[13]=u,t[14]=d):d=t[14];let{data:f,error:p,isError:m,isFetching:h,isFetchedAfterMount:g,refetch:v}=_(d),y=f==null||!g&&h,b,S,C,w;if(t[15]!==f||t[",
+    "claim": "Insights核对business和日期匹配；默认28天、无自动重试。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R215",
+    "path": "webview/assets/members-d1fed4031103.js",
+    "offset": 1833,
+    "excerpt": ",n[14]=E):E=n[14];let D;n[15]!==b||n[16]!==E?(D={queryKey:b,queryFn:E,retry:!1,staleTime:0,gcTime:0,refetchOnMount:`always`},n[15]=b,n[16]=E,n[17]=D):D=n[17];let{data:O,error:k,refetch:A,isFetchedAfterMount:ve}=ie(D),j;n[18]!==S||n[19]!==s?(j=async e=>{e.type===`add`?await T.safePost(`/chat/frontend/v1/business-profiles/{business_profile_id}/members`,{additionalHeaders:S,parameters:{path:{business_profile_id:s}},requestBody:{email:e.email,expected_profile_revision:e.revision},expectedErrorStatuses:[401,403,404,409,422]}):await T.safePost(`/chat/frontend/v1/business-profiles/{business",
+    "claim": "成员列表每次挂载重新确认资格，query零stale/gc、不自动重试。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R216",
+    "path": "webview/assets/members-d1fed4031103.js",
+    "offset": 6256,
+    "excerpt": "42],q=n[43]);let J;n[44]!==W||n[45]!==G?(J=(0,P.jsxs)(`button`,{type:`button`,disabled:W,className:`hover:bg-surface-hover focus-visible:outline-primary-outline flex w-full cursor-interaction items-center gap-4 border-b border-default p-4 text-start disabled:opacity-50`,onClick:G,children:[K,q]}),n[44]=W,n[45]=G,n[46]=J):J=n[46];let Y;n[47]===O.can_add?Y=n[48]:(Y=!O.can_add&&(0,P.jsx)(`p`,{className:`px-4 py-2 text-sm text-secondary`,children:(0,P.jsx)(o,{id:`businessProfiles.members.limitReached`,defaultMessage:`This business has reached its member limit`,description:`Notice on the ",
+    "claim": "成员列表16px内距、40px头像、语义hover/focus/disabled。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R217",
+    "path": "webview/assets/members-d1fed4031103.js",
+    "offset": 9546,
+    "excerpt": "econdary`,children:(0,P.jsx)(o,{id:`businessProfiles.members.addAccountExplanation`,defaultMessage:`Members can edit the business, manage members, and access products and insights. If this business is owned from a work workspace, they must belong to it. Otherwise, they’ll use their own personal account.`,description:`Instructional body text shown to a business owner or admin after selecting Add member in the Business Profile Members tab. The entered email must belong to an existing ChatGPT user. Eligibility follows the verified owner's account, including when an admin adds someone: t",
+    "claim": "Add member立即授权说明，受verified owner账户/workspace资格约束。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R218",
+    "path": "webview/assets/members-d1fed4031103.js",
+    "offset": 10643,
+    "excerpt": "}),(0,P.jsx)(he,{id:p,name:`memberEmail`,type:`email`,autoComplete:`email`,autoFocus:!0,required:!0,maxLength:254,value:_,disabled:L.isPending,onChange:e=>v(e.target.value)})]})]}):(0,P.jsx)(`p`,{className:`text-sm text-secondary`,children:(0,P.jsx)(o,{id:`businessProfiles.members.removeExplanation`,defaultMessage:`{hasName, select, true {{name}} other {This member}} will lose access to this business immediately. Saved business details will remain`,description:`Body of the Business Profile Members confirmation dialog shown to an owner or admin removing an admin, including themselves ",
+    "claim": "成员email表单原生email required autofocus max254；pending禁用。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R219",
+    "path": "webview/assets/members-d1fed4031103.js",
+    "offset": 2499,
+    "excerpt": "th:{business_profile_id:s,member_id:e.member.id}},requestBody:{expected_profile_revision:e.revision,expected_membership_revision:e.member.membership_revision},expectedErrorStatuses:[401,403,404,409,422]})},n[18]=S,n[19]=s,n[20]=j):j=n[20];let I;n[21]!==r||n[22]!==w||n[23]!==d||n[24]!==b?(I=async(e,t)=>{if(g(null),v(``),t.type===`remove`&&t.member.is_current_user){await w();return}await d.invalidateQueries({queryKey:b}),await d.invalidateQueries({queryKey:[`business-profiles`,r,`list`]})},n[21]=r,n[22]=w,n[23]=d,n[24]=b,n[25]=I):I=n[25];let L=ee({mutationFn:j,onSuccess:I,onError:async",
+    "claim": "成员写入带profile与membership版本，409/404刷新、401/403退出权限上下文。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R220",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 300153,
+    "excerpt": "{role:`status`,children:(0,Ml.jsx)(S,{id:`businessProfiles.verification.superseded`,defaultMessage:`This verification is no longer needed because you saved a newer change`,description:`An older business edit verification must not proceed after the same field is edited again`})}),t[83]=e):e=t[83],G=e}else if(ae){let e;t[84]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Ml.jsx)(it,{}),t[84]=e):e=t[84],G=e}else if(b!=null&&!ni(b)&&O?.latest_failure?.verification_unavailable){let e;t[85]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Ml.jsx)(`p`,{role:`status`,children:(0,Ml.jsx)(S,{i",
+    "claim": "核验过期/新变更替代与暂时不可操作为独立status。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R221",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 297609,
+    "excerpt": "atus`,children:(0,Ml.jsx)(S,{id:`businessProfiles.verification.pendingReviewStatus`,defaultMessage:`Verification may take some time. Check the status again or return later`,description:`Neutral status on the business profile edit verification page while Persona is reviewing the owner's identity. The verification remains pending. The owner can use Check status or revisit later; this does not promise a completion time or a notification.`})}),ne==null?null:(0,Ml.jsx)(`p`,{role:`alert`,children:(0,Ml.jsx)(S,{id:`businessProfiles.verification.checkStatusError`,defaultMessage:`Couldn’t che",
+    "claim": "Persona pending review保留进度，提供Check status；不承诺时间。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R222",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 290065,
+    "excerpt": "i?(h=(0,$.jsx)(Gt,{id:u,variant:`code`,type:`text`,inputMode:`numeric`,autoComplete:`one-time-code`,pattern:`[0-9]{6}`,maxLength:6,required:!0,value:c,disabled:r,\"aria-invalid\":i,onChange:m}),t[8]=c,t[9]=u,t[10]=r,t[11]=i,t[12]=h):h=t[12];let g;t[13]!==c||t[14]!==r?(g=r||!/^[0-9]{6}$/.test(c),t[13]=c,t[14]=r,t[15]=g):g=t[15];let _;t[16]===a?_=t[17]:(_=a?(0,$.jsx)(S,{id:`businessProfiles.verification.verifyingCode`,defaultMessage:`Verifying…`,description:`Short progress button label on the business profile verification page after the owner submits their phone or email code. The submit",
+    "claim": "验证码6位numeric/one-time-code、校验与提交loading。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R223",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 261169,
+    "excerpt": ",hl.jsx)(xe,{children:(0,hl.jsx)(S,{id:`businessProfiles.verification.cancel.title`,defaultMessage:`Cancel verification?`,description:`Title of the confirmation dialog opened from the business profile edit verification page. Asks the business owner whether to discard the pending change associated with this verification. Short question.`})}),subtitle:(0,hl.jsx)(S,{id:`businessProfiles.verification.cancel.description`,defaultMessage:`This will discard your pending change. You can edit your business profile again later.`,description:`Body of the cancellation confirmation on the business",
+    "claim": "取消核验确认只丢弃pending变更，失败仍开；取消竞态识别已发布。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R224",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 286011,
+    "excerpt": "{children:(0,$.jsx)(S,{id:`businessProfiles.verification.dnsHostHelpBusinessDomain`,defaultMessage:`Your provider may automatically add {domain} to the end of the name`,description:`Help tooltip beside Name or host on the business profile website verification screen. Explains to the business owner that their DNS provider may append the domain automatically. {domain} is the current business domain with a leading dot, such as .example.com, shown as literal DNS text. The shortened record name appears below; do not translate the domain.`,values:{domain:`.${v}`}})}),(0,$.jsxs)(`div`,{clas",
+    "claim": "DNS核验name/host帮助和复制值，短信/电话发送方式与错误分支。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  },
+  {
+    "id": "R225",
+    "path": "webview/assets/manager-ad0ebea44d2f.js",
+    "offset": 255443,
+    "excerpt": "ileId:r,manager:i}=e,[a,o]=te(),s=Je(),c;t[0]===a?c=t[1]:(c=a.get(`feed`),t[0]=a,t[1]=c);let l=c;if(a.get(`add`)===`1`){let e;t[2]!==n||t[3]!==r||t[4]!==s?(e=()=>{s.invalidateQueries({queryKey:[`business-profiles`,n,r]})},t[2]=n,t[3]=r,t[4]=s,t[5]=e):e=t[5];let a;t[6]!==n||t[7]!==r||t[8]!==s||t[9]!==o?(a=()=>{s.invalidateQueries({queryKey:[`business-profiles`,n,r]}),o({})},t[6]=n,t[7]=r,t[8]=s,t[9]=o,t[10]=a):a=t[10];let c;return t[11]!==n||t[12]!==l||t[13]!==i||t[14]!==e||t[15]!==a?(c=(0,ll.jsx)(ul,{accountId:n,manager:i,feedId:l,onCreated:e,onExit:a}),t[11]=n,t[12]=l,t[13]=i,t[14]=",
+    "claim": "Products子流以feed/add参数切换懒加载创建与feed详情，不等同入口聚合列表。",
+    "scope": "Business Profiles真实manager消费者；只静态分析关键页面状态，不触发任何账户写操作或核验"
+  }
+]

@@ -9,6 +9,17 @@ import { PROVIDER_APIS } from './provider-constants'
 import { providerApi } from './provider-api'
 import type { ConfigData, ProviderConfig } from './config-types'
 export type ProviderConnectionDraft = { name: string; api: string; baseUrl: string; apiKey: string }
+export function isProviderConnectionDirty(
+  provider: ProviderConfig,
+  draft: ProviderConnectionDraft,
+) {
+  return (
+    draft.name !== provider.name ||
+    draft.api !== provider.api ||
+    draft.baseUrl !== (provider.baseUrl || '') ||
+    Boolean(draft.apiKey)
+  )
+}
 export function ProviderConnectionEditor({
   provider,
   onSave,
@@ -25,11 +36,7 @@ export function ProviderConnectionEditor({
   const { t } = useI18n()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const dirty =
-    draft.name !== provider.name ||
-    draft.api !== provider.api ||
-    draft.baseUrl !== (provider.baseUrl || '') ||
-    Boolean(draft.apiKey)
+  const dirty = isProviderConnectionDirty(provider, draft)
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (saving) return

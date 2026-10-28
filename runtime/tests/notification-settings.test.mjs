@@ -268,3 +268,84 @@ test('channel notification failures are reported after other targets are attempt
   )
   assert.equal((await service.getBrowserEvents('missing')).events.length, 1)
 })
+
+test('browser automatic delivery respects the event channel preference while explicit testing remains available', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-notification-subscriptions-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'pisper.json')
+  await writeFile(path, JSON.stringify({ notifications: { browser: { enabled: true } } }))
+  const service = new NotificationSettingsService({
+    path,
+    browserEventsPath: join(directory, 'events.json'),
+    channels: {
+      getState: () => ({
+        templates: [
+          {
+            id: 'chat.completed',
+            enabled: true,
+            channels: { browser: { enabled: false, content: 'done' } },
+          },
+        ],
+      }),
+      notify: async () => [],
+      renderNotification: () => ({ title: 'Completed', content: 'done' }),
+    },
+  })
+  await service.notify('chat.completed', {}, { platforms: ['browser'] })
+  assert.equal((await service.getBrowserEvents('missing')).events.length, 0)
+  assert.equal((await service.testBrowserTemplate('chat.completed')).sent, 1)
+})
+
+for (const event of ['chat.completed', 'chat.waiting']) {
+  test(`TUI ${event} honors event and browser-channel preferences`, async () => {
+    const route = configSettingsRoutes.find((item) =>
+      item.path.endsWith('/' + event.replace('.', '-')),
+    )
+    for (const template of [
+      { enabled: false },
+      { enabled: true, channels: { browser: { enabled: false } } },
+    ]) {
+      let response
+      await route.handler({
+        runtime: {
+          getNotificationSettings: async () => ({
+            browser: { enabled: true },
+            templates: [{ id: event, ...template }],
+          }),
+          notifyChannels: async () => [],
+        },
+        body: async () => ({}),
+        json: (_status, value) => {
+          response = value
+        },
+      })
+      assert.equal(response.systemNotificationEnabled, false)
+    }
+  })
+}
+
+test('template route rejects non-boolean channelEnabled before calling the service', async () => {
+  const route = configSettingsRoutes.find(
+    (item) => item.method === 'PUT' && item.path.includes('/notifications/templates/'),
+  )
+  for (const channelEnabled of ['false', null, 1, {}]) {
+    let response
+    let writes = 0
+    await route.handler({
+      runtime: {
+        saveNotificationTemplate: async () => {
+          writes++
+          return {}
+        },
+      },
+      params: { templateId: 'chat.completed', channel: 'browser' },
+      body: async () => ({ channelEnabled }),
+      json: (status, value) => {
+        response = { status, value }
+      },
+    })
+    assert.equal(writes, 0)
+    assert.equal(response.status, 400)
+    assert.equal(response.value.code, 'INVALID_NOTIFICATION_CHANNEL_ENABLED')
+  }
+})

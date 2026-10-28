@@ -31,6 +31,58 @@ async function within(promise, label, ms = 30000) {
 async function verifyUnifiedModelPicker(page) {
   const panel = page.locator('.model-effort-popover')
   const picker = panel.getByRole('combobox', { name: '当前会话模型' })
+  const closePicker = async (trigger) => {
+    await page.evaluate(() => {
+      window.__pickerEscapeEvents = []
+      const capture = (event) => {
+        if (event.key !== 'Escape') return
+        const state = {
+          targetRole: event.target?.getAttribute?.('role'),
+          targetSlot: event.target?.getAttribute?.('data-slot'),
+          preventedAtCapture: event.defaultPrevented,
+          layersAtCapture: window.__pisperLayerDump?.(),
+        }
+        window.__pickerEscapeEvents.push(state)
+        queueMicrotask(() => {
+          state.preventedAfterDispatch = event.defaultPrevented
+        })
+      }
+      document.addEventListener('keydown', capture, { capture: true, once: true })
+    })
+    await page.keyboard.press('Escape')
+    try {
+      await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => ({
+        events: window.__pickerEscapeEvents,
+        layersAfterWait: window.__pisperLayerDump?.(),
+        activeElement: document.activeElement?.outerHTML,
+        overlays: Array.from(
+          document.querySelectorAll(
+            '[data-slot="dialog-content"],[data-slot="popover-content"],[role="listbox"],[role="menu"]',
+          ),
+        ).map((element) => ({
+          slot: element.getAttribute('data-slot'),
+          role: element.getAttribute('role'),
+          state: element.getAttribute('data-state'),
+          html: element.outerHTML,
+        })),
+      }))
+      await page.keyboard.press('Escape')
+      diagnostic.retryAfterFailureClosed = await page
+        .getByRole('listbox')
+        .waitFor({ state: 'hidden', timeout: 1000 })
+        .then(
+          () => true,
+          () => false,
+        )
+      await writeFile(
+        join(output, 'model-picker-escape-diagnostic.json'),
+        JSON.stringify({ trigger, ...diagnostic }, null, 2),
+      )
+      throw error
+    }
+  }
   assert.equal(await panel.getByRole('combobox').count(), 1)
   assert.equal(await picker.isEnabled(), true)
   const bounds = await picker.boundingBox()
@@ -38,14 +90,12 @@ async function verifyUnifiedModelPicker(page) {
   for (const fraction of [0.25, 0.5, 0.75]) {
     await picker.click({ position: { x: bounds.width / 2, y: bounds.height * fraction } })
     await page.getByRole('listbox').waitFor()
-    await page.keyboard.press('Escape')
-    await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    await closePicker(`pointer-${fraction}`)
     assert.equal(await picker.evaluate((el) => el === document.activeElement), true)
   }
   await picker.press('Enter')
   await page.getByRole('listbox').waitFor()
-  await page.keyboard.press('Escape')
-  await page.getByRole('listbox').waitFor({ state: 'hidden' })
+  await closePicker('keyboard')
   await picker.press('Tab')
   assert.equal(
     await page
@@ -265,6 +315,19 @@ try {
   })
   page = await context.newPage()
   await page.clock.install()
+  if (process.env.PISPER_UI_DEBUG_LAYERS === '1') {
+    // 只在隔离故障诊断中暴露依赖自己的层栈，不改变注册/事件时序或产品文件。
+    await page.route('**/assets/*.js', async (route) => {
+      const response = await route.fetch()
+      let body = await response.text()
+      const match = body.match(
+        /(\w+)=\w+\.createContext\(\{layers:new Set,layersWithOutsidePointerEventsDisabled:new Set,branches:new Set,dismissableSurfaces:new Set\}\)/,
+      )
+      if (match)
+        body += `\nglobalThis.__pisperLayerDump = () => [...${match[1]}._currentValue.layers].map(element => ({role:element.getAttribute('role'),slot:element.getAttribute('data-slot'),state:element.getAttribute('data-state'),connected:element.isConnected}));`
+      await route.fulfill({ response, body })
+    })
+  }
   page.on('pageerror', (e) => report.pageErrors.push(e.message))
   page.on('response', (r) => {
     if (r.url().includes('/api/') && r.status() >= 400)
@@ -388,7 +451,12 @@ try {
     .locator('[data-provider-connection-editor] input')
     .first()
     .evaluate((el) => getComputedStyle(el).fontSize)
-  assert.equal(formFont, '14px')
+  // UI 表单辅助字号按已冻结的 sm 角色为13px；根rem仍保持16px。
+  assert.equal(formFont, '13px')
+  assert.equal(
+    await page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+    '16px',
+  )
   await page.screenshot({ path: join(output, 'model-settings-refined.png') })
   await within(catalogReady.promise, 'catalog refresh captures old configuration')
   const configForm = page.locator('[data-provider-connection-editor]')

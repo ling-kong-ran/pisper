@@ -1,7 +1,23 @@
-// 手机视口使用抽屉式导航；窄桌面窗口仍保留可折叠的图标侧栏。
+// 手机内容布局与侧栏响应式布局分别判断，避免收起侧栏时误切手机业务呈现。
 import * as React from 'react'
 
 const PHONE_BREAKPOINT = 651
+
+export function useIsCompactSidebarViewport() {
+  const [compact, setCompact] = React.useState(
+    () => window.matchMedia('(max-width: 767px)').matches,
+  )
+
+  React.useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    const update = () => setCompact(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  return compact
+}
 
 // 通用 Sidebar 和浮动组件共用手机视口边界；原生移动 App 由调用方补充判断。
 export function useIsMobile() {

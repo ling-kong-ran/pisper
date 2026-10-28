@@ -52,11 +52,12 @@
     "test:startup": "node scripts/check-sidecar-startup.mjs",
     "preview": "node runtime/index.mjs --production",
     "start": "node runtime/index.mjs --production",
-    "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui && npm run test:mobile:ui",
+    "test:ui": "node scripts/smoke-pisper-ui.mjs && npm run test:workflows:ui && npm run test:mobile:ui && npm run test:replica:ui",
     "test:mobile:ui": "node scripts/smoke-mobile-shell.mjs",
     "test:game-workbench:ui": "node scripts/smoke-game-asset-workbench.mjs",
     "test:workflows:ui": "node scripts/smoke-workflows-ui.mjs",
-    "test:workbench": "node scripts/smoke-frontend-workbench.mjs"
+    "test:workbench": "node scripts/smoke-frontend-workbench.mjs",
+    "test:replica:ui": "node scripts/smoke-replica-controls.mjs && node scripts/smoke-replica-shell.mjs && node scripts/smoke-replica-chat.mjs && node scripts/smoke-replica-settings.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^1.4.0",

@@ -1,0 +1,762 @@
+[
+  {
+    "id": "R001",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 12987517,
+    "excerpt": "$Pu=Y(U,({get:e})=>{let t=e(jg);if(t.status!==`allowed`)return{status:t.status};let n=e(Ov),r=e(Ng);if(r==null||n==null||n!==e(Mg))return{status:`denied`};let i=e(Ig);return i.status===`unavailable`?{status:`error`,userId:r,accountId:n}:i.status===`loading`?{status:`loading`}:i.structure===`personal`?{status:`allowed`,userId:r,accountId:n}:{status:`denied`}})})))()}function tFu(e){let t=(0,rFu.c)(3),n=hi(U),r,i;return t[0]===n?(r=t[1],i=t[2]):(r=()=>nFu(n),i=[n],t[0]=n,t[1]=r,t[2]=i),(0,iFu.useEffect)(r,i),null}function nFu(e){return e.watch(({get:t})=>{let n=t($Pu),r=t(Ng)",
+    "claim": "Family资格派生：账户必须为当前认证个人结构；allowed/loading/error/denied分支。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R002",
+    "path": "webview/assets/queries-d81d00ddba46.js",
+    "offset": 642,
+    "excerpt": "queryKey:[...i,`current`],queryFn:e=>v(l.safeGet(`/amphora`,{additionalHeaders:o,signal:e.signal}),e,i),staleTime:n.ONE_MINUTE,retry:!1},notifications:e=>({queryKey:e==null?a:[...a,e],queryFn:async({signal:t,client:n,queryKey:r})=>{let i=n.getQueryData(r),a=await l.safeGet(`/amphora/notifications`,{additionalHeaders:o,parameters:{query:{limit:20,cursor:e}},signal:t}),s=n.getQueryData(r);return{...a,items:[...a.items.map(e=>{let t=s?.items.find(({id:t})=>t===e.id);return t==null?e:{...e,seen_at:e.seen_at??t.seen_at,reacted_to_at:e.reacted_to_at??t.reacted_to_at}}),...s?.item",
+    "claim": "Family current查询按用户与账户分区，staleTime一分钟、retry false；通知分页20条。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R003",
+    "path": "webview/assets/queries-d81d00ddba46.js",
+    "offset": 1346,
+    "excerpt": "layout:{queryKey:[...i,`layout`,r],queryFn:({signal:e})=>l.safeGet(`/amphora/settings_layout`,{additionalHeaders:{...o,[u]:r},signal:e}),staleTime:n.ONE_MINUTE,retry:!1},settings:(e,t)=>({queryKey:[...i,e,t,`settings`],queryFn:({signal:n})=>l.safeGet(`/amphora/{amphora_id}/members/{user_id}/settings`,{additionalHeaders:o,parameters:{path:{amphora_id:encodeURIComponent(e),user_id:encodeURIComponent(t)}},signal:n}),staleTime:n.ONE_MINUTE,retry:!1}),members:e=>({queryKey:[...i,e,`members`],queryFn:t=>v(l.safeGet(`/amphora/{amphora_id}/members`,{additionalHeaders:o,parameters:{",
+    "claim": "Family布局从/settings_layout按locale读取，成员设置与成员列表独立查询。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R004",
+    "path": "webview/assets/queries-d81d00ddba46.js",
+    "offset": 2027,
+    "excerpt": "async function v(e,{client:t,queryKey:n,signal:i},a,o){try{return await e}catch(e){if(!i.aborted&&e instanceof r&&[401,403,404].includes(e.status)){let r=e.status===404&&o!=null&&t.getQueryData([...a,`current`])?.id!==o?[...a,o]:a,i=t.getQueryCache().find({queryKey:n,exact:!0});t.cancelQueries({queryKey:r,predicate:e=>e!==i});for(let e of t.getQueryCache().findAll({queryKey:r}))e.setState({data:void 0,dataUpdatedAt:0})}throw e}}function y(){return(y=e((()=>{d(),t(),m(),i()})))()}export{h as i,_ as n,g as r,y as t};\n//# sourceMappingURL=queries-d81d00ddba46.js.map",
+    "claim": "401/403/404清理对应Family缓存数据，不把失去权限前旧内容保留为可写。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R005",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 10520,
+    "excerpt": "function Le(e){let t=(0,Q.c)(17),{userId:n,accountId:r}=e,i;t[0]!==r||t[1]!==n?(i=de(n,r),t[0]=r,t[1]=n,t[2]=i):i=t[2];let{data:a,isPending:o,isError:s,refetch:c}=y(i.current);if(o){let e;return t[3]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(We,{}),t[3]=e):e=t[3],e}if(a==null){let e;return t[4]===c?e=t[5]:(e=(0,$.jsx)(J,{onRetry:()=>void c()}),t[4]=c,t[5]=e),e}let l;t[6]!==s||t[7]!==c?(l=s&&(0,$.jsx)(J,{isRefresh:!0,onRetry:()=>void c()}),t[6]=s,t[7]=c,t[8]=l):l=t[8];let u;t[9]!==r||t[10]!==a.id||t[11]!==a.role||t[12]!==n?(u=a.id==null?(0,$.jsx)(Re,{userId:n,ac",
+    "claim": "current初始加载与无数据错误，已有缓存刷新失败可保留主内容并叠加错误。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R006",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 12116,
+    "excerpt": "15]:(e=(0,$.jsx)(J,{onRetry:v}),t[14]=v,t[15]=e),e}let b;if(t[16]!==m.items||t[17]!==l){let e;t[19]===l?e=t[20]:(e=e=>e.notification_type===`family-invite`&&!e.reacted_to_at&&(e.payload==null||!(`family_group_id`in e.payload)||!l.includes(e.payload.family_group_id)),t[19]=l,t[20]=e),b=m.items.find(e),t[16]=m.items,t[17]=l,t[18]=b}else b=t[18];let x=b;if(x==null){if(m.cursor!=null){let e;return t[21]!==i||t[22]!==m.cursor||t[23]!==l||t[24]!==n?(e=(0,$.jsx)(Re,{userId:n,accountId:i,cursor:m.cursor,unavailableFamilyIds:l}),t[21]=i,t[22]=m.cursor,t[23]=l,t[24]=n,t[25]=e):e=t[25",
+    "claim": "无家庭时逐页查未处理邀请；过滤已知不可用family ID。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R007",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 13965,
+    "excerpt": ");if(f==null&&_){let e;return t[10]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(We,{}),t[10]=e):e=t[10],e}if(f==null&&v){let e;return t[11]!==b||t[12]!==l||t[13]!==s?(e=b instanceof C&&b.status===404?l:(0,$.jsx)(J,{onRetry:s}),t[11]=b,t[12]=l,t[13]=s,t[14]=e):e=t[14],e}let x;return t[15]!==i||t[16]!==a||t[17]!==n?(x=(0,$.jsx)(Ve,{userId:n,accountId:i,incomingInvite:a}),t[15]=i,t[16]=a,t[17]=n,t[18]=x):x=t[18],x}function Be(e){let t=(0,Q.c)(19),{userId:n,accountId:r,amphoraId:i,role:a}=e,o;t[0]!==r||t[1]!==i||t[2]!==n?(o=de(n,r).members(i),t[0]=r,t[1]=i,t[2]=n,t[3",
+    "claim": "邀请所属家庭404跳到下一候选，其他失败显示Retry。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R008",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 16330,
+    "excerpt": "21]=r):r=a[21],r}if(d!=null&&m!=null&&C.has(`member`)&&!m.some(e=>e.status!==`invited`&&e.user_id===C.get(`member`))){let e;a[22]===N?e=a[23]:(e=(0,$.jsx)(be,{onClick:N}),a[22]=N,a[23]=e);let t;a[24]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,$.jsx)(A,{label:(0,$.jsx)(s,{id:`settings.chatGpt.parentalControls.memberUnavailable`,defaultMessage:`This family member is no longer available`,description:`Shown after opening a family member link when the person is not an accepted member of the signed-in user's current parental-control family`}),control:null}),a[24]=t):t=a[24];",
+    "claim": "URL member失效单独不可用分支，不误展示其他成员。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R009",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 16833,
+    "excerpt": "in user's current parental-control family`}),control:null}),a[24]=t):t=a[24];let n;return a[25]===e?n=a[26]:(n=(0,$.jsx)(ie,{backSlot:e,children:t}),a[25]=e,a[26]=n),n}if(d&&j){if(j.status===`invited`){let e=j.email??j.account_identifier,t;return a[27]!==O||a[28]!==d||a[29]!==N||a[30]!==j||a[31]!==e?(t=(0,$.jsx)(se,{account:O,amphoraId:d,member:j,onBack:N},e),a[27]=O,a[28]=d,a[29]=N,a[30]=j,a[31]=e,a[32]=t):t=a[32],t}if(j.role!==`owner`&&(P||j.user_id===o)){let e;return a[33]!==O||a[34]!==d||a[35]!==N||a[36]!==j?(e=(0,$.jsx)(ge,{account:O,amphoraId:d,member:j,onBack:N},j.us",
+    "claim": "受邀成员详情与accepted成员详情使用不同组件、身份键。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R010",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 17159,
+    "excerpt": "O,amphoraId:d,member:j,onBack:N},e),a[27]=O,a[28]=d,a[29]=N,a[30]=j,a[31]=e,a[32]=t):t=a[32],t}if(j.role!==`owner`&&(P||j.user_id===o)){let e;return a[33]!==O||a[34]!==d||a[35]!==N||a[36]!==j?(e=(0,$.jsx)(ge,{account:O,amphoraId:d,member:j,onBack:N},j.user_id),a[33]=O,a[34]=d,a[35]=N,a[36]=j,a[37]=e):e=a[37],e}let e;a[38]===N?e=a[39]:(e=(0,$.jsx)(be,{onClick:N}),a[38]=N,a[39]=e);let t;a[40]===j?t=a[41]:(t=(0,$.jsx)(_e,{member:j}),a[40]=j,a[41]=t);let n;a[42]!==O||a[43]!==d||a[44]!==N||a[45]!==F||a[46]!==P||a[47]!==j?(n=!(F&&j.role!==`owner`)&&(0,$.jsx)(Se,{account:O,amphora",
+    "claim": "owner可配置非owner成员；成员只能查看自身配置。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R011",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 18671,
+    "excerpt": "jsx)(`p`,{className:`text-sm select-none`,children:(0,$.jsx)(s,{id:`settingsModal.inviteAmphoraMembersParagraph3`,defaultMessage:`Parents and teens can link accounts, giving parents tools to adjust certain features, set limits, and add safeguards that work for their family. <link>Learn more</link>`,description:`Intro paragraph on Parental controls. The link opens the parental controls Help Center article.`,values:{link:Ue}})}),a[60]=V):V=a[60];let H;a[61]!==O||a[62]!==h||a[63]!==_?(H=h&&(0,$.jsx)(A,{label:(0,$.jsx)(s,{id:`settingsModal.pendingAmphoraInvite`,defaultMessage:`",
+    "claim": "Family首页说明与帮助、成员列表、Invite/Add child、Safety notifications。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R012",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 22228,
+    "excerpt": "sx)(`div`,{children:(0,$.jsx)(t,{color:`secondary`,onClick:()=>{T(`/settings/notifications`)},children:(0,$.jsx)(s,{id:`amphora.settings.safetyNotificationsButton`,defaultMessage:`Manage notifications`,description:`Button label for managing safety notifications`})})})]})]}),a[74]=P,a[75]=T,a[76]=G):G=a[76];let K;a[77]!==O||a[78]!==d||a[79]!==L||a[80]!==y||a[81]!==P?(K=y&&(0,$.jsx)(oe,{account:O,amphoraId:d,forceTeen:P,forceParent:L,onClose:()=>b(!1)}),a[77]=O,a[78]=d,a[79]=L,a[80]=y,a[81]=P,a[82]=K):K=a[82];let q;return a[83]!==U||a[84]!==W||a[85]!==G||a[86]!==K||a[87]!==B|",
+    "claim": "安全通知按钮导航到通知设置family锚点。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R013",
+    "path": "webview/assets/settings-6f7ca657ff4a.js",
+    "offset": 3662,
+    "excerpt": "||S!=null?(0,Z.jsx)(le,{children:(0,Z.jsx)(s,{id:`settings.chatGpt.familyUnlink.notices.pending`,defaultMessage:`{action, select, dismiss {Dismissing account-linking updates…} other {Loading account-linking updates…}}`,description:`Loading state in Parental controls. action dismiss means an explicit request to dismiss graduation notices is pending; otherwise notices are being loaded.`,values:{action:S==null?`load`:`dismiss`}})}):null,n[19]=_,n[20]=S,n[21]=j):j=n[21];let M;n[22]!==v||n[23]!==b||n[24]!==x?(M=v?(0,Z.jsx)(A,{label:(0,Z.jsx)(`span`,{role:`alert`,children:(0,Z.js",
+    "claim": "年龄变化后的家庭解绑更新有独立加载、错误、dismiss失败重试。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R014",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 29847,
+    "excerpt": "L?.sections.map(e=>{let t=j?e.items.filter(e=>e.id===j):e.items;return t.length?(0,$.jsxs)(le,{children:[e.label&&!j&&(0,$.jsx)(le.Header,{title:e.label}),(0,$.jsx)(le.Content,{children:(0,$.jsx)(Y,{children:t.map(e=>{if(e.type===`navigation`)return(0,$.jsx)(_,{label:e.label,description:e.description,trailing:(0,$.jsx)(i,{}),onClick:()=>A([...k,e.target_page_id])},e.id);if(e.type===`multi_select`)return(0,$.jsx)(nt,{item:e,settings:y.settings,disabled:G||w||R&&ze(y.settings,[e.setting]),onChange:t=>_e({patches:[{feature:e.setting,value:t}]})},e.id);if(!(`kind`in e)||R&&e.se",
+    "claim": "服务端页结构按navigation、multi_select、toggle、blackout渲染；不应硬编码页面菜单。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R015",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 30008,
+    "excerpt": "sx)(le.Content,{children:(0,$.jsx)(Y,{children:t.map(e=>{if(e.type===`navigation`)return(0,$.jsx)(_,{label:e.label,description:e.description,trailing:(0,$.jsx)(i,{}),onClick:()=>A([...k,e.target_page_id])},e.id);if(e.type===`multi_select`)return(0,$.jsx)(nt,{item:e,settings:y.settings,disabled:G||w||R&&ze(y.settings,[e.setting]),onChange:t=>_e({patches:[{feature:e.setting,value:t}]})},e.id);if(!(`kind`in e)||R&&e.settings?.includes(`3VyEPC5dTP_model_instructions_enabled`))return null;if(e.toggle_type===`blackout`)return(0,$.jsx)(Be,{item:e,description:(0,$.jsx)(tt,{descript",
+    "claim": "navigation推进页栈，multi_select独立渲染，当前用户特定instruction项隐藏。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R016",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 30696,
+    "excerpt": "ingChange:t=>M(t?e.id:void 0),onSave:e=>W({patches:[e]})},e.id);let t=e.kind===`setting`?e.settings:[e.permission].filter(Ze),n=G||w||!t?.length||R&&ze(y.settings,t),r=e.kind===`setting`?t?.some(e=>y.settings[e]===!0)??!1:e.permission!=null&&y.permissions.includes(e.permission);return(0,$.jsx)(ae,{label:e.label,description:(0,$.jsx)(tt,{description:e.description,learnMore:e.learn_more}),control:t=>(0,$.jsx)(te,{...t,disabled:n,checked:r,onChange:t=>{n||(e.kind===`setting`?_e({patches:(e.settings??[]).filter(e=>y.settings[e]===!0!==t).map(e=>({feature:e,value:t}))}):e.permis",
+    "claim": "多setting开关的checked由some true计算，写入仅差异字段；权限型写permission。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R017",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 33159,
+    "excerpt": "re,n[10]=h):h=n[10];let g;n[11]!==o||n[12]!==r.options||n[13]!==s||n[14]!==f||n[15]!==m?(g=e=>(0,$.jsx)(a,{triggerButton:(0,$.jsx)(t,{...e,color:`secondary`,disabled:o,children:m}),children:r.options.map(e=>(0,$.jsx)(c,{checked:f.includes(e.value),disabled:o||f.includes(e.value)&&f.length===1,onCheckedChange:t=>s(t?[...f,e.value]:f.filter(t=>t!==e.value)),SubText:e.description?(0,$.jsx)($.Fragment,{children:e.description}):void 0,children:e.label},e.value))}),n[11]=o,n[12]=r.options,n[13]=s,n[14]=f,n[15]=m,n[16]=g):g=n[16];let _;return n[17]!==r.label||n[18]!==h||n[19]!==g?",
+    "claim": "多选至少保留一项；选项过滤服务端允许值，菜单项即时写入。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R018",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 26213,
+    "excerpt": "]=I):I=t[8];let L=I,R=r===n.userId,z;t[9]!==n||t[10]!==E||t[11]!==s||t[12]!==N||t[13]!==R||t[14]!==c||t[15]!==P||t[16]!==w||t[17]!==O?(z=async e=>{if(oe.current!=null||!B(O,n,E)||w||!s())throw Error(`Family membership changed before saving settings`);let t=new AbortController;oe.current=t;let r=O.watch(e=>{B(e,n,E)||t.abort()});return N.invalidateQueries({queryKey:P,refetchType:`none`}),R&&N.invalidateQueries({queryKey:[`chatgpt-user-settings`,n.accountId],refetchType:`none`}),(async()=>{let r;try{await c(e,t.signal)}catch(e){r=Ke(e)}if(t.signal.aborted||!B(O,n,E)||(await N",
+    "claim": "提交前重验身份/角色，AbortController监听账户变化。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R019",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 27488,
+    "excerpt": "Queries({queryKey:P});let t=N.getQueryData(P),r=[];if(`permission`in e?r=[e.permission]:`patches`in e&&(r=e.patches.map(et)),!t||!B(O,n,E)||w||!s()||R&&ze(t.settings,r))throw Error(`Family settings changed before saving`);return{previous:t,optimistic:N.setQueryData(P,`permission`in e?{...t,permissions:e.enabled?[...new Set([...t.permissions,e.permission])]:t.permissions.filter(t=>t!==e.permission)}:{...t,settings:{...t.settings,...Object.fromEntries(e.patches.map($e))}})}},t[19]=n,t[20]=E,t[21]=s,t[22]=N,t[23]=R,t[24]=l,t[25]=P,t[26]=w,t[27]=O,t[28]=V):V=t[28];let H;t[29]!=",
+    "claim": "Family乐观更新缓存与错误回滚记录。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R020",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 28016,
+    "excerpt": "25]=P,t[26]=w,t[27]=O,t[28]=V):V=t[28];let H;t[29]!==n||t[30]!==E||t[31]!==s||t[32]!==N||t[33]!==P||t[34]!==w||t[35]!==O?(H=(e,t,r)=>{r&&!se.current&&N.getQueryData(P)===r.optimistic&&B(O,n,E)&&!w&&s()&&N.setQueryData(P,r.previous),N.invalidateQueries({queryKey:P,refetchType:`none`})},t[29]=n,t[30]=E,t[31]=s,t[32]=N,t[33]=P,t[34]=w,t[35]=O,t[36]=H):H=t[36];let U;t[37]===l?U=t[38]:(U=()=>l?.(!1),t[37]=l,t[38]=U);let pe;t[39]!==z||t[40]!==V||t[41]!==H||t[42]!==U?(pe={mutationFn:z,onMutate:V,onError:H,onSettled:U},t[39]=z,t[40]=V,t[41]=H,t[42]=U,t[43]=pe):pe=t[43];let{mutateAs",
+    "claim": "只在缓存仍为本次乐观副本且身份有效时回滚；刷新已确认后不覆盖。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R021",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 26733,
+    "excerpt": "l)}catch(e){r=Ke(e)}if(t.signal.aborted||!B(O,n,E)||(await N.cancelQueries({queryKey:P}),t.signal.aborted||!B(O,n,E))||(await Promise.all([N.invalidateQueries({queryKey:P,exact:!0,refetchType:`active`},{throwOnError:!0}),...R?[N.invalidateQueries({queryKey:[`chatgpt-user-settings`,n.accountId],refetchType:`active`},{throwOnError:!0})]:[]]),t.signal.aborted||!B(O,n,E)))throw r??new DOMException(`Account changed`,`AbortError`);if(se.current=!0,r)throw r})().finally(()=>{r(),oe.current===t&&(oe.current=null)})},t[9]=n,t[10]=E,t[11]=s,t[12]=N,t[13]=R,t[14]=c,t[15]=P,t[16]=w,t[1",
+    "claim": "写入后刷新成员设置及自身user-settings，并throwOnError确认读回。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R022",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 19084,
+    "excerpt": "J):J=n[66];let Y;n[67]!==K||n[68]!==J?(Y=(0,Q.jsxs)(`div`,{className:`sticky bottom-0 flex min-h-21 items-center justify-end gap-2 border-t border-primary-outline bg-surface px-4`,children:[K,J]}),n[67]=K,n[68]=J,n[69]=Y):Y=n[69];let X;n[70]!==w||n[71]!==g||n[72]!==M.blocks||n[73]!==fe?(X=w&&(0,Q.jsx)(_e,{title:(0,Q.jsx)(u,{id:`chatgpt.recurring_schedule.block.days.label`,defaultMessage:`Days`,description:`Opens the weekday selector for a schedule block`}),onClose:()=>T(void 0),confirmDisabled:w.days.length===0,onSubmit:()=>{if(w.days.length){let e=M.blocks.find(e=>e.id===w",
+    "claim": "Family计划form的sticky footer最小84逻辑像素、gap2、横向padding4和顶边框。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R023",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 19791,
+    "excerpt": "s}}),T(void 0)}},confirmLabel:(0,Q.jsx)(u,{id:`settings.chatGpt.parentalControls.done`,defaultMessage:`Done`,description:`Applies selected weekdays to an unsaved schedule block`}),children:(0,Q.jsx)(ie,{children:Z.map((e,n)=>(0,Q.jsxs)(t,{className:`w-full justify-between`,color:`ghostActive`,size:`dialog`,role:`checkbox`,tabIndex:0,\"aria-checked\":w.days.includes(e),onClick:()=>T({...w,days:w.days.includes(e)?w.days.filter(t=>t!==e):Z.filter(t=>t===e||w.days.includes(t))}),children:[fe(n),w.days.includes(e)&&(0,Q.jsx)(s,{})]},e))})}),n[70]=w,n[71]=g,n[72]=M.blocks,n[73]=fe,",
+    "claim": "Family星期选择是独立compact对话框内checkbox角色按钮，非个人时间菜单。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R024",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 12686,
+    "excerpt": "y_blocks`||P===`invalid_block_id`||P===`duplicate_block_id`)&&(le=Le[P]);let ue;n[11]===f?ue=n[12]:(ue=()=>({id:crypto.randomUUID(),days:Z.slice(0,5),start_time:f?`16:00`:`22:00`,end_time:f?`20:00`:`07:00`}),n[11]=f,n[12]=ue);let F=ue,de;n[13]===C?de=n[14]:(de=e=>C.formatDate(new Date(Date.UTC(2026,0,5+e)),{weekday:`long`,timeZone:`UTC`}),n[13]=C,n[14]=de);let fe=de,I;n[15]!==A||n[16]!==se||n[17]!==C||n[18]!==P||n[19]!==v?(I=e=>{e.preventDefault(),!A&&se&&(ne(void 0),k(!0),!P&&(O(!0),v().catch(e=>{ne(e instanceof Error&&e.message.length>0?e.message:C.formatMessage({id:`chat",
+    "claim": "Family新增计划默认平日Study16-20、Quiet22-07；UUID标识块。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R025",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 15544,
+    "excerpt": "u,{id:`chatgpt.recurring_schedule.block.start_time.label`,defaultMessage:`Start time`,description:`Start time for a Quiet Hours or Study Hours block`}),control:t=>(0,Q.jsx)(`div`,{className:`w-36`,children:(0,Q.jsx)(ce,{...t,type:`time`,step:60,name:`start-${e.id}`,value:e.start_time,onChange:t=>g({type:`update_block`,blockId:e.id,update:{start_time:t.target.value}})})})}),(0,Q.jsx)(ae,{size:`compact`,label:(0,Q.jsx)(u,{id:`chatgpt.recurring_schedule.block.end_time.label`,defaultMessage:`End time`,description:`End time for a Quiet Hours or Study Hours block`}),control:t=>(0",
+    "claim": "时间输入w36及原生time，用本地化平台控件。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R026",
+    "path": "webview/assets/member-settings-6260c0e25e2d.js",
+    "offset": 2705,
+    "excerpt": ")return`missing_blocks`;if(e.blocks.length>Ce)return`too_many_blocks`;let t=new Set;for(let n of e.blocks){if(n.id.trim().length===0)return`invalid_block_id`;if(t.has(n.id))return`duplicate_block_id`;if(t.add(n.id),n.days.length===0)return`missing_days`;if(n.days.length>Z.length||new Set(n.days).size!==n.days.length||n.days.some(e=>!Z.includes(e)))return`invalid_days`;if(!we.test(n.start_time)||!we.test(n.end_time))return`invalid_time`;if(n.start_time===n.end_time)return`same_time`}}var Z,Ce,we,Te;function Ee(){return(Ee=e((()=>{l(),Z=[`monday`,`tuesday`,`wednesday`,`thursd",
+    "claim": "Family计划校验非重复块ID、合法唯一星期、有效时间和至少五分钟可用。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R027",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 3885,
+    "excerpt": "function Ie(e){let n=(0,Ge.c)(99),{account:i,amphoraId:o,forceTeen:l,forceParent:u,onClose:d}=e,p=u!==void 0&&u,m=s(r),h=f(),g=oe(),re=(0,Q.useRef)(null),_,v;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(_=()=>()=>{re.current?.abort()},v=[],n[0]=_,n[1]=v):(_=n[0],v=n[1]),(0,Q.useEffect)(_,v);let[y,b]=(0,Q.useState)(o),[x,ue]=(0,Q.useState)(`email`),[S,C]=(0,Q.useState)(``),[w,de]=(0,Q.useState)(``),T;n[2]!==p||n[3]!==l?(T=()=>l?`teen`:p?`parent`:null,n[2]=p,n[3]=l,n[4]=T):T=n[4];let[E,fe]=(0,Q.useState)(T),[D,me]=(0,Q.useState)(!1),O;n[5]!==S||n[6]!==x||n[7]!==w?(O=x===`e",
+    "claim": "邀请表单状态：email默认、phone切换、关系可被父层强制。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R028",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 4932,
+    "excerpt": "(y==null||o!=null?he.safeGet(`/amphora`,{additionalHeaders:r,signal:e.signal}).then(e=>{n();let t=Pe(e.role);if(y!=null&&e.id!==y||e.id&&(E===`teen`?t!==`parent`:t!==`teen`&&t!==`child`))throw Error(`Family membership changed before inviting`);return e.id??y}):Promise.resolve(y)).then(async t=>{let a=t;if(a==null){let t=await he.safePost(`/amphora`,{additionalHeaders:r,requestBody:{role:E===`parent`?`teen`:`parent`},signal:e.signal});if(n(),!t.id)throw Error(`Family creation returned no group`);a=t.id,b(a),await g.invalidateQueries({queryKey:ye(i.userId,i.accountId).current",
+    "claim": "邀请先重读家庭关系，角色不一致禁止继续；必要时创建家庭。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R029",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 5688,
+    "excerpt": "gnal});if(n(),t.items.some(e=>{let{account_identifier:t,email:n,status:r,user_id:a}=e;return(r===`invited`||r===`accepted`&&a!==i.userId)&&(t?.toLowerCase()===k.toLowerCase()||n?.toLowerCase()===k.toLowerCase())}))return;if(t.total>t.items.length)throw Error(`Family members could not be fully checked`);b(a)}n(),await he.safePost(`/amphora/{amphora_id}/members`,{additionalHeaders:r,parameters:{path:{amphora_id:encodeURIComponent(a)}},requestBody:{members:[{account_identifier:k,role:E}]},signal:e.signal})}).finally(()=>{t(),re.current===e&&(re.current=null)})},n[9]=i,n[10]=o,",
+    "claim": "邀请去重同时检查全部成员列表可否完整覆盖，不能凭截断列表继续。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R030",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 12662,
+    "excerpt": "(0,$.jsx)(ie,{spacing:`large`,children:(0,$.jsxs)(ce,{children:[X,Te]})}),n[88]=X,n[89]=Te,n[90]=Ee):Ee=n[90];let De;n[91]!==z||n[92]!==B||n[93]!==J||n[94]!==Ee?(De=(0,$.jsxs)(se,{as:`form`,noValidate:!0,onSubmit:z,children:[B,J,Ee]}),n[91]=z,n[92]=B,n[93]=J,n[94]=Ee,n[95]=De):De=n[95];let Oe;return n[96]!==R||n[97]!==De?(Oe=(0,$.jsx)(ae,{open:!0,size:`compact`,showDialogClose:!0,onOpenChange:R,children:De}),n[96]=R,n[97]=De,n[98]=Oe):Oe=n[98],Oe}function Le(e){let t=(0,Ge.c)(2),{role:n}=e,r;return t[0]===n?r=t[1]:(r=(0,$.jsx)(`p`,{className:`text-xs text-secondary select-n",
+    "claim": "邀请form手动校验，compact弹窗与关闭按钮。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R031",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 6757,
+    "excerpt": "&&!o&&g.invalidateQueries({queryKey:ye(i.userId,i.accountId).current.queryKey}),d()},n[25]=i,n[26]=o,n[27]=g,n[28]=y,n[29]=d,n[30]=I):I=n[30];let L=I,R;n[31]!==L||n[32]!==N?(R=e=>{!e&&!N&&L()},n[31]=L,n[32]=N,n[33]=R):R=n[33];let z;n[34]!==k||n[35]!==N||n[36]!==x||n[37]!==M||n[38]!==w||n[39]!==E?(z=e=>{e.preventDefault();let t=x===`phone`?ke(w):/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(k);me(!t),t&&E&&!N&&M()},n[34]=k,n[35]=N,n[36]=x,n[37]=M,n[38]=w,n[39]=E,n[40]=z):z=n[40];let",
+    "claim": "邀请pending阻止关闭；Cancel及Send禁用。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R032",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 12371,
+    "excerpt": "l`)?(Z=(0,$.jsx)(a,{id:`amphora.members.modalInviteButton`,defaultMessage:`Send`,description:`Invite button text in family invite modal`}),n[85]=Z):Z=n[85];let Te;n[86]===we?Te=n[87]:(Te=(0,$.jsx)(t,{type:`submit`,disabled:we,children:Z}),n[86]=we,n[87]=Te);let Ee;n[88]!==X||n[89]!==Te?(Ee=(0,$.jsx)(ie,{spacing:`large`,children:(0,$.jsxs)(ce,{children:[X,Te]})}),n[88]=X,n[89]=Te,n[90]=Ee):Ee=n[90];let De;n[91]!==z||n[92]!==B||n[93]!==J||n[94]!==Ee?(De=(0,$.jsxs)(se,{as:`form`,noValidate:!0,onSubmit:z,children:[B,J,Ee]}),n[91]=z,n[92]=B,n[93]=J,n[94]=Ee,n[95]=De):De=n[95];le",
+    "claim": "邀请Send没有显式loading属性，禁用不应杜撰spinner。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R033",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 11794,
+    "excerpt": "let J;n[76]!==q||n[77]!==xe||n[78]!==Se||n[79]!==Ce?(J=(0,$.jsxs)(ie,{className:`gap-5`,spacing:`large`,children:[q,xe,Se,Ce]}),n[76]=q,n[77]=xe,n[78]=Se,n[79]=Ce,n[80]=J):J=n[80];let Y;n[81]===Symbol.for(`react.memo_cache_sentinel`)?(Y=(0,$.jsx)(a,{id:`amphora.members.cancelButton`,defaultMessage:`Cancel`,description:`Cancel button text in family invite modal`}),n[81]=Y):Y=n[81];let X;n[82]!==L||n[83]!==N?(X=(0,$.jsx)(t,{color:`secondary`,onClick:L,disabled:N,children:Y}),n[82]=L,n[83]=N,n[84]=X):X=n[84];let we=!E||!k||D||N,Z;n[85]===Symbol.for(`react.memo_cache_sentinel`)",
+    "claim": "邀请body gap5、large spacing，label sm medium、输入切换。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R034",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 11461,
+    "excerpt": "0,$.jsx)(`p`,{role:`alert`,className:`text-sm text-danger`,children:(0,$.jsx)(a,{id:`amphora.members.inviteError`,defaultMessage:`Unable to send invite: {error}`,description:`Error shown when a family invitation cannot be sent; error contains the server's failure message`,values:{error:We(F)}})}),n[73]=F,n[74]=P,n[75]=Ce):Ce=n[75];let J;n[76]!==q||n[77]!==xe||n[78]!==Se||n[79]!==Ce?(J=(0,$.jsxs)(ie,{className:`gap-5`,spacing:`large`,children:[q,xe,Se,Ce]}),n[76]=q,n[77]=xe,n[78]=Se,n[79]=Ce,n[80]=J):J=n[80];let Y;n[81]===Symbol.for(`react.memo_cache_sentinel`)?(Y=(0,$.jsx)(",
+    "claim": "邀请API错误保留表单内sm danger文字。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R035",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 30667,
+    "excerpt": " rtl:-translate-x-1 rtl:rotate-[10deg]`,children:(0,$.jsx)(de,{className:`text-tertiary`})}),n[96]=_e):_e=n[96];let ve;n[97]===Symbol.for(`react.memo_cache_sentinel`)?(ve=(0,$.jsxs)(`div`,{className:`relative grid h-[214px] shrink-0 place-items-center max-md:h-[136px]`,\"aria-hidden\":`true`,children:[R,(0,$.jsxs)(`div`,{className:`relative flex items-center`,\"data-theme\":`light`,children:[_e,(0,$.jsx)(`div`,{className:`flex size-20 -translate-x-1 rotate-[10deg] items-center justify-center rounded-[20px] bg-surface shadow-lg rtl:translate-x-1 rtl:rotate-[-10deg]`,children:(0,",
+    "claim": "接收邀请弹窗视觉：214px hero、小屏136px，两张80px旋转卡片和20px圆角。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R036",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 34626,
+    "excerpt": "p-6 text-base text-secondary`,children:[B,V,ye,U,W]}),n[114]=B,n[115]=V,n[116]=ye,n[117]=U,n[118]=W,n[119]=G):G=n[119];let K;n[120]!==z||n[121]!==G?(K=(0,$.jsxs)(`div`,{className:`flex flex-col gap-6 px-8 pt-8 pb-0`,children:[z,G]}),n[120]=z,n[121]=G,n[122]=K):K=n[122];let be;n[123]!==b||n[124]!==x||n[125]!==P||n[126]!==M?(be=x===`dismiss`&&(0,$.jsxs)($.Fragment,{children:[(0,$.jsx)(t,{type:`button`,color:`secondary`,disabled:b,onClick:P,children:(0,$.jsx)(a,{id:`settings.chatGpt.familyInvitation.returnUndecidedLater`,defaultMessage:`Return later`,description:`Leave an unac",
+    "claim": "接收邀请body横向32px、上32px、gap24；footer px8 pt4 pb8。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R037",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 22858,
+    "excerpt": "fetchType:`none`})};(e!=null&&y.current==null?he.safePost(`/amphora/{amphora_id}/invite`,{additionalHeaders:{\"ChatGPT-Account-ID\":o.accountId},expectedErrorStatuses:[404],parameters:{path:{amphora_id:h.family_group_id}},requestBody:{choice:e},signal:t.signal}).then(async()=>{r(),y.current=e,u(e),await s()}).catch(e=>{throw e instanceof re&&e.status===404&&!t.signal.aborted&&H(f,o)&&(y.current=`unavailable`,u(`unavailable`)),e}):Promise.resolve()).then(async()=>{if(r(),await he.safePost(`/amphora/notifications/{notification_id}/reacted`,{additionalHeaders:{\"ChatGPT-Account-I",
+    "claim": "先POST accept/reject再POST reacted；decision保留，后续重试可仅dismiss。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R038",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 28347,
+    "excerpt": ")(`p`,{role:`alert`,className:`text-sm text-danger`,children:(0,$.jsx)(a,{id:`settings.chatGpt.familyInvitation.acceptedDismissError`,defaultMessage:`Invitation accepted. The notification couldn’t be dismissed. Retry, or close and return later.`,description:`A confirmed acceptance whose notification acknowledgement has not succeeded`})}),n[65]=x,n[66]=s);let c;n[67]===s?c=n[68]:(c=(0,$.jsxs)(ie,{className:`flex flex-col gap-3`,children:[o,s]}),n[67]=s,n[68]=c);let l;n[69]===Symbol.for(`react.memo_cache_sentinel`)?(l=(0,$.jsx)(a,{id:`settings.chatGpt.familyInvitation.returnA",
+    "claim": "邀请已接受但通知未清除独立状态；Retry不再次接受。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R039",
+    "path": "webview/assets/invitations-9ce6de3bb717.js",
+    "offset": 23556,
+    "excerpt": ",y.current===`accept`){let e,t=f.get(g).info((0,$.jsx)(a,{id:`amphora.familyInvite.acceptedBanner.title`,defaultMessage:`Request accepted`,description:`Title for the accepted family invite banner`}),{duration:1/0,onRemove:()=>e?.(),hasCloseButton:!0,description:h.role===`owner`?(0,$.jsx)(a,{id:`amphora.familyInvite.acceptedBanner.description.owner`,defaultMessage:`You can now manage parental controls for {inviterName}`,description:`Accepted banner description when viewer is the parent`,values:{inviterName:h.inviter_name||h.inviter_identifier}}):(0,$.jsx)(a,{id:`amphora.fami",
+    "claim": "成功邀请持续toast有关闭及View settings，账户变化关闭。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R040",
+    "path": "webview/assets/shared-9c4f6abaded7.js",
+    "offset": 5338,
+    "excerpt": "async()=>{let e=b.getQueryData(E.current.queryKey),t=b.getQueryData(E.members(s).queryKey)?.items.find(e=>{let{user_id:t}=e;return t===l.user_id});if(S.current!=null||!z(_,o)||e?.id!==s||t?.status!==`accepted`||t.role!==l.role)throw Error(`Family membership changed before unlinking`);let n=new AbortController;S.current=n;let r=_.watch(e=>{z(e,o)||n.abort()});return b.invalidateQueries({queryKey:O,refetchType:`none`}),P.safePost(`/amphora/{amphora_id}/remove`,{additionalHeaders:{\"ChatGPT-Account-ID\":o.accountId},parameters:{path:{amphora_id:encodeURIComponent(s)}},requestBod",
+    "claim": "解绑确认前校验家庭、成员accepted和角色，身份变动abort。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R041",
+    "path": "webview/assets/shared-9c4f6abaded7.js",
+    "offset": 8760,
+    "excerpt": "ction Y(e){let n=(0,X.c)(29),{title:i,children:a,onClose:o,onSubmit:s,pending:c,confirmDisabled:l,confirmLabel:u}=e,d=c!==void 0&&c,m=l!==void 0&&l,h;n[0]!==o||n[1]!==d?(h=e=>{!e&&!d&&o()},n[0]=o,n[1]=d,n[2]=h):h=n[2];let g;n[3]!==m||n[4]!==s||n[5]!==d?(g=e=>{e.preventDefault(),e.stopPropagation(),!d&&!m&&s()},n[3]=m,n[4]=s,n[5]=d,n[6]=g):g=n[6];let _;n[7]===i?_=n[8]:(_=(0,Q.jsx)(p,{title:(0,Q.jsx)(f,{children:i})}),n[7]=i,n[8]=_);let v;n[9]===a?v=n[10]:(v=(0,Q.jsx)(y,{className:`flex flex-col gap-3`,children:a}),n[9]=a,n[10]=v);let x;n[11]===Symbol.for(`react.memo_cache_se",
+    "claim": "解绑/星期等共享compact确认表单，pending禁用确认取消并阻止关闭。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R042",
+    "path": "webview/assets/shared-9c4f6abaded7.js",
+    "offset": 6901,
+    "excerpt": "{let e;i[28]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Q.jsx)(r,{id:`settings.chatGpt.parentalControls.unlink.leaveDescription`,defaultMessage:`Are you sure you want to leave this family group?`,description:`Confirmation shown to a parent viewing another parent's profile; confirming removes the signed-in parent from the parental-controls family`}),i[28]=e):e=i[28],V=e}else if(R){let e;i[29]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Q.jsx)(r,{id:`amphora.relationship.unlinkConfirm`,defaultMessage:`Are you sure you want to unlink your accounts?`,description:`Confi",
+    "claim": "离开家庭、解除自己关系、移除他人分别选不同确认文案。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R043",
+    "path": "webview/assets/verify-age-page-7bd0a274d7d4.js",
+    "offset": 748,
+    "excerpt": "=r.accountId;async function d(){if(!u()||c)return;c=!0,e({phase:`loading`});let i=!1;try{i=(await b.safeGet(`/settings/age_verification_enabled`,{additionalHeaders:{\"ChatGPT-Account-ID\":r.accountId},signal:a.signal})).enabled}catch(e){u()&&n.error(`Failed to fetch age verification feature status`,{safe:{},sensitive:{error:e}})}if(!u()){c=!1;return}if(!i){e({phase:`redirect`}),c=!1;return}let s=!1;try{if(await o.cancel(),await o.invalidate({refetchType:`none`}),!u()){c=!1;return}s=(await o.fetch()).has_verified_age_or_dob===!0}catch(e){u()&&n.error(`Failed to fetch age verif",
+    "claim": "独立年龄页先检查enabled；失败或false返回账户设置，不展示通用核验错误。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R044",
+    "path": "webview/assets/verify-age-page-7bd0a274d7d4.js",
+    "offset": 1354,
+    "excerpt": "ensitive:{error:e}})}if(!u()){c=!1;return}if(s){e({phase:`redirect`}),c=!1;return}c=!1,l?.dispose(),l=M(t,r,t=>{t.phase===`loading`?e({phase:`active`}):t.phase===`canceled`||t.phase===`error`?e({...t,retry:()=>{d()}}):e(t)}),l.start(),n.info(`chatgpt.web.verifyAge.startPersonaAgeVerificationFlow`)}let f=()=>{s=!0,a.abort(),o.cancel(),l?.dispose(),l=void 0,e({phase:`loading`})},p=t.watch(e=>{e.get(y)!==i&&f()});return d(),()=>{p(),f()}}})})))()}function F(){let e=(0,z.c)(3),{userId:t}=D(),n=s(E),r;return e[0]!==n||e[1]!==t?(r=t==null||n==null?(0,B.jsx)(L,{state:{phase:`loadi",
+    "claim": "独立年龄页沿用年龄会话controller并映射loading→active，取消错误重试重新检查资格。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R045",
+    "path": "webview/assets/verify-age-page-7bd0a274d7d4.js",
+    "offset": 1191,
+    "excerpt": "{refetchType:`none`}),!u()){c=!1;return}s=(await o.fetch()).has_verified_age_or_dob===!0}catch(e){u()&&n.error(`Failed to fetch age verification status`,{safe:{},sensitive:{error:e}})}if(!u()){c=!1;return}if(s){e({phase:`redirect`}),c=!1;return}c=!1,l?.dispose(),l=M(t,r,t=>{t.phase===`loading`?e({phase:`active`}):t.phase===`canceled`||t.phase===`error`?e({...t,retry:()=>{d()}}):e(t)}),l.start(),n.info(`chatgpt.web.verifyAge.startPersonaAgeVerificationFlow`)}let f=()=>{s=!0,a.abort(),o.cancel(),l?.dispose(),l=void 0,e({phase:`loading`})},p=t.watch(e=>{e.get(y)!==i&&f()});ret",
+    "claim": "离开/认证改变销毁会话、取消请求与观察。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R046",
+    "path": "webview/assets/verify-guardian-page-358e75e1ca29.js",
+    "offset": 500,
+    "excerpt": "function N(e){return{\"ChatGPT-Account-ID\":e,[p]:e}}function P(e,t){return b.safeGet(`/settings/is_adult`,{additionalHeaders:N(e),signal:t})}var F;function I(){return(I=e((()=>{a(),f(),w(),x(),y(),v(),M(),o(),F=l(C,e=>({phase:`loading`}),{onMount:(e,t)=>{let r=t.key,i=new AbortController,a=t.query.snapshot(E),o=t.query.snapshot(T),s=!1,c=!1,l=null,u=()=>!s&&t.get(D)===r.accountId,d=()=>{m()},f=()=>{p()};async function p(){if(u()&&!c){c=!0,e({phase:`refreshing`});try{if(await b.safePost(`/settings/clear_is_adult_caches`,{additionalHeaders:N(r.accountId),signal:i.signal}),!u()",
+    "claim": "guardian请求附ChatGPT Account与额外account header，独立is_adult检查。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R047",
+    "path": "webview/assets/verify-guardian-page-358e75e1ca29.js",
+    "offset": 1473,
+    "excerpt": ";let t=!1;try{if(await a.cancel(),await a.invalidate({refetchType:`none`}),!u()){c=!1;return}t=(await P(r.accountId,i.signal)).has_verified_age_or_dob===!0}catch(t){u()&&(n.error(`Failed to fetch guardian verification age status`,{safe:{},sensitive:{error:t}}),e({phase:`redirect`})),c=!1;return}if(!u()){c=!1;return}if(t){e({phase:`redirect`}),c=!1;return}e({phase:`active`}),l=j({accountId:r.accountId,kind:`guardian`,onComplete:()=>{l=null,c=!1,p()},onCancel:()=>{l=null,c=!1,u()&&e({phase:`canceled`,retry:d})},onError:()=>{l=null,c=!1,u()&&e({phase:`error`,retry:d})}})}retur",
+    "claim": "guardian初始年龄读取失败redirect；已验证也redirect。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R048",
+    "path": "webview/assets/verify-guardian-page-358e75e1ca29.js",
+    "offset": 1677,
+    "excerpt": " verification age status`,{safe:{},sensitive:{error:t}}),e({phase:`redirect`})),c=!1;return}if(!u()){c=!1;return}if(t){e({phase:`redirect`}),c=!1;return}e({phase:`active`}),l=j({accountId:r.accountId,kind:`guardian`,onComplete:()=>{l=null,c=!1,p()},onCancel:()=>{l=null,c=!1,u()&&e({phase:`canceled`,retry:d})},onError:()=>{l=null,c=!1,u()&&e({phase:`error`,retry:d})}})}return m(),()=>{s=!0,i.abort(),a.cancel(),o.cancel(),l?.(),e({phase:`loading`})}}})})))()}function L(){let e=(0,V.c)(3),{userId:t}=O(),n=s(D),r;return e[0]!==n||e[1]!==t?(r=t==null||n==null?(0,H.jsx)(z,{state:",
+    "claim": "guardian Persona路径独立；取消/error保留retry；complete触发回读。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R049",
+    "path": "webview/assets/verify-guardian-page-358e75e1ca29.js",
+    "offset": 821,
+    "excerpt": "napshot(T),s=!1,c=!1,l=null,u=()=>!s&&t.get(D)===r.accountId,d=()=>{m()},f=()=>{p()};async function p(){if(u()&&!c){c=!0,e({phase:`refreshing`});try{if(await b.safePost(`/settings/clear_is_adult_caches`,{additionalHeaders:N(r.accountId),signal:i.signal}),!u()||(await Promise.all([a.cancel(),o.cancel()]),await Promise.all([a.invalidate({refetchType:`none`}),o.invalidate({refetchType:`none`})]),!u()))return;let t=await P(r.accountId,i.signal);u()&&e(t.has_verified_age_or_dob===!0?{phase:`redirect`}:{phase:`pending`,retry:f})}catch{u()&&e({phase:`refresh-error`,retry:f})}final",
+    "claim": "guardian提交后清缓存并重新GET年龄状态，未确认pending，失败refresh-error。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R050",
+    "path": "webview/assets/page-layout-ee6fb53b464b.js",
+    "offset": 775,
+    "excerpt": " name`})}),n[0]=b):b=n[0];let x=b,S;n[1]!==g||n[2]!==y?(S=g===`page`?(0,h.jsx)(`header`,{className:`shrink-0 px-6 py-4 sm:px-8`,children:y?(0,h.jsx)(o,{to:`/`,reloadDocument:!0,children:x}):x}):null,n[1]=g,n[2]=y,n[3]=S):S=n[3];let C=_===`start`?`justify-start pt-12 sm:pt-16`:`justify-center pt-4`,w;n[4]===C?w=n[5]:(w=a(`flex w-full shrink-0 grow flex-col items-center px-6 pb-4`,C),n[4]=C,n[5]=w);let T=g===`focused`?`max-w-80 gap-8`:`max-w-sm gap-5`,E;n[6]===T?E=n[7]:(E=a(`flex w-full flex-col`,T),n[6]=T,n[7]=E);let D=g===`dialog`?`sr-only`:`flex flex-col gap-4 text-center`",
+    "claim": "独立验证页共享header padding24/16，小屏以上横向32。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R051",
+    "path": "webview/assets/page-layout-ee6fb53b464b.js",
+    "offset": 1013,
+    "excerpt": "`start`?`justify-start pt-12 sm:pt-16`:`justify-center pt-4`,w;n[4]===C?w=n[5]:(w=a(`flex w-full shrink-0 grow flex-col items-center px-6 pb-4`,C),n[4]=C,n[5]=w);let T=g===`focused`?`max-w-80 gap-8`:`max-w-sm gap-5`,E;n[6]===T?E=n[7]:(E=a(`flex w-full flex-col`,T),n[6]=T,n[7]=E);let D=g===`dialog`?`sr-only`:`flex flex-col gap-4 text-center`,O=g===`dialog`&&`sr-only`,k=g===`focused`&&`text-2xl font-semibold`,A=g===`page`&&`text-3xl font-normal`,j;n[8]!==O||n[9]!==k||n[10]!==A?(j=a(O,k,A),n[8]=O,n[9]=k,n[10]=A,n[11]=j):j=n[11];let M;n[12]!==j||n[13]!==r?(M=(0,h.jsx)(`h1`,{cla",
+    "claim": "page表单宽度max-w-sm、gap20，h1 text3xl font-normal且居中。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R052",
+    "path": "webview/assets/verify-guardian-page-358e75e1ca29.js",
+    "offset": 4285,
+    "excerpt": " and returns to the user's Account settings`}),n[11]=m):m=n[11];let h;n[12]===p?h=n[13]:(h=(0,H.jsx)(t,{onClick:p,type:`button`,color:`secondary`,size:`auth`,children:m}),n[12]=p,n[13]=h);let g;return n[14]!==d||n[15]!==f||n[16]!==h?(g=(0,H.jsxs)(A,{showFooter:!1,title:c,children:[d,f,h]}),n[14]=d,n[15]=f,n[16]=h,n[17]=g):g=n[17],g}function B(e){let t=(0,V.c)(6),{phase:n}=e;switch(n){case`error`:{let e;return t[0]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,H.jsx)(i,{id:`guardianVerification.failed`,defaultMessage:`We couldn’t start guardian verification`,description:`R",
+    "claim": "guardian页面隐藏footer；primary Try again/Check again和secondary返回按钮均auth尺寸。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R053",
+    "path": "webview/assets/trusted-contact-actions-27c1c91bc98c.js",
+    "offset": 5237,
+    "excerpt": "T=(0,W.jsx)(pe,{\"aria-hidden\":!0}),n[12]=T):T=n[12];let E;n[13]!==r.type||n[14]!==v?(E=(0,W.jsx)(d,{className:`items-center text-center`,icon:T,title:(0,W.jsx)(u,{children:r.type===`alert`?(0,W.jsx)(a,{...J.alertModalTitle,values:{trustedContactName:v}}):(0,W.jsx)(a,{...J.unlinkedModalTitle})})}),n[13]=r.type,n[14]=v,n[15]=E):E=n[15];let D;n[16]!==r.type||n[17]!==v||n[18]!==x?(D=(0,W.jsx)(m,{asChild:!0,children:(0,W.jsx)(`div`,{className:`flex flex-col gap-4 text-sm`,children:r.type===`alert`?(0,W.jsxs)(W.Fragment,{children:[(0,W.jsx)(`p`,{children:(0,W.jsx)(a,{...J.alertMo",
+    "claim": "trusted事件弹窗标题/图标居中，视口型内容gap5。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R054",
+    "path": "webview/assets/trusted-contact-actions-27c1c91bc98c.js",
+    "offset": 5772,
+    "excerpt": ".jsx)(`p`,{children:(0,W.jsx)(a,{...J.alertModalIntro,values:{trustedContactName:v}})}),(0,W.jsx)(`h3`,{className:`font-semibold`,children:(0,W.jsx)(a,{...J.alertModalHowYouCanHelpHeading})}),(0,W.jsxs)(`ul`,{className:`flex list-disc flex-col gap-2 ps-5`,children:[(0,W.jsx)(`li`,{children:(0,W.jsx)(a,{...J.alertModalBodyPrimary,values:{helpCenterLink:Ce}})}),(0,W.jsx)(`li`,{children:(0,W.jsx)(a,{...J.alertModalBodySecondary,values:{helpCenterLink:xe}})})]}),(0,W.jsx)(`p`,{children:(0,W.jsx)(a,{...J.alertModalBodyTertiary,values:{trustedContactName:v,helpCenterLink:ye}})})]",
+    "claim": "安全提醒正文sm、gap4，半粗子标题及disc列表gap2 padding-start5。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R055",
+    "path": "webview/assets/trusted-contact-actions-27c1c91bc98c.js",
+    "offset": 6710,
+    "excerpt": "`react.memo_cache_sentinel`)?(O=(0,W.jsx)(a,{...J.closeCta}),n[20]=O):O=n[20];let k;n[21]===C?k=n[22]:(k=(0,W.jsx)(t,{type:`button`,color:`secondary`,size:`dialogAction`,radius:`full`,onClick:C,children:O}),n[21]=C,n[22]=k);let A;n[23]!==r.type||n[24]!==s||n[25]!==i?(A=r.type===`alert`?(0,W.jsx)(t,{type:`button`,color:`primary`,size:`dialogAction`,radius:`full`,onClick:ve,children:(0,W.jsx)(a,{...J.learnMoreCta})}):(0,W.jsx)(t,{type:`button`,color:`primary`,size:`dialogAction`,radius:`full`,disabled:s==null,onClick:()=>{i(),s?.()},children:(0,W.jsx)(a,{...J.unlinkedModalPri",
+    "claim": "事件弹窗Close secondary、Learn more/Add someone else primary，全圆角。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R056",
+    "path": "webview/assets/trusted-contact-actions-27c1c91bc98c.js",
+    "offset": 16788,
+    "excerpt": "case`unlinked`:P(n,se,{entryPoint:L.CHATGPT_TRUSTED_CONTACT_ENTRY_POINT_UNLINKED_LINK,step:R.CHATGPT_TRUSTED_CONTACT_ENROLLMENT_STEP_ADD_NEW_CONTACT}),A(n,B,{action:e,onDismiss:()=>{P(n,ue,{entryPoint:L.CHATGPT_TRUSTED_CONTACT_ENTRY_POINT_UNLINKED_LINK,step:R.CHATGPT_TRUSTED_CONTACT_ENROLLMENT_STEP_ADD_NEW_CONTACT,action:de.CHATGPT_TRUSTED_CONTACT_ENROLLMENT_ACTION_DISMISSED})},onAddSomeoneElse:()=>{P(n,ue,{entryPoint:L.CHATGPT_TRUSTED_CONTACT_ENTRY_POINT_UNLINKED_LINK,step:R.CHATGPT_TRUSTED_CONTACT_ENROLLMENT_STEP_ADD_NEW_CONTACT,action:de.CHATGPT_TRUSTED_CONTACT_ENROLLMEN",
+    "claim": "unlinked弹窗可进入invite；alert只显示安全说明和外部帮助，非聊天内容详情页。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R057",
+    "path": "webview/assets/trusted-contact-no-thanks-dialog-7e603908becc.js",
+    "offset": 1152,
+    "excerpt": "]!==_||r[9]!==x||r[10]!==y||r[11]!==F||r[12]!==d||r[13]!==k||r[14]!==w||r[15]!==v?(R=async function(){if(w||!F())return;if(!x){_?d():L();return}if(k.status!==`allowed`)return;let{accountId:e}=k,t=v.query.snapshot(O);T(!0);try{if(await t.cancel(),!F()){T(!1);return}let n=e==null?void 0:{\"ChatGPT-Account-ID\":e,[re]:e};if(await E.safePatch(`/settings/account_user_setting`,{additionalHeaders:n,parameters:{query:{feature:`trusted_contacts_opted_out_at`,value:!0}}}),!F()){t.invalidate(),T(!1);return}t.setData(j),t.invalidate(),S(!1),d()}catch{if(!F()){T(!1);return}v.get(te).dange",
+    "claim": "No thanks未勾选不会写opt out，勾选才PATCH；pending及账户guard。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R058",
+    "path": "webview/assets/trusted-contact-no-thanks-dialog-7e603908becc.js",
+    "offset": 1413,
+    "excerpt": "urn}let n=e==null?void 0:{\"ChatGPT-Account-ID\":e,[re]:e};if(await E.safePatch(`/settings/account_user_setting`,{additionalHeaders:n,parameters:{query:{feature:`trusted_contacts_opted_out_at`,value:!0}}}),!F()){t.invalidate(),T(!1);return}t.setData(j),t.invalidate(),S(!1),d()}catch{if(!F()){T(!1);return}v.get(te).danger(y.formatMessage({id:`codex.chatgpt.trustedContactDisclaimer.optOutError`,defaultMessage:`Could not update trusted contact settings`,description:`Error toast shown when saving the Don't ask me again choice for trusted-contact prompts fails. The confirmation re",
+    "claim": "No thanks勾选持久化并更新user-settings缓存；失败toast并保留弹窗。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R059",
+    "path": "webview/assets/trusted-contact-no-thanks-dialog-7e603908becc.js",
+    "offset": 3686,
+    "excerpt": "30]===b?q=r[31]:(q=(0,P.jsx)(`label`,{className:`select-none`,htmlFor:b,children:K}),r[30]=b,r[31]=q);let J;r[32]!==G||r[33]!==q?(J=(0,P.jsxs)(`div`,{className:`relative flex items-center gap-3`,children:[G,q]}),r[32]=G,r[33]=q,r[34]=J):J=r[34];let Y;r[35]!==J||r[36]!==W?(Y=(0,P.jsxs)(f,{children:[U,W,J]}),r[35]=J,r[36]=W,r[37]=Y):Y=r[37];let X;r[38]===Symbol.for(`react.memo_cache_sentinel`)?(X=(0,P.jsx)(i,{id:`message.trustedContactNoThanksModal.done`,defaultMessage:`Done`,description:`Primary action button in the trusted-contact decline modal. Confirms the dismissal flow.",
+    "claim": "No thanks复选框行gap3，Done full圆角loading，wide弹窗。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R060",
+    "path": "webview/assets/trusted-contact-no-thanks-dialog-7e603908becc.js",
+    "offset": 4466,
+    "excerpt": "!==Z||r[43]!==H?(Q=(0,P.jsxs)(h,{as:`form`,onSubmit:H,children:[Y,Z]}),r[41]=Y,r[42]=Z,r[43]=H,r[44]=Q):Q=r[44];let $;return r[45]!==Q||r[46]!==B||r[47]!==V?($=(0,P.jsx)(m,{open:B,size:`wide`,onOpenChange:V,children:Q}),r[45]=Q,r[46]=B,r[47]=V,r[48]=$):$=r[48],$}function j(e){return e==null?e:{...e,trustedContactsOptedOutAt:!0}}var M,N,P;function F(){return(F=e((()=>{M=y(),o(),g(),N=S(),d(),D(),T(),_(),r(),v(),u(),p(),b(),w(),P=x()})))()}export{F as n,k as t};\n//# sourceMappingURL=trusted-contact-no-thanks-dialog-7e603908becc.js.map",
+    "claim": "No thanks宽弹窗onOpenChange无pending关闭锁；Checkbox禁用不等于整窗锁定。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R061",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 91937,
+    "excerpt": "function Zr(e){let t=(0,Qr.c)(24),{accountId:n}=e,r=ee(c),i=(0,$r.useRef)(!1),a;t[0]===r?a=t[1]:(a=()=>{i.current||(i.current=!0,ar(r,{actionType:Pe.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_ACTION_TYPE_BILLING_VIEWED}))},t[0]=r,t[1]=a);let o=(0,$r.useEffectEvent)(a),s;t[2]===o?s=t[3]:(s=()=>{o()},t[2]=o,t[3]=s);let l;t[4]===Symbol.for(`react.memo_cache_sentinel`)?(l=[],t[4]=l):l=t[4],(0,$r.useEffect)(s,l);let{data:u,isPending:d,isError:f,refetch:p}=ye(Ft,n),h=gt(`200883286`),g=u?.entitlement.subscription_plan===`chatgptplus_no_payment_trial`,_;t[5]===n?_=t[6]:(_=Ee(n),t[5]",
+    "claim": "个人Billing消费账户query，付费试用额外查询确认后显示计划。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R062",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 92736,
+    "excerpt": ",E]=(0,$r.useState)(!1),[te,D]=(0,$r.useState)(!1),O,k=!1;if(d){let e;t[10]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,ei.jsx)(zn,{}),t[10]=e):e=t[10],O=e}else if(f||u==null||u.can_access_with_session===!1){let e;t[11]===p?e=t[12]:(e=(0,ei.jsx)(Kt,{onRetry:()=>void p()}),t[11]=p,t[12]=e),O=e}else{let e=g&&!S&&b,r=e||w==null||g&&(x||!S)?null:w,i=r==null?null:_n(r),a=u.account.processor?.a001?.has_customer_object===!0||r!=null&&i==null&&(u.account.plan_type??`free`)!==`free`,o;if(e){let e;t[13]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,ei.jsx)(zn,{}),t[13]=e):e=t[1",
+    "claim": "Billing无会话访问权限进入错误；不可把展示旧账户当成功。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R063",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 93556,
+    "excerpt": "=t[18],o=e}k=T,O=k?(0,ei.jsx)(Rr,{accountId:n,onBack:()=>E(!1)}):(0,ei.jsxs)(ei.Fragment,{children:[a?(0,ei.jsx)(cr,{accountId:n}):null,o,h?(0,ei.jsx)(Gr,{account:u,accountId:n}):null,(0,ei.jsx)(Lr,{accountId:n,onViewAll:()=>E(!0)}),a?(0,ei.jsxs)(ei.Fragment,{children:[(0,ei.jsx)(qn,{accountId:n}),(0,ei.jsx)(mr,{accountId:n})]}):null,r==null?null:(0,ei.jsxs)(ei.Fragment,{children:[(0,ei.jsx)(xr,{account:r,onCancelSubscriptionClick:()=>D(!0)}),te?(0,ei.jsx)($r.Suspense,{fallback:(0,ei.jsx)(zn,{}),children:(0,ei.jsx)(ti,{account:r,accountId:n,onClose:()=>D(!1)},r.entitlement.",
+    "claim": "Billing实际子页组合：授权、计划、可选余额、交易、账单与支付方式、取消订阅。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R064",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 12043,
+    "excerpt": "ding:l,onRetry:()=>void d()})})]}):(0,q.jsx)($n.Elements,{stripe:c.stripe,options:{appearance:dn(p===!0)},children:(0,q.jsx)(Xn,{accountId:n,billingInfo:r,onSubmittingChange:h,onClose:a})},nn(o.locale,`elements`,s)),b;return t[5]!==ee||t[6]!==g||t[7]!==_||t[8]!==v||t[9]!==y?(b=(0,q.jsx)(ee,{open:!0,contentOverflow:`visible`,contentPosition:`scrollable`,contentProps:g,showDialogClose:_,onOpenChange:v,children:y}),t[5]=ee,t[6]=g,t[7]=_,t[8]=v,t[9]=y,t[10]=b):b=t[10],b}function Yn(){let e=(0,Qn.c)(1),t;return e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,q.jsx)(m,{id:`s",
+    "claim": "账单编辑scrollable弹窗，提交时隐藏关闭按钮且拒绝关闭，关闭焦点返回原入口。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R065",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 15811,
+    "excerpt": ",n[55]=U,n[56]=K):K=n[56];let _e;n[57]!==u||n[58]!==l||n[59]!==de||n[60]!==K?(_e=(0,q.jsx)(Je,{id:l,autoComplete:`email`,autoFocus:!0,disabled:de,name:`billing-email`,type:`email`,required:!0,value:u,onChange:K}),n[57]=u,n[58]=l,n[59]=de,n[60]=K,n[61]=_e):_e=n[61];let ve;n[62]!==ge||n[63]!==_e?(ve=(0,q.jsxs)(me,{children:[ge,_e]}),n[62]=ge,n[63]=_e,n[64]=ve):ve=n[64];let ye;n[65]===Symbol.for(`react.memo_cache_sentinel`)?(ye=[...xe],n[65]=ye):ye=n[65];let be;n[66]===C?be=n[67]:(be={mode:`billing`,allowedCountries:ye,defaultValues:C},n[66]=C,n[67]=be);let Se;n[68]===Symbol.f",
+    "claim": "账单email autofocus、原生required email、pending禁用；AddressElement为外部Stripe控件。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R066",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 14056,
+    "excerpt": "||n[26]!==u||n[27]!==a||n[28]!==B||n[29]!==re||n[30]!==O||n[31]!==j||n[32]!==z.length?(ie=async()=>{if(!D||!E||!re)throw Error(`Incomplete billing details`);a(!0);let e=j&&O!=null&&B!=null?{type:B.stripe_type,country:B.country,value:O.value.trim()}:null;z.length===0&&(e=i.tax_id??null),await ft.safePost(`/payments/billing_info`,{requestBody:{account_id:r,email:u.trim(),name:w.name.trim()||null,address:w.address,tax_id:e}})},n[20]=r,n[21]=D,n[22]=w.address,n[23]=w.name,n[24]=i.tax_id,n[25]=E,n[26]=u,n[27]=a,n[28]=B,n[29]=re,n[30]=O,n[31]=j,n[32]=z.length,n[33]=ie):ie=n[33];l",
+    "claim": "账单提交要求Stripe已ready、地址complete、税号有效，trim值发送；无税种国家保留既有税号。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R067",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 17677,
+    "excerpt": "]!==pe||n[97]!==H?(ke=H?(0,q.jsx)(`p`,{role:`alert`,className:`text-sm text-danger`,children:pe!=null&&De(pe)?.message||(0,q.jsx)(m,{id:`settings.consumerBilling.saveInformationError`,defaultMessage:`Unable to save billing information. Please try again.`,description:`Error when saving consumer billing details fails; the editor retains the entered values for a retry`})}):null,n[96]=pe,n[97]=H,n[98]=ke):ke=n[98];let Ae;n[99]!==ve||n[100]!==we||n[101]!==Oe||n[102]!==ke?(Ae=(0,q.jsxs)(ae,{className:`gap-4`,children:[ve,we,Oe,ke]}),n[99]=ve,n[100]=we,n[101]=Oe,n[102]=ke,n[103]=A",
+    "claim": "账单保存失败role alert/sm danger并保留草稿；字段变化reset错误。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R068",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 18464,
+    "excerpt": "ng information or a saved card`}),n[104]=Me):Me=n[104];let Ne;n[105]!==de||n[106]!==je?(Ne=(0,q.jsx)(ae,{children:(0,q.jsx)(fe,{children:(0,q.jsx)(t,{color:`primary`,type:`submit`,disabled:je,loading:de,children:Me})})}),n[105]=de,n[106]=je,n[107]=Ne):Ne=n[107];let Pe;return n[108]!==he||n[109]!==Ae||n[110]!==Ne?(Pe=(0,q.jsxs)(se,{as:`form`,onSubmit:he,children:[W,Ae,Ne]}),n[108]=he,n[109]=Ae,n[110]=Ne,n[111]=Pe):Pe=n[111],Pe}function Zn(e){return!!e}var Qn,$n,er,q;function tr(){return(tr=e((()=>{Qn=W(),wt(),tn(),$n=on(),h(),O(),x(),er=_e(),V(),pe(),he(),P(),we(),G(),Oe(),B",
+    "claim": "账单Save pending加载禁用；税号验证并非全部表达为button disabled。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R069",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 19127,
+    "excerpt": "function nr(e){let n=(0,rr.c)(49),{authorization:r,busy:i,failed:a,termsChanged:o,onConfirm:s,onClose:c}=e,l=te(),u=r?.mandate_terms,d=r?.status===`requires_confirmation`||r?.status===`requires_action`,f=r?.status===`verified`,p=r?.status===`awaiting_stripe_migration`,h;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(h=(0,J.jsx)(m,{id:`settings.consumerBilling.mandate.title`,defaultMessage:`Authorize recurring payments`,description:`Title of the dialog for authorizing an existing subscription's recurring card payments with the bank`}),n[0]=h):h=n[0];let ee=h;if(f){let e;n[1",
+    "claim": "循环授权modal区分requires_confirmation/action、verified、awaiting_stripe_migration。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R070",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 20652,
+    "excerpt": "rized`}),n[3]=e):e=n[3],g=e}else if(o){let e;n[4]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,J.jsx)(m,{id:`settings.consumerBilling.mandate.changed`,defaultMessage:`Your authorization details changed. Review the updated terms and authorize again.`,description:`The server returned a different authorization target or recurring payment terms, requiring fresh customer consent before contacting Stripe`}),n[4]=e):e=n[4],g=e}else if(i){let e;n[5]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,J.jsx)(m,{id:`settings.consumerBilling.mandate.checking`,defaultMessage:`Checking a",
+    "claim": "授权条款改变要求重新审阅确认，不能直接调用Stripe。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R071",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 23964,
+    "excerpt": "at approving recurring card payments may open the bank's authentication challenge`})})]}):null,n[17]=d,n[18]=l,n[19]=u,n[20]=x):x=n[20];let S;n[21]===g?S=n[22]:(S=(0,J.jsx)(`div`,{role:`status`,\"aria-live\":`polite`,children:g}),n[21]=g,n[22]=S);let C;n[23]!==x||n[24]!==S?(C=(0,J.jsx)(ae,{children:(0,J.jsx)(L,{asChild:!0,children:(0,J.jsxs)(`div`,{children:[x,S]})})}),n[23]=x,n[24]=S,n[25]=C):C=n[25];let w;n[26]===Symbol.for(`react.memo_cache_sentinel`)?(w=(0,J.jsx)(m,{id:`settings.consumerBilling.mandate.close`,defaultMessage:`Back to Billing`,description:`Closes the recurr",
+    "claim": "授权状态使用polite status；busy表单aria-busy、阻止关闭、禁用返回。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R072",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 22857,
+    "excerpt": "(0,J.jsxs)(J.Fragment,{children:[(0,J.jsx)(`p`,{children:(0,J.jsx)(m,{id:`settings.consumerBilling.mandate.terms`,defaultMessage:`Authorize {amountType, select, maximum {up to {amount}} other {{amount}}} every {interval, select, day {{intervalCount, plural, one {day} other {# days}}} week {{intervalCount, plural, one {week} other {# weeks}}} month {{intervalCount, plural, one {month} other {# months}}} other {{intervalCount, plural, one {year} other {# years}}}} for your subscription`,description:`Recurring card mandate terms that the customer must approve. amount is locali",
+    "claim": "循环扣款按本地化金额/最大上限/周期描述，不等于本次扣款。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R073",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 27901,
+    "excerpt": "t.aborted||ar(r,{actionType:Pe.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_ACTION_TYPE_OPERATION_FAILED,operation:i}),n}},t[6]=n,t[7]=r,t[8]=O):O=t[8];let k;t[9]!==E||t[10]!==O?(k={queryKey:E,queryFn:O,staleTime:0,gcTime:0,retry:!1,refetchOnWindowFocus:!1},t[9]=E,t[10]=O,t[11]=k):k=t[11];let{data:A,isError:j,isFetching:M,refetch:N}=ne(k),P=f??A,F=!M&&!j&&P?.status===`not_required`,I=(l||s)&&!F,L=P?.status===`requires_confirmation`||P?.status===`requires_action`,R=P?.status===`awaiting_stripe_migration`,z=L||P?.status===`processing`||R,B=z&&(I||!j),V;t[12]!==n||t[13]!==P?.stat",
+    "claim": "循环授权查询无自动重试/焦点refetch，缓存立即过期；POST状态查询。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R074",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 30670,
+    "excerpt": "quires_confirmation`&&i.status!==`requires_action`)return;if(i.client_secret==null||i.publishable_key==null||i.mandate_terms==null){ar(r,{actionType:Pe.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_ACTION_TYPE_OPERATION_FAILED,operation:t}),v(!0);return}if(!lr(a,i)){b(!0);return}let o=await rn(i.publishable_key,{locale:nn(ue.locale,`elements`,de.getExperiment(`4048417348`).get(`enabled`,!1))});if(!T())return;if(o==null){ar(r,{actionType:Pe.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_ACTION_TYPE_OPERATION_FAILED,operation:t}),v(!0);return}let s=new URL(window.location.href);s.sear",
+    "claim": "授权确认前重新读取状态与条款一致性；改变则停止在termsChanged。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R075",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 31558,
+    "excerpt": "MANDATE_AUTHORIZATION_ACTION_TYPE_CONFIRMATION_STARTED,operation:t,status:i.status});try{c=(await o.confirmCardSetup(i.client_secret,{return_url:s.toString(),...i.original_payment_method_id?{payment_method:i.original_payment_method_id}:{}})).error!=null,l=c?We.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_PROVIDER_RESULT_ERROR:We.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_PROVIDER_RESULT_NO_ERROR}catch{c=!0,l=We.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_PROVIDER_RESULT_THREW}if(!T())return;ar(r,{actionType:Pe.CHATGPT_WEB_BILLING_MANDATE_AUTHORIZATION_ACTION_TYPE_PROVIDER_RETURNE",
+    "claim": "Stripe认证返回后再读取服务器状态，provider成功不等于支付准备完成。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R076",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 29185,
+    "excerpt": ")(ie,ae);let oe,se;t[24]!==i.hash||t[25]!==i.pathname||t[26]!==i.search||t[27]!==a||t[28]!==F?(se=()=>{let e=new URLSearchParams(i.search);e.has(`billing_mandate_authorization`)&&([`setup_intent`,`setup_intent_client_secret`,`redirect_status`].some(t=>e.has(t))||F)&&(e.delete(`setup_intent`),e.delete(`setup_intent_client_secret`),e.delete(`redirect_status`),F&&e.delete(`billing_mandate_authorization`),a({pathname:i.pathname,search:e.toString(),hash:i.hash},{replace:!0}))},oe=[i.hash,i.pathname,i.search,a,F],t[24]=i.hash,t[25]=i.pathname,t[26]=i.search,t[27]=a,t[28]=F,t[29]=",
+    "claim": "授权回跳清理敏感查询参数，关闭清理billing_mandate_authorization。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R077",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 38267,
+    "excerpt": "fePost(`/payments/payment_method/backup`,{requestBody:{account_id:r,enabled:e.enabled}});break bb29;case`remove`:{let[t,n]=await Promise.all([g(),S()]),i=t.data?.payment_methods.find(t=>t.id===e.id);if(t.isError||i==null||!yn({paymentMethod:i,defaultPaymentMethodId:t.data?.default_payment_method_id,defaultPaymentMethods:t.data?.default_payment_methods,autoReloadPaymentMethodId:n.data?.isEnabled?n.data.paymentMethod?.payment_method_id:null,autoReloadResolved:n.isSuccess}))throw Error(`Payment method is required by billing`);await ft.safeDelete(`/payments/payment_method/{paym",
+    "claim": "移除卡前同时刷新付款方式和auto-reload，重新检查保护再DELETE。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R078",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 41962,
+    "excerpt": "d:e})},children:(0,Y.jsx)(m,{id:`settings.consumerBilling.editCard`,defaultMessage:`Edit`,description:`Edit a saved card's expiration and billing address`})}):null,r?null:(0,Y.jsx)(E.Item,{tone:`danger`,disabled:R||x||p,focusableWhenDisabled:d&&!R,\"aria-describedby\":d?`${l}-${n}`:void 0,onSelect:()=>{Ln(i,Ze.CHATGPT_WEB_BILLING_SETTINGS_ACTION_TYPE_REMOVE_PAYMENT_METHOD_CLICKED),L({type:`remove`,id:e.id})},children:(0,Y.jsx)(m,{id:`settings.consumerBilling.removeCard`,defaultMessage:`Remove`,description:`Remove this saved payment method from the consumer billing account`})}",
+    "claim": "auto-reload使用卡不可删除但可聚焦读原因，提供Manage auto-reload和数据失败Retry。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R079",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 40983,
+    "excerpt": "utton:(0,Y.jsx)(t,{color:`ghost`,radius:`large`,size:`inputIcon`,\"aria-busy\":c,\"aria-label\":a.formatMessage({id:`settings.consumerBilling.paymentActions`,defaultMessage:`Open payment method actions`,description:`Accessible label for a saved payment method's actions menu`}),disabled:R,onFocus:e=>{O.current=e.currentTarget},onPointerDown:e=>{O.current=e.currentTarget},children:c?(0,Y.jsx)(de,{className:`icon-xs`}):(0,Y.jsx)(re,{})}),children:[!r&&e.type!==`custom`?(0,Y.jsx)(E.Item,{disabled:R,onSelect:()=>{Ln(i,Ze.CHATGPT_WEB_BILLING_SETTINGS_ACTION_TYPE_SET_DEFAULT_PAYMENT_M",
+    "claim": "付款卡菜单按钮有aria-label、删除busy spinner和全局mutation禁用。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R080",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 46248,
+    "excerpt": "me,n[59]=he);let W;n[60]===T?W=n[61]:(W=T?(0,Y.jsx)(`p`,{role:`status`,className:`text-sm text-secondary`,children:(0,Y.jsx)(m,{id:`settings.consumerBilling.paymentMethodAlreadySaved`,defaultMessage:`This card is already saved`,description:`Status after the backend recognizes a duplicate card and keeps the existing saved payment method`})}):null,n[60]=T,n[61]=W);let G;n[62]!==B||n[63]!==V?(G=B&&V!=null?(0,Y.jsx)(`p`,{role:`alert`,className:`text-sm text-warning`,children:(0,Y.jsx)(m,{...vr[`${V.type}Error`]})}):null,n[62]=B,n[63]=V,n[64]=G):G=n[64];let ge;n[65]!==ce||n[66]!",
+    "claim": "重复保存卡独立status说明；变更进行中有sr-only状态。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R081",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 64113,
+    "excerpt": "15]!==f?(p=(0,Z.jsx)(`div`,{className:`overflow-x-auto`,children:(0,Z.jsxs)(`table`,{\"aria-label\":a,className:`w-full border-collapse text-start text-sm`,children:[u,f]})}),t[14]=a,t[15]=f,t[16]=p):p=t[16],p}function Mr(e){let n=(0,Fr.c)(49),{transaction:r,onViewInvoice:i}=e,s=te(),c;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(c={added:Q.transactionStatusCredit,removed:Q.transactionStatusDebit,paid:Q.invoiceStatusPaid,due:Q.invoiceStatusDue,void:Q.invoiceStatusVoid,uncollectible:Q.invoiceStatusUncollectible,draft:Q.invoiceStatusDraft},n[0]=c):c=n[0];let l=c,d=`default`;",
+    "claim": "交易history横向overflow与语义table，隐藏列头sr-only。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R082",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 64593,
+    "excerpt": "ectible:Q.invoiceStatusUncollectible,draft:Q.invoiceStatusDraft},n[0]=c):c=n[0];let l=c,d=`default`;r.status===`added`?d=`success`:r.status===`due`?d=`warning`:r.status===`uncollectible`&&(d=`danger`);let f=r.type===`invoice`&&r.product?.type===`subscription`?r.product.seat_quantities:null,p=r.type===`invoice`?r.invoice_url:null,h=p&&`relative isolate hover:bg-primary-ghost-hover focus-within:bg-primary-ghost-hover`,ee;n[1]===h?ee=n[2]:(ee=I(`border-b border-default last:border-b-0`,h),n[1]=h,n[2]=ee);let g;n[3]===r?g=n[4]:(g=(0,Z.jsx)(`span`,{className:`min-w-0 break-words",
+    "claim": "交易状态样式映射credit success/due warning/uncollectible danger。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R083",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 65852,
+    "excerpt": "ort`,value:f.map(Nr)})}),n[11]=f,n[12]=y);let b;n[13]!==v||n[14]!==y?(b=(0,Z.jsxs)(`td`,{className:`w-1/3 max-w-0 px-3 py-2 text-secondary`,children:[v,y]}),n[13]=v,n[14]=y,n[15]=b):b=n[15];let x;n[16]===r.created_at?x=n[17]:(x=(0,Z.jsx)(`td`,{className:`px-3 py-2 whitespace-nowrap text-secondary`,children:(0,Z.jsx)(w,{value:r.created_at,month:`numeric`,day:`numeric`,year:`numeric`})}),n[16]=r.created_at,n[17]=x);let S=l[r.status],C;n[18]===S?C=n[19]:(C=(0,Z.jsx)(m,{...S}),n[18]=S,n[19]=C);let T;n[20]!==d||n[21]!==C?(T=(0,Z.jsx)(`td`,{className:`px-3 py-2 text-center`,child",
+    "claim": "交易首列1/3、单元格12/8、金额tabularnums可选、信用金额绿色。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R084",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 67223,
+    "excerpt": "-label\":s.formatMessage(Q.openInvoiceLinkAriaLabel,{createdDate:new Date(r.created_at)}),className:`after:absolute after:inset-0 after:z-0 after:content-[''] focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring`,href:p,initiator:`open_in_browser_bridge`,isBrowserEnabled:!1,onClick:i,children:(0,Z.jsx)(o,{})}):null,n[35]=s,n[36]=p,n[37]=i,n[38]=r.created_at,n[39]=j):j=n[39];let M;n[40]===j?M=n[41]:(M=(0,Z.jsx)(`td`,{className:`px-3 py-2 text-end`,children:j}),n[40]=j,n[41]=M);let N;return n[42]!==T||",
+    "claim": "invoice链接整行点击层、focus ring、金额相对z10保持可选；桥接外部账单URL。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R085",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 81865,
+    "excerpt": "c)(24),{accountId:r,onBack:i}=e,a;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(a=[null],n[0]=a):a=n[0];let[s,c]=(0,Ur.useState)(a),l=s[s.length-1]??null,u;n[1]!==r||n[2]!==l?(u=Vr(r,10,l),n[1]=r,n[2]=l,n[3]=u):u=n[3];let{data:d,isPending:f,isError:p,isFetching:h}=ne(u),ee=s.length>1,g=d?.next_cursor,_,y;n[4]===Symbol.for(`react.memo_cache_sentinel`)?(_=(0,$.jsx)(v,{}),y=(0,$.jsx)(m,{id:`settingsModal.back`,defaultMessage:`Back`,description:`Returns from transaction history to the personal account's Billing settings`}),n[4]=_,n[5]=y):(_=n[4],y=n[5]);let b;n[6]===i?b=n[7]:",
+    "claim": "完整交易历史每页10，cursor栈前后翻页，pending/error/空数据分支。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R086",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 83739,
+    "excerpt": "function Br(e){let t=(0,Hr.c)(5),{data:n,isPending:r,isError:i,onViewInvoice:a}=e;if(r){let e;return t[0]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(zn,{children:(0,$.jsx)(m,{id:`settingsModal.transactionHistory.loading`,defaultMessage:`Loading transactions`,description:`Loading status while the personal account's billing transactions are fetched`})}),t[0]=e):e=t[0],e}if(i){let e;return t[1]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(`p`,{role:`alert`,className:`text-sm text-warning`,children:(0,$.jsx)(m,{id:`settingsModal.transactionHistory.loadErro",
+    "claim": "交易加载/失败/空数据分离；本组件error仅说明，无内联Retry按钮。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R087",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 85439,
+    "excerpt": "function Gr(e){let n=(0,Kr.c)(65),{account:r,accountId:i}=e,a=ee(c),o;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(o=new Set,n[0]=o):o=n[0];let s=(0,qr.useRef)(o),l=te(),u=d(),{data:f,isPending:p,isFetching:h,isError:g,refetch:_}=ye(Pt,i),{client:v}=dt(),y;n[1]===v?y=n[2]:(y=v.getContext().user?.country?.trim().toUpperCase(),n[1]=v,n[2]=y);let b=y,x;n[3]!==r||n[4]!==f||n[5]!==v?(x=In(r,f,Pn(v)),n[3]=r,n[4]=f,n[5]=v,n[6]=x):x=n[6];let{canRedeem:S,showWallet:C,usdBalance:w}=x,T=w===0?f?.balance:w,E=!h&&!g&&f?.balance===0&&f.currency==null&&S,D;n[7]!==i||n[8]!==b?(D=[`consu",
+    "claim": "余额查询与礼卡入口独立，钱包不适用时不伪造0。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R088",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 89860,
+    "excerpt": ".Header,{title:B,actions:V}),n[55]=V,n[56]=re);let ie;n[57]===a?ie=n[58]:(ie=(0,Jr.jsx)(`p`,{children:(0,Jr.jsx)(m,{id:`settingsModal.walletBalance.fundingHelp.v2`,defaultMessage:`Your balance includes redeemed OpenAI gift cards and other account credits, like billing adjustments. It's automatically applied to eligible payments, including ChatGPT subscriptions and credit purchases. <helpCenterLink>Learn more</helpCenterLink>`,description:`Explanation below the monetary account balance in personal Settings > Billing, including loading and unavailable states. Redeemed gift ca",
+    "claim": "余额帮助文字、可选Redeem gift card与Refresh Retry，外部兑换细节未采集。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R089",
+    "path": "webview/assets/profile-page-4d4a504393b4.js",
+    "offset": 921,
+    "excerpt": "omponent(e)}`,{replace:!0,state:c})},n[6]=i,n[7]=c,n[8]=h):h=n[8];let g;return n[9]!==m||n[10]!==h||n[11]!==r||n[12]!==a||n[13]!==c?(g=(0,O.jsxs)(O.Fragment,{children:[u,(0,O.jsx)(y,{visit:c,today:r,username:a,preview:m,onUsernameChanged:h,isProfileV2Enabled:!0,rightAlignHeaderControls:!0,redirectToUsername:!0,Layout:T},d)]}),n[9]=m,n[10]=h,n[11]=r,n[12]=a,n[13]=c,n[14]=g):g=n[14],g}function T(e){let t=(0,E.c)(31),{children:n,header:r,isEditPaneOpen:a,ref:c,scrollRef:l,isTab:u}=e,f=u!==void 0&&u,[p,m]=(0,D.useState)(!1),h=d(),g=a&&`pointer-events-none`,v=p?`border-subtle bg",
+    "claim": "Profile壳使用/profile与/u/username、preview参数、共享profile组件；只外壳覆盖。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R090",
+    "path": "webview/assets/profile-page-4d4a504393b4.js",
+    "offset": 1285,
+    "excerpt": "=c,n[14]=g):g=n[14],g}function T(e){let t=(0,E.c)(31),{children:n,header:r,isEditPaneOpen:a,ref:c,scrollRef:l,isTab:u}=e,f=u!==void 0&&u,[p,m]=(0,D.useState)(!1),h=d(),g=a&&`pointer-events-none`,v=p?`border-subtle bg-surface/80 backdrop-blur-xl dark:border-default`:`border-transparent`,y;t[0]!==g||t[1]!==v?(y=s(`relative z-30 shrink-0 border-b browser:max-md:[&_[data-app-shell-header-toolbar]]:h-auto browser:max-md:[&_[data-app-shell-header-toolbar]]:min-h-toolbar`,g,v),t[0]=g,t[1]=v,t[2]=y):y=t[2];let x=+!!h,S;t[3]===x?S=t[4]:(S={opacity:x},t[3]=x,t[4]=S);let C=+!a,w;t[5]=",
+    "claim": "profile滚动header半透明blur，编辑时aria-hidden/inert及pointer-events-none，150ms条件动效。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R091",
+    "path": "webview/assets/select-workspace-page-3c71f8883285.js",
+    "offset": 8302,
+    "excerpt": "10 w-10`,\"aria-hidden\":`true`}):null,t[0]=r,t[1]=i);let a,o;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,$.jsx)(p,{id:`electron.onboarding.workspace.title`,defaultMessage:`Select a project`,description:`Title on the desktop onboarding workspace selection page`}),o=(0,$.jsx)(p,{id:`electron.onboarding.workspace.subtitle`,defaultMessage:`ChatGPT will be able to edit files and run commands in selected folders`,description:`Subtitle on the desktop onboarding workspace selection page`}),t[2]=a,t[3]=o):(a=t[2],o=t[3]);let s;return t[4]!==n||t[5]!==i?(s=(0,$.jsx)(Ne,{class",
+    "claim": "名为select-workspace的模块实际本地项目选择页，不是账户工作区切换。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R092",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 52818,
+    "excerpt": "===`upgrade`?`upgrade`:`secondary`,fe;n[73]!==i.account.plan_type||n[74]!==b||n[75]!==f||n[76]!==S||n[77]!==u||n[78]!==o||n[79]!==v.pricePlan?(fe=e=>{b===`external_manage`&&S!=null?(S!==`partner_managed`&&Ln(o,Ze.CHATGPT_WEB_BILLING_SETTINGS_ACTION_TYPE_MOBILE_MANAGE_CLICKED,S===`app_store`?Xe.CHATGPT_WEB_BILLING_SETTINGS_MOBILE_STORE_APP_STORE:Xe.CHATGPT_WEB_BILLING_SETTINGS_MOBILE_STORE_GOOGLE_PLAY_STORE),g(`platform`)):b===`renew`?(Ln(o,Ze.CHATGPT_WEB_BILLING_SETTINGS_ACTION_TYPE_RENEW_PLAN_CLICKED),g(`renewal`)):(i.account.plan_type===`free`&&He(o,Ke,{action:Ge.CHATGPT_",
+    "claim": "套餐主按钮根据来源走外部平台管理、Renew确认或方案页；文案实验只改变适用按钮。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R093",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 54978,
+    "excerpt": "=B?(0,X.jsx)(s,{align:`end`,triggerButton:(0,X.jsx)(t,{color:`secondary`,size:`inputIcon`,type:`button`,\"aria-label\":l.formatMessage({id:`settings.consumerBilling.cadenceActionsLabel`,defaultMessage:`Billing schedule options`,description:`Accessible label for the plan actions menu that contains the Plus Monthly/Annual billing schedule option.`}),children:(0,X.jsx)(r,{})}),children:(0,X.jsx)(E.Item,{onClick:()=>z(`manage_billing_schedule`),children:(0,X.jsx)(m,{id:`settings.consumerBilling.manageCadence`,defaultMessage:`Manage billing schedule`,description:`Opens the Plus bi",
+    "claim": "符合年付资格时出现end对齐更多菜单，进入Manage billing schedule。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R094",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 56604,
+    "excerpt": "3]=F,n[114]=ge,n[115]=K,n[116]=_e,n[117]=ve,n[118]=ye):ye=n[118];let xe;n[119]===I?xe=n[120]:(xe=(0,X.jsx)(wr.Suspense,{fallback:null,children:I}),n[119]=I,n[120]=xe);let Se;return n[121]!==ye||n[122]!==xe?(Se=(0,X.jsxs)(X.Fragment,{children:[ye,xe]}),n[121]=ye,n[122]=xe,n[123]=Se):Se=n[123],Se}function xr(e){let n=(0,Cr.c)(24),{account:r,onCancelSubscriptionClick:i}=e,a=ee(c),o=nt(),[s,l]=(0,wr.useState)(!1),u;n[0]===r?u=n[1]:(u=_n(r),n[0]=r,n[1]=u);let d=u;if(!Nn(r))return null;let f;n[2]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,X.jsx)(m,{id:`settings.consumerBilli",
+    "claim": "计划行懒加载弹窗Suspense fallback为空；不能把等待期杜撰骨架。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  },
+  {
+    "id": "R095",
+    "path": "webview/assets/billing-settings-4bed49088beb.js",
+    "offset": 87204,
+    "excerpt": "7]=C,n[28]=L):L=n[28];let R;if(n[29]!==i||n[30]!==g||n[31]!==F||n[32]!==I||n[33]!==a||n[34]!==C?(R=[i,g,F,I,a,C],n[29]=i,n[30]=g,n[31]=F,n[32]=I,n[33]=a,n[34]=C,n[35]=R):R=n[35],(0,qr.useEffect)(L,R),p||!g&&!C)return null;let z;if(F){let e;n[36]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Jr.jsxs)(`div`,{role:`status`,className:`flex items-center gap-2 text-sm text-secondary`,children:[(0,Jr.jsx)(de,{className:`icon-xs shrink-0 text-secondary`}),(0,Jr.jsx)(m,{id:`settingsModal.walletBalance.loading`,defaultMessage:`Loading balance…`,description:`Loading status while the",
+    "claim": "余额初次pending直接不渲染；已出现后刷新显示Loading，错误显示Not available和Retry。",
+    "scope": "ChatGPT家庭、受信联系人事件弹窗、独立核验及个人账单；交付包静态实现，未执行账户写入、邀请、认证或付款"
+  }
+]

@@ -15,6 +15,7 @@ import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store
 import { Sidebar, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { SidebarResizeHandle } from './SidebarResizeHandle'
 import type { SidebarUpdate } from './SidebarUpdateStatus'
 
 const SidebarUpdateStatus = lazy(() => import('./SidebarUpdateStatus'))
@@ -30,6 +31,9 @@ type AppSidebarProps = {
   onOpenUpdates: () => void
   tasks: ReactNode
   settingsSearch?: ReactNode
+  width?: number
+  onWidthPreview?: (width: number | null) => void
+  onWidthCommit?: (width: number) => void
 }
 
 export function AppSidebar({
@@ -43,6 +47,9 @@ export function AppSidebar({
   onOpenUpdates,
   tasks,
   settingsSearch,
+  width,
+  onWidthPreview,
+  onWidthCommit,
 }: AppSidebarProps) {
   const { t } = useI18n()
   const { isMobile, setOpenMobile, open, toggleSidebar } = useSidebar()
@@ -62,13 +69,19 @@ export function AppSidebar({
     'h-9 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal shadow-none hover:bg-sidebar-accent'
   return (
     <Sidebar
-      collapsible="offcanvas"
-      className="pisper-sidebar-container overflow-hidden border-0 min-[651px]:rounded-l-2xl"
+      collapsible={settingsActive && !isMobile ? 'none' : 'offcanvas'}
+      className={cn(
+        'pisper-sidebar-container overflow-hidden border-0',
+        !isMobile && 'rounded-l-2xl',
+      )}
     >
       <aside
         id="workbench-sidebar"
         data-testid="workbench-sidebar"
-        className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-sidebar text-foreground min-[651px]:rounded-l-2xl"
+        className={cn(
+          'relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-sidebar text-foreground',
+          !isMobile && 'rounded-l-2xl',
+        )}
       >
         <div className="flex h-14 shrink-0 items-center gap-1 px-3" data-window-drag-region>
           <span className="min-w-0 flex-1 truncate pl-1 text-lg font-semibold">
@@ -85,7 +98,7 @@ export function AppSidebar({
               <Search size={18} />
             </Button>
           )}
-          {!isMobile && open && (
+          {!isMobile && open && !settingsActive && (
             <Button
               id="workbench-sidebar-toggle"
               variant="ghost"
@@ -173,6 +186,14 @@ export function AppSidebar({
               </Suspense>
             </footer>
           )}
+        {!isMobile && width !== undefined && onWidthPreview && onWidthCommit && (
+          <SidebarResizeHandle
+            width={width}
+            label={t('navigation:appSidebar.resizeSidebar')}
+            onPreview={onWidthPreview}
+            onCommit={onWidthCommit}
+          />
+        )}
       </aside>
     </Sidebar>
   )

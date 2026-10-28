@@ -348,7 +348,8 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
     readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
   ])
 
-  assert.match(palette, /searchSessionTreeLabels\(keyword, 12\)/)
+  // 仍经领域 API 搜索；新增 AbortSignal 用于查询切换/卸载取消，不固定参数个数。
+  assert.match(palette, /chatApi\.searchSessionTreeLabels\(/)
   assert.match(palette, /label\.sessionName/)
   assert.match(palette, /sessionCreated \|\| label\.sessionModified/)
   assert.match(palette, /label\.nodeTimestamp/)

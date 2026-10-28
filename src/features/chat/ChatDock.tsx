@@ -342,6 +342,7 @@ function SessionPanel({
   // 这里的可选链兜底仅为满足类型。
   const handlers = useMemo(
     () => ({
+      onLoadLatest: () => context?.loadSessionMessages(sessionId, { force: true }),
       onLoadOlder: () => context?.loadOlderMessages(sessionId) ?? false,
       onModelChange: (nextModel: string) => context?.switchSessionModel(sessionId, nextModel),
       onThinkingLevelChange: (nextLevel: string) =>
@@ -392,6 +393,7 @@ function SessionPanel({
         teamMode: boolean,
         goalTokenBudget: number | null,
         invocation?: ResourceInvocation | null,
+        onAccepted?: () => void,
       ) =>
         context?.sendPrompt(
           value,
@@ -401,9 +403,14 @@ function SessionPanel({
           teamMode,
           goalTokenBudget,
           invocation,
+          { onAccepted },
         ),
-      onQueue: (value: string, attachments: ChatAttachment[], behavior: string) =>
-        context?.queuePrompt(value, sessionId, attachments, behavior) ?? false,
+      onQueue: (
+        value: string,
+        attachments: ChatAttachment[],
+        behavior: string,
+        onAccepted?: () => void,
+      ) => context?.queuePrompt(value, sessionId, attachments, behavior, onAccepted) ?? false,
       onWithdrawQueuedInput: (inputId: string) =>
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onAbort: () => context?.abort(sessionId),
@@ -430,7 +437,7 @@ function SessionPanel({
       onFocusCapture={onFocusCapture}
     >
       <TaskWorkspace
-        messages={state.messages || EMPTY_LIST}
+        messages={state.historyWindow?.messages || state.messages || EMPTY_LIST}
         taskName={session.name || sessionId}
         cwd={state.cwd || session.cwd || ''}
         key={sessionId}
@@ -450,12 +457,13 @@ function SessionPanel({
         <FocusSession
           session={session}
           shortcutEnabled={shortcutEnabled}
-          messages={state.messages || EMPTY_LIST}
+          messages={state.historyWindow?.messages || state.messages || EMPTY_LIST}
           transcriptLoadState={
             state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
           }
-          messageStart={state.messageStart}
-          hasOlder={state.hasOlder}
+          hasNewer={Boolean(state.historyWindow)}
+          messageStart={state.historyWindow?.messageStart ?? state.messageStart}
+          hasOlder={state.historyWindow?.hasOlder ?? state.hasOlder}
           loadingOlder={state.loadingOlder}
           olderError={state.olderError}
           model={state.model || session.model || context.defaultModel}

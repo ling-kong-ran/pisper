@@ -79,26 +79,51 @@ export function usePromptCommands({
       goalTokenBudget: number | null = null,
       invocation: ResourceInvocation | null = null,
       // 重试模式：乐观消息截掉最后一轮，流改走 /retry（服务端原地重跑该轮）。
-      options: { retryFromIndex?: number; activate?: boolean } = {},
+      options: {
+        retryFromIndex?: number
+        retryUserMessageId?: string
+        activate?: boolean
+        onAccepted?: () => void
+      } = {},
     ) => {
-      const retryFromIndex = options.retryFromIndex
-      const prompt =
+      let retryFromIndex = options.retryFromIndex
+      let prompt =
         retryFromIndex != null
           ? text
           : text.trim() ||
             (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '') ||
             (invocation ? invocation.resourceName : '')
-      if (!prompt && !invocation) return
+      if (!prompt && !invocation) return false
       let sessionId = requestedSessionId
       if (!sessionId) sessionId = await createSession()
-      if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return
+      if (!sessionId || sessionStatesRef.current[sessionId]?.streaming) return false
+      if (sessionStatesRef.current[sessionId]?.historyWindow)
+        await loadSessionMessages(sessionId, { force: true })
+      const latest = sessionStatesRef.current[sessionId]
+      if (latest?.streaming) return false
+      if (retryFromIndex != null) {
+        let latestUserIndex = -1
+        for (let index = (latest?.messages.length || 0) - 1; index >= 0; index -= 1) {
+          if (latest.messages[index]?.role === 'user') {
+            latestUserIndex = index
+            break
+          }
+        }
+        const source = latest?.messages[latestUserIndex]
+        // /retry 只重跑最新轮；窗口刷新或并发新轮不能把旧文本/索引带入新消息数组。
+        if (!source || (options.retryUserMessageId && source.id !== options.retryUserMessageId))
+          return false
+        retryFromIndex = latestUserIndex
+        prompt = source.text || ''
+        attachments = source.attachments || []
+      }
       const selectionState = sessionStatesRef.current[sessionId]
       if (
         selectionState?.pendingRuntimeSelection ||
         selectionState?.switchingModel ||
         selectionState?.switchingThinking
       )
-        return
+        return false
       const streamGeneration = (streamGenerationRef.current.get(sessionId) || 0) + 1
       streamGenerationRef.current.set(sessionId, streamGeneration)
       // generation 会在结算时删除，后续发送即使复用编号也不能复活旧回调。
@@ -249,9 +274,14 @@ export function usePromptCommands({
         toolScheduler,
         t,
       })
+      let accepted = false
       const dispatchStreamEvent = (event: string, data: Record<string, any>) => {
         // 前台恢复会使陈旧流失效，避免它在服务端快照之后写回过期增量。
         if (!ownsStream()) return false
+        if (!accepted && (event === 'run' || event === 'meta')) {
+          accepted = true
+          options.onAccepted?.()
+        }
         // 重挂时服务端缓冲已溢出（缺口）：增量不再可信。立即释放本地流所有权，
         // 移交实时快照轮询补齐后续状态——run 在服务端继续推进，不中断。
         if (event === 'resync_required') {
@@ -334,7 +364,7 @@ export function usePromptCommands({
             dispatchStreamEvent,
           )
         }
-        if (!ownsStream()) return
+        if (!ownsStream()) return accepted
         streamState.responseRenderingStreaming = false
         streamState.terminal = true
         typewriter.setTarget(streamState.responseText)
@@ -363,7 +393,7 @@ export function usePromptCommands({
           })
         }
         // 持久化消息会整体替换正文，必须等显示排空，失去所有权时则交给新流/快照。
-        if (!(await typewriter.drain()) || !ownsStream()) return
+        if (!(await typewriter.drain()) || !ownsStream()) return accepted
         updateSessionState(sessionId, (current) => ({
           ...current,
           messages: current.messages.map((item) =>
@@ -374,7 +404,7 @@ export function usePromptCommands({
         }))
         // 持久化元数据（回合边界/资产）已随 done 帧就地补齐，不再整页重拉历史，
         // 避免最后一行消息因换成服务端 ID 而重挂载、闪动。
-        if (!ownsStream()) return
+        if (!ownsStream()) return accepted
         if (
           goalMode ||
           teamMode ||
@@ -392,7 +422,7 @@ export function usePromptCommands({
         } catch {
           void syncLiveSession(sessionId)
         }
-        if (!ownsStream()) return
+        if (!ownsStream()) return accepted
         if (options.activate !== false)
           browserNotify?.('chat.completed', {
             chat: {
@@ -404,7 +434,7 @@ export function usePromptCommands({
             },
           })
       } catch (error) {
-        if (!ownsStream()) return
+        if (!ownsStream()) return accepted
         if ((streamState.runId || streamState.startedAt) && !streamState.terminal) {
           // 传输耗尽重试不代表 run 失败；保留语音轮所有权并移交快照确认终态。
           dispatcher.dispatch('resync_required', {})
@@ -412,7 +442,7 @@ export function usePromptCommands({
           streamGenerationRef.current.delete(sessionId)
           localStreamSessionsRef.current.delete(sessionId)
           void syncLiveSession(sessionId)
-          return
+          return accepted
         }
         streamFailed = true
         typewriter.cancel()
@@ -477,6 +507,7 @@ export function usePromptCommands({
         // 已完成则拉齐终态；真实的服务端错误会原样保留在快照里。
         if (streamFailed && currentStream) void syncLiveSession(sessionId)
       }
+      return accepted
     },
     [
       browserNotify,
@@ -504,11 +535,14 @@ export function usePromptCommands({
       sessionId: string,
       attachments: ChatAttachment[] = [],
       behavior = 'steer',
+      onAccepted?: () => void,
     ) => {
       const message =
         String(text || '').trim() ||
         (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '')
       if (!sessionId || !message) return false
+      if (sessionStatesRef.current[sessionId]?.historyWindow)
+        await loadSessionMessages(sessionId, { force: true })
       const queuedInputRunId = sessionStatesRef.current[sessionId]?.queuedInputRunId
       try {
         const result = await chatApi.queueInput(sessionId, message, attachments, behavior)
@@ -557,8 +591,11 @@ export function usePromptCommands({
             hadQueuedInput: false,
           })
           await loadSessionMessages(sessionId, { force: true })
-          void sendPrompt(message, sessionId, attachments)
-          return true
+          return (
+            (await sendPrompt(message, sessionId, attachments, false, false, null, null, {
+              onAccepted,
+            })) ?? false
+          )
         }
         notify(chatErrorMessage(error), 'error')
         return false
@@ -708,8 +745,24 @@ export function usePromptCommands({
   // 服务端负责树导航与真实输入恢复，前端的 text/attachments 只用于乐观气泡。
   const retryLastTurn = useCallback(
     async (sessionId: string, options: { activate?: boolean } = {}) => {
-      const current = sessionStatesRef.current[sessionId]
+      let current = sessionStatesRef.current[sessionId]
       if (!current || current.streaming) return
+      if (current.historyWindow) {
+        try {
+          await loadSessionMessages(sessionId, { force: true })
+        } catch {
+          return
+        }
+        current = sessionStatesRef.current[sessionId]
+        if (
+          !current ||
+          current.streaming ||
+          current.historyWindow ||
+          current.loading ||
+          current.error
+        )
+          return
+      }
       const messages = current.messages || []
       let userIndex = -1
       for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -728,10 +781,10 @@ export function usePromptCommands({
         false,
         null,
         null,
-        { retryFromIndex: userIndex, ...options },
+        { retryFromIndex: userIndex, retryUserMessageId: source.id, ...options },
       )
     },
-    [sendPrompt, sessionStatesRef],
+    [loadSessionMessages, sendPrompt, sessionStatesRef],
   )
 
   return { sendPrompt, retryLastTurn, queuePrompt, withdrawQueuedInput, abort }

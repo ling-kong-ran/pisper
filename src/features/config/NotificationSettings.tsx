@@ -1,15 +1,26 @@
 // 通知设置：浏览器通知开关 + 事件模板（飞书/微信/QQ/Telegram/浏览器渠道）配置。
-import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Bell, BellOff, RefreshCw, Save, Send, ShieldCheck } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Bell, BellOff, RefreshCw, ShieldCheck } from 'lucide-react'
 import {
   SettingsBadge as Badge,
   SettingsCard as Panel,
-  SettingsSectionTitle as SectionTitle,
   SettingsSwitch as Toggle,
 } from './settings-primitives'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
-import { apiJson } from '@/lib/api'
+import { useNotificationSettings } from './useNotificationSettings'
+import { NotificationTemplatesEditor } from './NotificationTemplatesEditor'
+import { SettingsRow, SettingsSection } from '@/components/app/SettingsRow'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import { NOTIFICATION_PLATFORMS } from '@/types/notifications'
 import {
   getBrowserNotificationPermission,
   prepareBrowserNotifications,
@@ -22,47 +33,19 @@ import {
   tauriNotificationNotify,
   tauriNotificationRequestPermission,
 } from '@/lib/tauri-notification'
-import type { Dispatch, SetStateAction } from 'react'
 import type { I18nValues } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
 import type { NotificationPlatform, NotificationSettingsData } from '@/types/notifications'
 
 import { Button } from '@/components/ui/button'
 
-import { FieldLabel } from '@/components/ui/field'
-
-import { AppCardHeader, AppError, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
+import { AppError, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
 
 type Translate = (message: string, values?: I18nValues) => string
 type NotificationPermissionState = NotificationPermission | 'checking' | 'unsupported'
-type ChannelDefinition = {
-  tone: 'blue' | 'green'
-}
-type NotificationTestResult = {
-  sent?: number
-  title?: string
-  body?: string
-  preview?: string
-}
 type NotificationSettingsProps = {
   notify: Notify
   onBrowserNotificationChange?: (settings: NotificationSettingsData) => void
-}
-type NotificationTemplatesProps = {
-  data: NotificationSettingsData
-  setData: Dispatch<SetStateAction<NotificationSettingsData>>
-  notify: Notify
-  permission: NotificationPermissionState
-  onBrowserTest?: (title: string, body: string, tag?: string) => Promise<unknown>
-  onSettingsChange?: (settings: NotificationSettingsData) => void
-}
-
-const CHANNELS: Record<NotificationPlatform, ChannelDefinition> = {
-  feishu: { tone: 'blue' },
-  weixin: { tone: 'green' },
-  qq: { tone: 'blue' },
-  telegram: { tone: 'blue' },
-  browser: { tone: 'blue' },
 }
 
 function notificationChannelLabel(
@@ -73,7 +56,7 @@ function notificationChannelLabel(
   if (platform === 'weixin') return t('config:notificationSettings.weChat')
   if (platform === 'qq') return t('config:notificationSettings.qq')
   if (platform === 'telegram') return t('config:notificationSettings.telegram')
-  return t('config:notificationSettings.browserNotification')
+  return t('config:notificationSettings.systemNotificationChannel')
 }
 
 function notificationTemplateName(id: string, fallback: string, t: Translate) {
@@ -96,33 +79,6 @@ function notificationTemplateDescription(id: string, fallback: string, t: Transl
     return t('config:notificationSettings.workflowCompletedDescription')
   if (id === 'workflow.failed') return t('config:notificationSettings.workflowFailedDescription')
   return fallback
-}
-
-function renderPreview(content: string, t: Translate) {
-  const values: Record<string, string> = {
-    'chat.title': t('config:notificationSettings.fixChannelNotification'),
-    'chat.summary': t(
-      'config:notificationSettings.implementationIsCompleteTestsAndBuildHavePassed',
-    ),
-    'chat.tool': 'bash',
-    'chat.reason': t('config:notificationSettings.confirmationIsRequired'),
-    'chat.model': 'openai/gpt-5.4',
-    'task.name': t('config:notificationSettings.dailyCodeReview'),
-    'task.summary': t('config:notificationSettings.found2IssuesToAddressTheReportHasBeenArchived'),
-    'task.duration': t('config:notificationSettings.message2Min18Sec'),
-    'task.nextRun': t('config:notificationSettings.tomorrow0900'),
-    'task.error': t('config:notificationSettings.testProcessTimedOut'),
-    'workflow.name': t('config:notificationSettings.preReleaseChecks'),
-    'workflow.summary': t('config:notificationSettings.testsBuildAndSecurityChecksHaveAllPassed'),
-    'workflow.duration': t('config:notificationSettings.message6Min42Sec'),
-    'workflow.runId': 'run_20260718_001',
-    'workflow.node': t('config:notificationSettings.endToEndTests'),
-    'workflow.error': t('config:notificationSettings.browserFailedToStart'),
-  }
-  return String(content || '').replace(
-    /\{\{\s*([\w.]+)\s*\}\}/g,
-    (_match, key) => values[key] || `{{${key}}}`,
-  )
 }
 
 function notificationPermission(): NotificationPermissionState {
@@ -156,19 +112,21 @@ export function NotificationSettings({
   notify,
   onBrowserNotificationChange,
 }: NotificationSettingsProps) {
-  const { t } = useI18n()
-  const [data, setData] = useState<NotificationSettingsData>({
-    browser: { enabled: false },
-    connections: {},
-    scopes: [],
-    templates: [],
-  })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { t, language } = useI18n()
+  const permissionAlive = useRef(false)
+  useEffect(() => {
+    permissionAlive.current = true
+    return () => {
+      permissionAlive.current = false
+    }
+  }, [])
+  const settings = useNotificationSettings(onBrowserNotificationChange)
+  const { data, loading, loadError } = settings
+  const [params, setParams] = useSearchParams()
   const desktop = Boolean(window.pisperDesktop?.showNotification)
   const tauriShell = tauriNotificationAvailable()
   const [permission, setPermission] = useState<NotificationPermissionState>(notificationPermission)
-  const [browserSaving, setBrowserSaving] = useState(false)
+  const browserSaving = settings.mutations.browser?.pending === true
 
   // 刷新桌面通知权限：桥接能力缺失视为已授权，否则取真实状态；
   // 非法返回值按 supported 字段降级。
@@ -181,6 +139,7 @@ export function NotificationSettings({
     }
     try {
       const result = await getNotificationStatus()
+      if (!permissionAlive.current) return
       const nextPermission = result?.permission
       setPermission(
         nextPermission === 'default' ||
@@ -194,27 +153,10 @@ export function NotificationSettings({
             : 'granted',
       )
     } catch {
-      setPermission('unsupported')
+      if (permissionAlive.current) setPermission('unsupported')
     }
   }, [desktop])
 
-  // 加载通知设置并同步给壳层（供 App 的浏览器通知逻辑使用）。
-  const load = useCallback(async () => {
-    try {
-      setError('')
-      const result = await apiJson<NotificationSettingsData>('/api/settings/notifications')
-      setData(result)
-      onBrowserNotificationChange?.(result)
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setLoading(false)
-    }
-  }, [onBrowserNotificationChange])
-
-  useEffect(() => {
-    load()
-  }, [load])
   useEffect(() => {
     if (!desktop) return undefined
     void refreshDesktopPermission()
@@ -231,9 +173,10 @@ export function NotificationSettings({
     if (desktop || !tauriShell) return
     try {
       const granted = await tauriNotificationIsGranted()
+      if (!permissionAlive.current) return
       setPermission(granted === true ? 'granted' : granted === false ? 'denied' : 'default')
     } catch {
-      setPermission('unsupported')
+      if (permissionAlive.current) setPermission('unsupported')
     }
   }, [desktop, tauriShell])
   useEffect(() => {
@@ -263,6 +206,7 @@ export function NotificationSettings({
         } catch {
           nextPermission = 'unsupported'
         }
+        if (!permissionAlive.current) return
         setPermission(nextPermission)
         if (nextPermission !== 'granted') {
           localNote = t(
@@ -271,6 +215,7 @@ export function NotificationSettings({
         }
       } else if (!desktop) {
         const nextPermission = await requestBrowserNotificationPermission()
+        if (!permissionAlive.current) return
         setPermission(nextPermission)
         if (nextPermission !== 'granted') {
           localNote =
@@ -291,34 +236,9 @@ export function NotificationSettings({
         }
       }
     }
-    setBrowserSaving(true)
-    try {
-      const result = await apiJson<NotificationSettingsData>(
-        '/api/settings/notifications/browser',
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ enabled }),
-        },
-      )
-      setData(result)
-      onBrowserNotificationChange?.(result)
-      if (localNote) {
-        notify(
-          t('config:notificationSettings.savedButLocalDeliveryUnavailable', { reason: localNote }),
-          'info',
-        )
-      } else {
-        notify(
-          enabled
-            ? t('config:notificationSettings.notificationsEnabled')
-            : t('config:notificationSettings.notificationsDisabled'),
-        )
-      }
-    } catch (caught) {
-      notify(errorMessage(caught), 'error')
-    } finally {
-      setBrowserSaving(false)
-    }
+    if (!permissionAlive.current) return
+    await settings.setBrowserEnabled(enabled)
+    if (localNote && permissionAlive.current) notify(localNote, 'info')
   }
 
   // 发送系统通知（桌面桥接或浏览器），用于测试按钮；桌面返回
@@ -350,6 +270,7 @@ export function NotificationSettings({
 
   // 测试通知：先校验权限（未授权给出对应提示），再发送一条测试通知。
   const testNotification = async () => {
+    if (!settings.confirmed?.browser.enabled || browserSaving) return
     if (permission !== 'granted') {
       notify(
         permission === 'unsupported'
@@ -408,6 +329,65 @@ export function NotificationSettings({
         <h2>{t('config:notificationSettings.loadingNotificationSettings')}</h2>
       </AppEmptyState>
     )
+  if (!data)
+    return (
+      <div className="space-y-3">
+        <AppError>{loadError}</AppError>
+        <Button variant="outline" onClick={() => void settings.load()}>
+          {t('common:pageTemplate.retry')}
+        </Button>
+      </div>
+    )
+  const openTemplates = (
+    event = data.templates[0]?.id || '',
+    platform: NotificationPlatform = 'browser',
+  ) => {
+    setParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('view', 'templates')
+      if (event) next.set('event', event)
+      next.set('channel', platform)
+      return next
+    })
+  }
+  const showTemplates = params.get('view') === 'templates'
+  const templates = data.templates.map((template) => ({
+    ...template,
+    name: notificationTemplateName(template.id, template.name, t),
+    description: notificationTemplateDescription(template.id, template.description, t),
+  }))
+  if (showTemplates)
+    return (
+      <div data-config-card="notifications-templates" className="space-y-4">
+        <Button
+          variant="ghost"
+          onClick={() =>
+            setParams((current) => {
+              const next = new URLSearchParams(current)
+              next.delete('view')
+              next.delete('event')
+              next.delete('channel')
+              return next
+            })
+          }
+        >
+          {t('config:notificationSettings.backToCategories')}
+        </Button>
+        <NotificationTemplatesEditor
+          settings={settings}
+          templates={templates}
+          eventId={params.get('event') || ''}
+          platform={
+            NOTIFICATION_PLATFORMS.find((item) => item === params.get('channel')) || 'browser'
+          }
+          onSelectionChange={openTemplates}
+          platformLabel={(platform) => notificationChannelLabel(platform, t)}
+          permissionGranted={permission === 'granted'}
+          onBrowserTest={sendSystemNotification}
+          notify={notify}
+        />
+      </div>
+    )
   const permissionLabel =
     permission === 'granted'
       ? t('config:notificationSettings.permissionGranted')
@@ -429,12 +409,21 @@ export function NotificationSettings({
 
   return (
     <div className="flex flex-col gap-[12px]">
-      {error && (
-        <AppError>
-          <AlertTriangle size={13} />
-          {error}
-        </AppError>
-      )}
+      {loadError && <AppError>{loadError}</AppError>}
+      {Object.entries(settings.mutations)
+        .filter(([, mutation]) => mutation.error)
+        .map(([key, mutation]) => (
+          <div key={key} className="flex flex-wrap items-center gap-2">
+            <AppError>{mutation.error}</AppError>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void settings.retryMutation(mutation)}
+            >
+              {t('common:pageTemplate.retry')}
+            </Button>
+          </div>
+        ))}
       <Panel className="browser-notification-card" data-config-card="notifications-browser">
         <div className="notification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[11px]">
           <span
@@ -492,7 +481,7 @@ export function NotificationSettings({
             variant="outline"
             size="lg"
             className="bg-surface-subtle"
-            disabled={!data.browser.enabled || permission !== 'granted'}
+            disabled={!data.browser.enabled || browserSaving || permission !== 'granted'}
             onClick={testNotification}
           >
             <Bell size={14} />
@@ -500,195 +489,108 @@ export function NotificationSettings({
           </Button>
         </div>
       </Panel>
-      <NotificationTemplates
-        data={data}
-        setData={setData}
-        notify={notify}
-        permission={permission}
-        onBrowserTest={sendSystemNotification}
-        onSettingsChange={onBrowserNotificationChange}
-      />
-    </div>
-  )
-}
-
-function NotificationTemplates({
-  data,
-  setData,
-  notify,
-  permission,
-  onBrowserTest,
-  onSettingsChange,
-}: NotificationTemplatesProps) {
-  const { t } = useI18n()
-  const [eventId, setEventId] = useState(data.templates[0]?.id || '')
-  const [platform, setPlatform] = useState<NotificationPlatform>('feishu')
-  const selected = data.templates.find((item) => item.id === eventId) || data.templates[0]
-  const variant = selected?.channels?.[platform]
-  const [content, setContent] = useState(variant?.content || '')
-  const [saving, setSaving] = useState(false)
-  const latestScope = data.scopes.find((scope) => scope.platform === platform)
-  const canTest =
-    platform === 'browser' ? data.browser.enabled && permission === 'granted' : Boolean(latestScope)
-  const visibleChannels = CHANNELS
-
-  useEffect(() => {
-    setContent(variant?.content || '')
-  }, [eventId, platform, variant?.content])
-  if (!selected) return null
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      const result = await apiJson<NotificationSettingsData>(
-        `/api/settings/notifications/templates/${encodeURIComponent(selected.id)}/${platform}`,
-        { method: 'PUT', body: JSON.stringify({ enabled: selected.enabled, content }) },
-      )
-      setData(result)
-      onSettingsChange?.(result)
-      notify(t('config:notificationSettings.notificationTemplateSaved'))
-    } catch (caught) {
-      notify(errorMessage(caught), 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const test = async () => {
-    setSaving(true)
-    try {
-      const result = await apiJson<NotificationTestResult>(
-        `/api/settings/notifications/templates/${encodeURIComponent(selected.id)}/${platform}/test`,
-        { method: 'POST', body: '{}' },
-      )
-      if (platform === 'browser')
-        await onBrowserTest?.(
-          result.title || notificationTemplateName(selected.id, selected.name, t),
-          result.body || result.preview || '',
-          `pisper-template-${selected.id}`,
-        )
-      notify(
-        platform === 'browser'
-          ? t(
-              'config:notificationSettings.theTestNotificationWasSentCheckYourSystemNotificationCenter',
-              { count: result.sent },
-            )
-          : t('config:notificationSettings.testNotificationSentToCountChats', {
-              count: result.sent,
-            }),
-      )
-    } catch (caught) {
-      notify(errorMessage(caught), 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="two-one-grid max-[900px]:grid-cols-[1fr] grid grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] gap-[12px] [margin-top:0]">
-      <Panel data-config-card="notifications-templates">
-        <div className="channel-section-head [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[8px] [margin-bottom:8px]">
-          <SectionTitle title={t('config:notificationSettings.notificationTemplates')} />
-          <span>{t('config:notificationSettings.sharedByChatsScheduledTasksAndWorkflows')}</span>
-        </div>
-        {data.templates.map((template) => (
-          <button
-            className={`channel-template-row hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.selected]:rounded-[var(--r-sm)] [&.selected]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid w-full min-h-[58px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent [padding:8px_6px] text-left ${template.id === selected.id ? 'selected' : ''}`}
-            onClick={() => setEventId(template.id)}
-            key={template.id}
-          >
-            <span className="route-icon grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-              <Send size={14} />
-            </span>
-            <span>
-              <strong>{notificationTemplateName(template.id, template.name, t)}</strong>
-              <small>{notificationTemplateDescription(template.id, template.description, t)}</small>
-            </span>
-            <Badge tone={template.enabled ? 'green' : 'gray'}>
-              {template.enabled
-                ? t('config:notificationSettings.enabled')
-                : t('config:notificationSettings.disabled')}
-            </Badge>
-          </button>
-        ))}
-      </Panel>
-      <Panel className="channel-template-editor [&_textarea]:min-h-[118px] [&_textarea]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_textarea]:leading-[1.55]">
-        <AppCardHeader>
-          <div>
-            <h2>{notificationTemplateName(selected.id, selected.name, t)}</h2>
-            <p>{notificationTemplateDescription(selected.id, selected.description, t)}</p>
-          </div>
-          <Toggle
-            value={selected.enabled}
-            onChange={(enabled) =>
-              setData((current) => ({
-                ...current,
-                templates: current.templates.map((item) =>
-                  item.id === selected.id ? { ...item, enabled } : item,
-                ),
-              }))
-            }
-          />
-        </AppCardHeader>
-        <div className="channel-template-platforms [&_>_button]:relative [&_>_button]:flex [&_>_button]:min-h-9 [&_>_button]:items-center [&_>_button]:justify-center [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[0_9px] [&_>_button]:text-[12px] [&_>_button]:font-[700] [&_>_button.active]:border-[var(--focus)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button.active]:text-[var(--star-strong)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[7px] [margin-top:13px]">
-          {(
-            Object.entries(visibleChannels) as Array<[NotificationPlatform, ChannelDefinition]>
-          ).map(([id, channel]) => {
-            const available = id === 'browser' ? data.browser.enabled : data.connections?.[id]
-            return (
-              <button
-                className={platform === id ? 'active' : ''}
-                onClick={() => setPlatform(id)}
-                key={id}
-              >
-                {notificationChannelLabel(id, t)}
-                <Badge
-                  tone={available ? channel.tone : 'red'}
-                  className=" absolute -top-2.5 -right-1.5"
-                >
-                  {available
-                    ? id === 'browser'
-                      ? t('config:notificationSettings.enabled2')
-                      : t('config:notificationSettings.connected')
-                    : id === 'browser'
-                      ? t('config:notificationSettings.notEnabled')
-                      : t('config:notificationSettings.notConnected')}
-                </Badge>
-              </button>
-            )
-          })}
-        </div>
-        <FieldLabel variant="control">
-          {t('config:notificationSettings.messageContent')}
-          <textarea value={content} onChange={(event) => setContent(event.target.value)} />
-        </FieldLabel>
-        <div className="channel-template-vars [&_>_span]:mr-[3px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] [&_code]:rounded-[var(--r-xs)] [&_code]:bg-[var(--template-code-bg)] [&_code]:text-[var(--template-code-text)] [&_code]:p-[3px_5px] [&_code]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_code]:text-[13px] flex flex-wrap items-center gap-[5px] [margin-top:10px]">
-          <span>{t('config:notificationSettings.availableVariables')}</span>
-          {selected.variables.map((variable) => (
-            <code key={variable}>{`{{${variable}}}`}</code>
-          ))}
-        </div>
-        <div className="channel-template-preview [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[13px] [&_pre]:m-[7px_0_0] [&_pre]:overflow-auto [&_pre]:text-[var(--text-soft)] [&_pre]:font-[inherit] [&_pre]:text-[12px] [&_pre]:leading-[1.55] [&_pre]:whitespace-pre-wrap [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:9px]">
-          <small>{t('config:notificationSettings.preview')}</small>
-          <pre>{renderPreview(content, t)}</pre>
-        </div>
-        <div className="flex justify-end gap-[8px] [margin-top:18px]">
-          <Button
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
-            disabled={saving || !canTest}
-            onClick={test}
-          >
-            <Send size={14} />
-            {t('config:notificationSettings.sendTest')}
+      <SettingsSection
+        title={t('config:notificationSettings.notificationCategories')}
+        description={t('config:notificationSettings.channelPreferenceHint')}
+        action={
+          <Button variant="ghost" size="sm" onClick={() => openTemplates()}>
+            {t('config:notificationSettings.editNotificationTemplates')}
           </Button>
-          <Button size="lg" disabled={saving || !content.trim()} onClick={save}>
-            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Save size={14} />}
-            {t('config:notificationSettings.saveTemplate')}
-          </Button>
-        </div>
-      </Panel>
+        }
+      >
+        {!settings.supportsChannels && (
+          <p role="status" className="py-2 text-sm text-muted-foreground">
+            {t('config:notificationSettings.channelPreferencesUnsupported')}
+          </p>
+        )}
+        {templates.map((template) => {
+          const selected = template.enabled
+            ? NOTIFICATION_PLATFORMS.filter(
+                (platform) => template.channels[platform]?.enabled !== false,
+              )
+            : []
+          const pending = Object.entries(settings.mutations).some(
+            ([key, mutation]) =>
+              mutation.pending &&
+              (key === `event:${template.id}` || key.startsWith(`channel:${template.id}:`)),
+          )
+          return (
+            <SettingsRow
+              key={template.id}
+              data-notification-event={template.id}
+              title={template.name}
+              description={template.description}
+              control={
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="max-w-full rounded-full"
+                      aria-label={t('config:notificationSettings.eventChannels', {
+                        event: template.name,
+                      })}
+                      aria-busy={pending}
+                    >
+                      <span className="max-w-64 truncate">
+                        {selected.length
+                          ? selected
+                              .map((platform) => notificationChannelLabel(platform, t))
+                              .join(language === 'zh-CN' ? '、' : ', ')
+                          : t('config:notificationSettings.channelsOff')}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-w-[calc(100vw-40px)] min-w-56">
+                    <DropdownMenuCheckboxItem
+                      checked={template.enabled}
+                      onCheckedChange={(enabled) =>
+                        void settings.setEventEnabled(template.id, enabled === true)
+                      }
+                    >
+                      {t('config:notificationSettings.enableEvent')}
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                    {NOTIFICATION_PLATFORMS.map((platform) => {
+                      const available =
+                        platform === 'browser'
+                          ? data.browser.enabled
+                          : data.connections[platform]?.enabled === true &&
+                            data.scopes.some((scope) => scope.platform === platform)
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={platform}
+                          checked={template.channels[platform]?.enabled !== false}
+                          disabled={!settings.supportsChannels}
+                          onCheckedChange={(enabled) =>
+                            void settings.setChannelEnabled(template.id, platform, enabled === true)
+                          }
+                        >
+                          <span>{notificationChannelLabel(platform, t)}</span>
+                          {!available && (
+                            <small className="ml-2 text-muted-foreground">
+                              {t('config:notificationSettings.channelNeedsSetup')}
+                            </small>
+                          )}
+                        </DropdownMenuCheckboxItem>
+                      )
+                    })}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => openTemplates(template.id)}>
+                      {t('config:notificationSettings.editNotificationTemplates')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              }
+            />
+          )
+        })}
+        {!templates.length && (
+          <p role="status" className="py-3 text-sm text-muted-foreground">
+            {t('config:notificationSettings.noNotificationEvents')}
+          </p>
+        )}
+      </SettingsSection>
     </div>
   )
 }

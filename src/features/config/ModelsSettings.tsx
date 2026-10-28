@@ -31,6 +31,8 @@ function storedManageOpen(): boolean | null {
 }
 
 type ModelsSettingsProps = {
+  defaultAdvancedExpanded?: boolean
+  navigationKey?: number
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
@@ -43,6 +45,8 @@ type WizardTarget = {
 }
 
 export function ModelsSettings({
+  defaultAdvancedExpanded = false,
+  navigationKey,
   notify,
   registerPrimaryAction,
   requestConfirm,
@@ -54,11 +58,14 @@ export function ModelsSettings({
   const [wizard, setWizard] = useState<WizardTarget | null>(null)
   const [cloningProvider, setCloningProvider] = useState<ProviderConfig | null>(null)
   const [manageOpen, setManageOpen] = useState<boolean | null>(() =>
-    importRequested ? true : storedManageOpen(),
+    importRequested || defaultAdvancedExpanded ? true : storedManageOpen(),
   )
   useEffect(() => {
     if (importRequested) setManageOpen(true)
   }, [importRequested])
+  useEffect(() => {
+    if (defaultAdvancedExpanded) setManageOpen(true)
+  }, [defaultAdvancedExpanded, navigationKey])
   const settings = useProvidersConfig({ notify, requestConfirm, t })
   const { config } = settings
   const discovery = useProviderDiscovery({
@@ -197,7 +204,7 @@ export function ModelsSettings({
             onRefresh={discovery.refresh}
             onImport={discovery.importProvider}
           />
-          <div className="[margin-top:12px]">
+          <div data-config-target="models-runtime-policy" className="[margin-top:12px]">
             <RuntimePolicySettings
               config={config}
               notify={notify}

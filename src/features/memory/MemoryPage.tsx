@@ -245,7 +245,19 @@ export function MemoryPage({
   const [spaceModal, setSpaceModal] = useState<Partial<MemorySpace> | null>(null)
   const [hoveredId, setHoveredId] = useState('')
   const [resolvingCandidateId, setResolvingCandidateId] = useState('')
-  const [autoApproveConfidence, setAutoApproveConfidence] = useState<number | null>(null)
+  const [autoApproveConfidence, setAutoApproveConfidence] = useState<string | null>(null)
+  const [thresholdError, setThresholdError] = useState('')
+  const [thresholdErrorAction, setThresholdErrorAction] = useState<'load' | 'save'>('load')
+  const [loadingThreshold, setLoadingThreshold] = useState(true)
+  const savedThreshold = useRef<number | null>(null)
+  const thresholdEditRevision = useRef(0)
+  const thresholdReadRevision = useRef(0)
+  const thresholdSavedRevision = useRef(0)
+  const thresholdRead = useRef<AbortController | null>(null)
+  const thresholdWrite = useRef<AbortController | null>(null)
+  const thresholdWriteUncertain = useRef(false)
+  const thresholdQueuedSubmission = useRef<{ value: number; revision: number } | null>(null)
+  const thresholdActive = useRef(true)
   const [savingThreshold, setSavingThreshold] = useState(false)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const parallaxFrame = useRef(0)
@@ -337,32 +349,134 @@ export function MemoryPage({
     }
   }, [load, spaceId])
 
-  useEffect(() => {
-    let active = true
-    apiJson<{ autoApproveConfidence: number }>('/api/settings/memory')
-      .then((preference) => active && setAutoApproveConfidence(preference.autoApproveConfidence))
-      .catch(() => active && setAutoApproveConfidence(60))
-    return () => {
-      active = false
+  const loadAutoApproveConfidence = useCallback(async () => {
+    thresholdRead.current?.abort()
+    const controller = new AbortController()
+    thresholdRead.current = controller
+    const requestRevision = ++thresholdReadRevision.current
+    const editRevision = thresholdEditRevision.current
+    const draftIsSaved = editRevision === thresholdSavedRevision.current
+    setLoadingThreshold(true)
+    setThresholdError('')
+    try {
+      const preference = await apiJson<{ autoApproveConfidence: unknown }>('/api/settings/memory', {
+        signal: controller.signal,
+      })
+      if (
+        controller.signal.aborted ||
+        !thresholdActive.current ||
+        requestRevision !== thresholdReadRevision.current
+      )
+        return
+      const value = preference.autoApproveConfidence
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 100) {
+        throw new Error(t('memory:memoryPage.invalidAutoApproveThreshold'))
+      }
+      // 读取只能初始化尚未编辑的草稿，晚到结果不能覆盖用户当前输入。
+      if (draftIsSaved && thresholdEditRevision.current === editRevision) {
+        savedThreshold.current = value
+        setAutoApproveConfidence(String(value))
+      }
+    } catch (loadError) {
+      if (
+        !controller.signal.aborted &&
+        thresholdActive.current &&
+        requestRevision === thresholdReadRevision.current
+      ) {
+        setThresholdErrorAction('load')
+        setThresholdError(errorMessage(loadError))
+      }
+    } finally {
+      if (
+        !controller.signal.aborted &&
+        thresholdActive.current &&
+        requestRevision === thresholdReadRevision.current
+      )
+        setLoadingThreshold(false)
     }
-  }, [])
+  }, [t])
+
+  useEffect(() => {
+    thresholdActive.current = true
+    void loadAutoApproveConfidence()
+    return () => {
+      thresholdActive.current = false
+      thresholdRead.current?.abort()
+      thresholdWrite.current?.abort()
+      thresholdQueuedSubmission.current = null
+    }
+  }, [loadAutoApproveConfidence])
 
   const saveAutoApproveConfidence = async () => {
-    const value = autoApproveConfidence
-    if (value === null || savingThreshold) return
+    if (
+      autoApproveConfidence === null ||
+      !autoApproveConfidence.trim() ||
+      savedThreshold.current === null
+    )
+      return
+    const value = Number(autoApproveConfidence)
+    if (!Number.isFinite(value)) return
     const normalized = Math.min(100, Math.max(0, Math.round(value)))
-    if (normalized !== value) setAutoApproveConfidence(normalized)
+    if (
+      !thresholdWrite.current &&
+      !thresholdWriteUncertain.current &&
+      normalized === savedThreshold.current
+    ) {
+      thresholdQueuedSubmission.current = null
+      thresholdSavedRevision.current = thresholdEditRevision.current
+      setAutoApproveConfidence(String(normalized))
+      setThresholdError('')
+      return
+    }
+    // blur/Enter 是明确的提交意图。写入期间只合并最新意图，不能把它当成普通编辑丢弃。
+    thresholdQueuedSubmission.current = {
+      value: normalized,
+      revision: thresholdEditRevision.current,
+    }
+    if (thresholdWrite.current) return
+    const controller = new AbortController()
+    thresholdWrite.current = controller
     setSavingThreshold(true)
+    setThresholdError('')
     try {
-      await apiJson('/api/settings/memory', {
-        method: 'PATCH',
-        body: { autoApproveConfidence: normalized },
-      })
-      notify(t('memory:memoryPage.autoApproveSaved'))
-    } catch (thresholdError) {
-      setError(errorMessage(thresholdError))
+      while (
+        thresholdQueuedSubmission.current &&
+        thresholdActive.current &&
+        !controller.signal.aborted
+      ) {
+        const submission = thresholdQueuedSubmission.current
+        thresholdQueuedSubmission.current = null
+        if (submission.value !== savedThreshold.current || thresholdWriteUncertain.current) {
+          try {
+            await apiJson('/api/settings/memory', {
+              method: 'PATCH',
+              body: { autoApproveConfidence: submission.value },
+              signal: controller.signal,
+            })
+          } catch (saveError) {
+            if (!thresholdActive.current || controller.signal.aborted) return
+            // 失败时保留较新的提交意图与当前草稿，由用户重试，避免无提示地继续覆盖。
+            thresholdQueuedSubmission.current ||= submission
+            thresholdWriteUncertain.current = true
+            setThresholdErrorAction('save')
+            setThresholdError(errorMessage(saveError))
+            return
+          }
+          if (!thresholdActive.current || controller.signal.aborted) return
+          savedThreshold.current = submission.value
+          thresholdWriteUncertain.current = false
+        }
+        thresholdSavedRevision.current = submission.revision
+        if (thresholdEditRevision.current === submission.revision) {
+          setAutoApproveConfidence(String(submission.value))
+          if (!thresholdQueuedSubmission.current) notify(t('memory:memoryPage.autoApproveSaved'))
+        }
+      }
     } finally {
-      setSavingThreshold(false)
+      if (thresholdWrite.current === controller) {
+        thresholdWrite.current = null
+        if (thresholdActive.current) setSavingThreshold(false)
+      }
     }
   }
 
@@ -568,6 +682,30 @@ export function MemoryPage({
                         </Button>
                       )}
                     </AppCardHeader>
+                    {loadingThreshold && (
+                      <p role="status" className="py-2 text-xs text-muted-foreground">
+                        {t('memory:memoryPage.loadingAutoApproveThreshold')}
+                      </p>
+                    )}
+                    {thresholdError && (
+                      <div className="my-2 flex flex-wrap items-center gap-2">
+                        <AppError>
+                          {t('memory:memoryPage.autoApproveThresholdUnavailable')} {thresholdError}
+                        </AppError>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={loadingThreshold || savingThreshold}
+                          onClick={() =>
+                            void (thresholdErrorAction === 'save'
+                              ? saveAutoApproveConfidence()
+                              : loadAutoApproveConfidence())
+                          }
+                        >
+                          {t('memory:memoryPage.retryAutoApproveThreshold')}
+                        </Button>
+                      </div>
+                    )}
                     {autoApproveConfidence !== null && (
                       <div className="memory-auto-approve-row [&_label]:flex [&_label]:min-w-0 [&_label]:flex-col [&_label]:gap-[2px] [&_label_span]:text-[12px] [&_label_span]:font-[600] [&_label_small]:text-[var(--text-muted)] [&_label_small]:text-[10px] [&_label_small]:leading-[1.4] flex items-center justify-between gap-[10px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:8px_0_10px]">
                         <div className="flex items-center justify-center gap-1">
@@ -588,13 +726,12 @@ export function MemoryPage({
                             max={100}
                             step={5}
                             value={autoApproveConfidence}
-                            disabled={savingThreshold}
+                            aria-busy={savingThreshold}
                             aria-label={t('memory:memoryPage.autoApproveThreshold')}
-                            onChange={(event) =>
-                              setAutoApproveConfidence(
-                                event.target.value ? Number(event.target.value) : 0,
-                              )
-                            }
+                            onChange={(event) => {
+                              thresholdEditRevision.current += 1
+                              setAutoApproveConfidence(event.target.value)
+                            }}
                             onBlur={() => void saveAutoApproveConfidence()}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter') {
@@ -1171,6 +1308,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
             {t('memory:memoryPage.cancel')}
           </Button>
           <Button
+            type="submit"
             size="lg"
             disabled={saving || !draft.spaceId || !draft.title.trim() || !draft.content.trim()}
           >
@@ -1271,7 +1409,7 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
           >
             {t('memory:memoryPage.cancel')}
           </Button>
-          <Button size="lg" disabled={saving || !name.trim()}>
+          <Button type="submit" size="lg" disabled={saving || !name.trim()}>
             {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
             {saving ? t('memory:memoryPage.saving') : t('memory:memoryPage.save')}
           </Button>

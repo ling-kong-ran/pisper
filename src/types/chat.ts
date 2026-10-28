@@ -129,7 +129,17 @@ export type SessionSummary = EntityRecord & {
   } | null
 }
 
+// 历史阅读是有界客户端投影；messages 始终保留实时流可继续更新的最新身份。
+export type SessionMessageWindow = {
+  messages: ChatMessage[]
+  messageStart: number
+  hasOlder: boolean
+  olderCursor: string | null
+  hasNewer?: boolean
+}
+
 export type SessionState = EntityRecord & {
+  historyWindow?: SessionMessageWindow | null
   runtimeSelectionRevision?: number
   pendingRuntimeSelection?: { model?: string; thinkingLevel?: string }
   messages: ChatMessage[]
