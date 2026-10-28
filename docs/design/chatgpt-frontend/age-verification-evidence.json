@@ -1,0 +1,306 @@
+[
+  {
+    "id": "Q001",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 3931450,
+    "excerpt": "function Hbr(e){let t=Wbr.safeParse(e);if(!t.success)return null;switch(t.data.age_status){case`under_18`:return{ageGroup:`teen`,canVerifyAge:!t.data.has_verified_age_or_dob};case`over_18`:return{ageGroup:`adult`,canVerifyAge:!1};default:return{ageGroup:`unsure`,canVerifyAge:!0}}}function Ubr({accountId:e,userId:t}){return[`chatgpt-age-status`,t,e]}var Wbr,Gbr,Kbr;function qbr(){return(qbr=t((()=>{G(),Ir(),kv(),Vg(),Q(),ag(),Kr(),BC(),Wbr=X({age_status:K().min(1),has_verified_age_or_dob:fo()}),Gbr=Y(U,({get:e})=>e(Bg)&&e(zg)&&e(Ng)!=null&&e(Ov)===e(Mg)&&e(rg,`421173867`)),K",
+    "claim": "年龄状态解析：under_18→teen、over_18→adult、其他合法字符串→unsure；schema失败返回null。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q002",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 3931731,
+    "excerpt": "function Ubr({accountId:e,userId:t}){return[`chatgpt-age-status`,t,e]}var Wbr,Gbr,Kbr;function qbr(){return(qbr=t((()=>{G(),Ir(),kv(),Vg(),Q(),ag(),Kr(),BC(),Wbr=X({age_status:K().min(1),has_verified_age_or_dob:fo()}),Gbr=Y(U,({get:e})=>e(Bg)&&e(zg)&&e(Ng)!=null&&e(Ov)===e(Mg)&&e(rg,`421173867`)),Kbr=ae(U,({get:e})=>{let t=e(Ov),n=e(Ng);return{enabled:t!=null&&n!=null,queryKey:Ubr({accountId:t,userId:n}),queryFn:async({signal:e})=>{let n=await zC.safeGet(`/settings/is_adult`,{additionalHeaders:t==null?void 0:{\"ChatGPT-Account-ID\":t},signal:e});if(Hbr(n)==null)throw Error(`A",
+    "claim": "age查询以user/account隔离；入口需多项账户状态与rollout。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q003",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 3932029,
+    "excerpt": "Kbr=ae(U,({get:e})=>{let t=e(Ov),n=e(Ng);return{enabled:t!=null&&n!=null,queryKey:Ubr({accountId:t,userId:n}),queryFn:async({signal:e})=>{let n=await zC.safeGet(`/settings/is_adult`,{additionalHeaders:t==null?void 0:{\"ChatGPT-Account-ID\":t},signal:e});if(Hbr(n)==null)throw Error(`Age settings are unavailable`);return n},refetchOnMount:!0,staleTime:Zi.ONE_MINUTE}})})))()}function Jbr(e){return e===`conversation_not_found`||e===`history_disabled_conversation_not_found`||e===`history_disabled_conversation_expired`||e===`conversation_deleted`}function Ybr(e){return Jbr(e)||e===",
+    "claim": "GET is_adult返回需通过解析；挂载刷新、stale一分钟，不把失败当未知年龄。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q004",
+    "path": "webview/assets/age-settings-state-490688839726.js",
+    "offset": 170,
+    "excerpt": " as c}from\"./app-initial-90eb42395b7d.js\";var l;function u(){return(u=e((()=>{n(),o(),i(),l=r(t,({get:e})=>e(a)&&s(e(c).data)?.ageGroup!==`adult`)})))()}export{u as n,l as t};\n//# sourceMappingURL=age-settings-state-490688839726.js.map",
+    "claim": "独立Age页只在rollout允许且非adult时存在；adult返回Account。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q005",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 4676,
+    "excerpt": "[3]=t):t=e[3],t}if(c.ageGroup===`adult`){let t;return e[4]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,Z.jsx)(x,{label:u,control:(0,Z.jsx)(o,{id:`settings.chatGpt.age.adult`,defaultMessage:`18 or older`,description:`Read-only adult age range in ChatGPT Account settings; there is no adult detail page`})}),e[4]=t):t=e[4],t}let f;e[5]===n.hash?f=e[6]:(f=e=>{n.hash===`#age`&&e?.focus()},e[5]=n.hash,e[6]=f);let m;e[7]===t?m=e[8]:(m=()=>void t(`/settings/age`),e[7]=t,e[8]=m);let h;e[9]===c.ageGroup?h=e[10]:(h=c.ageGroup===`teen`?(0,Z.jsx)(o,{id:`settings.chatGpt.age.teen`,def",
+    "claim": "成人摘要18 or older只读，没有adult详情页。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q006",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 4947,
+    "excerpt": "gs; there is no adult detail page`})}),e[4]=t):t=e[4],t}let f;e[5]===n.hash?f=e[6]:(f=e=>{n.hash===`#age`&&e?.focus()},e[5]=n.hash,e[6]=f);let m;e[7]===t?m=e[8]:(m=()=>void t(`/settings/age`),e[7]=t,e[8]=m);let h;e[9]===c.ageGroup?h=e[10]:(h=c.ageGroup===`teen`?(0,Z.jsx)(o,{id:`settings.chatGpt.age.teen`,defaultMessage:`Teen`,description:`Age group summary for a teen in ChatGPT Account settings`}):(0,Z.jsxs)(Z.Fragment,{children:[(0,Z.jsx)(te,{}),(0,Z.jsx)(o,{...V.verify})]}),e[9]=c.ageGroup,e[10]=h);let g;e[11]===Symbol.for(`react.memo_cache_sentinel`)?(g=(0,Z.jsx)(a,{}),e",
+    "claim": "从年龄详情返回Account#age时聚焦年龄行；Teen/未确认行导航/settings/age。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q007",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 5961,
+    "excerpt": "o:`/settings/account`,replace:!0}),e[2]=t):t=e[2],t}let u;e[3]===Symbol.for(`react.memo_cache_sentinel`)?(u=(0,Z.jsx)(J,{}),e[3]=u):u=e[3];let d=u;if(c?.ageGroup===`teen`){let t,n;e[4]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,Z.jsx)(o,{id:`settings.chatGpt.age.teenRange`,defaultMessage:`17 or under`,description:`Age range heading on the teen Age details page`}),n=(0,Z.jsx)(q,{teen:!0}),e[4]=t,e[5]=n):(t=e[4],n=e[5]);let r;e[6]===c.canVerifyAge?r=e[7]:(r=c.canVerifyAge?(0,Z.jsx)(U,{}):null,e[6]=c.canVerifyAge,e[7]=r);let i;e[8]===r?i=e[9]:(i=(0,Z.jsx)(x,{label:t,descr",
+    "claim": "Teen详情标题17 or under，Verify age按钮受canVerifyAge控制。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q008",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 6529,
+    "excerpt": "abel:t,description:n,control:r}),e[8]=r,e[9]=i),d=i}else if(c?.ageGroup===`unsure`){let t;e[10]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,Z.jsx)(x,{label:(0,Z.jsx)(U,{primary:!0}),description:(0,Z.jsx)(q,{teen:!1}),control:null}),e[10]=t):t=e[10],d=t}let f;e[11]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,Z.jsx)(j,{slug:`age`}),e[11]=f):f=e[11];let m;e[12]===r?m=e[13]:(m=()=>void r(`/settings/account#age`,{replace:!0}),e[12]=r,e[13]=m);let h,g;e[14]===Symbol.for(`react.memo_cache_sentinel`)?(h=(0,Z.jsx)(l,{}),g=(0,Z.jsx)(o,{id:`settings.chatGpt.age.back`,defaultMe",
+    "claim": "unsure详情在label位置显示primary验证按钮，说明与右侧control分开。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q009",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 6906,
+    "excerpt": "13]:(m=()=>void r(`/settings/account#age`,{replace:!0}),e[12]=r,e[13]=m);let h,g;e[14]===Symbol.for(`react.memo_cache_sentinel`)?(h=(0,Z.jsx)(l,{}),g=(0,Z.jsx)(o,{id:`settings.chatGpt.age.back`,defaultMessage:`Account`,description:`Back button from Age details to Account settings`}),e[14]=h,e[15]=g):(h=e[14],g=e[15]);let _;e[16]===m?_=e[17]:(_=(0,Z.jsxs)(t,{color:`ghost`,size:`toolbar`,autoFocus:!0,onClick:m,children:[h,g]}),e[16]=m,e[17]=_);let b;e[18]===d?b=e[19]:(b=(0,Z.jsx)(oe,{children:(0,Z.jsx)(y,{children:d})}),e[18]=d,e[19]=b);let S;return e[20]!==_||e[21]!==b?(S=(0",
+    "claim": "Age返回按钮ghost toolbar且autofocus；返回Account#age用replace。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q010",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 8657,
+    "excerpt": "hing:r,refetch:i}=p(F),a;return e[0]!==n||e[1]!==r||e[2]!==i?(a=n?(0,Z.jsxs)(`div`,{role:`alert`,className:`flex items-center gap-2`,children:[(0,Z.jsx)(o,{id:`settings.chatGpt.age.unavailable`,defaultMessage:`Couldn’t load age`,description:`Age status failed to load; does not imply any age group`}),(0,Z.jsx)(t,{color:`secondary`,size:`toolbar`,disabled:r,loading:r,onClick:()=>void i(),children:(0,Z.jsx)(o,{...V.retry})})]}):(0,Z.jsx)(pe,{}),e[0]=n,e[1]=r,e[2]=i,e[3]=a):a=e[3],a}function Oe(){let e=(0,X.c)(2),t=P(`2444205802`),n=P(`408981619`),r=p(I),i=p(O),a=p(E);if(!t&&!n",
+    "claim": "年龄读取失败role alert、gap2及loading/disabled Retry；没有年龄推断。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q011",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11536792,
+    "excerpt": "function vwl(e){let t=(0,ywl.c)(5),{children:n}=e,r;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(r=(0,bwl.jsx)(nl,{className:`icon-xs shrink-0 text-secondary`}),t[0]=r):r=t[0];let i;t[1]===n?i=t[2]:(i=n===void 0?(0,bwl.jsx)(W,{id:`settings.panel.loading`,defaultMessage:`Loading settings…`,description:`Loading state shown while settings load`}):n,t[1]=n,t[2]=i);let a;return t[3]===i?a=t[4]:(a=(0,bwl.jsxs)(`div`,{className:`flex items-center gap-2 py-2 text-sm text-secondary`,role:`status`,children:[r,(0,bwl.jsx)(`span`,{className:`text-balance`,children:i})]}),t[3]=i,t[4]=a),a}var ywl,bwl;fu",
+    "claim": "年龄等待复用设置loading：icon-xs、gap2、py2、sm/secondary和role status。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q012",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 9363,
+    "excerpt": "t=(0,X.c)(3),{full:n}=e,{data:r}=p(F),i=r?.age_status===`under_18`&&!r.has_verified_age_or_dob;if(r==null){let e;return t[0]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Z.jsx)(x,{label:(0,Z.jsx)(o,{...Q.verification}),control:(0,Z.jsx)(J,{})}),t[0]=e):e=t[0],e}if(!(r.show_age_verification_setting||i&&(n||r.is_u18_model_policy_enabled)))return null;let a;t[1]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,Z.jsx)(o,{...Q.verification}),t[1]=a):a=t[1];let s;return t[2]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,Z.jsx)(x,{label:a,description:(0,Z.jsx)(o,{id:`settings.",
+    "claim": "旧rollout入口存在独立show/under18/verification条件；不能合并新旧入口。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q013",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 831,
+    "excerpt": "function Ce(e){return e.get(z,`settings`)}var z;function B(){return(B=e((()=>{be(),u(),re(),L(),D(),se(),C(),ve(),z=h(r,(e,{scope:t})=>{let n={phase:`idle`},r,i,a=ie(t,{read:()=>n,getServerSnapshot:()=>({phase:`idle`})}),o=e=>{n=e,a.publish(`state`)},s=()=>{r?.dispose(),r=void 0,i?.(),i=void 0,o({phase:`idle`})};return a.own({state$:a.at(`state`),start(){let e=t.get(I),n=t.get(O),a=t.get(k);e!=null&&n!=null&&t.get(M)&&t.get(E)&&t.get(T)===e&&(r??(r=ye(t,{accountId:e,userId:n},o,()=>ae(t,Se,{entryPoint:xe.CHATGPT_FAMILY_AGE_VERIFICATION_ENTRY_POINT_SETTINGS})),i=t.watch(t=>{(!t.get(M)||!t.get(E",
+    "claim": "年龄验证会话由scope内settings key持有，start核对身份与能力。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q014",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 1247,
+    "excerpt": "t(M)&&t.get(E)&&t.get(T)===e&&(r??(r=ye(t,{accountId:e,userId:n},o,()=>ae(t,Se,{entryPoint:xe.CHATGPT_FAMILY_AGE_VERIFICATION_ENTRY_POINT_SETTINGS})),i=t.watch(t=>{(!t.get(M)||!t.get(E)||t.get(I)!==e||t.get(O)!==n||t.get(k)!==a||t.get(T)!==e)&&s()})),r.start())}},s)})})))()}var V;function H(){return(H=e((()=>{_(),V=n({verify:{id:`settings.chatGpt.age.verify`,defaultMessage:`Verify age`,description:`Button to start Persona age verification from Settings`},retry:{id:`settings.chatGpt.age.retry`,defaultMessage:`Retry`,description:`Button to retry a failed age status read or ag",
+    "claim": "身份/账户上下文或能力变化dispose并恢复idle。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q015",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 1913,
+    "excerpt": "oid 0&&i,c=s(r),l;n[0]===c?l=n[1]:(l=Ce(c),n[0]=c,n[1]=l);let u=l,d=p(u.state$),f=d.phase===`loading`||d.phase===`active`||d.phase===`refreshing`,m;n[2]===Symbol.for(`react.memo_cache_sentinel`)?(m=(0,G.jsx)(o,{...V.verify}),n[2]=m):m=n[2];let h=m;if(d.phase===`refresh-error`||d.phase===`pending`||d.phase===`redirect`||d.phase===`refreshing`){let e;n[3]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,G.jsx)(o,{id:`settings.chatGpt.age.refresh`,defaultMessage:`Refresh status`,description:`Read back age settings after verification without starting another inquiry`}),n[3]=e):e",
+    "claim": "loading/active/refreshing都禁用并loading，按钮文案按phase独立选择。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q016",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 2141,
+    "excerpt": "]=m):m=n[2];let h=m;if(d.phase===`refresh-error`||d.phase===`pending`||d.phase===`redirect`||d.phase===`refreshing`){let e;n[3]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,G.jsx)(o,{id:`settings.chatGpt.age.refresh`,defaultMessage:`Refresh status`,description:`Read back age settings after verification without starting another inquiry`}),n[3]=e):e=n[3],h=e}else if(d.phase===`error`){let e;n[4]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,G.jsx)(o,{...V.retry}),n[4]=e):e=n[4],h=e}let g;n[5]===d.phase?g=n[6]:(g=d.phase===`error`?(0,G.jsx)(`span`,{role:`alert`,children:(",
+    "claim": "refresh-error/pending/redirect/refreshing对应Refresh status，error对应Retry。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q017",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 2613,
+    "excerpt": "[4]=e):e=n[4],h=e}let g;n[5]===d.phase?g=n[6]:(g=d.phase===`error`?(0,G.jsx)(`span`,{role:`alert`,children:(0,G.jsx)(o,{id:`settings.chatGpt.age.verificationError`,defaultMessage:`Couldn’t start age verification`,description:`Persona failed to start; the user can retry verification`})}):null,n[5]=d.phase,n[6]=g);let _;n[7]===d.phase?_=n[8]:(_=d.phase===`refresh-error`?(0,G.jsx)(`span`,{role:`alert`,children:(0,G.jsx)(o,{id:`settings.chatGpt.age.refreshError`,defaultMessage:`Verification finished, but we couldn’t refresh your age settings`,description:`Authoritative readback",
+    "claim": "启动失败role alert；与核验后readback失败不同。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q018",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 2892,
+    "excerpt": "ion`})}):null,n[5]=d.phase,n[6]=g);let _;n[7]===d.phase?_=n[8]:(_=d.phase===`refresh-error`?(0,G.jsx)(`span`,{role:`alert`,children:(0,G.jsx)(o,{id:`settings.chatGpt.age.refreshError`,defaultMessage:`Verification finished, but we couldn’t refresh your age settings`,description:`Authoritative readback failed after verification; retry refresh does not submit another inquiry`})}):null,n[7]=d.phase,n[8]=_);let v;n[9]===d.phase?v=n[10]:(v=d.phase===`pending`?(0,G.jsx)(`span`,{role:`status`,children:(0,G.jsx)(o,{id:`settings.chatGpt.age.pending`,defaultMessage:`Your verification ",
+    "claim": "readback失败单独alert，重试不新建核验。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q019",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 3264,
+    "excerpt": "ry`})}):null,n[7]=d.phase,n[8]=_);let v;n[9]===d.phase?v=n[10]:(v=d.phase===`pending`?(0,G.jsx)(`span`,{role:`status`,children:(0,G.jsx)(o,{id:`settings.chatGpt.age.pending`,defaultMessage:`Your verification is still being processed`,description:`Provider completed but authoritative verification evidence is not yet available; this is not an age label`})}):null,n[9]=d.phase,n[10]=v);let y=a?`primary`:`secondary`,b;n[11]!==d||n[12]!==u?(b=()=>d.retry?d.retry():u.start(),n[11]=d,n[12]=u,n[13]=b):b=n[13];let x;n[14]!==f||n[15]!==h||n[16]!==y||n[17]!==b?(x=(0,G.jsx)(t,{color:y,s",
+    "claim": "pending使用role status，不能推断已成年/通过。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q020",
+    "path": "webview/assets/age-settings-2cf650465349.js",
+    "offset": 3649,
+    "excerpt": "let y=a?`primary`:`secondary`,b;n[11]!==d||n[12]!==u?(b=()=>d.retry?d.retry():u.start(),n[11]=d,n[12]=u,n[13]=b):b=n[13];let x;n[14]!==f||n[15]!==h||n[16]!==y||n[17]!==b?(x=(0,G.jsx)(t,{color:y,size:`toolbar`,disabled:f,loading:f,onClick:b,children:h}),n[14]=f,n[15]=h,n[16]=y,n[17]=b,n[18]=x):x=n[18];let S;return n[19]!==g||n[20]!==_||n[21]!==v||n[22]!==x?(S=(0,G.jsxs)(`div`,{className:`flex flex-col items-start gap-2`,children:[g,_,v,x]}),n[19]=g,n[20]=_,n[21]=v,n[22]=x,n[23]=S):S=n[23],S}var W,G;function K(){return(K=e((()=>{W=S(),u(),_(),b(),C(),B(),H(),G=w()})))()}funct",
+    "claim": "按钮优先状态retry回调，容器纵向items-start gap2。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q021",
+    "path": "webview/assets/age-verification-session-c484627544af.js",
+    "offset": 575,
+    "excerpt": "async function w(){if(S()&&!y){y=!0,r({phase:`refreshing`});try{if(await o.safePost(`/settings/clear_is_adult_caches`,{additionalHeaders:{\"ChatGPT-Account-ID\":n.accountId},signal:_.signal}),!S()||(await Promise.all([f.cancel(),m.cancel()]),!S()))return;let[e]=await Promise.all([h.refetch({cancelRefetch:!1,throwOnError:!0}),g.refetch({cancelRefetch:!1,throwOnError:!0})]);S()&&r(e.data?.has_verified_age_or_dob===!0?{phase:`redirect`}:{phase:`pending`,retry:C})}catch{S()&&r({phase:`refresh-error`,retry:C})}finally{y=!1}}}function T(){if(S()&&!y){if(b){C();return}y=!0,r({phase:`loading`}),s?.(),x=",
+    "claim": "核验后先清adult缓存，再取消和刷新age/user-settings两个查询。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q022",
+    "path": "webview/assets/age-verification-session-c484627544af.js",
+    "offset": 843,
+    "excerpt": "omise.all([h.refetch({cancelRefetch:!1,throwOnError:!0}),g.refetch({cancelRefetch:!1,throwOnError:!0})]);S()&&r(e.data?.has_verified_age_or_dob===!0?{phase:`redirect`}:{phase:`pending`,retry:C})}catch{S()&&r({phase:`refresh-error`,retry:C})}finally{y=!1}}}function T(){if(S()&&!y){if(b){C();return}y=!0,r({phase:`loading`}),s?.(),x=p({accountId:n.accountId,onLoad:()=>{S()&&r({phase:`active`})},onComplete:()=>{S()&&(x=void 0,y=!1,b=!0,C())},onCancel:()=>{x=void 0,y=!1,S()&&r({phase:`canceled`,retry:T})},onError:()=>{x=void 0,y=!1,S()&&r({phase:`error`,retry:T})}})}}return{star",
+    "claim": "只有权威readback verified布尔为真才转redirect，否则pending；读回失败refresh-error。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q023",
+    "path": "webview/assets/age-verification-session-c484627544af.js",
+    "offset": 1099,
+    "excerpt": "function T(){if(S()&&!y){if(b){C();return}y=!0,r({phase:`loading`}),s?.(),x=p({accountId:n.accountId,onLoad:()=>{S()&&r({phase:`active`})},onComplete:()=>{S()&&(x=void 0,y=!1,b=!0,C())},onCancel:()=>{x=void 0,y=!1,S()&&r({phase:`canceled`,retry:T})},onError:()=>{x=void 0,y=!1,S()&&r({phase:`error`,retry:T})}})}}return{start:T,dispose(){v=!0,h.destroy(),g.destroy(),_.abort(),f.cancel(),m.cancel(),x?.()}}}function g(){return(g=e((()=>{n(),f(),c(),s(),r(),m()})))()}export{g as n,h as t};\n//# sourceMappingURL=age-verification-session-c484627544af.js.map",
+    "claim": "首次start加载；完成后b标记使后续start只读回状态；取消允许再发起核验。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q024",
+    "path": "webview/assets/age-verification-session-c484627544af.js",
+    "offset": 1337,
+    "excerpt": ",retry:T})},onError:()=>{x=void 0,y=!1,S()&&r({phase:`error`,retry:T})}})}}return{start:T,dispose(){v=!0,h.destroy(),g.destroy(),_.abort(),f.cancel(),m.cancel(),x?.()}}}function g(){return(g=e((()=>{n(),f(),c(),s(),r(),m()})))()}export{g as n,h as t};\n//# sourceMappingURL=age-verification-session-c484627544af.js.map",
+    "claim": "会话dispose销毁query observers、abort、取消两个query并调用provider清理。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q025",
+    "path": "webview/assets/persona-1ae2389feb80.js",
+    "offset": 344,
+    "excerpt": "function c({accountId:e,kind:r=`age`,onLoad:i,onComplete:s,onCancel:c,onError:l}){let u=new AbortController,d=!1,f=null,p=()=>{d=!0,u.abort(),f?.destroy(),f=null},m=r===`guardian`?`/compliance/guardian_verification/persona/inquiries`:`/compliance/age_verification/persona/inquiries`,h=r===`guardian`?{\"ChatGPT-Account-ID\":e,[a]:e}:{\"ChatGPT-Account-ID\":e};return Promise.all([n(()=>import(`./persona-dcd82a18594e.js`).then(e=>t(e.default,1)),__vite__mapDeps([0,1]),import.meta.url),o.safePost(m,{additionalHeaders:h,requestBody:{enabled:!0},signal:u.signal})]).then(([{default:e},",
+    "claim": "年龄和guardian询问端点分流；本消费者默认age。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q026",
+    "path": "webview/assets/persona-1ae2389feb80.js",
+    "offset": 700,
+    "excerpt": "return Promise.all([n(()=>import(`./persona-dcd82a18594e.js`).then(e=>t(e.default,1)),__vite__mapDeps([0,1]),import.meta.url),o.safePost(m,{additionalHeaders:h,requestBody:{enabled:!0},signal:u.signal})]).then(([{default:e},t])=>{d||(f=new e.Client({inquiryId:t.id,onLoad:()=>{d||i?.()},onComplete:()=>{d||(p(),s())},onCancel:()=>{d||(p(),c())},onError:()=>{d||(p(),l())}}),f.open())}).catch(()=>{d||(p(),l())}),p}function l(){return(l=e((()=>{i(),s(),r()})))()}export{c as n,l as t};\n//# sourceMappingURL=persona-1ae2389feb80.js.map",
+    "claim": "SDK按需导入与创建inquiry并发；仅都成功才构造Client并open。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q027",
+    "path": "webview/assets/persona-1ae2389feb80.js",
+    "offset": 364,
+    "excerpt": "d:e,kind:r=`age`,onLoad:i,onComplete:s,onCancel:c,onError:l}){let u=new AbortController,d=!1,f=null,p=()=>{d=!0,u.abort(),f?.destroy(),f=null},m=r===`guardian`?`/compliance/guardian_verification/persona/inquiries`:`/compliance/age_verification/persona/inquiries`,h=r===`guardian`?{\"ChatGPT-Account-ID\":e,[a]:e}:{\"ChatGPT-Account-ID\":e};return Promise.all([n(()=>import(`./persona-dcd82a18594e.js`).then(e=>t(e.default,1)),__vite__mapDeps([0,1]),import.meta.url),o.safePost(m,{additionalHeaders:h,requestBody:{enabled:!0},signal:u.signal})]).then(([{default:e},t])=>{d||(f=new e.Cl",
+    "claim": "清理abort、destroy Client；启动失败、完成/取消/错误均按回调清理。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q028",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 59433,
+    "excerpt": "t pass both accountId and accountTypeId`)}var F=c(h),I=t()({\"client-version\":`5.3.1`,\"container-id\":n,\"flow-type\":r,\"routing-country\":w,\"template-id\":(P?null:k)||null,\"inquiry-template-id\":(P?k:null)||null,\"inquiry-template-version-id\":A||null,environment:s,\"environment-id\":l,\"iframe-origin\":window.location.origin,\"frame-ancestors\":d??null,\"message-target-origin\":S||null,\"inquiry-id\":_||null,language:x,\"session-token\":D,\"reference-id\":C,\"account-id\":a,\"account-type-id\":o,fields:f(u??{}),\"style-variant\":O||null,\"theme-set-id\":j,\"widget-padding\":M},{addQueryPrefix:!0,skipNull",
+    "claim": "SDK版本5.3.1，inquiryId与iframe-origin等参数；本应用未传自定义theme尺寸。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q029",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 59983,
+    "excerpt": "M},{addQueryPrefix:!0,skipNulls:!0});return e.style.maxHeight=v(p),e.style.maxWidth=v(m),e.setAttribute(`data-testid`,`persona-widget__iframe`),r===`embedded`&&e.setAttribute(`aria-modal`,`true`),e.title=g??`Verify your identity`,e.className=`persona-widget__iframe`,e.allow=`camera;microphone;clipboard-write`,e.setAttribute(`sandbox`,y.concat(E).join(` `)),e.frameBorder=`0`,e.src=F+`/widget`+I,e.onload=function(){},e}var S=function(e){if(e===`localhost`||/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(e))return e;var t=e.split(`.`);return t.length<=1?e:t.slice(-2).join(`.`)};function C(e,t){va",
+    "claim": "嵌入iframe设置aria-modal、默认标题Verify your identity，声明camera/microphone/clipboard权限。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q030",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 61084,
+    "excerpt": "case i.Complete:case i.Fail:a?.({inquiryId:t.data.metadata.inquiryId,status:t.data.metadata.status,fields:t.data.metadata.fields??t.data.metadata.scopes});break;case i.Cancel:s?.({inquiryId:t.data.metadata.inquiryId,sessionToken:t.data.metadata.sessionToken});break;case i.Error:l?.(t.data.error)}};return window.addEventListener(`message`,p),function(){window.removeEventListener(`message`,p)}}let w",
+    "claim": "供应商Complete与Fail都回调onComplete；不能直接等同验证通过。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q031",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 66298,
+    "excerpt": ".persona-widget__overlay {\n  position: fixed;\n  left: 0;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  z-index: 9999;\n  animation: persona-widget__fadeIn 0.3s;\n  background-color: rgba(0, 0, 0, 0.7);\n}\n\n.persona-widget__overlay .persona-widget__centered-frame {\n  width: 120px;\n  height: 120px;\n  position: absolute;\n  left: calc(50% - 60px);\n  top: calc(50% - 60px);\n  z-index: 9999;\n}\n\n.persona-widget__overlay .persona-widget__loading-spinner {\n  position: absolute;\n  top: 50%;\n  left: 50%;\n  transform: translate(-50%, -50%);\n}\n\n.persona-widget__overlay .persona-widget__iframe {\n  animation: p",
+    "claim": "供应商外罩fixed全屏、z9999、黑色.7、.3秒fade；CSS静态声明。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q032",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 66823,
+    "excerpt": ".persona-widget__overlay .persona-widget__iframe {\n  animation: persona-widget__genieSlideIn 0.3s, persona-widget__slideDown ease-out 0.3s;\n\n  width: 100%;\n  height: 100%;\n\n  margin-left: auto;\n  margin-right: auto;\n  position: absolute;\n  left: 50%;\n  top: 50%;\n  transform: translate(-50%, -50%);\n\n  background-color: #ffffff;\n  border: none;\n  border-radius: 4px;\n  box-shadow: 0px 12px 40px 2px rgba(0, 0, 0, 0.4);\n\n  @media only screen and (min-width: 600.02px) and (min-height: 600.02px) {\n    max-width: 400px;\n    max-height: 650px;\n  }\n}\n`);try{this.iframeElement=x(this.iframeElem",
+    "claim": "供应商iframe居中、宽高100%、白底、4px圆角、shadow；大视口上限400×650。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q033",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 61691,
+    "excerpt": ".onLoad=function(){var e,n;t._isLoading=!1,t.render(),(n=(e=t.options).onLoad)==null||n.call(e)},this.onReady=function(e){var n,r;t.preferredDimensions=e?.preferredDimensions??null,t.handleResize(),(r=(n=t.options).onReady)==null||r.call(n)},this.onComplete=function(e){var n,r,i=e.inquiryId,a=e.status,o=e.fields;t._isOpen=!1,t.render(),(r=(n=t.options).onComplete)==null||r.call(n,{inquiryId:i,status:a,fields:o})},this.onCancel=function(e){var n,r,i=e.inquiryId,a=e.sessionToken;t._isOpen=!1,t.render(),(r=(n=t.options).onCancel)==null||r.call(n,{inquiryId:i,sessionToken:a})},",
+    "claim": "provider ready可传preferredDimensions并重新处理尺寸。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q034",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 62261,
+    "excerpt": "oken:a})},this.handleResize=function(){var e=t.preferredDimensions??{},n=e.minimumWidth,r=e.maximumWidth,i=e.minimumHeight,a=e.maximumHeight;window.matchMedia(`only screen and (min-width: 600.02px) and (min-height: 600.02px)`).matches?(n&&(t.iframeElement.style.minWidth=n),r&&(t.iframeElement.style.maxWidth=r),i&&(t.iframeElement.style.minHeight=i),a&&(t.iframeElement.style.maxHeight=a)):(t.iframeElement.style.minWidth=``,t.iframeElement.style.maxWidth=``,t.iframeElement.style.minHeight=``,t.iframeElement.style.maxHeight=``)},this.options=e,this.containerParent=e.parent??do",
+    "claim": "宽高均大于阈值才应用preferred min/max，窄小窗口清掉对应内联值。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q035",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 63155,
+    "excerpt": "te(`id`,this.containerId),this.loadingElement=_(`div`,{class:`persona-widget__centered-frame`},[g(`svg`,{xmlns:`http://www.w3.org/2000/svg`,width:`114`,height:`114`,class:`persona-widget__loading-spinner`},[g(`path`,{fill:`none`,stroke:`#0F2B72`,strokeLinecap:`round`,strokeLinejoin:`round`,strokeWidth:`2`,d:`M25.887 10.432a56.275 56.275 0 0 0-15.455 15.455 55.86 55.86 0 0 0-5.183 9.678A55.576 55.576 0 0 0 2.066 46.07m-.8 5.438A56.678 56.678 0 0 0 1 57m4.249 21.435a55.86 55.86 0 0 0 5.183 9.678 56.275 56.275 0 0 0 6.97 8.485m8.485 6.97a55.86 55.86 0 0 0 9.678 5.183 55.576 55",
+    "claim": "loading SVG114×114，路径stroke深蓝；居中框120×120见样式。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q036",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 68196,
+    "excerpt": "/* Don't allow scrolling when widget is open */\n  html body {\n    overflow: hidden !important;\n  }\n\n  /* When the widget takes the full screen, hide everything else to prevent iOS scroll issues. */\n  @media (max-width: 600px), (max-height: 420px) {\n    html body > *:not(#${e}) {\n      display: none !important;\n    }\n  }\n`)):!this.isOpen&&this.globalCSS.isMounted()&&this.globalCSS.unmount())},e.prototype.open=function(){var e;(e=this.iframeElement.contentWindow)==null||e.postMessage({action:a.Ope",
+    "claim": "打开provider浮层锁body滚动，宽<=600或高<=420隐藏其他body子节点。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q037",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 68915,
+    "excerpt": "e.prototype.destroy=function(){var e;(e=this.iframeElement.contentWindow)==null||e.postMessage({action:a.Destroy,metadata:{}},this.baseUrl),this.personaCSS.unmount(),this.globalCSS.unmount(),this.containerParent.removeChild(this.containerElement),this.unsubscribeFromEvents(),window.removeEventListener(`resize`,this.handleResize)},Object.defineProperty(e.prototype,\"isLoading\",{get:function(){return this._isLoading},enumerable:!1,configurable:!0}),Object.defineProperty(e.prototype,\"isOpen\",{get:function(){return this._isOpen},enumerable:!1,configurable:!0}),Object.defineProperty(e.prototype,\"bas",
+    "claim": "销毁外罩、样式、消息/resize监听；应用完成/取消调用此清理。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  },
+  {
+    "id": "Q038",
+    "path": "webview/assets/persona-dcd82a18594e.js",
+    "offset": 65938,
+    "excerpt": "@keyframes persona-widget__genieSlideIn {\n  from {\n    transform: translate(-50%, -40%) scale(0.8);\n  }\n  90% {\n    transform: translate(-50%, -51%) scale(1.01);\n  }\n  to {\n    transform: translate(-50%, -50%);\n  }\n}\n\n@keyframes persona-widget__slideDown {\n  from {\n    transform: translate(-50%, -55%);\n  }\n  to {\n    transform: translate(-50%, -50%);\n  }\n}\n\n.persona-widget__overlay {\n  position: fixed;\n  left: 0;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  z-index: 9999;\n  animation: persona-widget__fa",
+    "claim": "iframe入场采用位移和scale动画；不能沿用共享Dialog的reduced-motion假设。",
+    "scope": "年龄设置及其Persona嵌入宿主；交付包静态实现，未进入真实核验或取得iframe远端页面"
+  }
+]

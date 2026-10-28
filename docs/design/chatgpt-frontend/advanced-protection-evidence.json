@@ -1,0 +1,490 @@
+[
+  {
+    "id": "H001",
+    "path": "webview/assets/client-8edcfd2576b2.js",
+    "offset": 1534,
+    "excerpt": "protection:{queryKey:[`chatgpt-security`,e,`protection`],queryFn:({signal:e})=>c.safeGet(`/accounts/security_settings/info`,{additionalHeaders:i,signal:e}),staleTime:n.ONE_MINUTE,refetchOnWindowFocus:`always`,retry:!1}}}var c;function l(){return(l=e((()=>{a(),t(),o(),c=new i({getAdditionalHeaders:r})})))()}export{s as n,c as r,l as t};\n//# sourceMappingURL=client-8edcfd2576b2.js.map",
+    "claim": "保护信息按账户查询，缓存一分钟，窗口聚焦总是刷新，不自动重试。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H002",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 26022,
+    "excerpt": "m=f?.advanced_protection_mode_enabled===!0,h=p&&(f.aas_eligible||m),g=u?.tac1_enabled===!0&&s?.plan_type!=null&&!ut(s.plan_type);if(!h&&!g)return null;let _;t[4]===Symbol.for(`react.memo_cache_sentinel`)?(_=(0,q.jsx)(jt.Header,{title:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedSecurity`,defaultMessage:`Advanced security`,description:`Section heading above additional account-security programs in Security and login settings.`})}),t[4]=_):_=t[4];let v;t[5]!==m||t[6]!==i||t[7]!==h?(v=h&&m?(0,q.jsx)(te,{edgeRounding:`surface`,label:(0,q.jsx)(",
+    "claim": "高级安全入口要求保护查询成功且有资格或已启用。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H003",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 27082,
+    "excerpt": " Security and login settings, confirming that the user's account protections are already enabled.`}),onClick:i,trailing:(0,q.jsxs)(q.Fragment,{children:[(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.manageNative`,defaultMessage:`Manage`,description:`Short trailing action in the Advanced account security row for an enrolled user. It opens native management in Security and login settings.`}),(0,q.jsx)(c,{})]})}):null,t[5]=m,t[6]=i,t[7]=h,t[8]=v):v=t[8];let b;t[9]!==m||t[10]!==h?(b=h&&!m?(0,q.jsx)(W,{label:(0,q.jsx)(y,{id:`settings",
+    "claim": "已启用入口是本地管理行，尾随Manage与箭头。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H004",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 28368,
+    "excerpt": ".jsx)(En,{initiator:`open_in_browser_bridge`,href:a().advancedSecurityEnrollmentUrl??`/advanced-account-security`,children:(0,q.jsxs)(`span`,{className:`flex shrink-0 items-center gap-2`,children:[(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.enroll`,defaultMessage:`Enroll`,description:`Link in the Advanced account security row in Security and login settings for an eligible user who has not enrolled. It opens the existing ChatGPT landing page to learn about the protections and complete enrollment. Keep this action label short.`}",
+    "claim": "未启用开通入口使用open_in_browser_bridge；配置URL或相对后备URL。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H005",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 33751,
+    "excerpt": "className:`flex flex-wrap items-start justify-between gap-4`,children:[P,F]}),n[26]=F,n[27]=ne);let I;n[28]===Symbol.for(`react.memo_cache_sentinel`)?(I=(0,q.jsx)(`p`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.detailDescription`,defaultMessage:`Advanced account security helps keep your account safe by requiring stronger sign-in methods like passkeys or hardware security keys`,description:`Introduction on the native Advanced account security detail page. It explains that enrolled accounts require phishing-resistant s",
+    "claim": "详情标题与Enabled徽标左右排列且可换行，间距gap-4。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H006",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 7397310,
+    "excerpt": "neutral:`h-7 gap-1.5 rounded-full border border-default bg-surface-secondary px-2.5 text-sm leading-none font-medium whitespace-nowrap text-secondary`,promotion:`min-h-6 rounded-full bg-chart-purple/10 px-2.5 text-sm leading-none font-medium whitespace-nowrap text-chart-purple`,success:`min-h-5 rounded-full bg-chart-green/15 px-2 text-xs font-medium text-chart-green tabular-nums`,warning:`min-h-5 rounded-full bg-warning-soft-alpha px-2 text-xs font-medium text-warning-surface`,caution:`min-h-5 rounded-full bg-yellow/15 px-2 text-xs font-medium ",
+    "claim": "Enabled使用neutral徽标：h-7、全圆角、边框、次级底色、text-sm中等字重。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H007",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 36795,
+    "excerpt": "className:`flex flex-col gap-5 text-wrap select-none`,children:[I,re]}),n[32]=re,n[33]=ie);let L;n[34]!==N||n[35]!==h||n[36]!==g?(L=N?null:(0,q.jsx)(Zn,{isError:h,onRetry:()=>void g()}),n[34]=N,n[35]=h,n[36]=g,n[37]=L):L=n[37];let ae;n[38]!==N||n[39]!==M||n[40]!==m?(ae=N&&!M?(0,q.jsx)(Pe,{children:(0,q.jsx)(W,{label:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.notEnrolled`,defaultMessage:`Advanced account security isn’t enabled`,description:`Status shown on a direct native Advanced account security detail link when the authorit",
+    "claim": "简介与保护列表纵向gap-5，文字换行、不可选择。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H008",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 34774,
+    "excerpt": "className:`list-disc ps-5`,children:[(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.disableEmailSmsCodes`,defaultMessage:`Disable email and SMS sign-in codes`,description:`Protection listed on the native Advanced account security detail page. It says email and SMS sign-in codes are disabled while enrolled.`})}),(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.disablePasswordSignIn`,defaultMessage:`Disable password sign-in`,description:`Protection lis",
+    "claim": "保护清单使用原生ul/li圆点列表、逻辑方向缩进ps-5。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H009",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 39408,
+    "excerpt": "controlSizing:`content`,control:(0,q.jsx)(t,{color:`secondary`,size:`toolbar`,disabled:j,onClick:()=>D.mutate(),children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.recoveryKeys.replace`,defaultMessage:`Replace recovery keys`,description:`Button on the native Advanced account security detail page that starts secure Login Web recovery-key regeneration.`})})}),(0,q.jsx)(W,{label:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.disable.title`,defaultMessage:`Disable advanced account security`,description:`Row title o",
+    "claim": "替换恢复密钥按钮为secondary toolbar；与关闭保护共享busy禁用。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H010",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 40477,
+    "excerpt": "color:`danger`,size:`toolbar`,disabled:j,onClick:()=>{A.reset(),C.mutate(!1)},children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.disable.button`,defaultMessage:`Disable`,description:`Destructive button on the native Advanced account security detail page. It starts fresh MFA reauthentication before confirmation.`})})})]}):null,n[42]=A,n[43]=N,n[44]=M,n[45]=j,n[46]=C,n[47]=D,n[48]=oe):oe=n[48];let se;n[49]!==o||n[50]!==ne||n[51]!==ie||n[52]!==L||n[53]!==ae||n[54]!==oe?(se=(0,q.jsxs)(Qn,{onBack:o,title:ne,subtitle:ie,children:[",
+    "claim": "关闭保护为danger toolbar按钮，先清除旧提交状态再启动认证。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H011",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 32781,
+    "excerpt": "j=C.isPending||D.isPending||A.isPending,te=C.isError||C.data===`failed`||D.isError||D.data===`failed`,M=m?.advanced_protection_mode_enabled===!0,N=m!=null&&!h,P;n[23]===Symbol.for(`react.memo_cache_sentinel`)?(P=(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.title`,defaultMessage:`Advanced account security`,description:`Title of the Advanced account security row in Security and login settings, where eligible users can enroll and enrolled users can manage their protections. Translate the feature name.`}),n[23]=P):P=n[23];let F;n[2",
+    "claim": "重认证、密钥替换和关闭请求三类busy共同禁用两动作；认证失败独立弹窗。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H012",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 24001,
+    "excerpt": "async function K(e,t=!1){let n=await w();if(n?.accountId!==e)return`failed`;if(!t&&W(n.accessToken))return`ready`;let i=P();i.searchParams.set(`view`,`advanced-protection`),i.searchParams.set(X,`true`),i.searchParams.set(Z,e);let a=await M(i.toString(),{...r().auth.reauthenticationParams,...n.email==null?{}:{login_hint:n.email}});return a.ok?{redirectUrl:a.url}:`failed`}async function Je(e){let t=await w();if(t?.accountId!==e)return`failed`;let n=P();n.searchParams.set(`view`,`advanced-protection`);let i=await M(n.toString(),{...r().auth.reauth",
+    "claim": "关闭保护认证入口核对账户；允许30秒新鲜MFA跳过重复认证；否则携带回跳标记创建登录URL。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H013",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 23594,
+    "excerpt": "function W(e,t=Date.now()){try{let n=e.split(`.`)[1];if(n==null)return!1;let r=Y.safeParse(JSON.parse(atob(n.replace(/-/g,`+`).replace(/_/g,`/`))));if(!r.success)return!1;let i=t-(r.data.pwd_auth_time<0xe8d4a51000?r.data.pwd_auth_time*1e3:r.data.pwd_auth_time);return i>=0&&i<=Ze&&r.data[`https://api.openai.com/mfa`]?.required===`yes`}catch{return!1}}function G(e,t){return e.get(X)===`true`&&e.get(Z)===t}async function K(e,t=!1){let n=await w();if(n?.accountId!==e)return`failed`;if(!t&&W(n.accessToken))return`ready`;let i=P();i.searchParams.set(",
+    "claim": "新鲜MFA校验兼容秒/毫秒时间戳，要求年龄0至Ze且mfa.required=yes。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H014",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 26455,
+    "excerpt": "X=`apm_disable_confirm`,Z=`apm_account_id`,Ze=3e4})))()}export{q as a,H as c,B as d,Je as i,I as l,Q as n,J as o,K as r,G as s,W as t,L as u};\n//# sourceMapping",
+    "claim": "高级保护MFA新鲜窗口为30000毫秒，回跳标记包含确认及账户。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H015",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 24374,
+    "excerpt": "async function Je(e){let t=await w();if(t?.accountId!==e)return`failed`;let n=P();n.searchParams.set(`view`,`advanced-protection`);let i=await M(n.toString(),{...r().auth.reauthenticationParams,...t.email==null?{}:{login_hint:t.email},post_regenerate_recovery_keys:`true`});return i.ok?{redirectUrl:i.url}:`failed`}async function q(e,t=P().href){let n=await w();if(n==null)return`failed`;if(U(n.accessToken,e.action===`disable`))return`ready`;if(Ye(e))return`native-handoff`;let i=new URL(t);e.actionAttemptId===void 0?i.searchParams.delete(`action_a",
+    "claim": "恢复密钥替换交给登录流程，post_regenerate_recovery_keys=true，回到高级保护页。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H016",
+    "path": "webview/assets/session-bf11a21d7676.js",
+    "offset": 233,
+    "excerpt": "function s(e,n,i,a=`login`,o){let{provider:s}=t().auth;return r(`signin/${s}`,e,a===`login`?{prompt:`login`,screen_hint:`login_or_signup`,...n}:n,i,o)}function c(e,t,n){return a(e,t,void 0,void 0,void 0,n)}function l(){return(l=e((()=>{n(),i(),o()})))()}export{s as n,c as r,l as t};\n//# sourceMappingURL=session-bf11a21d7676.js.map",
+    "claim": "重认证桥接通过signin/provider构建登录URL，默认prompt=login。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H017",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11564843,
+    "excerpt": "function dTl(e,t,n,r,i){try{let a=AbortSignal.timeout(15e3),o=r==null?a:AbortSignal.any([r,a]),s=await fTl(o,r);if(o.aborted||s==null||i?.()===!1)return{ok:!1};let c=new URL(`/api/auth/${e}`,window.location.origin);c.search=new URLSearchParams(n).toString();let l=await fetch(c,{method:`POST`,credentials:`same-origin`,headers:{\"Content-Type\":`application/x-www-form-urlencoded`},body:new URLSearchParams({csrfToken:s,callbackUrl:t,json:`true`}),signal:o});if(!l.ok)return{ok:!1};let u=mTl.safeParse(await l.json());if(!u.success)return{ok:!1};let d=",
+    "claim": "登录URL构建使用15秒超时，先取CSRF再同源POST；失败返回ok=false。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H018",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11565323,
+    "excerpt": "let u=mTl.safeParse(await l.json());if(!u.success)return{ok:!1};let d=new URL(u.data.url,window.location.origin);return![`http:`,`https:`].includes(d.protocol)||d.searchParams.has(`error`)||d.searchParams.has(`csrf`)?{ok:!1}:{ok:!0,url:d.toString()}}catch{return{ok:!1}}}async function fTl(e,t){let n=`network_error`,r;try{let t=await fetch(`/api/auth/csrf`,{credentials:`same-origin`,cache:`no-store`,signal:e});if(t.ok){n=`invalid_response`;let e=pTl.safeParse(await t.json());if(e.success)return e",
+    "claim": "登录重定向URL要求有效响应、http/https协议且无error/csrf查询参数。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H019",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 138518,
+    "excerpt": "I!==`advanced-protection`||s.get(`apm_disable_confirm`)!==`true`||s.has(`apm_account_id`)||e==null)return;let t=!1;return tn().then(r=>{!t&&r!=null&&r.accountId===n&&r.userId===e&&Kn(r.accessToken)&&l(e=>{if(e.get(`view`)!==`advanced-protection`||e.get(`apm_disable_confirm`)!==`true`||e.has(`apm_account_id`))return e;let t=new URLSearchParams(e);return t.append(`apm_account_id`,n),t},{replace:!0,state:a.state})}).catch(xo),()=>{t=!0}},se=[n,r.userId,a.state,s,l,I],t[28]=n,t[29]=r.userId,t[30]=a.state,t[31]=s,t[32]=l,t[33]=I,t[34]=oe,t[35]=se):(",
+    "claim": "缺少回跳账户标记时，异步核对会话账户、用户及新鲜MFA后补标记。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H020",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 31577,
+    "excerpt": "O=async()=>{let e=await tn();if(!f.current)return`cancelled`;if(e?.accountId!==r||!Kn(e.accessToken))return`reauth_required`;let t=new AbortController;d.current=t;try{return await It.safePost(`/accounts/security_settings/advanced_protection_mode/disable`,{additionalHeaders:{\"ChatGPT-Account-ID\":r},signal:t.signal}),t.signal.aborted?`cancelled`:`disabled`}catch(e){let n=e;if(t.signal.aborted)return`cancelled`;throw n}},n[16]=r,n[17]=O);let k;n[18]!==r||n[19]!==o||n[20]!==C||n[21]!==u?(k=e=>{if(!f.current)return;if(e===`reauth_required`){C.mutate",
+    "claim": "关闭确认提交前重新获取会话并核对账户和MFA；过期返回reauth_required。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H021",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 31671,
+    "excerpt": "Token))return`reauth_required`;let t=new AbortController;d.current=t;try{return await It.safePost(`/accounts/security_settings/advanced_protection_mode/disable`,{additionalHeaders:{\"ChatGPT-Account-ID\":r},signal:t.signal}),t.signal.aborted?`cancelled`:`disabled`}catch(e){let n=e;if(t.signal.aborted)return`cancelled`;throw n}},n[16]=r,n[17]=O);let k;n[18]!==r||n[19]!==o||n[20]!==C||n[21]!==u?(k=e=>{if(!f.current)return;if(e===`reauth_required`){C.mutate(!0);return}if(e!==`disabled`||d.current?.signal.aborted===!0)return;let t=Pn(r);Promise.all([",
+    "claim": "关闭POST携带账户头和AbortSignal；abort产生cancelled而非成功。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H022",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 32613,
+    "excerpt": "onError:e=>{f.current&&d.current?.signal.aborted!==!0&&(d.current=null,e instanceof be&&(e.status===401||e.errorCode===`reauth_required`)&&(A.reset(),C.mutate(!0)))}}),j=C.isPending||D.isPending||A.isPending,te=C.isError||C.data===`failed`||D.isError||D.data===`failed`,M=m?.advanced_protection_mode_enabled===!0,N=m!=null&&!h,P;n[23]===Symbol.for(`react.memo_cache_sentinel`)?(P=(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.title`,defaultMessage:`Advanced account security`,description:`Title of the Advanced account security row in",
+    "claim": "401或reauth_required重启强制认证；其它错误留给确认框显示。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H023",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 32131,
+    "excerpt": ";return}if(e!==`disabled`||d.current?.signal.aborted===!0)return;let t=Pn(r);Promise.all([u.invalidateQueries({queryKey:t.protection.queryKey,refetchType:`all`}),u.invalidateQueries({queryKey:t.mfa.queryKey,refetchType:`all`}),u.invalidateQueries({queryKey:t.addPassword.queryKey,refetchType:`all`}),u.invalidateQueries({queryKey:t.changePassword.queryKey,refetchType:`all`})]),d.current=null,o()},n[18]=r,n[19]=o,n[20]=C,n[21]=u,n[22]=k):k=n[22];let A=ee({mutationFn:O,onSuccess:k,onError:e=>{f.current&&d.current?.signal.aborted!==!0&&(d.current=nu",
+    "claim": "关闭成功刷新protection、MFA、加/改密码资格四组缓存，然后返回。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H024",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 30849,
+    "excerpt": "eact.memo_cache_sentinel`)?(_=()=>(f.current=!0,()=>{f.current=!1,d.current?.abort()}),v=[],n[2]=_,n[3]=v):(_=n[2],v=n[3]),(0,hi.useEffect)(_,v);let b;n[4]===r?b=n[5]:(b=e=>Wn(r,e),n[4]=r,n[5]=b);let x;n[6]===l?x=n[7]:(x=e=>{f.current&&(e===`ready`?l():typeof e==`object`&&window.location.assign(e.redirectUrl))},n[6]=l,n[7]=x);let S;n[8]!==b||n[9]!==x?(S={mutationFn:b,onSuccess:x},n[8]=b,n[9]=x,n[10]=S):S=n[10];let C=ee(S),w;n[11]===r?w=n[12]:(w=()=>Bn(r),n[11]=r,n[12]=w);let T;n[13]===Symbol.for(`react.memo_cache_sentinel`)?(T=e=>{f.current&&ty",
+    "claim": "卸载时设置mounted=false并abort关闭请求，回调避免过期界面更新。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H025",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 41184,
+    "excerpt": "i&&M?(0,q.jsx)($n,{title:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.disable.confirmation.title`,defaultMessage:`Disable advanced account security?`,description:`Title of the destructive confirmation dialog shown only after fresh MFA verification for disabling Advanced account security.`}),confirmLabel:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.disable.button`,defaultMessage:`Disable`,description:`Destructive button on the native Advanced account security detail page. It starts fresh MFA reauthentication bef",
+    "claim": "确认框只在请求标记且仍启用保护时显示。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H026",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 2454,
+    "excerpt": "T=e=>{!e&&!h&&d()},r[2]=h,r[3]=d,r[4]=T):T=r[4];let E;r[5]!==h||r[6]!==u?(E=e=>{e.preventDefault(),h||u()},r[5]=h,r[6]=u,r[7]=E):E=r[7];let k;r[8]===i?k=r[9]:(k=(0,O.jsx)(f,{children:(0,O.jsx)(s,{title:(0,O.jsx)(o,{className:`select-none`,children:i})})}),r[8]=i,r[9]=k);let A;r[10]===a?A=r[11]:(A=a=",
+    "claim": "共享确认框busy时拒绝关闭。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H027",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 2528,
+    "excerpt": "E=e=>{e.preventDefault(),h||u()},r[5]=h,r[6]=u,r[7]=E):E=r[7];let k;r[8]===i?k=r[9]:(k=(0,O.jsx)(f,{children:(0,O.jsx)(s,{title:(0,O.jsx)(o,{className:`select-none`,children:i})})}),r[8]=i,r[9]=k);let A;r[10]===a?A=r[11]",
+    "claim": "确认框表单阻止默认提交，pending禁止重复提交。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H028",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 2991,
+    "excerpt": "role:`alert`,className:`text-sm text-danger`,children:v??(0,O.jsx)(n,{id:`settings.chatGpt.security.actionFailed`,defaultMessage:`Couldn’t complete this action. Please try again`,description:`Inline error after a confirmed account security action fails. The dialog stays open so the user can retry or cancel.`})})}):null,r[12]=v,r[13]=S,r[14]=j):j=r[14];let M=!C,N;r[15]!==b||r[16]!==C||r[17]!==h||r[18]!==d?(N=C?null:(0,O.jsx)(t,{type:`button`,color:`secondary`,disabled:h,onClick:d,children:b??(0,O.jsx)(n,{id:`settings.chatGpt.security.cancel`,def",
+    "claim": "动作失败在原确认框内以role=alert、text-sm、danger文本展示，可重试。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H029",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 3436,
+    "excerpt": "color:`secondary`,disabled:h,onClick:d,children:b??(0,O.jsx)(n,{id:`settings.chatGpt.security.cancel`,defaultMessage:`Cancel`,description:`Dismisses an account security confirmation without changing authentication, devices, or app access.`})}),r[15]=b,r[16]=C,r[17]=h,r[18]=d,r[19]=N):N=r[19];let P=x??(C?`primary`:`danger`),F;r[20]!==c||r[21]!==h||r[22]!==P?(F=(0,O.jsx)(t,{type:`submit`,color:P,loading:h,disabled:h,children:c}),r[20]=c,r[21]=h,r[22]=P,r[23]=F):F=r[23];let I;r[24]!==N||r[25]!==F||r[26]!==M?(I=(0,O.jsx)(f,{children:(0,O.jsxs)(g,{e",
+    "claim": "Cancel为secondary且busy禁用；提交按钮loading与disabled均跟随busy。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H030",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 23306,
+    "excerpt": "settings.chatGpt.security.reauthError`,defaultMessage:`Couldn’t verify your identity`,description:`Title of an error dialog when starting the required identity verification for an account security change fails.`}),i=(0,li.jsx)(y,{id:`settings.chatGpt.security.closeError`,defaultMessage:`Close`,description:`Dismisses the security reauthentication error without changing account settings.`}),t[0]=r,t[1]=i):(r=t[0],i=t[1]);let a;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,li.jsx)(y,{id:`settings.chatGpt.security.reauthError.description`,defaultMessage:`Close this message and try again`,de",
+    "claim": "重认证启动失败弹窗标题为Couldn’t verify your identity。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H031",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 24156,
+    "excerpt": "title:r,confirmLabel:i,informational:!0,isPending:!1,onConfirm:n,onClose:n,children:a}),t[3]=n,t[4]=o),o}var ci,li;function ui(){return(ui=e((()=>{ci=Ke(),U(),Xn(),li=G()})))()}function di(e){let t=(0,mi.c)(8),{accountId:n,onManage:r}=e,i;t[0]===n?i=t[1]:(i=Pn(n),t[0]=n,t[1]=i);let{data:a,isSuccess:",
+    "claim": "重认证错误为information确认框，仅Close主动作，关闭清除认证mutation状态。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H032",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 1812,
+    "excerpt": "role:`status`,className:`flex items-center gap-2 text-sm text-secondary`,children:[(0,O.jsx)(h,{}),(0,O.jsx)(n,{id:`settings.chatGpt.security.loading`,defaultMessage:`Loading security settings…`,description:`Loading status while a ChatGPT Security and login settings page fetches account data.`})]}),r[0]=i,r[1]=a,r[2]=o):o=r[2],o}function E(e){let r=(0,D.c)(38),{title:i,children:a,confirmLabel:c,onConfirm:u,onClose:d,isPending:h,isError:_,errorMessage:v,informational:y,cancelLabel:b,confirmColor:x}=e,S=_!==void 0&&_,C=y!==void 0&&y,w;r[0]===a?w=",
+    "claim": "加载为带spinner的status横排，text-sm、secondary、gap-2。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H033",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 1186,
+    "excerpt": "role:`alert`,className:`flex flex-col items-start gap-3 text-sm text-secondary`,children:[(0,O.jsx)(n,{id:`settings.chatGpt.security.loadError`,defaultMessage:`Couldn’t load security settings. Please try again`,description:`Error on a ChatGPT Security and login settings page when its account data request fails. The retry button reloads this data.`}),(0,O.jsx)(t,{color:`secondary`,size:`toolbar`,onClick:a,children:(0,O.jsx)(n,{id:`settings.chatGpt.security.retry`,defaultMessage:`Retry`,description:`Button beside an error in ChatGPT Security and ",
+    "claim": "查询错误为role=alert纵排gap-3，Retry为secondary toolbar。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H034",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4470152,
+    "excerpt": "[5]!==M||t[6]!==N||t[7]!==P||t[8]!==k||t[9]!==S?(F=X(`@container/settings-row`,k,A,j,M,N,P,v===\"default\"&&(S===\"default\"||S===`featured`||S===`recommendation`)&&X(`flex justify-between`,S===`featured`&&X(`gap-6`,x===`compact`?`min-h-11 py-2`:`py-4`),S!==`featured`&&(x===`compact`?`gap-4 py-2`:`gap-6 py-3`)),S===`recommendation`&&`dark:bg-primary-ghost-hover`,u),t[0]=u,t[1]=v,t[2]=x,t[3]=A,t[4]=j,t[5]=M,t[6]=N,t[7]=P,t[8]=k,t[9]=S,t[10]=F):F=t[10];let I;t[11]!==o||t[12]!==O||t[13]!==T||t[14]!==l||t[15]!==n||t[16]!==D||t[17]!==g||t[18]!==_||t[19]",
+    "claim": "默认设置行flex左右分配，gap-6 py-3；compact另有gap-4 py-2。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H035",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4479768,
+    "excerpt": "ext-default group-data-[density=compact]/settings:leading-4.5`,_,v,y,b),t[5]=b,t[6]=_,t[7]=v,t[8]=y,t[9]=x):x=t[9];let S;t[10]!==n||t[11]!==r||t[12]!==x?(S=(0,r9.jsx)(`div`,{id:r,className:x,children:n}),t[10]=n,t[11]=r,t[12]=x,t[13]=S):S=t[13];let C;t[14]!==o||t[15]!==s?(C=o?(0,r9.jsx)(`div`,{id:s,className:`min-w-0 text-xs leading-4 text-wrap break-words text-secondary`,children:o}):null,t[14]=o,t[15]=s,t[16]=C):C=t[16];let w;t[17]!==S||t[18]!==C?(w=(0,r9.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-col gap-0.5`,children:[S,C]}),t[17]=S,t",
+    "claim": "设置行说明为text-xs、leading-4、secondary并允许换行。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H036",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4481299,
+    "excerpt": "=void 0?`default`:o,d=l?u===`flat`?KMn:GMn:`flex flex-col`,f=u===`recommendation`&&`rounded-[20px]`,p=u!==`recommendation`&&u!==`flat`&&u!==`outlinedLarge`&&`rounded-2xl`,m=u===`outlinedLarge`&&`rounded-[30px] border border-default bg-transparent`,h=s===`daybreak`&&YMn.daybreak,g=c===`visible`?`overflow-visible`:`overflow-hidden`,_=u===\"default\"&&`border border-default group-data-[density=compact]/settings:border-0 group-data-[density=compact]/settings:ring-1 group-data-[density=compact]/settings:ring-inset group-data-[density=compact]/settings",
+    "claim": "默认设置卡片圆角rounded-2xl，hidden overflow、边框；compact使用inset ring。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H037",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4480618,
+    "excerpt": "GMn=`flex flex-col [&>*:not(:last-child)]:relative [&>*:not(:last-child)]:after:pointer-events-none [&>*:not(:last-child)]:after:absolute [&>*:not(:last-child)]:after:inset-x-4 [&>*:not(:last-child)]:after:bottom-0 [&>*:not(:last-child)]:after:h-px [&>*:not(:last-child)]:after:bg-border [&>*:not(:last-child)]:after:content-['']`,KMn=`flex flex-col [&>*:not(:last-child)]:border-b [&>*:not(:last-child)]:border-border`})))()}var JMn,YMn;function XMn(){return(XMn=t((()=>{JMn=`_daybreak_vyuj8_1`,YMn={daybreak:JMn}})))()}function ZMn(e){let t=(0,QMn.",
+    "claim": "卡片内部非末行after分隔线h-px，左右inset-x-4，pointer-events-none。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H038",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 17328,
+    "excerpt": "f.error.errorCode===`advanced_account_security_minimum_passkeys_required`){let e;t[10]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,z.jsx)(s,{id:`settings.chatGpt.security.passkeys.removeBlockedByAasMinimum`,defaultMessage:`Advanced Account Security requires at least two security keys or passkeys. Add another before removing this one.`,description:`Blocking error when removing a security key or passkey would leave fewer than two credentials required by Advanced Account Security. Tell the user to add another credential before retrying.`}),t[1",
+    "claim": "删除passkey服务端400触发至少两把凭证的专属阻断提示。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H039",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 17904,
+    "excerpt": "f.error.errorCode===`advanced_account_security_non_device_bound_passkey_required`){let e;t[11]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,z.jsx)(s,{id:`settings.chatGpt.security.passkeys.removeBlockedByAasNonDeviceBound`,defaultMessage:`Advanced Account Security requires at least one security key or passkey that works across devices. Add another before removing this one.`,description:`Blocking error when removing a security key or passkey would leave no credential that works across devices, as required by Advanced Account Security. Avoid t",
+    "claim": "删除passkey服务端400触发至少一把跨设备凭证的专属阻断提示。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H040",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 48351,
+    "excerpt": "rn b?(0,J.jsx)(Ve,{interactive:!0,keyboardNavigation:!0,open:d===n,onOpenChange:e=>{f(t=>e?n:t===n?null:t)},tooltipContent:(0,J.jsx)(y,{id:`settings.chatGpt.security.mfa.disabledByAdvancedProtection`,defaultMessage:`This setting is disabled because you have Advanced Account Security enabled. <manageLink>Manage Advanced Account Security</manageLink>`,description:`Explanation for a disabled MFA switch when Advanced Account Security is enabled. The manageLink opens Advanced Account Security in the same settings panel.`,values:{manageLink:e=>(0,J.j",
+    "claim": "高级保护下MFA开关提示禁用原因及站内Manage链接。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H041",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 106855,
+    "excerpt": " settings. The row lets eligible users add or change a password.`}),description:_?(0,Wa.jsx)(y,{id:`settings.chatGpt.security.password.advancedProtectionDescription`,defaultMessage:`Password sign-in is disabled while Advanced account security is enabled`,description:`Explanation below the disabled Password row when Advanced account security is enabled. The user can manage this protection in the Advanced security section.`}):(0,Wa.jsx)(y,{id:`settings.chatGpt.security.password.description`,defaultMessage:`Manage the password you use to log in`,d",
+    "claim": "高级保护下密码登录禁用，并显示解释。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H042",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 139421,
+    "excerpt": "ams(s);e==null?i.delete(`view`):i.set(`view`,e),e!==`account-pin`&&i.delete(xr),e!==`advanced-protection`&&(i.delete(`apm_disable_confirm`),i.delete(`apm_account_id`)),I===`linked-apps`&&e!==`linked-apps`&&i.delete(`tab`),o({pathname:a.pathname,search:i.size===0?``:`?${i.toString()}`,hash:a.hash},{replace:e==null,state:e==null?a.state:{securitySubviewHasParent:!0,securitySessionReviewIntent:e===`sessions`&&t!==void 0&&r.userId?{accountId:n,userId:r.userId,recommendationAttempt:t??void 0}:void 0}})},t[37]=n,t[38]=r.userId,t[39]=a.hash,t[40]=a.pa",
+    "claim": "离开高级保护子页面清除确认和账户回跳参数。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H043",
+    "path": "webview/assets/reauth-29a1adb42631.js",
+    "offset": 23946,
+    "excerpt": "function G(e,t){return e.get(X)===`true`&&e.get(Z)===t}async function K(e,t=!1){let n=await w();if(n?.accountId!==e)retu",
+    "claim": "确认请求状态要求URL标记为true且账户匹配。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H044",
+    "path": "webview/assets/return-url-fc251a8ad74f.js",
+    "offset": 363,
+    "excerpt": "function n(){return new URL(t()??`/settings/security`,window.location.origin)}function r(){return(r=e((()=>{})))()}export{t as n,r,n as t};\n//# source",
+    "claim": "回跳保留符合规则的HTTP(S)security-settings路径，否则使用/settings/security。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H045",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 32926,
+    "excerpt": "N=m!=null&&!h,P;n[23]===Symbol.for(`react.memo_cache_sentinel`)?(P=(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.title`,defaultMessage",
+    "claim": "只有有数据且无query错误时展示开通或管理内容；有陈旧数据但错误仍使用错误区。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H046",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 37065,
+    "excerpt": "N&&!M?(0,q.jsx)(Pe,{children:(0,q.jsx)(W,{label:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.notEnrolled`,defaultMessage:`Advanced account security isn’t enabled`,description:`Status shown on a direct native Advanced account security detail link when the authoritative account response says the user is not enrolled.`}),description:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.description`,defaultMessage:`Use stronger sign-in protections and additional safeguards to help prevent unauthorized access to your account`,description:`Description of Advanced account sec",
+    "claim": "直达详情但未开通时展示未启用行，只有资格true时保留Enroll。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H047",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 34929,
+    "excerpt": "defaultMessage:`Disable email and SMS sign-in codes`,description:`Protection listed on the native Advanced account security detail page. It says email and SMS sign-in codes are disabled while enrolled.`})}),(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.disablePasswordSignIn`,defaultMessage:`Disable password sign-in`,description:`Protection listed o",
+    "claim": "保护清单声明关闭邮件与短信登录码；仅界面文案证据。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H048",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 35255,
+    "excerpt": "defaultMessage:`Disable password sign-in`,description:`Protection listed on the native Advanced account security detail page. It says password sign-in is disabled while enrolled.`})}),(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.disableEmailRecovery`,defaultMessage:`Disable email account recovery`,description:`Protection listed on the native Advan",
+    "claim": "保护清单声明关闭密码登录；仅界面文案证据。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H049",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 35557,
+    "excerpt": "defaultMessage:`Disable email account recovery`,description:`Protection listed on the native Advanced account security detail page. It says email-based account recovery is disabled while enrolled.`})}),(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.disableModelTraining`,defaultMessage:`Disable model training`,description:`Protection listed on the na",
+    "claim": "保护清单声明关闭邮件恢复；仅界面文案证据。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H050",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 35877,
+    "excerpt": "defaultMessage:`Disable model training`,description:`Protection listed on the native Advanced account security detail page. It says model training is disabled while enrolled.`})}),(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.enableEmailLoginAlerts`,defaultMessage:`Enable email alerts for login attempts`,description:`Protection listed on the native",
+    "claim": "保护清单声明关闭模型训练；仅界面文案证据。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H051",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 36177,
+    "excerpt": "defaultMessage:`Enable email alerts for login attempts`,description:`Protection listed on the native Advanced account security detail page. It says email alerts for login attempts are enabled while enrolled.`})}),(0,q.jsx)(`li`,{children:(0,q.jsx)(y,{id:`settings.chatGpt.security.advancedProtection.included.enableShorterSessions`,defaultMessage:`Enable shorter active sessions`,description:`Protect",
+    "claim": "保护清单声明邮件登录提醒；仅界面文案证据。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H052",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 36509,
+    "excerpt": "defaultMessage:`Enable shorter active sessions`,description:`Protection listed on the native Advanced account security detail page. It says active sessions are shortened while enrolled.`})})]})]}):null,n[29]=N,n[30]=M,n[31]=re):re=n[31];let ie;n[32]===re?ie=n[33]:(ie=(0,q.jsxs)(`div`,{className:`flex flex-col gap-5 text-wrap select-none`,children:[I,re]}),n[32]=re,n[33]=ie);let L;n[34]!==N||n[35]!",
+    "claim": "保护清单声明更短会话；未规定具体时长。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H053",
+    "path": "webview/assets/shared-1d8d48dc8898.js",
+    "offset": 596,
+    "excerpt": "escription:`Button in a Security and login settings subpage that returns to its parent page without changing account settings.`}),i[0]=f,i[1]=p):(f=i[0],p=i[1]);let m;i[2]===u?m=i[3]:(m=(0,O.jsxs)(t,{color:`ghostActive`,size:`toolbar`,onClick:u,children:[f,p]}),i[2]=u,i[3]=m);let h;return i[4]!==l||i[5]!==d||i[6]!==o||i[7]!==c||i[8]!==m||i[9]!==s?(h=(0,O.jsx)(C,{ref:o,title:s,subtitle:c,action:l,backSlot:m,children:d}),i[4]=l,",
+    "claim": "详情返回按钮为ghostActive toolbar，含RTL可旋转箭头与Back文本。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H054",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 49053,
+    "excerpt": "min-w-0 text-start break-words whitespace-normal`,children:e})})}}),children:(0,J.jsx)(`span`,{...e,className:`inline-flex focus-visible:rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none`,role:`switch`,\"aria-checked\":r,\"aria-disabled\":`true`,tabIndex:0,onClick:()=>f(n),onKeyDown:e=>{(e.key===`Enter`||e.key===` `)&&(e.preventDefault(),f(n))},children:o})}):o}},n)})}),n[34]=x,n[35]=b,n[36]=d,n[37]=j,n[38]=c,n[39]=l,n[40]=a,n[41]=F):F=n[41];let ne;return n[42]!==P",
+    "claim": "禁用MFA使用可聚焦代理switch，aria-disabled=true、tabIndex=0，允许键盘打开原因tooltip。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H055",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 107552,
+    "excerpt": "disabled:!m||_||g.isPending||g.isSuccess&&g.data!==`failed`,onClick:()=>g.mutate(v,{onSuccess:Ha}),trailing:(0,Wa.jsxs)(Wa.Fragment,{children:[_?(0,Wa.jsx)(y,{id:`settings.chatGpt.security.password.disabled`,defaultMessage:`Disabled`,description:`Status on the Password settings row when Advanced account security disables password sign-in.`}):null,!_&&v===`change`?(0,Wa.jsx)(y,{id:`settings.chatGpt.security.password.change`,defaultMessage:`Change`,description:`Action on the Password settings row that starts identity verification to change an exi",
+    "claim": "密码行真正disabled包含高级保护标记，末尾显示Disabled。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H056",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 31074,
+    "excerpt": "f.current&&(e===`ready`?l():typeof e==`object`&&window.location.assign(e.redirectUrl))},n[6]=l,n[7]=x);let S;n[8]!==b||n[9]!==x?(S={mutationFn:b,onSuccess:x},n[8]=b,n[9]=x,n[10]=S):S=n[10];let C=ee(S),w;n[11]===r?w=n[12]:(w=()=>Bn(r),n[11]=r,n[12]=w);let T;n[13]===Symbol.for(`react.memo_cache_sentin",
+    "claim": "关闭认证ready显示确认，否则仅mounted时执行重定向。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H057",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 38946,
+    "excerpt": "defaultMessage:`Recovery keys help you regain access to your account if you lose your sign-in methods. Keep them stored somewhere safe. If you lose your recovery keys or think someone else has them, you can replace them here. Replacing them will invalidate the old keys.`,description:`Body copy beside the recovery-key replacement action on the native Advanced account security detail page. It warns that replacing recovery keys invalidates the previous set.`}),controlSizing:`content`,control:(0,q.jsx)(t,{color:`secondary`,size:`toolbar`,disabled:j",
+    "claim": "恢复密钥行说明旧密钥会在替换后失效。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H058",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 41948,
+    "excerpt": "defaultMessage:`Disabling advanced account security will restore standard sign-in and account recovery methods, remove recovery keys, and stop requiring your passkeys or security keys at sign-in`,description:`Body of the destructive confirmation dialog for disabling Advanced account security. It summarizes the security protections that will no longer be enforced.`})}):null,n[56]=A,n[57]=i,n[58]=M,n[59]=s,n[60]=C.isPending,n[61]=le):le=n[61];let R;n[62]!==C||n[63]!==te||n[64]!==D?(R=te?(0,q.jsx)(si,{onClose:()=>{C.reset(),D.reset()}}):null,n[62]",
+    "claim": "关闭保护最终确认明确标准登录恢复、删除恢复密钥、停止强制通行密钥。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H059",
+    "path": "webview/assets/security-settings-cdbf3384742f.js",
+    "offset": 42435,
+    "excerpt": "te?(0,q.jsx)(si,{onClose:()=>{C.reset(),D.reset()}}):null,n[62]=C,n[63]=te,n[64]=D,n[65]=R):R=n[65];let ue;return n[66]!==se||n[67]!==le||n[68]!==R?(ue=(0,q.jsxs)(q.Fragment,{children:[se,le,R]}),n[66",
+    "claim": "关闭身份验证错误提示清除两种认证mutation状态。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H060",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4469290,
+    "excerpt": "(),T=n!=null||o!=null||l!=null,E=typeof s==`function`,D=E&&n!=null?`${w}-label`:void 0,O=E&&o?`${w}-description`:void 0,k=b&&(v!==`split`||S!==\"default\")&&`px-4`,A=b&&S===`nested`&&`group-data-[density=form]/settings:px-5`,j=S===`stacked`&&`flex flex-col items-stretch gap-1 py-3 group-data-[density=compact]/settings:gap-0.5 group-data-[density=compact]/settings:py-2.5 group-dat",
+    "claim": "设置行默认inset为true，普通布局使用px-4。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  },
+  {
+    "id": "H061",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4479546,
+    "excerpt": "v=l===`recommendation`&&`text-[13px] leading-[18.571429px]`,y=l!==`featured`&&l!==`recommendation`&&`text-sm`,b=l!==`nested`&&f===`medium`&&`font-medium`,x;t[5]!==b||t[6]!==_||t[7]!==v||t[8]!==y?(x=X(`min-w-0 break-words text-default group-data-[density=compact]/settings:leading-4.5`,_,v,y,b),t[5]=b,t[6]=_,t[7]=v,t[8]=y,t[9]=x):x=t[9];let S;t[10]!==n||t[11]!==r||t[12]!==x?(S=(0,r9.jsx)(`div`,{id:r,className:x,children:n}),t[10]=n,t[11]=r,t[12]=x,t[13]=S):S=t[13];let C;t[14]!==o||t[15]!==s?(C=o?(0,r9.jsx)(`div`,{id:s,className:`min-w-0 text-xs l",
+    "claim": "普通设置行标题消费text-sm/font-medium，推荐行另有固定13px，不能混用。",
+    "scope": "静态打包实现；未运行认证、变更账户或观测服务端响应"
+  }
+]

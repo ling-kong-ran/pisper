@@ -1,0 +1,135 @@
+{
+  "date": "2026-10-20",
+  "kind": "Pisper implementation fixtures",
+  "reference": {
+    "version": "26.1013.40934",
+    "build": "20770",
+    "pairedScreenshotAvailable": false
+  },
+  "command": "npm run test:replica:ui",
+  "result": "passed",
+  "scope": "Isolated production components with synthetic data and real CSS; no native device acceptance or complete pixel parity claim",
+  "integrationStatus": "Full production/workbench regression has a separate unresolved task-menu reopen/close race",
+  "files": [
+    {
+      "path": "controls/button-hover.png",
+      "bytes": 5223,
+      "sha256": "7ba9aae44c9d66d281fc0973794c80850701e769fccb29d3d0278583a2f7fba7"
+    },
+    {
+      "path": "controls/button-pressed.png",
+      "bytes": 5126,
+      "sha256": "e7f91c547ee3aa23df7c144b71621e400bc2a78ebd4a5e190954257dcf840263"
+    },
+    {
+      "path": "controls/button-states-dark.png",
+      "bytes": 5082,
+      "sha256": "d86be9e9477d764187c9b9229168c50b442ba587e26c06b08dbf30f475f48a3d"
+    },
+    {
+      "path": "controls/button-states.png",
+      "bytes": 5221,
+      "sha256": "97a2e412a807eb9f17ff1f81846d386068c441261ae83acf34626b9f2fdac773"
+    },
+    {
+      "path": "controls/dialog-narrow.png",
+      "bytes": 13153,
+      "sha256": "ce9914ec4534fc9d257adbf7ce1e07d9f53b25a4be5de886d18d9f853535f423"
+    },
+    {
+      "path": "controls/edge-popover.png",
+      "bytes": 23873,
+      "sha256": "65935302f30d7380d935a8e6d26a726c03e019401a9236a26e859a88340aedb3"
+    },
+    {
+      "path": "shell/metrics.json",
+      "bytes": 772,
+      "sha256": "31213b628849c2d136734e21b59a0ea9da0d65dca85eba090bd84b932a6cdd91"
+    },
+    {
+      "path": "shell/search-dark.png",
+      "bytes": 27618,
+      "sha256": "6ac8f7b59c65e1bfa491f5f0f44915373b3a04c1e10639b13a56dd580bdaf09b"
+    },
+    {
+      "path": "shell/search-light.png",
+      "bytes": 33289,
+      "sha256": "cf1948643c34662bba1133f60e4fc1b989876cea068eddb8336909124d3be2f9"
+    },
+    {
+      "path": "shell/search-narrow.png",
+      "bytes": 15595,
+      "sha256": "02b4a00f190acc4ab9790cfdbfc439538cb371aa8bafb042c315e96d277db16a"
+    },
+    {
+      "path": "chat/desktop.png",
+      "bytes": 64919,
+      "sha256": "3c0241f61d77bdaa1aad842695e950e16c3794294fec08244f31d0d1648ae6aa"
+    },
+    {
+      "path": "chat/metrics.json",
+      "bytes": 746,
+      "sha256": "cf10605edc9a3a40c492488118e805e3a30d802b134861111c8822284515539b"
+    },
+    {
+      "path": "chat/mobile.png",
+      "bytes": 40988,
+      "sha256": "b2cc99609a280ae5d64cbd48fb90de092477feddf5e0ac4a1a9a3298de234f87"
+    },
+    {
+      "path": "settings/appearance-dark-1280-popover.png",
+      "bytes": 57610,
+      "sha256": "c9112cfede4f47f3dfdf35036c489650d1b092db04ecfc306b0eb3de8ceb0b44"
+    },
+    {
+      "path": "settings/appearance-dark-1280.png",
+      "bytes": 39542,
+      "sha256": "5cb9dfc22ff92dae77d72892c0f48cb61b3474cf6573de110b8d1ac7930f3661"
+    },
+    {
+      "path": "settings/appearance-dark-390-long-zh-popover.png",
+      "bytes": 65774,
+      "sha256": "4b2e6df9deb2b9078f018b953831b8f9dae54408bdf60783469aa0ecaf8897f8"
+    },
+    {
+      "path": "settings/appearance-dark-390-long-zh.png",
+      "bytes": 50691,
+      "sha256": "9d011f250978d65b5924c77e4a7f6d520ef81e2d3fa975e3ae7b3c061757838c"
+    },
+    {
+      "path": "settings/appearance-dark-390-popover.png",
+      "bytes": 48443,
+      "sha256": "205befb4985f6930c39a8ce24ffed81d14040a20f392625928f14b2f53ded4a5"
+    },
+    {
+      "path": "settings/appearance-dark-390.png",
+      "bytes": 34222,
+      "sha256": "b580f193f64faa799fc5b42ef66cd27a422e8984be88529274e5ae55ef7b2e24"
+    },
+    {
+      "path": "settings/appearance-light-1280-popover.png",
+      "bytes": 59299,
+      "sha256": "ede0a0716bb103a47f1a2390c69b841a8a43f050d5a2cabe852985673b89db4d"
+    },
+    {
+      "path": "settings/appearance-light-1280.png",
+      "bytes": 40923,
+      "sha256": "dc216de1fc699603d1e1af535b1bee9ca6f07de4e7a960b095720699457ebcc7"
+    },
+    {
+      "path": "settings/appearance-light-390-popover.png",
+      "bytes": 50829,
+      "sha256": "8cfedbc71f9c059c53d777c08ef3aa38863182a6955975807c6e08c7f311d189"
+    },
+    {
+      "path": "settings/appearance-light-390.png",
+      "bytes": 36151,
+      "sha256": "e9c6a61e5b0dd0b67866789622de485c1439d868cf1e6f15656979b314df0720"
+    },
+    {
+      "path": "settings/metrics.json",
+      "bytes": 26609,
+      "sha256": "1674607c7beb8fa776db7c41e0b7d1d64faf7dc0e0d86393441c3a1269ec4f42"
+    }
+  ]
+}

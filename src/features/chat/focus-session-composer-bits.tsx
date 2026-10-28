@@ -1,5 +1,5 @@
 // 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、状态指示灯、
-// 手动压缩按钮与发送/停止按钮。从 FocusSession.tsx 拆出，样式逐字保留。
+// 手动压缩按钮与按草稿、队列和准备状态选择的发送/停止按钮。
 import { lazy, Suspense } from 'react'
 import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -184,36 +184,62 @@ export function CompactContextButton({
 export function ComposerSendButton({
   streaming,
   queueing,
+  submitting = false,
+  stopping = false,
+  preparing = false,
+  hasDraft = false,
+  canQueue = false,
+  blockedReason,
   disabled,
   onAbort,
 }: {
   streaming?: boolean
   queueing: boolean
+  submitting?: boolean
+  stopping?: boolean
+  preparing?: boolean
+  hasDraft?: boolean
+  canQueue?: boolean
+  blockedReason?: string
   disabled: boolean
   onAbort: () => void
 }) {
   const { t } = useI18n()
   const sendShortcut = useShortcutLabel('sendMessage')
-  const sendLabel = t('chat:focusSession.sendMessage')
+  const stopAction = Boolean(streaming && !(hasDraft && canQueue) && !preparing)
+  const busy = queueing || submitting || stopping || preparing
+  const unavailable = disabled || busy || Boolean(blockedReason)
+  const label = preparing
+    ? t('chat:focusSession.preparingAttachments')
+    : stopping
+      ? t('chat:focusSession.stopping')
+      : stopAction
+        ? t('chat:focusSession.stop')
+        : t('chat:focusSession.sendMessage')
   return (
     <button
-      type={streaming ? 'button' : 'submit'}
-      className={`send-button grid !size-8 !min-w-8 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-[var(--d1)] cursor-pointer hover:not(:disabled):opacity-85 active:not(:disabled):scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 ${streaming ? 'stop !bg-[var(--danger)] hover:not(:disabled):shadow-[0_0_0_3px_var(--danger-soft)]' : ''}`}
+      type={stopAction ? 'button' : 'submit'}
+      className="send-button grid size-8 min-w-8 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-colors cursor-pointer hover:enabled:opacity-85 active:enabled:scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 aria-disabled:opacity-50"
       title={
-        streaming
-          ? t('chat:focusSession.stop')
-          : sendShortcut
-            ? `${sendLabel} (${sendShortcut})`
-            : sendLabel
+        blockedReason ||
+        (!stopAction && !busy && sendShortcut ? `${label} (${sendShortcut})` : label)
       }
-      aria-label={streaming ? t('chat:focusSession.stop') : t('chat:focusSession.sendMessage')}
-      onClick={streaming ? onAbort : undefined}
-      disabled={disabled}
+      aria-label={blockedReason ? `${label}: ${blockedReason}` : label}
+      aria-busy={busy || undefined}
+      aria-disabled={unavailable || undefined}
+      onClick={(event) => {
+        if (unavailable) {
+          event.preventDefault()
+          return
+        }
+        if (stopAction) onAbort()
+      }}
+      disabled={!blockedReason && unavailable}
     >
-      {streaming ? (
-        <Square size={12} fill="currentColor" />
-      ) : queueing ? (
+      {busy ? (
         <RefreshCw className="animate-spin" size={17} />
+      ) : stopAction ? (
+        <Square size={12} fill="currentColor" />
       ) : (
         <ArrowUp size={17} />
       )}

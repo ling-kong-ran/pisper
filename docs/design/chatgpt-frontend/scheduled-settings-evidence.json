@@ -1,0 +1,498 @@
+[
+  {
+    "id": "F001",
+    "claim": "Scheduled路由区分本地/云能力，旧路径保留参数跳转",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11575734,
+    "excerpt": "function EEl(){let e=(0,v8.c)(18),t=q(AE),{pathname:n,search:r,hash:i,state:a}=ru(),o=new URLSearchParams(r),s;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(s={name:`automations.local`},e[0]=s):s=e[0];let c=Eu(ty,s),l;e[1]===Symbol.for(`react.memo_cache_sentinel`)?(l={name:`automations.cloud`},e[1]=l):l=e[1];let u=Eu(ty,l);if(t&&n===`/automations`){let t;e[2]!==i||e[3]!==r?(t={pathname:`/scheduled`,search:r,hash:i},e[2]=i,e[3]=r,e[4]=t):t=e[4];let n;return e[5]!==a||e[6]!==t?(n=(0,b8.jsx)(zc,{to:t,state:a,replace:!0}),e[5]=a,e[6]=t,e[7]=n):n=e[7],n}if(c.isCapable||u.isCap"
+  },
+  {
+    "id": "F002",
+    "claim": "Scheduled能力未确定返回空；明确不支持返回首页",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11577688,
+    "excerpt": "if(c.isLoading||u.isLoading)return null;let d;return e[17]===Symbol.for(`react.memo_cache_sentinel`)?(d=(0,b8.jsx)(zc,{to:`/`,replace:!0}),e[17]=d):d=e[17],d}function DEl(){let e=(0,v8.c)(2),t=Kv(`1008193688`),n=Eu(ig,`1008193688`);if(!t&&n)return null;let r;return e[0]===t?r=e[1]:(r=t?(0,b8.jsx)(YE"
+  },
+  {
+    "id": "F003",
+    "claim": "列表消费者同时接收云/本地数据、加载、操作pending和独立回调",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 37713,
+    "excerpt": "onRowSummaries:o,canAddAutomationSuggestion:s,creatingAutomationId:c,headerPlacement:l,pluginIconsById:u,pluginTemplateGroups:f,unreadAutomationIds:p,isCloudAutomationActionPending:m,isLoading:h,runningAutomationIds:g,isRunNowPending:_,selectedCloudAutomationId:v,selectedAutomationId:b,selectedPluginTemplateId:x,toolbarActions:S,onSelectAutomation:C,onRunAutomation:w,onMarkAllRead:T,onPauseAutomation:E,onResumeAutomation:ee,onDeleteAutomation:D,onDeleteCloudAutomation:te,onPauseCloudAutomation:O,onResumeCloudAutomation:k,onRetryCloudAutomations:A,onSelectCloudAutomation:re,"
+  },
+  {
+    "id": "F004",
+    "claim": "列表默认active筛选，搜索由多字段匹配函数执行",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 38257,
+    "excerpt": "ations:A,onSelectCloudAutomation:re,onAddAutomationSuggestion:ie,onSelectPluginTemplate:j}=e,M=l===void 0?`page`:l,N=ae(),P=I(Pi),F=I(hi),oe=I(Nt),R=ot(ft,oe),[z,se]=(0,tc.useState)(``),B=(0,tc.useRef)(null),[V,H]=(0,tc.useState)(`active`),ce=N.formatMessage({id:`inbox.automations.cloud.row.task`,defaultMessage:`Cloud scheduled task`,description:`Source and type label for a cloud scheduled task`}),le;t[0]!==o||t[1]!==z||t[2]!==a||t[3]!==V?(le=e=>{let t=a.get(e.id),n=e.status===`PAUSED`?`paused`:`active`;if(V!==`all`&&V!==n)return!1;let r=o.get(e.id);return ho(z,[e.name,e.pr"
+  },
+  {
+    "id": "F005",
+    "claim": "列表搜索控件不自动聚焦，加载时不配置搜索控件",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 45622,
+    "excerpt": "=q,t[46]=Ue);let We;t[47]!==P||t[48]!==N||t[49]!==K||t[50]!==ge||t[51]!==z||t[52]!==R?(We=K?void 0:{id:`scheduled-page-search`,variant:P?`toolbar-compact`:`default`,autoFocus:!1,label:ge,onSearchQueryChange:se,placeholder:R?N.formatMessage(Is.searchPlaceholder):ge,searchQuery:z},t[47]=P,t[48]=N,t[49]=K,t[50]=ge,t[51]=z,t[52]=R,t[53]=We):We=t[53];let Ge;t[54]!==V||t[55]!==R?(Ge=R?(0,Z.jsx)(Rs,{statusFilter:V,onStatusFilterChange:H}):void 0,t[54]=V,t[55]=R,t[56]=Ge):Ge=t[56];let Ke=P?void 0:S,qe=R&&M===`toolbar`?`page`:!1,Je;t[57]!==i||t[58]!==A?(Je=i==null?null:(0,Z.jsx)(L,{"
+  },
+  {
+    "id": "F006",
+    "claim": "云列表加载错误和Try again独立显示",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 46123,
+    "excerpt": "&M===`toolbar`?`page`:!1,Je;t[57]!==i||t[58]!==A?(Je=i==null?null:(0,Z.jsx)(L,{content:(0,Z.jsx)(y,{id:`inbox.automations.cloud.loadError`,defaultMessage:`Cloud scheduled tasks could not be loaded`,description:`Error shown when cloud scheduled tasks fail to load`}),primaryCtaText:(0,Z.jsx)(y,{id:`inbox.automations.cloud.loadError.retry`,defaultMessage:`Try again`,description:`Button to retry loading cloud scheduled tasks`}),type:`error`,onPrimaryCtaClick:A}),t[57]=i,t[58]=A,t[59]=Je):Je=t[59];let Ye;t[60]===K?Ye=t[61]:(Ye=K?(0,Z.jsx)(ar,{loadingLabel:(0,Z.jsx)(y,{id:`inbox."
+  },
+  {
+    "id": "F007",
+    "claim": "列表加载有可访问label，与详情loading分开",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 46603,
+    "excerpt": "[59]=Je):Je=t[59];let Ye;t[60]===K?Ye=t[61]:(Ye=K?(0,Z.jsx)(ar,{loadingLabel:(0,Z.jsx)(y,{id:`inbox.automations.loading`,defaultMessage:`Loading scheduled tasks`,description:`Accessible status while scheduled tasks load`})}):null,t[60]=K,t[61]=Ye);let Xe=R?(0,Z.jsx)(Hs,{actions:P?void 0:Oe,hasTeamAutomations:r.some(Zs),isLoading:K,rows:pe,renderRow:Ae,suggestions:Me}):(0,Z.jsxs)(Z.Fragment,{children:[!K&&!me&&V!==`all`?ye:null,!K&&me?(0,Z.jsx)(`div`,{className:`flex flex-col gap-1`,role:`list`,children:pe.map(e=>Ae(e))}):null,Me]}),Ze;return t[62]!==Ne||t[63]!==P||t[64]!==P"
+  },
+  {
+    "id": "F008",
+    "claim": "详情有独立cloud-error、missing和loading分支",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 79739,
+    "excerpt": "J===`cloud-error`?(0,$.jsx)(qn.DetailPanel,{showCloseButton:!1,children:(0,$.jsx)(`div`,{className:`flex h-full min-h-0 flex-col bg-surface p-panel`,children:(0,$.jsx)(L,{content:(0,$.jsx)(y,{id:`inbox.automations.cloud.loadError`,defaultMessage:`Cloud scheduled tasks could not be loaded`,description:`Error shown when cloud scheduled tasks fail to load`}),primaryCtaText:(0,$.jsx)(y,{id:`inbox.automations.cloud.loadError.retry`,defaultMessage:`Try again`,description:`Button to retry loading cloud scheduled tasks`}),type:`error`,onPrimaryCtaClick:()=>void Ke()})})}):J===`missing`?(0,$.jsx)(Sc,{i"
+  },
+  {
+    "id": "F009",
+    "claim": "missing详情区分云端已删除/不可访问与本机不可用",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 84158,
+    "excerpt": "function Sc(e){let t=(0,Nc.c)(9),{isCloud:r,onBackToAutomations:i}=e,a;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,$.jsx)(y,{id:`inbox.automations.missingBackToScheduledTasks`,defaultMessage:`Back to scheduled tasks`,description:`Button label to return to the scheduled tasks list when a scheduled task detail page is missing`}),t[0]=a):a=t[0];let o;t[1]===i?o=t[2]:(o=(0,$.jsx)(n,{onClick:i,children:a}),t[1]=i,t[2]=o);let s;t[3]===r?s=t[4]:(s=r?(0,$.jsx)(y,{id:`inbox.automations.missingSubtitleCloud`,defaultMessage:`This scheduled task may have been deleted or is no longer available in "
+  },
+  {
+    "id": "F010",
+    "claim": "Create with ChatGPT通过预填聊天引导建立计划",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 22621,
+    "excerpt": "Ve(),fi(),Ge()})))()}function fs({intl:e,startNewConversation:t}){t({prefillPrompt:e.formatMessage({id:`inbox.automations.createWithChatGPT.prompt`,defaultMessage:`Let's set up a scheduled task together. First, explain how scheduled tasks work in ChatGPT. Then interview me to figure out what I need scheduled and when it should run.`,description:`Composer prefill prompt for creating a scheduled task by chatting with ChatGPT`})})}function ps(e){let t=(0,ms.c)(15),{accountId:r,onSelect:i}=e,a=b(u),s=ot(So,r),c;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(c=(0,hs.jsx)(o,{}),"
+  },
+  {
+    "id": "F011",
+    "claim": "云详情拥有草稿、关闭协议、当前任务与独立写入mutation",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 21437,
+    "excerpt": "function Ft(e){let n=(0,zt.c)(205),{ref:r,item:i,renderSlots:a,onClose:c,onOpenConversation:l,onSaved:u,showRunResults:p,showCloseButton:m}=e,h=p!==void 0&&p,g=m===void 0||m,_=s(je),v=y(),te=(0,Z.useId)(),[b,S]=f(),ne=ee(Fe),C=ee(Be),ie=ee(He),w=ee(Le),ae=(0,Z.useRef)(null),oe=(0,Z.useRef)(null),T=(0,Z.useRef)(null),le=(0,Z.useRef)(!1),E=Re(),ue=(0,Z.useContext)(se),[de,fe]=(0,Z.useState)(!1),{automation:D}=i,pe;n[0]===D?pe=n[1]:(pe=Ve(D),n[0]=D,n[1]=pe);let{canManage:O}=pe,k=i.teamId!=null&&O,he;n[2]===D?he=n[3]:(he=()=>Ze(D),n[2]=D,n[3]=he);let[A,ge]=(0,Z.useState)(he),[_"
+  },
+  {
+    "id": "F012",
+    "claim": "名称与提示必填，排程脏值需通过校验",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 22788,
+    "excerpt": "23]!==A.prompt||n[24]!==A.scheduleConfig||n[25]!==A.scheduleDirty?(ze=A.name.trim().length>0&&A.prompt.trim().length>0&&R==null&&(!A.scheduleDirty||me(A.scheduleConfig)),n[21]=R,n[22]=A.name,n[23]=A.prompt,n[24]=A.scheduleConfig,n[25]=A.scheduleDirty,n[26]=ze):ze=n[26];let z=ze,B=O&&!N&&D.timing_mode!==`condition_watch`,Ue;n[27]!==L||n[28]!==j||n[29]!==h?(Ue=()=>le.current||h?!0:j||oe.current!=null?!1:!L||T.current==null&&new Promise(e=>{T.current=e,fe(!0)}),n[27]=L,n[28]=j,n[29]=h,n[30]=Ue):Ue=n[30];let V=Ue,We;n[31]===V?We=n[32]:(We=()=>({requestClose:V}),n[31]=V,n[32]=We"
+  },
+  {
+    "id": "F013",
+    "claim": "已完成或条件监控任务不进入普通计划编辑",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 22986,
+    "excerpt": ".prompt,n[24]=A.scheduleConfig,n[25]=A.scheduleDirty,n[26]=ze):ze=n[26];let z=ze,B=O&&!N&&D.timing_mode!==`condition_watch`,Ue;n[27]!==L||n[28]!==j||n[29]!==h?(Ue=()=>le.current||h?!0:j||oe.current!=null?!1:!L||T.current==null&&new Promise(e=>{T.current=e,fe(!0)}),n[27]=L,n[28]=j,n[29]=h,n[30]=Ue):Ue=n[30];let V=Ue,We;n[31]===V?We=n[32]:(We=()=>({requestClose:V}),n[31]=V,n[32]=We),(0,Z.useImperativeHandle)(r,We);let Ke,Xe;n[33]===Symbol.for(`react.memo_cache_sentinel`)?(Ke=()=>()=>{oe.current?.abort(),T.current?.(!1),T.current=null},Xe=[],n[33]=Ke,n[34]=Xe):(Ke=n[33],Xe=n[3"
+  },
+  {
+    "id": "F014",
+    "claim": "关闭保护关注名称/提示变更、pending和正在保存的controller",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 23063,
+    "excerpt": "=ze,B=O&&!N&&D.timing_mode!==`condition_watch`,Ue;n[27]!==L||n[28]!==j||n[29]!==h?(Ue=()=>le.current||h?!0:j||oe.current!=null?!1:!L||T.current==null&&new Promise(e=>{T.current=e,fe(!0)}),n[27]=L,n[28]=j,n[29]=h,n[30]=Ue):Ue=n[30];let V=Ue,We;n[31]===V?We=n[32]:(We=()=>({requestClose:V}),n[31]=V,n[32]=We),(0,Z.useImperativeHandle)(r,We);let Ke,Xe;n[33]===Symbol.for(`react.memo_cache_sentinel`)?(Ke=()=>()=>{oe.current?.abort(),T.current?.(!1),T.current=null},Xe=[],n[33]=Ke,n[34]=Xe):(Ke=n[33],Xe=n[34]),(0,Z.useEffect)(Ke,Xe);let et,nt;n[35]!==L||n[36]!==h?(et=()=>{if(!L||h)r"
+  },
+  {
+    "id": "F015",
+    "claim": "卸载终止保存controller并拒绝待决关闭请求",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 23383,
+    "excerpt": "ativeHandle)(r,We);let Ke,Xe;n[33]===Symbol.for(`react.memo_cache_sentinel`)?(Ke=()=>()=>{oe.current?.abort(),T.current?.(!1),T.current=null},Xe=[],n[33]=Ke,n[34]=Xe):(Ke=n[33],Xe=n[34]),(0,Z.useEffect)(Ke,Xe);let et,nt;n[35]!==L||n[36]!==h?(et=()=>{if(!L||h)return;let e=Lt;return window.addEventListener(`beforeunload`,e),()=>window.removeEventListener(`beforeunload`,e)},nt=[L,h],n[35]=L,n[36]=h,n[37]=et,n[38]=nt):(et=n[37],nt=n[38]),(0,Z.useEffect)(et,nt);let rt;n[39]!==D||n[40]!==O||n[41]!==z||n[42]!==A||n[43]!==F||n[44]!==I||n[45]!==v||n[46]!==j||n[47]!==E||n[48]!==u||n["
+  },
+  {
+    "id": "F016",
+    "claim": "名称/提示变更时注册beforeunload，清理移除监听",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 23565,
+    "excerpt": "34]),(0,Z.useEffect)(Ke,Xe);let et,nt;n[35]!==L||n[36]!==h?(et=()=>{if(!L||h)return;let e=Lt;return window.addEventListener(`beforeunload`,e),()=>window.removeEventListener(`beforeunload`,e)},nt=[L,h],n[35]=L,n[36]=h,n[37]=et,n[38]=nt):(et=n[37],nt=n[38]),(0,Z.useEffect)(et,nt);let rt;n[39]!==D||n[40]!==O||n[41]!==z||n[42]!==A||n[43]!==F||n[44]!==I||n[45]!==v||n[46]!==j||n[47]!==E||n[48]!==u||n[49]!==w||n[50]!==C||n[51]!==_?(rt=e=>{let t=e!==void 0&&e;if(!O||!I&&!t||I&&!z||j||oe.current!=null)return Promise.resolve();let n=_.get(ye),r=new AbortController;return oe.current=r"
+  },
+  {
+    "id": "F017",
+    "claim": "云详情提交防重复并绑定当前账户与取消状态",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 23886,
+    "excerpt": "42]!==A||n[43]!==F||n[44]!==I||n[45]!==v||n[46]!==j||n[47]!==E||n[48]!==u||n[49]!==w||n[50]!==C||n[51]!==_?(rt=e=>{let t=e!==void 0&&e;if(!O||!I&&!t||I&&!z||j||oe.current!=null)return Promise.resolve();let n=_.get(ye),r=new AbortController;return oe.current=r,(I?C.mutateAsync({requestBody:Qe(D,F),signal:r.signal},{onError:e=>{!r.signal.aborted&&E()&&_.get(ye)===n&&_.get(re).danger(v.formatMessage({id:`inbox.automations.cloud.updateError`,defaultMessage:`Could not update cloud scheduled task`,description:`Toast title when updating a cloud scheduled task fails`}),{errorAnalyt"
+  },
+  {
+    "id": "F018",
+    "claim": "写入失败显示可定位toast，回调检查账户与挂载",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 24107,
+    "excerpt": "ew AbortController;return oe.current=r,(I?C.mutateAsync({requestBody:Qe(D,F),signal:r.signal},{onError:e=>{!r.signal.aborted&&E()&&_.get(ye)===n&&_.get(re).danger(v.formatMessage({id:`inbox.automations.cloud.updateError`,defaultMessage:`Could not update cloud scheduled task`,description:`Toast title when updating a cloud scheduled task fails`}),{errorAnalytics:{toastId:`inbox.automations.cloud.updateError`},description:e instanceof Error?e.message:void 0})}}):Promise.resolve(D)).then(async e=>{!r.signal.aborted&&E()&&_.get(ye)===n&&(I&&(ge(t=>t===A?Ze(e):t),u?.(e)),t&&await"
+  },
+  {
+    "id": "F019",
+    "claim": "保存后运行是两阶段，运行请求使用独立幂等键",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 24454,
+    "excerpt": "{errorAnalytics:{toastId:`inbox.automations.cloud.updateError`},description:e instanceof Error?e.message:void 0})}}):Promise.resolve(D)).then(async e=>{!r.signal.aborted&&E()&&_.get(ye)===n&&(I&&(ge(t=>t===A?Ze(e):t),u?.(e)),t&&await w.mutateAsync({automationId:e.id,requestBody:{idempotency_key:crypto.randomUUID()}}))}).catch(It).finally(()=>{oe.current=null})},n[39]=D,n[40]=O,n[41]=z,n[42]=A,n[43]=F,n[44]=I,n[45]=v,n[46]=j,n[47]=E,n[48]=u,n[49]=w,n[50]=C,n[51]=_,n[52]=rt):rt=n[52];let H=rt,ot;n[53]===H?ot=n[54]:(ot=e=>{e.preventDefault(),H()},n[53]=H,n[54]=ot);let ct=ot,ut"
+  },
+  {
+    "id": "F020",
+    "claim": "有变更时运行入口改为Save and run now",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 28030,
+    "excerpt": "NowAction.disabled||I&&!z,isPending:C.isPending||w.isPending,label:I?(0,Q.jsx)(o,{id:`automations.editor.saveAndRunNow`,defaultMessage:`Save and run now`,description:`Saves the edited scheduled task before running it immediately`}):void 0,tooltipText:I?(0,Q.jsx)(o,{id:`automations.editor.saveAndRunNowTooltip`,defaultMessage:`Save changes, then run the task once`,description:`Tooltip for saving changes to a scheduled task before running it immediately`}):e.runNowAction.tooltipText,onSelectAsync:()=>H(!0)}}),n[113]=z,n[114]=I,n[115]=w,n[116]=H,n[117]=C,n[118]=U):U=n[118];let "
+  },
+  {
+    "id": "F021",
+    "claim": "Cancel恢复服务器草稿；Save在合法并非pending时可提交",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 29296,
+    "excerpt": "135]!==I||n[136]!==j||n[137]!==C?(G=O&&I?(0,Q.jsxs)(`div`,{className:`flex items-center justify-end gap-2`,children:[(0,Q.jsx)(t,{color:`outline`,disabled:j,size:`toolbar`,onClick:()=>{ge(Ze(D))},children:(0,Q.jsx)(o,{id:`automation.sidePanel.cancel`,defaultMessage:`Cancel`,description:`Cancel button label for the scheduled task editor`})}),(0,Q.jsx)(t,{ref:ae,disabled:!z||j,form:te,loading:C.isPending,size:`toolbar`,type:`submit`,children:(0,Q.jsx)(o,{id:`inbox.automations.cloud.save`,defaultMessage:`Save`,description:`Button label for saving changes to a cloud scheduled t"
+  },
+  {
+    "id": "F022",
+    "claim": "排程校验区分过远、过去结束日、过去时间并role alert",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 32785,
+    "excerpt": "ull:(0,Q.jsxs)(`p`,{className:`text-sm text-danger select-none`,role:`alert`,children:[R===`too-far`&&(0,Q.jsx)(o,{id:`automations.scheduled.editor.dateTooFar`,defaultMessage:`Choose a date within the next two years`,description:`Validation error in the Scheduled task editor when a one-time task is scheduled two years or more in the future`}),R===`end-past`&&(0,Q.jsx)(o,{id:`automations.scheduled.editor.endDateInPast`,defaultMessage:`Choose an end date today or later`,description:`Validation error in the Scheduled task editor when a recurrence end date is in the past`}),R=="
+  },
+  {
+    "id": "F023",
+    "claim": "单次排程使用浏览器时区，否则读取任务default_timezone",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 25041,
+    "excerpt": "==D.default_timezone||n[56]!==B||n[57]!==A.scheduleConfig?(ut=B&&A.scheduleConfig.oneTimeDate!=null?new Intl.DateTimeFormat().resolvedOptions().timeZone:D.default_timezone,n[55]=D.default_timezone,n[56]=B,n[57]=A.scheduleConfig,n[58]=ut):ut=n[58];let pt;n[59]===Symbol.for(`react.memo_cache_sentinel`)?(pt=(0,Q.jsx)(o,{id:`inbox.automations.cloud.timeZone`,defaultMessage:`Time zone`,description:`Label for a cloud scheduled task time zone`}),n[59]=pt):pt=n[59];let ht;n[60]===ut?ht=n[61]:(ht=(0,Q.jsx)(Rt,{value:ut,label:pt}),n[60]=ut,n[61]=ht);let _t=ht,vt;n[62]!==D.prompt||n[6"
+  },
+  {
+    "id": "F024",
+    "claim": "历史运行数据与正文分离，拥有loading/error/分页",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 14518,
+    "excerpt": "function jt(e){let n=(0,G.c)(26),{automationId:r,onSelectRun:i}=e,a=ee(ye),s=k(A,a),c;n[0]!==a||n[1]!==r?(c={accountId:a,automationId:r},n[0]=a,n[1]=r,n[2]=c):c=n[2];let{data:l,error:u,fetchNextPage:d,hasNextPage:f,isFetchingNextPage:p,isLoading:m,refetch:h}=k(U,c);if(!s||a==null)return null;let g;n[3]===Symbol.for(`react.memo_cache_sentinel`)?(g=(0,K.jsx)(`span`,{className:`select-none`,children:(0,K.jsx)(o,{id:`inbox.automations.history`,defaultMessage:`Previous runs`,description:`Section label above the automation history rail section`})}),n[3]=g):g=n[3];let _;n[4]!==u||n[5]!==h?(_=u==null?"
+  },
+  {
+    "id": "F025",
+    "claim": "历史请求失败有Retry，而不是清空主任务详情",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 15106,
+    "excerpt": "?(_=u==null?null:(0,K.jsx)(te,{type:`error`,content:(0,K.jsx)(`span`,{className:`select-none`,children:(0,K.jsx)(o,{id:`inbox.automations.teams.runs.loadError`,defaultMessage:`Run history could not be loaded`,description:`Error when loading the runs of a cloud scheduled task`})}),primaryCtaText:(0,K.jsx)(o,{id:`inbox.automations.teams.runs.retry`,defaultMessage:`Retry`,description:`Button to retry loading scheduled task run history`}),onPrimaryCtaClick:()=>void h()}),n[4]=u,n[5]=h,n[6]=_):_=n[6];let v;n[7]===m?v=n[8]:(v=m?(0,K.jsx)(ce,{className:`select-none`,children:(0,K."
+  },
+  {
+    "id": "F026",
+    "claim": "历史运行使用加载更多按钮并反映fetching",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 16442,
+    "excerpt": "[15];let x;n[16]!==d||n[17]!==f||n[18]!==p?(x=f?(0,K.jsx)(t,{color:`ghostSecondary`,loading:p,onClick:()=>void d(),children:(0,K.jsx)(o,{id:`inbox.automations.teams.runs.loadMore`,defaultMessage:`Load more`,description:`Button to load another page of scheduled task runs`})}):null,n[16]=d,n[17]=f,n[18]=p,n[19]=x):x=n[19];let S;return n[20]!==_||n[21]!==v||n[22]!==y||n[23]!==b||n[24]!==x?(S=(0,K.jsxs)(st,{title:g,children:[_,v,y,b,x]}),n[20]=_,n[21]=v,n[22]=y,n[23]=b,n[24]=x,n[25]=S):S=n[25],S}function Mt(e){let t=(0,G.c)(15),{run:n,onSelect:r}=e,i;t[0]===n.thread_id?i=t[1]:("
+  },
+  {
+    "id": "F027",
+    "claim": "单次运行详情不可用时提供返回而不伪装无运行记录",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 18701,
+    "excerpt": "s:!0,threadAccess:`shared`,onClose:s})]}):(0,J.jsx)(he,{className:`h-full select-none`,spacing:`compact`,title:(0,J.jsx)(o,{id:`inbox.automations.teams.runs.unavailable`,defaultMessage:`Scheduled run unavailable`,description:`Message shown when the current account cannot open a shared scheduled run`})}),n[3]=l,n[4]=s,n[5]=r.conversationId,n[6]=m):m=n[6];let h=m;if(i!=null){let e;if(n[7]!==h||n[8]!==p||n[9]!==i){let t;n[11]===p?t=n[12]:(t=(0,J.jsx)(`div`,{className:`flex h-toolbar min-w-0 shrink-0 items-center gap-2 px-toolbar`,children:p}),n[11]=p,n[12]=t);let r;n[13]===h?r"
+  },
+  {
+    "id": "F028",
+    "claim": "删除确认pending拦截关闭和重复表单提交",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automation-delete-confirmation-dialog-a8ceaa0eb87b.js",
+    "offset": 221,
+    "excerpt": "function g(e){let a=(0,_.c)(31),{isPending:s,name:f,onCancel:p,onConfirm:m,open:h}=e,g=!s,y;a[0]!==s||a[1]!==p?(y=e=>{!e&&!s&&p()},a[0]=s,a[1]=p,a[2]=y):y=a[2];let b;a[3]!==s||a[4]!==m?(b=e=>{e.preventDefault(),s||m()},a[3]=s,a[4]=m,a[5]=b):b=a[5];let x;a[6]===f?x=a[7]:(x=(0,v.jsx)(r,{children:(0,v.jsx)(n,{id:`inbox.automations.deleteConfirm.title`,defaultMessage:`Delete {name}?`,description:`Title for the delete automation confirmation dialog`,values:{name:(0,v.jsx)(`strong`,{className:`font-semibold text-default`,children:f})}})}),a[6]=f,a[7]=x);let S;a[8]===Symbol.for(`r"
+  },
+  {
+    "id": "F029",
+    "claim": "删除为danger loading；pending隐藏X并忽略外部点击",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automation-delete-confirmation-dialog-a8ceaa0eb87b.js",
+    "offset": 1767,
+    "excerpt": "uled task confirmation dialog`}),a[15]=E):E=a[15];let D;a[16]===s?D=a[17]:(D=(0,v.jsx)(t,{color:`danger`,loading:s,type:`submit`,children:E}),a[16]=s,a[17]=D);let O;a[18]!==D||a[19]!==T?(O=(0,v.jsx)(c,{children:(0,v.jsxs)(d,{children:[T,D]})}),a[18]=D,a[19]=T,a[20]=O):O=a[20];let k;a[21]!==O||a[22]!==b||a[23]!==C?(k=(0,v.jsxs)(u,{as:`form`,onSubmit:b,children:[C,O]}),a[21]=O,a[22]=b,a[23]=C,a[24]=k):k=a[24];let A;return a[25]!==s||a[26]!==h||a[27]!==g||a[28]!==k||a[29]!==y?(A=(0,v.jsx)(l,{open:h,showDialogClose:g,shouldIgnoreClickOutside:s,onOpenChange:y,children:k}),a[25]="
+  },
+  {
+    "id": "F030",
+    "claim": "云删除失败关闭确认并toast；非保证原框保留",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automations-page-7a0535c69f93.js",
+    "offset": 73791,
+    "excerpt": "te({id:le.automation.id});return}let e=le.automation.automation.id;T.mutate({automationId:e},{onSuccess:()=>{ue(null),Be===`cloud`&&ze===e&&or()},onError:e=>{ue(null),g.get(K).danger(E.formatMessage({id:`inbox.automations.cloud.deleteError`,defaultMessage:`Could not delete cloud scheduled task`,description:`Toast title when deleting a cloud scheduled task fails`}),{errorAnalytics:{toastId:`inbox.automations.cloud.deleteError`},description:e instanceof Error?e.message:void 0})}})},Wr=()=>{q!=null&&ue({automation:q,source:`local`})},Gr=e=>{Rt(t=>({...t,name:e}))},Kr=e=>{let t"
+  },
+  {
+    "id": "F031",
+    "claim": "共享计划详情样式声明入口",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automation-detail-panel-2c37844743a4.js",
+    "offset": 2547,
+    "excerpt": "className:`min-h-0 min-w-0 flex-1`,children:(0,P.jsx)(de,{disablePromptAutoFocus:w,draft:p,formId:g,promptSize:`compact`,roots:me,setDraft:_,onSubmit:b})})}),n[23]=w,n[24]=p,n[25]=g,n[26]=b,n[27]=me,n[28]=_,n[29]=U):U=n[29];let W;n[30]!==E||n[31]!==A||n[32]!==I||n[33]!==k?(W=I||E?null:(0,P.jsx)(ue,{isDangerFullAccess:A,isReadOnlySandbox:k}),n[30]=E,n[31]=A,n[32]=I,n[33]=k,n[34]=W):W=n[34];let Se;n[35]===Symbol.for(`react.memo_cache_sentinel`)?(Se=(0,P.jsx)(t,{id:`inbox.automations.details`,defaultMessage:`Details`,description:`Section label abo"
+  },
+  {
+    "id": "F032",
+    "claim": "快捷键页面有明确chatgpt展示分支和产品模式判定",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 10584,
+    "excerpt": "function zt(e){let n=(0,Zt.c)(117),{embedded:r,presentation:i}=e,a=r!==void 0&&r,o=d(c),s=y(De),l=i==null?s===`work`:i===`chatgpt`,f=v(),{platform:p}=Fe(),m=oe(),h=y(Me),g=y(je),_=y(Ye),b=Je(dt),S=xe(),w=y(Te),T;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(T={name:`automations.local`},n[0]=T):T=n[0];let E=me(Ee,T).isCapable,D;n[1]===Symbol.for(`react.memo_cache_sentinel`)?(D={name:`automations.cloud`},n[1]=D):D=n[1];let ee=me(Ee,D).isCapable,ne=Je(`1372061905`),O=Je(`3009531526`),k=Je(`983842163`),A=y($e),ae=y(Oe),j=Je(`1532120159`),se=Ue();Je(`2171170889`);let M=qe(_,`t"
+  },
+  {
+    "id": "F033",
+    "claim": "按键搜索为独立pressed模式，点击清文本",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 14362,
+    "excerpt": "y=n[76];let S=y;G=V==null?null:(0,$.jsx)(ht,{autoFocus:F,isSearchingByKeystrokes:F,trailingContent:(0,$.jsx)(de,{tooltipContent:(0,$.jsx)(u,{id:`settings.keyboardShortcuts.searchByKeystrokes.tooltip`,defaultMessage:`Search by keystrokes`,description:`Tooltip label for the keyboard shortcut search mode button`}),children:(0,$.jsx)(t,{\"aria-label\":f.formatMessage({id:`settings.keyboardShortcuts.searchByKeystrokes.ariaLabel`,defaultMessage:`Search by keystrokes`,description:`Accessible label for the keyboard shortcut search mode button`}),\"aria-pressed\":F,color:F?`secondary`:`"
+  },
+  {
+    "id": "F034",
+    "claim": "按键搜索忽略repeat并拦截键盘，裸Esc退出",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 14971,
+    "excerpt": ":!0,onMouseDown:Kt,onClick:()=>{P(``),fe(Gt)},children:(0,$.jsx)(st,{className:`icon-sm`})})}),value:N,onKeyDown:F?e=>{if(e.repeat)return;if(e.preventDefault(),e.stopPropagation(),e.key===`Escape`&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey){P(``),fe(!1);return}let t=lt(e.nativeEvent);if(t!=null){let e=x(t,p===`macOS`,p===`linux`),n=N.length===0?e:`${N} ${e}`,r=N.length>0&&s.some(e=>{let{command:t}=e;return rt(t.id,V,p,l?`chatgpt`:`codex`).some(e=>{let{label:t}=e;return Yt(t,n)})});P(r?n:e)}}:void 0,onValueChange:P});let w;n[77]!==V||n[78]!==p?(w=e=>{let{command:t}=e;re"
+  },
+  {
+    "id": "F035",
+    "claim": "ChatGPT恢复默认逐个重置当前命令集合，可能只针对聚焦命令",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 15698,
+    "excerpt": "w),D;n[80]===ge?D=n[81]:(D=e=>{let{command:t}=e;return t.id===ge},n[80]=ge,n[81]=D);let re=T.find(D),ie=re==null?T:[re],oe=l?T.length>0:V!=null&&(V.bindings.length>0||ve&&B!==C.externalBrowserLinkShortcut.default);U=async function(){if(!R){he(null),pe(!0);try{if(l)for(let{command:e}of ie)await be.mutateAsync({commandId:e.id,update:{type:`reset`}});else await Promise.all([Ce.mutateAsync(void 0),ve?le(o,C.externalBrowserLinkShortcut,C.externalBrowserLinkShortcut.default):void 0]);L(!1)}catch(e){let t=e;he(t instanceof Error?t.message:f.formatMessage({id:`settings.keyboardShor"
+  },
+  {
+    "id": "F036",
+    "claim": "ChatGPT恢复默认直接执行；其他展示分支才先确认",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 16340,
+    "excerpt": "shortcuts`,description:`Fallback error shown when resetting all customized keyboard shortcuts fails`}))}pe(!1)}},W=l||oe?(0,$.jsx)(t,{color:l?`primary`:`secondary`,disabled:R||!oe,radius:l?`full`:`default`,size:l?`dialogAction`:`toolbar`,onClick:()=>{he(null),l?U():L(!0)},children:l?(0,$.jsx)(u,{id:`settings.keyboardShortcuts.restoreDefaults`,defaultMessage:`Restore defaults`,description:`Button in ChatGPT keyboard shortcut settings and help that restores the displayed actions to their default key bindings`}):(0,$.jsx)(u,{id:`settings.keyboardShortcuts.resetAll`,defaultMess"
+  },
+  {
+    "id": "F037",
+    "claim": "ChatGPT快捷键Composer/Chat/App分组和粘性标题",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 17795,
+    "excerpt": ")K=xe.map(e=>{let t=I.filter(t=>t.section===e);return t.length===0?null:(0,$.jsxs)(`section`,{className:`flex flex-col`,children:[(0,$.jsx)(`h3`,{className:te(`sticky top-0 z-10 bg-surface px-6 py-0.5 text-sm leading-6 font-medium text-secondary`,a&&`dark:bg-surface-tertiary`),children:(0,$.jsx)(Xt,{section:e})}),(0,$.jsx)(`ul`,{className:`flex list-none flex-col px-3`,children:t.map(Bt)})]},e)});else{let e=H!=null&&(H.length>0||d)?(0,$.jsxs)(ce,{children:[H.flatMap(e=>[e.content,e.commandId===`openBrowserTab`?S:null]),v===-1?S:null]}):null,t=m.length===0&&!d?q?null:(0,$.js"
+  },
+  {
+    "id": "F038",
+    "claim": "快捷键尚未可用显示专用Loading",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 17534,
+    "excerpt": "=Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(Ze,{children:(0,$.jsx)(u,{id:`settings.keyboardShortcuts.loading`,defaultMessage:`Loading shortcuts…`,description:`Loading label while keyboard shortcuts are being fetched`})}),n[82]=e):e=n[82],K=e}else if(l)K=xe.map(e=>{let t=I.filter(t=>t.section===e);return t.length===0?null:(0,$.jsxs)(`section`,{className:`flex flex-col`,children:[(0,$.jsx)(`h3`,{className:te(`sticky top-0 z-10 bg-surface px-6 py-0.5 text-sm leading-6 font-medium text-secondary`,a&&`dark:bg-surface-tertiary`),children:(0,$.jsx)(Xt,{section:e})}),(0,$"
+  },
+  {
+    "id": "F039",
+    "claim": "共享重置确认框不能自动归为ChatGPT当前消费者",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 21835,
+    "excerpt": "function Jt(e){let n=(0,Zt.c)(28),{error:r,isPending:i,onConfirm:a,onOpenChange:o,open:s}=e,c;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(c=(0,$.jsx)(u,{id:`settings.keyboardShortcuts.resetAllConfirm.title`,defaultMessage:`Reset all keyboard shortcuts?`,description:`Title for the dialog confirming reset of all customized keyboard shortcuts`}),n[0]=c):c=n[0];let l=c,d;n[1]===Symbol.for(`react.memo_cache_sentinel`)?(d=(0,$.jsx)(u,{id:`settings.keyboardShortcuts.resetAllConfirm.description`,defaultMessage:`This will discard all custom shortcuts and restore the defaults`,de"
+  },
+  {
+    "id": "F040",
+    "claim": "Agreements依据访问资格显示loading/error/allowed分支",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 540,
+    "excerpt": "function H(){let e=(0,q.c)(10),t=o(r),n=d(V),i=null;if(n.status===`loading`){let t;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,J.jsx)(F,{}),e[0]=t):t=e[0],i=t}else if(n.status===`error`){let r;e[1]!==n.accountId||e[2]!==t?(r=(0,J.jsx)(K,{onRetry:()=>void t.get(D,n.accountId).refetch()}),e[1]=n.accountId,e[2]=t,e[3]=r):r=e[3],i=r}else if(n.status===`allowed`){let t;e[4]!==n.accountId||e[5]!==n.isHipaaWorkspace?(t=(0,J.jsx)(U,{workspaceId:n.accountId,isHipaaWorkspace:n.isHipaaWorkspace},n.accountId),e[4]=n.accountId,e[5]=n.isHipaaWorkspace,e[6]=t):t=e[6],i=t}let a;e["
+  },
+  {
+    "id": "F041",
+    "claim": "协议元信息按工作区查询并传signal与账户头",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 1323,
+    "excerpt": ".c)(37),{workspaceId:r,isHipaaWorkspace:a}=e,o=u(),s=g(),l;n[0]===r?l=n[1]:(l=[`account-agreements-metadata`,r],n[0]=r,n[1]=l);let d=l,p;n[2]===r?p=n[3]:(p=e=>{let{signal:t}=e;return k.safeGet(`/accounts/{account_id}/metadata`,{parameters:{path:{account_id:r}},additionalHeaders:{\"ChatGPT-Account-ID\":r,[y]:r},signal:t})},n[2]=r,n[3]=p);let m;n[4]!==d||n[5]!==p?(m={queryKey:d,queryFn:p,staleTime:0},n[4]=d,n[5]=p,n[6]=m):m=n[6];let{data:h,isPending:v,isError:b,refetch:x}=f(m),C;n[7]===r?C=n[8]:(C=()=>k.safePost(`/quorum/workspace/{account_id}/sign_baa`,{parameters:{path:{accou"
+  },
+  {
+    "id": "F042",
+    "claim": "Agree签署接口与成功缓存失效",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 1728,
+    "excerpt": "d,n[5]=p,n[6]=m):m=n[6];let{data:h,isPending:v,isError:b,refetch:x}=f(m),C;n[7]===r?C=n[8]:(C=()=>k.safePost(`/quorum/workspace/{account_id}/sign_baa`,{parameters:{path:{account_id:r}},additionalHeaders:{\"ChatGPT-Account-ID\":r,[y]:r}}),n[7]=r,n[8]=C);let w;n[9]!==s||n[10]!==d?(w=async e=>{let{timestamp:t}=e;s.setQueryData(d,e=>({...e,workspace_baa_metadata:{signed:!0,timestamp:t}})),await s.invalidateQueries({queryKey:d})},n[9]=s,n[10]=d,n[11]=w):w=n[11];let T;n[12]!==C||n[13]!==w?(T={mutationFn:C,onSuccess:w},n[12]=C,n[13]=w,n[14]=T):T=n[14];let{mutate:E,isPending:D,isErro"
+  },
+  {
+    "id": "F043",
+    "claim": "已签判定含时间戳后备，日期非法则保留原文",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 2443,
+    "excerpt": ";return n[16]===x?e=n[17]:(e=(0,J.jsx)(K,{onRetry:()=>void x()}),n[16]=x,n[17]=e),e}let j=h?.workspace_baa_metadata?.timestamp,M=h?.workspace_baa_metadata?.signed??!!j,N;if(j){let e;if(n[18]!==o||n[19]!==j){let t=new Date(j);e=Number.isNaN(t.getTime())?j:o.formatDate(t,{dateStyle:`short`,timeStyle:`medium`}),n[18]=o,n[19]=j,n[20]=e}else e=n[20];N=e}let P=G,I;n[21]===Symbol.for(`react.memo_cache_sentinel`)?(I=(0,J.jsx)(O.Header,{size:`large`,title:(0,J.jsx)(`h2`,{children:(0,J.jsx)(i,{...Q.serviceAgreementTitle})})}),n[21]=I):I=n[21];let L;n[22]===Symbol.for(`react.memo_cach"
+  },
+  {
+    "id": "F044",
+    "claim": "BAA分组仅在HIPAA workspace条件成立时呈现",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 3450,
+    "excerpt": "a&&(0,J.jsxs)(O,{children:[(0,J.jsx)(O.Header,{title:(0,J.jsx)(`h2`,{children:(0,J.jsx)(i,{...Q.baaTitle})}),subtitle:(0,J.jsx)(i,{...Q.baaDescription})}),(0,J.jsxs)(_,{children:[(0,J.jsx)(S,{label:(0,J.jsx)(i,{...M?Q.baaSignedDisclaimer:Q.baaUnsignedDisclaimer,values:{baaLink:P}}),description:(0,J.jsx)(i,{...Q.baaHipaaEligibleFeaturesHelp,values:{helpCenterLink:W}}),control:M?P((0,J.jsx)(i,{...Q.viewLink})):(0,J.jsx)(t,{color:`secondary`,size:`toolbar`,disabled:D,loading:D,onClick:()=>E(),children:(0,J.jsx)(i,{...Q.agreeButton})})}),M&&(0,J.jsx)(S,{label:(0,J.jsx)(i,{...Q."
+  },
+  {
+    "id": "F045",
+    "claim": "签署失败在Footer内role alert；重新点击Agree重试",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 4033,
+    "excerpt": "estampLabel}),control:N??(0,J.jsx)(i,{...Q.notAvailable})})]}),A&&(0,J.jsx)(O.Footer,{children:(0,J.jsx)(`p`,{role:`alert`,children:(0,J.jsx)(i,{id:`workspaceAgreements.signError`,defaultMessage:`Couldn't agree to the BAA. Please try again.`,description:`Error after a workspace BAA signature request fails. The clinician can retry by clicking Agree again.`})})})]}),n[24]=M,n[25]=N,n[26]=a,n[27]=D,n[28]=E,n[29]=A,n[30]=B):B=n[30];let V;n[31]!==b||n[32]!==x?(V=b&&(0,J.jsx)(K,{onRetry:()=>void x()}),n[31]=b,n[32]=x,n[33]=V):V=n[33];let H;return n[34]!==B||n[35]!==V?(H=(0,J.jsxs"
+  },
+  {
+    "id": "F046",
+    "claim": "协议加载错误居中显示Retry；元信息缓存仍可保留",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/agreements-settings-3f6c7e3ccd80.js",
+    "offset": 5432,
+    "excerpt": "space's Agreements settings after a request fails.`}),n[1]=o):o=n[1];let s;return n[2]===r?s=n[3]:(s=(0,J.jsxs)(`div`,{className:`flex flex-col items-center gap-3 py-4 text-center`,children:[a,(0,J.jsx)(t,{color:`secondary`,onClick:r,children:o})]}),n[2]=r,n[3]=s),s}var q,J,Y,X,Z,Q;function $(){return($=e((()=>{q=C(),a(),p(),x(),l(),v(),h(),z(),M(),b(),L(),w(),A(),E(),P(),m(),I(),s(),B(),J=T(),Y=`https://openai.com/policies/services-agreement/`,X=`https://cdn.openai.com/osa/baa.pdf`,Z=`https://help.openai.com/en/articles/20001069-chatgpt-healthcare-and-regulated-workspace-f"
+  },
+  {
+    "id": "F047",
+    "claim": "许可证内容为可换行pre；缺失显示No notices",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/open-source-licenses-page-fe169c847c13.js",
+    "offset": 1725,
+    "excerpt": " third-party notices`})}):(0,F.jsx)(T,{children:(0,F.jsx)(T.Content,{children:(0,F.jsx)(g,{children:u?.text?(0,F.jsx)(`pre`,{className:`rounded p-3 text-xs leading-relaxed break-words whitespace-pre-wrap text-default`,children:u.text}):(0,F.jsx)(A,{layout:`settings-row`,children:(0,F.jsx)(a,{id:`settings.openSourceLicenses.missing`,defaultMessage:`No third-party notices were found.`,description:`Message shown when the third-party notices file is missing`})})})})}),e[12]=u,e[13]=f,e[14]=x):x=e[14];let C;return e[15]!==v||e[16]!==x?(C=(0,F.jsx)(D,{backSlot:v,title:y,subtitle:"
+  },
+  {
+    "id": "F048",
+    "claim": "许可证Back只接受/settings/前缀，否则回通用设置",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/open-source-licenses-page-fe169c847c13.js",
+    "offset": 2355,
+    "excerpt": "function N(e){if(typeof e==`object`&&e&&!Array.isArray(e)&&`licensesBackPath`in e){let t=e.licensesBackPath;if(typeof t==`string`&&t.startsWith(`/settings/`))return t}return`/settings/general`}var P,F,I;function L(){return(L=e((()=>{P=b(),y(),u(),p(),f(),v(),c(),O(),x(),E(),w(),k(),o(),i(),_(),F=C(),I=h(n,`third-party-notices`,{enabled:!0,staleTime:l.ONE_MINUTE})})))()}L();export{M as OpenSourceLicensesPage};\n//# sourceMappingURL=open-source-licenses-page-fe169c847c13.js.map"
+  },
+  {
+    "id": "F049",
+    "claim": "设置注册表第一段与实际可见性是不同证据",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8532824,
+    "excerpt": "tEs=[{slug:`general-settings`},{slug:`notifications`},{slug:`import`},{slug:`profile`,appRoute:`/profile`},{slug:`security`},{slug:`account`},{slug:`age`},{slug:`agreements`},{slug:`parental-controls`},{slug:`trusted-contact`},{slug:`safety`},{slug:`time-management`},{slug:`appearance`},{slug:`voice`},{slug:`storage`},{slug:`pets`},{slug:`chronicle`},{slug:`appshots`},{slug:`git-settings`},{slug:`connections`},{slug:`cloud-settings`},{slug:`codex-cloud`},{slug:`cloud-environments`},{slug:`code-review`},{slug:`local-environments`},{slug:`worktrees`},{slug:`agent`},{slug:`work-settings`},{slug:`"
+  },
+  {
+    "id": "F050",
+    "claim": "设置注册表后续入口包含共享及专属功能",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8533392,
+    "excerpt": "},{slug:`work-settings`},{slug:`personalization`},{slug:`keyboard-shortcuts`},{slug:`codex-micro`},{slug:`usage`},{slug:`billing`},{slug:`analytics`},{slug:`consumer-view`},{slug:`usage-code-review`},{slug:`debug`},{slug:`browser-use`},{slug:`extension`},{slug:`computer-use`},{slug:`mcp-settings`},{slug:`hooks-settings`},{slug:`plugins-settings`},{slug:`file-type-handlers`},{slug:`rosalind`},{slug:`skills-settings`},{slug:`data-controls`},{slug:`archived-chats`},{slug:`ads-controls`},{slug:`teams`},{slug:`cloud-computer`},{slug:`passwords`}]})))()}function rEs(e,t){let n=ne"
+  },
+  {
+    "id": "F051",
+    "claim": "计划详情工具栏布局",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automation-detail-panel-2c37844743a4.js",
+    "offset": 9930,
+    "excerpt": "flex h-toolbar min-w-0 shrink-0 items-center gap-2 px-toolbar`,children:[h,(0,R.jsx)(`div`,{className:`ms-auto flex min-w-0 shrink-0 items-center gap-1.5`,children:n})]}),t[19]=n,t[20]=h,t[21]=r):r=t[21];let i;t[22]===x?i=t[23]:(i=(0,R.jsx)(`div`,{className:`min-h-0 flex-1`,children:x}),t[22]=x,t[23]=i);let a;t[24]===p?a=t[25]:(a=p==null?null:(0,R.jsx)(`div`,{className:`shrink-0 border-t border-default p-panel`,children:p}),t[24]=p,t[25]=a);let o;t[26]!==c||t[27]!==i||t[28]!==a||t[29]!==r?(o=(0,R.jsxs)(`div`,{className:`flex h-full min-h-0 flex-col bg-surface`,role:`present"
+  },
+  {
+    "id": "F052",
+    "claim": "计划详情footer固定分区；主体满高flex表面",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/automation-detail-panel-2c37844743a4.js",
+    "offset": 10173,
+    "excerpt": "iv`,{className:`min-h-0 flex-1`,children:x}),t[22]=x,t[23]=i);let a;t[24]===p?a=t[25]:(a=p==null?null:(0,R.jsx)(`div`,{className:`shrink-0 border-t border-default p-panel`,children:p}),t[24]=p,t[25]=a);let o;t[26]!==c||t[27]!==i||t[28]!==a||t[29]!==r?(o=(0,R.jsxs)(`div`,{className:`flex h-full min-h-0 flex-col bg-surface`,role:`presentation`,onKeyDown:c,children:[r,i,a]}),t[26]=c,t[27]=i,t[28]=a,t[29]=r,t[30]=o):o=t[30],e=u({headerRows:[],content:o}),t[12]=n,t[13]=x,t[14]=p,t[15]=h,t[16]=c,t[17]=u,t[18]=e}else e=t[18];return e}let S;t[31]===a?S=t[32]:(S=a==null?{showCloseBu"
+  },
+  {
+    "id": "F053",
+    "claim": "ChatGPT快捷键embedded主体滚动与固定底栏",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 20000,
+    "excerpt": "?(o=(0,$.jsxs)($.Fragment,{children:[i,W]}),n[92]=W,n[93]=i,n[94]=o):o=n[94];let s=o,c;return n[95]!==r||n[96]!==a||n[97]!==s?(c=a?(0,$.jsxs)(`div`,{className:`flex min-h-0 flex-1 flex-col`,children:[(0,$.jsx)(`div`,{className:`min-h-0 flex-1 scrollbar-stable overflow-y-auto`,children:r}),(0,$.jsx)(`div`,{className:`flex items-center justify-end gap-3 border-t border-primary-outline bg-surface px-3 py-3 dark:bg-surface-tertiary`,children:s})]}):(0,$.jsx)(Re,{footer:s,title:(0,$.jsx)(Pe,{slug:`keyboard-shortcuts`}),children:r}),n[95]=r,n[96]=a,n[97]=s,n[98]=c):c=n[98],c}let "
+  },
+  {
+    "id": "F054",
+    "claim": "ChatGPT展示分支返回说明/分组/footer，不挂载共享搜索变量G",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/keyboard-shortcuts-settings-9406dfc85091.js",
+    "offset": 19238,
+    "excerpt": "if(l){let e;n[87]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(`p`,{className:`px-6 text-sm leading-5 text-secondary select-none`,children:(0,$.jsx)(u,{id:`settings.keyboardShortcuts.editKeyInstructions`,defaultMessage:`To change a shortcut, select the key combination, and then type the new keys`,description:`Instructions above ChatGPT keyboard shortcuts; selecting the displayed key combination opens an inline field that captures replacement keys`})}),n[87]=e):e=n[87];let t;n[88]===K?t=n[89]:(t=(0,$.jsxs)(`div`,{className:`flex flex-col gap-8 py-4`,children:[e,K]}),n[88]=K,n[89]=t);l"
+  },
+  {
+    "id": "F055",
+    "claim": "云任务提示文字支持换行选择",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/cloud-automation-detail-panel-d9821d389ad5.js",
+    "offset": 25584,
+    "excerpt": "t);let _t=ht,vt;n[62]!==D.prompt||n[63]!==O||n[64]!==A||n[65]!==te||n[66]!==ct||n[67]!==N?(vt=(0,Q.jsx)(ce,{children:!O||N?(0,Q.jsx)(`div`,{className:`p-4 text-base whitespace-pre-wrap text-default select-text`,children:D.prompt}):(0,Q.jsx)(it,{disablePromptAutoFocus:!0,draft:A,formId:te,promptSize:`compact`,roots:[],setDraft:ge,onSubmit:ct})}),n[62]=D.prompt,n[63]=O,n[64]=A,n[65]=te,n[66]=ct,n[67]=N,n[68]=vt):vt=n[68];let yt=vt;if(h){let e;n[69]===i?e=n[70]:(e=(0,Q.jsx)(mt,{item:i}),n[69]=i,n[70]=e);let t;n[71]===Ae?t=n[72]:(t=()=>Ae(!0),n[71]=Ae,n[72]=t);let r;n[73]!==D.e"
+  },
+  {
+    "id": "F056",
+    "claim": "Shopping路由按实验资格等待或回首页",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11577846,
+    "excerpt": "function DEl(){let e=(0,v8.c)(2),t=Kv(`1008193688`),n=Eu(ig,`1008193688`);if(!t&&n)return null;let r;return e[0]===t?r=e[1]:(r=t?(0,b8.jsx)(YEl,{}):(0,b8.jsx)(zc,{to:`/`,replace:!0}),e[0]=t,e[1]=r),r}function OEl(){let e=(0,v8.c)(3),t;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t={name:`demo-tools`},e[0]=t):t=e[0];let n=Eu(ty,t);if(n.isLoading)return null;let r;return e[1]===n.isCapable?r=e[2]:(r=n.isCapable?(0,b8.jsx)(XDl,{}):(0,b8.jsx)(zc,{"
+  },
+  {
+    "id": "F057",
+    "claim": "Images路由区分locale并设置独立错误边界",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11572201,
+    "excerpt": "function hEl(e){let t=(0,v8.c)(9),{key:n}=ru(),r=zse()??0,{lang:i,slug:a}=VCe(),o;t[0]===i?o=t[1]:(o=i==null?void 0:Ohe(`/${i}`),t[0]=i,t[1]=o);let s=o;if(i!=null&&s==null){let e;return t[2]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,b8.jsx)(_El,{}),t[2]=e):e=t[2],e}let c=`${n}:${r}`,l;t[3]!==s||t[4]!==a?(l=a==null?(0,b8.jsx)(KEl,{}):(0,b8.jsx)(qEl,{locale:s??void 0}),t[3]=s,t[4]=a,t[5]=l):l=t[5];let u;return t[6]!==c||t[7]!==l?(u=(0,b8.jsx)(wQ,{children:(0,b8.jsx)(hz,{name:`ImagesRoute`,resetKey:c,fallback:gEl,children:l})}),t[6]=c,t[7]=l,t[8]=u):u=t[8],u}function gEl(e){return(0,b8.jsx)"
+  },
+  {
+    "id": "F058",
+    "claim": "CME有能力加载和不支持回首页分支",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8534398,
+    "excerpt": "function oEs(e){let t=(0,sEs.c)(5),{children:n}=e,r;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(r={name:`chatgpt.cme`},t[0]=r):r=t[0];let i=Eu(ty,r);if(i.isLoading){let e;return t[1]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,cEs.jsx)(SL,{debugName:`CME`}),t[1]=e):e=t[1],e}let a;return t[2]!==i.isCapable||t[3]!==n?(a=i.isCapable?n:(0,cEs.jsx)(zc,{to:`/`,replace:!0}),t[2]=i.isCapable,t[3]=n,t[4]=a):a=t[4],a}var sEs,cEs;function lEs(){return(lEs=t((()=>{sEs=Z(),G(),So(),ny(),wL(),cEs=$()})))()}function uEs({configPath:e,projectId:t,workspaceRoot:n}){let r=new URLSearchParams({workspaceR"
+  },
+  {
+    "id": "F059",
+    "claim": "设置分类表含ChatGPT、共享及专属模式；不等于最终可达性",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/use-visible-settings-sections-9bd5da3d2a1e.js",
+    "offset": 41698,
+    "excerpt": "ao={account:`chatGpt`,age:`chatGpt`,agreements:`chatGpt`,\"work-settings\":`chatGpt`,notifications:`chatGpt`,\"ads-controls\":`chatGpt`,\"parental-controls\":`chatGpt`,\"trusted-contact\":`chatGpt`,safety:`chatGpt`,billing:`chatGpt`,agent:`chatGptOrCodex`,analytics:`codex`,\"usage-code-review\":`codex`,appshots:`codexOrWorkLocal`,\"browser-use\":`codexOrWorkLocal`,extension:`chatGpt`,\"cloud-computer\":`chatGpt`,passwords:`chatGpt`,chronicle:`codexOrWorkLocal`,\"codex-micro\":`codexLocal`,\"computer-use\":`codexOrWorkLocal`,connections:`codexLocal`,\"consumer-view\":`codex`,\"data-controls\":`chatGptOrCodex`,\"archi"
+  },
+  {
+    "id": "F060",
+    "claim": "账单导航可隐藏而消费者仍存在；Team资格与账户身份绑定",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/use-visible-settings-sections-9bd5da3d2a1e.js",
+    "offset": 36103,
+    "excerpt": "case`billing`:return{visible:!1,pending:!1};case`analytics`:return{visible:ot&&(Xn(V)?(Oi(V)||V===kr.ENT26)&&(ue||!1):de||st),pending:B||F};case`usage-code-review`:return{visible:ut&&!!mt,pending:B||F||ut&&pt};case`consumer-view`:return{visible:!F&&!B&&lt,pending:B||F};case`teams`:return{visible:ve&&S&&u===`chatgpt`&&p?.structure===`workspace`&&p.id===l,pending:ye!==`denied`&&(ee||ne||F||U)};case`age`:return{visible:be,pending:F||U};case`profile`:return{visible:et&&!rt,pending:tt||rt};case`computer-use`:return{visible:xt,pending:gt.isLoading||x.isLoading};case`passwords`:return{visible:Ne,pend"
+  },
+  {
+    "id": "F061",
+    "claim": "Storage可见性依赖managedWorktrees，不能解释为云附件容量",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/use-visible-settings-sections-9bd5da3d2a1e.js",
+    "offset": 37771,
+    "excerpt": "case`storage`:return{visible:le?.managedWorktrees!=null&&_,pending:!1};case`security`:return{visible:!1,pending:!1};case`parental-controls`:return{visible:T.status===`allowed`,pending:T.status===`loading`,error:T.status===`error`};case`trusted-contact`:return{visible:T.status===`allowed`&&Te===!0,pending:T.status===`loading`||T.status===`allowed`&&Ee,error:T.status===`error`||T.status===`allowed`&&De};case`safety`:return{visible:!F&&Ae,pending:T.status===`loading`||T.status===`allowed`&&(Oe===`loading`||Oe===`eligible`&&F),error:T.status===`err"
+  },
+  {
+    "id": "F062",
+    "claim": "静态分类标签与实际ChatGPT专门呈现需分别核对",
+    "scope": "第六轮：Scheduled与补充设置；静态消费者和局部实现，未观察运行",
+    "path": "webview/assets/use-visible-settings-sections-9bd5da3d2a1e.js",
+    "offset": 42260,
+    "excerpt": "data-controls\":`chatGptOrCodex`,\"archived-chats\":`chatGptOrCodex`,\"git-settings\":`codexLocal`,\"hooks-settings\":`codexLocal`,import:`codexOrWorkLocal`,\"keyboard-shortcuts\":`codex`,\"local-environments\":`codexLocal`,\"mcp-settings\":`codexOrWorkLocal`,\"plugins-settings\":`codexOrWorkLocal`,\"file-type-handlers\":`codexOrWorkLocal`,rosalind:`codexOrWorkLocal`,profile:`codex`,security:`chatGpt`,storage:`chatGptOrCodex`,\"skills-settings\":`codexOrWorkLocal`,usage:`codex`,voice:`codex`,worktrees:`codexLocal`}})))()}export{ta as a,Ba as i,Za as n,na as o,Ra as r,ra as s,oo as t};\n//# sourceMappingURL=use-vi"
+  }
+]

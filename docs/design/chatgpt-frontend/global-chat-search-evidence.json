@@ -1,0 +1,194 @@
+[
+  {
+    "id": "G001",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10441385,
+    "excerpt": "function QWc(e,t){let n=t.trim();switch(e){case`root`:return n.length<iGc?null:{includeContentResults:n.length>=aGc,maxResults:oGc};case`chats`:return{includeContentResults:n.length>0,maxResults:sGc};case`files`:return null}}function $Wc(e){return`${rGc}${e}`}function eGc(e,t){return t&&e.trim().toLowerCase()===nGc}function tGc(e,t,n){if(e.startsWith(rGc))return Number.MIN_VALUE;let r=t.trim();if(r.length===0)return 1;let i=S4(e,r);for(let e of n??[])i=Math.max(i,S4(e,r));return i}var nGc,rGc,iGc,aGc,oGc,sGc;function cGc(){return(cGc=t((()=>{w4(),nGc=`import`,rGc=`command-menu-async-result:`,i",
+    "claim": "搜索计划：根视图至少2字符才出现聊天搜索计划、3字符起查内容；chats子视图非空即查内容；两分支maxResults=9。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G002",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 272357,
+    "excerpt": ".command-menu-dialog{--command-menu-list-max-height:min(300px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)));--command-menu-max-height:calc(var(--command-menu-list-max-height) + 64px);top:max(calc(var(--spacing) * 4 / var(--codex-window-zoom,1)), calc((100vh / var(--codex-window-zoom,1) - var(--command-menu-max-height)) / 2));width:min(520px, calc(92vw / var(--codex-window-zoom,1)));zoom:var(--codex-window-zoom,1)}.global-command-menu-dialog{--command-menu-list-max-height:min(440px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)))}.search-command-me",
+    "claim": "命令搜索弹窗宽度min(520px,92vw/zoom)，高度和顶部位置按窗口缩放计算。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G003",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 272789,
+    "excerpt": ".global-command-menu-dialog{--command-menu-list-max-height:min(440px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)))}.search-command-menu-dialog{width:min(var(--container-3xl), calc(92vw / var(--codex-window-zoom,1)))}.search-command-menu-dialog [cmdk-root]{height:var(--command-menu-max-height)}.search-command-menu-dialog [cmdk-list]{flex:1}[cmdk-root],[data-cmdk-root]{gap:var(--spacing);background-color:var(--color-surface-elevated-secondary);min-width:100%;color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--radius-3xl);padding:var",
+    "claim": "全局搜索列表最大高度min(440px,max(120px,90vh/zoom-64px))；搜索专用宽度类另有规则。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G004",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 273530,
+    "excerpt": ".command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]{box-shadow:var(--shadow-2xl);background-color:var(--color-surface-elevated-secondary);border-radius:var(--radius-2xl);-webkit-backdrop-filter:none;backdrop-filter:none;max-height:var(--command-menu-max-height);border-color:#0000;overflow:hidden}:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root])[data-command-menu-variant=standalone]{border-radius:var(--radius-xl)}:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root])[data-command-menu-variant=standalone] [cmdk",
+    "claim": "弹窗内部为elevated-secondary表面、shadow-2xl、radius-2xl，外框透明边界与深色主题覆盖。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G005",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 274105,
+    "excerpt": "[cmdk-item]{border-radius:var(--radius-md)}:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]):where([data-theme=dark]){border-color:var(--color-border)}@container style(--theme-variant:dark){:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]):where(:not([data-theme])){border-color:var(--color-border)}}[cmdk-item]{content-visibility:auto;border-radius:var(--radius-lg);width:100%;cursor:var(--cursor-interaction);color:var(--color-text);padding:var(--padding-row-y) var(--padding-row-x);min-height:calc(var(--spacing) * 6);-webkit",
+    "claim": "结果行全宽、至少spacing×6、常态opacity .75，禁用.25。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G006",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 274887,
+    "excerpt": "[cmdk-item]:hover:not([aria-disabled=true]),[cmdk-item][data-selected=true],[cmdk-item][aria-selected=true],[cmdk-item]:focus-visible,[cmdk-item]:active:not([aria-disabled=true]){background-color:var(--color-background-primary-ghost-hover);opacity:1}[cmdk-item][data-command-menu-loading=true],[cmdk-item][data-command-menu-loading=true]:hover,[cmdk-item][data-command-menu-loading=true][data-selected=true],[cmdk-item][data-command-menu-loading=true][aria-selected=true],[cmdk-item][data-command-menu-loading=true]:focus-visible,[cmdk-item][data-command-menu-loading=true]:active",
+    "claim": "hover/selected/focus/active使用ghost-hover且opacity1；不可把选中只理解为鼠标悬停。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G007",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 27150,
+    "excerpt": "Fe;return t[212]!==ve||t[213]!==Ee||t[214]!==De||t[215]!==Oe||t[216]!==Ae||t[217]!==Me||t[218]!==Pe?(Fe=(0,Q.jsxs)(Or.Dialog,{...ve,className:De,title:Oe,open:!0,overlayClassName:ke,contentClassName:`codex-dialog command-menu-dialog global-command-menu-dialog bg-transparent p-0 shadow-none fixed left-1/2 z-50 -translate-x-1/2`,onOpenChange:Ae,children:[Me,Pe,Ee]}),t[212]=ve,t[213]=Ee,t[214]=De,t[215]=Oe,t[216]=Ae,t[217]=Me,t[218]=Pe,t[219]=Fe):Fe=t[219],Fe}function ja(e){let{id:t}=e;return t}function Ma(e){return e!=null}function Na(e){return e!=null}function Pa(e){return e",
+    "claim": "消费者实际挂global-command-menu-dialog类；外层透明零padding，水平居中；不能套用另一个search-command-menu-dialog的宽度。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G008",
+    "path": "webview/assets/recents-f57d4be47719.js",
+    "offset": 26288,
+    "excerpt": "(`chatgpt_global_search_failed`,{safe:{durationMs:Math.max(0,Math.round(U()-c)),limit:t.limit,source:r},sensitive:{error:e}}),e}}var gn,$,_n,vn;function yn(){return(yn=e((()=>{gn=le(),b(),f(),p(),$=O(),ge(),J(),it(),q(),rt(),R(),me(),Mt(),ue(),I(),re(),pe(),l(),Ie(),Bt(),F(),Ct(),kt(),X(),Ht(),Gt(),_n=250,vn=5})))()}var bn;function xn(){return(xn=e((()=>{y(),bn=r({pageOpenFailed:{id:`codex.chatGptSearch.pageOpenFailed`,defaultMessage:`Unable to open this page`,description:`Toast when a Page selected from global search cannot be opened in its Space`},dialogDescriptionWithSpa",
+    "claim": "ChatGPT搜索防抖常量250ms；补页循环上限5是请求内部限制，不是可见结果数。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G009",
+    "path": "webview/assets/recents-f57d4be47719.js",
+    "offset": 13757,
+    "excerpt": "shot,w.getSnapshot),le=fe(We,`703400933`),ue=ie(ut),E=le&&ue&&(_===`conversation`||_===`all`&&h.includes(`native`)&&(g===`all`||g===`chats`)),de;t[1]===p?de=t[2]:(de=p.trim(),t[1]=p,t[2]=de);let D=de,O=nt(D,_n),k=r&&se,A=O===D,j=a?.searchSessionId??null,pe=_===`space`?`all`:_,M=ae&&(_===`space`||_===`all`&&(g===`all`||g===`pages`)&&h.includes(`native`)),N=fe(M?We:null,`1442582935`)===!0?`title_and_content`:void 0,me;t[3]!==f||t[4]!==D?(me={search:D,limit:f},t[3]=f,t[4]=D,t[5]=me):me=t[5];let he=fe(k&&M&&D.length>0?jt:null,me),ge=mn({externalAccountKeys:o,includeFolders:m,in",
+    "claim": "搜索先trim再防抖；enabled与ChatGPT能力同时为真才生效。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G010",
+    "path": "webview/assets/recents-f57d4be47719.js",
+    "offset": 25674,
+    "excerpt": "ch`,{requestBody:{...t,cursor:e,query_id:n},signal:i,additionalHeaders:{Accept:`text/event-stream`}});s?.(),l=await Ut(r,o,i)}else l=await(r!==`conversation`||t.source_requests?.some(e=>e.type===`dot_messages`)?V.safePost(`/global/search`,{requestBody:{...t,cursor:e,query_id:n},signal:i}):V.safeGet(`/global/search`,{parameters:{query:{cursor:e,limit:t.limit,query:t.query,query_id:n,sources:[`conversation`]}},signal:i}));return a.debug(`chatgpt_global_search_resolved`,{safe:{durationMs:Math.max(0,Math.round(U()-c)),itemCount:l.items.length,limit:t.limit,source:r}}),l}catch(e",
+    "claim": "纯conversation通过GET global/search；其他source请求按条件走POST，支持AbortSignal。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G011",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 33878,
+    "excerpt": "alConversation:a,onSelectResult:r,onResultOpen:Y,results:i,trimmedSearch:I},z.queryIdentity),t[58]=F,t[59]=z.queryIdentity,t[60]=n,t[61]=K,t[62]=h,t[63]=a,t[64]=Y,t[65]=r,t[66]=i,t[67]=I,t[68]=o):o=t[68];let s;t[69]!==z.contentSearchError||t[70]!==z.retryContentSearch?(s=z.contentSearchError?(0,Q.jsx)(ha,{onRetry:z.retryContentSearch}):null,t[69]=z.contentSearchError,t[70]=z.retryContentSearch,t[71]=s):s=t[71];let c;t[72]===K?c=t[73]:(c=K?(0,Q.jsx)(oo,{}):null,t[72]=K,t[73]=c);let l;t[74]!==z.contentSearchError||t[75]!==K||t[76]!==A||t[77]!==H?(l=!K&&!z.contentSearchError&&",
+    "claim": "菜单消费者读取内容搜索失败和等待；状态不等同于空结果。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G012",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 10876,
+    "excerpt": "oe(),i;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(i=yi(`retry-chatgpt-search`),t[0]=i):i=t[0];let a;t[1]===r?a=t[2]:(a=r.formatMessage({id:`codex.commandMenu.chatGptSearchFailed`,defaultMessage:`Couldn't search ChatGPT chats`,description:`Short error shown as a selectable command-menu row when searching ChatGPT conversation history fails. Selecting the row repeats the same search without closing the menu.`}),t[1]=r,t[2]=a);let o;t[3]===r?o=t[4]:(o=r.formatMessage({id:`codex.commandMenu.retryChatGptSearch`,defaultMessage:`Retry`,description:`Short action label on the co",
+    "claim": "聊天搜索错误行提供Retry文案。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G013",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 40811,
+    "excerpt": "]=t):t=e[0],t}function oo(){let e=(0,Z.c)(1),t;return e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,Q.jsx)(`span`,{className:`sr-only`,role:`status`,children:(0,Q.jsx)(_,{id:`codex.commandMenu.loadingChats`,defaultMessage:`Loading chats…`,description:`Accessible loading status while task search results are fetched`})}),e[0]=t):t=e[0],t}function so(){let e=(0,Z.c)(1);if(nr(co))return null;let t;return e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,Q.jsx)(`div`,{className:`hidden`,\"aria-hidden\":!0,\"data-command-menu-search-loading\":!0,children:(0,Q.jsx)(Mr,{class",
+    "claim": "屏幕阅读器加载状态文案。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G014",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 44727,
+    "excerpt": "k||t[52]!==A||t[53]!==j||t[54]!==M||t[55]!==N||t[56]!==f?(P=(0,Q.jsx)(br,{forceMount:r,value:O,title:f,titlePrefix:k,description:w,highlightMode:`substring`,titleTooltipContent:f,descriptionTooltipContent:w,descriptionClassName:wo,secondaryContent:A,tooltipDelayDuration:Co,onSelect:j,leftAccessory:M,rightAccessory:N}),t[48]=w,t[49]=r,t[50]=O,t[51]=k,t[52]=A,t[53]=j,t[54]=M,t[55]=N,t[56]=f,t[57]=P):P=t[57],P}function uo(e){let t=(0,Z.c)(9),{preview:n,search:r,shouldAdjustStart:i}=e,a=i!==void 0&&i;if(n==null)return null;switch(n.kind){case`contentMatch`:{if(a){let e;return t",
+    "claim": "搜索结果标题tooltip延迟常量Co；结果可有contentMatch摘要。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G015",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 44638,
+    "excerpt": "0,t[45]=i,t[46]=l,t[47]=N):N=t[47];let P;return t[48]!==w||t[49]!==r||t[50]!==O||t[51]!==k||t[52]!==A||t[53]!==j||t[54]!==M||t[55]!==N||t[56]!==f?(P=(0,Q.jsx)(br,{forceMount:r,value:O,title:f,titlePrefix:k,description:w,highlightMode:`substring`,titleTooltipContent:f,descriptionTooltipContent:w,descriptionClassName:wo,secondaryContent:A,tooltipDelayDuration:Co,onSelect:j,leftAccessory:M,rightAccessory:N}),t[48]=w,t[49]=r,t[50]=O,t[51]=k,t[52]=A,t[53]=j,t[54]=M,t[55]=N,t[56]=f,t[57]=P):P=t[57],P}function uo(e){let t=(0,Z.c)(9),{preview:n,search:r,shouldAdjustStart:i}=e,a=i!=",
+    "claim": "标题高亮模式substring，其他行元素需按消费者判断。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G016",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 48691,
+    "excerpt": "P}else P=t[27];let F;return t[41]!==j||t[42]!==P||t[43]!==T||t[44]!==E||t[45]!==D||t[46]!==O?(F=(0,Q.jsx)(Or.Group,{forceMount:T,\"data-command-menu-has-results\":E,\"data-command-menu-loading\":D,\"data-command-menu-search-section\":`chats`,heading:O,className:`flex flex-col`,onClick:k,onPointerCancel:A,onPointerEnter:j,onPointerLeave:M,style:N,children:P}),t[41]=j,t[42]=P,t[43]=T,t[44]=E,t[45]=D,t[46]=O,t[47]=F):F=t[47],F}var Z,go,_o,Q,vo,yo,bo,xo,So,Co,wo,To,$;function Eo(){return(Eo=e((()=>{Z=Ge(),f(),Se(),He(),U(),w(),A(),Ee(),X(),R(),te(),M(),K(),_e(),c(),ze(),tt(),I(),et()",
+    "claim": "结果区有指针进入/退出/取消处理，冻结hover时的结果集。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G017",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 11787,
+    "excerpt": " va(){return(va=e((()=>{ga=Ge(),Y(),Yn(),bt(),_a=Ye()})))()}function ya(e,t){if(e.key!==`Tab`||e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey||e.nativeEvent.isComposing)return!1;let n=e.currentTarget.closest(`[cmdk-root]`);if(n==null)return!1;let r=Array.from(n.querySelectorAll(`[data-command-menu-search-section]:not([hidden])`)).flatMap(e=>{let t=e.querySelector(`[cmdk-item]:not([aria-disabled=\"true\"])`);return t==null?[]:[t]});if(r.length<2)return!1;let i=n.querySelector(`[cmdk-item][aria-selected=\"true\"]`)?.closest(`[data-command-menu-search-section]`),a=t?r.findIndex(e=>e.closest(`[dat",
+    "claim": "根菜单Tab按可见结果section跳转，检查IME与组合修饰键。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G018",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 28838,
+    "excerpt": "=c&&on(r.id,`command_menu`)))return;(l!=null||r.id===`toggleFileTreePanel`)&&on(r.id,`command_menu`,{originPanel:l??void 0});return}if(r.id===`previousThread`||r.id===`nextThread`){(0,_o.flushSync)(n),on(r.id,`command_menu`);return}r.id===`searchChats`&&o(),on(r.id,`command_menu`),r.id!==`searchChats`&&n()},t[8]=n,t[9]=r.id,t[10]=o,t[11]=s,t[12]=c,t[13]=l,t[14]=_):_=t[14];let v;t[15]===r.id?v=t[16]:(v=(0,Q.jsx)(Va,{commandId:r.id}),t[15]=r.id,t[16]=v);let y;return t[17]!==p||t[18]!==m||t[19]!==g||t[20]!==_||t[21]!==v||t[22]!==d?(y=(0,Q.jsx)(br,{value:d,keywords:g,title:d,on",
+    "claim": "Search chats命令有独立分流，不能当作直接导航聊天。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G019",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 46064,
+    "excerpt": "function mo(e,t,n,r){switch(t.kind){case`local`:case`remote`:qn(e,t.threadKey,n,r,t.kind===`local`&&t.hostId!==`local`?t.hostId:void 0);return;case`chatgpt`:r(Qe(t.conversationId));return;case`dot`:e.get(Er,`703400933`)&&e.get(Oi)&&r(t.href);return}}function ho(e){let t=(0,Z.c)(48),{close:n,conversationsMeta:r,firstShortcutIndex:i,forceMount:a,groupLabel:o,groupShortcutCommandId:s,isLoading:c,navigateToLocalConversation:l,onResultOpen:u,onSelectResult:d,results:f,showShortcutAccessory:p,showChatGptSourceLabel:m,trimmedSearch:h}=e,g=c!==void 0&&c,v=p===void 0||p,y=oe(),[b,x]=(0,go.useState)(nul",
+    "claim": "选择ChatGPT结果导航到会话路由并关闭搜索。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G020",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 50781,
+    "excerpt": "sset:n},nextThread:Wa,logOut:{asset:we},feedback:{asset:Ve}},xo=200,So=7,Co=2e3,wo=`w-24 shrink-0 text-end`,To=De(u,({get:e})=>{if(!e(Yt))return null;let t=e(qr,{enabled:!1});if(t==null)return null;let n=Rn(b(t));if(!e(pt).includes(n))return null;let r=e(qi,{enabled:!1}),{data:i}=e(_i,t,{enabled:!1});return i!=null&&r.status===`ready`&&r.orbitIds.includes(i.id)?n:null}),$=i({chatResultsGroup:{id:`codex.commandMenu.chatResultsGroup`,defaultMessage:`Chats`,description:`Group label for chat search results in the command menu`},thread:{id:`codex.commandGroup.thread`,defaultMess",
+    "claim": "搜索结果右侧描述区w24、末端对齐；菜单局部200ms与tooltip2000ms常量。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G021",
+    "path": "webview/assets/recents-f57d4be47719.js",
+    "offset": 22951,
+    "excerpt": "ft||t[136]!==pt?(X={queryIdentity:P,streamingEnabled:C,spaceSearchIncomplete:it,contentSearchPending:at,contentSearchError:ot,hasNextPage:st,isFetchingNextPage:ct,shouldLoadMoreManually:lt,loadNextPage:Y,retryContentSearch:dt,logResultOpen:ft,searchResults:pt,searchItems:tt,localSearchItems:rt},t[123]=rt,t[124]=P,t[125]=tt,t[126]=C,t[127]=it,t[128]=at,t[129]=ot,t[130]=st,t[131]=ct,t[132]=lt,t[133]=Y,t[134]=dt,t[135]=ft,t[136]=pt,t[137]=X):X=t[137],X}function qt(e){return e.responses.flatMap(Jt)}function Jt(e){return e.items}function Yt(e){return e.responses.flatMap(Xt)}func",
+    "claim": "搜索hook暴露等待、错误、分页和重试，菜单是否消费每项需另查。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G022",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 25376,
+    "excerpt": "`react.memo_cache_sentinel`)?(Se=(0,Q.jsx)(so,{}),t[172]=Se):Se=t[172];let Ce;t[173]!==B||t[174]!==U||t[175]!==W||t[176]!==G||t[177]!==q?(Ce=G||U||B!=null||W&&q.length>0?null:(0,Q.jsx)(Or.Empty,{children:(0,Q.jsx)(_,{id:`codex.commandMenu.noResults`,defaultMessage:`No matches`,description:`Shown when no commands or workspaces match in the command menu`})}),t[173]=B,t[174]=U,t[175]=W,t[176]=G,t[177]=q,t[178]=Ce):Ce=t[178];let we;t[179]!==q||t[180]!==Ce?(we=(0,Q.jsxs)(Or.List,{children:[q,Se,Ce]}),t[179]=q,t[180]=Ce,t[181]=we):we=t[181];let Te;t[182]!==X||t[183]!==be||t[184]!",
+    "claim": "无匹配文案存在；显示取决于pending/error/结果条件。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G023",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10441904,
+    "excerpt": "ion cGc(){return(cGc=t((()=>{w4(),nGc=`import`,rGc=`command-menu-async-result:`,iGc=2,aGc=3,oGc=9,sGc=9})))()}var lGc;function uGc(){return(uGc=t((()=>{Us(),lGc=ge({delete:{id:`settings.dataControls.archivedChats.delete`,defaultMessage:`Delete`,description:`Button label to permanently delete an archived chat`},deleteAll:{id:`settings.dataControls.archivedChats.deleteAll`,defaultMessage:`Delete all`,description:`Button label to permanently delete all archived local chats`},deleteAllError:{id:`settings.dataControls.archivedChats.deleteAllError`,defaultMessage:`Failed to delet",
+    "claim": "根菜单标题与内容搜索阈值2/3；root与chats限制均9。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  },
+  {
+    "id": "G024",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 46767,
+    "excerpt": " chat`,description:`Fallback title for a task without a title in the command menu`}),t[0]=y,t[1]=S);let C=S,w=b?.search===h?b.results:f;if(w.length===0&&!g)return null;let T=a||g,E=w.length>0||void 0,D=g||void 0,O;t[2]!==w.length||t[3]!==o||t[4]!==s||t[5]!==g?(O=o==null||w.length===0?void 0:(0,Q.jsxs)(`span`,{className:`flex items-center justify-between px-2 pt-2 text-sm text-codex-description`,children:[(0,Q.jsxs)(`span`,{className:`flex items-center gap-2`,children:[(0,Q.jsx)(_,{...o}),g?(0,Q.jsx)(Me,{as:`span`,className:`icon-xxs`}):null]}),s==null?null:(0,Q.jsx)(Va,{com",
+    "claim": "仅同query使用指针快照，query改变即采用新结果；避免异步排序滑动误点。",
+    "scope": "第四轮；当前安装包的静态声明及调用链，未触发真实账户操作或运行时页面"
+  }
+]

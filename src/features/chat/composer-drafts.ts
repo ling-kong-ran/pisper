@@ -10,6 +10,11 @@ export type ComposerDraft = {
 }
 
 const drafts = new Map<string, ComposerDraft>()
+const textRevisions = new Map<string, number>()
+
+export type ComposerSubmission = {
+  accept: () => void
+}
 
 export function commandDraft(invocation: string, value: string) {
   const slash = value.match(/^\/[^\s]*(?:\s+([\s\S]*))?$/)
@@ -32,6 +37,15 @@ export function updateComposerDraft(sessionId: string, patch: Partial<ComposerDr
   if (!sessionId) return
   const next = { ...readComposerDraft(sessionId), ...patch }
   next.attachments = [...next.attachments]
+  const previous = readComposerDraft(sessionId)
+  if (
+    previous.text === next.text &&
+    previous.attachments.length === next.attachments.length &&
+    previous.attachments.every((item, index) => item === next.attachments[index])
+  )
+    return
+  if (previous.text !== next.text)
+    textRevisions.set(sessionId, (textRevisions.get(sessionId) || 0) + 1)
   drafts.delete(sessionId)
   if (!next.text && !next.attachments.length) return
   drafts.set(sessionId, next)
@@ -39,6 +53,7 @@ export function updateComposerDraft(sessionId: string, patch: Partial<ComposerDr
 }
 
 export function clearComposerDraft(sessionId: string) {
+  textRevisions.set(sessionId, (textRevisions.get(sessionId) || 0) + 1)
   drafts.delete(sessionId)
 }
 
@@ -82,7 +97,11 @@ export function useComposerDraft(sessionId: string) {
     (attachments: ChatAttachment[]) => updateComposerDraft(sessionId, { attachments }),
     [sessionId],
   )
-  const selection = useAttachmentSelection(initialDraft.current.attachments, saveAttachments)
+  const selection = useAttachmentSelection(
+    initialDraft.current.attachments,
+    saveAttachments,
+    sessionId,
+  )
   const replaceAttachments = selection.replaceAttachments
   const clearAttachments = selection.clearAttachments
 
@@ -127,5 +146,35 @@ export function useComposerDraft(sessionId: string) {
     [replaceAttachments, sessionId],
   )
 
-  return { value, updateValue: setValue, selection, clearDraft: clear, restoreDraft }
+  const captureSubmission = useCallback((): ComposerSubmission => {
+    const snapshot = readComposerDraft(sessionId)
+    const textRevision = textRevisions.get(sessionId) || 0
+    let accepted = false
+    return {
+      accept() {
+        if (accepted) return
+        accepted = true
+        const current = readComposerDraft(sessionId)
+        // 文本用版本而非值比较：删掉又重输相同内容也属于新草稿；附件按提交身份移除。
+        const next = {
+          text: (textRevisions.get(sessionId) || 0) === textRevision ? '' : current.text,
+          attachments: current.attachments.filter((item) => !snapshot.attachments.includes(item)),
+        }
+        updateComposerDraft(sessionId, next)
+        if (!mountedRef.current || activeSessionIdRef.current !== sessionId) return
+        setValueState(next.text)
+        // 新准备项不属于本次提交，不能用 clearAttachments 取消它们。
+        replaceAttachments(next.attachments)
+      },
+    }
+  }, [replaceAttachments, sessionId])
+
+  return {
+    value,
+    updateValue: setValue,
+    selection,
+    clearDraft: clear,
+    restoreDraft,
+    captureSubmission,
+  }
 }

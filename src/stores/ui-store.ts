@@ -1,9 +1,17 @@
-// 全局 UI 偏好持久化到 localStorage；迁移层保留旧版按时间自动主题的行为，
+// 全局 UI 偏好通过 pageStateStorage 持久化；迁移层保留旧版按时间自动主题的行为，
 // 避免升级后用户在相同环境下看到意外的明暗变化。
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
+import { clampSidebarWidth, DEFAULT_SIDEBAR_WIDTH } from '@/lib/sidebar-width'
+import {
+  CODE_FONT_SIZE,
+  LEGACY_FONT_SIZES,
+  legacyFontScale,
+  normalizeTypographyPreferences,
+  UI_FONT_SIZE,
+} from '@/lib/typography-preferences'
 
 export type ThemeMode = 'system' | 'scheduled' | 'light' | 'dark'
 export type DensityMode = 'comfortable' | 'compact'
@@ -18,6 +26,8 @@ export const DEFAULT_UI_PREFERENCES = {
   accent: 'neutral',
   customAccent: '#1677e8',
   fontScale: 'default',
+  uiFontSize: UI_FONT_SIZE.default,
+  codeFontSize: CODE_FONT_SIZE.default,
   radius: 'default',
   motion: 'system',
 } as const satisfies {
@@ -26,20 +36,26 @@ export const DEFAULT_UI_PREFERENCES = {
   accent: AccentPreset
   customAccent: string
   fontScale: FontScale
+  uiFontSize: number
+  codeFontSize: number
   radius: RadiusMode
   motion: MotionMode
 }
 
 type UiState = {
   sidebarCollapsed: boolean
+  sidebarWidth: number
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
   customAccent: string
   fontScale: FontScale
+  uiFontSize: number
+  codeFontSize: number
   radius: RadiusMode
   motion: MotionMode
   setSidebarCollapsed: (collapsed: boolean) => void
+  setSidebarWidth: (width: number) => void
   toggleSidebar: () => void
   setTheme: (theme: ThemeMode) => void
   cycleTheme: () => void
@@ -48,6 +64,8 @@ type UiState = {
   // 设置任意 HEX 并立即切到自定义档
   setCustomAccent: (hex: string) => void
   setFontScale: (fontScale: FontScale) => void
+  setUiFontSize: (size: number) => void
+  setCodeFontSize: (size: number) => void
   setRadius: (radius: RadiusMode) => void
   setMotion: (motion: MotionMode) => void
   resetAppearance: () => void
@@ -56,11 +74,14 @@ type UiState = {
 type PersistedUiState = Pick<
   UiState,
   | 'sidebarCollapsed'
+  | 'sidebarWidth'
   | 'theme'
   | 'density'
   | 'accent'
   | 'customAccent'
   | 'fontScale'
+  | 'uiFontSize'
+  | 'codeFontSize'
   | 'radius'
   | 'motion'
 >
@@ -77,8 +98,10 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       sidebarCollapsed: false,
+      sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
       ...DEFAULT_UI_PREFERENCES,
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth: clampSidebarWidth(sidebarWidth) }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setTheme: (theme) => set({ theme }),
       cycleTheme: () =>
@@ -88,7 +111,13 @@ export const useUiStore = create<UiState>()(
       setDensity: (density) => set({ density }),
       setAccent: (accent) => set({ accent }),
       setCustomAccent: (customAccent) => set({ accent: 'custom', customAccent }),
-      setFontScale: (fontScale) => set({ fontScale }),
+      setFontScale: (fontScale) => set({ fontScale, uiFontSize: LEGACY_FONT_SIZES[fontScale] }),
+      setUiFontSize: (size) => {
+        const { uiFontSize } = normalizeTypographyPreferences({ uiFontSize: size })
+        set({ uiFontSize, fontScale: legacyFontScale(uiFontSize) })
+      },
+      setCodeFontSize: (size) =>
+        set({ codeFontSize: normalizeTypographyPreferences({ codeFontSize: size }).codeFontSize }),
       setRadius: (radius) => set({ radius }),
       setMotion: (motion) => set({ motion }),
       resetAppearance: () => set(DEFAULT_UI_PREFERENCES),
@@ -96,33 +125,41 @@ export const useUiStore = create<UiState>()(
     {
       name: 'pisper-ui',
       storage: createJSONStorage(() => pageStateStorage),
-      version: 1,
+      version: 2,
       migrate: (persisted, version): PersistedUiState => {
         const stored = persisted as Partial<PersistedUiState>
         return {
           sidebarCollapsed: stored.sidebarCollapsed ?? false,
+          sidebarWidth: clampSidebarWidth(stored.sidebarWidth),
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
+          ...normalizeTypographyPreferences(stored),
           theme:
             version === 0 && stored.theme === 'system' ? 'scheduled' : (stored.theme ?? 'system'),
         }
       },
       partialize: ({
         sidebarCollapsed,
+        sidebarWidth,
         theme,
         density,
         accent,
         customAccent,
         fontScale,
+        uiFontSize,
+        codeFontSize,
         radius,
         motion,
       }) => ({
         sidebarCollapsed,
+        sidebarWidth,
         theme,
         density,
         accent,
         customAccent,
         fontScale,
+        uiFontSize,
+        codeFontSize,
         radius,
         motion,
       }),
@@ -142,10 +179,12 @@ export const useUiStore = create<UiState>()(
                 ? (legacyTheme as ThemeMode)
                 : current.theme),
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',
+          sidebarWidth: clampSidebarWidth(stored?.sidebarWidth),
           density: stored?.density ?? (legacyDensity === 'compact' ? 'compact' : current.density),
           accent: stored?.accent ?? current.accent,
           customAccent: stored?.customAccent ?? current.customAccent,
-          fontScale: stored?.fontScale ?? current.fontScale,
+          ...normalizeTypographyPreferences(stored),
+          fontScale: legacyFontScale(normalizeTypographyPreferences(stored).uiFontSize),
           radius: stored?.radius ?? current.radius,
           motion: stored?.motion ?? current.motion,
         }

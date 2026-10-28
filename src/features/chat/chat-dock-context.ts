@@ -43,13 +43,15 @@ export type ChatDockContextValue = {
     teamMode?: boolean,
     goalTokenBudget?: number | null,
     invocation?: ResourceInvocation | null,
-  ) => Promise<void>
+    options?: { onAccepted?: () => void },
+  ) => Promise<boolean | void>
   retryLastTurn: (sessionId: string) => Promise<void>
   queuePrompt: (
     value: string,
     sessionId: string,
     attachments?: ChatAttachment[],
     behavior?: string,
+    onAccepted?: () => void,
   ) => Promise<boolean>
   withdrawQueuedInput: (sessionId: string, inputId: string) => Promise<WithdrawnInput | null>
   abort: (sessionId: string) => Promise<void>

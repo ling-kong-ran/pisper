@@ -1,0 +1,229 @@
+{
+  "method": "Babel AST; no application execution",
+  "source": "src/app/router.tsx",
+  "pagePathConstantCount": 16,
+  "registeredChildCount": 21,
+  "lazyChildCount": 18,
+  "redirectCount": 3,
+  "configSectionCount": 9,
+  "configSections": [
+    "models",
+    "notifications",
+    "interface",
+    "shortcuts",
+    "desktop-pet",
+    "updates",
+    "remote-access",
+    "mobile-server",
+    "about"
+  ],
+  "constants": {
+    "chat": "/chat",
+    "chatHistory": "/chat/history",
+    "assets": "/assets",
+    "channels": "/channels",
+    "schedules": "/schedules",
+    "plugins": "/plugins",
+    "memory": "/memory",
+    "mcp": "/mcp",
+    "skills": "/skills",
+    "components": "/components",
+    "decisions": "/decisions",
+    "workflows": "/workflows",
+    "workflowCreate": "/workflows/new",
+    "gameAssetWorkbench": "/tools/game-assets",
+    "customComponentTool": "/tools/components",
+    "config": "/config/models"
+  },
+  "routes": [
+    {
+      "path": "(index)",
+      "pageKey": null,
+      "lazy": null,
+      "imports": [],
+      "kind": "redirect",
+      "line": 34,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/chat",
+      "pageKey": "chat",
+      "lazy": "chatRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 35,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/chat/history",
+      "pageKey": "chatHistory",
+      "lazy": "chatHistoryRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 36,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/assets",
+      "pageKey": "assets",
+      "lazy": "assetsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 37,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/channels",
+      "pageKey": "channels",
+      "lazy": "channelsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 38,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/schedules",
+      "pageKey": "schedules",
+      "lazy": "schedulesRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 39,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/config/models",
+      "pageKey": "config",
+      "lazy": "configRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 40,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/config/:configSection",
+      "pageKey": null,
+      "lazy": "configRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 41,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/config",
+      "pageKey": null,
+      "lazy": null,
+      "imports": [],
+      "kind": "redirect",
+      "line": 42,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/plugins",
+      "pageKey": "plugins",
+      "lazy": "pluginsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 43,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/memory",
+      "pageKey": "memory",
+      "lazy": "memoryRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 44,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/mcp",
+      "pageKey": "mcp",
+      "lazy": "mcpRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 45,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/skills",
+      "pageKey": "skills",
+      "lazy": "skillsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 46,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/components",
+      "pageKey": "components",
+      "lazy": "componentsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 47,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/tools/components/:componentId",
+      "pageKey": null,
+      "lazy": "customComponentRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 48,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/tools/game-assets",
+      "pageKey": "gameAssetWorkbench",
+      "lazy": "gameAssetWorkbenchRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 49,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/decisions",
+      "pageKey": "decisions",
+      "lazy": "decisionsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 50,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/workflows",
+      "pageKey": "workflows",
+      "lazy": "workflowsRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 51,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/workflows/new",
+      "pageKey": "workflowCreate",
+      "lazy": "workflowBuilderRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 52,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "/workflows/:workflowId",
+      "pageKey": null,
+      "lazy": "workflowBuilderRoute",
+      "imports": [],
+      "kind": "lazy-page",
+      "line": 53,
+      "source": "src/app/router.tsx"
+    },
+    {
+      "path": "*",
+      "pageKey": null,
+      "lazy": null,
+      "imports": [],
+      "kind": "redirect",
+      "line": 54,
+      "source": "src/app/router.tsx"
+    }
+  ]
+}

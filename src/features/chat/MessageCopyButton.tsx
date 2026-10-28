@@ -20,7 +20,7 @@ export function MessageCopyButton({ text, copyLabel }: { text: string; copyLabel
   }, [text])
 
   const copy = async () => {
-    if (state === 'pending') return
+    if (state === 'pending' || state === 'copied') return
     const current = ++request.current
     if (resetTimer.current !== null) clearTimeout(resetTimer.current)
     setState('pending')
@@ -46,9 +46,11 @@ export function MessageCopyButton({ text, copyLabel }: { text: string; copyLabel
             type="button"
             variant="ghost"
             size="icon"
+            disabledMode="focusable"
             aria-label={label}
-            disabled={state === 'pending'}
-            onClick={() => void copy()}
+            aria-busy={state === 'pending' || undefined}
+            aria-disabled={state === 'pending' || state === 'copied' || undefined}
+            onClick={state === 'copied' || state === 'pending' ? undefined : () => void copy()}
           >
             {state === 'copied' ? (
               <Check size={16} />

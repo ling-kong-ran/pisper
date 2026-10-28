@@ -1,0 +1,754 @@
+[
+  {
+    "id": "V001",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 272535,
+    "excerpt": "html,:host{-webkit-text-size-adjust:100%;tab-size:4;line-height:1.5;font-family:var(--default-font-family,-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\");font-feature-settings:var(--default-font-feature-settings,normal);font-variation-settings:var(--default-font-variation-settings,normal);-webkit-tap-highlight-color:transparent}hr{height:0;color:inherit;border-top-width:1px}",
+    "claim": "html/:host 设置 line-height 1.5 和字体特性，但本规则没有固定 root font-size",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V002",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1300125,
+    "excerpt": "body{color:var(--color-text);font-family:var(--font-ui-family);font-weight:var(--font-ui-weight);background-color:#0000;height:100svh;padding:0}#root{height:100svh}",
+    "claim": "body 使用 UI 字体及字重，背景透明、高度100svh；本规则没有font-size",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V003",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 127030,
+    "excerpt": "--text-xs:11px;--text-xs--line-height:calc(1 / .75);--text-sm:12px;--text-sm--line-height:calc(1.25 / .875);--text-base:14px;--text-base--line-height:calc(1.5 / 1);--text-lg:16px;--text-lg--line-height:calc(1.75 / 1.125);--text-xl:28px;--text-xl--line-height:calc(1.75 / 1.25);--text-2xl:36px;--text-2xl--line-height:calc(2 / 1.5);--text-3xl:48px;--text-3xl--line-height:calc(2.25 / 1.875);--text-4xl:72px;--text-4xl--line-height:calc(2.5 / 2.25);--text-5xl:var(--font-heading-3xl-size);--text-5xl--line-height:var(--font-heading-3xl-line-height);",
+    "claim": "共享初始 UI 字阶，与 font-text-* 语义字阶分开",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V004",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 127577,
+    "excerpt": "--font-weight-light:300;--font-weight-normal:400;--font-weight-medium:500;--font-weight-semibold:600;--font-weight-bold:700;--tracking-tight:-.025em;--tracking-normal:0em;--tracking-wide:.025em;--leading-tight:1.25;--leading-snug:1.375;--leading-normal:1.5;--leading-relaxed:1.625;--radius-xs:calc(var(--radius-xs-base) * var(--corner-radius-scale));--radius-sm:calc(var(--radius-sm-base) * var(--corner-radius-scale));",
+    "claim": "300/400/500/600/700字重；字距-.025/0/.025em；行高1.25/1.375/1.5/1.625",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V005",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 130360,
+    "excerpt": "--font-sans-default:-apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;--font-content:var(--codex-content-font-family,var(--font-sans));--font-openai-sans:\"OpenAI Sans\", var(--font-sans-default);--font-mono-default:ui-monospace, \"SFMono-Regular\", \"SF Mono\", menlo, consolas, \"Liberation Mono\", monospace;--text-heading-lg:24px;--text-heading-app:28px;--text-heading-md:20px;",
+    "claim": "系统UI、content与等宽字体默认栈",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V006",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 1695522,
+    "excerpt": "sansFontSize:AX({agentAccess:`read-write`,default:14,description:`Base UI font size`,key:`sansFontSize`,schema:mf().min(eZ.sans.min).max(eZ.sans.max)}),codeFontSize:AX({agentAccess:`read-write`,default:12,description:`Code font size`,key:`codeFontSize`,schema:mf().min(eZ.code.min).max(eZ.code.max)}),useOpenAISans:AX({agentAccess:`hidden`,default:!0,description:`Whether enrolled ChatGPT Web accounts use OpenAI Sans`,key:`useOpenAISans`,schema:wX}",
+    "claim": "UI字号设置默认14，代码默认12",
+    "scope": "设置定义；用户持久值可能不同"
+  },
+  {
+    "id": "V007",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11729535,
+    "excerpt": "f=H(bo.sansFontSize),p=H(bo.codeFontSize),m=H(mNl),h=q(fNl),g=H(pNl),_=H(hNl),v=q(FY),y=q(AE),b=v?.effectiveTheme,x;t[0]!==u||t[1]!==b?(x=Ses(u,`light`,b),t[0]=u,t[1]=b,t[2]=x):x=t[2];let S=x,C=v?.effectiveTheme,w;t[3]!==d||t[4]!==C?(w=Ses(d,`dark`,C),t[3]=d,t[4]=C,t[5]=w):w=t[5];let T=w,E=l===`light`?S:T,D=E.fonts.ui??(h&&g?`\"OpenAI Sans\", \"OpenAI Sans Fallback\"`:null),O=E.fonts.codeFace!=null||E.fonts.uiFace!=null||E.fonts.contentFace!=null,k;t[6]!==p||t[7]!==f||t[8]!==r?(k=e=>{let{delta:t}",
+    "claim": "运行时读取UI/代码字号及字体选项",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V008",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11731198,
+    "excerpt": "let e=document.documentElement,t=document.body,n={\"--font-code-size\":`${p}px`};bc(e,n);{let r=bo.sansFontSize.default,i=f+0,a=i/r,o={\"--font-code-family\":E.fonts.code==null?void 0:oNl(E.fonts.code,`--font-mono-default`),\"--font-ui-family\":D==null?void 0:oNl(D,`--font-sans-default`),\"--codex-content-font-family\":E.fonts.content==null?void 0:oNl(E.fonts.content,`--font-sans`),\"--font-ui-size\":`${i}px`};for(let[e,t]of Object.entries(gNl))o[e]=`${Math.round(t*a)}px`;",
+    "claim": "字号、字体族被写入documentElement/body内联变量",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V009",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11731602,
+    "excerpt": "for(let[e,t]of Object.entries(gNl))o[e]=`${Math.round(t*a)}px`;o[`--cursor-interaction`]=_===!0?`pointer`:void 0,o[xNl]=e.dataset.codexOs===`darwin`&&m?`antialiased`:void 0,bc(e,o),bc(t,o),n={...n,...o}}let a=null;tNl()?(a=Tes(document,{light:S,dark:T},l,v?.effectiveTheme,v?.coloredUserMessages,y),n={...n,...a[l]}):e.dataset.theme=l;let o={variant:l,variables:n,themeVariables:a,fonts:{...E.fonts,ui:D}};",
+    "claim": "字号token按UI字号/默认字号比例Math.round缩放",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V010",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11734609,
+    "excerpt": "gNl={\"--text-4xl\":72,\"--text-3xl\":48,\"--text-2xl\":36,\"--text-xl\":28,\"--text-lg\":16,\"--text-base\":bo.sansFontSize.default,\"--text-sm\":bo.sansFontSize.default-1,\"--text-xs\":bo.sansFontSize.default-2,\"--text-dynamic-isle-row\":14,\"--text-heading-lg\":24,\"--text-heading-app\":28,\"--text-heading-md\":20,\"--text-heading-sm\":18},{...gNl},_Nl=.1,vNl=.5,yNl=3,bNl=`--codex-window-zoom`,xNl=`-webkit-font-smoothing`,SNl=(0,uNl.lazy)(async()=>({default:(await J(async()=>{let{ActiveThemeFontFaceLoader:e}",
+    "claim": "运行时缩放表覆盖UI字阶与部分标题；不设置根font-size",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V011",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11729842,
+    "excerpt": "D=E.fonts.ui??(h&&g?`\"OpenAI Sans\", \"OpenAI Sans Fallback\"`:null),O=E.fonts.codeFace!=null||E.fonts.uiFace!=null||E.fonts.contentFace!=null,k;t[6]!==p||t[7]!==f||t[8]!==r?(k=e=>{let{delta:t}",
+    "claim": "自定义UI字体优先；OpenAI Sans fallback需要h和g同时为真",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V012",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11734520,
+    "excerpt": "fNl=Y(U,({get:e})=>!1),{useOpenAISans:pNl,useFontSmoothing:mNl,usePointerCursors:hNl}",
+    "claim": "本构建h来源的派生值为false；useOpenAISans设置仍单独读取",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V013",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1287004,
+    "excerpt": "--font-sans-default:-apple-system-body, ui-sans-serif, -apple-system, system-ui, \"Segoe UI\", \"Helvetica\", \"Apple Color Emoji\", \"Arial\", sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\";--font-ui-family:var(--font-sans-default);--text-4xl:2.25rem;--text-3xl:1.875rem;--text-2xl:1.5rem;--text-xl:1.25rem;--text-lg:1.125rem;--text-base:1rem;--text-sm:.875rem;--text-xs:.75rem;--display-icon-compact:none;--display-icon-leading:contents;--icon-leading-size:calc(var(--spacing) * 5);--icon-leading-artwork-size:calc(var(--icon-leading-size) - var(--spacing) / 8);",
+    "claim": "browser系统字体栈及字号覆盖",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V014",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1289473,
+    "excerpt": "[data-codex-window-type=electron]{--image-viewer-transparent-backdrop-filter:blur(var(--blur-xs));--text-sm:13px;--text-xs:12px;--font-weight-medium:500;--font-ui-weight:430;background:0 0;overflow:hidden}",
+    "claim": "Electron静态字重430、sm13px、xs12px",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V015",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 236820,
+    "excerpt": ":root[data-codex-window-type=extension]{--font-ui-family:var(--vscode-font-family);--font-ui-size:var(--vscode-font-size);--font-ui-weight:var(--vscode-font-weight);--font-code-family:var(--vscode-editor-font-family,var(--font-mono-default)), var(--font-mono-default);--font-code-size:var(--vscode-editor-font-size);--font-code-weight:var(--vscode-editor-font-weight);--color-token-border:var(--color-border,var(--vscode-foreground));",
+    "claim": "extension从VS Code变量取字体/字号/字重",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V016",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1280147,
+    "excerpt": "@font-face{font-family:OpenAI Sans;src:url(./OpenAISans-Regular-c56711d328c4.woff2)format(\"woff2\");font-style:normal;font-weight:400;font-display:swap}@font-face{font-family:OpenAI Sans;src:url(./OpenAISans-Medium-7b9c963f9063.woff2)format(\"woff2\");font-style:normal;font-weight:500;font-display:swap}@font-face{font-family:OpenAI Sans;src:url(./OpenAISans-Semibold-e259229c5327.woff2)format(\"woff2\");font-style:normal;font-weight:600;font-display:swap}",
+    "claim": "OpenAI Sans三个静态WOFF2字重；swap",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V017",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1280600,
+    "excerpt": "@font-face{font-family:OpenAI Sans Fallback;src:local(Arial);size-adjust:103.185%;ascent-override:92.2614%;descent-override:23.3561%;line-gap-override:0%;font-style:normal;font-weight:400;unicode-range:U+0-36F,U+1E??,U+2000-206F,U+20A0-20CF,U+2100-214F,U+2190-21FF,U+22??,U+25A0-25FF,U+FB00-FB06,U+FE0?,U+FFFD}",
+    "claim": "Arial度量调整fallback：400版本size-adjust103.185%、ascent92.2614%、descent23.3561%",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V018",
+    "path": "webview/assets/theme-font-face-loader-3c3ae53e2c00.js",
+    "offset": 127,
+    "excerpt": "async function a(e){if(typeof FontFace>`u`||document.fonts==null)return!1;let t=document.fonts,i=r(e),a=s(t);if(a.loadedAliases.has(i))return!0;let o=a.loadingByAlias.get(i);if(o!=null)return o;let c;try{c=new FontFace(i,`local(\"${n(e.postscriptName)}\"), local(\"${n(e.fullName)}\")`).load().then(e=>(t.add(e),a.loadedAliases.add(i),!0)).catch(()=>!1).finally(()=>{a.loadingByAlias.delete(i)})}catch{return!1}return a.loadingByAlias.set(i,c),c}async function o(e){let t=new Map;",
+    "claim": "用户选中字库按PostScript/fullName用local FontFace加载并去重",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V019",
+    "path": "webview/assets/theme-font-family-483011cfdef9.js",
+    "offset": 281,
+    "excerpt": "function i(e){if(e==null)return;let t=document.createElement(`canvas`).getContext(`2d`),n=`Sphinx of black quartz, judge my vow 1234567890`,r=[`monospace`,`serif`].map(e=>t==null?0:(t.font=`16px ${e}`,t.measureText(n).width));for(let i=e;i.length>0;){let e=s(i),a=o(e);if(i=i.trimStart().slice(e.length+1),a!=null){if(e===a&&(a===`-apple-system-body`||a===`-apple-system`||a===`BlinkMacSystemFont`))return`system-ui`;",
+    "claim": "候选字体通过16px canvas测量解析；系统名归一为system-ui",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V020",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 5523374,
+    "excerpt": "className:`min-w-0 flex-1 truncate font-openai-sans text-heading-sm leading-6 font-semibold text-default [font-synthesis-weight:auto] browser:text-[17px]`,children:r}),t[0]=i,t[1]=r,t[2]=a):a=t[2],a}",
+    "claim": "显式标题类选择OpenAI Sans，18px级标题、24px行高、600字重；browser另设17px",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V021",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10706687,
+    "excerpt": "className:`font-openai-sans`,children:l===x1c.ChatGpt?(0,o3.jsx)(W,{...E1c.chatGpt}):(0,o3.jsx)(W,{...E1c.chatGptWork})}),t[51]=l,t[52]=V);let H;",
+    "claim": "模式选择器 ChatGPT/ChatGPT Work 文案显式使用OpenAI Sans",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V022",
+    "path": "webview/assets/control-panel-906a8e6201c6.css",
+    "offset": 61,
+    "excerpt": "@font-face{font-family:OpenAI Serif;src:url(./OpenAISerif-Light-5ecdb837da98.woff2)format(\"woff2\");font-style:normal;font-weight:300;font-display:swap}._openAISerif_wlfpz_9,._openAISerif_wlfpz_9 .katex{font-family:OpenAI Serif,ui-serif,Georgia,Cambria,Times New Roman,serif;font-weight:300}}",
+    "claim": "OpenAI Serif Light仅显式openAISerif控件类及其KaTeX使用",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V023",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 171830,
+    "excerpt": "--font-heading-5xl-size:4.5rem;--font-heading-5xl-line-height:4.5rem;--font-heading-5xl-weight:var(--font-weight-semibold);--font-heading-5xl-tracking:var(--tracking-tight);--font-heading-4xl-size:3.75rem;--font-heading-4xl-line-height:3.75rem;--font-heading-4xl-weight:var(--font-weight-semibold);--font-heading-4xl-tracking:var(--tracking-tight);--font-heading-3xl-size:3rem;--font-heading-3xl-line-height:3rem;",
+    "claim": "heading语义字阶从5xl起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V024",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 172178,
+    "excerpt": "--font-heading-3xl-size:3rem;--font-heading-3xl-line-height:3rem;--font-heading-3xl-weight:var(--font-weight-semibold);--font-heading-3xl-tracking:var(--tracking-tight);--font-heading-2xl-size:2.25rem;--font-heading-2xl-line-height:2.625rem;--font-heading-2xl-weight:var(--font-weight-semibold);--font-heading-2xl-tracking:var(--tracking-tight);--font-heading-xl-size:2rem;--font-heading-xl-line-height:2.375rem;",
+    "claim": "heading语义字阶从3xl起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V025",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 172523,
+    "excerpt": "--font-heading-xl-size:2rem;--font-heading-xl-line-height:2.375rem;--font-heading-xl-weight:var(--font-weight-semibold);--font-heading-xl-tracking:var(--tracking-tight);--font-heading-lg-size:1.5rem;--font-heading-lg-line-height:1.75rem;--font-heading-lg-weight:var(--font-weight-semibold);--font-heading-lg-tracking:var(--tracking-normal);--font-heading-md-size:1.25rem;--font-heading-md-line-height:1.625rem;",
+    "claim": "heading语义字阶从xl起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V026",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 172863,
+    "excerpt": "--font-heading-md-size:1.25rem;--font-heading-md-line-height:1.625rem;--font-heading-md-weight:var(--font-weight-semibold);--font-heading-md-tracking:var(--tracking-normal);--font-heading-sm-size:1.125rem;--font-heading-sm-line-height:1.625rem;--font-heading-sm-weight:var(--font-weight-semibold);--font-heading-sm-tracking:var(--tracking-normal);--font-heading-xs-size:1rem;--font-heading-xs-line-height:1.5rem;",
+    "claim": "heading语义字阶从md起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V027",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 173210,
+    "excerpt": "--font-heading-xs-size:1rem;--font-heading-xs-line-height:1.5rem;--font-heading-xs-weight:var(--font-weight-semibold);--font-heading-xs-tracking:var(--tracking-normal);--font-text-lg-size:1.125rem;--font-text-lg-line-height:1.8125rem;--font-text-lg-weight:var(--font-weight-normal);--font-text-lg-tracking:var(--tracking-normal);--font-text-md-size:1rem;--font-text-md-line-height:1.5rem;",
+    "claim": "heading语义字阶从xs起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V028",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 173378,
+    "excerpt": "--font-text-lg-size:1.125rem;--font-text-lg-line-height:1.8125rem;--font-text-lg-weight:var(--font-weight-normal);--font-text-lg-tracking:var(--tracking-normal);--font-text-md-size:1rem;--font-text-md-line-height:1.5rem;--font-text-md-weight:var(--font-weight-normal);--font-text-md-tracking:var(--tracking-normal);--font-text-sm-size:.875rem;--font-text-sm-line-height:1.25rem;",
+    "claim": "正文语义字阶从lg起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V029",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 173693,
+    "excerpt": "--font-text-sm-size:.875rem;--font-text-sm-line-height:1.25rem;--font-text-sm-weight:var(--font-weight-normal);--font-text-sm-tracking:var(--tracking-normal);--font-text-xs-size:.75rem;--font-text-xs-line-height:1.125rem;--font-text-xs-weight:var(--font-weight-normal);--font-text-xs-tracking:var(--tracking-wide);--font-text-2xs-size:.625rem;--font-text-2xs-line-height:.875rem;",
+    "claim": "正文语义字阶从sm起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V030",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 174007,
+    "excerpt": "--font-text-2xs-size:.625rem;--font-text-2xs-line-height:.875rem;--font-text-2xs-weight:var(--font-weight-normal);--font-text-2xs-tracking:var(--tracking-wide);--font-text-3xs-size:.5rem;--font-text-3xs-line-height:.75rem;--font-text-3xs-weight:var(--font-weight-normal);--font-text-3xs-tracking:var(--tracking-wide);--font-small-caps-md-size:.6875rem;--font-small-caps-md-line-height:.9375rem;",
+    "claim": "正文语义字阶从2xs起的原始声明",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V031",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 174324,
+    "excerpt": "--font-small-caps-md-size:.6875rem;--font-small-caps-md-line-height:.9375rem;--font-small-caps-md-weight:var(--font-weight-semibold);--font-small-caps-md-tracking:.65px;--font-small-caps-lg-size:.8125rem;--font-small-caps-lg-line-height:1.1875rem;--font-small-caps-lg-weight:var(--font-weight-semibold);--font-small-caps-lg-tracking:.6px;--control-size-4xs:1.25rem;",
+    "claim": "小型大写字号/行高/字距",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V032",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 130671,
+    "excerpt": "--text-heading-lg:24px;--text-heading-app:28px;--text-heading-md:20px;--text-heading-sm:18px;--text-heading-xs:var(--font-heading-xs-size);--text-document:14px;--text-card-title:22px;--text-card-title--line-height:28px;--text-card-title--font-weight:510;--text-card-title--letter-spacing:-.26px;--text-control-label:13px;--text-control-label--line-height:18px;--text-control-label--font-weight:510;--text-control-label--letter-spacing:-.08px;--text-suggestion-description:13px;--text-suggestion-description--line-height:18px;--text-dynamic-isle-row:14px;",
+    "claim": "应用标题、卡片标题、表单文案另有命名字阶",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V033",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 237883,
+    "excerpt": "._MarkdownRoot_1fgd0_2{--markdown-host-font-size:var(--codex-chat-font-size);--markdown-host-small-font-size:var(--codex-chat-code-font-size);--markdown-font-size:var(--markdown-host-font-size);--markdown-line-height:calc(var(--markdown-font-size) * var(--leading-relaxed));--markdown-small-font-size:max(var(--markdown-host-small-font-size), calc(var(--markdown-font-size) * .875));--markdown-space:calc(var(--markdown-font-size) / 4);--text-primary:currentColor;--border-medium:var(--color-border-strong);--border-light:var(--color-border-subtle);",
+    "claim": "Markdown正文使用chat字号，行高1.625倍，小字号max(code字号,正文*.875)，space=正文/4",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V034",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 232815,
+    "excerpt": "._Paragraph_1fgd0_2,._Heading_1fgd0_2,._ListItem_1fgd0_2,._Table_1fgd0_2{font-family:var(--font-content)}._MediaParagraph_1fgd0_2{text-align:left}._MediaGridParagraph_1fgd0_2{flex-wrap:wrap;",
+    "claim": "Markdown段落/标题/列表/表格使用font-content",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V035",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 233108,
+    "excerpt": "._Heading_1fgd0_2:where(h1){margin:calc(var(--markdown-space) * 4) 0 calc(var(--markdown-space) * 2);font-size:calc(var(--markdown-font-size) * 1.5);line-height:calc(var(--markdown-space) * 8)}._Heading_1fgd0_2:where(h2){margin:calc(var(--markdown-space) * 4) 0 var(--markdown-space);font-size:calc(var(--markdown-font-size) * 1.25);line-height:calc(var(--markdown-space) * 7)}",
+    "claim": "Markdown H1/H2相对正文字号及间距",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V036",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 233485,
+    "excerpt": "._Heading_1fgd0_2:where(h3){margin:calc(var(--markdown-space) * 4) 0 var(--markdown-space);font-size:calc(var(--markdown-font-size) * 1.125);line-height:calc(var(--markdown-space) * 7)}._Heading_1fgd0_2:where(h4){margin:calc(var(--markdown-space) * 4) 0 0;font-size:var(--markdown-font-size);line-height:calc(var(--markdown-space) * 6)}._Heading_1fgd0_2:where(h5,h6){font-size:var(--markdown-font-size);line-height:var(--markdown-line-height);margin:0}._Heading_1fgd0_2:where(h4)+._Paragraph_1fgd0_2{margin-top:0}._List_1fgd0_2{margin:0;padding-inline-start:var(--markdown-line-height);",
+    "claim": "Markdown H3/H4/H5/H6相对正文字号及间距",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V037",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 240460,
+    "excerpt": "[data-codex-window-type=browser] ._MarkdownRoot_1fgd0_2{--markdown-host-font-size:var(--text-base);--markdown-host-small-font-size:var(--text-sm)}",
+    "claim": "browser Markdown宿主字号改用text-base/sm",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V038",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 232657,
+    "excerpt": "._Paragraph_1fgd0_2,._VisualizationBlock_1fgd0_2{margin:0 0 var(--markdown-space)}._VisualizationBlock_1fgd0_2{font-family:var(--font-sans);display:flow-root}",
+    "claim": "段落默认底边距为markdown-space；Visualization使用font-sans",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V039",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 239325,
+    "excerpt": "._MarkdownRoot_1fgd0_2[data-markdown-text-tone=user-message]{color:var(--color-text-user-message)}._MarkdownRoot_1fgd0_2[data-markdown-text-tone=user-message]>._Paragraph_1fgd0_2{margin-block:0}",
+    "claim": "用户消息文字使用专属token；直接子段落上下margin为0",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V040",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 260072,
+    "excerpt": "._compactMessageBubble_1hoj5_1 [data-markdown-text-style=assistant-message]{--markdown-line-height:calc(var(--markdown-font-size) + 4px);letter-spacing:-.01em}",
+    "claim": "紧凑助手消息行高=字号+4px，字距-.01em",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V041",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 198399,
+    "excerpt": "._RichTextInput_1ev2o_1 .ProseMirror[data-composer-markdown] h1{font-size:var(--text-heading-lg)}._RichTextInput_1ev2o_1 .ProseMirror[data-composer-markdown] h2{font-size:var(--text-heading-md)}._RichTextInput_1ev2o_1 .ProseMirror[data-composer-markdown] h3{font-size:var(--text-heading-sm)}._RichTextInput_1ev2o_1 .ProseMirror[data-composer-markdown] blockquote{padding-inline-start:calc(var(--spacing) * 3)}._RichTextInput_1ev2o_1 .ProseMirror[data-composer-markdown] hr{border-color:var(--color-border)}",
+    "claim": "输入编辑器Markdown标题用应用标题token，区别于输出Markdown比例",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V042",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 138191,
+    "excerpt": ":where([data-theme=light]){--theme-variant:light;--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light}:where([data-theme=dark]){--theme-variant:dark;--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}",
+    "claim": "light/dark由data-theme和lightningcss双变量分支选择",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V043",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 139081,
+    "excerpt": "--gray-0:var(--lightningcss-light,#fff)var(--lightningcss-dark,#0d0d0d);--gray-25:var(--lightningcss-light,#fcfcfc)var(--lightningcss-dark,#101010);--gray-50:var(--lightningcss-light,#f9f9f9)var(--lightningcss-dark,#131313);--gray-75:var(--lightningcss-light,#f3f3f3)var(--lightningcss-dark,#161616);--gray-100:var(--lightningcss-light,#ededed)var(--lightningcss-dark,#181818);--gray-150:var(--lightningcss-light,#dfdfdf)var(--lightningcss-dark,#1c1c1c);--gray-200:var(--lightningcss-light,#cdcdcd)var(--lightningcss-dark,#212121);",
+    "claim": "主题感知灰阶低端值",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V044",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 139997,
+    "excerpt": "--gray-500:#5d5d5d;--gray-550:var(--lightningcss-light,#4f4f4f)var(--lightningcss-dark,#767676);--gray-600:var(--lightningcss-light,#414141)var(--lightningcss-dark,#8f8f8f);--gray-650:var(--lightningcss-light,#393939)var(--lightningcss-dark,#9f9f9f);--gray-700:var(--lightningcss-light,#303030)var(--lightningcss-dark,#afafaf);--gray-750:var(--lightningcss-light,#282828)var(--lightningcss-dark,#b9b9b9);--gray-800:var(--lightningcss-light,#212121)var(--lightningcss-dark,#cdcdcd);--gray-850:var(--lightningcss-light,#1c1c1c)var(--lightningcss-dark,#dcdcdc);",
+    "claim": "主题感知灰阶高端值",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V045",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 141564,
+    "excerpt": "--gray-fixed-0:#fff;--gray-fixed-25:#fcfcfc;--gray-fixed-50:#f9f9f9;--gray-fixed-75:#f3f3f3;--gray-fixed-100:#ededed;--gray-fixed-150:#dfdfdf;--gray-fixed-200:#cdcdcd;--gray-fixed-250:#b9b9b9;--gray-fixed-300:#afafaf;--gray-fixed-350:#9f9f9f;--gray-fixed-400:#8f8f8f;--gray-fixed-450:#767676;--gray-fixed-500:#5d5d5d;--gray-fixed-550:#4f4f4f;--gray-fixed-600:#414141;--gray-fixed-650:#393939;--gray-fixed-700:#303030;--gray-fixed-750:#282828;--gray-fixed-800:#212121;--gray-fixed-850:#1c1c1c;--gray-fixed-900:#181818;--gray-fixed-925:#161616;--gray-fixed-950:#131313;",
+    "claim": "固定灰阶不随主题反转",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V046",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 196213,
+    "excerpt": "--app-color-background-surface:var(--lightningcss-light,var(--gray-fixed-0))var(--lightningcss-dark,var(--gray-fixed-900));--app-color-background-surface-under:var(--lightningcss-light,var(--gray-fixed-50))var(--lightningcss-dark,black);--app-color-background-application-menu:var(--lightningcss-light,var(--gray-fixed-50))var(--lightningcss-dark,var(--gray-fixed-800));--app-color-foreground-application-menu:var(--lightningcss-light,var(--app-color-text-foreground))var(--lightningcss-dark,var(--app-color-background-application-menu));",
+    "claim": "非extension应用表面和底层的CSS fallback",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V047",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 196922,
+    "excerpt": "--app-color-background-editor-opaque:var(--lightningcss-light,var(--gray-fixed-100))var(--lightningcss-dark,var(--gray-fixed-800));--app-color-background-elevated-primary:var(--lightningcss-light,var(--gray-fixed-0))var(--lightningcss-dark,var(--gray-fixed-800));--app-color-background-elevated-primary-opaque:var(--lightningcss-light,var(--gray-fixed-0))var(--lightningcss-dark,var(--gray-fixed-750));--app-color-background-elevated-secondary:var(--lightningcss-light,var(--app-color-text-foreground))var(--lightningcss-dark,var(--gray-fixed-0));",
+    "claim": "非extension编辑器和浮层初始fallback",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V048",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 201315,
+    "excerpt": "--app-color-background-editor-opaque:var(--lightningcss-light,color-mix(in oklab, var(--gray-fixed-100) 40%, transparent))var(--lightningcss-dark,var(--gray-fixed-800));--app-color-background-elevated-primary:var(--lightningcss-light,color-mix(in oklab, var(--gray-fixed-0) 70%, transparent))var(--lightningcss-dark,color-mix(in oklab, var(--gray-fixed-800) 96%, transparent));",
+    "claim": "支持color-mix时编辑器/浮层透明度覆写",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V049",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 201692,
+    "excerpt": "--app-color-background-elevated-secondary:var(--lightningcss-light,color-mix(in oklab, var(--app-color-text-foreground) 2%, transparent))var(--lightningcss-dark,color-mix(in oklab, var(--gray-fixed-0) 3%, transparent));",
+    "claim": "支持color-mix时次级浮层采用2%/3%前景覆盖",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V050",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 200302,
+    "excerpt": "--app-color-text-foreground:var(--lightningcss-light,#1a1c1f)var(--lightningcss-dark,var(--gray-fixed-150));--app-color-text-foreground-secondary:var(--lightningcss-light,var(--app-color-text-foreground))var(--lightningcss-dark,var(--gray-fixed-0));--app-color-text-foreground-tertiary:var(--lightningcss-light,var(--app-color-text-foreground))var(--lightningcss-dark,var(--gray-fixed-0))}",
+    "claim": "文本基础色CSS fallback",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V051",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 204865,
+    "excerpt": "--app-color-text-foreground-secondary:var(--lightningcss-light,color-mix(in oklab, var(--app-color-text-foreground) 70%, transparent))var(--lightningcss-dark,color-mix(in oklab, var(--gray-fixed-0) 70%, transparent));--app-color-text-foreground-tertiary:var(--lightningcss-light,color-mix(in oklab, var(--app-color-text-foreground) 50%, transparent))var(--lightningcss-dark,color-mix(in oklab, var(--gray-fixed-0) 50%, transparent))}}",
+    "claim": "次文字70%、三级文字50%透明覆盖",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V052",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 212014,
+    "excerpt": "--color-text:var(--app-color-text-foreground);--color-text-prose:var(--color-text);--alpha-base:var(--color-text);--color-text-emphasis:var(--app-color-text-foreground,var(--color-text));--color-text-secondary:var(--app-color-text-secondary,var(--app-color-text-foreground));--color-text-tertiary:var(--app-color-text-foreground-tertiary);",
+    "claim": "语义文字映射到app色值；secondary有独立可选覆盖",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V053",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 221749,
+    "excerpt": "--color-surface:var(--app-color-background-surface);--color-surface-card:var(--app-color-background-card,var(--color-surface));--color-surface-secondary:var(--app-color-background-surface-under);--color-surface-recovery:var(--app-color-background-recovery,var(--color-surface-secondary));--color-surface-tertiary:var(--app-color-background-editor-opaque);--app-color-background-shell:var(--color-surface-tertiary);--color-background-home-suggestion-hover:var(--color-background-primary-ghost-hover);",
+    "claim": "surface/card/secondary/recovery/tertiary角色映射",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V054",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 226770,
+    "excerpt": "--color-border:var(--app-color-border,var(--app-color-text-foreground));--color-border-mode-toggle-selected:var(--color-border);--color-border-button-outline:var(--color-border);--color-background-button-outline-hover:var(--color-background-primary-ghost-hover);--shadow-mode-toggle-selected:var(--shadow-md);--color-border-subtle:var(--app-color-border-light,var(--app-color-text-foreground));--color-border-strong:var(--app-color-border-heavy,var(--app-color-text-foreground));--color-border-primary-outline:var(--app-color-border-heavy,var(--color-border-strong));",
+    "claim": "border/subtle/strong/focus角色映射",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V055",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 233762,
+    "excerpt": "--color-border:var(--app-color-border,color-mix(in oklab, var(--app-color-text-foreground) 8%, transparent));--color-border-subtle:var(--app-color-border-light,color-mix(in oklab, var(--app-color-text-foreground) 5%, transparent));--color-border-strong:var(--app-color-border-heavy,color-mix(in oklab, var(--app-color-text-foreground) 12%, transparent));--color-codex-diff-surface:color-mix(in srgb, var(--color-surface) 94%, var(--color-text));",
+    "claim": "没有显式app边框时，默认边框前景8%覆盖",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V056",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8053244,
+    "excerpt": "function Tes(e,t,n,r,i=!0,a=!1){let o=e.documentElement;o.dataset.theme=n,o.classList.toggle(`chatgpt-theme`,Ees(t[n],n));let s={light:Ces(t.light,`light`,r,i,a),dark:Ces(t.dark,`dark`,r,i,a)};return Hxe(e,s),s}function Ees(e,t){return r9o[t],!1}function Des(e,t){let n=Mes(e.contrast,t),r=Fes(e.surface),i=Fes(e.ink);return{accent:Fes(e.accent),contrast:n,editorBackground:t===`light`?XX(r,$X,.12):XX(r,i,.07),ink:i,surface:r,surfaceUnder:Nes(e,r,i,t),theme:e,variant:t}}function Oes(e,t){let n=XX(e.surface,e.ink,.02+e.contrast*.02);",
+    "claim": "运行时写dataset.theme并计算light/dark主题变量；CSS fallback不是最终色",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V057",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8053490,
+    "excerpt": "function Des(e,t){let n=Mes(e.contrast,t),r=Fes(e.surface),i=Fes(e.ink);return{accent:Fes(e.accent),contrast:n,editorBackground:t===`light`?XX(r,$X,.12):XX(r,i,.07),ink:i,surface:r,surfaceUnder:Nes(e,r,i,t),theme:e,variant:t}}function Oes(e,t){let n=XX(e.surface,e.ink,.02+e.contrast*.02);",
+    "claim": "主题由accent/contrast/surface/ink导出editorBackground与surfaceUnder",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V058",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8058140,
+    "excerpt": "function kes(e){let t=.04+e.contrast*.02,n=XX(e.surface,$X,.09+e.contrast*.04),r=XX(e.surface,$X,.08+e.contrast*.08),i=XX(e.surface,$X,.16+e.contrast*.12);",
+    "claim": "浅色主题边框与状态色透明度随contrast变化",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V059",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8060348,
+    "excerpt": "function jes(e){let t=XX(e.surface,e.ink,.06+e.contrast*.05),n=XX(e.accent,$X,.3+e.contrast*.15),r=XX(e.surface,QX,.38+e.contrast*.12),i=XX(e.surface,e.ink,.08+e.contrast*.08);",
+    "claim": "深色主题也由contrast与surface/ink动态生成",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V060",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 8053716,
+    "excerpt": "function Oes(e,t){let n=XX(e.surface,e.ink,.02+e.contrast*.02);",
+    "claim": "动态主题覆盖输入发送、用户气泡、选区、基础色和app语义变量",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V061",
+    "path": "webview/assets/app-primary-71492d0e9e92.css",
+    "offset": 32423,
+    "excerpt": "._surface_ubz2o_3{--color-surface:var(--lightningcss-light,#fff)var(--lightningcss-dark,#212121);--color-surface-secondary:var(--lightningcss-light,#e8e8e8)var(--lightningcss-dark,#303030);--color-surface-tertiary:var(--lightningcss-light,#f3f3f3)var(--lightningcss-dark,#414141);--color-text:var(--lightningcss-light,#0d0d0d)var(--lightningcss-dark,#fff);--color-text-secondary:var(--lightningcss-light,#5d5d5d)var(--lightningcss-dark,#cdcdcd);--color-text-tertiary:var(--lightningcss-light,#8f8f8f)var(--lightningcss-dark,#afafaf);",
+    "claim": "企业欢迎区域局部表面及文字主题",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V062",
+    "path": "webview/assets/app-primary-71492d0e9e92.css",
+    "offset": 32956,
+    "excerpt": "--color-text-info:var(--lightningcss-light,#3a83f7)var(--lightningcss-dark,#63a8f8);--color-border:var(--lightningcss-light,#0000001a)var(--lightningcss-dark,#ffffff26);--color-border-heavy:var(--lightningcss-light,#00000026)var(--lightningcss-dark,#fff3);--color-border-light:var(--lightningcss-light,#0000000d)var(--lightningcss-dark,#ffffff0d);--color-border-subtle:var(--color-border-light);--color-border-primary-outline:var(--color-border-heavy);--color-text-inverse:var(--lightningcss-light,#fff)var(--lightningcss-dark,#0d0d0d);",
+    "claim": "企业欢迎区域信息蓝、边框与反色",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V063",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2305046,
+    "excerpt": "B=n==null?`contents`:zs(y9.Enterprise,b9.surface),t[19]=n,t[20]=B);let V=n?.kind,H=!m&&M,U=_!=null,ee;",
+    "claim": "企业主题类仅在enterprise非空时应用",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V064",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 259251,
+    "excerpt": "._compactMessageBubble_1hoj5_1{--thread-content-margin:calc(var(--spacing) * 3);--color-text:var(--compact-message-bubble-foreground,var(--lightningcss-light,#0c274a)var(--lightningcss-dark,#f6fafe));--color-text-info:var(--color-text);border-radius:calc(var(--spacing) * 4);corner-shape:superellipse(1);background-color:var(--compact-message-bubble-background,var(--lightningcss-light,#e8f3fe)var(--lightningcss-dark,#173e76));width:fit-content;padding:calc(var(--spacing) * 2) calc(var(--spacing) * 3);color:var(--color-text)}",
+    "claim": "紧凑消息气泡的专属浅深前景、背景、边距、圆角",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V065",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 126643,
+    "excerpt": "--spacing:.25rem;--breakpoint-sm:40rem;--breakpoint-md:48rem;--breakpoint-lg:64rem;--breakpoint-xl:80rem;--breakpoint-2xl:96rem;--container-3xs:16rem;--container-xs:20rem;--container-sm:24rem;--container-md:28rem;--container-lg:32rem;--container-xl:36rem;--container-2xl:42rem;--container-3xl:48rem;--container-4xl:56rem;--container-5xl:64rem;--container-6xl:72rem;--container-7xl:80rem;--text-xs:11px;--text-xs--line-height:calc(1 / .75);--text-sm:12px;--text-sm--line-height:calc(1.25 / .875);",
+    "claim": "间距单位与断点、容器宽度",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V066",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 132045,
+    "excerpt": "--corner-radius-scale:1;--radius-2xs-base:.125rem;--radius-xs-base:.25rem;--radius-sm-base:.375rem;--radius-md-base:.5rem;--radius-lg-base:.625rem;--radius-xl-base:.75rem;--radius-2xl-base:1rem;--radius-3xl-base:1.25rem;--radius-4xl-base:1.5rem;--radius-form-dialog:calc(var(--spacing) * 6 * var(--corner-radius-scale));--border-width-hairline:.5px;--shadow-hairline:0px 0px 0px .5px #0000001a;--shadow-sm-stronger:0px 1px 2px -1px #00000021;--shadow-lg-stronger:0px 4px 8px -2px #00000029;--shadow-xl-spread:0px 0px 0px .5px var(--color-token-border), var(--shadow-xl);",
+    "claim": "基础半径及阴影描边",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V067",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 193267,
+    "excerpt": "@supports (corner-shape:superellipse(1.5)){:is(:where(:root),:where([data-theme])):where([data-codex-window-type=electron],[data-codex-window-type=electron] *,[data-codex-window-type=extension],[data-codex-window-type=extension] *){--tooltip-border-radius:calc(var(--radius-2xl-base,var(--radius-2xl)) * var(--codex-corner-radius-scale,1.25))}}:where(:root),:where([data-theme]){--modal-sheet-fade-shadow:0 -8px 16px 0 #00000012, 0 -2px 6px 0 #0000000d, 0 0 0 1px var(--color-border);",
+    "claim": "支持superellipse时根半径scale为1.25",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V068",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1299868,
+    "excerpt": ":root[data-codex-window-type=browser]{--codex-corner-radius-scale:1;--codex-corner-shape:round}.rounded-button-action,.rounded-button-toolbar,.rounded-md,.rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl,.rounded-4xl{corner-shape:var(--codex-corner-shape)}}body{color:var(--color-text);font-family:var(--font-ui-family);",
+    "claim": "browser恢复scale1/round并限定rounded类",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V069",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1289154,
+    "excerpt": "--radius-xs-base:.125rem;--radius-sm-base:.25rem;--radius-md-base:.375rem;--radius-lg-base:.5rem;--radius-3xl-base:1.5rem;--radius-4xl-base:2rem}:root[data-codex-window-type=browser],:root[data-codex-window-type=browser] [data-theme]{--composer-radius:calc(var(--spacing) * 7);--composer-corner-shape:superellipse(1.1)}[data-codex-window-type=electron]{--image-viewer-transparent-backdrop-filter:blur(var(--blur-xs));--text-sm:13px;--text-xs:12px;--font-weight-medium:500;--font-ui-weight:430;background:0 0;overflow:hidden}",
+    "claim": "browser基础半径覆盖；输入框28px、superellipse1.1",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V070",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 214464,
+    "excerpt": "--composer-radius:calc(var(--spacing) * 5.5);--composer-corner-shape:round;--thread-composer-bottom-inset:calc(var(--spacing) * 4);--color-text-composer-primary:var(--color-text-primary-solid);",
+    "claim": "共享输入框独立round、5.5间距基元，底部inset4基元",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V071",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 128416,
+    "excerpt": "--shadow-sm:0px 1px 2px -1px #00000014;--shadow-md:0px 2px 4px -1px #00000014;--shadow-lg:0px 4px 8px -2px #0000001a;--shadow-xl:0px 8px 16px -4px #0000001f;--shadow-2xl:0px 16px 32px -8px #00000030;--drop-shadow-xs:0 1px 1px #0000000d;--drop-shadow-md:0 3px 3px #0000001f;--drop-shadow-lg:0 4px 4px #00000026;",
+    "claim": "共享阴影sm至2xl",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V072",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1296122,
+    "excerpt": ":root{--elevation-stroke:0 0 0 .5px var(--color-border-strong);--elevation-stroke-subtle:0 0 0 .5px var(--lightningcss-light,rgb(from var(--color-border-strong) r g b / .04))var(--lightningcss-dark,rgb(from var(--color-border-strong) r g b / .06));--elevation-prominent:var(--elevation-stroke), 0 3px 7.5px #0000000a, 0 0 20px #0000000d;--elevation-sidebar:var(--elevation-stroke), 0 3px 7.5px #00000008, 0 0 16px #00000005;--elevation-composer:0 0 0 1px #0000000a, 0 2px 8px 0 #0000000a, 0 4px 80px 8px #00000006;--elevation-composer-dark:inset 0 0 1px 0 #fff3}",
+    "claim": "窗口层级阴影、输入框多层阴影、dark内描边",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V073",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1296684,
+    "excerpt": "@media not all and (width>=40rem){:root{--elevation-composer:0 0 0 1px #0000000a, 0 2px 8px 0 #0000000a, 0 4px 40px 8px #00000006}}:root{--codex-window-zoom:1;--max-app-overlay-z-index:2147480000;",
+    "claim": "小于40rem时输入框大范围阴影半径80缩为40",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V074",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 187567,
+    "excerpt": "--modal-radius:var(--radius-xl);--modal-backdrop-background:var(--lightningcss-light,#0000004d)var(--lightningcss-dark,#00000080);--modal-backdrop-fade-background:var(--lightningcss-light,#f2f2f280)var(--lightningcss-dark,#00000080);--modal-backdrop-fade-filter:blur(1px);--modal-backdrop-dim-shadow:var(--shadow);--modal-container-inner-padding:calc(var(--spacing) * 5);--popover-radius:var(--radius-xl);--radio-group-col-gap:calc(var(--spacing) * 2.5);--radio-group-row-gap:calc(var(--spacing) * 5);--radio-group-item-gap:calc(var(--spacing) * 1.5);",
+    "claim": "模态遮罩浅30%黑/深50%黑、模糊1px、padding5基元",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V075",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 132925,
+    "excerpt": "--height-toolbar:46px;--height-toolbar-sm:36px;--height-toolbar-pane:40px;--height-titlebar:calc(var(--spacing) * 11);--inset-toolbar:var(--height-toolbar);--inset-toolbar-sm:var(--height-toolbar-sm);--spacing-token-sidebar:clamp(240px, var(--codex-sidebar-preferred-width,275px), min(520px, calc(100vw - 320px)));--spacing-token-button-composer:calc(var(--spacing) * 7);--spacing-token-button-composer-sm:calc(var(--spacing) * 5);--spacing-token-button-composer-gap:var(--spacing);--spacing-button-toolbar-inline:calc(var(--spacing) * 2);",
+    "claim": "共享工具栏、标题栏与侧栏CSS fallback",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V076",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1289678,
+    "excerpt": ":is([data-codex-window-type=browser],[data-codex-window-type=chrome-extension],[data-codex-window-type=electron]) body{--padding-row-y:calc(var(--spacing) * 1.25);--height-token-nav-row:calc(var(--text-base) * 1.5 + var(--padding-row-y) * 2);--padding-panel-base:calc(var(--spacing) * 5);--padding-panel:var(--padding-panel-base);--thread-content-max-width:48rem;--composer-adjacent-max-width:calc(var(--thread-content-max-width) + var(--composer-inline-overhang) + var(--composer-inline-overhang) - var(--home-composer-inline-inset) - var(--home-composer-inline-inset));",
+    "claim": "三类壳正文48rem、宽Markdown56rem、行padding与代码栈",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V077",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1296815,
+    "excerpt": ":root{--codex-window-zoom:1;--max-app-overlay-z-index:2147480000;--padding-row-y:calc(var(--spacing) * 1);--height-token-nav-row:calc(var(--text-base) * 1.5 + var(--padding-row-y) * 2);--height-token-row:var(--height-token-nav-row);--radius-token-row:9999px;--padding-panel-base:calc(var(--spacing) * 3);--padding-panel:var(--padding-panel-base);--padding-toolbar:calc(var(--spacing) * 4);--max-height-suggestion-menu:320px;--composer-inline-overhang:calc(var(--spacing) * 6);--home-composer-inline-inset:calc(var(--spacing) * 3.25);--composer-adjacent-max-width:100%;",
+    "claim": "根层最大overlay层级、行高、面板间距、建议菜单高度",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V078",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1297383,
+    "excerpt": "--line-height-composer:calc(var(--spacing) * 5);--min-height-composer:calc(var(--spacing) * 11);--min-rows-composer-work-home:1;--padding-composer-input:0 calc(var(--spacing) * 3);--spacing-composer-input-footer:var(--spacing);--padding-composer-empty-attachments:calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 1.5);--spacing-composer-footer-bottom:calc(var(--spacing) * 2);--opacity-composer-placeholder:.5;--spacing-composer-single-line-controls:calc(var(--spacing) * 1.25);--padding-composer-single-line-footer-block:var(--spacing);",
+    "claim": "输入默认20px行高、44px最小高、占位50%、左右12px等（根16px换算）",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V079",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 1297782,
+    "excerpt": "--opacity-composer-placeholder:.5;--spacing-composer-single-line-controls:calc(var(--spacing) * 1.25);--padding-composer-single-line-footer-block:var(--spacing);--composer-suggestion-inline-inset:calc(var(--padding-toolbar) + var(--home-composer-inline-inset));--inset-toolbar:var(--height-toolbar);--safe-area-left:0px;--safe-area-right:0px;--codex-chat-font-size:var(--codex-chat-font-size-override,var(--font-ui-size,13px));--codex-chat-code-font-size:var(--codex-chat-code-font-size-override,var(--font-code-size,12px));--conversation-item-gap:16px;--conversation-grouped-item-gap:4px;",
+    "claim": "输入占位50%及会话16/4px间距",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V080",
+    "path": "webview/assets/app-primary-71492d0e9e92.css",
+    "offset": 1469,
+    "excerpt": "@container composer-footer (width<=300px){._ComposerFooterLabel_1cdoa_2[data-composer-footer-collapse=xs]{display:none}}@container composer-footer (width<=440px){._ComposerFooterLabel_1cdoa_2[data-composer-footer-collapse=sm],._ComposerFooterLabel_1cdoa_2[data-composer-footer-collapse=secondary]{display:none}}@container composer-footer (width<=520px){[data-composer-navigation-target=permissions] ._ComposerFooterLabel_1cdoa_2:where([data-codex-window-type=browser] ._ComposerFooterLabel_1cdoa_2){display:none}}",
+    "claim": "页脚标签300/440/520px容器收缩条件",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V081",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 21804,
+    "excerpt": "@container composer-footer (width<=440px){._ComposerLayoutFooterLabel_5est5_2[data-composer-footer-label-responsive]{display:none}}@container composer-footer (width<=475px){[data-codex-window-type=electron] ._ComposerLayoutFooterLabel_5est5_2[data-composer-footer-label-responsive]{display:none}}._ComposerModeSurface_5est5_2{flex-direction:column;display:flex}._ComposerModeSurface_5est5_2:has([data-composer-mode-tag]){--composer-mode-color:var(--color-text)}",
+    "claim": "共享输入440px，Electron附加475px分支",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V082",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 174662,
+    "excerpt": "--control-size-4xs:1.25rem;--control-size-3xs:1.375rem;--control-size-2xs:1.5rem;--control-size-xs:1.625rem;--control-size-sm:1.75rem;--control-size-md:2rem;--control-size-lg:2.25rem;--control-size-xl:2.5rem;--control-size-2xl:2.75rem;--control-size-3xl:3rem;--control-gutter-2xs:.375rem;--control-gutter-xs:.5rem;--control-gutter-sm:.625rem;--control-gutter-md:.75rem;--control-gutter-lg:.875rem;--control-gutter-xl:1rem;--control-gutter-pill-scaling:1.33;--control-radius-sm:var(--radius-sm);--control-radius-md:var(--radius-md);--control-radius-lg:var(--radius-lg);",
+    "claim": "控件高度20到48px及gutter尺寸（根16px）",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V083",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 175411,
+    "excerpt": "--control-icon-size-xs:.875rem;--control-icon-size-sm:1rem;--control-icon-size-md:1.125rem;--control-icon-size-lg:1.25rem;--control-icon-size-xl:1.375rem;--control-icon-size-2xl:1.5rem;--cubic-enter:cubic-bezier(.19, 1, .22, 1);--cubic-exit:cubic-bezier(.8, 0, .4, 1);--cubic-exit-snappy:cubic-bezier(.65, 0, .4, 1);--cubic-move:cubic-bezier(.65, 0, .35, 1);--transition-duration-basic:.15s;--transition-ease-basic:ease;--animation-duration-streaming-text:.7s;--scrollbar-color:var(--alpha-30);--shadow-card:0px 4px 16px 0px #0000000d;",
+    "claim": "图标14/16/18/20/22/24px（根16px）与缓动",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V084",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 134506,
+    "excerpt": "--transition-duration-basic:.15s;--transition-duration-moderate:.2s;--transition-duration-relaxed:.3s;--ease-basic:ease;--ease-enter:var(--cubic-enter);--ease-enter-snappy:cubic-bezier(.23, 1, .32, 1);--ease-spring-snappy:linear(0, .086, .2539, .428, .5786, .698, .7879, .8534, .8998, .9323, .9546, .9697, .98, .9868, .9913, .9943, .9963, .9976, .9985, 1);--animate-token-pulsing-dot:token-pulsing-dot 1.25s infinite ease-in-out;--thread-content-max-width:none;--markdown-wide-block-max-width:64rem;--markdown-wide-block-max-height:80vh;",
+    "claim": "150/200/300ms共享时长与进出缓动",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V085",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 2111,
+    "excerpt": "._Button_eg66f_2:focus-visible:after{outline:2px solid var(--button-ring-color,var(--color-ring));outline-offset:var(--button-ring-offset,2px)}",
+    "claim": "按钮focus-visible 2px outline，offset默认2px",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V086",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 7829,
+    "excerpt": "@media (forced-colors:active){:is(._ComposerLayoutRoot_5est5_2:not([data-composer-utility-bar-variant=home]),[data-composer-utility-bar-variant=home] ._ComposerLayoutBody_5est5_2):where(:is([data-codex-window-type=browser],[data-codex-window-type=chrome-extension],[data-codex-window-type=electron]) :is(._ComposerLayoutRoot_5est5_2:not([data-composer-utility-bar-variant=home]),[data-composer-utility-bar-variant=home] ._ComposerLayoutBody_5est5_2)){box-shadow:none;outline:1px solid canvastext}",
+    "claim": "forced-colors时输入外框有专门补偿规则",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V087",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 15500,
+    "excerpt": "._AdaptiveFooterInput_5est5_2[data-composer-layout=multiline]:where(:root[data-reduced-motion=true] ._AdaptiveFooterInput_5est5_2[data-composer-layout=multiline]){transition:none}@media (prefers-reduced-motion:reduce){._AdaptiveFooterInput_5est5_2[data-composer-layout=multiline]:where(:root:not([data-reduced-motion]) ._AdaptiveFooterInput_5est5_2[data-composer-layout=multiline]){transition:none}}",
+    "claim": "显式减少动画选择与系统偏好双通道",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V088",
+    "path": "webview/assets/chatgpt-conversation-turn-content-6f261d5a5a27.css",
+    "offset": 363,
+    "excerpt": "@media (pointer:coarse){:is(._action_d1c6r_6:has(>svg),._action_d1c6r_6:has(>span:only-child)){min-width:40px}}",
+    "claim": "ChatGPT反应动作触屏最小宽40px",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V089",
+    "path": "webview/assets/chatgpt-conversation-turn-content-6f261d5a5a27.css",
+    "offset": 474,
+    "excerpt": "._userReactionEnter_d1c6r_22 ._reactionGlyph_d1c6r_22{animation:.4s cubic-bezier(0,0,.2,1) forwards _reaction-rise_d1c6r_75,.45s ease-out .65s forwards _reaction-settle_d1c6r_75,.12s ease-out _reaction-fade-in_d1c6r_75}._userReactionEnter_d1c6r_22 ._reactionBackground_d1c6r_29{animation:25ms ease-out _reaction-fade-in_d1c6r_75}@keyframes _reaction-rise_d1c6r_75{0%{transform:translateY(0)scale(1)}to{transform:translateY(-38.72px)scale(1.67)}}@keyframes _reaction-settle_d1c6r_75{0%{transform:translateY(-38.72px)scale(1.67)}55%{transform:translateY(1px)scale(.98)}",
+    "claim": "反应动画时长、延迟和轨迹",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V090",
+    "path": "webview/assets/chatgpt-conversation-turn-content-6f261d5a5a27.css",
+    "offset": 1187,
+    "excerpt": "@media (prefers-reduced-motion:reduce){._userReactionEnter_d1c6r_22 ._reactionGlyph_d1c6r_22,._userReactionEnter_d1c6r_22 ._reactionBackground_d1c6r_29{animation:none}}._roundBubble_d1c6r_73{corner-shape:round}",
+    "claim": "反应动画遵循减少动效",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V091",
+    "path": "webview/assets/chatgpt-conversation-page-8f229ebb1652.css",
+    "offset": 995,
+    "excerpt": "._highlight_186ro_13{animation:4.5s ease-out both _searchResultHighlight_186ro_74}._highlight_186ro_13::highlight(chatgpt-search-result){background-color:color-mix(in srgb, var(--yellow-400) calc(var(--chatgpt-search-highlight-bg-alpha) * 100%), transparent);color:inherit;text-shadow:0 0 .3em color-mix(in srgb, var(--yellow-400) calc(var(--chatgpt-search-highlight-glow-alpha) * 100%), transparent)}",
+    "claim": "搜索命中4.5s衰减背景及发光",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V092",
+    "path": "webview/assets/chatgpt-conversation-page-8f229ebb1652.css",
+    "offset": 1716,
+    "excerpt": "@keyframes _searchResultHighlight_186ro_74{0%{--chatgpt-search-highlight-bg-alpha:.52;--chatgpt-search-highlight-glow-alpha:.42}55%{--chatgpt-search-highlight-bg-alpha:.24;--chatgpt-search-highlight-glow-alpha:.22}to{--chatgpt-search-highlight-bg-alpha:0;--chatgpt-search-highlight-glow-alpha:0}}@media (prefers-reduced-motion:reduce){._highlight_186ro_13{--chatgpt-search-highlight-bg-alpha:.52;--chatgpt-search-highlight-glow-alpha:.42;animation:none}}",
+    "claim": "高亮alpha .52/.42→.24/.22→0，减弱动画固定高亮",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V093",
+    "path": "webview/assets/chatgpt-conversation-page-8f229ebb1652.css",
+    "offset": 18,
+    "excerpt": "@page chatgpt-conversation{margin:16mm}@media print{._printDocument_85gc9_6{--codex-chat-font-size:11pt;--codex-chat-code-font-size:11pt;--text-base:11pt;--text-xs:9pt;--leading-relaxed:1.5;--font-content:var(--font-sans);--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light;font-size:11pt;line-height:1.5}:is(html:has(._printDocument_85gc9_6),body:has(>._printDocument_85gc9_6)){page:chatgpt-conversation;--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light;background:#fff;height:auto!important;",
+    "claim": "打印16mm边距、正文11pt、行高1.5、强制浅色",
+    "scope": "共享前端；不是运行时 computed style"
+  },
+  {
+    "id": "V094",
+    "path": "webview/assets/thread-app-shell-chrome-2d26d1c7a86e.css",
+    "offset": 298,
+    "excerpt": "._tile_5kz9m_1:has(:focus-visible) ._dismiss_5kz9m_1{opacity:1;pointer-events:auto;transition:none}@media (hover:none){._tile_5kz9m_1 ._dismiss_5kz9m_1{opacity:1;pointer-events:auto}}}",
+    "claim": "有键盘焦点或无悬停能力时关闭按钮可见可点",
+    "scope": "共享前端；不是运行时 computed style"
+  }
+]

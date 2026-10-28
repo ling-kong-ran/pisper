@@ -12,7 +12,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
-        <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+        <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
       </LanguageProvider>
     </QueryClientProvider>
   )

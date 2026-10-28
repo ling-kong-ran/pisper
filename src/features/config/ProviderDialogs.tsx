@@ -461,7 +461,7 @@ export function ProviderConfigModal({
           >
             {t('config:configPage.cancel')}
           </Button>
-          <Button size="lg" disabled={saving}>
+          <Button type="submit" size="lg" disabled={saving}>
             {saving ? (
               <RefreshCw className="animate-spin" size={14} />
             ) : editing ? (

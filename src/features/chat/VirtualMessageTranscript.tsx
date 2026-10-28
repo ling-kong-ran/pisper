@@ -21,6 +21,7 @@ type VirtualMessageTranscriptProps = {
   sessionId: string
   layoutMeasurementKey?: string
   messages: ChatMessage[]
+  historical?: boolean
   streaming?: boolean
   latestRunProps: AgentRunActivityProps
   scrollElement: HTMLDivElement | null
@@ -90,6 +91,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   sessionId,
   layoutMeasurementKey,
   messages,
+  historical = false,
   streaming,
   latestRunProps,
   scrollElement,
@@ -105,8 +107,14 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [highlightedEntryId, setHighlightedEntryId] = useState('')
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
+  const messageIds = messages.map((message) => message.id)
+  const messageKeysRef = useRef(messageIds)
+  if (
+    messageKeysRef.current.length !== messageIds.length ||
+    messageKeysRef.current.some((id, index) => id !== messageIds[index])
+  )
+    messageKeysRef.current = messageIds
+  const messageKeys = messageKeysRef.current
   // 每条消息记录最近的前置用户消息 ID，供最新一条助手消息上的「重试」按钮重新发送该轮输入；
   // 旧节点不提供重试——那会把历史提问追加到会话末尾，语义与「从此处继续/另开对话」冲突。
   const retryUserIdByIndex = useMemo(() => {
@@ -120,8 +128,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   }, [messages])
   const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
   const getItemKey = useCallback(
-    (index: number) => messagesRef.current[index]?.id ?? `transcript-message-${index}`,
-    [],
+    (index: number) => messageKeys[index] ?? `transcript-message-${index}`,
+    [messageKeys],
   )
   // 行高估算随容器宽度分档：窄屏实际行高更大，固定估算会让滚动条明显跳动。
   const estimateSize = useCallback(
@@ -131,6 +139,9 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     // ref 挂载测量发生在 React 提交期间；批处理更新避免在该阶段嵌套 flushSync。
     useFlushSync: false,
+    // 原生锚定同时更新可见范围和偏移；尾页淘汰后不能用总高度差恢复前置位置。
+    anchorTo: 'end',
+    followOnAppend: false,
     count: messages.length,
     getScrollElement: () => scrollElement,
     getItemKey,
@@ -229,7 +240,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
       {virtualItems.map((virtualItem) => {
         const message = messages[virtualItem.index]
         if (!message) return null
-        const isLatestAgent = message.role === 'agent' && virtualItem.index === messages.length - 1
+        const isLatestAgent =
+          !historical && message.role === 'agent' && virtualItem.index === messages.length - 1
         const agentState =
           message.streaming || (isLatestAgent && streaming)
             ? 'thinking'

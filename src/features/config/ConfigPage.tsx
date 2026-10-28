@@ -39,7 +39,7 @@ export function ConfigPage({
   renderInterfaceSettings,
 }: ConfigPageProps) {
   // 分区切换后消费搜索跳转的高亮请求（同分区点击由事件即时触发）。
-  useConfigCardHighlight(section)
+  const searchTarget = useConfigCardHighlight(section)
   let content
   if (section === 'notifications') {
     content = (
@@ -49,7 +49,13 @@ export function ConfigPage({
       />
     )
   } else if (section === 'interface') {
-    const appearance = <InterfaceSettings notify={notify} />
+    const appearance = (
+      <InterfaceSettings
+        notify={notify}
+        defaultAdvancedExpanded={searchTarget?.expandGroup === 'interface-advanced'}
+        navigationKey={searchTarget?.navigationKey}
+      />
+    )
     content = renderInterfaceSettings ? renderInterfaceSettings(appearance) : appearance
   } else if (section === 'shortcuts') {
     content = <ShortcutSettings requestConfirm={requestConfirm} />
@@ -71,6 +77,8 @@ export function ConfigPage({
   } else {
     content = (
       <ModelsSettings
+        defaultAdvancedExpanded={searchTarget?.expandGroup === 'models-advanced'}
+        navigationKey={searchTarget?.navigationKey}
         notify={notify}
         registerPrimaryAction={registerPrimaryAction}
         requestConfirm={requestConfirm}

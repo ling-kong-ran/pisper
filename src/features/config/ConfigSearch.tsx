@@ -6,6 +6,7 @@ import { Search } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { requestConfigCardHighlight, searchConfig, type ConfigSearchMatch } from './config-search'
 
 type ConfigSearchBoxProps = {
@@ -28,7 +29,15 @@ export function ConfigSearchBox({
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
-  const results = useMemo(() => searchConfig(query, language), [language, query])
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const results = useMemo(
+    () =>
+      searchConfig(query, language, {
+        capabilities,
+        mobileApp: Boolean(window.__PISPER_MOBILE_APP__),
+      }),
+    [language, query, capabilities],
+  )
 
   // 查询变化时重置键盘选中项，避免高亮停在越界位置。
   useEffect(() => setActiveIndex(0), [query])
@@ -49,7 +58,11 @@ export function ConfigSearchBox({
     onQueryChange('')
     // 先登记高亮请求再切分区：跨分区时由 ConfigPage 在新区内容挂载后消费，
     // 同分区时由事件监听即时触发。
-    requestConfigCardHighlight(match.entry.card, match.entry.section)
+    requestConfigCardHighlight(match.entry.card, match.entry.section, {
+      targetId: match.entry.targetId,
+      targetText: match.title,
+      expandGroup: match.entry.expandGroup,
+    })
     if (match.entry.section === 'interface') {
       const view = match.entry.card === 'interface-custom-ui' ? 'widgets' : 'appearance'
       // 同一分区内也需要切换标签，路由查询参数仍由应用壳统一生成。

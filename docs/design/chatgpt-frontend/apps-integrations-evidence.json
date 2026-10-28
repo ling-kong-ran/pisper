@@ -1,0 +1,698 @@
+[
+  {
+    "id": "J001",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 131437,
+    "excerpt": "i):i=e[2];let a;e[3]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,Cs.jsx)(B,{path:`permissions`,element:(0,Cs.jsx)(zi,{})}),e[3]=a):a=e[3];let o;e[4]===Symbol.for(`react.memo_cache_sentinel`)?(o=(0,Cs.jsx)(B,{path:`apps/:appId`,element:(0,Cs.jsx)(wi,{})}),e[4]=o):o=e[4];let s;e[5]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,Cs.jsx)(B,{path:`:pluginId`,element:(0,Cs.jsx)(ls,{})}),e[5]=s):s=e[5];let c;e[6]===Symbol.for(`react.memo_cache_sentinel`)?(c=(0,Cs.jsx)(B,{path:`:pluginId/permissions`,element:(0,Cs.jsx)(ls,{section:`permissions`})}),e[6]=c):c=e[6];let l;e[7]===",
+    "claim": "插件设置嵌套路由含全局权限、应用详情、插件权限与同步。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J002",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 132434,
+    "excerpt": "):d=e[9];let f;e[10]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,Cs.jsx)(B,{path:`:pluginId/apps/:appId/permissions`,element:(0,Cs.jsx)(ls,{section:`permissions`})}),e[10]=f):f=e[10];let p;e[11]===Symbol.for(`react.memo_cache_sentinel`)?(p=(0,Cs.jsx)(B,{path:`:pluginId/apps/:appId/sync`,element:(0,Cs.jsx)(ls,{section:`sync`})}),e[11]=p):p=e[11];let m;e[12]===Symbol.for(`react.memo_cache_sentinel`)?(m=(0,Cs.jsx)(B,{path:`*`,element:(0,Cs.jsx)(ye,{replace:!0,to:`/settings/plugins-settings`})}),e[12]=m):m=e[12];let h;return e[13]===t?h=e[14]:(h=(0,Cs.jsxs)(ce,{children:[r,",
+    "claim": "复合插件下应用有独立权限与同步子路由；不等于安全页登录连接授权。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J003",
+    "path": "webview/assets/layout-9f9a9594a64b.js",
+    "offset": 2058,
+    "excerpt": "className:`flex min-w-0 flex-wrap items-center justify-between gap-4`,children:[(0,L.jsxs)(`div`,{className:`flex min-w-0 flex-1 basis-64 items-center gap-3`,children:[(0,L.jsx)(D,{children:u}),(0,L.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-col gap-0.5`,children:[(0,L.jsx)(`h1`,{className:`heading-base break-words text-default`,children:i}),o==null?null:(0,L.jsx)(`div`,{className:`text-xs leading-4 text-secondary`,children:typeof o==`string`?(0,L.jsx)(M,{description:o},o):o})]})]}),x]}),t[18]=x,t[19]=u,t[20]=o,t[21]=i,t[22]=R):R=t[22];let z;return t[23]!==p||t[24]!==",
+    "claim": "应用详情头可换行，图文组basis64、gap3；标题heading-base与副标题text-xs。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J004",
+    "path": "webview/assets/layout-9f9a9594a64b.js",
+    "offset": 3016,
+    "excerpt": "=>{s||u(t.scrollHeight>t.clientHeight)},n[0]=s,n[1]=d);let f=i(d),p=s?`w-full`:`line-clamp-3 w-full`,m;n[2]!==r||n[3]!==o||n[4]!==f||n[5]!==p?(m=(0,L.jsx)(`div`,{id:o,ref:f,className:p,children:r}),n[2]=r,n[3]=o,n[4]=f,n[5]=p,n[6]=m):m=n[6];let h;n[7]!==o||n[8]!==l||n[9]!==s?(h=l||s?(0,L.jsx)(t,{className:`mt-1.5 self-start`,\"aria-controls\":o,\"aria-expanded\":s,color:`ghostMuted`,size:`inline`,onClick:()=>c(N),children:s?(0,L.jsx)(a,{id:`browserPluginSettings.description.readLess`,defaultMessage:`Read less`,description:`Collapse the full plugin or app description in settings",
+    "claim": "说明默认截断3行，检测溢出显示Read more；aria-controls/expanded连接正文。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J005",
+    "path": "webview/assets/layout-9f9a9594a64b.js",
+    "offset": 768,
+    "excerpt": "[5]!==m||t[6]!==g?(v=f==null?d:(0,L.jsxs)(`div`,{className:`flex items-center gap-2`,children:[(0,L.jsx)(l,{color:`outline`,size:`toolbar`,href:g?f:_,onClick:e=>{g?b({event:e,href:f,initiator:`open_in_browser_bridge`}):y(e,()=>void m(f))},children:(0,L.jsx)(a,{id:`browserPluginSettings.viewDetails`,defaultMessage:`View details`,description:`Button in a plugin's settings header that opens its directory detail page`})}),d]}),t[2]=d,t[3]=_,t[4]=f,t[5]=m,t[6]=g,t[7]=v):v=t[7];let x=v,w=u==null?`default`:`compact`,T=u==null?i:void 0,O;t[8]===o?O=t[9]:(O=typeof o==`string`?(0,L.j",
+    "claim": "详情按钮区分https外部浏览器与应用内路由。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J006",
+    "path": "webview/assets/layout-9f9a9594a64b.js",
+    "offset": 4061,
+    "excerpt": "ntinel`)?(i=(0,L.jsx)(`span`,{role:`alert`,children:(0,L.jsx)(a,{id:`browserPluginSettings.loadError`,defaultMessage:`Couldn't load plugin settings`,description:`Error when browser plugin settings cannot be loaded`})}),n[0]=i):i=n[0];let o;n[1]===Symbol.for(`react.memo_cache_sentinel`)?(o=(0,L.jsx)(a,{id:`browserPluginSettings.retry`,defaultMessage:`Try again`,description:`Retry loading plugin settings`}),n[1]=o):o=n[1];let s;return n[2]===r?s=n[3]:(s=(0,L.jsx)(f,{children:(0,L.jsx)(m,{label:i,control:(0,L.jsx)(t,{color:`ghost`,onClick:r,children:o})})}),n[2]=r,n[3]=s),s}va",
+    "claim": "设置错误作为语义alert嵌入设置行，旁边ghost重试。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J007",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 22357,
+    "excerpt": "nvalidateQueries({queryKey:[`accounts`,`check`]})])}}),e[2]=t,e[3]=d,e[4]=n):n=e[4],n}if(i?.id!==r||i?.structure!==`personal`||!c?.some(Bi)){let t;return e[5]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,J.jsx)(ye,{replace:!0,to:hn()}),e[5]=t):t=e[5],t}let f;e[6]===n?f=e[7]:(f=n.formatMessage(qi.title),e[6]=n,e[7]=f);let p,m,h;e[8]===Symbol.for(`react.memo_cache_sentinel`)?(p=(0,J.jsx)(_,{...qi.title}),m=(0,J.jsx)(_,{...qi.description}),h=(0,J.jsx)(Vi,{}),e[8]=p,e[9]=m,e[10]=h):(p=e[8],m=e[9],h=e[10]);let g;return e[11]===f?g=e[12]:(g=(0,J.jsx)(mi,{documentTitle:f,title:",
+    "claim": "全局插件权限入口需当前个人账户与可用服务插件，否则重定向。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J008",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 23497,
+    "excerpt": "()}}),e[3]=a,e[4]=t),t}let d=n.settings.apps_privacy_control??`review_important_actions`,f;e[5]===d?f=e[6]:(f=Ji.find(e=>e.value===d),e[5]=d,e[6]=f);let p=f,m;e[7]===Symbol.for(`react.memo_cache_sentinel`)?(m=(0,J.jsx)(_,{...qi.defaultPermission}),e[7]=m):m=e[7];let h;e[8]!==d||e[9]!==c||e[10]!==s||e[11]!==p?.title?(h=(0,J.jsx)(Se,{children:(0,J.jsx)(Ae,{label:m,control:e=>(0,J.jsx)(l,{triggerButton:(0,J.jsx)(jt,{...e,disabled:c,children:(0,J.jsx)(_,{...p?.title??qi.inheritDefault})}),children:(0,J.jsx)(ee.RadioGroup,{value:d,onValueChange:e=>{if(c||e===d)return;let t=Ji.fi",
+    "claim": "全局工具批准权限缺省low-risk，保存期间菜单禁用。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J009",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 25290,
+    "excerpt": "function Hi(e){return e.value!==`full_access`}function Ui(e){return wn.safePatch(`/settings/account_user_setting`,{parameters:{query:{feature:`apps_privacy_control`,value:e}}})}function Wi(e){let t=(0,Gi.c)(27),{mixed:r,value:i,canReset:a,inheritedValue:o,disabled:s,onValueChange:c}=e,l=r!==void 0&&r,u=te(),d=(0,Ki.useId)(),f,p;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,J.jsx)(_,{...qi.title}),p=(0,J.jsx)(_,{id:`plugins.detail.accounts.permissionsDescription`,defaultMessage:`Choose when ChatGPT needs your approval to use tools`,description:`Explains the permission",
+    "claim": "全局默认权限过滤full_access；不是所有层级均提供四项。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J010",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 31670,
+    "excerpt": "value:`always_ask`,title:qi.alwaysAsk,description:qi.alwaysAskDescription},{value:`ask_before_writes`,title:qi.read,description:qi.readDescription},{value:`review_important_actions`,title:qi.lowRisk,description:qi.lowRiskDescription},{value:`full_access`,title:qi.all,description:qi.allDescription}]})))()}async function Xi({scope:e,accountId:t,userId:n,accounts:r,value:i,linksQueryKey:a}){let o=(0,Zi.default)(r,e=>e.linkId);if(t==null||n==null||e.get(In)!==t||o.some(e=>!e.editable))return{failedLinkIds:o.map(e=>e.linkId),refreshFailed:!1};let s=o.filter(e=>e.permission!==i),",
+    "claim": "逐应用工具批准选项含always_ask、ask_before_writes、review_important_actions、full_access。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J011",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 32764,
+    "excerpt": "ntinel`)?(a=(0,ta.jsx)(_,{id:`browserPluginSettings.permissions.useAllAccounts`,defaultMessage:`Use for all accounts`,description:`Switch between editing permissions for all currently connected accounts and choosing an individual account; toggling does not save a permission change`}),t[0]=a):a=t[0];let o;return t[1]!==n||t[2]!==r||t[3]!==i?(o=(0,ta.jsx)(Se,{children:(0,ta.jsx)(Ae,{label:a,control:e=>(0,ta.jsx)(fe,{...e,checked:n,disabled:r,onChange:i})})}),t[1]=n,t[2]=r,t[3]=i,t[4]=o):o=t[4],o}var ea,ta;function na(){return(na=e((()=>{ea=Me(),U(),w(),H(),x(),ta=Ie()})))()}f",
+    "claim": "多账户权限页有统一应用到所有账户开关。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J012",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 37975,
+    "excerpt": "ter,{children:(0,Y.jsx)(_,{id:`browserPluginSettings.permissions.mixedAccounts`,defaultMessage:`These accounts have different permissions. Choose a permission to apply to all currently connected accounts`,description:`Explains why no radio option is selected when editing multiple accounts with different saved permissions`})}):null,(0,Y.jsx)(K.Footer,{children:(0,Y.jsx)(rr,{appearance:`secondary`,href:`https://help.openai.com/en/articles/11487775-connected-apps-in-chatgpt#:~:text=App%20permission%20settings%20determine`,initiator:`open_in_browser_bridge`,children:(0,Y.jsx)(_",
+    "claim": "多账户权限不一致时无选中项，提示选项将应用于当前连接的全部账户。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J013",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 31976,
+    "excerpt": "async function Xi({scope:e,accountId:t,userId:n,accounts:r,value:i,linksQueryKey:a}){let o=(0,Zi.default)(r,e=>e.linkId);if(t==null||n==null||e.get(In)!==t||o.some(e=>!e.editable))return{failedLinkIds:o.map(e=>e.linkId),refreshFailed:!1};let s=o.filter(e=>e.permission!==i),c=await Promise.allSettled(s.map(async n=>e.get(In)!==t||!n.editable?!1:(await kr(n.linkId,i),!0))),l=new Set,u=[];for(let[e,t]of c.entries())t.status===`fulfilled`&&t.value?l.add(s[e].linkId):u.push(s[e].linkId);return l.size>0&&Li(e.queryClient,a,l,i),{failedLinkIds:u,refreshFailed:await Or(e.queryClien",
+    "claim": "逐账户保存先校验账户及editable，再allSettled并发保存，仅成功项更新缓存。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J014",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 39018,
+    "excerpt": "children:(0,Y.jsx)(_,{id:`browserPluginSettings.permissions.accountsSaveFailed`,defaultMessage:`Couldn't save permissions for {count, plural, one {# account} other {# accounts}}`,description:`Permission updates failed for some targeted accounts; successfully saved changes are retained`,values:{count:ce.length}})}),control:(0,Y.jsx)(n,{color:`ghost`,disabled:B,onClick:()=>{T!=null&&x({targets:a.filter(e=>ce.includes(e.linkId)),value:T.value})},children:(0,Y.jsx)(_,{id:`browserPluginSettings.retry`,defaultMessage:`Try again`,description:`Retry loading plugin settings`})})})})",
+    "claim": "部分权限保存失败显示数量；重试仅针对failedLinkIds。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J015",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 37383,
+    "excerpt": "hildren:(0,Y.jsx)(_,{id:`browserPluginSettings.permissions.unavailableAccounts`,defaultMessage:`Permissions can't be changed for one or more accounts. Choose an available account or reconnect it in app settings`,description:`Shown when a targeted account disappeared, needs reauthentication, or cannot be edited by the current user`})})}),(0,Y.jsxs)(K,{children:[(0,Y.jsx)(Wi,{value:oe,mixed:oe==null,canReset:R.some(la),inheritedValue:F,disabled:B||!se,onValueChange:e=>{!B&&se&&R.some(t=>t.permission!==e)&&(s==null&&a.length>1&&v(!0),x({targets:R,value:e}))}}),oe==null&&se?(0,",
+    "claim": "失效/需重连/不可编辑账户禁用批量权限并显示说明。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J016",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 72125,
+    "excerpt": "0,so.jsx)(K.Header,{title:(0,so.jsx)(_,{id:`browserPluginSettings.github.title`,defaultMessage:`Synced repositories`,description:`Heading for GitHub repository sync settings`}),subtitle:(0,so.jsx)(_,{id:`browserPluginSettings.github.description`,defaultMessage:`Choose up to 5 repositories to sync for faster, more complete answers. Other repositories remain accessible`,description:`Explains the GitHub sync selection limit without implying other repositories are inaccessible`})}),t[20]=ce):ce=t[20];let le=K,ue;t[21]===l?ue=t[22]:(ue=e=>{e.preventDefault(),f(l.trim())},t[21]=l",
+    "claim": "GitHub同步仓库页标题与最多5个的说明，其他仓库仍可访问。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J017",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 73096,
+    "excerpt": "s for syncing`}),t[25]=o,t[26]=V);let H;t[27]===Symbol.for(`react.memo_cache_sentinel`)?(H=e=>u(e.target.value),t[27]=H):H=t[27];let U;t[28]!==l||t[29]!==de||t[30]!==V?(U=(0,so.jsx)(Rt,{type:`search`,name:`repository-search`,\"aria-label\":de,placeholder:V,value:l,onChange:H}),t[28]=l,t[29]=de,t[30]=V,t[31]=U):U=t[31];let fe;t[32]===Symbol.for(`react.memo_cache_sentinel`)?(fe=(0,so.jsx)(n,{color:`outline`,type:`submit`,children:(0,so.jsx)(_,{id:`browserPluginSettings.search`,defaultMessage:`Search`,description:`Submit a settings search`})}),t[32]=fe):fe=t[32];let W;t[33]!==ue",
+    "claim": "仓库搜索使用独立表单与search输入，不是逐键即时提交。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J018",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 74153,
+    "excerpt": "x)(Ae,{label:e.repository_full_name,description:e.description,control:t=>(0,so.jsx)(`span`,{className:`relative`,children:(0,so.jsx)(ne,{...t,checked:re.has(e.id??-1),disabled:ae||re.size>=5&&!re.has(e.id??-1),onCheckedChange:t=>{if(e.id==null)return;let n=new Set(re);t?n.add(e.id):n.delete(e.id),m(n)}})})},e.id)),se.length===0?(0,so.jsx)(Mn,{layout:`settings-row`,children:(0,so.jsx)(_,{id:`browserPluginSettings.github.noResults`,defaultMessage:`No repositories found`,description:`GitHub repository search has no results`})}):null]}):null,ge;t[44]!==P||t[45]!==M||t[46]!==N?(",
+    "claim": "已选5项时只禁用未选复选框；保存期间禁用全部复选框。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J019",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 71587,
+    "excerpt": "/v2/user/connection_instance/{synced_knowledge_store_id}/user_configuration`,{parameters:{path:{synced_knowledge_store_id:r}},requestBody:{extension:{type:`GithubUserApiExtension`,opted_in_repository_ids:[...re]}}}),onSuccess:L}),z=re.size!==I.size||[...re].some(e=>!I.has(e)),se=(0,ao.default)([...O?.pages.flatMap(eo)??[],...d?[]:ee?.map($a)??[]],`id`).sort((e,t)=>Number(I.has(t.id??-1))-Number(I.has(e.id??-1))||e.repository_full_name.localeCompare(t.repository_full_name)),B=K,ce;t[20]===Symbol.for(`react.memo_cache_sentinel`)?(ce=(0,so.jsx)(K.Header,{title:(0,so.jsx)(_,{id",
+    "claim": "同步选择作为草稿Set，提交选中id；成功刷新后清除草稿。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J020",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 74676,
+    "excerpt": "ts`})}):null]}):null,ge;t[44]!==P||t[45]!==M||t[46]!==N?(ge=M?(0,so.jsx)(n,{color:`ghost`,loading:N,onClick:()=>{P()},children:(0,so.jsx)(_,{id:`browserPluginSettings.github.more`,defaultMessage:`Load more repositories`,description:`Load the next page of GitHub repository results`})}):null,t[44]=P,t[45]=M,t[46]=N,t[47]=ge):ge=t[47];let _e;t[48]===oe?_e=t[49]:(_e=oe?(0,so.jsx)(`span`,{role:`alert`,children:(0,so.jsx)(_,{id:`browserPluginSettings.github.failed`,defaultMessage:`Couldn't save synced repositories. Try again`,description:`Saving the selected repositories failed`}",
+    "claim": "仓库分页按钮显示fetchNextPage loading；空结果独立呈现。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J021",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 75592,
+    "excerpt": "]!==a||t[64]!==j||t[65]!==re?(ye=z?(0,so.jsx)(K.Footer,{children:(0,so.jsxs)(`div`,{className:`flex justify-end gap-2`,children:[(0,so.jsx)(n,{color:`ghost`,disabled:ae,onClick:()=>m(null),children:(0,so.jsx)(_,{...pi.cancel})}),(0,so.jsx)(n,{color:`primary`,loading:ae,disabled:x||j||b,onClick:()=>{re.size===0?a():R()},children:(0,so.jsx)(_,{...pi.save})})]})}):null,t[58]=x,t[59]=b,t[60]=z,t[61]=ae,t[62]=R,t[63]=a,t[64]=j,t[65]=re,t[66]=ye):ye=t[66];let be;return t[67]!==B||t[68]!==ve||t[69]!==ye||t[70]!==ce?(be=(0,so.jsxs)(B,{children:[ce,ve,ye]}),t[67]=B,t[68]=ve,t[69]=ye",
+    "claim": "仓库空选保存转入关闭同步确认，非空才写仓库选择。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J022",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 83965,
+    "excerpt": "n:[(0,Do.jsxs)(G,{children:[(0,Do.jsx)(oe,{children:(0,Do.jsx)(_,{...Oo.disable})}),(0,Do.jsx)(_,{...Oo.confirmDisable}),(0,Do.jsxs)(`label`,{className:`relative flex items-center gap-2`,children:[(0,Do.jsx)(ne,{checked:v,onCheckedChange:y}),(0,Do.jsx)(_,{id:`browserPluginSettings.sync.acknowledge`,defaultMessage:`I understand that synced content will be removed`,description:`Required acknowledgement before disabling sync`})]})]}),O?(0,Do.jsx)(G,{children:(0,Do.jsx)(`span`,{role:`alert`,children:(0,Do.jsx)(_,{...Oo.failed})})}):null,(0,Do.jsx)(G,{children:(0,Do.jsxs)(Ee,{ch",
+    "claim": "关闭同步要求确认复选框，提交中禁止关闭，错误在弹窗内alert。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J023",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 81181,
+    "excerpt": ">{if(u==null||u.id!==l)throw Error(`Account information is unavailable`);let{backing_link_id:t,connection_instance_id:n}=e.user_connection_details;return u.structure===`personal`&&t!=null?wn.safePost(`/ca/v2/user/delete_synced`,{requestBody:{link_id:t}}):wn.safePost(`/ca/v2/user/disconnect`,{requestBody:{connection_id:n}})},t[1]=u,t[2]=l,t[3]=S):S=t[3];let w;t[4]===c?w=t[5]:(w=async()=>{g(null),await Or(c)},t[4]=c,t[5]=w);let T;t[6]!==S||t[7]!==w?(T={mutationFn:S,onSuccess:w},t[6]=S,t[7]=w,t[8]=T):T=t[8];let{mutate:E,isPending:D,isError:O}=C(T);if(f){let e;return t[9]===Sym",
+    "claim": "个人账户按backing link删除同步，其他账户按connection id断开；不影响其他连接。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J024",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 85651,
+    "excerpt": "function wo(e){let t=(0,To.c)(6),{status:n}=e,r;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(r=(0,Do.jsx)(_,{...Oo.inactive}),t[0]=r):r=t[0];let i=r;if(n===`activating`||n===`partially_activated`){let e;t[1]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Do.jsx)(_,{...Oo.syncing}),t[1]=e):e=t[1],i=e}else if(n===`activated`){let e;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Do.jsx)(_,{...Oo.synced}),t[2]=e):e=t[2],i=e}let a=n===`activated`?`success`:`outline`,o;return t[3]!==i||t[4]!==a?(o=(0,Do.jsx)(vt,{variant:a,children:i}),t[3]=i,t[4]=a,t[5]=o):o=t[5],o}var ",
+    "claim": "同步状态映射：activating/partially activated为Syncing，activated为Synced并用success徽标，其余Not synced。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J025",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 78460,
+    "excerpt": "mo_cache_sentinel`)?(N=(0,po.jsx)(_,{id:`browserPluginSettings.proactive.title`,defaultMessage:`Allow proactive activity`,description:`Allow background reading of connected app data for proactive insights`}),t[17]=N):N=t[17];let P;t[18]===r?P=t[19]:(P=(0,po.jsx)(_,{id:`browserPluginSettings.proactive.description`,defaultMessage:`Let ChatGPT proactively read {appName} and give you helpful insights. <link>Learn more</link>`,description:`Explains a connector's proactive activity setting; appName is the provider name and link opens documentation`,values:{appName:r,link:uo}}),t[",
+    "claim": "应用偏好有主动读取开关，文案明确读取当前应用并生成有用信息。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J026",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 79420,
+    "excerpt": "role:`alert`,children:(0,po.jsx)(_,{id:`browserPluginSettings.proactive.failed`,defaultMessage:`Couldn't save app preferences. Try again`,description:`The connected app's proactive setting could not be saved`})})}):null,t[27]=D,t[28]=I);let te;return t[29]!==ee||t[30]!==I?(te=(0,po.jsxs)(K,{children:[M,ee,I]}),t[29]=ee,t[30]=I,t[31]=te):te=t[31],te}function uo(e){return(0,po.jsx)(rr,{appearance:`secondary`,href:`https://help.openai.com/en/articles/11487775-connectors-in-chatgpt`,initiator:`open_in_browser_bridge`,children:e},`learnMore`)}var fo,po,mo;function ho(){return(ho",
+    "claim": "主动活动偏好失败行内alert。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J027",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 47550,
+    "excerpt": "]!==E||t[20]!==k?(P=[E,k,N],t[18]=N,t[19]=E,t[20]=k,t[21]=P):P=t[21];let F=P,ee=n.policy_info?.safety_status,I;t[22]===Symbol.for(`react.memo_cache_sentinel`)?(I=(0,X.jsx)(_,{...Pa.scanning}),t[22]=I):I=t[22];let ne=I;if(ee===`SCANNED_BLOCKED`){let e;t[23]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,X.jsx)(_,{...Pa.failed}),t[23]=e):e=t[23],ne=e}else if(ee===`SCANNED_SOFT_BLOCKED`){let e;t[24]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,X.jsx)(_,{...Pa.warning}),t[24]=e):e=t[24],ne=e}let re;t[25]!==n.actions||t[26]!==v?(re=v?(0,X.jsx)(ya,{actions:n.actions}):null,t[",
+    "claim": "About区以安全状态决定Failed/Warning/Scanning；SCANNED_OK不显示扫描行。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J028",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 49801,
+    "excerpt": "ation}),t[50]=ce):ce=t[50];let le;t[51]===n.supported_auth?le=t[52]:(le=new Set(n.supported_auth.map(Oa)),t[51]=n.supported_auth,t[52]=le);let ue;t[53]===le?ue=t[54]:(ue=(0,X.jsx)(r,{label:ce,children:(0,X.jsx)(d,{value:[...le].map(Da)})}),t[53]=le,t[54]=ue);let de;t[55]===a?de=t[56]:(de=a==null?null:(0,X.jsx)(r,{label:(0,X.jsx)(_,{...Pa.authorizationUsed}),children:(0,X.jsx)(Aa,{type:a.auth_type})}),t[55]=a,t[56]=de);let V;t[57]!==n.app_metadata||t[58]!==n.id?(V=n.app_metadata?.version_id==null?null:(0,X.jsxs)(X.Fragment,{children:[(0,X.jsx)(r,{label:(0,X.jsx)(_,{...Pa.ver",
+    "claim": "About区分别展示支持认证类型与当前实际使用认证，去重显示。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J029",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 18487,
+    "excerpt": "developer app cannot be deleted`},logoHelp:{id:`browserPluginSettings.logoHelp`,defaultMessage:`PNG only, up to 10 KB. For best results, use an image at least 256 × 256 pixels`,description:`File format and size requirements for a developer app logo`}})})))()}function wi(){let e=(0,Di.c)(2),{appId:t}=W(),n;return e[0]===t?n=e[1]:(n=t==null?(0,Oi.jsx)(ye,{replace:!0,to:hn()}):(0,Oi.jsx)(Ti,{appId:t},t),e[0]=t,e[1]=n),n}function Ti(e){let t=(0,Di.c)(22),{appId:n}=e,r;t[0]===n?r=t[1]:(r={appId:n},t[0]=n,t[1]=r);let{data:i,isPending:a,isError:o,refetch:s}=ze(Wn,r),c;t[2]===n?c=t",
+    "claim": "自建应用Logo编辑限制文案为PNG最多10KB，推荐至少256×256。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J030",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 10742,
+    "excerpt": "ll),[b,x]=(0,xi.useState)(!1),S,w;t[0]===g?(S=t[1],w=t[2]):(S=()=>()=>{g!=null&&URL.revokeObjectURL(g)},w=[g],t[0]=g,t[1]=S,t[2]=w),(0,xi.useEffect)(S,w);let T;t[3]!==c||t[4]!==r.id||t[5]!==i||t[6]!==p||t[7]!==o||t[8]!==d?(T=async()=>{let e={path:{connector_id:r.id}};if(i===`name`)await wn.safePatch(`/aip/connectors/{connector_id}/name`,{surface:`settings`,parameters:e,requestBody:{name:d.trim()},additionalHeaders:Dt()});else if(i===`description`)await wn.safePatch(`/aip/connectors/{connector_id}/description`,{surface:`settings`,parameters:e,requestBody:{description:d},addi",
+    "claim": "自建应用图片预览URL在变更/卸载时释放。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J031",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 11883,
+    "excerpt": "8]!==r.description||t[19]!==r.name||t[20]!==i||t[21]!==p||t[22]!==b||t[23]!==d?(j=d!==r.description,i===`logo`?j=p!=null&&!b:i===`name`&&(j=d.trim().length>0&&d.trim()!==r.name),t[18]=r.description,t[19]=r.name,t[20]=i,t[21]=p,t[22]=b,t[23]=d,t[24]=j):j=t[24];let M=!k,N;t[25]===Symbol.for(`react.memo_cache_sentinel`)?(N={\"aria-describedby\":void 0},t[25]=N):N=t[25];let P;t[26]!==k||t[27]!==a?(P=e=>{!e&&!k&&a()},t[26]=k,t[27]=a,t[28]=P):P=t[28];let F;t[29]!==j||t[30]!==k||t[31]!==O?(F=e=>{e.preventDefault(),j&&!k&&O()},t[29]=j,t[30]=k,t[31]=O,t[32]=F):F=t[32];let ee;t[33]===i",
+    "claim": "名称必须非空且不同，Logo要新文件且无校验错误；保存中不允许关闭。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J032",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 13436,
+    "excerpt": "50]!==d?(L=i===`logo`?(0,q.jsxs)(`div`,{className:`flex items-center gap-4`,children:[(0,q.jsx)(Nn,{className:`size-16 shrink-0`,alt:s.formatMessage(Si.logo),logoUrl:g??r.logo_url,logoDarkUrl:g??r.logo_url_dark,fallback:(0,q.jsx)(`span`,{className:`flex items-center justify-center bg-surface-secondary`,children:(0,q.jsx)(se,{})})}),(0,q.jsxs)(`div`,{className:`flex min-w-0 flex-col items-start gap-2 text-sm`,children:[(0,q.jsx)(`span`,{className:`text-secondary`,children:(0,q.jsx)(_,{...Si.logoHelp})}),(0,q.jsx)(`input`,{ref:h,hidden:!0,type:`file`,name:`app-logo`,\"aria-lab",
+    "claim": "Logo编辑布局64px预览、gap4，旁边小字号文件说明。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J033",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 66853,
+    "excerpt": "a private plugin created by the user`}):null,b===`uninstall`&&(a??0)>1?(0,Ya.jsx)(_,{id:`browserPluginSettings.removeDescription`,defaultMessage:`This removes the plugin and all of its connected accounts`,description:`Warning that plugin removal affects all connected accounts`}):null,b===`uninstall`&&(a??0)<=1?(0,Ya.jsx)(_,{id:`browserPluginSettings.removeBundleDescription`,defaultMessage:`You won't be able to use this plugin until you add it again`,description:`Warning before removing an installed plugin`}):null]}),O?(0,Ya.jsx)(G,{children:(0,Ya.jsx)(`span`,{role:`alert`,c",
+    "claim": "卸载多账户插件会提示全部连接移除，永久删除另用不可撤销文案。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J034",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 66029,
+    "excerpt": "onOpenChange:e=>{!e&&!D&&x(null)},children:(0,Ya.jsxs)(_e,{as:`form`,onSubmit:e=>{e.preventDefault(),!D&&(b===`delete`?h:!o&&!j)&&E(b)},children:[(0,Ya.jsxs)(G,{children:[(0,Ya.jsx)(oe,{children:b===`delete`?(0,Ya.jsx)(_,{id:`browserPluginSettings.deletePluginTitle`,defaultMessage:`Delete {name}?`,description:`Confirmation title for permanently deleting a private plugin; name is the plugin's display name`,values:{name:r.release.display_name}}):(0,Ya.jsx)(_,{id:`browserPluginSettings.removeTitle`,defaultMessage:`Uninstall {name}?`,description:`Confirm removing an installed p",
+    "claim": "插件卸载/删除确认提交中拦截关闭，危险主按钮loading，错误alert保留。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J035",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 64793,
+    "excerpt": "[9]=w,t[10]=T):T=t[10];let{mutate:E,isPending:D,isError:O}=C(T),k;t[11]!==v||t[12]!==r.id?(k=v?.find(e=>{let{plugin:t}=e;return t.remotePluginId===r.id}),t[11]=v,t[12]=r.id,t[13]=k):k=t[13];let A=k,j=r.installation_policy===`INSTALLED_BY_DEFAULT`,M;t[14]!==o||t[15]!==A||t[16]!==j?(M=A?(0,Ya.jsx)(n,{color:j?`outline`:`dangerOutline`,size:`toolbar`,disabled:o||j,onClick:()=>x(`uninstall`),children:j?(0,Ya.jsx)(Wr,{source:A.plugin.installPolicySource,adminLabel:(0,Ya.jsx)(_,{id:`browserPluginSettings.installedByAdmin`,defaultMessage:`Installed by your admin`,description:`An ad",
+    "claim": "管理员默认安装插件禁止用户卸载；个人私有创作者且flag允许才出现Delete。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J036",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 40971,
+    "excerpt": "(0,_a.jsx)(K.Header,{title:(0,_a.jsx)(_,{id:`browserPluginSettings.banks.title`,defaultMessage:`Connected banks`,description:`Heading for the bank accounts connected to a personal finance plugin`})}),e[21]=x):x=e[21],e[22]===s?S=e[23]:(S=s?(0,_a.jsx)(Fn,{}):null,e[22]=s,e[23]=S),e[24]!==c||e[25]!==l?(w=c?(0,_a.jsx)(gi,{onRetry:()=>{l()}}):null,e[24]=c,e[25]=l,e[26]=w):w=e[26],T=t==null?null:(0,_a.jsxs)(Se,{children:[t.map(e=>(0,_a.jsx)(Ae,{icon:(0,_a.jsx)(Nn,{alt:``,className:`size-8`,logoUrl:e.institution_logo==null||e.institution_logo.startsWith(`http`)||e.institution_log",
+    "claim": "金融插件设置按银行连接列出Logo、账户数量和本地化更新时间。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J037",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 42428,
+    "excerpt": "trol:(0,_a.jsxs)(_a.Fragment,{children:[e.status===`error`?(0,_a.jsx)(rr,{href:`https://chatgpt.com/finances?prompt_id=repairAccount`,initiator:`open_in_browser_bridge`,children:(0,_a.jsx)(_,{id:`browserPluginSettings.banks.repair`,defaultMessage:`Repair`,description:`Open the secure bank account repair flow`})}):null,(0,_a.jsx)(n,{color:`ghost`,disabled:h,loading:h&&g.id===e.id,onClick:()=>m(e),children:(0,_a.jsx)(_,{id:`browserPluginSettings.disconnect`,defaultMessage:`Disconnect`,description:`Disconnect the selected plugin account`})})]})},e.id)),t.length===0?(0,_a.jsx)(",
+    "claim": "银行错误行有Repair外链，Disconnect同组禁用且只给当前行loading。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J038",
+    "path": "webview/assets/routes-d75be4c2d3a0.js",
+    "offset": 43700,
+    "excerpt": "act.memo_cache_sentinel`)?(D=(0,_a.jsx)(K.Footer,{children:(0,_a.jsx)(rr,{href:`https://chatgpt.com/finances?prompt_id=addAccount`,initiator:`open_in_browser_bridge`,children:(0,_a.jsx)(_,{id:`browserPluginSettings.banks.connect`,defaultMessage:`Connect a bank`,description:`Open the secure flow for connecting another bank`})})}),e[29]=D):D=e[29];let O;return e[30]!==b||e[31]!==x||e[32]!==S||e[33]!==w||e[34]!==T||e[35]!==E?(O=(0,_a.jsxs)(b,{children:[x,S,w,T,E,D]}),e[30]=b,e[31]=x,e[32]=S,e[33]=w,e[34]=T,e[35]=E,e[36]=O):O=e[36],O}function ha(e){return e.item_id!=null}var ga",
+    "claim": "连接银行通过ChatGPT finances外部流程；本地仅证明入口与失败/空状态。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J039",
+    "path": "webview/assets/app-connect-modal-768fed5548c7.js",
+    "offset": 1135,
+    "excerpt": "ull,[r,i]=(0,v.useState)(n);n&&!r&&i(!0);let a;return t[0]!==r||t[1]!==e?(a=r?(0,y.jsx)(v.Suspense,{fallback:e.showLoadingDialog===!1?null:(0,y.jsx)(g,{...e}),children:(0,y.jsx)(b,{...e})}):null,t[0]=r,t[1]=e,t[2]=a):a=t[2],a}function g(e){let t=(0,_.c)(13),{app:r,connectorId:i,onOpenChange:a,onUserDismissed:o,failed:s,embedded:c}=e,l=s!==void 0&&s,d=r!=null||i!=null,f;t[0]!==a||t[1]!==o?(f=e=>{e||o?.(),a(e)},t[0]=a,t[1]=o,t[2]=f):f=t[2];let m;t[3]===Symbol.for(`react.memo_cache_sentinel`)?(m=(0,y.jsx)(n,{id:`appConnectModal.loadError`,defaultMessage:`Couldn’t open app conn",
+    "claim": "连接弹窗懒加载时可隐藏fallback；默认保留setup骨架。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J040",
+    "path": "webview/assets/app-connect-modal-768fed5548c7.js",
+    "offset": 1613,
+    "excerpt": "cache_sentinel`)?(m=(0,y.jsx)(n,{id:`appConnectModal.loadError`,defaultMessage:`Couldn’t open app connection`,description:`Title when downloading the app connection dialog fails after retrying`}),t[3]=m):m=t[3];let h;t[4]!==c||t[5]!==l?(h=l?null:(0,y.jsx)(p,{embedded:c}),t[4]=c,t[5]=l,t[6]=h):h=t[6];let g;return t[7]!==c||t[8]!==l||t[9]!==d||t[10]!==f||t[11]!==h?(g=(0,y.jsx)(u,{open:d,size:`setup`,onOpenChange:f,failed:l,embedded:c,title:m,children:h}),t[7]=c,t[8]=l,t[9]=d,t[10]=f,t[11]=h,t[12]=g):g=t[12],g}var _,v,y,b;function x(){return(x=e((()=>{_=o(),v=c(),i(),f(),d(),l",
+    "claim": "代码模块加载失败与连接详情加载失败为不同UI层。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J041",
+    "path": "webview/assets/app-connect-skeleton-1bfe5996145a.js",
+    "offset": 1147,
+    "excerpt": "entinel`)?(d=(0,h.jsx)(`div`,{className:`size-14 overflow-hidden rounded-xl`,children:(0,h.jsx)(u,{size:`fill`})}),r[4]=d):d=r[4];let f;r[5]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,h.jsxs)(`span`,{className:`flex items-center gap-1`,children:[(0,h.jsx)(`span`,{className:`size-1.5 rounded-full bg-border`}),(0,h.jsx)(`span`,{className:`size-1.5 rounded-full bg-border`}),(0,h.jsx)(`span`,{className:`size-1.5 rounded-full bg-border`})]}),r[5]=f):f=r[5];let g;r[6]===Symbol.for(`react.memo_cache_sentinel`)?(g=(0,h.jsxs)(`div`,{className:`flex items-center gap-3`,children:",
+    "claim": "骨架Logo56px；双Logo中间三个6px圆点。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J042",
+    "path": "webview/assets/app-connect-skeleton-1bfe5996145a.js",
+    "offset": 2456,
+    "excerpt": "l`)?(y=(0,h.jsxs)(`div`,{className:`flex min-h-0 flex-1 flex-col gap-6`,\"aria-hidden\":!0,children:[_,v,(0,h.jsx)(`div`,{className:`mt-auto h-9 shrink-0 overflow-hidden rounded-full`,children:(0,h.jsx)(u,{size:`fill`})})]}),r[9]=y):y=r[9];let b;return r[10]===c?b=r[11]:(b=(0,h.jsxs)(a,{className:`gap-6 overflow-hidden px-6 pt-8 pb-6 select-none`,size:`full`,children:[c,l,y]}),r[10]=c,r[11]=b),b}function p(e){return(0,h.jsxs)(`div`,{className:`flex flex-col gap-1 border-b border-default py-2.5 last:border-none`,children:[(0,h.jsx)(u,{className:`w-1/2`}),(0,h.jsx)(l,{lines:2,s",
+    "claim": "骨架底部36px胶囊按钮，aria-hidden视觉块与独立sr-only status。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J043",
+    "path": "webview/assets/app-connect-load-state-c97d10d1786f.js",
+    "offset": 367,
+    "excerpt": "oading:r,onOpenChange:a}=e,[o,s]=(0,w.useState)(null),c=i(),u;t[0]!==o||t[1]!==c?(u=o==null?void 0:{height:`min(${o}px, calc((100dvh - 2rem) / ${c}))`},t[0]=o,t[1]=c,t[2]=u):u=t[2];let d;t[3]===u?d=t[4]:(d={\"aria-describedby\":void 0,style:u},t[3]=u,t[4]=d);let p;t[5]!==o||t[6]!==r?(p=e=>{!r&&o==null&&e!=null&&e.offsetHeight>0&&s(e.offsetHeight)},t[5]=o,t[6]=r,t[7]=p):p=t[7];let m=(r||o!=null)&&`h-full`,h=o!=null&&`overflow-y-auto`,g;t[8]!==m||t[9]!==h?(g=l(m,h),t[8]=m,t[9]=h,t[10]=g):g=t[10];let _;t[11]!==n||t[12]!==p||t[13]!==g?(_=(0,T.jsx)(`div`,{ref:p,className:g,childre",
+    "claim": "加载完成记录真实高度并按100dvh/缩放限制，内部可滚动。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J044",
+    "path": "webview/assets/app-connect-load-state-c97d10d1786f.js",
+    "offset": 1833,
+    "excerpt": "t.memo_cache_sentinel`)?(_=(0,j.jsx)(r,{id:`beacons.connectApp.loadError.title`,defaultMessage:`Couldn’t load connector`,description:`Error heading in the app connection dialog shown to an end user when connector details requested by the user could not be loaded. Keep this concise and nontechnical; there are no placeholders.`}),n[2]=_):_=n[2];let v;n[3]===h?v=n[4]:(v=(0,j.jsx)(h,{children:_}),n[3]=h,n[4]=v);let y;n[5]===Symbol.for(`react.memo_cache_sentinel`)?(y=(0,j.jsx)(r,{id:`beacons.connectApp.loadError.description`,defaultMessage:`Try again, or cancel and return to the",
+    "claim": "详情数据读取失败提供Cancel/Retry；重试期间Cancel禁用。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J045",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 123392,
+    "excerpt": "==Ja||n[346]!==Qa||n[347]!==$a?(eo=(0,$.jsxs)(he,{className:`gap-6 overflow-hidden px-6 pt-8 pb-6`,style:Oa,children:[Ka,F,qa,Ja,Qa,$a]}),n[342]=F,n[343]=Ka,n[344]=qa,n[345]=Ja,n[346]=Qa,n[347]=$a,n[348]=eo):eo=n[348];let to=eo,no;return n[349]!==to||n[350]!==Gi?(no=Gi(to),n[349]=to,n[350]=Gi,n[351]=no):no=n[351],no}function Si(e){let t=new URL(`/auth/enroll_mfa`,`https://chatgpt.com`);t.search=new URLSearchParams({factor:`totp`,redirect_path:`https://chatgpt.com/`,mfa_source:`github_connector`}).toString(),dt({event:e,href:t.toString(),initiator:`open_in_browser_bridge`,op",
+    "claim": "连接弹窗主体gap24、水平24、上32下24，内容中段独立滚动。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J046",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 115769,
+    "excerpt": "className:`flex size-14 shrink-0 items-center justify-center rounded-xl bg-black text-white shadow-sm`,children:(0,$.jsx)(ie,{className:`size-12`})}),n[262]=Aa):Aa=n[262];let ja;n[263]===Symbol.for(`react.memo_cache_sentinel`)?(ja=(0,$.jsxs)(`span`,{className:`flex items-center gap-1`,children:[(0,$.jsx)(`span`,{className:`size-1.5 rounded-full bg-border`}),(0,$.jsx)(`span`,{className:`size-1.5 rounded-full bg-border`}),(0,$.jsx)(`span`,{className:`size-1.5 rounded-full bg-border`})]}),n[263]=ja):ja=n[263];let Ma;n[264]!==z.name||n[265]!==L?(Ma=L.formatMessage({id:`settings",
+    "claim": "标准连接顶部ChatGPT标识56px黑底白图标，与应用Logo对应排列。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J047",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 82293,
+    "excerpt": "(i=(0,$.jsx)(`div`,{className:`rounded-2xl border border-default px-4 py-2`,children:r}),t[2]=r,t[3]=i),i}function Q(e,t){return(0,$.jsxs)(`div`,{className:`flex flex-col gap-1 border-b border-default py-2.5 last:border-none`,children:[(0,$.jsx)(`div`,{className:`text-sm font-medium text-default`,children:e.title}),(0,$.jsx)(`div`,{className:`text-xs text-secondary`,children:_i(e.description)})]},`${e.title}-${t}`)}function yi(){let e=(0,Oi.c)(1),t;return e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,$.jsxs)(`div`,{className:`flex items-center gap-2 text-base text-ch",
+    "claim": "说明/权限卡片大圆角边框，内部标题text-sm、正文text-xs，行分隔。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J048",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 120570,
+    "excerpt": "key`,description:`Label for the secret API key used to connect a custom app`})}),(0,$.jsx)(it,{id:`${Xn}-key`,name:`connector-api-key`,type:`password`,autoComplete:`off`,required:!0,disabled:Q||J,value:Zn?.value??``,onChange:e=>Qn({context:H,value:e.target.value})})]}):null,n[302]=Zn?.value,n[303]=H,n[304]=Xn,n[305]=Z,n[306]=J,n[307]=Q,n[308]=Vi,n[309]=N,n[310]=Qn,n[311]=wa,n[312]=qa):qa=n[312];let Ja;n[313]!==G?.branding?.privacy_policy||n[314]!==G?.branding?.terms_of_service||n[315]!==R||n[316]!==fr||n[317]!==U||n[318]!==$n||n[319]!==fa||n[320]!==Yt||n[321]!==ya?(Ja=U?nul",
+    "claim": "API key使用password输入与autocomplete off，连接中/管理员禁用不可编辑。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J049",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 106450,
+    "excerpt": "e,{className:`icon-xs`}),(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.loading`,defaultMessage:`Loading connection details...`,description:`Message shown while app connector details are loading in the app connect modal`})]}),n[189]=e):e=n[189],ya=e}else if(ma){let e;n[190]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.signedConsent.loadError`,defaultMessage:`Couldn’t load the connection details. Try again before continuing`,description:`Error in the app consent dialog opened from a conversation connection request. Connection is b",
+    "claim": "签名连接详情pending状态显示spinner与说明，不允许直接连接。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J050",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 106760,
+    "excerpt": "nel`)?(e=(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.signedConsent.loadError`,defaultMessage:`Couldn’t load the connection details. Try again before continuing`,description:`Error in the app consent dialog opened from a conversation connection request. Connection is blocked because setup or consent details failed to load; the user can retry this read without starting a connection.`}),n[190]=e):e=n[190];let r;n[191]!==W||n[192]!==Wr?(r=()=>{W.refetch(),Wr.refetch()},n[191]=W,n[192]=Wr,n[193]=r):r=n[193];let i;n[194]===Symbol.for(`react.memo_cache_sentinel`)?(i=(0,$.jsx)(u,",
+    "claim": "签名详情失败仅重试读取setup/consent，不启动连接。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J051",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 107821,
+    "excerpt": "inel`)?(e=(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.signedSetupUnavailable`,defaultMessage:`This app needs additional setup. Connect it in Settings, then return to your conversation`,description:`Explanation in the app consent dialog opened from a conversation connection request when the app requires unsupported authentication choices or setup fields. The signed request cannot convey those choices, so its Continue button is unavailable.`}),n[197]=e):e=n[197];let r;n[198]===ai?r=n[199]:(r=()=>ai(),n[198]=ai,n[199]=r);let i;n[200]===Symbol.for(`react.memo_cache_sentinel`)",
+    "claim": "签名请求不能表达额外设置时提供Open Settings，不伪造连接选项。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J052",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 109449,
+    "excerpt": "che_sentinel`)?(e=(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.signedMfa.help`,defaultMessage:`Verify multi-factor authentication before connecting. If setup is required, complete it in your browser, then return here and check again`,description:`Instruction in signed app connection consent when the account's MFA readiness is not confirmed. The user must complete required security setup and recheck before the app connection can start. Multi-line explanatory text.`}),n[209]=e):e=n[209];let r;n[210]!==ei||n[211]!==$r?.mfa_enabled_v2||n[212]!==Kr?(r=Kr===`required`&&ei&&$r?.m",
+    "claim": "签名连接MFA未就绪显示浏览器设置与Check again；检查只更新就绪状态。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J053",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 111891,
+    "excerpt": "mo_cache_sentinel`)?(e=(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.loadError`,defaultMessage:`Could not load this app's connection details. Continue in browser.`,description:`Message shown when app connector details fail to load in app connect modal`}),n[226]=e):e=n[226],ya=e}else if(Dr&&T==null){let e;n[227]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.browserRequiredLinkParams`,defaultMessage:`This app needs extra setup fields, so connection continues in browser.`,description:`Message shown when app requires link params and ",
+    "claim": "普通连接详情失败可走浏览器回退，签名/服务账户另有阻止条件。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J054",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 113512,
+    "excerpt": "}):lt?(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.completingConnectionButton`,defaultMessage:`Finishing connection…`,description:`Primary button label shown while an app connection OAuth callback is still completing in the background`}):J?(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.disabledByAdminButton`,defaultMessage:`Disabled by admin`,description:`Primary button label shown when the app is unavailable because it is disabled by admin`}):bi?(0,$.jsx)(u,{id:`settings.mcp.appConnectModal.manageOnChatGpt`,defaultMessage:`Manage on ChatGPT`,description:`Primary button lab",
+    "claim": "按钮标签按完成中、管理员禁用、已连接、浏览器回退、OAuth/无认证分支变化。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J055",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 114903,
+    "excerpt": "P||n[255]!==wa||n[256]!==ri||n[257]!==mr?(Ta=e=>(0,$.jsx)(t,{form:wa?Xn:void 0,type:wa?`submit`:`button`,color:e,size:`large`,className:`w-full justify-center`,loading:Q,disabled:!!mr||ri||pa||lt||J||wa&&!Zn?.value||Hn!=null&&(W.isError||P!=null)||P!=null&&(W.isError||Dr||K===`UNSUPPORTED`),onClick:wa?void 0:ga,children:(0,$.jsxs)(`span`,{className:`flex items-center gap-1`,children:[Ca,va]})}),n[241]=Zn?.value,n[242]=Xn,n[243]=Hn,n[244]=W.isError,n[245]=ga,n[246]=lt,n[247]=J,n[248]=pa,n[249]=Q,n[250]=K,n[251]=va,n[252]=Ca,n[253]=Dr,n[254]=P,n[255]=wa,n[256]=ri,n[257]=mr,n[",
+    "claim": "主连接按钮的禁用条件覆盖额外setup、MFA、加载、完成中、admin和空key。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J056",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 87355,
+    "excerpt": "r?ze(R,tr):bn(R));let dr=(0,ki.useRef)(null),fr=(e,t)=>{let n=t===void 0||t;if(!e){n&&fe?.();let e=dr.current!=null;dr.current=null,n&&Ni&&e&&ve?.(`dismissed`),wn.current?.abort(),pn(!1),Qn(null),Yn(null),tn(null),sn(null)}de(e)},pr=Ge(R,{productSku:B?.productSku}),W=ne({...pr,enabled:An&&!U,staleTime:_.FIVE_MINUTES}),G=W.data,mr=$n&&(W.isError||G==null||G.id!==R||!Re(G)||P!=null||N?.length||B?.slackTeamId!=null),{data:hr,isPending:gr}=Nt({appIds:ur,enabled:ir&&!Pt,hostId:j}),_r=hr===void 0?[]:hr,{data:vr,isPending:yr}=ne(Qe({userId:zt,accountId:It,productSku:B?.productSku,",
+    "claim": "关闭连接弹窗中止请求并清理key、上下文与临时状态。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J057",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 64542,
+    "excerpt": ",Rr=F(),M(),N(),Te(),A(),We(),g(),_e(),On(),wn(),Mr(),Y=P(),zr=480,Br=`min(720px, calc(100vh - 2rem))`,Vr=`https://help.openai.com/en/articles/11487775-apps-in-chatgpt`,Hr=`https://chatgpt.com/#settings/Connectors`})))()}function Wr(e){return Kr[e.kind]}var Gr,Kr;function qr(){return(qr=e((()=>{M(),Gr=r({gmailLabel:{id:`settings.mcp.appConnectModal.googleBundle.gmail.label`,defaultMessage:`Gmail`,description:`Toggle label for including Gmail when connecting a Google app through the bundled OAuth flow`},gmailDescription:{id:`settings.mcp.appConnectModal.googleBundle.gmail.de",
+    "claim": "Google/Microsoft选择器宽480px、最大高min720/视口减32，宽受100vw减32限制。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J058",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 60014,
+    "excerpt": "tinel`)?(le=(0,Y.jsx)(`span`,{className:`flex h-18 w-18 shrink-0 items-center justify-center rounded-2xl border border-default bg-surface text-default shadow-sm`,children:(0,Y.jsx)(ie,{className:`h-12 w-12`,\"aria-hidden\":!0})}),n[16]=le):le=n[16];let M;n[17]===Symbol.for(`react.memo_cache_sentinel`)?(M=(0,Y.jsxs)(`span`,{\"aria-hidden\":!0,className:`flex gap-1`,children:[(0,Y.jsx)(`span`,{className:`size-1.5 rounded-full bg-text/30`}),(0,Y.jsx)(`span`,{className:`size-1.5 rounded-full bg-text/30`}),(0,Y.jsx)(`span`,{className:`size-1.5 rounded-full bg-text/30`})]}),n[17]=M):",
+    "claim": "组合授权顶部双72pxLogo卡，内部48px标识；表单左右32px。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J059",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 58849,
+    "excerpt": "onConnectors:i,connectLabel:a,currentConnector:o,currentDefinition:s,currentLogoDarkUrl:c,currentLogoUrl:l,fallbackPrivacyPolicyUrl:d,fallbackTermsOfServiceUrl:f,getConnectorMessages:p,isConnecting:m,initialSelectedCompanionConnectorIds:g,messages:_,onConsentShown:v,onContinue:y,onOpenChange:b,open:x,privacyPolicyUrl:ee,providerLogo:S,providerName:te,termsOfServiceUrl:ne,viewerCountry:C}=e,w=r!==void 0&&r,T;n[0]!==i||n[1]!==g?(T=()=>g==null?[]:i.map(Fr).filter(e=>!g.includes(e)),n[0]=i,n[1]=g,n[2]=T):T=n[2];let[E,D]=(0,Rr.useState)(T),O;if(n[3]!==i||n[4]!==E){let e;n[6]===E",
+    "claim": "组合选择器以排除列表保存用户取消选择；未提供初始选择时默认可用companion均选择。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J060",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 61620,
+    "excerpt": "n-h-0 overflow-y-auto px-1`,children:(0,Y.jsx)(Or,{companionConnectors:i,currentConnector:o,currentDefinition:s,currentLogoDarkUrl:c,currentLogoUrl:l,disabled:m,getMessages:p,onCompanionConnectorCheckedChange:A,selectedCompanionConnectorIds:k})}),n[27]=i,n[28]=o,n[29]=s,n[30]=c,n[31]=l,n[32]=p,n[33]=m,n[34]=k,n[35]=ge):ge=n[35];let _e=ee??d,ve=ne??f,ye;n[36]!==_.disclosure||n[37]!==b||n[38]!==te||n[39]!==_e||n[40]!==ve||n[41]!==C?(ye=(0,Y.jsx)(Ir,{message:_.disclosure,providerName:te,privacyPolicyUrl:_e,termsOfServiceUrl:ve,viewerCountry:C,onOpenChange:b}),n[36]=_.disclosur",
+    "claim": "组合授权列表中每个开关在连接中禁用，长列表独立滚动。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J061",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 79769,
+    "excerpt": "=r({title:{id:`settings.mcp.appConnectModal.microsoftBundle.interstitial.title`,defaultMessage:`Choose Microsoft plugins to install`,description:`Heading in the Microsoft app authorization picker shown before a user signs in with Microsoft. The picker lets the user choose which available Microsoft plugins to install through one authorization flow.`},description:{id:`settings.mcp.appConnectModal.microsoftBundle.interstitial.description`,defaultMessage:`You can revisit this anytime in settings`,description:`Short subtitle beneath the Microsoft app authorization picker heading",
+    "claim": "Microsoft组合选择含Email、Calendar、SharePoint、Teams，复用Google选择器布局。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J062",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 52067,
+    "excerpt": "g?(0,q.jsx)(u,{id:`chatgpt.connectors.google_oauth_bundle.scope_mismatch.title`,defaultMessage:`ChatGPT needs all requested permissions`,description:`Heading in the Google plugin connection recovery dialog after the user did not grant all requested Google permissions. Tells the end user why the selected plugins could not connect.`}):(0,q.jsx)(u,{id:`chatgpt.connectors.google_oauth_bundle.permission_guide.title`,defaultMessage:`Remember to select all permissions`,description:`Heading in the Google connector permission guide shown immediately before the end user opens Google'",
+    "claim": "Google少授予scope转恢复页；Select fewer回选择器，Try again重新走权限指引。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J063",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 48312,
+    "excerpt": "className:`h-[274px] w-[420px] overflow-hidden rounded-lg bg-white shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_12px_36px_rgba(35,37,43,0.12)]`,ref:s,children:[S,(0,W.jsxs)(`div`,{className:`grid h-[248px] grid-cols-2 px-[18px]`,children:[ne,(0,W.jsxs)(`div`,{className:`relative flex min-w-0 flex-col bg-white ps-3 pt-7`,children:[C,(0,W.jsxs)(`div`,{className:`mt-[5px] flex min-h-0 flex-1 flex-col`,children:[oe,se]})]})]})]}),e[35]=oe,e[36]=se,e[37]=ce):ce=e[37];let le;e[38]!==ce||e[39]!==ee?(le=(0,W.jsx)(`div`,{className:`absolute start-0 top-0 z-[1] h-[274px] w-[420px] origin-t",
+    "claim": "Google权限指导图为本地420×274示意图，不是实时远端OAuth页面。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J064",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 44664,
+    "excerpt": "an`,{className:`max-w-[112px] font-[Roboto,Arial,sans-serif] text-[15px] leading-[18px] text-[#1f1f1f]`,children:(0,W.jsx)(u,{id:`chatgpt.connectors.google_oauth_bundle.permission_guide.preview.account_title`,defaultMessage:`OpenAI wants access to your Google Account`,description:`Account-access heading in the decorative preview of Google's OAuth consent screen.`})})]}),e[10]=ne):ne=e[10];let C;e[11]===Symbol.for(`react.memo_cache_sentinel`)?(C=(0,W.jsx)(`div`,{className:`font-[Roboto,Arial,sans-serif] text-[10px] leading-[13px] text-[#1f1f1f]`,children:(0,W.jsx)(u,{id:`cha",
+    "claim": "Google示意图内部Roboto/Arial15/18标题及10/13说明，仅限示意图。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J065",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 48821,
+    "excerpt": "`,{className:`absolute start-0 top-0 z-[1] h-[274px] w-[420px] origin-top-left transition-transform duration-[550ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none`,style:ee,children:ce}),e[38]=ce,e[39]=ee,e[40]=le):le=e[40];let M;return e[41]!==le||e[42]!==m?(M=(0,W.jsxs)(`div`,{\"aria-hidden\":!0,className:or.stage,\"data-permission-preview-phase\":m,ref:o,children:[b,le]}),e[41]=le,e[42]=m,e[43]=M):M=e[43],M}function dr(e,t){return(0,W.jsx)(`i`,{className:`my-[3.5px] block h-[5px] shrink-0 rounded-[5px] bg-[#dadce0]`,style:{width:e}},t)}var fr,pr,W,G,mr,hr,g",
+    "claim": "指导图550ms变换和motion-reduce禁用；不推断真实Google动画。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J066",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 6995,
+    "excerpt": "n.useRef)(null),y=(0,Wn.useRef)(null),b=(0,Wn.useRef)(null),[x,S]=(0,Wn.useState)(`email`),[te,ne]=(0,Wn.useState)(!1),[C,w]=(0,Wn.useState)(!1),[T,E]=(0,Wn.useState)(!1),[D,re]=(0,Wn.useState)(`idle`),ie=`${m}-error`,O=`${m}-mail-address-error`,k;r[0]===h?k=r[1]:(k=h.formatMessage({id:`beacons.connectApp.icloud.form.button.close`,defaultMessage:`Close`,description:`Accessible label for the close icon in iCloud setup. Closes the form without connecting or continuing chat and discards both credentials.`}),r[0]=h,r[1]=k);let A=k,j,se;r[2]===x?(j=r[3],se=r[4]):(j=()=>{x===`ema",
+    "claim": "iCloud三步email/createPassword/password表单；步骤切换主动聚焦对应控件。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J067",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 8395,
+    "excerpt": ",r[10]=fe,r[11]=pe);let me;r[12]!==te||r[13]!==T||r[14]!==i||r[15]!==x||r[16]!==ue?(me=e=>{if(e.preventDefault(),x===`email`){if(te){if(i===`mail`&&_.current&&!/@(icloud\\.com|me\\.com|mac\\.com)$/i.test(_.current.value)){w(!0),_.current.focus();return}S(`createPassword`)}}else x===`createPassword`?S(`password`):x===`password`&&T&&ue()},r[12]=te,r[13]=T,r[14]=i,r[15]=x,r[16]=ue,r[17]=me):me=r[17];let he;r[18]===f?he=r[19]:(he=e=>{if(e==null||!f)return;let t=()=>{let t=e.ownerDocument.activeElement;if(!(t instanceof HTMLInputElement)||!e.contains(t))return;let n=t.getBoundingCl",
+    "claim": "iCloud Mail额外限制三个域；Calendar无该域限制。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J068",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 14936,
+    "excerpt": "62]=Ie):Ie=r[62];let Le;r[63]!==C||r[64]!==Ne||r[65]!==Pe||r[66]!==Fe?(Le=(0,V.jsx)(it,{id:Ne,ref:_,name:`icloud-email`,type:`email`,variant:`auth`,autoComplete:`off`,autoCapitalize:`off`,spellCheck:!1,required:!0,placeholder:Pe,\"aria-invalid\":C,\"aria-describedby\":Fe,onChange:Ie}),r[63]=C,r[64]=Ne,r[65]=Pe,r[66]=Fe,r[67]=Le):Le=r[67];let Re;r[68]!==Me||r[69]!==Le?(Re=(0,V.jsxs)(`div`,{className:`flex flex-col gap-2`,children:[Me,Le]}),r[68]=Me,r[69]=Le,r[70]=Re):Re=r[70];let ze;r[71]!==O||r[72]!==i||r[73]!==C||r[74]!==x?(ze=i===`mail`&&x===`email`&&C&&(0,V.jsx)(`p`,{id:O,cl",
+    "claim": "iCloud邮箱使用email required/auth变体，off自动完成/大写/拼写，aria-invalid关联错误。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J069",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 21357,
+    "excerpt": "eatePassword`&&(0,V.jsxs)(ae,{className:`w-full`,color:`outlineGhost`,size:`auth`,href:Gn,target:`_blank`,rel:`noopener noreferrer`,onClick:de,children:[(0,V.jsx)(u,{id:`beacons.connectApp.icloud.form.link.appleAccount`,defaultMessage:`Continue in Apple Account`,description:`Button-like link in iCloud Mail or Calendar setup. Opens Apple's account website in the system browser to create an app-specific password; the user must return manually. Preserve the Apple Account brand name.`}),(0,V.jsx)(Ze,{href:Gn,openTarget:`external-browser`,ExternalIcon:n})]}),r[98]=x,r[99]=We);le",
+    "claim": "创建应用密码步骤外部打开Apple Account；返回手动Next，无自动检测完成。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J070",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 19682,
+    "excerpt": "e:`text-sm text-danger`,role:`alert`,children:[D===`invalid_credentials`&&i===`mail`&&(0,V.jsx)(u,{id:`beacons.connectApp.icloud.form.error.invalidCredentials.mailInbox`,defaultMessage:`Check your iCloud Mail email address and app-specific password`,description:`Guidance after Mail rejects credentials. Mail uses its inbox email address. The error does not identify whether the email, password, or missing inbox caused the failure. Users can retry the password or cancel and restart to change the email. Neither credential is shown.`}),D===`invalid_credentials`&&i===`calendar`&&",
+    "claim": "iCloud区分凭据失败与暂时不可用；错误text-sm danger、role alert。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J071",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 7724,
+    "excerpt": "]===Symbol.for(`react.memo_cache_sentinel`)?(ce=()=>{let e=g.current;return()=>{b.current?.abort(),e?.reset()}},le=[],r[5]=ce,r[6]=le):(ce=r[5],le=r[6]),(0,Wn.useEffect)(ce,le);let M;r[7]!==l||r[8]!==d?(M=async()=>{if(!_.current||!v.current||b.current)return;let e=new AbortController;b.current=e,re(`pending`);let t;try{t=await d({username:_.current.value,password:v.current.value},e.signal)}catch{t=`unavailable`}if(!e.signal.aborted){if(b.current=null,typeof t==`string`){re(t);return}g.current?.reset(),E(!1),ne(!1),w(!1),re(`idle`),l(t.linkId)}},r[7]=l,r[8]=d,r[9]=M):M=r[9];",
+    "claim": "iCloud卸载中止请求并reset表单，成功也reset凭据。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J072",
+    "path": "webview/assets/app-connect-modal-content-34fae7dcda71.js",
+    "offset": 8866,
+    "excerpt": ".ownerDocument.activeElement;if(!(t instanceof HTMLInputElement)||!e.contains(t))return;let n=t.getBoundingClientRect(),r=e.getBoundingClientRect();n.bottom>r.bottom?e.scrollTop+=n.bottom-r.bottom:n.top<r.top&&(e.scrollTop-=r.top-n.top)},n=new ResizeObserver(t);return n.observe(e),e.addEventListener(`focusin`,t),()=>{n.disconnect(),e.removeEventListener(`focusin`,t)}},r[18]=f,r[19]=he);let ge=f&&`min-h-0 grow overflow-y-auto overscroll-contain`,_e;r[20]===ge?_e=r[21]:(_e=oe(`flex flex-col gap-4`,ge),r[20]=ge,r[21]=_e);let ve;r[22]!==A||r[23]!==c||r[24]!==p?(ve=p&&(0,V.jsx)(",
+    "claim": "嵌入iCloud表单尺寸/焦点变化时确保输入可见，并清理观察器及focusin监听。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J073",
+    "path": "webview/assets/app-connect-mfa-dialog-ca0ee4438073.js",
+    "offset": 643,
+    "excerpt": "]=(0,z.useState)(c),C;i[0]===a?C=i[1]:(C=j(a),i[0]=a,i[1]=C);let w;i[2]===C.mfa?w=i[3]:(w={...C.mfa,staleTime:0,refetchOnMount:`always`},i[2]=C.mfa,i[3]=w);let{data:T,isFetching:D,isError:O}=l(w),k;i[4]===u?k=i[5]:(k={mutationFn:async e=>{let t=await N({action:`enable`,factor:e},u());if(t===`failed`)throw Error(`MFA reauthentication failed`);return t}},i[4]=u,i[5]=k);let M=o(k);if(_!=null){let e=g??``,t;i[6]===Symbol.for(`react.memo_cache_sentinel`)?(t=()=>b(void 0),i[6]=t):t=i[6];let n;return i[7]!==a||i[8]!==_||i[9]!==p||i[10]!==e?(n=(0,B.jsx)(F,{accountId:a,email:e,facto",
+    "claim": "连接MFA每次挂载重新读取认证状态；正在读取仅显示spinner。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J074",
+    "path": "webview/assets/app-connect-mfa-dialog-ca0ee4438073.js",
+    "offset": 2718,
+    "excerpt": "-lg text-center font-semibold`,children:(0,B.jsx)(r,{id:`apps.connectMfa.title`,defaultMessage:`Enable a second factor to continue`,description:`Title when connecting an app requires enabling multi-factor authentication on the user's ChatGPT account`})}),i[20]=G):G=i[20];let K;i[21]===D?K=i[22]:(K=D?(0,B.jsx)(S,{}):null,i[21]=D,i[22]=K);let q;i[23]!==O||i[24]!==D||i[25]!==T?.mfa_enabled_v2||i[26]!==T?.show_sms||i[27]!==p||i[28]!==M.isPending||i[29]!==M.variables||i[30]!==I?(q=!D&&(!O&&T?.mfa_enabled_v2?(0,B.jsx)(t,{color:`primary`,size:`large`,className:`w-full justify-cent",
+    "claim": "MFA引导标题heading-lg居中semibold，使用ChatGPT medium弹窗。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J075",
+    "path": "webview/assets/app-connect-mfa-dialog-ca0ee4438073.js",
+    "offset": 3726,
+    "excerpt": ":M.isPending,onClick:()=>I(`totp`),trailing:M.isPending&&M.variables===`totp`?(0,B.jsx)(S,{className:`size-4`}):(0,B.jsx)(n,{})}),T?.show_sms?(0,B.jsx)(s,{icon:(0,B.jsx)(E,{}),label:(0,B.jsx)(r,{id:`apps.connectMfa.sms`,defaultMessage:`Text a code to your phone number`,description:`Starts text-message MFA enrollment while connecting an app`}),disabled:M.isPending,onClick:()=>I(`sms`),trailing:M.isPending&&M.variables===`sms`?(0,B.jsx)(S,{className:`size-4`}):(0,B.jsx)(n,{})}):null]})),i[23]=O,i[24]=D,i[25]=T?.mfa_enabled_v2,i[26]=T?.show_sms,i[27]=p,i[28]=M.isPending,i[29]=",
+    "claim": "SMS方式按服务端show_sms；Authenticator始终保留；请求中两行禁用、命中行显示16pxspinner。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J076",
+    "path": "webview/assets/app-connect-mfa-dialog-ca0ee4438073.js",
+    "offset": 4378,
+    "excerpt": "M.isError?(0,B.jsx)(`p`,{role:`alert`,className:`text-sm text-danger`,children:(0,B.jsx)(r,{id:`apps.connectMfa.failed`,defaultMessage:`Couldn’t start MFA setup. Please try again`,description:`Error when preparing MFA enrollment or preserving the pending app connection fails`})}):null,i[32]=M.isError,i[33]=J);let Y;i[34]!==K||i[35]!==q||i[36]!==J?(Y=(0,B.jsxs)(y,{className:`gap-6 px-6 pt-8 pb-6 select-none`,children:[W,G,K,q,J]}),i[34]=K,i[35]=q,i[36]=J,i[37]=Y):Y=i[37];let X;return i[38]!==Y||i[39]!==V?(X=(0,B.jsx)(v,{autoFocusCloseButton:!0,open:!0,size:`medium`,variant:`",
+    "claim": "准备MFA失败以danger alert保留在弹窗，非成功关闭。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J077",
+    "path": "webview/assets/app-connect-mfa-continuation-43626e132259.js",
+    "offset": 687,
+    "excerpt": "e})=>e):void 0});let a=y.parse({...t,plugin:i,id:n?.id??crypto.randomUUID(),expiresAt:n?.expiresAt??Date.now()+18e5});sessionStorage.setItem(b,JSON.stringify(a));let o=new URL(`/connector/mfa`,window.location.origin);return o.searchParams.set(`state`,a.id),o.href}function _(e,t,n){try{let r=y.safeParse(JSON.parse(sessionStorage.getItem(b)??`null`));return!r.success||r.data.id!==e||r.data.accountId!==t||r.data.userId!==n||r.data.expiresAt<=Date.now()?null:r.data}catch{return null}}function v(e){try{if(e!=null){let t=y.safeParse(JSON.parse(sessionStorage.getItem(b)??`null`));",
+    "claim": "MFA续接在sessionStorage存30分钟令牌上下文，回读检查state/account/user/expiry。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J078",
+    "path": "webview/assets/app-connect-mfa-page-9186d1088376.js",
+    "offset": 859,
+    "excerpt": "mbol.for(`react.memo_cache_sentinel`)?(n=(0,k.jsx)(`p`,{role:`alert`,children:(0,k.jsx)(r,{id:`apps.connectMfa.expired`,defaultMessage:`This app connection has expired. Start connecting the app again`,description:`Shown when the saved app connection is missing, expired, or belongs to a different ChatGPT account after MFA sign-in`})}),e[5]=n):n=e[5];let i;e[6]===u?i=e[7]:(i=()=>void u(`/settings/plugins-settings`,{replace:!0}),e[6]=u,e[7]=i);let a;e[8]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,k.jsx)(r,{id:`apps.connectMfa.backToApps`,defaultMessage:`Back to apps`,desc",
+    "claim": "续接失效/缺失/账户不匹配显示alert和Back to apps，不继续原授权。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J079",
+    "path": "webview/assets/app-connect-mfa-page-9186d1088376.js",
+    "offset": 3035,
+    "excerpt": "ctorId:m.connectorId,hostId:D,appConnectOptions:w,installAttemptId:m.installAttemptId,requestedCompanionConnectorIds:m.requestedCompanionConnectorIds,mfaContinuation:m,mfaFactor:A,closeOnOAuthStarted:!1,onOpenChange:j,onOAuthStarted:M},m.id),e[26]=m,e[27]=w,e[28]=D,e[29]=A,e[30]=j,e[31]=M,e[32]=N):N=e[32],N}var O,k;function A(){return(A=e((()=>{O=u(),a(),c(),s(),_(),b(),g(),l(),m(),S(),w(),p(),k=d()})))()}A();export{D as AppConnectMfaPage};\n//# sourceMappingURL=app-connect-mfa-page-9186d1088376.js.map",
+    "claim": "有效续接重新打开连接弹窗并保留factor、companion与返回目标；关闭清理并replace返回。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J080",
+    "path": "webview/assets/app-connect-oauth-callback-page-b365798552ea.js",
+    "offset": 20747,
+    "excerpt": "items-center justify-center`,children:(0,$.jsx)(i,{id:`apps.appConnectOAuthCallbackPage.superseded`,defaultMessage:`This connection attempt was replaced`,description:`Status shown when an older OAuth callback finishes after a replacement attempt started`})}),e[117]=t):t=e[117],t}let Z;return e[118]===Symbol.for(`react.memo_cache_sentinel`)?(Z=(0,$.jsx)(`div`,{className:`flex h-full w-full items-center justify-center`,children:(0,$.jsx)(te,{className:`icon-sm`})}),e[118]=Z):Z=e[118],Z}function Ye(e){let{result:t}=e;return t}function Xe(e){return Oe(e.state)?.fullRedirectUrl?",
+    "claim": "OAuth旧回调被新尝试替代时居中显示提示，默认处理态居中spinner。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J081",
+    "path": "webview/assets/app-connect-oauth-callback-page-b365798552ea.js",
+    "offset": 15022,
+    "excerpt": "e?.then(Ye)??w()).then(async e=>{if(r!=null&&!v())return e;if(e.kind===`superseded`)return ye(!0),e;if(we(a,i,e),e.kind===`request-failed`&&e.googleOAuthScopeMismatch&&i!=null)return xe(i),e;if(e.kind===`success`){if(e.githubRepositoryAccess!=null)return ae({popupReturn:n,accountId:i?.accountId,appConnectOptions:void 0,appId:e.appId,appName:e.appName,connectorSetup:e.connectorSetup,hostId:i?.hostId??`local`,installationUrl:e.githubRepositoryAccess.installationUrl,linkId:e.githubRepositoryAccess.linkId,resumePath:o,resumeTarget:i?.resumeTarget??{kind:`apps-tab`}}),e;if(n!=nu",
+    "claim": "OAuth回调scope不足恢复Google权限流程；结果按resumeTarget分派。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J082",
+    "path": "webview/assets/app-connect-oauth-callback-page-b365798552ea.js",
+    "offset": 21339,
+    "excerpt": "function Ze(e,t){switch(e?.kind){case`chatgpt-tool-request`:case`connector-auth-elicitation`:case`tool-suggestion-elicitation`:return{waitForCallback:!1,showSuccessToast:!1};case`chatgpt-pca-beacon`:return{waitForCallback:!0,showSuccessToast:!1};case`service-account`:case void 0:return{waitForCallback:!0,showSuccessToast:!0};case`mcp-connect-sheet`:return e.homeSuggestion!=null||e.widgetModal!=null?{waitForCallback:!0,showSuccessToast:!1}:{waitForCallback:t,showSuccessToast:!0};case`return-to-location-state`:return{waitForCallback:!0,showSuccessToast:e.successState.orbitSla",
+    "claim": "回调是否等待/显示成功toast取决于工具请求、beacon、插件安装、apps-tab等目标。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J083",
+    "path": "webview/assets/plugins-settings-43d02b483c24.js",
+    "offset": 74542,
+    "excerpt": ".jsx)(Hr,{title:Gi}),t[142]=Gi,t[143]=qi),(0,$.jsxs)(`div`,{className:`flex h-full min-h-0 flex-col`,children:[qi,(0,$.jsx)(`div`,{className:`flex min-h-0 flex-1 flex-col text-base select-none`,children:!I&&Ir!==`mcps`?(0,$.jsx)(oo,{}):(0,$.jsx)($.Fragment,{children:(0,$.jsxs)(`div`,{className:`flex-1 overflow-hidden`,children:[(0,$.jsx)(ti,{className:`flex h-full w-full flex-1 flex-col gap-0`,children:(0,$.jsxs)(qn,{embedded:!0,fullWidth:c,className:xe(!c&&`h-full overflow-y-auto p-panel [scrollbar-gutter:stable]`),children:[(0,$.jsxs)(`div`,{className:`flex flex-wrap item",
+    "claim": "共享管理扩展宿主全高纵列，面板内部滚动与稳定scrollbar gutter。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J084",
+    "path": "webview/assets/plugins-settings-43d02b483c24.js",
+    "offset": 75011,
+    "excerpt": " overflow-y-auto p-panel [scrollbar-gutter:stable]`),children:[(0,$.jsxs)(`div`,{className:`flex flex-wrap items-center justify-between gap-3`,children:[(0,$.jsx)(lo,{currentTab:Ir,showNonMcpTabs:I,tabCounts:Mr,onSelectTab:Ti}),p?null:(0,$.jsx)(`div`,{className:`w-56 min-w-0`,children:(0,$.jsx)(nr,{id:`plugins-page-manage-search`,inputRef:ne,label:Lr.searchLabel,onSearchQueryChange:he,placeholder:Lr.searchPlaceholder,searchQuery:me,variant:`settings`})})]}),(0,$.jsxs)(`div`,{className:`flex min-h-0 flex-1 flex-col`,children:[Ir===`plugins`?(0,$.jsx)(li,{presentation:`settin",
+    "claim": "共享管理页顶部tabs加224px搜索，窄宽自动换行。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J085",
+    "path": "webview/assets/plugins-settings-43d02b483c24.js",
+    "offset": 76920,
+    "excerpt": "ry:zr}):(0,$.jsxs)(`div`,{className:`flex flex-col gap-6`,children:[cn==null?null:(0,$.jsx)(ja,{errorMessage:cn,isRetrying:an,onRetry:zr}),(0,$.jsx)(Na,{apps:Tr,effectiveConfig:Qt,emptyStateTitle:(0,$.jsx)(x,{id:`skills.appsPage.empty.installedApps`,defaultMessage:`No installed apps`,description:`Empty state title when there are no installed apps on the Skills & Apps page`}),installedStateAction:`toggle`,isConfigPending:Zt,useCompactEmptyState:!0,isAppConnectPending:Ln,updatingAppId:Bn,onInstallApp:async e=>{pe(null),await In(e)},onOpenAppTools:e=>{ye(e.id)},onSetAppEnabled",
+    "claim": "共享管理Apps分支保留错误横幅与已有列表，空态单独No installed apps。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J086",
+    "path": "webview/assets/plugins-settings-43d02b483c24.js",
+    "offset": 78975,
+    "excerpt": "$.jsx)(lt,{title:(0,$.jsx)(x,{id:`skills.appsPage.pluginsUnsupportedHost.title`,defaultMessage:`Plugins are not available for this host`,description:`Title shown when the selected host does not support plugins`}),description:(0,$.jsx)(x,{id:`skills.appsPage.pluginsUnsupportedHost.description`,defaultMessage:`Choose another host to browse and manage plugins`,description:`Description shown when the selected host does not support plugins`})})}),e[0]=t):t=e[0],t}function so(e){if(!(e instanceof HTMLElement))return!1;if(e.isContentEditable)return!0;let t=e.tagName.toLowerCase();",
+    "claim": "插件管理按主机可用性显示阻止页，不能当成每个ChatGPT账户都拥有。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  },
+  {
+    "id": "J087",
+    "path": "webview/assets/plugins-connect-modal-66a8b7c7f174.js",
+    "offset": 1475,
+    "excerpt": "n[7]=B,n[8]=V,n[9]=H,n[10]=W):W=n[10];let G;n[11]===p?G=n[12]:(G={connectorId:p,productSku:`CODEX`},n[11]=p,n[12]=G);let K;n[13]!==o||n[14]!==p||n[15]!==d||n[16]!==O?(K=async()=>(g(O,o),D({...d,connector_id:p},O.get(b,`2794040019`))),n[13]=o,n[14]=p,n[15]=d,n[16]=O,n[17]=K):K=n[17];let q;n[18]!==o||n[19]!==O||n[20]!==u||n[21]!==c?(q=async()=>{await Promise.all([O.query.invalidate(T,{accountId:o,teamId:c,serviceAccountId:u}),v(O,o,c)])},n[18]=o,n[19]=O,n[20]=u,n[21]=c,n[22]=q):q=n[22];let J;n[23]!==o||n[24]!==S||n[25]!==A||n[26]!==P||n[27]!==u?(J=e=>{P({...e,returnTo:S?.()??",
+    "claim": "团队服务账户连接消费者显式CODEX，不归入本章ChatGPT功能。",
+    "scope": "ChatGPT 应用连接与插件设置的交付包静态实现；共享桌面宿主按消费者标注，未运行授权、写配置或访问远端页面"
+  }
+]

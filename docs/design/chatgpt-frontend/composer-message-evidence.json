@@ -1,0 +1,722 @@
+[
+  {
+    "id": "I201",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 10890,
+    "excerpt": " as mu,dy as hu,fy as gu,gt as _u,gy as vu,hg as yu,ht as bu,hy as xu,in as Su,kn as Cu,kt as wu,la as Tu,ld as Eu,mt as Du,nn as Ou,od as ku,pg as Au,pt as ju,rn as Mu,sd as Nu,ua as Pu,ud as Fu,vu as Iu,zn as Lu,zr as Ru}from\"./app-primary-b4ce9e46",
+    "claim": "ChatGPT 会话页把 app-primary 的导出 in 重命名为 Su；下游页面以该组件挂载输入框。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I202",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2432104,
+    "excerpt": "ig,VL as ih,Cwt as ii,rZ as il,xz as im,qPt as in,abt as io,z0e as ip,jkt as ir,O1 as is,ALt as it,LJ as iu,hWe as iv,gj as ix,FN as iy,lzt as j,$P as",
+    "claim": "app-primary 导出 in 对应本地函数 qPt，补齐跨 chunk 连接，而不是根据文件名推测。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I203",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2148289,
+    "excerpt": "function qPt(e){\"use forget\";let t=qt(K),n=qt(aT),r=qt(WO),{quickChatComposerPresentation:i}=(0,z5.useContext)(jA),a=jR(i),o=(0,z5.useContext)(fO)?.target,s=X(Yg),{ref:c,className:l,aboveComposerHeaderContent:u,headerContent:d,autoPrepare:f=!0,handleUrlQuery:p=!1,browserConversationId:m,composerLayoutMode:h,composerController:g,defaultModel:_,defaultTppLocalExecutionSelected:v=!1,conversationId:y,conversationOrigin:b,disableAutoFocus:x,disableDraftPrepare:S=!1,disableSubmit:C=!1,submitLoading:w=!1,errorClassName:T,focusRequestNonce:E,getAdditionalUserContext:D,getExtraDeveloperInstru",
+    "claim": "qPt 接收自定义 composerController、conversationId、disableSubmit、submitLoading、模型/项目/临时聊天等状态。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I204",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2178976,
+    "excerpt": "_i=(0,B5.jsx)(DNt,{ref:c,urlQuery:p?{enabled:!qr&&!Je&&!mr&&Tn==null&&lt!=null,canAutoSubmit:Le==null&&$t.length===0&&on.length===0&&e.attachmentPreparation==null&&sn.length===0&&un.length===0&&Oe.length===0&&On.length===0&&je==null,onSubmit:(e,t)=>ni(e,void 0,{submission_mode:`auto_send`},`default`,t)}:void 0,headerContent:je==null?d:(0,B5.jsxs)(B5.Fragment,{children:[(0,B5.jsx)(QSt,{conversationId:Ee}),d]}),allowBackgroundSubmit:e.allowBackgroundSubmit,showVoiceStage:e.showVoiceStage,onVoiceStartAccepted:e.onVoiceStartAccepted,renderPassiveComposerContent:e.showConversationFollowup",
+    "claim": "qPt 向 DNt 传入会话输入；URL 自动提交仅在未阻塞、非只读、未生成、尚未保存且模型可用时启用；没有附件与 system hints 等额外上下文时才允许 auto-submit。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I205",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2104855,
+    "excerpt": "q=(0,ANt.jsx)(YMt,{ref:n,...g,composerLayoutMode:pe,conversationId:i,conversationOrigin:a,isWorkConversation:me,isTppConversation:he,isStreaming:l,isTemporaryChat:x,selectedModel:f,selectedSystemHints:m,targetGizmoId:d,shouldBlockExternalEgress:p,skillLookupRoots:ge,skillMentionsEnabled:_e,onSubmit:ve,onPrepareDraft:ye}),t[130]=i,t[131]=a,t[132]=l,t[133]=x,t[134]=g,t[135]=n,t[136]=f,t[137]=m,t[138]=p,t[139]=pe,t[140]=me,t[141]=he,t[142]=ge,t[143]=_e,t[144]=ve,t[145]=ye,t[146]",
+    "claim": "DNt 的 UI 出口是 YMt，同时转交 isStreaming、isTemporaryChat、模型、systemHints 和 onSubmit/onPrepareDraft。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I206",
+    "path": "webview/assets/use-chatgpt-composer-controller-f63f44a0b7d6.js",
+    "offset": 708,
+    "excerpt": "oHistory:u==null&&f!=null,defaultTextKind:d??(u==null&&f!=null||C(u??``).length>0?`prompt`:`plain`),enableFileMentions:!0,enableRichText:!0,enableSkillMentions:!1,enableSlashCommands:{triggers:[`/`]},plainTextMode:i(h.get,r.composerPlainTextMode),suggestionOptions:{enableInlineSystemHints:e!==`tpp`&&e!==`flora`,variant:e!==`tpp`&&e!==`flora`?`chatgpt`:void 0}});return u==null&&c!=null&&typeof f==`string`&&p(h,f)!=null&&e!==`tpp`&&e!==`flora`&&x(h,c,t.getCh",
+    "claim": "ChatGPT controller 开启 file mentions、rich text、/ slash commands；默认禁用 skill mentions；tpp/flora 不开启 ChatGPT inline-system-hints 变体。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I207",
+    "path": "webview/assets/use-chatgpt-composer-controller-f63f44a0b7d6.js",
+    "offset": 1391,
+    "excerpt": "t[13]!==h?(k=()=>{if(f==null)return;let e=h.get(b,f);return T.current!=null&&T.current!==e&&w.restoreDraft(e),()=>{T.current=h.get(b,f)}},A=[w,f,h],t[11]=w,t[12]=f,t[13]=h,t[14]=k,t[15]=A):(k=t[14],A=t[15]),(0,O.useLayoutEffect)(k,A);let j;return t[16]!==w||t[17]!==s?(j=()=>{s==null&&!w.view.isDestroyed&&w.destroy()},t[16]=w,t[17]=s,t[18]=j):j=t[18],m(j,w),w}var E,D,O;function k(){return(k=e((()=>{E=l(),D=t(d(),1),o(),c(),O=f(),h(),v(),u(),s(),S(),g(),w()})))()}export{T as n,k as t};\n//# sourceMappingURL=use-chatgpt-composer-controller-f63f44a0",
+    "claim": "controller 用 draftKey 恢复已变化的草稿；仅在没有外部注入 controller 时自行 destroy。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I208",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2040130,
+    "excerpt": "let _i=gi,vi=$(cj,b),yi=vi===`ready`,bi=vi===`streaming`||fe&&!yi,xi=!jr&&!It&&!zn&&!kn&&vi!==`pending`&&vi!==`streaming`&&(!fe||Kt||Jt||yi||qn!=null),Si=Yt||An,Ci=Xt||An&&!Jt||Sn&&(qr||_i),wi=Yt||An&&!Xt&&!Zt,Ti=!Xt&&qn==null&&(An&&Zt||bi&&(vi===`streaming`||Yn||Si&&!Jt||!Kt&&!Jt||!qr&&!_i)),Ei;t[76]!==wr||t[77]!==Ti||t[78]!==an?(Ei=Bwt({intl:wr,isStopAction:Ti,rateLimitSendBlocked:an}),t[76]=wr,t[77]=Ti,t[78]=an,t[79]=Ei):Ei=t[79];let{submitActionLabel:Di,rateLimitHardBlockLabel:Oi}=Ei,ki;t[80]===wr?ki=t[81]:(ki=wr.formatMessage(S4.fileUploadPending),t[80]=wr,t[81]=ki);le",
+    "claim": "YMt 计算 native-answer 的 ready/streaming 与普通 isStreaming；能否提交还要检查录音、隐藏输入、阻塞、native-answer pending/streaming，以及 steering/可排入 native answer 的能力。",
+    "scope": "qPt→DNt→YMt 为 ChatGPT 输入链；Kt=isSteeringEnabled，Jt=canQueueNativeAnswerSubmission，fe=isStreaming。"
+  },
+  {
+    "id": "I209",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2040340,
+    "excerpt": "Ti=!Xt&&qn==null&&(An&&Zt||bi&&(vi===`streaming`||Yn||Si&&!Jt||!Kt&&!Jt||!qr&&!_i)),Ei;t[76]!==wr||t[77]!==Ti||t[78]!==an?(Ei=Bwt({intl:wr,isStopAction:Ti,rateLimitSendBlocked:an}),t[76]=wr,t[77]=Ti,t[78]=an,t[79]=Ei):Ei=t[79];let{submitActionLabel:Di,rateLimitHardBlockLabel:Oi}=Ei,ki;t[80]===wr?ki=t[81]:(ki=wr.formatMessage(S4.fileUploadPending),t[80]=wr,t[81]=ki);le",
+    "claim": "Stop 动作不只由 isStreaming 决定：文件等待时不是 Stop；存在特殊准备状态时也不选 Stop；可停止的提交、生成中缺少 steering/queue 能力或没有草稿上下文等会选 Stop。",
+    "scope": "精确布尔表达式是证据；qn 对应共享状态 p0，本轮未赋予它超出观察的产品名称。Xt=等待文件，An=提交中或服务状态占用，Zt=可停止提交。"
+  },
+  {
+    "id": "I210",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2072139,
+    "excerpt": "Pl=(0,Z8.jsx)(EO,{ariaLabel:Xt?Ai:Di,blockedReason:Ti?null:Xt?Ai:zt??Oi??L??Ni,disabled:Xt||(Ti?wi:zn||kn),isLoading:Ti?wi:Ci,Icon:Ti?BO:Uu,type:Ti?`button`:`submit`,onClick:jl},Ti?`stop`:`send`),Fl=(0,Z8.jsx)(bjt,{errorSessionId:wa,errorProductExperience:Ta,disabledForWorkspace:Lr.disabledForWorkspace,isStarting:Ea,isPreparing:Nr,isDictating:La!=null&&Da,disabled:!ka||!Vi||Pa.thread.phase!==`inactive`,isTr",
+    "claim": "主动作按钮以 Ti 分别显示 Stop/Send 图标及 button/submit 类型；附件等待禁用；停止与提交各自使用不同 loading/disabled 条件；阻塞原因传入底层按钮。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I211",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2070789,
+    "excerpt": "let Al=kl,jl;if(Ti){let e;t[492]!==v||t[493]!==xt?(e=()=>{v.focus(),xt()},t[492]=v,t[493]=xt,t[494]=e):e=t[494],jl=e}else vr||(jl=e=>{zn||(fr?to(v.getText(),e.timeStamp):mr(v.getText(),void 0,void 0,e.timeStamp,!0))});let Ml;t[495]!==At||t[496]!==b||t[497]!==Mc||t[498]!==Es||t[499]!==Ds||t[500]!==Os||t[501]!==Vn||t[502]!==fe||t[503]!==An||t[504]!==dn||t[505]!==Pe||t[506]!==ln||t[507]!==un||t[508]!==je||t[509]!==Me||t[510]!==Ne||t[511]!==O||t[512]!==jn||t[5",
+    "claim": "Stop click 先聚焦输入器再调用 onStop；发送路径传入来源时间戳，并对 quick/background submission 分支分别调用。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I212",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1778565,
+    "excerpt": "function Bwt({intl:e,isStopAction:t,rateLimitSendBlocked:n}){let r=e.formatMessage({id:`chatgptConversations.composer.stop.ariaLabel`,defaultMessage:`Stop`,description:`Aria label for the icon button that stops an in-progress ChatGPT response in Codex Desktop. Short accessibility label.`});return{submitActionLabel:t?r:e.formatMessage({id:`chatgptConversations.composer.send.ariaLabel`,defaultMessage:`Send`,description:`Aria label for the icon button that sends the typed message to ChatGPT in Codex Desktop. Short accessibility label.`}),rateLimitHardBlockLabel:n?e.formatMessage({id:`ch",
+    "claim": "ChatGPT 按钮可访问名称为 Stop/Send；消息限额生成 Messages limit reached 作为禁用原因，专门用于 hover/focus 说明。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I213",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 3771826,
+    "excerpt": "-full`:`icon-primary-action text-composer-primary`,N=m!=null&&p!=null,P=i||x,F;if(O&&f==null&&(w===POe||w===slr||w===llr)){let e=`voice`;w===POe?e=`send`:w===slr&&(e=`stop`);let n;t[0]!==M||t[1]!==i||t[2]!==e?(n=(0,Mk.jsx)(Elr,{className:M,isLoading:i,state:e}),t[0]=M,t[1]=i,t[2]=e,t[3]=n):n=t[3],F=n}else if(i){let e;t[4]===M?e=t[5]:(e=(0,Mk.jsx)(nl,{className:M}),t[4]=M,t[5]=e),F=e}else if(f!=null){let e;t[6]===f?e=t[7]:(e=(0,Mk.jsx)(`span`,{className:`text-xs text-composer-primary select-none`",
+    "claim": "底层主按钮将 isLoading 或 disabled 合并为交互禁止状态；loading 时走旋转占位或受门控的 morph 图标。",
+    "scope": "app-primary EO → app-initial r6n → Mlr；此为共享原语，已由 ChatGPT YMt 调用。"
+  },
+  {
+    "id": "I214",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 3773004,
+    "excerpt": "let V=P||void 0,H=i||void 0,ee=i||x&&p==null,te;t[19]!==P||t[20]!==b?(te=e=>{if(P){e.preventDefault();return}b?.(e)},t[19]=P,t[20]=b,t[21]=te):te=t[21];let ne;t[22]!==s||t[23]!==o||t[24]!==F||t[25]!==n||t[26]!==B||t[27]!==V||t[28]!==H||t[29]!==ee||t[30]!==te||t[31]!==E?(ne=(0,Mk.jsx)(`button`,{ref:n,type:E,className:B,\"aria-disabled\":V,\"aria-busy\":H,\"aria-label\":o,\"aria-describedby\":s,disabled:ee,onClick:te,children:F}),t[22]=s,t[23]=o,t[24]=F,t[25]=n,t[26]=B,t[27]=V,t[28]=H,t[29]=ee,t[30]=te,t[31]=E,t[32]=ne):ne=t[32];let re=ne;if(p==null||m===null||!x&&!N){if(!O&&g==null)return re;",
+    "claim": "按钮设置 aria-disabled/aria-busy。loading 或无 blockedReason 的 disabled 使用原生 disabled；有 blockedReason 的 disabled 保留 DOM 可交互目标，但 click handler preventDefault，不执行业务回调。",
+    "scope": "共享 Mlr 原语在 ChatGPT Send/Stop 链路内使用。"
+  },
+  {
+    "id": "I215",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 3773989,
+    "excerpt": "let ie=N?`forced-${m}`:`blocked`,ae;return t[43]!==p||t[44]!==re||t[45]!==N||t[46]!==ie?(ae=(0,Mk.jsx)(bl,{defaultOpen:N,tooltipContent:p,tooltipClassName:`max-w-36`,tooltipBodyClassName:`text-center text-pretty`,children:re},ie),t[43]=p,t[44]=re,t[45]=N,t[46]=ie,t[47]=ae):ae=t[47],ae}var Nlr,Plr,Mk,Flr;function Ilr(){return(Ilr=t((()=>{Nlr=Z(),po(),Plr=yu(),As(),tc(),Go(),iSe(),clr(),Qv(),flr(),j",
+    "claim": "blockedReason 用 tooltip 展示，可借 nonce 强制打开；不是禁用后彻底无法解释的按钮。",
+    "scope": "共享 Mlr 原语；运行时可聚焦行为未实测。"
+  },
+  {
+    "id": "I216",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2184498,
+    "excerpt": "onStop:(t=`mouse`)=>{if(cr&&er.current!=null){er.current.controller.abort();return}if(e.execution!=null){er.current?.controller.abort(),e.execution.stop();return}Zke(n,Ee,Ae.formatMessage(xh.submitError),{eventSource:t,productExperience:Re?Fk.CHATGPT_RATE_LIMIT_BANNER_PRODUCT_EXPERIENCE_WORK:Fk.CHATGPT_RATE_LIMIT_BANNER_PRODUCT_EXPERIENCE_CHAT}).catch(()=>{})},onStartPlusOnboarding:async e=>{if(B||Je||pr!=null||or||mr||Re||ge!=null||_e!=null||g.getText().trim()!==``||!gh(n,`489096038`))return!1;let t=n.get($D),r=n.get(Px);return ni(`ChatGPT Plus`,void 0,{followups_v2_followup_source:",
+    "claim": "ChatGPT onStop 分三条：等待文件时 abort 当前提交 controller；外部 execution 时 abort 并 execution.stop；常规会话调用 Zke，带 keyboard/mouse 来源和 Chat/Work 体验标识。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I217",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 6983668,
+    "excerpt": "async function Yro(e,t,n,r){if(r?.expectedStreamRequestId!=null&&e.get(gM,t)!==r.expectedStreamRequestId||e.get(Ej,t)||e.get(gxr,t))return;let i=e.get(aM,t),a=e.get(gM,t);if(i==null&&a==null)return;let o=e.get(fxr,t),s=()=>e.get(fxr,t)===o,c=e.get(sM,t),l=Wai(e,t,c),u=l==null?void 0:jxr(e,i,e.get(cM,t));r?.eventSource===`keyboard`?Mv(e,V1r,{action:d$r.CHATGPT_CONVERSATION_CONTROL_ACTION_TYPE_KEYBOARD_STOP_REQUESTED,conversationId:i??void 0,productExperience:r?.productExperience}):r?.eventSource!==`skip`&&",
+    "claim": "Zke 对应共享导出 mJt→Yro。停止先检查预期 stream request、当前 stopping 与其他会话状态，避免重复/过期 stop。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I218",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 6984338,
+    "excerpt": "r(e,t,!0),e.set($ni,t,null);try{if(i!=null&&await e.get(KN).stopCompletion({conversation_id:i,exclude_async_types:[]},{conduitToken:d?.conduitToken??null}),!s())return;let n=e.get(gM,t);a!=null&&n!=null?T3a(e,t):n??pI({scope:e,conversationId:t,markUnread:!1,result:`cancelled`});let o=l?.()??null;u?.(o),i!=null&&d?.refetchAfterStop!==!1&&await IQi(e,i,`explicit_update`),r?.onStopped?.()}catch(r){if(!s())return;throw e.set($ni,t,r instanceof Error&&r.message.trim().length>0?r.message:n),r}finally{dxr(e,t,!1)}}function Xro(e,t){if(!xZa(e,t))throw Error(e.get(nh).formatMessage({id:`chatg",
+    "claim": "常规停止调用服务 stopCompletion，之后结束或标记本地流 cancelled、可刷新快照并回调 onStopped；并非只关本地流连接。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I219",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2156909,
+    "excerpt": "tKey:gr.pathname,conversationId:Ee}),Sr=qe||s||xr||ze===!0,Cr=Sr||C,wr=lr!=null&&Tn!=null,Tr=or&&sr?.status===`answering`&&wr,Er=_t&&yt?.isLoading===!0||Tt&&(kt&&Nt||Kae(wt.data,wt.isLoading)||Pt!=null&&(Wt||wt.data?.appToolsPipePath!=null&&Yt||It||Qt||Bt==null&&Rt==null&&Ut?.some(({plugin:e})=>e.installed&&e.enabled&&",
+    "claim": "canQueueNativeAnswerSubmission 对应 Tr=or && sr?.status===answering && wr；wr 要求共享 zg 状态非空且 serverConversationId 非空。",
+    "scope": "这是 ChatGPT native-answer 协调状态；不能据此宣称存在可排序的通用多消息队列。"
+  },
+  {
+    "id": "I220",
+    "path": "webview/assets/queued-message-list-7ce58c653012.js",
+    "offset": 22580,
+    "excerpt": "euedMessageNow:{id:`composer.queuedMessage.sendNow`,defaultMessage:`Steer`,description:`Button label for applying a queued follow-up to the active Codex run immediately instead of waiting in the queue`}})})))()}et();export{Be as QueuedMessageList};\n//# sourceMappingURL=queued-message-list-7ce58c6530",
+    "claim": "独立 QueuedMessageList 的 Steer 文案明确指 active Codex run，本轮不能把此队列清单视为普通 ChatGPT 功能。",
+    "scope": "排除性证据。该文件真实存在 Retry/Edit/Delete/Resume，但未发现普通 ChatGPT 输入链挂载它。"
+  },
+  {
+    "id": "I221",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13113497,
+    "excerpt": "urn new Io({...t.spec,props:{...t.props,handleKeyDown(e,n){if(n.isComposing||e.composing||n.keyCode===229)return!1;let r=E,i=O;E=n.timeStamp;try{return O=D?.(n),O===!0?(T.emit(`submit`,E),!0):t.props.handleKeyDown?.call(t,e,n)??!1}finally{E=r,O=i}}}})},A=a&&r,j=p,M=tge(),N=A&&!j,P=new ZBu,F=l,I=A?[gVu({defaultLanguage:`plaintext`}),_Vu()]:[],L=UCa(),R=jCa(P),z=u?.type.schema===C?u:void 0;e!=null&&z==null&&(z=n===`sites-prompt`?gG({schema:C,text:e,restoreOnlySitesAndPluginMentions:!0}):n!==`liter",
+    "claim": "编辑器 keymap 外层首先检查 event.isComposing、view.composing 和 keyCode 229；命中时不处理提交快捷键，保护 IME 候选确认。",
+    "scope": "共享编辑器被 use-chatgpt-composer-controller 调用；不是 AeonMessaging 专属分支。"
+  },
+  {
+    "id": "I222",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13116249,
+    "excerpt": "Enter:(e,t)=>{if(Ri.getState(e)?.active===!0)return!0;let n=e.selection.$from.parent.type===e.schema.nodes.code_block,r=bwa(e.doc)||n,i=a&&!n?Tne(e):null,o=n?oce:Cwa;if(i!=null&&i.node.type===e.schema.nodes.regular_list_item&&(o=Cee(Tie(i.node.type),Cwa)),O===!1||iUu())return i!=null&&i.node.type===e.schema.nodes.task_list_item?Cee(rae(i.node.type),Cwa)(e,t):o(e,t);switch(F){case`newline`:case`cmdAlways`:return o(e,t);case`cmdIfMultiline`:if(r)return o(e,t)}return T.emit(`submit`,E),!0},\"Mod-Enter\":(e,t)=>O===!1?Cee(oce,Cwa)(e,t):(!iUu()&&F===`enter`&&oVu(e,V.dispatch)||T.emit(`submi",
+    "claim": "Enter 遇到活跃建议菜单先交给菜单；代码块、多行、列表项及 enterBehavior 影响换行/提交；newline/cmdAlways 总走换行，cmdIfMultiline 在多行时换行。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I223",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13116741,
+    "excerpt": "\"Mod-Enter\":(e,t)=>O===!1?Cee(oce,Cwa)(e,t):(!iUu()&&F===`enter`&&oVu(e,V.dispatch)||T.emit(`submit`,E),!0),\"Mod-a\":Cee(sVu,lte),...a?{Tab:cVu,\"Shift-Tab\":lVu}:{}}}),...I,...S==null?[]:[S.codeBlockArrowExit,S.extensionKeymap],lva(w),L,R,aHu(()=>!j),IDe(),eUu(``),...S?.links??[],wBu()]}),dispatchTransaction(e){B!=null&&wHu(V.state,e);let t",
+    "claim": "Mod-Enter 在提交被覆盖禁止时插入换行；否则根据 enterBehavior 和触屏判定执行换行/submit。Shift-Enter/Alt-Enter 另有列表结构规则。",
+    "scope": "不能统一简写为 Enter 总发送、Shift-Enter 总换行；行为受用户配置、编辑器结构和设备判断影响。"
+  },
+  {
+    "id": "I224",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13124926,
+    "excerpt": "function iUu(){return!navigator.platform.startsWith(`Win`)&&window.matchMedia(`(pointer: coarse)`).matches}function aUu(e){let{$from:t}=e.state.select",
+    "claim": "键盘 Enter 的触屏条件为非 Win 平台且 (pointer: coarse) 匹配。",
+    "scope": "仅说明本构建条件，不声称所有触屏键盘运行效果已验证。"
+  },
+  {
+    "id": "I225",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1931484,
+    "excerpt": "t[5]!==s?(d=e=>{let{view:t}=n;if(!s||e.defaultPrevented||e.isComposing||t.composing||!hb(e,`Escape`)||kg(t.state)||t.dom.hasAttribute(`data-composer-markdown`)&&!t.state.selection.empty)return!1;if(a)return e.preventDefault(),e.stopPropagation(),e.repeat||o(),!0;let i=c.get(j6,r);if(!i.eligible)return!1;if(e.preventDefault(),e.stopPropagation(),!e.repeat){let e=i.startedAtMs==null&&r!=null?sRe(c,r)?.promptSentAtMs:void 0,t=null;i.startedAtMs==null?e!=null&&(t=performance.now()-e):t=Date.now()-i.startedAtMs,i.active&&t!=null&&t>=1e4?u({conversationId:r,identity:i.identity}):o()}return",
+    "claim": "Escape 停止会跳过已处理事件、IME、非 Escape、内部菜单状态，以及 Markdown 输入器中的非空选区；文件等待时可直接终止，repeat 不重复调用。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I226",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1931836,
+    "excerpt": "peat){let e=i.startedAtMs==null&&r!=null?sRe(c,r)?.promptSentAtMs:void 0,t=null;i.startedAtMs==null?e!=null&&(t=performance.now()-e):t=Date.now()-i.startedAtMs,i.active&&t!=null&&t>=1e4?u({conversationId:r,identity:i.identity}):o()}return!0},t[0]=n,t[1]=r,t[2]=a,t[3]=o,t[4]=c,t[5]=s,t[6]=d):d=t[6];let f=(0,P6.useEffectEvent)(d),p;t[7]!==n.view||t[8]!==f?(p=()=>Bg(n.view,{Escape:f}),t[7]=n.view,t[8]=f,t[9]=p):p=t[9];let m;if(t[10]===n?m=t[11]:(m=[n],t[10]=n,t[11]=m),(0,P6.useEffect)(p,m),!s||l==n",
+    "claim": "Escape 对 eligible 活跃任务达到 10 秒后开启 KeyboardStopDialog；其他 eligible 情况直接 stop。弹窗关闭恢复编辑器焦点。",
+    "scope": "这是键盘 Escape 分支，不是主 Stop 按钮一律二次确认。"
+  },
+  {
+    "id": "I227",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1932943,
+    "excerpt": "oseAutoFocus:o,onStop:s}=e,c=qt(K),l=$(j6,n);if(!l.active||!l.eligible||l.identity!==r)return null;let u;t[0]!==n||t[1]!==r||t[2]!==i||t[3]!==a||t[4]!==c?(u=n==null?null:(0,F6.jsx)(zOt,{conversationId:bp(n),isTemporaryChat:i,surface:`escape`,onBeforeAnswerNow:()=>{let e=c.get(j6,n);return a(),e.active&&e.eligible&&e.identity===r}}),t[0]=n,t[1]=r,t[2]=i,t[3]=a,t[4]=c,t[5]=u):u=t[5];let d;t[6]!==n||t[7]!==r||t[8]!==a||t[9]!==s||t[10]!==c?(d=()=>{let e=c.get(j6,n);a(),e.active&&e.eligible&&e.identity===r&&s()},t[6]=n,t[7]=r,t[8]=a,t[9]=s,t[10]=c,t[11]=d):d=t[11];let f;return t[12]!==a||",
+    "claim": "停止确认弹窗重检 active/eligible/identity，避免对已经变化的运行继续执行；可渲染 answerNow 动作。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I228",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1399466,
+    "excerpt": "d);let Ad=la&&Td,jd;t[394]===Ad?jd=t[395]:(jd={enabled:Ad},t[394]=Ad,t[395]=jd),rO(`composer.addFiles`,Dd.addFiles,jd);let Md;t[396]!==Dn||t[397]!==vs?(Md=(e,t)=>{Dn.insertRestoredPastedTextAtSelection(e,t),vs()},t[396]=Dn,t[397]=vs,t[398]=Md):Md=t[398];let Nd;t[399]!==ji||t[400]!==gd||t[401]!==Y||t[402]!==Md||t[403]!==ya?(Nd={uploadToCloud:ya,cwd:Y,executionHostId:ji,getAttachmentGen:gd,insertTextAtSelection:Md},t[399]=ji,t[400]=gd,t[401]=Y,t[402]=Md,t[403]=ya,t[404]=Nd):Nd=t[404];let{handlePastedText:Pd,handleRemoveFileAttachment:Fd,handleRemovePendingPastedTextAttachment:Id,handle",
+    "claim": "文件快捷命令受 fileAttachmentEnabled 控制；后台提交快捷命令检查输入器焦点、代码块和 CmdOrCtrl+Enter 的 enterBehavior 冲突。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I229",
+    "path": "webview/assets/chatgpt-keyboard-shortcuts-dialog-a8d79775ef75.js",
+    "offset": 413,
+    "excerpt": "onOpenAutoFocus:()=>{let e=document.activeElement;for(;e?.shadowRoot?.activeElement!=null;)e=e.shadowRoot.activeElement;c.current=e instanceof HTMLElement?e:null},onCloseAutoFocus:e=>{e.preventDefault(),c.current?.focus()},onEscapeKeyDown:h},i[0]=l):l=i[0];let u;i[1]===Symbol.for(`react.memo_cache_sentinel`)?(u=(0,v.jsxs)(s,{size:`scrollable`,variant:`chatgpt`,children:[(0,v.jsx)(r,{className:`shrink-0 px-12 pt-6 pb-2`,titleClassName:`text-center text-base leading-6`,titleSize:`base`,title:(0,v.jsx)(n,{children:(0,v.jsx)(t,{",
+    "claim": "快捷键设置弹窗保存原聚焦元素（含 shadowRoot 内焦点），关闭时恢复；正在捕获快捷键时会防止 Escape 直接关闭。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I230",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2160018,
+    "excerpt": "if(Sr||fn===`error`||fn===`loading`&&!a||C&&!(a&&e.showPendingFilePicker)||n.get(XS)&&c==null)return;let l=t;c!=null&&c.file_uploads!==`allowed`&&(l=c.image_uploads===`allowed`?t.filter(e=>f0.includes(e.type)):[]),l.length>0&&ne?.(),await JCt(n,Ee,l,{...r==null?{}:{appshotContext:r},appshotInsertIndex:i,deferAdmission:a,audioRecording:o,fileUploadLimitsQueryKey:Lr,getErrorConversationOrigin:b===void 0?void 0:()=>Qr(Ee),isTemporaryChat:B,selection:s,onFilesUploaded:re})}),ei=(0,z5.useEffectEvent)(()=>te?.({disabled:Cr||pn||dr||or||Be!=null&&Be.file_uploads!==`allowed`&&Be.image_upload",
+    "claim": "文件接入处理器拒绝阻塞、权限错误/未完成且不支持 deferAdmission 等情况；集成模式允许文件/仅图片/无上传时分别过滤入参。",
+    "scope": "qPt 的实际文件选择 handler；file count/size 不在此硬编码。"
+  },
+  {
+    "id": "I231",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2160598,
+    "excerpt": "age_uploads!==`allowed`,uploadSlotPrefetchUseCase:tx(lt?.modelConfigBySlug?.[Sn.slug]?.attachments),onFilesDropped:(e,t,n)=>void $r(e,{appshotContext:void 0,appshotInsertIndex:void 0,selection:{source:lv.CHATGPT_FILE_SELECTION_SOURCE_DRAG,recorded:!1,uploadSlotPrefetchController:t,uploadSlotPrefetchSelectionCapture:n}}),onFilesPrefilled:e=>void $r(e,{appshotContext:void 0,appshotInsertIndex:void 0})}));(0,z5.useEffect)(()=>ei(),[Cr,pn,$",
+    "claim": "拖放处理转交同一 $r 接入入口，并带 source=DRAG、slot预取 controller 与 selection capture，避免独立拼装提交流程。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I232",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2034994,
+    "excerpt": "t[5]!==Nn.shouldDisableConversation||t[6]!==Mn||t[7]!==Qe||t[8]!==jn||t[9]!==Ln?(Rn=Ln!=null&&Ln.status!==`hidden`||Nn.shouldDisableConversation||Qe||jn||Mn>0||u.some(vNt),t[4]=u,t[5]=Nn.shouldDisableConversation,t[6]=Mn,t[7]=Qe,t[8]=jn,t[9]=Ln,t[10]=Rn):Rn=t[10];let zn=Rn,Bn=Wt||jn,Vn=X(XS),Hn=X(Vn?AE:null),Un=y?.conversationDetailsTarge",
+    "claim": "任一 attachment.status=error 参与禁用提交；vNt 的实现专门判断 error，而非把所有上传状态统称失败。",
+    "scope": "见同文件 function vNt(e){return e.status===`error`}；其他阻塞条件还包含使用限制和协议状态。"
+  },
+  {
+    "id": "I233",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2094584,
+    "excerpt": "function fNt(e){return e.composerDisplayMode!==`inline`&&!pw(e)}function pNt(e){return e.status!==`error`}function mNt(e){return e.imageName==null}function hNt(e){return e.getText().trim().length>0}function gNt(){return!1}function _Nt(){return!1}function vNt(e){return e.status===",
+    "claim": "附件主托盘排除 composerDisplayMode=inline 和另一共享过滤器命中的附件；有效上下文计算排除 error；这与“有可见附件”并非相同集合。",
+    "scope": "pw 的语义未继续命名；保留函数原判定，不能假定所有隐藏附件都不存在。"
+  },
+  {
+    "id": "I234",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1826480,
+    "excerpt": "P?.kind===`size`?XFe:$Oe,I;t[9]!==h||t[10]!==v?.accounts||t[11]!==d||t[12]!==m||t[13]!==x||t[14]!==y||t[15]!==_||t[16]!==F||t[17]!==S||t[18]!==P?(I=d&&P!=null&&(P.kind===`daily`||!P.isAbsoluteLimit)&&_?.id===h&&FAe({surface:`upload`,authMethod:m,currentAccount:_,accounts:v?.accounts})&&!Lg({activeClaims:x,isPageContextUpsellSuppressionEnabled:S}).has(Lm.NonLegalBanners)&&qw(y,F),t[9]=h,t[10]=v?.accounts,t[11]=d,t[12]=m,t[13]=x,t[14]=y,t[15]=_,t[16]=F,t[17]=S,t[18]=P,t[19]=I):I=t[19];let L=I,R=(0,z3.useRef)(null),z;t[20]!==L||t[21]!==f||t[22]!==s||t[23]!==P?(z=()=>{s&&P!=null&&R.curre",
+    "claim": "附件限制 banner 区分 size 与 per_turn，分别插入 maxFileSizeMb 和 maxFilesPerTurn；不支持把 8 或 9 当作 ChatGPT 固定限制。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I235",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13117551,
+    "excerpt": "handlePaste(e,t){let n=M.consume(e);if(t.defaultPrevented)return!0;let r=t.clipboardData;if(!n&&$Bu(e,r))return!0;let{files:i,imageFiles:a,otherFiles:s}=e3o(r),c=r?.getData(`text/plain`),l=r?.getData(`text/html`);if(s.length>0||z4o(c,l,a))return s.length===0?T.emit(`pasted-images`,a):T.emit(`pasted-files`,{files:i,dataTransfer:r}),!0;if(c==null)return!1;if((j||n)&&c.length===0)return!0;let u=l!=null&&l.length>1e5;if(u&&c.length===0)return!0;let d=!j&&!n&&l!=null&&l.length>0&&l.length<=1e5&&(x==null||c.length>=5e3&&/<(?:a|ol|ul)\\b/i.test(l))?zfe(e,l):null,f=d?.content.textBetween(0,d.",
+    "claim": "粘贴首先遵守 defaultPrevented，再区分图片和其他文件并 emit pasted-images/pasted-files；文本和 HTML 走独立解析。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I236",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13117885,
+    "excerpt": "0;if(c==null)return!1;if((j||n)&&c.length===0)return!0;let u=l!=null&&l.length>1e5;if(u&&c.length===0)return!0;let d=!j&&!n&&l!=null&&l.length>0&&l.length<=1e5&&(x==null||c.length>=5e3&&/<(?:a|ol|ul)\\b/i.test(l))?zfe(e,l):null,f=d?.content.textBetween(0,d.content.size,`\n`,e=>e.type.spec.leafText?.(e)??dG(e)?.text??``),p=d!=null&&(f?.replace(/\\s+/g,` `).trim()===c.replace(/\\s+/g,` `).trim()||x==null&&c.length<5e3&&f!==``&&l!=null&&xie(e.state.schema,l))?e.state.schema.nodes.doc.create(null,d.content):null,m=e.state.selection.$from.parent.type.spec.code===!0,h;m&&(h=ghe(e.state.selecti",
+    "claim": "富文本粘贴对 HTML 100000 字符边界采取专门处理；HTML 解析后还比较归一化文本，确保其与纯文本负载对应。",
+    "scope": "源代码存在的文本解析阈值，不是产品文件上传上限。"
+  },
+  {
+    "id": "I237",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1892142,
+    "excerpt": "etic`&&o.ui.trigger===`+`?an??[]:[],...ae&&se&&!c?[{action:()=>{Rt()&&document.getElementById(pt)?.click()},disabled:$e,key:`chatgpt-context:camera`,label:U?lt.formatMessage({id:`chatgptConversations.composer.takePhotoAction`,defaultMessage:`Take a photo`,description:`Composer menu action to capture a still photo during a voice conversation, distinct from the live camera action`}):lt.formatMessage({id:`chatgptConversations.composer.camera`,defaultMessage:`Camera`,description:`Composer menu action to take a new photo with the mobile device camera`}),detail:null,icon:{16:js,20:pu},type",
+    "claim": "附件菜单相机/Photos/File 是条件分支，调用 input.click 或 Ut/Jt，且受移动/图片能力/限额状态决定是否出现。",
+    "scope": "该片段位于 ChatGPT composer menu，不是通讯软件菜单；具体 ae/Qe 等上游平台判定未完全复原。"
+  },
+  {
+    "id": "I238",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1893901,
+    "excerpt": " computer`}),icon:{16:Qi,20:va},type:`action`},...De&&V!=null?[{action:ln,disabled:$e||ne,key:`chatgpt-context:record-audio`,label:lt.formatMessage({id:`chatgpt.audioAttachment.menuLabel`,defaultMessage:`Audio`,description:`Composer add-menu item that starts a microphone recording for a draft audio attachment without sending the message`}),detail:lt.formatMessage({id:`chatgpt.audioAttachment.menuDescription`,defaultMessage:`Record an audio attachment`,description:`Description of the Audio action in the ChatGPT composer add menu; the completed recording is attached to the draft messag",
+    "claim": "Audio 菜单在能力与录音回调存在时显示；disabled 条件单独组合，启动后生成草稿音频附件，不直接发送。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I239",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1919784,
+    "excerpt": "function x6({scope:e,command:t,detail:n,disabled:r=!1,enableInlineSystemHints:i,key:a,label:o,selectedLabel:s,selectedSystemHints:c,searchTerms:l,onSystemHintsChange:u}){let d=t?.kind===`system_hint`&&c.includes(t.systemHint),f=i?t?.actionLabel??o:o,p={disabled:r||t==null,key:`chatgpt-context:${a}`,label:f,detail:n??(d&&(!i||t?.systemHint===`reason`)?s:t?.description??null),icon:t?.Icon,searchTerms:l},m=t?.systemHint;return i&&m!=null&&m!==`reason`&&VD(m)?{...p,type:`mention`,insertMention:({composerController:n,mentionState:r})=>{n.insertChatGptSystemHint({label:t?.actionLabel??o,sy",
+    "claim": "系统工具菜单构造器根据命令是否存在、selectedSystemHints、禁用条件决定状态；inline 模式可插入 system hint mention，非 inline 动作调用 onSystemHintsChange。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I240",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1920423,
+    "excerpt": "action:()=>{r||t==null||t.kind===`local_action`||d||(Ty(e,vA,{systemHintId:t.systemHint}),u([t.systemHint]))},type:`action`}}var S6,C6,w6,kOt,AOt,jOt,MOt;function NOt(){return(NOt=e((()=>{S6=Z(),cw(),LEt(),fh(),GMe(),py(),uh(),zEt",
+    "claim": "非 inline 的工具选择在 disabled、缺命令、local_action 或已选择时不执行；否则设置该 systemHint。",
+    "scope": "x6 的 action 分支，不是一般外部 app 执行权限。"
+  },
+  {
+    "id": "I241",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1935514,
+    "excerpt": "function ckt(e){\"use forget\";let t=(0,ukt.c)(20),{disabled:n,hideLabel:i,selectedSystemHints:a,onSystemHintsChange:o}=e,s=i!==void 0&&i,c=qt(K),l;t[0]===a?l=t[1]:(l=a.includes(`reason`),t[0]=a,t[1]=l);let u=l,d;t[2]===Symbol.for(`react.memo_cache_sentinel`)?(d=(0,I6.jsx)(J,{id:`chatgptConversations.thinkingMode.tooltip`,defaultMessage:`Get a smarter answer`,description:`Tooltip explaining the Think button in the ChatGPT composer`}),t[2]=d):d=t[2];let f=u?`accentSubtle`:`ghost`,p=s?`composerAuxiliary`:`composerPill`,m;t[3]!==u||t[4]!==o||t[5]!==c||t[6]!==a?(m=()=>{let e=o(u?a.filter(l",
+    "claim": "Think toggle 以 selectedSystemHints 包含 reason 计算选中状态；onClick 在移除 reason 与选择 reason 之间切换；aria-pressed 跟随状态。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I242",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1935987,
+    "excerpt": ":`ghost`,p=s?`composerAuxiliary`:`composerPill`,m;t[3]!==u||t[4]!==o||t[5]!==c||t[6]!==a?(m=()=>{let e=o(u?a.filter(lkt):[`reason`]);u||e===!1||Ty(c,vU,{surface:gU.CHATGPT_MODEL_PICKER_SURFACE_TOGGLE,uiEvent:{type:_U.CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_AUTO_SWITCH_TO_THINKING_TOGGLE_CLICKED}})},t[3]=u,t[4]=o,t[5]=c,t[6]",
+    "claim": "Think 选择实际回调拒绝（返回 false）时不记录成功切换；取消选择只过滤 reason。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I243",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1938244,
+    "excerpt": "if(a)return null;if(v&&_!=null&&n!=null){let e=_.VoiceChatIntelligenceComposerPicker,r;t[18]===n?r=t[19]:(r=bp(n),t[18]=n,t[19]=r);let i;return t[20]!==_.VoiceChatIntelligenceComposerPicker||t[21]!==o||t[22]!==r?(i=(0,z6.jsx)(e,{...o,conversationId:r}),t[20]=_.VoiceChatIntelligenceComposerPicker,t[21]=o,t[22]=r,t[23]=i):i=t[23],i}let b;return t[24]!==n||t[25]!==p||t[26]!==i||t[27]!==o||t[28]!==f?(b=p||f?(0,z6.jsx)(fkt,{...o,conversationId:n,useMergedPicker:f,isTppConversation:p,onServiceTierChange:i}):(0,z6.jsx)(YW,{...o,conversationId:n,useMergedPicker:f,isLoading:o.isLoading,models",
+    "claim": "模型/Think 控制器在 pending 时直接不渲染普通 picker；可按 integrated voice、merged picker、tpp 或普通 ChatGPT 分支换用相应组件。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I244",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2184030,
+    "excerpt": "onModelChange:t=>rt?On:(ym(n,Ee,t,Le,!we)&&we&&bpe(n,Ee,t),!we&&Le==null&&n.get($De).mutate({accountId:n.get($D),userId:n.get(Px),model:t}),bw([...new Set([...xSe(n,n,Cn,Le==null?g.getChatGptPrompt().systemHints:[]),...e.requiredSystemHints??[]])],_e?.agent_id,!0)),onProjectChangeFromSlashCommand:hi,onPromptChange:e=>{vE(n,De,e,{isTemporaryChat:B}),se?.(e)},onUserInput:le,onAddSelectedTextAttachment:e=>{Ese(n,Ee,e)},onSelectedTextAttachmentRemove:e=>{Hte(n,Ee,e)},onStop:(t=`mouse`)=>{if(cr&&er.current!=null){er.current.controller.abort();return}if(e.execution!=null){er.current?.contr",
+    "claim": "qPt 的 onModelChange 在 InstantOnly 条件下返回原 hints；其他情况更新会话模型；非 merged 且普通 Chat 模式还保存账户/用户模型偏好。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I245",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2182351,
+    "excerpt": "canRemoveSystemHint:t=>!e.requiredSystemHints?.includes(t)&&(_e==null||t!==`custom_agent:${_e.agent_id}`),hideSystemHints:e.hideSystemHints||an,hiddenSystemHint:e.hiddenSystemHint,selectedTextAttachments:sn,targetedReply:ln==null?void 0:{label:ln.lab",
+    "claim": "requiredSystemHints 及 workspaceAgent 对应 custom_agent hint 不允许从工具标签中随意移除。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I246",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2003767,
+    "excerpt": "function _8(e){let t=(0,v8.c)(12),{leadingVisual:n,labelWidth:i,removeLabel:a,title:o,onRemove:s}=e,c=i===void 0?`wide`:i,l;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(l=(0,y8.jsx)(Ws,{\"aria-hidden\":!0,className:`icon-xs hidden shrink-0 group-hover:block`}),t[0]=l):l=t[0];let u;t[1]!==c||t[2]!==o?(u=(0,y8.jsx)(LC.FooterLabel,{width:c,children:o}),t[1]=c,t[2]=o,t[3]=u):u=t[3];let d;t[4]!==n||t[5]!==s||t[6]!==a||t[7]!==u?(d=(0,y8.jsxs)(r,{\"aria-label\":a,className:`group flex items-center gap-1 text-info`,size:`composer`,color:`ghost`,allowShrink:!0,onClick:s,children:[n,l,u]}),t[4]",
+    "claim": "已选工具标签是按钮，带 Remove 工具的 aria-label 和 tooltip；hover 把前置图标替换为关闭图标；click 调用 onRemove。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I247",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 457804,
+    "excerpt": "if(v||U!=null||se===!0||c==null&&q==null)return null;let me,he;t[19]===c?(me=t[20],he=t[21]):(me=c?.completed===!0?yC(c):``,he=c?.completed===!0&&me.trim().length>0,t[19]=c,t[20]=me,t[21]=he);let ge=he,J=q==null&&ge,_e=c?.latestMessageId,ve=q?.chatGptMessageId??_e??c?.messageId,Y=q!=null||c?.completed===!0,ye;t[22]!==c?.completed||t[23]!==de||t[24]!==ge||t[25]!==T||t[26]!==ce||t[27]!==V?(ye=T&&c?.completed===!0&&V!=null&&ce!=null&&(de===`audioAsset`||ge&&!ce.startsWith(`request-placeholder-`)),t[22]=c?.completed,t[23]=de,t[24]=ge,t[25]=T,t[26]=ce,t[27]=V,t[28]=ye):ye=t[28];let be=ye,",
+    "claim": "助手 action row 先排除图片生成中/特定活动覆盖/无消息与无图片；文本复制要求 completed 且转换后的文本非空；生成未完成不暴露同一完整动作集合。",
+    "scope": "WP 函数；v=imageGenerationInProgress，U/se 来自本会话共享状态，不赋予未核实名称。"
+  },
+  {
+    "id": "I248",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 461564,
+    "excerpt": "||t[134]!==N||t[135]!==O||t[136]!==P?(Oe=(e,t)=>(0,$.jsxs)($.Fragment,{children:[z?t:null,(0,$.jsx)(Xv,{actionRowRef:l,tooltipSide:`bottom`,alwaysShowActions:Y,turnId:Y?P:void 0,copyText:J?me:void 0,getCopyText:J?F:void 0,getCopyHtml:I,onCopyText:q==null?()=>{cs(L,zu,{action:Jf.CHATGPT_CONVERSATION_CONTROL_ACTION_TYPE_ASSISTANT_TURN_COPY_CLICKED,conversationId:V??void 0,messageId:ce,productExperie",
+    "claim": "ChatGPT 向通用动作行传入 alwaysShowActions，Y=存在图片或助手消息 completed；因此普通已完成 ChatGPT 回复动作并非仅 hover 才显示。",
+    "scope": "通用组件还支持 hover-only，但调用方明确覆盖；需避免从通用 CSS 推导 ChatGPT 默认隐藏。"
+  },
+  {
+    "id": "I249",
+    "path": "webview/assets/sites-end-resource-8a7a3656de67.js",
+    "offset": 131313,
+    "excerpt": "?(0,tS.jsxs)(`div`,{className:q(`flex min-h-5 min-w-0 flex-wrap items-center gap-0.5 browser:gap-0`,P||ee?void 0:`opacity-0 group-focus-within:opacity-100 group-hover:opacity-100`),children:[re==null?null:(0,tS.jsx)(Or,{iconOnly:!0,iconClassName:`icon-xs`,buttonText:H.formatMessage({id:`assistantMessageContent.copyResponseTooltip`,defaultMessage:`Copy respon",
+    "claim": "通用动作行在 alwaysShowActions 或菜单 open 时始终显示，否则 hover/focus-within 提升 opacity。",
+    "scope": "共享组件 Jx，被 ChatGPT WP 调用；普通 completed ChatGPT 上述 alwaysShowActions 为真。"
+  },
+  {
+    "id": "I250",
+    "path": "webview/assets/sites-end-resource-8a7a3656de67.js",
+    "offset": 131915,
+    "excerpt": "let t=h?.(),n=Ld(f?.()??re);return g?.(n,e),er(t==null?n:{\"text/plain\":n,\"text/html\":t},e).then(t=>(t&&_?.(n,e),t))}}),E,k,r===void 0?oe:(0,tS.jsxs)(tS.Fragment,{children:[null,(0,tS.jsx)(tS.Fragment,{children:oe})]}),s!=null&&s.rejectedCount>0?(0,tS.jsx)(Yy,{stats:s}):null,O??(0,tS.jsx)(Ax,{autoReviewStats:s,hookStats:c,memoryC",
+    "claim": "复制调用实时 getCopyText 而非只取渲染片段；若 getCopyHtml 存在同时写 text/plain 与 text/html；成功后才 onCopySucceeded。",
+    "scope": "Clipboard writer 的宿主具体实现不在本条范围。"
+  },
+  {
+    "id": "I251",
+    "path": "webview/assets/user-message-2414227646e3.js",
+    "offset": 19639,
+    "excerpt": "copies the user's message`}),n[63]=V,n[64]=R,n[65]=o):o=n[65];let s=o,c=R?void 0:it,l;n[66]===R?l=n[67]:(l=R?(0,$.jsx)(me,{className:`icon-xs`}):(0,$.jsx)(ye,{className:`icon-xs`}),n[66]=R,n[67]=l);let u;n[68]!==s||n[69]!==c||n[70]!==l?(u=(0,$.jsx)(t,{className:`focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0`,color:`ghost`,size:`icon`,\"aria-l",
+    "claim": "用户消息 copied 状态替换复制图标与 aria-label，并暂时移除点击回调；明确有 Copied 成功反馈。",
+    "scope": "共享 user-message 组件已由 ChatGPT turn-content 挂载；不是仅靠 codex 文案推定。"
+  },
+  {
+    "id": "I252",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 395566,
+    "excerpt": "onEditMessage:e.type===`user-message`&&ft!=null&&e.messageId===ft&&e.targetedReplyLabel==null&&!e.chatGptFileAttachments?.some(eP)&&x!=null?(e,t,n)=>x(ft,e,t,n):void 0,onHandoffSuccess:w,pendingSubmissionAttachments:T,referenceImageSuggestionActionProps:Ft??void 0,searchUnitKey:Xp(e,t,F),shareEnabled:re&&(e.type!==`user-message`||xe!==`flora`),reactionsEnabled:ot,reactionStreaming:l&&J.status===`in_progress`&&e.type===`user-me",
+    "claim": "ChatGPT 只为匹配当前可编辑 prompt id、无 targetedReplyLabel、无特定不可编辑附件且有上层 handler 的 user-message 传入编辑动作。",
+    "scope": "不能宣称任意历史用户消息都能编辑；eP 附件规则未在本轮命名。"
+  },
+  {
+    "id": "I253",
+    "path": "webview/assets/user-message-2414227646e3.js",
+    "offset": 9236,
+    "excerpt": "||r[50]!==x||r[51]!==S||r[52]!==m||r[53]!==P||r[54]!==ie||r[55]!==ce?(Ve=async()=>{let e=wt(S);P||ce.get(Ce)||!e&&!ae||(De(!0),await(async()=>{let{message:t,renderFormat:n,inlineSystemHints:r}=Tt(S,x,S.getText(),m);await ie(e?t.trim():``,e?n:void 0,r)})().finally(()=>{De(!1)}))},r[49]=ae,r[50]=x,r[51]=S,r[52]=m,r[53]=P,r[54]=ie,r[55]=ce,r[56]=Ve):Ve=r[56];let He=Ve,L;r[57]===He?L=r[58]:(L=e=>{e.preventDefault(),He()},r[57]=He,r[58]=L);let Ue=O.ui?.active??!1,Ke=O.ui?.query??`",
+    "claim": "编辑提交检查 submitting、共享禁止状态以及空内容许可；trim 后连同 renderFormat/inlineSystemHints 调用 onSubmit，finally 清理 submitting。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I254",
+    "path": "webview/assets/user-message-2414227646e3.js",
+    "offset": 12236,
+    "excerpt": "}),r[103]=at):at=r[103];let G;r[104]!==P||r[105]!==v?(G=(0,Z.jsx)(t,{color:`outline`,size:`toolbar`,disabled:P,onClick:v,children:at}),r[104]=P,r[105]=v,r[106]=G):G=r[106];let ot=ue||!ke&&!ae,st;r[107]===Symbol.for(`react.memo_cache_sentinel`)?(st=(0,Z.jsx)(u,{id:`codex.userMessage.sendEditedMessage`,defaultMessage:`Send`,description:`Button label for submitting an edited user message`}),r[107]=st):st=r[107];let K;r[108]!==P||r[109]!==ot?(K=(0,Z.jsx)(t,{color:`primary`,size:`toolbar`,loading:P,disabled:ot,type:`submit`,children:st}),r[108]=P,r[109]=ot,r[110]=K):K=r[110];let ct;r[111]",
+    "claim": "编辑期间 Cancel 禁用；Send 显示 loading，并在共享禁用或无内容且不允许空消息时禁用。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I255",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 106588,
+    "excerpt": "u||t[140]!==Y||t[141]!==O||t[142]!==U?(hi=async(e,t,r,i)=>{if(!vn)try{await Yh(O,{conversationId:n,isTemporaryChat:u,messageId:e,prompt:t,inlineSystemHints:i,renderFormat:r})}catch(e){let t=e,n=$s(t);throw O.get(Te).danger(ke.formatMessage({id:`chatgptConversations.editMessageFailed`,defaultMessage:`Failed to edit message`,description:`Toast shown in a Chat mode conversation when submitting an edit to a user message fails`}),{errorAnalytics:{toastId:`chatgptConversations.editMessageFailed`,operation:`edit_message`,apiErrorCode:n.errorCode,retryable:!0,errorCategory:`conversation`,con",
+    "claim": "ChatGPT 编辑 handler 使用原 messageId、prompt、inlineSystemHints 和 renderFormat；失败显示 Failed to edit message，并重新抛出错误供编辑器保留错误状态。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I256",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 13748,
+    "excerpt": "edback`:`submit_message_feedback`,errorCategory:`message`,conversationId:n,retryable:!0}})}b(!1)}},i={variant:ne,isAnimated:te,disabled:d||y,rating:v,onRate:e=>void r(v===e?null:e),shouldRestoreFocus:H};x=u==null?(0,G.jsx)(M,{...i}):u(i,e=>void r(e)),t[2]=n,t[3]=d,t[4]=s,t[5]=ie,t[6]=p,t[7]=te,t[8]=_,t[9]=m,t[10]=a,t[11]=l,t[12]=y,t[13]=v,t[14]=u,t",
+    "claim": "点击相同 thumbs 状态会传 null 清除反馈；disabled/submitting 期间忽略重复提交；状态成功持久化后更新本地值。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I257",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 13380,
+    "excerpt": "y)){b(!0),t!=null&&l?.(t);try{let r=f.get(S),i={conversation_id:n,message_id:a};t==null?await r.clearMessageFeedback(_,i):await r.submitMessageFeedback(_,{...i,rating:t,render_state:f.get(O,a)}),f.set(k,a,t),t===`thumbsDown`&&m()&&e()}catch{f.get(c).danger(p.formatMessage(K.error),{errorAnalytics:{toastId:`message_feedback_failed`,operation:t==null?`clear_message_feedback`:`submit_message_feedback`,errorCategory:`message`,conversationId:n,retryable:!0}})}b(!1)}},i={variant:ne,isAnimated:te,disabled:d||y,rating:v,onRate:e=>void r(v===e?null:e),shouldRestoreFocus:H};x=u==null?(0,G.jsx)",
+    "claim": "反馈实际调用 clearMessageFeedback 或 submitMessageFeedback，提交包含 conversation_id/message_id/rating/render_state；thumbsDown 可进一步打开详细反馈。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I258",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 12895,
+    "excerpt": "onSubmit:async e=>{let{details:t,tags:r,tagChoices:i}=e;try{return await f.get(S).submitMessageFeedback(_,{conversation_id:n,message_id:a,rating:`thumbsDown`,render_state:f.get(O,a),text:t,tags:r,tag_choices:i}),f.get(c).success(p.formatMessage(K.thanks)),!0}catch{return f.get(c).danger(p.formatMessage(K.error),{errorAnalytics:{toastId:`message_feedback_failed`,operation:`submit_message_feedback`,errorCategory:`message`,conversationId:n,retryable:!0}}),!1}}})},r=async t=>{if(!(d||y)){b(!0),t!=null&&l?.(t);try{let r=f.get(S),i={conversation_id:n,message_id:a};t==null?await r.clearMess",
+    "claim": "详细负反馈提交 details/tags/tag_choices；成功 toast 并返回 true，失败 toast 并返回 false。",
+    "scope": "message-rating；是否显示详细对话还受 capability/business 设置影响。"
+  },
+  {
+    "id": "I259",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 302460,
+    "excerpt": "thod:n}=e(Al);if(t||n!==`chatgpt`&&n!==`chatgptAuthTokens`||e(No))return null;let r=e(oj);if(r?.get(`is_enabled`,!1)){let e=[...new Set(r.get(`user_mochis`,[]))].filter(e=>typeof e==`string`&&e.length>0),t=r.get(`message_feedback_mode`,`picker_buttons`);return{emojis:e.length>0?e:[`❤️`,`🙌`,`😂`,`😢`,`😮`],feedbackMode:t===`thumbs_up_picker_button`||t===`thumbs_up_reaction`?t:`picker_buttons`,userReactionPlacement:r.get(`user_mochi_placement`,`mini_turn`)===`message_action`?`message_action`:`mini_turn`}}return null})})))()}var lj,uj,dj;function fj(){return(fj=e((()=>{lj=function(e){retur",
+    "claim": "ChatGPT emoji reactions 有独立实验开关，反馈布局还可为 picker_buttons/thumbs_up_picker_button/thumbs_up_reaction；不能把 reactions 写成所有账户固定 UI。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I260",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 311684,
+    "excerpt": "async function Bj(e,t,n){let r=e.get(Bf,t.conversationId);if(r==null)return;let i={conversationId:r,messageId:t.messageId};if(e.get(Ld,r)?.[t.messageId]?.message==null||e.get(Wj,i))return;let a=e.get(Kj,{...i,role:`user`});le(e,()=>{e.set(Wj,i,!0),Vj(e,i,n)});try{await e.get(Uo).setMessageReaction(r,t.messageId,n)}catch(t){throw e.get(Kj,{...i,role:`user`})===n&&Vj(e,i,a),t}finally{e.set(Wj,i,!1)}}function Vj(e,{conversationId:t,messageId:n},r){let i=e.get(Ld,t)?.[n]?.message;if(i==null)return;let a=Uj.safeParse(i.metadata?.reactions).data??{};r==null?delete a.user:a.user=r,cc(e,t,{.",
+    "claim": "反应采用乐观更新并加 pending 防重；setMessageReaction 失败且本地仍是本次值时恢复先前反应，finally 清 pending。",
+    "scope": "明确 ChatGPT message reactions 实现，不是 AeonMessaging reactions。"
+  },
+  {
+    "id": "I261",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 323024,
+    "excerpt": "e`||d===`go`)&&!l&&r!==`thinking`&&r!==`pro`;let g;t[30]===c?g=t[31]:(g=e=>{m(``),c(e)},t[30]=c,t[31]=g),x=g;let _;t[32]===u?_=t[33]:(_=u.formatMessage({id:`chatgptConversations.regenerate.feedback`,defaultMessage:`Ask to change response`,description:`Placeholder and accessible label for the freeform feedback input in the menu beneath a ChatGPT response. Submitting asks ChatGPT to generate a new response reflecting this feedback.`}),t[32]=u,t[33]=_);let O=_,k;t[34]!==p||t[35]!==a||t[36]!==x||t[37]!==f?(k=e=>{e.preventDefault(),p.trim()&&x({sourceEventTimeStamp:e.timeStamp,model:a,sou",
+    "claim": "重试菜单共用 onRetry，提交时清空反馈草稿；freeform feedback 非空才送 contextual_feedback，并携带当前 model、sourceEventTimeStamp。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I262",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 325676,
+    "excerpt": "elect:L,children:[R,z]}),t[62]=L,t[63]=z,t[64]=T):T=t[64],E=b.map(t=>(0,mM.jsxs)(Ve.Item,{onSelect:n=>{let r={slug:t.slug,thinkingEffort:a.thinkingEffort,versionId:e?.id};x({model:r,source:`with_model`,sourceEventTimeStamp:n.timeStamp})},children:[(0,mM.jsx)(Ve.ItemIcon,{children:t.lane===`pro`?(0,mM.jsx)(Pn,{}):(0,mM.jsx)(Oe,{})}),t.lane===`pro`?(0,mM.jsx)(K,{id:`chatgptConversations.regenerate.usePro`,defaultMessage:`Use {modelLabel} ",
+    "claim": "重试模型项从可用 version slugs 与 lanes 派生，保留 thinkingEffort 和 versionId；不是写死模型名的固定列表。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I263",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 327528,
+    "excerpt": "et A;t[72]!==a||t[73]!==x||t[74]!==S||t[75]!==D?(A=S?(0,mM.jsxs)(Ve.Item,{onSelect:e=>x({sourceEventTimeStamp:e.timeStamp,model:a,forceUseSearch:!D,source:D?`without_search`:`with_search`}),children:[(0,mM.jsx)(Ve.ItemIcon,{children:D?(0,mM.jsx)(ar,{}):(0,mM.jsx)(_r,{})}),D?(0,mM.jsx)(K,{id:`chatgptConversations.regenerate.withoutSearch`,defaultMessage:`Don't search the web`,description:`Retry menu option to regenerate a ChatG",
+    "claim": "Web search 重试项只在当前模型 enabledTools 包含 search 时出现；根据原回复 real_author 是否 tool:web，发送 forceUseSearch 的相反值。",
+    "scope": "条件定义在同函数 uM；这是重新生成控制，不是修改原回复。"
+  },
+  {
+    "id": "I264",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 326911,
+    "excerpt": "gth,t[66]=O);let k;t[67]!==y||t[68]!==a.thinkingEffort||t[69]!==o||t[70]!==x?(k=y&&o!=null?(0,mM.jsxs)(Ve.Item,{onSelect:e=>x({sourceEventTimeStamp:e.timeStamp,model:{slug:o.defaultModelSlug,thinkingEffort:a.thinkingEffort},forceUseReason:!0,source:`with_reason`}),children:[(0,mM.jsx)(Ve.ItemIcon,{children:(0,mM.jsx)(Oe,{})}),(0,mM.jsx)(K,{id:`chatgptConversations.regenerate.thinkLonger`,defaultMessage:`Think longer`,description:`Retry ",
+    "claim": "Think longer 只在 free/go、非 reasoning turn 且原 model_lane 不是 thinking/pro 时出现；发送 forceUseReason=true。",
+    "scope": "条件 y 的定义在同函数 uM；不代表所有套餐同一菜单。"
+  },
+  {
+    "id": "I265",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 329965,
+    "excerpt": "j=e=>{let t=m.variantIds[e];t==null||E||Ro(d,r,t).catch(()=>{d.get(Gt).danger(f.formatMessage({id:`chatgptConversations.regenerate.selectFailed`,defaultMessage:`Failed to switch response`,description:`Error toast shown when switching to another saved ChatGPT response version fails`}),{errorAnalytics:{toastId:`chatgptConversations.regenerate.selectFailed`}})})},t[13]=r,t[14]=f,t[15]=E,t[16]=d,t[17]=m.variantIds,t[18]=",
+    "claim": "响应版本切换按 variantIds 下标调用 Ro；共享禁用状态时不执行；失败 toast 为 Failed to switch response。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I266",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 331629,
+    "excerpt": "I=!v&&m.variantIds.length>1&&m.activeVariantIndex>=0?(0,xM.jsxs)(`div`,{className:`flex items-center gap-0.5 text-xs text-secondary select-none`,children:[(0,xM.jsx)(n,{color:`ghost`,size:`icon`,disabled:E||m.activeVariantIndex===0,onClick:()=>M(m.activeVariantIndex-1),\"aria-label\":f.formatMessage({id:`chatgptConversations.regenerate.previous`,defaultMessage:`Previous response`,description:`Accessible label for switching to the previous saved version of a ChatGPT response`}),children:(0,xM.jsx)(he,{})}),(0,xM.jsx)(K,{id:`chatgptConversations.regenerate.position`,defaultMessage:`{curr",
+    "claim": "有多个版本且 activeVariantIndex 有效时显示版本导航；上一版在 index=0 禁用，下一版在最后索引禁用，显示 current/total。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I267",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 108846,
+    "excerpt": "ow(),prefillPrompt:l,prefillPromptFormat:d,prefillPromptOnlyIfEmpty:Y}});return}await Ql(O,{conversationId:n,isTemporaryChat:u,messageId:e,retry:t})}catch{O.get(Te).danger(ke.formatMessage({id:`chatgptConversations.regenerate.failed`,defaultMessage:`Failed to regenerate response`,description:`Error toast shown when generating another version of a ChatGPT response fails`}),{errorAnalytics:{toastId:`chatgptConversations.regenerate.failed`,operation:`regenerate_respons",
+    "claim": "正常重新生成走带 retry payload 的 Ql；handler 还存在无保存会话/Work handoff 恢复到首页预填的分支，因此失败恢复不总在原位发送同请求。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I268",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 105555,
+    "excerpt": "l||be!=null||on)return;let r=Se.current?.signal;r==null||r.aborted||(_e({messageId:e,activation:S}),Ia(O,{conversationId:fi,messageId:e,inWorkMode:n}).then(e=>{let{clientThreadId:t}=e;r.aborted||(n&&kf(O,`opened`),H(p==null?ot(t,{isTemporaryChat:u}):Ce(p,{conversationId:t})))}).catch(()=>{r.aborted||(n&&kf(O,`failed`),_e(null),O.get(Te).danger(ke.formatMessage({id:`chatgptConversations.branchFailed`,defaultMessage:`Failed to create chat`,description:`Error shown when ChatGPT cannot continue a conversation in a new chat`}),{errorAnalytics:{toastId:`branch_conversation_failed`,operatio",
+    "claim": "Branch handler 使用当前消息点创建新会话，可传 inWorkMode；结果导航前检查 activation abort 信号；失败清除 branching 状态并 toast。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I269",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 458324,
+    "excerpt": "23]=de,t[24]=ge,t[25]=T,t[26]=ce,t[27]=V,t[28]=ye):ye=t[28];let be=ye,xe=Y&&ve!=null&&A!=null,Se;t[29]!==c?.sourceMessageIds||t[30]!==H||t[31]!==ce||t[32]!==V?(Se=H!=null&&V!=null&&ce!=null?(e,t)=>(0,$.jsx)(Jj,{conversationId:V,messageIds:c?.sourceMessageIds??[ce],feedback:e,onReactionRating:t}):voi",
+    "claim": "分支动作只在 completed 或图像结果、存在 message id 且上层 onFork 存在时开放。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I270",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 101109,
+    "excerpt": "|t[10]!==u||t[11]!==c?(y=null,v&&c.status===`allowed`?o.getLayer(`4292163053`).get(`try_in_work_mode_enabled`,!1)&&(y=`work`):v&&c.status===`denied`&&(u===rd.FREE||u===rd.GO)&&g&&!Oc()&&!(navigator.platform===`MacIntel`&&navigator.maxTouchPoints>1)&&Hu(o,hw,{disableExposureLog:!0})&&o.getLayer(`3673881357`).get(`branch_into_work_mode_upsell_enabled`,!1)&&(y=`upsell`),t[7]=o,t[8]=v,t[9]=g,t[10]=u,t[11]=c,t[12]=y):y=t[12],y==null){let e;t[13]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,mw.jsx)(yn,{}),t[13]=e):e=t[13];let n;t[14]===i?n=t[15]:(n=()=>i(),t[14]=i,t[15]=n);let a;t[16]==",
+    "claim": "Branch into Work submenu 需允许状态和实验开关；某些 denied/free/go 组合可走 upsell；未命中时只有普通 Branch in new chat。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I271",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2184330,
+    "excerpt": ",onPromptChange:e=>{vE(n,De,e,{isTemporaryChat:B}),se?.(e)},onUserInput:le,onAddSelectedTextAttachment:e=>{Ese(n,Ee,e)},onSelectedTextAttachmentRemove:e=>{Hte(n,Ee,e)},onStop:(t=`mouse`)=>{if(cr&&er.current!=null){er.current.controller.abort();return}if(e.execution!=null){er.current?.controller.abor",
+    "claim": "ChatGPT 输入区有显式 AddSelectedTextAttachment 与 Remove handler，以会话为作用域管理选择片段附件。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I272",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1779595,
+    "excerpt": "h||t[6]!==a||t[7]!==r||t[8]!==i?(e=(e,t)=>{let{id:o,sourceMessageId:s,sourceOccurrence:c,text:l}=e;return(0,K4.jsx)(zp,{onNavigate:s!=null&&r!=null?()=>r(s,l,c):void 0,popoverContent:(0,K4.jsxs)(`div`,{className:`flex max-h-80 flex-col gap-2 overflow-y-auto px-2.5 py-2 text-sm select-text`,children:[(0,K4.jsx)(`span`,{className:`text-xs font-medium text-tertiary`,children:(0,K4.jsx)(J,{id:`responseTextAnnotationAttachments.selectedTextLabel`,defaultMessage:`Selected text:`,description:`Label with trailing colon for selected response text in a response note tooltip`})}),(0,K4.jsx)(`sp",
+    "claim": "选中文本附件保留 sourceMessageId/sourceOccurrence/text，可定位原消息；popover 显示完整选中文本。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I273",
+    "path": "webview/assets/chatgpt-code-block-444d7666d53e.js",
+    "offset": 35907,
+    "excerpt": "ender_mode===`app_block`||/\\bpreview\\b/.test(a??``),ae=B===`svg`||B===`mermaid`,oe=B!=null&&(V?.status===`allowed`||B===`svg`)&&(ae||!x.shouldBlockExternalEgress),U=_?.trim().toLowerCase(),W=U===`python`||U===`py`,G=!x.shouldBlockExternalEgress&&k!=null&&x.messageId!=null,K=S&&C&&!x.isReadOnly,fe=oe&&(!p||B===`mermaid`)&&(ae||B===`vega`||B===`vega-lite`||H||j.get(`code_blocks_auto_preview`,!1)&&(B===`react`||B===`html`&&/<html(?:\\s|>)/i.test(R))),[q,J]=(0,Rn.useState)(!1),[Y,me]=(0,Rn.useState)(null),X=oe?Y??(fe?`preview`:`code`):`code`,_e=(0,Rn.useRef)(null),ve=(0,Rn.useRef)(0),ye=(",
+    "claim": "代码预览必须识别语言并满足账户执行策略；SVG 与其他可预览类型及 shouldBlockExternalEgress 有不同通路；是否自动 Preview 还检查 fence 完成及实验开关。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I274",
+    "path": "webview/assets/chatgpt-code-block-444d7666d53e.js",
+    "offset": 45661,
+    "excerpt": "onPointerEnter:e=>{e.pointerType===`mouse`&&X!==`preview`&&J(!0)},onPointerLeave:()=>J(!1),onPointerCancel:()=>J(!1),onClick:()=>{if(J(!1),X===`preview`){me(`code`);return}De(T,je,Pe),me(`preview`)},children:(0,$.jsx)(l,{icon:X===`preview`?{16:de,20:re}:{assets:{16:y,20:ne}}})})}):null,e]}),wrapperClassName:`@container`})})};return C&&W&&!x.shouldBlockExternalEgress?(0,$.jsx)(Se,{name:`code-block-execution`,fallback:",
+    "claim": "代码预览 hover 仅在 mouse 且当前非 preview 时预热；leave/cancel 清除；点击 code/preview 来回切换。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I275",
+    "path": "webview/assets/chatgpt-code-block-444d7666d53e.js",
+    "offset": 45903,
+    "excerpt": "6:de,20:re}:{assets:{16:y,20:ne}}})})}):null,e]}),wrapperClassName:`@container`})})};return C&&W&&!x.shouldBlockExternalEgress?(0,$.jsx)(Se,{name:`code-block-execution`,fallback:()=>Ye(),children:(0,$.jsx)(Rn.Suspense,{fallback:Ye(),children:(0,$.jsx)(zn,{code:R,codeBlockIndex:i,disabled:p||x.isStreaming,isEdited:R!==s,turnContext:x,onRun:()=>{De(T,ge,Pe)},children:Ye})})}):Ye()}function In(){}var Ln,Rn,$,zn;function Bn(){return(Bn=e(((",
+    "claim": "Python 执行包装在 fence 未闭合或消息仍流式时禁用；外部访问受限时不挂载执行组件。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I276",
+    "path": "webview/assets/chatgpt-code-block-444d7666d53e.js",
+    "offset": 14524,
+    "excerpt": "mport.meta.url)).ChatGptCodeBlockEditor,{suspendToParent:!0,errorFallback:({code:e,language:t,wrapLines:n})=>(0,$t.jsx)(Ht,{code:e,language:t,wrapLines:n})}),tn=3,nn=75,rn=64})))()}function on(e){let t=(0,sn.c)(42),{codeBlockIndex:r,codeBlockType:i,language:s,",
+    "claim": "代码编辑器加载失败退回传入 code/language/wrapLines 的基础显示器，不丢失源码内容。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I277",
+    "path": "webview/assets/chatgpt-code-block-444d7666d53e.js",
+    "offset": 39772,
+    "excerpt": "1]!==x.messageId?(n=k!=null&&x.messageId!=null&&K&&!p?e=>{x.messageId!=null&&T.get(ut,{conversationId:x.conversationId,messageId:x.messageId,codeBlockIndex:i}).requestSave(e,_)}:void 0,t[44]=K,t[45]=i,t[46]=p,t[47]=_,t[48]=T,t[49]=k,t[50]=x.conversationId,t[51]=x.messageId,t[52]=n):n=t[52];let r;t[53]!==K||t[54]!==i||t[55]!==T||t[56]!==x.conversationId||t[57]!==x.messageId?(r=()=>{K&&x.messageId!=null&&T.get(ut,{conversationId:x.conversationId,messageId:x.messageId,codeBlockIndex:i}).flushSave()},t[53]=K,t[54]=i,t[55]=T,t[56]=x.conversationId,t[57]=x.messageId,t[58]=r):r=t[58],He=(0,",
+    "claim": "可编辑预览在有效会话/消息、允许编辑且 fence 完成时 requestSave；blur/收尾 flushSave。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I278",
+    "path": "webview/assets/chatgpt-code-block-444d7666d53e.js",
+    "offset": 28452,
+    "excerpt": "!==a||t[5]!==o||t[6]!==u||t[7]!==s?(v=async()=>{let e=await Ne.safePost(`/share/post`,{requestBody:{attachments_to_create:[{code_index:r,conversation_id:s,kind:`code_block`,message_id:o}]}});De(u,Be,{conversationId:i,language:a,messageId:o,postId:e.post.id});let t=e.post.permalink??`https://chatgpt.com/s/${encodeURIComponent(e.post.id)}`;await le(t)&&Le(u)},t[2]=r,t[3]=i,t[4]=a,t[5]=o,t[6]=u,t[7]=s,t[8]=v):v=t[8];let y=v,b;t[9]!==y||t[10]!==f||t[11]!==u?(b=()=>{f||(m(!0),y().catch(()=>{u.get(te).danger((0,jn.jsx)(p,{id:`chatgpt.codeBlocks.share.error`,defaultMessage:`Failed to create",
+    "claim": "Share code block handler POST /share/post，带 code index/conversation/message 与 selected_node_id；生成的是单代码块分享。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I279",
+    "path": "webview/assets/user-message-2414227646e3.js",
+    "offset": 17483,
+    "excerpt": "ot=async(e,t,n)=>{if(E!=null)try{n==null?t==null?await E(e):await E(e,t):await E(e,t,n),G(null)}catch{}},n[17]=E,n[18]=G,n[19]=ot):ot=n[19];let st=ot,K;n[20]!==z||n[21]!==w||n[22]!==T||n[23]!==Qe||n[24]!==F||n[25]!==G||n[26]!==k||n[27]!==We||n[28]!==A?(K=()=>{F.get(Ce)||(k!=null&",
+    "claim": "用户消息编辑只在 await 上层 onEdit 成功后清空编辑草稿；catch 不清草稿，因此失败保留编辑态。",
+    "scope": "共享 user-message，ChatGPT turn 已确认挂载；错误提示由上层 ChatGPT 页面承担。"
+  },
+  {
+    "id": "I280",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 6984727,
+    "excerpt": "catch(r){if(!s())return;throw e.set($ni,t,r instanceof Error&&r.message.trim().length>0?r.message:n),r}finally{dxr(e,t,!1)}}function Xro(e,t){if(!xZa(e,t))throw Error(e.get(nh).formatMessage({id:`chatgpt.daybreak.accountChanged`,defaultMessage:`",
+    "claim": "停止失败会检查会话运行身份仍匹配，再把异常消息或上层默认文案放入错误状态并抛出；finally 清除 stopping。",
+    "scope": "Yro 停止服务；不宣称失败一定由 toast 呈现。"
+  },
+  {
+    "id": "I281",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 271147,
+    "excerpt": "if(c.isTimedOut){let e;t[19]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,dA.jsx)(K,{id:`chatgptConversations.imageGeneration.timedOut`,defaultMessage:`Image generation timed out`,description:`Status shown when the app stopped waiting for an image result after its polling deadline; the user can explicitly try again`}),t[19]=e):e=t[19],_=e}else if(c.isStopped){let e;t[20]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,dA.jsx)(K,{id:`chatgptConversations.imageGeneration.stopped`,defaultMessage:`Image generation stopped`,description:`Status shown when t",
+    "claim": "图像生成状态优先分出 timedOut，其次 isStopped，否则 failed；只有本轮 prompt 匹配才显示该状态。",
+    "scope": "sA 图像生成状态，不是所有文本生成错误的统一文案。"
+  },
+  {
+    "id": "I282",
+    "path": "webview/assets/chatgpt-conversation-turn-content-c065aa3b3283.js",
+    "offset": 272598,
+    "excerpt": ",c;t[0]!==r||t[1]!==i||t[2]!==a||t[3]!==o?(c=e=>{let t=o.get(nh,r),n=o.get(ch,r);t?.message.id===i&&t.canRetry&&n!=null&&a(i,{model:Dh(t.message,n,o.get(Jl,r)),source:`imagegen_retry`,sourceEventTimeStamp:e.timeStamp})},t[0]=r,t[1]=i,t[2]=a,t[3]=o,t[4]=c):c=t[4];let l,u;t[5]===Symbol.for(`react.memo_cache_sentinel`)?(l=(0,dA.jsx)(ve,{}),u=(0,dA.jsx)(K,{id:`chatgptConversations.imageGeneration.retry`,defaultMessage:`Try again`,description:`Button to retry an image generation request that stopped or failed before producing an image`}),t[5]=l,t[6]=u):(l=t[5],u=t[6]);let d;retu",
+    "claim": "图像 Try again 点击时重新读取当前生成状态：message id 必须一致、canRetry 真、models 已加载，再发 source=imagegen_retry 的重新生成；models 缺失时按钮 disabled。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I283",
+    "path": "webview/assets/chatgpt-assistant-message-content-bdb33a75f6fc.js",
+    "offset": 43519,
+    "excerpt": "entResponse:Ae,allowWideBlocks:je,fadeSegmentDelayMs:G,fadeSegmentMaxDelayMs:Ne,isStreaming:Pe,forceCodeBlockWordWrap:Fe,isBrowserEnabled:Ie,openFileLinksInSidePanel:Re,renderCodeBlocksAsWritingBlocks:ze,trailingContent:K,children:Be}),t[145]=ge,t[146]=ye,t[147]=U,t[148]=Ce,t[149]=W,t[150]=Te,t[151]",
+    "claim": "助手内容向 Markdown 层传递 streaming、代码换行、浏览器启用、文件侧栏打开、writing-block 与 trailingContent 控制，内容渲染是配置化组合。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I284",
+    "path": "webview/assets/chatgpt-markdown-view-481589fdf431.js",
+    "offset": 41468,
+    "excerpt": "y_return_sentinel`);bb0:{if(i=xa(n),i==null||r?.contentReferences[i]?.type===`hidden`&&!r.isStreaming){o=null;break bb0}a=Mo(Wo(i,r?.contentReferences),r?.shouldBlockExternalEgress===!0&&r.renderRestrictedImages!==!0)}t[0]=n,t[1]=r,t[2]=i,t[3]=a,t[4]=o}else i=t[2],a=t[3],o=t[4];if(o!==Symbol.for(`react.early_return_sentinel`))return o;let s=a;if(r?.shouldBlockExternalEgress===!0&&s.length===0)return null;let c=r?.conversationId,l=r?.contentReferences[i],u;return t[5]!==s||t[6]!==i||t[7]!==c||t[8]!==l?(u=(0,Z.jsx)(F",
+    "claim": "Markdown 图像引用在索引无效或非流式且引用类型 hidden 时不渲染；限制外部访问且过滤后无可用图片时返回 null。",
+    "scope": "这是图像引用渲染器，不表示所有 hidden 内容与任意 Markdown 文本都同样处理。"
+  },
+  {
+    "id": "I285",
+    "path": "webview/assets/chatgpt-markdown-view-481589fdf431.js",
+    "offset": 39893,
+    "excerpt": "r`,style:{objectPosition:Eo(n,s)},src:M,alt:``,draggable:!1,referrerPolicy:`no-referrer`,onLoad:()=>g(M),onError:()=>{N!=null&&m(e=>[...e,N])}},M),t[28]=s,t[29]=N,t[30]=n,t[31]=r,t[32]=P,t[33]=M,t[34]=z):z=t[34];let te;t[35]!==s||t[36]!==x||t[37]!==n||t[38]!==r||t[39]!==P?(te=P==null?null:(0,X.jsx)(`img`,{ref:r,className:`pointer-events-none absolute inset-0 h-full w-full object-cover`,style:{objectPosition:Eo(n,s)},src:P,alt:``,\"aria-hidden\":`true`,draggable:!1,referrerPolicy:`no-refe",
+    "claim": "图像缩略图使用 no-referrer；onLoad 记录当前图片，onError 把失败候选标识加入本地列表；底图和覆盖预览各有错误处理。",
+    "scope": "不把候选本地状态描述成网络自动重试次数。"
+  },
+  {
+    "id": "I286",
+    "path": "webview/assets/chatgpt-markdown-view-481589fdf431.js",
+    "offset": 33636,
+    "excerpt": "lPreparationId??e??i,c=a?.dilPreparing,l=a?.isPresented??!0,u=a?.isStreaming===!0&&r.source_message_status!==`finished_successfully`,d;t[4]===r?d=t[5]:(d=(0,Y.jsx)(gi,{reference:r}),t[4]=r,t[5]=d);let f;t[6]!==n||t[7]!==e||t[8]!==o||t[9]!==c||t[10]!==l||t[11]!==u||t[12]!==d?(f=(0,Y.jsx)(hi,{contentReferenceIndex:n,sourceMessageId:e,isPreparing:c,isPresented:l,isStreaming:u,children:d},o),t[6]=n,t[7]=e,t[8]=o,t[9]=c,t[10]=l,t[11]=u,t[12]=d,t[13]=f):f=t[13];let p;return t[14]!==s||t[15]!",
+    "claim": "DIL 引用自己的 streaming 要同时满足消息流式和 source_message_status 尚未 finished_successfully；按 preparation id 为挂载 key。",
+    "scope": "这是特定 content-reference / DIL 渲染分支，不能泛化到所有普通段落。"
+  },
+  {
+    "id": "I287",
+    "path": "webview/assets/chatgpt-assistant-message-content-bdb33a75f6fc.js",
+    "offset": 6579,
+    "excerpt": "function Ct(e){let t=(0,At.c)(27),{isStreaming:n,sources:i}=e,o=n!==void 0&&n,s=f(),[l,u]=(0,Z.useState)(!0),d=(0,Z.useId)();if(i.length===0)return null;let p=o?``:void 0,m;t[0]!==l||t[1]!==s||t[2]!==i.length?(m=s.formatMessage({id:`quorum.citations.panel.toggle`,defaultMessage:`{expanded, select, true {Collapse} other {Expand}} {count, plural, one {# citation} other {# citations}}`,description:`Accessible label for expanding or collapsing the clinical citation bibliography below an answer.`},{expanded:String(l),count:i.length}),t[0]=l,t[1]=s,t[2]=i.length,t[3]=m):m=t[3];le",
+    "claim": "临床引用 bibliography 默认展开，无 sources 时返回 null；切换按钮的可访问文案包含展开/折叠与引用数量。",
+    "scope": "代码中的 quorum/clinical citation 专用分支，未验证当前账户出现。"
+  },
+  {
+    "id": "I288",
+    "path": "webview/assets/chatgpt-assistant-message-content-bdb33a75f6fc.js",
+    "offset": 7932,
+    "excerpt": "|t[17]!==y?(b=(0,Q.jsxs)(`button`,{\"aria-controls\":d,\"aria-expanded\":l,\"aria-label\":m,className:`flex w-full cursor-interaction items-center gap-1.5 rounded-lg py-1.5 text-start text-base leading-6 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`,onClick:h,type:`button`,children:[g,_,v,y]}),t[12]=l,t[13]=d,t[14]=m,t[15]=h,t[16]=g,t[17]=y,t[18]=b):b=t[18];let x;t[19]!==l||t[20]!==d||t[21]!==i?(x=l&&(0,Q.jsx)(`ol`,{className:`flex flex-col py-1`,id:d,children:i.map(wt)}),t[19]=l,t[20]=d,t[21]=i,t[22]=x):x=t[22];let S;return t[23]!==x||t[24]",
+    "claim": "临床引用切换按钮关联列表 id，表达 aria-expanded，具有 focus-visible outline；展开才挂载有序列表。",
+    "scope": "本机构建静态实现；未验证账户实际启用或运行结果。"
+  },
+  {
+    "id": "I289",
+    "path": "webview/assets/chatgpt-assistant-message-content-bdb33a75f6fc.js",
+    "offset": 5439,
+    "excerpt": ")(J,{...y,href:h.url,initiator:`markdown_link_click`,isBrowserEnabled:!1,onClick:()=>dt(a,n,r,`click`,c),requiresConfirmation:c,children:T})}),t[28]=n,t[29]=c,t[30]=T,t[31]=y,t[32]=h.url,t[33]=a,t[34]=r,t[35]=O):O=t[35];let k;return t[36]!==m||t[37]!==l||t[38]!==D||t[39]!==O||t[40]!==E?(k=(0,Q.jsx)(S,{align:`start`,delayDuration:150,interactive:!0,onFocus:E,onOpenChange:m,open:l,side:`bottom`,tooltipContent:D,tooltipMaxWidth:`min(30rem, var(--radix-tooltip-content-available-width), calc(100vw - 16px))`,variant:`rich`,children:O}),t[36]=m,t[37]=l,t[38]=D,t[39]=O,t[40]=E,t[41",
+    "claim": "临床引用 pill 使用 Markdown 链接入口且不走内置浏览器；restricted 上下文决定链接确认，富 tooltip 延迟150ms、可交互、底侧对齐并受可用宽度约束。",
+    "scope": "仅此专用引用 pill；不能据此把所有 ChatGPT web citations 视为相同组件。"
+  },
+  {
+    "id": "I290",
+    "path": "webview/assets/dialog-72422e0c8e63.js",
+    "offset": 1851,
+    "excerpt": "pping it.`}),a[11]=D):D=a[11];let O;a[12]===f?O=a[13]:(O=(0,v.jsx)(t,{autoFocus:!0,color:`secondary`,type:`button`,onClick:f,children:D}),a[12]=f,a[13]=O);let k;a[14]===Symbol.for(`react.memo_cache_sentinel`)?(k=(0,v.jsx)(t,{type:`submit`,children:(0,v.jsx)(n,{id:`chatgptConversations.keyboardStop.stop`,defaultMessage:`Stop`,description:`Primary confirmation button in the Escape stop-response dialog. Stops the current ChatGPT response without sending the user's draft.`})}),a[14]=k):k=a[14];let A;a[15]!==s||a[16]!==O?(A=(0,v.jsx)(c,{children:(0,v.jsxs)(d,{children:",
+    "claim": "Escape 停止确认弹窗默认聚焦 Keep thinking；Stop 是表单 submit，submit preventDefault 后调用 onStop；可在按钮行插入 answerNow。",
+    "scope": "仅 KeyboardStopDialog 分支；Mouse Stop 本身没有调用该弹窗。"
+  }
+]

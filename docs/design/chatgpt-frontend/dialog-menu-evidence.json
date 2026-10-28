@@ -1,0 +1,682 @@
+[
+  {
+    "id": "D001",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 5797426,
+    "excerpt": "jSn as mO,RE as mOt,R3 as mP,Qm as mPt,g0 as mQ,Q8t as mR,yd as mRt,pIn as mS,zU as mSt,z7 as mT,fF as mTt,s$t as mU,aXt as mV,TXt as mW,SGt as mX,Oqt",
+    "claim": "mO 导出指向共享 Dialog jSn",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D002",
+    "path": "webview/assets/chatgpt-keyboard-shortcuts-dialog-a8d79775ef75.js",
+    "offset": 1217,
+    "excerpt": "contentProps:l,size:`wide`,variant:`chatgpt`,children:u}),i[2]=a,i[3]=d),d}function h(e){e.target instanceof Element&&e.target.closest(`[data-codex-shortcut-capture]`)!=null&&e.pre",
+    "claim": "快捷键页面实际调用 wide / chatgpt Dialog",
+    "scope": "ChatGPT 快捷键弹窗"
+  },
+  {
+    "id": "D003",
+    "path": "webview/assets/chatgpt-keyboard-shortcuts-dialog-a8d79775ef75.js",
+    "offset": 413,
+    "excerpt": "onOpenAutoFocus:()=>{let e=document.activeElement;for(;e?.shadowRoot?.activeElement!=null;)e=e.shadowRoot.activeElement;c.current=e instanceof HTMLElement?e:null},onCloseAutoFocus:e=>{e.preventDefault(),c.current?.focus()},onEscapeKeyDown:h},i[0]=l):l=i[0];let u;i[1]===Symbol.for(`react.memo_cache_sentinel`)?(u=(0,v.jsxs)(s,{size:`scrollable`,variant:`chatgpt`,children:[(0,v.js",
+    "claim": "快捷键弹窗捕获深层 shadowRoot activeElement；关闭 preventDefault 后恢复焦点",
+    "scope": "ChatGPT 快捷键弹窗"
+  },
+  {
+    "id": "D004",
+    "path": "webview/assets/chatgpt-keyboard-shortcuts-dialog-a8d79775ef75.js",
+    "offset": 1292,
+    "excerpt": "function h(e){e.target instanceof Element&&e.target.closest(`[data-codex-shortcut-capture]`)!=null&&e.preventDefault()}var g,_,v;function y(){return(y=e((()=>{g=l(),_=d(),a(),c(),i(),f(),v=u()})))()}y();export{m as ChatG",
+    "claim": "快捷键录制区阻止 Escape 关闭弹窗",
+    "scope": "ChatGPT 快捷键弹窗"
+  },
+  {
+    "id": "D005",
+    "path": "webview/assets/chatgpt-keyboard-shortcuts-dialog-a8d79775ef75.js",
+    "offset": 740,
+    "excerpt": "size:`scrollable`,variant:`chatgpt`,children:[(0,v.jsx)(r,{className:`shrink-0 px-12 pt-6 pb-2`,titleClassName:`text-center text-base leading-6`,titleSize:`base`,title:(0,v.jsx)(n,{children:(0,v.jsx)(t,{id:`keyboardShortcutsDialog.title`,defaultMessage:`Keyboard shortcuts`,description:`Title for the active keyboard shortcuts dialog`})})}),(0,v.jsx)(p,{embedded:!0,presentation:`chatgpt`})]}),i[1]=u):u=i[1];let d;return i[2]===a?d=i[3]:(d=(0,v.jsx)(o,{open:!0,onOpenChange:a,contentProps:l,size:`wide`,variant:`chatgpt`,children:u}),i[2]=a,i[3]=d),d}function",
+    "claim": "快捷键弹窗标题居中 text-base leading-6，头部 px-12 pt-6 pb-2",
+    "scope": "ChatGPT 快捷键弹窗"
+  },
+  {
+    "id": "D006",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 712684,
+    "excerpt": "bS=_S(e=>{let{__scopeDialog:t,children:n,open:r,defaultOpen:i,onOpenChange:a,modal:o=!0}=e,s=hS.useRef(null),c=hS.useRef(null),[l,u]=nx({prop:r,defaultProp:i??!1,onChange:a,caller:vS}),[d,f]=hS.useState(0),[p,m]=hS.useState(0);return(0,gS.jsx)(uye,{scope:t,triggerRef:s,contentRef:c,contentId:fx(),titleId:fx(),descriptionId:fx(),titlePresent:d>0,descriptionPresent:p>0,setTitleCount:f,setDescriptionCount:m,open:l,onOpenChange:u,onOpenToggle:hS.useCallback(()=>u(e=>!e),[u]),modal:o,children:n})},`Dialog`),dye=`DialogTrigger`,xS=hS.forwardRef(_S(function(e,t){let{__scopeDialog:n,...r}=e,",
+    "claim": "Dialog root modal 默认 true，defaultOpen 默认 false，维护标题描述存在计数",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D007",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 713192,
+    "excerpt": "dye=`DialogTrigger`,xS=hS.forwardRef(_S(function(e,t){let{__scopeDialog:n,...r}=e,i=yS(dye,n),a=wb(t,i.triggerRef);return(0,gS.jsx)(Fb.button,{type:`button`,\"aria-haspopup\":`dialog`,\"aria-expanded\":i.open,\"aria-controls\":i.open?i.contentId:void 0,\"data-state\":mS(i.open),...r,ref:a,onClick:Xb(e.onClick,i.onOpenToggle)})},`DialogTrigger`)),fye=`DialogPortal`,[pye,mye]=cye(fye,{forceMount:void 0}),SS=_S(e=>{let{__scopeDialog:t,forceMount:n,children:r,container:i}=e,a=yS(fye,t);return(0,gS.jsx)(pye,{scope:t,forceMount:n,children:hS.Children.map(r,e",
+    "claim": "触发器为 button，含 dialog aria-haspopup、expanded 和打开时 controls",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D008",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 714715,
+    "excerpt": "_ye=hS.forwardRef(_S(function(e,t){let n=yS(TS,e.__scopeDialog),r=hS.useRef(null),i=wb(t,n.contentRef,r);return hS.useEffect(()=>{let e=r.current;if(e)return fS(e)},[]),(0,gS.jsx)(yye,{...e,ref:i,trapFocus:n.open,disableOutsidePointerEvents:n.open,onCloseAutoFocus:Xb(e.onCloseAutoFocus,e=>{e.preventDefault(),n.triggerRef.current?.focus()}),onPointerDownOutside:Xb(e.onPointerDownOutside,e=>{let t=e.detail.originalEvent,n=t.button===0&&t.ctrlKey===!0;(t.button===2||n)&&e.preventDefault()}),onFocusOutside:Xb(e.onFocusOutside,e=>e.preventDefault())})},`DialogContentModal`)),vye=hS.forwardRef(_S(fu",
+    "claim": "modal content 打开时 trapFocus/禁外部指针；关闭返回 trigger",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D009",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 715057,
+    "excerpt": "onPointerDownOutside:Xb(e.onPointerDownOutside,e=>{let t=e.detail.originalEvent,n=t.button===0&&t.ctrlKey===!0;(t.button===2||n)&&e.preventDefault()}),onFocusOutside:Xb(e.onFocusOutside,e=>e.preventDefault())})},`DialogContentModal`)),vye=hS.forwardRef(_S(function(e,t){let n=yS(TS,e.__scopeDialog),r=hS.useRef(!1),i=hS.useRef(!1);return(0,gS.jsx)(yye,{...e,ref:t,trapFocus:!1,disableOutsidePointerEvents:!1,onCloseAutoFocus:t=>{e.onCloseAutoFocus?.(t),t.defaultPrevented||(r.curr",
+    "claim": "modal 对右键及 Ctrl+左键外点阻止 dismiss；focusOutside 被阻止",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D010",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 715292,
+    "excerpt": "vye=hS.forwardRef(_S(function(e,t){let n=yS(TS,e.__scopeDialog),r=hS.useRef(!1),i=hS.useRef(!1);return(0,gS.jsx)(yye,{...e,ref:t,trapFocus:!1,disableOutsidePointerEvents:!1,onCloseAutoFocus:t=>{e.onCloseAutoFocus?.(t),t.defaultPrevented||(r.current||n.triggerRef.current?.focus(),t.preventDefault()),r.current=!1,i.current=!1},onInteractOutside:t=>{e.onInteractOutside?.(t),t.defaultPrevented||(r.current=!0,t.detail.originalEvent.type===`pointerdown`&&(i.current=!0));let a=t.target;n.triggerRef.current?.contains(a)&&t.preventDefault(),t.detail.originalEvent.type===`focusin`&&i.current&&",
+    "claim": "non-modal 对话框关闭时仅无外部交互才恢复 trigger 焦点",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D011",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 715931,
+    "excerpt": "yye=hS.forwardRef(_S(function(e,t){let{__scopeDialog:n,trapFocus:r,onOpenAutoFocus:i,onCloseAutoFocus:a,...o}=e,s=yS(TS,n);return Fx(),(0,gS.jsx)(gS.Fragment,{children:(0,gS.jsx)(jx,{asChild:!0,loop:!0,trapped:r,onMountAutoFocus:i,onUnmountAutoFocus:a,children:(0,gS.jsx)(Sx,{role:`dialog`,id:s.contentId,\"aria-describedby\":s.descriptionPresent?s.descriptionId:void 0,\"aria-labelledby\":s.titlePresent?s.titleId:void 0,\"data-state\":mS(s.open),...o,ref:t,deferPointerDownOutside:!0,onDismiss:()=>s.onOpenChange(!1)})})})},`DialogContentImpl`)),bye=`DialogTitle`,DS=hS.forwardRef(_S(function(e,t){let{__",
+    "claim": "Dialog Content 使用 loop FocusScope，role dialog，标题描述依存在性关联",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D012",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 692189,
+    "excerpt": "jx=Dx.forwardRef(Ox(function(e,t){let{loop:n=!1,trapped:r=!1,onMountAutoFocus:i,onUnmountAutoFocus:a,...o}=e,[s,c]=Dx.useState(null),l=gx(i),u=gx(a),d=Dx.useRef(null),f=wb(t,c),p=Dx.useRef({paused:!1,pause(){this.paused=!0},resume(){this.paused=!1}}).current;Dx.useEffect(()=>{if(r){let e=function(e){if(p.paused||!s)return;let t=e.composedPath()[0];Tx(s,t)?d.current=t:Ex(d.current,{select:!0})},t=function(e){if(p.paused||!s)return;let t=e.relatedTarget;if(t===null)return;let n=e.composedPath()[0];Tx(s,n)&&(d.current=n),Tx(s,t)||Ex(d.current,{select:!0})},n=function(e){if(wx()===document.body)fo",
+    "claim": "FocusScope 基于 focusin/focusout 和 MutationObserver 维持焦点",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D013",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 693209,
+    "excerpt": "T_e.add(p);let e=wx();if(!Tx(s,e)){let t=new CustomEvent(kx,w_e);s.addEventListener(kx,l),s.dispatchEvent(t),t.defaultPrevented||(p_e(x_e(h_e(s)),{select:!0}),wx()===e&&Ex(s))}return()=>{s.removeEventListener(kx,l),setTimeout(()=>{let t=new CustomEvent(Ax,w_e);s.addEventListener(Ax,u),s.dispatchEvent(t),t.defaultPrevented||Ex(e??document.body,{select:!0}),s.removeEventListener(Ax,u),T_e.remove(p)},0)}}},[s,l,u,p]);let m=Dx.useCallback(e=>{if(!n&&!r||p.paused||e.key!==`Tab`||e.altKey||e.ctrlKey||e.metaKey)return;let t=wx();if(t){let r=e.currentTarget,[i,a]=m_e(r);i&&a?!e.shiftKey&&t===a?(e.prev",
+    "claim": "FocusScope 派发可取消的自动聚焦事件，卸载后恢复 prior focus",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D014",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 693627,
+    "excerpt": "let m=Dx.useCallback(e=>{if(!n&&!r||p.paused||e.key!==`Tab`||e.altKey||e.ctrlKey||e.metaKey)return;let t=wx();if(t){let r=e.currentTarget,[i,a]=m_e(r);i&&a?!e.shiftKey&&t===a?(e.preventDefault(),n&&Ex(i,{select:!0})):e.shiftKey&&(t===i||t===r)&&(e.preventDefault(),n&&Ex(a,{select:!0})):t===r&&e.preventDefault()}},[n,r,p.paused]);return(0,S_e.jsx)(Fb.div,{tabIndex:-1,...o,ref:f,onKeyDown:m})},`FocusScope`)),Ox(p_e,`focusFirst`),Ox(m_e,`getTabbableEdges`),Ox(h_e,`getTabbableCandidates`),Ox(g_e,`findVisible`),Ox(__e,`isHidden`),Ox(v_e,`i",
+    "claim": "Tab/Shift+Tab 在范围首尾循环；空范围阻止越出",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D015",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 691653,
+    "excerpt": "function y_e(){let e=[];return{add(t){let n=e[0];t!==n&&n?.pause(),e=b_e(e,t),e.unshift(t)},remove(t){e=b_e(e,t),e[0]?.resume()}}}function b_e(e,t){let n=[...e],r=n.indexOf(t);return r!==-1&&n.splice(r,1),n}function x_e(e){return e.filter(e=>e.tagName!==`A`)}var Dx,S_e,C_e,Ox,kx,Ax,w_e,jx,T_e;function Mx(){return(Mx=t((()=>{Dx=n(o(),1),Eb(),Ib(),vx(),S_e=Y(),C_e=Object.defineProperty,Ox=(e,t)=>C_e(e,`name`,{value:t,configurable:!0}),kx=`focusScop",
+    "claim": "嵌套 focus scope 暂停旧 scope，移除后恢复",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D016",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 687939,
+    "excerpt": "Sx=yx.forwardRef(bx(function(e,t){let{disableOutsidePointerEvents:n=!1,deferPointerDownOutside:r=!1,onEscapeKeyDown:i,onPointerDownOutside:a,onFocusOutside:o,onInteractOutside:s,onDismiss:c,...l}=e,u=yx.useContext(d_e),[d,f]=yx.useState(null),p=d?.ownerDocument??globalThis?.document,[,m]=yx.useState({}),h=wb(t,f),g=Array.from(u.layers),[_]=[...u.layersWithOutsidePointerEventsDisabled].slice(-1),v=_?g.indexOf(_):-1,y=d?g.indexOf(d):-1,b=u.layersWithOutsidePointerEventsDisabled.size>0,x=y>=v,S=yx.useRef(!1),C=n_e(e=>{a?.(e),s?.(e),e.defaultPrevented||c?.()},{ownerDocument:p,d",
+    "claim": "DismissableLayer 外点/外焦点先回调再依 defaultPrevented 决定关闭",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D017",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 688938,
+    "excerpt": "T=d?y===g.length-1:!1,E=gx(e=>{e.key===`Escape`&&(i?.(e),!e.defaultPrevented&&c&&(e.preventDefault(),c()))});return yx.useEffect(()=>{if(T)return p.addEventListener(`keydown`,E,{capture:!0}),()=>p.removeEventListener(`keydown`,E,{capture:!0})},[p,T,E]),yx.useEffect(()=>{if(d)return n&&(u.layersWithOutsidePointerEventsDisabled.size===0&&(u_e=p.body.style.pointerEvents,p.body.style.pointerEvents=`none`),u.layersWithOut",
+    "claim": "只有栈顶 dismissable layer 监听 Escape 并执行可取消 dismiss",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D018",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 689277,
+    "excerpt": "u_e=p.body.style.pointerEvents,p.body.style.pointerEvents=`none`),u.layersWithOutsidePointerEventsDisabled.add(d)),u.layers.add(d),i_e(),()=>{n&&(u.layersWithOutsidePointerEventsDisabled.delete(d),u.layersWithOutsidePointerEventsDisabled.size===0&&(p.body.style.pointerEvents=u_e))}},[d,p,n,u]),yx.useEffect(()=>()=>{d&&(u.layers.delete(d),u.layersWithOutsidePointerEventsDisabled.delete(d),i_e())},[d,u]),yx.useEffect(()=>{let e=bx(()=>m({}),`handleUpdate`);return docu",
+    "claim": "首个禁外部指针层记录并设 body pointer-events:none，最后一层离开恢复",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D019",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 714151,
+    "excerpt": "gye=hS.forwardRef(_S(function(e,t){let{__scopeDialog:n,...r}=e,i=yS(CS,n),a=wb(t,t_e());return(0,gS.jsx)(oS,{as:hye,allowPinchZoom:!0,shards:[i.contentRef],children:(0,gS.jsx)(Fb.div,{\"data-state\":mS(i.open),...r,ref:a,style:{pointerEvents:`auto`,...r.style}})})},`DialogOverlayImpl`)),TS=`DialogContent`,ES=hS.forwardRef(_S(function(e,t){let n=mye(TS,e.__scopeDialog),{forceMount:r=n.forceMount,...i}=e,a=yS(TS,e.__scopeDialog);return(0,gS.jsx)(ux,{present:r||a.open,children:a.modal?(0,gS.jsx)(_ye,{...i,ref:t}):(0,gS.jsx)(vye,{...i,ref:t})})},`DialogContent`)),_ye=hS.forwardRe",
+    "claim": "Dialog overlay 使用 RemoveScroll，allowPinchZoom 且内容为 shard",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D020",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4208622,
+    "excerpt": "function ASn(e){return e===`pinEntry`?`w-52.5`:e===`large`?`w-lg`:e===`narrow`?`w-[380px]`:e===`feature`?`w-[400px]`:e===`setup`?`h-[min(600px,calc(100dvh-2rem))] w-120`:e===`catalogDetail`?`w-143.5`:e===`beacon`?`w-120`:e===`compact`?`w-105`:e===`medium`?`w-md`:e===`wide`?`w-150`:e===`wideTall`?`h-140 max-h-[calc(100dvh/var(--codex-window-zoom)-2rem)] w-150`:e===`share`?`w-160`:e===`feedback`?`w-xl`:e===`xwide`?`w-[680px]`:e===`xwideTall`?`h-[min(92vh,800px)] max-h-[min(92vh,800px)] w-[680px]`:e===`xxwide`?`w-[800px]`:e===`xxxwideTall`?`h-[min(85vh,740px)] max-h-[min(85vh,740px)] w-[960px]`:e",
+    "claim": "Dialog size 分支包含 wide w-150 等共享尺寸",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D021",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4209122,
+    "excerpt": "e===`xxwide`?`w-[800px]`:e===`xxxwideTall`?`h-[min(85vh,740px)] max-h-[min(85vh,740px)] w-[960px]`:e===`editor`?`w-[600px] h-[720px] max-w-full max-h-full`:e===`appLauncher`?`w-[750px] h-[720px]`:e===`square`?`aspect-square`:e===`sheet`?`rounded-b-none`:m5(e)?X(p5.responsiveSheet,e===`edgeToEdgeSheet`&&p5.edgeToEdgeSheet):`w-130`}function jSn(e){\"use forget\";let t=(0,h5.c)(61),n,r,i,a,o,s,c,l,u,d,f,p,m,h,g,_,v,y,b,x,S,C,w,T,E,D,O;t[0]===e?(n=t[1],r=t[2],i=t[3],a=t[4],o=t[5],s=t[6],c=t[7],l=t[8],",
+    "claim": "Dialog size 分支包含大弹窗及默认 w-130",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D022",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4215674,
+    "excerpt": "oe=X(P===\"default\"&&`bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] ring-border shadow-lg backdrop-blur-xl`,(P===`chatgpt`||P===`photoSetup`||U)&&[`dark:bg-surface-tertiary text-default`,P===`chatgpt`&&s===`anchored`&&C!==`sheet`&&!m5(C)?`bg-surface-elevated bg-clip-padding md:border md:border-default md:shadow-2xl`:`bg-surface shadow-lg`],P===`expressiveBeacon`&&[`border border-default`,p5.expressiveBeaconSurface],P===`voicePicker`&&p5.voicePickerSurface,P===`chatgptConfirmation`&&p5.chatgptConfirmationSurface,P===`onboarding`&&`bg-surface-elevated ",
+    "claim": "ChatGPT Dialog 用 surface/shadow-lg、dark surface-tertiary；anchored 有独立表面",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D023",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4216860,
+    "excerpt": "P!==`image`&&P!==`expressiveBeacon`&&P!==`form`&&P!==`voicePicker`&&!re&&!ie&&!m5(C)&&(O===`compact`||P===`chatgpt`||P===`chatgptConfirmation`||U?`rounded-2xl`:`rounded-3xl`),P!==`image`&&P!==`voicePicker`&&!ie&&C!==`sheet`&&C!==`square`&&!m5(C)&&(s===`scrollable`||W?`max-w-full`:`max-w-[92vw]`),o===`visible`?`overflow-visible`:`overflow-hidden`,U&&`max-h-[92dvh] overflow-y-auto`),se;t[0]!==s||t[1]!==h||t[2]!==C||t[3]!==H?(se={},C===`square`?se.width=`min(760px, calc(100vw / ${H} - 4rem), calc(100dvh / ${H} - 6rem))`:C===`sheet`?(se.width=`calc(100vw / ${H})`,se.height=`calc(70dvh / ${H})`,se.",
+    "claim": "ChatGPT/DialogConfirmation 使用 rounded-2xl 和通常 max-w92vw",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D024",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4217306,
+    "excerpt": "se.width=`min(760px, calc(100vw / ${H} - 4rem), calc(100dvh / ${H} - 6rem))`:C===`sheet`?(se.width=`calc(100vw / ${H})`,se.height=`calc(70dvh / ${H})`,se.maxHeight=`calc(100dvh / ${H} - 1rem)`):C===`appLauncher`&&(se.maxWidth=`calc(92vw / ${H})`,se.maxHeight=`calc(90dvh / ${H})`),s===`scrollable`&&h==null&&(se.maxWidth=`calc((100vw - 2rem) / ${H})`),t[0]=s,t[1]=h,t[2]=C,t[3]=H,t[4]=se):se=t[4];let ce=ASn(C);P===`image`?ce=`inset-0 flex h-full w-full flex-col`:P===`detailPanel`?ce=X(ce,`h-[calc(100dvh/var(--codex-window-zoom)-2rem)]`):P===`chatgptConfirmation`&&C===\"default\"?ce=`w-125`:ie&&(ce=",
+    "claim": "square、sheet 和滚动位置尺寸按 window zoom 计算",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D025",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4219048,
+    "excerpt": "P===`chatgpt`||P===`chatgptConfirmation`||P===`photoSetup`?`rounded-lg`:`rounded-full`,E===`compact`&&`size-7 bg-surface shadow-xs ring-[0.5px] ring-border`,E!==`compact`&&P!==`chatgptConfirmation`&&(P===`centeredText`||P===`expressiveBeacon`||E===`large`?`size-9`:`size-8`)):`rounded p-1`),f==null&&ie&&`absolute top-4 end-4`,f==null&&P!==`voicePicker`&&!ie&&E===`large`&&`absolute top-4.5 end-4.5`,f==null&&P!==`voicePicker`&&!ie&&E!==`large`&&P===",
+    "claim": "ChatGPT 默认关闭按钮 rounded-lg、通常 size8，支持变体",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D026",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4220598,
+    "excerpt": "className:`sr-only`,children:d||V?.formatMessage(VSn)||VSn.defaultMessage})]}):null,t[5]=i,t[6]=E,t[7]=D,t[8]=c,t[9]=d,t[10]=ne,t[11]=f,t[12]=V,t[13]=re,t[14]=ie,t[15]=k,t[16]=C,t[",
+    "claim": "Dialog close 有屏幕阅读器标签，可被传入文案覆盖",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D027",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4221148,
+    "excerpt": "Number.isFinite(e)&&(Math.abs(e-n)<.5||(n=e,le.style.setProperty(`--dialog-content-height`,`${e}px`),le.style.height=`var(--dialog-content-height)`,r||(t!=null&&cancelAnimationFrame(t),t=requestAnimationFrame(()=>{r=!0,le.dataset.dialogHeightReady=`true`}))))},a=()=>{let e=ue.offsetHeight||ue.scrollHeight;i(e)},o=()=>{e??=requestAnimationFrame(()=>{e=null,a()})};o();let s=new ResizeObserver(o);return s.observe(ue),()=>{s.disconnect(),e!=null&&cancelAnimationFrame(e),t!=null&&cancelAnimationFrame(t),le.style.removeProperty(`--dialog-content-height`),le.style.height=``,delete le.datase",
+    "claim": "自动高度忽略不足0.5px差值，通过 RAF 和 ResizeObserver 更新/清理",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D028",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4222671,
+    "excerpt": "De=e=>{A&&e.preventDefault(),R?.(e)},t[42]=R,t[43]=A,t[44]=De):De=t[44];let Oe;t[45]!==L||t[46]!==j?(Oe=e=>{j&&e.stopPropagation(),L?.(e)},t[45]=L,t[46]=j,t[47]=Oe):Oe=t[47];let ke;t[48]===ee?ke=t[49]:(ke=e=>{O2(),window.getSelection()?.removeAllRanges(),ee?.(e)},t[48]=ee,t[49]=ke);let Ae;t[50]!==F||t[51]!==n||t[52]!==_e||t[53]!==de||t[54]!==pe?(Ae=F&&(0,g5.isValidElement)(n)?(0,g5.cloneElement)(n,void 0,(0,_5.jsx)(zSn,{},`overlay-registration`),n.props.children,_e)",
+    "claim": "Dialog 可阻止外点，指针传播默认被停止，打开时清除文字选择",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D029",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4226029,
+    "excerpt": "function XSn(e){if(e===`scrollable`)return`max-h-[min(calc(85dvh/var(--codex-window-zoom)),calc(var(--spacing)*176))] overflow-hidden`;if(e===`viewport`)return`max-h-[calc(100dvh/var(--codex-window-zoom)-2rem)] overflow-y-auto`;if(e===`topPositioned`)return`max-h-[min(var(--dialog-top-content-max-height),calc(85dvh/var(--codex-window-zoom)))] overflow-y-auto`;if(e===`full`)return`h-full min-h-0`;if(e===`tall`)return`min-h-[520px] max-h-[560px]`}function y5(){return typeof window>`u`||window.localStorage==null|",
+    "claim": "scrollable 高度上限为 min(85dvh/zoom,176spacing)，overflow hidden",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D030",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4229030,
+    "excerpt": "function QSn(e){\"use forget\";let t=(0,x5.c)(23),{children:n,className:r,size:i,variant:a}=e,o=a===void 0?`default`:a,s,c;if(t[0]!==r||t[1]!==i||t[2]!==o){s=y5();let e=XSn(i);c=X(`flex flex-col text-base leading-normal tracking-normal`,o===`confirmation`?`gap-6 p-8`:`gap-0`,o===\"default\"&&v5.body,o===`codeEntry`&&`p-8`,o===`chatgptConfirmation`&&v5.chatgptConfirmationBody,s&&w5,e,r),t[0]=r,t[1]=i,t[2]=o,t[3]=s,t[4]=c}else s=t[3],c=t[4];let l=c;if(e.as===`form`){let r;if(t[5]!==e){let{as:n,children:i,className:a,size:o,variant:s,...c}=e;r=c,t[5]=e,t[6]=r}else r=t[6];let i;t[7]===s?i=t[",
+    "claim": "Body flex column text-base leading-normal tracking-normal，padding 按 variant",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D031",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 73116,
+    "excerpt": "._body_1rxrl_2{padding-inline:calc(var(--spacing,.25rem) * 5);padding-block:calc(var(--spacing,.25rem) * 5)}._section_1rxrl_2{padding-top:calc(var(--spacing,.25rem) * 3)}._largeSection_1rxrl_2{padding-top:calc(var(--spacing,.25rem) * 5)}._section_1rxrl_2:nth-child(1 of :not(.sr-only)){padding-top:0}._body_1rxrl_2>._footer_1rxrl_2:nth-child(n+2 of :not(.sr-only)){margin-top:calc(var(--spacing,.25rem) * 5)}}._chatgptConfirmationBody_1rxrl",
+    "claim": "默认 Body padding5spacing，section3spacing/large5spacing，首节无顶距",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D032",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 66406,
+    "excerpt": "._chatgptConfirmationSurface_rq2f8_2{background-color:var(--color-surface-card);color:var(--color-text);box-shadow:0 8px 12px #00000014,0 0 1px #0000009e}._chatgptConfirmationSurface_rq2f8_2:where([data-theme=dark]){box-shadow:0 8px 16px #00000052,inset 0 0 1px #fff3,0 0 1px #0000009e}@container style(--theme-variant:dark){._chatgptConfirmationSurface_rq2f8_2:where(:not([data-theme])){box-shadow:0 8px 16px #00000052,inset 0 0 1px #fff3,0 0 1px #0000009e}}._chatgptConfirmationClose_rq2f8_2{top:ca",
+    "claim": "ChatGPT Confirmation 用 surface-card 及浅深两套阴影",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D033",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 73525,
+    "excerpt": "._chatgptConfirmationBody_1rxrl_2{padding-inline:calc(var(--spacing,.25rem) * 6);padding-bottom:calc(var(--spacing,.25rem) * 6)}._chatgptConfirmationBody_1rxrl_2>._section_1rxrl_2:nth-of-type(2){padding-top:0}._chatgptConfirmationBody_1rxrl_2>._section_1rxrl_2:first-of-type{padding-block:calc(var(--spacing,.25rem) * 4)}._chatgptConfirmationBody_1rxrl_2>._section_1rxrl_2:last-of-type{padding-top:calc(var(--spacing,.25rem) * 8)}._chatgptConfirmationHeaderTitle_1rxrl_2{min-height:calc(var(--spacing,.25rem) * 9);font-size:var(--text-lg,16px);line-height:var(--tw-leadi",
+    "claim": "确认弹窗 body 横向/底部6spacing，首节4spacing末节8spacing",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D034",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 70633,
+    "excerpt": "._responsiveSheet_rq2f8_2{width:100%;height:auto;max-width:var(--container-md,28rem);border-top-left-radius:var(--radius-2xl,calc(var(--radius-2xl-base) * var(--corner-radius-scale)));border-top-right-radius:var(--radius-2xl,calc(var(--radius-2xl-base) * var(--corner-radius-scale)));inset-inline:0;margin-inline:auto;display:grid;bottom:0}@media (width>=40rem){._responsiveSheet_rq2f8_2{--tw-translate-y:calc(calc(1 / 2 * 100%) * -1);translate:var(--tw-translate-x) var(--tw-translate-y);border-radius:var(--radius-2xl,calc(var(--radius-2xl-base) * var(--corner-radius-scale)));top:50%;bottom:auto}}",
+    "claim": "响应 sheet 小于40rem底部，大于等于40rem居中；保留safe-area",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D035",
+    "path": "webview/assets/app-shared-dc7535e633d7.css",
+    "offset": 63305,
+    "excerpt": "._heightAnimated_rq2f8_2[data-dialog-height-ready=true]:where(:root[data-reduced-motion=false] ._heightAnimated_rq2f8_2[data-dialog-height-ready=true]){transition-property:height;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function,cubic-bezier(.4, 0, .2, 1)));transition-duration:var(--tw-duration,var(--default-transition-duration,.15s))}@media (prefers-reduced-motion:no-preference){._heightAnimated_rq2f8_2[data-dialog-height-ready=true]:where(:root:not([data-reduced-motion]) ._heightAnimated_rq2f8_2[data-dialog-height-ready=true]){transition-property:hei",
+    "claim": "高度动画按 reduced motion 条件启用",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D036",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 5758560,
+    "excerpt": "$8 as CO,tDe as COt,k3 as CP,qm as CPt,lVt as CQ,l8t as CR,$c as CRt,KFn as CS,XH as CSt,cAn as CT,hIe as CTt,g$t as CU,d1t as CV,mQt as CW,lGt as CX,",
+    "claim": "CO 导出共享 Dropdown root $8",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D037",
+    "path": "webview/assets/chatgpt-mermaid-preview-actions-a550fea97e47.js",
+    "offset": 94,
+    "excerpt": "CO as a,Dz as o,IDt as s,SB as c,TJ as l,TO as u,VDt as d,cz as f,jDt as p,jH as m,kz as h,m4 as g,p4 as _,sz as v,t3 as y,tH as b,vzt as x,xMt as S}from\"./app-shared-52443cbe9ac4.js\";import{$fr as C,$o as w,GGn as T,Qo as E,epr as D}from\"./app-initi",
+    "claim": "Mermaid 预览动作实际导入共享 Dropdown",
+    "scope": "ChatGPT Mermaid 预览动作"
+  },
+  {
+    "id": "D038",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4166896,
+    "excerpt": "portalContainer:z}=e,B=o!==void 0&&o,V=c!==void 0&&c,te=_===void 0?`menu`:_,H=F===void 0?`menu`:F,ne=L!==void 0&&L,U=g2(),re=`calc(var(--radix-dropdown-menu-trigger-width) / ${U})`,ie=(0,t5.useRef)(null),[W,ae]=(0,t5.useState)(null),oe=(0,t5.useRef)(null),se=(0,t5.useRef)(void 0),ce=(0,t5.useRef)(null),le=(0,t5.useRef)(!1),G=m==null?void 0:ae,ue;t[0]!==g||t[1]!==G?(ue=K6(g,G),t[0]=g,t[1]=G,t[2]=ue):ue=t[2];let de=ue,",
+    "claim": "共享 Dropdown 包装 modal 默认 false，默认 role menu",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D039",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4167411,
+    "excerpt": "_e={disabled:r,dismissOnWindowBlur:!1},t[3]=r,t[4]=_e);let{handleOpenChange:ve,open:ye}=dbn(s,l,_e),be=(0,t5.useContext)(T2)?.registerOpen,xe,Se;t[5]!==ye||t[6]!==be?(Se=()=>{if(ye)return be?.()},xe=[ye,be],t[5]=ye,t[6]=be,t[7]=xe,t[8]=Se):(xe=t[7],S",
+    "claim": "Dropdown 明确不以 window blur 为自动 dismiss 规则",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D040",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4147127,
+    "excerpt": "function rxn(e){\"use forget\";let t=(0,e5.c)(43),n,r,i,a,o,s,c,l,u,d,f,p,m,h,g;t[0]===e?(n=t[1],r=t[2],i=t[3],a=t[4],o=t[5],s=t[6],c=t[7],l=t[8],u=t[9],d=t[10],f=t[11],p=t[12],m=t[13],h=t[14],g=t[15]):({children:r,className:i,align:n,maxWidth:u,onKeyDownCapture:a,sideOffset:d,size:f,rowLayout:c,surface:p,variant:m,scrollFade:h,scrollPeek:g,ref:o,style:l,...s}=e,t[0]=e,t[1]=n,t[2]=r,t[3]=i,t[4]=a,t[5]=o,t[6]=s,t[7]=c,t[8]=l,t[9]=u,t[10]=d,t[11]=f,t[12]=p,t[13]=m,t[14]=h,t[15]=g);let _=u===void 0?`default`:u,v=d===void 0?1:d,y=f===void 0?`default`:f,b=p===void 0?`menu`:p,x=m===void 0?`default`:m,",
+    "claim": "共享菜单 Content sideOffset 默认1",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D041",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4148237,
+    "excerpt": "no-drag z-50 m-px flex select-none flex-col`,D,O,V8(b),x===`inset`&&`px-2.5`,b===`glass`&&G8.glassSurface,y===`large`&&G8.largeRows,c===`single-line`&&G8.singleLineRows,y===`descriptive`&&G8.descriptiveRows,y===`select`&&G8.selectRows,y===`inset`&&G8.insetRows,y===`action`&&G8.actionRows,i),t[16]=i,t[17]=c,t[18]=y,t[19]=b,t[20]=O,t[21]=D,t[22]=x,t[23]=k):k=t[23];let A=n??`start`,j;t[24]===a?j=t[25]:(j=e=>{if(a?.(e),e.defaultPrevented||e.key!==`ArrowUp`&&!(e.key===`Tab`&&e.shiftKey))return;let t=e.currentTarget.querySelector(`input`),n=t==null?void 0:vxn(t)[0];e.target insta",
+    "claim": "共享菜单内容 z50、外边1px、纵向布局",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D042",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 757567,
+    "excerpt": "KSe=qC.forwardRef(YC(function(e,t){let n=nw(iw,e.__scopeMenu);return(0,JC.jsx)(ow,{...e,ref:t,trapFocus:!1,disableOutsidePointerEvents:!1,disableOutsideScroll:!1,onDismiss:()=>n.onOpenChange(!1)})},`MenuRootContentNonModal`)),qSe=Db(`MenuContent.ScrollLock`),ow=qC.forwardRef(YC(function(e,t){let{__scopeMenu:n,loop:r=!1,trapFocus:i,onOpenAutoFocus:a,onCloseAutoFocus:o,disableOutsidePointerEvents:s,onEntryFocus:c,onEsc",
+    "claim": "非 modal Menu 不 trap、不禁外部 pointer、不锁外部scroll",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D043",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 757162,
+    "excerpt": "GSe=qC.forwardRef(YC(function(e,t){let n=nw(iw,e.__scopeMenu),r=qC.useRef(null),i=wb(t,r);return qC.useEffect(()=>{let e=r.current;if(e)return fS(e)},[]),(0,JC.jsx)(ow,{...e,ref:i,trapFocus:n.open,disableOutsidePointerEvents:n.open,disableOutsideScroll:!0,onFocusOutside:Xb(e.onFocusOutside,e=>e.preventDefault(),{checkForDefaultPrevented:!1}),onDismiss:()=>n.onOpenChange(!1)})},`MenuRootContentModal`)),KSe=qC.forwardRef(YC(function(e,t){let n=nw(iw,e.__scopeMenu);return(0,JC.jsx)(ow,{...e,ref:t,trapFocus:!1,disableOutsidePointerEvents:!1,disableOutsideScr",
+    "claim": "显式 modal Menu 打开 trapfocus/阻外部指针并锁滚动",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D044",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 754997,
+    "excerpt": "XC=[`Enter`,` `],DSe=[`ArrowDown`,`PageUp`,`Home`],OSe=[`ArrowUp`,`PageDown`,`End`],kSe=[...DSe,...OSe],ASe={ltr:[...XC,`ArrowRight`],rtl:[...XC,`ArrowLeft`]},jSe={ltr:[`ArrowLeft`],rtl:[`ArrowRight`]},ZC=`Menu`,[QC,MSe,NSe]=Vb(ZC),[$C,ew]=Lb(ZC,[NSe,DC,BC]),tw=DC(),PSe=BC(),[FSe,nw]=$C(ZC),[ISe,rw]=$C(ZC),LSe=YC(e=>{let{__scopeMenu:t,ope",
+    "claim": "菜单激活、首末、RTL 子菜单键集合",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D045",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 758378,
+    "excerpt": "N=YC(e=>{let t=E.current+e,n=b().filter(e=>!e.disabled),r=document.activeElement,i=n.find(e=>e.ref.current===r)?.textValue,a=CSe(n.map(e=>e.textValue),t,i),o=n.find(e=>e.textValue===a)?.ref.current;YC((function e(t){E.current=t,window.clearTimeout(T.current),t!==``&&(T.current=window.setTimeout(()=>e(``),1e3))}),`updateSearch`)(t),o&&setTimeout(()=>o.focus())},`handleTypeaheadSearch`);qC.useEffect(()=>()=>window.clearTimeout(T.current),[]),Fx();let P=qC.useCallback(e=>k.current===O.current?.side&&TSe(e,O.current?.area),[]);return(0,JC.jsx)(USe,{scope:n,searchRef:E,onItemEnt",
+    "claim": "菜单 typeahead 跳过 disabled；1秒重置搜索",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D046",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 753954,
+    "excerpt": "function CSe(e,t,n){let r=t.length>1&&Array.from(t).every(e=>e===t[0])?t[0]:t,i=n?e.indexOf(n):-1,a=SSe(e,Math.max(i,0));r.length===1&&(a=a.filter(e=>e!==n));let o=a.find(e=>e.toLowerCase().startsWith(r.toLowerCase()));return o===n?void 0:o}function wSe(e,t){let{x:n,y:r}=e,i=!1;for(let e=0,a=t.length-1;e<t.length;a=e++){let o=t[e],s=t[a],c=o.x,l=o.y,u=s.x,d=s.y;l>r!=d>r&&n<(u-c)*(r-l)/(d",
+    "claim": "连续同字符按单字符循环，大小写不敏感前缀查找",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D047",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 760130,
+    "excerpt": "e.key===`Tab`&&e.preventDefault(),!n&&r&&N(e.key));let i=C.current;if(e.target!==i||!kSe.includes(e.key))return;e.preventDefault();let a=b().filter(e=>!e.disabled).map(e=>e.ref.current);OSe.includes(e.key)&&a.reverse(),xSe(a)}),onBlur:Xb(e.onBlur,e=>{e.currentTarget.contains(e.target)||(window.clearTimeout(T.current),E.current=``)}),onPointerMove:Xb(e.onPointerMove,KC(e=>{let t=e.target,n=A.current!==e.clientX;if(e.currentTarget.contains(t)&&n){let t=e.clientX>A.current?`right`:`left`;k.current=",
+    "claim": "菜单内部拦截 Tab、无修饰打印字符 typeahead",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D048",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4150927,
+    "excerpt": "let L=x!==void 0&&x,R=S!==void 0&&S,z=C===void 0?`default`:C,B=w===void 0?`default`:w,V=T!==void 0&&T,te=E!==void 0&&E,H=D===void 0?`ellipsis`:D,ne=z===`danger`||z===`destructive`,U=a&&t5.isValidElement(o)?o:null,re=U?.props.href??l,ie=re?`a`:`div`,W=!!c&&R,ae=B===`display`,oe=ae||B===`detail`,se=B!==`label`&&!ae&&!c&&(!!re||!!m||!!h),ce=U==null?o:U.props.children,le,G;if(t[37]!==ce){let e=t5.Children.toArray(ce);le=t5.isValidElement(e[0])&&e[0].type===mxn?e[0]:null,G=le?e.slice(1):ce,t[37]=ce,t[38]=le,t[39]=G}else le=t[38],G=t[39];let ue=G,de=",
+    "claim": "菜单 Item 有 focusableWhenDisabled 独立选项与 display/label 类型",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D049",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4153150,
+    "excerpt": "text-xs leading-dense text-tertiary`,te?`whitespace-normal`:`truncate`),children:i})]}),be]}),t[59]=i,t[60]=V,t[61]=pe,t[62]=ue,t[63]=te,t[64]=H,t[65]=M,t[66]=be,t[67]=xe):xe=t[67];let Se=xe,Ce=U?.props.classNa",
+    "claim": "菜单副文案为 text-xs/leading-dense/tertiary，可 wrap 或 truncate",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D050",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4156305,
+    "excerpt": "function cxn(e){let t=(0,e5.c)(52),n,r,i,a,o,s,c,l,u,d,f;t[0]===e?(n=t[1],r=t[2],i=t[3],a=t[4],o=t[5],s=t[6],c=t[7],l=t[8],u=t[9],d=t[10],f=t[11]):({children:i,closeOnSelect:d,checked:r,className:a,disabled:o,href:s,indicator:f,leftIcon:c,onSelect:l,SubText:n,...u}=e,t[0]=e,t[1]=n,t[2]=r,t[3]=i,t[4]=a,t[5]=o,t[6]=s,t[7]=c,t[8]=l,t[9]=u,t[10]=d,t[11]=f);let p=d!==void 0&&d,m=f===void 0?`checkmark`:f,h,g;if(t[12]!==i){let e=t5.Children.toArray(i);h=t5.isValidElement(e[0])&&e[0].type===mxn?e[0]:null,g=h?e.slice(1):i,t[12]=i,t[13]=h,t[14]=g}else h=t[13],g=t[",
+    "claim": "CheckboxItem closeOnSelect 默认 false（d!==undefined&&d）",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D051",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4175026,
+    "excerpt": "function wxn(e){let t=(0,e5.c)(12),{content:n,loadingContent:r,open:i}=e,a=(0,t5.useRef)(i),o,s;t[0]===i?(o=t[1],s=t[2]):(o=()=>{a.current=i},s=[i],t[0]=i,t[1]=o,t[2]=s),(0,t5.useLayoutEffect)(o,s);let c;t[3]===n.props?c=t[4]:(c=e=>{a.current?e.preventDefault():n.props.onCloseAutoFocus?.(e)},t[3]=n.props,t[4]=c);let l;t[5]!==n.props||t[6]!==r||t[7]!==c?(l=(0,n5.jsx)(a5.Content,{...n.props,onCloseAutoFocus:c,children:r}),t[5]=n.props,t[6]=r,t[7]=c,t[8]=l):l=t[8];let u;return t[9]!==n||t[10]!==l?(u=(0,n5.jsx)(t5.Suspense,{fallback:l,children:n}),t[9]=n,t[10]=l,t[11]=u):u=t[11],u}functi",
+    "claim": "loadingContent 作为 Suspense fallback，切换加载内容时不触发关闭自动焦点",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D052",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4175610,
+    "excerpt": "function Txn(e){let t=(0,e5.c)(34),{trigger:n,children:r,isDefaultOpen:i,onOpenChange:a}=e,o=i!==void 0&&i,s=n.props.disabled??!1,[c,l]=(0,t5.useState)(!s&&o),u=c&&!s,d;if(t[0]!==s||t[1]!==u||t[2]!==a||t[3]!==n){let e;t[5]!==s||t[6]!==u||t[7]!==a||t[8]!==n.props?(e=e=>{n.props.onSelect?.(e),!e.defaultPrevented&&(e.preventDefault(),e.stopPropagation(),!s&&(l(!u),a?.(!u)))},t[5]=s,t[6]=u,t[7]=a,t[8]=n.props,t[9]=e):e=t[9];let r=u&&`rotate-90`,i;t[10]===r?i=t[11]:(i=X(`inline-flex items-center justify-center text-tertiary`,r),t[10]=r,t[11]=i);let o=n.props.rightIconClassName??`icon-xs`,",
+    "claim": "内嵌子菜单 select preventDefault/stopPropagation，仅未禁用时切换",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D053",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4177283,
+    "excerpt": "function Exn(e){\"use forget\";let t=(0,e5.c)(65),{ref:n,\"aria-current\":r,ariaLabel:i,label:a,allowWrap:o,children:s,LeftIcon:c,leftIcon:l,leftIconAsset:u,leftIconClassName:d,className:f,disabled:p,align:m,alignToParentBottom:h,contentClassName:g,contentWidth:_,contentSurface:v,onSelect:y,triggerContent:b,rightIcon:x,tooltipText:S,tooltipDisabled:C,tooltipTextClassName:w,tooltipSide:T,tooltipSideOffset:E,tooltipAlign:D,tooltipOpenWhen:O,open:k,onOpenChange:A,onEscapeKeyDown:j,variant:M}=e,N=o!==void 0&&o,P=p!==void 0&&p,F=m===void 0?`start`:m,I=v===void 0?`menu`:v,ee=M===void 0?`default`:M,L=t5.",
+    "claim": "Flyout submenu 有独立 open/disabled；compact 条件 not all 不是宽度断点",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D054",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4185757,
+    "excerpt": "Axn=200,jxn=100,Mxn={top:`bottom`,right:`left`,bottom:`top`,left:`right`},Nxn=t5.createContext(void 0),r5={maxWidth:`min(var(--radix-dropdown-menu-content-available-width), calc(10",
+    "claim": "菜单悬停开启200ms、关闭100ms",
+    "scope": "共享 Dropdown hover 能力，页面须显式开启"
+  },
+  {
+    "id": "D055",
+    "path": "webview/assets/generated-image-gallery-context-menu-3c890fd0433c.js",
+    "offset": 88,
+    "excerpt": "xO as i}from\"./app-shared-52443cbe9ac4.js\";function a(e){let t=(0,o.c)(3),{children:n,getItems:r,useGifPlaybackMenu:a}=e,c;return t[0]!==n||t[1]!==r?(c=(0,s.jsxs)(s.Fragment,{children:[null,(0,s.jsx)(s.Fragment,{children:(0,s.jsx)(i,{getItems:r,children:n})})]}),t[0]=n,t[1]=r,t[2]=c):c=t[2],c}var o,s;function c(){return(c=e((()=>{o=n(),t(),s=r()})))()}export{c as n,a as t};\n//# sourceMappingURL=generated-image-gallery-context-menu-3c890fd0433c.js.map",
+    "claim": "图像画廊包装实际消费共享 ContextMenu xO",
+    "scope": "ChatGPT 图像上下文菜单"
+  },
+  {
+    "id": "D056",
+    "path": "webview/assets/chatgpt-markdown-view-481589fdf431.js",
+    "offset": 11763,
+    "excerpt": "generated-image-gallery-context-menu-3c890fd0433c.js\";import{n as ta,t as na}from\"./card-87ea6d60aea8.js\";import{a as ra,c as ia,n as aa,o as oa,t as sa}from\"./file-a445da4d667b.js\";import{i as ca,n a",
+    "claim": "ChatGPT Markdown 引入图像 ContextMenu 包装",
+    "scope": "ChatGPT Markdown 图像"
+  },
+  {
+    "id": "D057",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4188922,
+    "excerpt": "function Hxn(e){\"use forget\";let t=(0,Yxn.c)(143),{items:n,getItems:r,children:i,trigger:a,disableNative:o,preserveBrowserContextMenu:s,align:c,contentWidth:l,loadingMessage:u,onOpenChange:d,open:f,onCloseAutoFocus:p,onAfterClose:m,renderItem:h,renderDropdown:g,shortcuts:_,awaitBeforeOpen:v,onBeforeOpen:y}=e,b=a===void 0?`contextmenu`:a,x=v===void 0||v,S=EO(),C=d5.useContext(T2),w=g2(),T=!o&&window.electronBridge?.showContextMenu!=null,E=s&&!1,D;t[0]===n?D=t[1]:(D=n??[],t[0]=n,t[1]=D);let O;t[2]!==S.formatMessage||t[3]!==D?(O=s5(D,S.formatMessage),t[2]=S.formatMessage,t[3]=D,t[4]=O):O=t[4];let",
+    "claim": "ContextMenu 默认右键、awaitBeforeOpen true，桥接存在且未禁用则走原生",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D058",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4189962,
+    "excerpt": "let e=ee.current;e?.abort(),L.current=void 0,z(e)},V=[z],t[11]=z,t[12]=B,t[13]=V),d5.useEffect(B,V);let te;t[14]===Symbol.for(`react.memo_cache_sentinel`)?(te=()=>{ee.current?.abort(),L.current=void 0;let e=new AbortController;return ee.current=e,e},t[14]=te):te=t[14];let H=te,ne;t[15]!==u||t[16]!==d||t[17]!==b||t[18]!==T?(ne=(e,t)=>{e.signal.aborted||(qm.error(`Context menu preparation failed`,{safe:{},sen",
+    "claim": "ContextMenu 卸载及重新打开取消旧准备任务",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D059",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4190327,
+    "excerpt": "Context menu preparation failed`,{safe:{},sensitive:{error:t}}),e.abort(),(!T&&b===`contextmenu`||b===`click`&&u!=null)&&(A([]),M(null),d?.(!1)))},t[15]=u,t[16]=d,t[17]=b,t[18]=T,t[19]=ne):ne=t[19];let U=ne,re;t[20]!==S.formatMessage||t[21]!==u||t[22]!==d||t[23]!==b||t[24]!==T?(re=(e,t)=>{if(t.signal.aborted)return[];let n=s5(e,S.formatMessage);return A(n),(",
+    "claim": "上下文菜单准备失败日志并abort，适用路径关闭网页菜单",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D060",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4191204,
+    "excerpt": "context-menu-loading`,message:u,enabled:!1}]),S.formatMessage)),t!=null&&M(`dropdown`);let r=new AbortController,o=()=>r.abort();if(e.signal.addEventListener(`abort`,o,{once:!0}),!T&&b===`contextmenu`&&u==null&&t==null){let t=()=>{e.abort(),M(null),d?.(!1)},n={capture:!0,signal:r.signal};document.addEventListener(`pointerdown`,t,n),document.addEventListener(`contextmenu`,t,n),document.addEventListener(`keydown`,e=>{e.key===`Escape`&&t()},n),window.addEventListener(`blur`,t,{signal:r.signal})}return Promise.resolve(a).then(t=>ie(t,e)).catch(t=>U(e,t)).finally(()=>{e.signal.removeEvent",
+    "claim": "异步菜单可显示 disabled loading item；无占位时监听用户取消",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D061",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4193511,
+    "excerpt": "ve=async e=>{if(!T)return;e.preventDefault();let t=e.currentTarget.getBoundingClientRect(),n=e.type===`contextmenu`&&`clientX`in e?{x:e.clientX,y:e.clientY}:{x:t.left,y:t.bottom};document.dispatchEvent(new PointerEvent(`pointercancel`));let r=document.activeElement,i=H(),a=new AbortController,o=!1,s=()=>{o&&(o=!1,M(null),d?.(!1))},c=()=>{a.abort(),s()};i.signal.addEventListener(`abort`,c,{once:!0});let l=()=>i.abort();document.addEventListener(`pointerdown`,l,{capture:!0,signal:a.signal}),document.addEventListener(`contextmenu`,l,{capture:!0,signal:a.signal}),docu",
+    "claim": "原生上下文菜单以右键坐标或 trigger 底左坐标显示并保存activeElement",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D062",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4194118,
+    "excerpt": "e.key===`Escape`||e.key===`ContextMenu`||e.key===`F10`&&e.shiftKey)&&l()},{capture:!0,signal:a.signal}),window.addEventListener(`blur`,l,{signal:a.signal}),await(async()=>{let e=x?await le(i):await se(i,!0);if(a.abort(),i.signal.aborted||e.length===0)return;O2(),o=!0,M(`native`),d?.(!0);let t=await window.electronBridge?.showContextMenu?.(Rxn(e),n);if(i.signal.aborted)return;let c=t?.id?Bxn(e,t.id):void 0;s();let l=n",
+    "claim": "准备阶段 Escape、ContextMenu、ShiftF10、blur 可取消",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D063",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4194406,
+    "excerpt": "let t=await window.electronBridge?.showContextMenu?.(Rxn(e),n);if(i.signal.aborted)return;let c=t?.id?Bxn(e,t.id):void 0;s();let l=new Event(`closeAutoFocus`,{cancelable:!0});c?.selectAfterClose&&l.preventDefault(),p?.(l),!l.defaultPrevented&&r instanceof HTMLElement&&r.isConnected&&r.focus(),c?.enabled!==!1&&c?.onSelect?.()})().catch(e=>U(i,e)).finally(()=>{a.abort(),i.signal.removeEventListener(`abort`,c),s(),i.abort(),z(i)})},t[64]=x,t[65]=z,t[66]=U,t[67]=p,t[68]=d,t[69]=se,t[70]=le,t[71]=T,t[72]=ve):ve=t[72];let ye=v2(ve),be=i,xe=be.props.onContextMenu,Se;t[73]!==be.props||t[74]!",
+    "claim": "原生菜单返回id后恢复可连接的旧焦点并调用enabled选择动作",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D064",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4195134,
+    "excerpt": "e.key!==`ContextMenu`&&!(e.key===`F10`&&e.shiftKey)||e.altKey||e.ctrlKey||e.metaKey)){if(e.preventDefault(),e.stopPropagation(),T)ye(e);else if(b===`click`)ge(!0);else{let t=e.currentTarget.getBoundingClientRect();e.currentTarget.dispatchEvent(new MouseEvent(`contextmenu`,{bubbles:!0,cancelable:!0,clientX:t.left,clientY:t.bottom}))}}},t[73]=be.props,t[74]=ye,t[75]=ge,t[76]=E,t[77]=b,t[78]=T,t[79]=Se):Se=t[79];let Ce=v2(Se),we;t[80]!==xe||t[81]!==ye||t[82]!==ge||t[83]!==j||t[84]!==E||t[",
+    "claim": "支持 ContextMenu 键与 ShiftF10，排除alt/ctrl/meta",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D065",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 769277,
+    "excerpt": "onPointerDown:r?e.onPointerDown:Xb(e.onPointerDown,xw(e=>{d(),a.open&&a.onOpenChange(!1),u.current=window.setTimeout(()=>f(e),700)})),onPointerMove:r?e.onPointerMove:Xb(e.onPointerMove,xw(d)),onPointe",
+    "claim": "网页 ContextMenu 非鼠标指针长按700ms",
+    "scope": "低层 ContextMenu Trigger；原生分支需区分"
+  },
+  {
+    "id": "D066",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 135005,
+    "excerpt": "Search languages`,description:`Search placeholder for language picker`}),e[10]=r,e[11]=S);let C=S,w,E;e[12]===Symbol.for(`react.memo_cache_sentinel`)?(w=(0,$.jsx)(b,{...U.language}),E=(0,$.jsx)(b,{id:",
+    "claim": "语言选择器有显式搜索输入",
+    "scope": "共享 General Settings 语言选择"
+  },
+  {
+    "id": "D067",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 135920,
+    "excerpt": "await z(t,_.localeOverride,null),x(null)}catch{}})()},e[23]=x,e[24]=t,e[25]=N):N=e[25];let ee;e[26]===Symbol.for(`react.memo_cache_sentinel`)?(ee=(0,$.jsx)(b,{...U.autoDetectLangua",
+    "claim": "Auto detect 先关闭后写偏好，catch空；当前组件无失败提示",
+    "scope": "共享 General Settings 语言选择"
+  },
+  {
+    "id": "D068",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 61732,
+    "excerpt": "max-h-80 overflow-y-auto pb-1`,children:(0,X.jsx)(oo,{codeThemes:f,selectedCodeTheme:r,theme:i,variant:a,onSelect:o})})}),t[7]=o,t[8]=r,t[9]=f,t[10]=i,t[11]=a,t[12]=p):p=t[12];let m=p,h;t[13]===n?h=t[14]:(h=n.filter(io),t[13]=n,t[14]=h);let g;t[15]!==o||t[16]!==r||t[17]!==h||t[18]!==i||t[19]!==a?(g=(0,X.jsx)(oo,{codeThemes:h,sel",
+    "claim": "语言选择列表上限20rem，内部滚动",
+    "scope": "共享 General Settings 语言选择"
+  },
+  {
+    "id": "D069",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1150494,
+    "excerpt": "function RY(e){let t=(0,zY.c)(32),{triggerButton:n,disabled:r,children:i,open:a,onOpenChange:o,modal:s,side:c,align:l,sideOffset:u,alignOffset:d,contentRef:f,contentId:p,onCloseAutoFocus:m,onEscapeKeyDown:h,contentClassName:g,contentStyle:_,surface:v,presentation:y,contentWidth:b,contentMaxHeight:x,portalContainer:S}=e,C=s!==void 0&&s,w=v===void 0?`menu`:v,T=y===void 0?`menu`:y,E=Ki(),[D,O]=(0,mst.useState)(),{handleOpenChange:k,open:A}=bn(a,o),j;t[0]===A?j=t[1]:(j=",
+    "claim": "搜索选择器为 Popover 包装，modal 默认 false",
+    "scope": "共享语言 combobox 使用的 popup"
+  },
+  {
+    "id": "D070",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1152422,
+    "excerpt": "function cst(e){let t=(0,zY.c)(4),{children:n,label:r,defaultValue:i}=e,a;return t[0]!==n||t[1]!==i||t[2]!==r?(a=(0,BY.jsx)(jE,{className:`min-w-0! transform-none! gap-0! rounded-none! border-0! bg-transparent! p-0! text-[length:inherit]! text-inherit! backdrop-blur-none!`,label:r,defaultValue:i,shouldFilter:!1,children:n}),t[0]=n,t[1]=i,t[2]=r,t[3]=a):a=t[3],a}function lst(e){let t=(0,zY.c)(23),n,r,i,a,o;t[0]===e?(n=t[1],r=t[2],i=t[3],",
+    "claim": "Command wrapper shouldFilter false，调用者负责过滤",
+    "scope": "共享语言 combobox command"
+  },
+  {
+    "id": "D071",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 9712347,
+    "excerpt": "role:`combobox`,\"aria-expanded\":!0,\"aria-controls\":c.listId,\"aria-labelledby\":c.labelId,\"aria-activedescendant\":s,id:c.inputId,type:`text`,value:i?e.value:o,onChange:e=>{i||a.setState(`search`,e.target.value),n?.(e.target.value)}})}),yhc=t0.forwardRef((e,t)=>{let{children:n,label:r=`Suggestions`,...i}=e,a=t0.useRef(null),o=t0.us",
+    "claim": "搜索输入为combobox，aria-expanded/controls/activedescendant关联列表",
+    "scope": "共享语言 combobox 底层"
+  },
+  {
+    "id": "D072",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 9713072,
+    "excerpt": "role:`listbox`,tabIndex:-1,\"aria-activedescendant\":s,\"aria-label\":r,id:c.listId},ehc(e,e=>t0.createElement(`div`,{ref:dxe(o,c.listInnerRef),\"cmdk-list-sizer\":``},e)))}),bhc=t0.forwardRef((e,t)=>{let{open:n,onOpenChange:r",
+    "claim": "列表为listbox，tabIndex -1，含活动项aria关联",
+    "scope": "共享语言 combobox 底层"
+  },
+  {
+    "id": "D073",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 9709643,
+    "excerpt": "let n=e.nativeEvent.isComposing||e.keyCode===229;if(!(e.defaultPrevented||n))switch(e.key){case`n`:case`j`:g&&e.ctrlKey&&I(e);break;case`ArrowDown`:I(e);break;case`p`:case`k`:g&&e.ctrlKey&&L(e);break;case`ArrowUp`:L(e);break;case`Home`:e.preventDefault(),M(0);break;case`End`:e.preventDefault(),F();break;case`Enter`:{e.preventDefault();let t=A();if(t){let e=new Event(ohc);t.dispatchEvent(e)}}}}},t0.createElement(`label`,{\"cmdk-label\":``,htmlFor:w.inputId,id:w.labelId,style:whc},c),ehc(e,e=>t0.createElement(dhc.Provider,{value:C},t0.createElement(lhc.Provider,{value:w},e))))}),hhc=t0.f",
+    "claim": "输入法组合时跳过导航；Arrow/Home/End/Enter导航与选择",
+    "scope": "共享语言 combobox 底层"
+  },
+  {
+    "id": "D074",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11549578,
+    "excerpt": "let d=l===void 0?`outline`:l,f=u===void 0?`toolbar`:u,p=f===`toolbar`&&(o==null?`px-3`:`pe-3 ps-[calc((var(--spacing-token-button-composer)-var(--spacing)*5)/2-1px)]`),m;t[9]!==i||t[10]!==p?(m=fs(`max-w-full justify-between`,p,i),t[9]=i,t[10]=p,t[11]=m):m=t[11];let h;t[12]===a?h=t[13]:(h=fs(`flex min-w-0 flex-1 items-center gap-1.5`,a),t[12]=a,t[13]=h);let g;t[14]!==r||t[15]!==o||t[16]!==h?(g=(0,g8.jsxs)(`span`,{className:h,children:[o,r]}),t[14]",
+    "claim": "语言触发器默认outline/toolbar，左右布局和chevron",
+    "scope": "共享设置字段 trigger"
+  },
+  {
+    "id": "D075",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 9711004,
+    "excerpt": "\"aria-disabled\":!!m,\"aria-selected\":!!u,\"data-disabled\":!!m,\"data-selected\":!!u,onPointerMove:m||a.getDisablePointerSelection()?void 0:p,onClick:m?void 0:f},e.children)}),ghc=t0.forwardRef((e,t)=>{let{heading:n,children:r,forceMount:i,...a}=e,o=vAe(),s=t0.useRef(null),c=t0.useRef(null),l=vAe(),u=uhc(),d=e0(e=>i||u.filter()===!1?!0:!e.search||e.filt",
+    "claim": "command Item 语义disabled和selected",
+    "scope": "共享语言 combobox 底层"
+  },
+  {
+    "id": "D076",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4158129,
+    "excerpt": "s==null&&!p&&e.preventDefault(),l?.(e)},t[36]=p,t[37]=s,t[38]=l,t[39]=k):k=t[39];let A;t[40]!==o||t[41]!==s||t[42]!==w?(A=s==null?w:(0,n5.jsx)(`a`,{href:s,onAuxClick:o?uxn:void 0,onClick:o?l",
+    "claim": "无href且closeOnSelect=false的checkbox选择阻止菜单自动关闭",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D077",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4198292,
+    "excerpt": "z-50 m-px flex min-w-[200px] flex-col rounded-2xl bg-surface-elevated-secondary p-[var(--app-menu-gutter,var(--spacing))] text-default shadow-lg ring-[0.5px] ring-border select-none`,alignOffset:-11,collisionPadding:6,style:{zoom:w===1?void 0:w},children:e(n.submenu)})})]},n.id):(0,f5.jsx)(I2,{tooltipContent:n.tooltipMessage?(0,f5.jsx)(FO,{...n.tooltipMessag",
+    "claim": "网页上下文子菜单最小200px、2xl圆角、surface-elevated-secondary、0.5px ring",
+    "scope": "共享原语；具体页面可覆盖默认行为"
+  },
+  {
+    "id": "D078",
+    "path": "webview/assets/chatgpt-mermaid-preview-actions-a550fea97e47.js",
+    "offset": 1984,
+    "excerpt": "id:`chatgpt.codeBlocks.mermaid.showSource`,defaultMessage:`Show source`,description:`Menu action that shows the Mermaid source code in its document editor`})}),f==null?null:(0,N.jsx)(u.Item,{LeftIcon:b,onSelect:f,children:(0,N.jsx)(s,{id:`chatgpt.codeBlocks.mermaid.copyAsCode`,defaultMessage:`Copy as code`,description:`Menu action that copies the raw Mermaid source code to the clipboard`})}),l==null?null:(0,N.jsx)(u.Item,{leftIconAsset:_,onSelect:l,children:(0,N.jsx)(s,{id:`chatgpt.codeBlocks.mermaid.downloadPng`,defaultMessage:`Download image`,description:`Action that downloads the ",
+    "claim": "Mermaid菜单动作按回调是否存在条件渲染",
+    "scope": "ChatGPT Mermaid 预览菜单"
+  },
+  {
+    "id": "D079",
+    "path": "webview/assets/generated-image-context-menu-814cccb46d3a.js",
+    "offset": 1623,
+    "excerpt": "Could not open image`,description:`Error shown when an image cannot be opened in a new tab`}),{errorAnalytics:{toastId:`imageContextMenu.openFailure`}})};(async()=>{let n=k==null&&(!(`kind`in a)||/^https?:/i.test(a.src))?a.src:await X({conversationId:T,environmentId:O,absoluteImageFilePath:k,hostId:",
+    "claim": "图像动作自行通过danger toast报告失败；与菜单准备失败不同",
+    "scope": "ChatGPT图像菜单动作"
+  },
+  {
+    "id": "D080",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 135920,
+    "excerpt": "await z(t,_.localeOverride,null),x(null)}catch{}})()},e[23]=x,e[24]=t,e[25]=N):N=e[25];let ee;e[26]===Symbol.for(`react.memo_cache_sentinel`)?(ee=(0,$.jsx)(b,{...U.autoDetectLanguage}),e[26]=ee):ee=e[26];let P;e[27]!==M||e[28]!==N?(P=(0,$.jsx)(bi.Action,{RightIcon:M,onClick:N,children:ee}),e[27]=M,e[28]=N,e[29]=P):P=e[29];let te;if(e[30]!==v||e[31]!==x||e[32]!==l||e[33]!==t){let n;e[35]!==x||e[36]!==l||e[37]!==t?(n=e=>{let n=Dn(e.code,l);return(0",
+    "claim": "语言偏好写入异步，失败分支catch空",
+    "scope": "共享General Settings语言选择"
+  },
+  {
+    "id": "D081",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 134568,
+    "excerpt": "let e=a.trim().toLowerCase();if(!e){g=d;break bb0}g=d.filter(t=>t.label.toLowerCase().includes(e)||t.localizedLabel.toLowerCase().includes(e)||t.englishLabel.toLowerCase().includes(e))}e[5]=a,e[6]=d,e[7]=g}else g=e[7];let v=g;if(!i)return null;let y;e[8]===t?y=e[9]:(y=e=>{bn(t,dt,{selection:e??`auto`,surface:`settings`})},e[8]=t,e[9]=y);let x=y,S;e[10]===r?S",
+    "claim": "语言页面按label/localizedLabel/englishLabel自定义过滤",
+    "scope": "共享语言选择"
+  },
+  {
+    "id": "D082",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4168669,
+    "excerpt": "ce.current=W3t({sourceElement:e.currentTarget,destinationElement:i,destinationSide:r?a:Mxn[a],pointer:{x:e.clientX,y:e.clientY},onEnterDestination:we,onMoveInsideTriangle:n,onMoveOutsideTriangle:t})),n()},t[19]=ve,t[20]=ye,t[21]=V,t[22]=je):je=t[22];let Me=je,",
+    "claim": "mouse hover使用指针安全三角区域避免跨越时误关",
+    "scope": "共享Dropdown显式hover模式"
+  },
+  {
+    "id": "D083",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 767699,
+    "excerpt": "function xw(e){return t=>t.pointerType===`mouse`?void 0:e(t)}var Sw,Cw,CCe,ww,Tw,wCe,TCe,Ew,ECe,DCe,",
+    "claim": "网页ContextMenu长按处理只接受非mouse pointer",
+    "scope": "网页ContextMenu Trigger"
+  },
+  {
+    "id": "D084",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 768109,
+    "excerpt": "OCe=ww(e=>{let{__scopeContextMenu:t,children:n,onOpenChange:r,open:i,dir:a,modal:o=!0}=e,s=Sw.useRef(!1),[c,l]=nx({prop:i,defaultProp:!1,onChange:r,caller:Tw}),u=Ew(t);return(0,Cw.jsx)(ECe,{scope:t,open:c,onOpenChange:l,modal:o,hasInteractedRef:s,children:(0,Cw.jsx)(uw,{...u,dir:a,open:c,onOpenChange:l,modal:o,children:n})})},`ContextMenu`),kCe=`Co",
+    "claim": "低层ContextMenu root modal默认true",
+    "scope": "网页ContextMenu fallback"
+  },
+  {
+    "id": "D085",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 4201906,
+    "excerpt": "VCe,{open:f??j===`dropdown`,onOpenChange:ge,children:[r,k.length>0&&(0,f5.jsx)(Dw,{children:(0,f5.jsx)(UCe,{\"data-overlay-owner\":C?.id,className:`z-50 m-px flex min-w-[180px] flex-col rounded-2xl bg-surface-elevated-secondary p-[var(--app-menu-gutter,var(--spacing))] text-default shadow-lg ring-[0.5px] ring-border select-none`,collisionPadding:6,onCloseAutoFocus:me,style:{zoom:w===1?void 0:w},children:e(k)})})]})}t[105]=c,t[106]=l,t[107]=me,t[108]=fe,t[109]=ge,t[110",
+    "claim": "网页ContextMenu实例未覆盖modal；主内容最小180px，collision6",
+    "scope": "网页ContextMenu fallback"
+  }
+]

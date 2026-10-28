@@ -1,26 +1,26 @@
-// 界面客制化入口:预设受设计 Token 约束;自定义强调色由即时派生的变量规则保证可读性。
-import { useEffect, useState } from 'react'
+// 外观偏好由 UI Store 持有；页面只管理可取消的草稿与折叠状态。
+import { useEffect, useId, useRef, useState, type PointerEvent } from 'react'
 import {
   Activity,
-  Check,
   ChevronDown,
-  Clock3,
   FoldVertical,
   MonitorCog,
   Moon,
-  Palette,
   RotateCcw,
   Sparkles,
   Sun,
-  Type,
   UnfoldVertical,
+  type LucideIcon,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { normalizeHexColor } from '@/lib/custom-accent'
-import { LanguageSettings } from './LanguageSettings'
-import { SettingsCard as Panel } from './settings-primitives'
+import { cn } from '@/lib/utils'
+import { SettingsRow, SettingsSection } from '@/components/app/SettingsRow'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupOption } from '@/components/ui/radio-group'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectTrigger,
@@ -33,139 +33,15 @@ import {
   useUiStore,
   type AccentPreset,
   type DensityMode,
-  type FontScale,
   type MotionMode,
   type RadiusMode,
   type ThemeMode,
 } from '@/stores/ui-store'
+import { LanguageSettings } from './LanguageSettings'
+import { TypographySizeInput } from './TypographySizeInput'
 import type { Notify } from '@/app/route-context'
-import type { LucideIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
-type Choice<T extends string> = {
-  value: T
-  label: string
-  description: string
-  icon: LucideIcon
-}
-
-function SettingHeading({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-1 [&_p]:text-[13px] [&_p]:leading-[1.55] [&_p]:text-[var(--text-muted)]">
-      <div>
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </div>
-    </div>
-  )
-}
-
-function ChoiceGrid<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-  className,
-  preview = false,
-}: {
-  label: string
-  options: Choice<T>[]
-  value: T
-  onChange: (value: T) => void
-  className?: string
-  preview?: boolean
-}) {
-  return (
-    <RadioGroup
-      value={value}
-      onValueChange={(next) => {
-        const option = options.find((item) => item.value === next)
-        if (option) onChange(option.value)
-      }}
-      className={cn(
-        preview
-          ? 'flex w-auto flex-wrap justify-end gap-3'
-          : 'mt-4 grid grid-cols-4 gap-2 max-[650px]:grid-cols-1 max-[1300px]:grid-cols-2',
-        className,
-      )}
-      aria-label={label}
-    >
-      {options.map((option) => {
-        const selected = option.value === value
-        const Icon = option.icon
-        if (preview) {
-          return (
-            <RadioGroupOption
-              key={option.value}
-              type="button"
-              value={option.value}
-              aria-label={`${option.label} ${option.description}`}
-              title={option.description}
-              className={cn(
-                'group flex w-20 flex-col items-center gap-1.5 rounded-xl p-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selected && 'text-foreground',
-              )}
-            >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'relative block h-14 w-full overflow-hidden rounded-lg border-2 border-border bg-[#f0f0f0] p-1 transition group-hover:border-ring/50',
-                  selected && 'border-ring',
-                )}
-              >
-                <span className="absolute inset-1 rounded border border-black/10 bg-white shadow-sm">
-                  <span className="absolute inset-y-0 left-0 w-3 border-r border-black/10 bg-[#f5f5f5]" />
-                  <span className="absolute top-2 right-1 h-0.5 w-6 rounded bg-ring" />
-                  <span className="absolute top-4 left-4 h-0.5 w-7 rounded bg-black/15" />
-                  <span className="absolute top-6 left-4 h-0.5 w-5 rounded bg-black/15" />
-                  <span className="absolute right-1 bottom-1 left-4 h-2 rounded-full border border-black/10" />
-                </span>
-                {option.value !== 'light' && (
-                  <span
-                    className={cn(
-                      'absolute inset-1 overflow-hidden rounded bg-[#0f0f0f]',
-                      option.value !== 'dark' && 'left-1/2 rounded-l-none',
-                    )}
-                  >
-                    <span className="absolute top-2 right-1 h-0.5 w-6 rounded bg-ring" />
-                    <span className="absolute top-4 right-1 h-0.5 w-7 rounded bg-white/25" />
-                    <span className="absolute top-6 right-3 h-0.5 w-5 rounded bg-white/25" />
-                    <span className="absolute right-1 bottom-1 left-1 h-2 rounded-full border border-white/25" />
-                  </span>
-                )}
-                {option.value === 'scheduled' && (
-                  <Clock3 className="absolute top-1 left-1 size-3 text-black" />
-                )}
-              </span>
-              <span>{option.label}</span>
-            </RadioGroupOption>
-          )
-        }
-        return (
-          <RadioGroupOption
-            type="button"
-            className={`grid min-h-[72px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[var(--r-sm)] border p-2.5 text-left transition hover:border-[var(--star)] hover:bg-[var(--accent-soft)] ${selected ? 'border-[var(--star)] bg-[var(--star-soft)] ' : 'border-[var(--stroke)] bg-[var(--surface-subtle)]'}`}
-            value={option.value}
-            key={option.value}
-          >
-            <span className="grid size-8 place-items-center rounded-[var(--r-xs)] bg-[var(--solid)] text-[var(--star-strong)]">
-              <Icon size={16} />
-            </span>
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <strong className="text-[13px]">{option.label}</strong>
-              <small className="text-[var(--text-muted)]">{option.description}</small>
-            </span>
-            {selected && (
-              <span className="grid size-5 place-items-center rounded-full bg-[var(--star)] text-[var(--on-accent)]">
-                <Check size={13} />
-              </span>
-            )}
-          </RadioGroupOption>
-        )
-      })}
-    </RadioGroup>
-  )
-}
+type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon }
 
 function CompactChoices<T extends string>({
   label,
@@ -208,67 +84,284 @@ const ACCENT_SWATCHES: Record<AccentPreset, string> = {
   teal: '#0f766e',
   violet: '#7557c8',
   coral: '#c94f5d',
-  custom: '#1677e8', // 仅兜底,渲染时以 customAccent 为准
+  custom: '#1677e8',
 }
 
-export function InterfaceSettings({ notify }: { notify: Notify }) {
-  const { t } = useI18n()
-  const theme = useUiStore((state) => state.theme)
-  const density = useUiStore((state) => state.density)
-  const accent = useUiStore((state) => state.accent)
-  const customAccent = useUiStore((state) => state.customAccent)
-  const fontScale = useUiStore((state) => state.fontScale)
-  const radius = useUiStore((state) => state.radius)
-  const motion = useUiStore((state) => state.motion)
-  const setTheme = useUiStore((state) => state.setTheme)
-  const setDensity = useUiStore((state) => state.setDensity)
-  const setAccent = useUiStore((state) => state.setAccent)
-  const setCustomAccent = useUiStore((state) => state.setCustomAccent)
-  const setFontScale = useUiStore((state) => state.setFontScale)
-  const setRadius = useUiStore((state) => state.setRadius)
-  const setMotion = useUiStore((state) => state.setMotion)
-  const resetAppearance = useUiStore((state) => state.resetAppearance)
+type Hsv = { hue: number; saturation: number; brightness: number }
+function colorHsv(hex: string): Hsv {
+  const [red, green, blue] = [1, 3, 5].map(
+    (offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255,
+  )
+  const max = Math.max(red, green, blue)
+  const delta = max - Math.min(red, green, blue)
+  let hue = 0
+  if (delta)
+    hue =
+      max === red
+        ? ((green - blue) / delta) % 6
+        : max === green
+          ? (blue - red) / delta + 2
+          : (red - green) / delta + 4
+  return { hue: (hue * 60 + 360) % 360, saturation: max ? delta / max : 0, brightness: max }
+}
+function colorHex({ hue, saturation, brightness }: Hsv) {
+  const chroma = brightness * saturation
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const sectors = [
+    [chroma, x, 0],
+    [x, chroma, 0],
+    [0, chroma, x],
+    [0, x, chroma],
+    [x, 0, chroma],
+    [chroma, 0, x],
+  ]
+  return (
+    '#' +
+    sectors[Math.floor(hue / 60) % 6]
+      .map((channel) =>
+        Math.round((channel + brightness - chroma) * 255)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+  )
+}
 
+function AccentColorPicker({
+  value,
+  onCommit,
+}: {
+  value: string
+  onCommit: (hex: string) => void
+}) {
+  const { t } = useI18n()
+  const [draft, setDraft] = useState(value)
+  const draftRef = useRef(value)
+  const [hsv, setHsv] = useState(() => colorHsv(value))
+  const hintId = useId()
+  const changeDraft = (hex: string) => {
+    draftRef.current = hex
+    setDraft(hex)
+  }
+  useEffect(() => {
+    draftRef.current = value
+    setDraft(value)
+    setHsv(colorHsv(value))
+  }, [value])
+  const changeColor = (next: Hsv) => {
+    setHsv(next)
+    changeDraft(colorHex(next))
+  }
+  const commit = () => {
+    const normalized = normalizeHexColor(draftRef.current)
+    if (normalized && normalized !== normalizeHexColor(value)) onCommit(normalized)
+  }
+  const point = (event: PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    changeColor({
+      ...hsv,
+      saturation: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
+      brightness: 1 - Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
+    })
+  }
+  const invalid = Boolean(draft.trim()) && !normalizeHexColor(draft)
+  return (
+    <Popover
+      onOpenChange={(open) => {
+        if (!open) {
+          commit()
+          if (!normalizeHexColor(draftRef.current)) {
+            changeDraft(value)
+            setHsv(colorHsv(value))
+          }
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-7 min-h-0 w-24 gap-1.5 rounded-full px-2 text-xs"
+          aria-label={t('config:interfaceSettings.customAccentColor')}
+        >
+          <span
+            aria-hidden="true"
+            className="size-3 shrink-0 rounded-full border border-black/10"
+            style={{ backgroundColor: value }}
+          />
+          <span className="font-mono">{value}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="w-auto rounded-xl p-3">
+        <div
+          role="slider"
+          tabIndex={0}
+          aria-label={t('config:interfaceSettings.colorSpectrum')}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(hsv.saturation * 100)}
+          aria-valuetext={draft}
+          aria-describedby={hintId}
+          className="relative h-34 w-34 touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{
+            background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), hsl(${hsv.hue} 100% 50%)`,
+          }}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId)
+            point(event)
+          }}
+          onPointerMove={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) point(event)
+          }}
+          onPointerUp={(event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+            point(event)
+            event.currentTarget.releasePointerCapture(event.pointerId)
+            commit()
+          }}
+          onPointerCancel={() => {
+            changeDraft(value)
+            setHsv(colorHsv(value))
+          }}
+          onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+            event.preventDefault()
+            changeColor({
+              ...hsv,
+              saturation: Math.min(
+                1,
+                Math.max(
+                  0,
+                  hsv.saturation +
+                    (event.key === 'ArrowRight' ? 0.01 : event.key === 'ArrowLeft' ? -0.01 : 0),
+                ),
+              ),
+              brightness: Math.min(
+                1,
+                Math.max(
+                  0,
+                  hsv.brightness +
+                    (event.key === 'ArrowUp' ? 0.01 : event.key === 'ArrowDown' ? -0.01 : 0),
+                ),
+              ),
+            })
+          }}
+          onKeyUp={(event) => {
+            if (event.key.startsWith('Arrow')) commit()
+          }}
+          onBlur={commit}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm"
+            style={{ left: `${hsv.saturation * 100}%`, top: `${(1 - hsv.brightness) * 100}%` }}
+          />
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={359}
+          step={1}
+          value={Math.round(hsv.hue)}
+          aria-label={t('config:interfaceSettings.colorHue')}
+          className="w-34"
+          onChange={(event) => changeColor({ ...hsv, hue: Number(event.target.value) })}
+          onPointerUp={commit}
+          onBlur={commit}
+          onKeyUp={(event) => {
+            if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End')
+              commit()
+          }}
+        />
+        <input
+          type="text"
+          value={draft}
+          spellCheck={false}
+          aria-label={t('config:interfaceSettings.customAccentHex')}
+          aria-invalid={invalid}
+          aria-describedby={hintId}
+          className={cn(
+            'h-7 w-34 rounded-full border bg-background px-2 font-mono text-xs',
+            invalid && 'border-destructive',
+          )}
+          onChange={(event) => {
+            changeDraft(event.target.value)
+            const hex = normalizeHexColor(event.target.value)
+            if (hex) setHsv(colorHsv(hex))
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commit()
+            }
+          }}
+        />
+        <p id={hintId} className="max-w-34 text-xs text-muted-foreground">
+          {invalid
+            ? t('config:interfaceSettings.invalidAccentColor')
+            : t('config:interfaceSettings.colorSpectrumHint')}
+        </p>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function InterfaceSettings({
+  notify,
+  defaultAdvancedExpanded = false,
+  navigationKey,
+}: {
+  notify: Notify
+  defaultAdvancedExpanded?: boolean
+  navigationKey?: number
+}) {
+  const { t } = useI18n()
+  const {
+    theme,
+    density,
+    accent,
+    customAccent,
+    uiFontSize,
+    codeFontSize,
+    radius,
+    motion,
+    setTheme,
+    setDensity,
+    setAccent,
+    setCustomAccent,
+    setUiFontSize,
+    setCodeFontSize,
+    setRadius,
+    setMotion,
+    resetAppearance,
+  } = useUiStore()
+  const [advancedExpanded, setAdvancedExpanded] = useState(defaultAdvancedExpanded)
+  const advancedId = useId()
+  const themeName = useId()
+  useEffect(() => {
+    if (defaultAdvancedExpanded) setAdvancedExpanded(true)
+  }, [defaultAdvancedExpanded, navigationKey])
   const changed =
     theme !== DEFAULT_UI_PREFERENCES.theme ||
     density !== DEFAULT_UI_PREFERENCES.density ||
     accent !== DEFAULT_UI_PREFERENCES.accent ||
     customAccent !== DEFAULT_UI_PREFERENCES.customAccent ||
-    fontScale !== DEFAULT_UI_PREFERENCES.fontScale ||
+    uiFontSize !== DEFAULT_UI_PREFERENCES.uiFontSize ||
+    codeFontSize !== DEFAULT_UI_PREFERENCES.codeFontSize ||
     radius !== DEFAULT_UI_PREFERENCES.radius ||
     motion !== DEFAULT_UI_PREFERENCES.motion
-
-  // HEX 草稿:允许中间态输入,只有完整 6 位才落库生效
-  const [hexDraft, setHexDraft] = useState(customAccent)
-  useEffect(() => setHexDraft(customAccent), [customAccent])
-  const normalizedDraft = normalizeHexColor(hexDraft)
-  const hexInvalid = Boolean(hexDraft.trim()) && !normalizedDraft
-  const commitHex = (value: string) => {
-    setHexDraft(value)
-    const normalized = normalizeHexColor(value)
-    if (normalized) update(setCustomAccent)(normalized)
-  }
-
-  const announceChange = () => notify(t('config:interfaceSettings.preferencesUpdated'))
   const update =
     <T,>(setter: (value: T) => void) =>
     (value: T) => {
       setter(value)
-      announceChange()
+      notify(t('config:interfaceSettings.preferencesUpdated'))
     }
-
   const themeOptions: Choice<ThemeMode>[] = [
     {
       value: 'system',
       label: t('config:interfaceSettings.followSystem'),
       description: t('config:interfaceSettings.followSystemDescription'),
       icon: MonitorCog,
-    },
-    {
-      value: 'scheduled',
-      label: t('config:interfaceSettings.automaticByTime'),
-      description: t('config:interfaceSettings.automaticByTimeDescription'),
-      icon: Clock3,
     },
     {
       value: 'light',
@@ -329,11 +422,6 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
     { value: 'custom', label: t('config:interfaceSettings.accentCustom') },
   ]
 
-  const fontOptions: Array<{ value: FontScale; label: string }> = [
-    { value: 'small', label: t('config:interfaceSettings.small') },
-    { value: 'default', label: t('config:interfaceSettings.standard') },
-    { value: 'large', label: t('config:interfaceSettings.large') },
-  ]
   const radiusOptions: Array<{ value: RadiusMode; label: string }> = [
     { value: 'sharp', label: t('config:interfaceSettings.sharp') },
     { value: 'default', label: t('config:interfaceSettings.standard') },
@@ -342,18 +430,14 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Panel
-        className="border-0 bg-transparent p-0 shadow-none ring-0"
+      <SettingsSection
+        title={t('config:interfaceSettings.visualStyle')}
+        description={t('config:interfaceSettings.appearanceDescription')}
         data-config-card="interface-appearance"
-      >
-        <div className="flex items-start justify-between gap-4 max-[650px]:flex-col">
-          <SettingHeading
-            title={t('config:interfaceSettings.visualStyle')}
-            description={t('config:interfaceSettings.appearanceDescription')}
-          />
+        action={
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             disabled={!changed}
             onClick={() => {
@@ -364,31 +448,67 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
             <RotateCcw size={14} />
             {t('config:interfaceSettings.restoreDefaults')}
           </Button>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border p-4">
-          <span className="text-sm font-medium">{t('config:interfaceSettings.colorMode')}</span>
-          <ChoiceGrid
-            label={t('config:interfaceSettings.colorMode')}
-            options={themeOptions}
-            value={theme}
-            onChange={update(setTheme)}
-            preview
-          />
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Palette size={15} />
-                {t('config:interfaceSettings.accentColor')}
-              </div>
-              <p className="mt-1 text-xs text-content-muted">
-                {t('config:interfaceSettings.accentDescription')}
-              </p>
+        }
+      >
+        <SettingsRow
+          title={t('config:interfaceSettings.colorMode')}
+          control={
+            <div
+              role="radiogroup"
+              aria-label={t('config:interfaceSettings.colorMode')}
+              className="grid w-68 max-w-full grid-cols-3 gap-4"
+            >
+              {themeOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className="group flex min-w-0 cursor-pointer flex-col items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <input
+                    className="peer sr-only"
+                    type="radio"
+                    name={themeName}
+                    value={option.value}
+                    checked={theme === option.value}
+                    onChange={() => update(setTheme)(option.value)}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'relative block aspect-4/3 w-full overflow-hidden rounded-lg border border-border bg-[#f0f0f0] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring',
+                      theme === option.value && 'ring-2 ring-ring',
+                    )}
+                  >
+                    <span className="absolute inset-2 rounded border border-black/10 bg-white">
+                      <span className="absolute inset-y-0 left-0 w-1/4 border-r border-black/10 bg-[#f5f5f5]" />
+                      <span className="absolute top-3 right-1 h-0.5 w-1/2 rounded bg-black/15" />
+                      <span className="absolute top-5 right-2 h-0.5 w-1/3 rounded bg-black/15" />
+                    </span>
+                    {option.value !== 'light' && (
+                      <span
+                        className={cn(
+                          'absolute inset-2 rounded bg-[#181818]',
+                          option.value === 'system' && 'left-1/2 rounded-l-none',
+                        )}
+                      >
+                        <span className="absolute top-3 right-1 h-0.5 w-1/2 rounded bg-white/25" />
+                        <span className="absolute top-5 right-2 h-0.5 w-1/3 rounded bg-white/25" />
+                      </span>
+                    )}
+                  </span>
+                  <span className={cn(theme === option.value && 'text-foreground')}>
+                    {option.label}
+                  </span>
+                </label>
+              ))}
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-3">
+          }
+        />
+        <SettingsRow
+          nested
+          title={t('config:interfaceSettings.accentColor')}
+          description={t('config:interfaceSettings.accentDescription')}
+          control={
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Select
                 value={accent}
                 onValueChange={(next) => {
@@ -398,20 +518,16 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
               >
                 <SelectTrigger
                   aria-label={t('config:interfaceSettings.accentColor')}
-                  className="min-h-9 rounded-full max-[650px]:min-h-11"
+                  className="rounded-full"
                 >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent position="popper" className="rounded-xl">
+                <SelectContent position="popper" align="end">
                   {accentOptions.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      className="min-h-9 max-[650px]:min-h-11"
-                    >
+                    <SelectItem key={option.value} value={option.value}>
                       <span
                         aria-hidden="true"
-                        className="size-3.5 rounded-full border border-black/10"
+                        className="size-3 rounded-full border border-black/10"
                         style={{
                           backgroundColor:
                             option.value === 'custom'
@@ -424,145 +540,106 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
                   ))}
                 </SelectContent>
               </Select>
+              {accent === 'custom' && (
+                <AccentColorPicker
+                  value={normalizeHexColor(customAccent) || DEFAULT_UI_PREFERENCES.customAccent}
+                  onCommit={update(setCustomAccent)}
+                />
+              )}
             </div>
-          </div>
-          {accent === 'custom' && (
-            <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
-              <input
-                type="color"
-                value={normalizeHexColor(customAccent) || '#1677e8'}
-                onChange={(event) => update(setCustomAccent)(event.target.value)}
-                aria-label={t('config:interfaceSettings.customAccentColor')}
-                className="h-9 w-14 cursor-pointer rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] p-1"
-              />
-              <input
-                type="text"
-                value={hexDraft}
-                onChange={(event) => commitHex(event.target.value)}
-                spellCheck={false}
-                aria-invalid={hexInvalid}
-                aria-describedby="custom-accent-hint"
-                aria-label={t('config:interfaceSettings.customAccentHex')}
-                className={`h-9 w-[116px] rounded-[var(--r-xs)] border bg-[var(--solid)] px-2.5 font-mono text-[12.5px] text-[var(--text)] ${hexInvalid ? 'border-[var(--danger)]' : 'border-[var(--stroke)]'}`}
-              />
-              <span
-                id="custom-accent-hint"
-                className={`text-[12px] ${hexInvalid ? 'text-[var(--danger)]' : 'text-[var(--text-muted)]'}`}
-              >
-                {hexInvalid
-                  ? t('config:interfaceSettings.invalidAccentColor')
-                  : t('config:interfaceSettings.customAccentHint')}
-              </span>
-            </div>
-          )}
-        </div>
-      </Panel>
-
-      <details className="group/advanced">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-1 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-          {t('config:interfaceSettings.advanced')}
-          <ChevronDown
-            aria-hidden="true"
-            size={16}
-            className="transition-transform group-open/advanced:rotate-180"
-          />
-        </summary>
-        <div className="mt-3 flex flex-col gap-4">
-          <div
-            data-config-card="interface-style"
-            className="grid grid-cols-[minmax(0,1fr)_minmax(240px,.72fr)] gap-4 rounded-2xl border border-border p-4 max-[900px]:grid-cols-1"
+          }
+        />
+      </SettingsSection>
+      <Collapsible open={advancedExpanded} onOpenChange={setAdvancedExpanded}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            aria-controls={advancedId}
+            aria-expanded={advancedExpanded}
+            className="flex min-h-11 w-full items-center justify-between rounded-lg text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Type size={15} />
-                {t('config:interfaceSettings.interfaceStyle')}
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-3 max-[470px]:grid-cols-1">
-                <div className="grid content-start gap-1.5">
-                  <span className="text-[12px] text-[var(--text-muted)]">
-                    {t('config:interfaceSettings.fontSize')}
-                  </span>
-                  <CompactChoices
-                    label={t('config:interfaceSettings.fontSize')}
-                    options={fontOptions}
-                    value={fontScale}
-                    onChange={update(setFontScale)}
-                  />
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {t('config:interfaceSettings.fontScaleHint')}
-                  </p>
-                </div>
-                <div className="grid content-start gap-1.5">
-                  <span className="text-[12px] text-[var(--text-muted)]">
-                    {t('config:interfaceSettings.cornerStyle')}
-                  </span>
-                  <CompactChoices
-                    label={t('config:interfaceSettings.cornerStyle')}
-                    options={radiusOptions}
-                    value={radius}
-                    onChange={update(setRadius)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke)] bg-[var(--main-surface-bg)] shadow-[var(--sh-surface)]"
-              aria-label={t('config:interfaceSettings.livePreview')}
-            >
-              <div className="flex h-8 items-center gap-1.5 border-b border-[var(--stroke)] bg-[var(--surface-subtle)] px-3">
-                <span className="size-1.5 rounded-full bg-[var(--brand-blue)]" />
-                <span className="text-[11px] font-bold text-[var(--text-muted)]">
-                  {t('config:interfaceSettings.livePreview')}
-                </span>
-              </div>
-              <div className="grid gap-2.5 p-3">
-                <div className="mr-7 rounded-[var(--r-sm)] bg-transparent p-2 text-[var(--app-font-size)] text-[var(--text)]">
-                  {t('config:interfaceSettings.previewAgentMessage')}
-                </div>
-                <div className="ml-7 rounded-[var(--r-sm)] bg-[var(--user-bubble-bg)] p-2 text-[var(--app-font-size)] text-[var(--user-bubble-text)]">
-                  {t('config:interfaceSettings.previewUserMessage')}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-                    <span className="block h-full w-2/3 rounded-full bg-[var(--brand-blue)]" />
-                  </span>
-                  <span className="text-[11px] text-[var(--text-muted)]">67%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <Panel className="rounded-2xl p-4 shadow-none" data-config-card="interface-motion">
-            <SettingHeading
-              title={t('config:interfaceSettings.displayAndMotion')}
-              description={t('config:interfaceSettings.displayAndMotionDescription')}
+            {t('config:interfaceSettings.advanced')}
+            <ChevronDown
+              size={16}
+              aria-hidden="true"
+              className={cn('transition-transform', advancedExpanded && 'rotate-180')}
             />
-            <div className="mt-4 flex flex-col divide-y divide-border">
-              <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="text-sm font-medium">
-                  {t('config:interfaceSettings.interfaceDensity')}
-                </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent id={advancedId}>
+          <div className="divide-y divide-border" data-config-card="interface-style">
+            <SettingsRow
+              title={t('config:interfaceSettings.uiFontSize')}
+              description={t('config:interfaceSettings.numericFontHint')}
+              control={
+                <TypographySizeInput
+                  role="ui"
+                  label={t('config:interfaceSettings.uiFontSize')}
+                  value={uiFontSize}
+                  onCommit={update(setUiFontSize)}
+                />
+              }
+            />
+            <SettingsRow
+              title={t('config:interfaceSettings.codeFontSize')}
+              control={
+                <TypographySizeInput
+                  role="code"
+                  label={t('config:interfaceSettings.codeFontSize')}
+                  value={codeFontSize}
+                  onCommit={update(setCodeFontSize)}
+                />
+              }
+            />
+            <SettingsRow
+              title={t('config:interfaceSettings.cornerStyle')}
+              control={
+                <CompactChoices
+                  label={t('config:interfaceSettings.cornerStyle')}
+                  options={radiusOptions}
+                  value={radius}
+                  onChange={update(setRadius)}
+                />
+              }
+            />
+          </div>
+          <div className="divide-y divide-border" data-config-card="interface-motion">
+            <SettingsRow
+              title={t('config:interfaceSettings.interfaceDensity')}
+              control={
                 <CompactChoices
                   label={t('config:interfaceSettings.interfaceDensity')}
                   options={densityOptions}
                   value={density}
                   onChange={update(setDensity)}
                 />
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="text-sm font-medium">{t('config:interfaceSettings.motion')}</div>
+              }
+            />
+            <SettingsRow
+              title={t('config:interfaceSettings.motion')}
+              control={
                 <CompactChoices
                   label={t('config:interfaceSettings.motion')}
                   options={motionOptions}
                   value={motion}
                   onChange={update(setMotion)}
                 />
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </details>
-
+              }
+            />
+            <SettingsRow
+              title={t('config:interfaceSettings.automaticByTime')}
+              description={t('config:interfaceSettings.automaticByTimeDescription')}
+              control={
+                <Switch
+                  checked={theme === 'scheduled'}
+                  onCheckedChange={(checked) => update(setTheme)(checked ? 'scheduled' : 'system')}
+                  aria-label={t('config:interfaceSettings.automaticByTime')}
+                />
+              }
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
       <LanguageSettings notify={notify} />
     </div>
   )

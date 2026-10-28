@@ -22,10 +22,6 @@ import {
   getSessionMessageTarget,
 } from './events'
 import { activityScrollVersion } from './run-activity'
-import {
-  anchoredScrollTopAfterPrepend,
-  type TranscriptPrependSnapshot,
-} from './transcript-virtualization'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
 import { WorkbenchGreeting } from './WorkbenchGreeting'
 import { useContextPagesStore } from './session-context-pages-store'
@@ -41,6 +37,8 @@ type FocusTranscriptProps = {
   layoutMeasurementKey?: string
   transcriptLoadState?: TranscriptLoadState
   messageStart?: number | null
+  hasNewer?: boolean
+  onLoadLatest?: () => Promise<void> | void
   hasOlder?: boolean
   loadingOlder?: boolean
   olderError?: string
@@ -106,6 +104,8 @@ export function FocusTranscript({
   transcriptLoadState = 'ready',
   messageStart,
   hasOlder,
+  hasNewer,
+  onLoadLatest,
   loadingOlder,
   olderError,
   currentActivity,
@@ -130,7 +130,14 @@ export function FocusTranscript({
   onRetryLastTurn,
 }: FocusTranscriptProps) {
   const { t } = useI18n()
-  const prependSnapshot = useRef<TranscriptPrependSnapshot | null>(null)
+  const olderRequestRef = useRef<object | null>(null)
+  const [loadingLatest, setLoadingLatest] = useState(false)
+  const activeSessionRef = useRef(sessionId)
+  activeSessionRef.current = sessionId
+  useEffect(() => {
+    olderRequestRef.current = null
+    setLoadingLatest(false)
+  }, [sessionId])
   const transcriptPrefixRef = useRef<HTMLDivElement>(null)
   const [targetEntryId, setTargetEntryId] = useState(() => getSessionMessageTarget(sessionId))
   const lastMessage = messages[messages.length - 1]
@@ -222,12 +229,15 @@ export function FocusTranscript({
   )
   const loadOlder = useCallback(async () => {
     const node = transcriptRef.current
-    if (!node || !hasOlder || loadingOlder || prependSnapshot.current) return
+    if (!node || !hasOlder || loadingOlder || olderRequestRef.current) return
     pauseFollowing()
-    prependSnapshot.current = { scrollHeight: node.scrollHeight, scrollTop: node.scrollTop }
+    const identity = {}
+    olderRequestRef.current = identity
+    const originSession = sessionId
     const loaded = await onLoadOlder?.()
-    if (!loaded) prependSnapshot.current = null
-  }, [hasOlder, loadingOlder, onLoadOlder, pauseFollowing, transcriptRef])
+    if (activeSessionRef.current !== originSession) return
+    if (!loaded && olderRequestRef.current === identity) olderRequestRef.current = null
+  }, [hasOlder, loadingOlder, onLoadOlder, pauseFollowing, sessionId, transcriptRef])
   const handleTranscriptScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
       if (
@@ -246,12 +256,9 @@ export function FocusTranscript({
   )
 
   useLayoutEffect(() => {
-    const snapshot = prependSnapshot.current
-    const node = transcriptRef.current
-    if (!snapshot || !node) return
-    node.scrollTop = anchoredScrollTopAfterPrepend(snapshot, node.scrollHeight)
-    prependSnapshot.current = null
-  }, [messageStart, transcriptRef])
+    // 页提交后允许继续请求；阅读位置由虚拟器原生锚定统一维护。
+    olderRequestRef.current = null
+  }, [messageStart])
 
   useEffect(() => {
     setTargetEntryId(getSessionMessageTarget(sessionId))
@@ -358,6 +365,7 @@ export function FocusTranscript({
               layoutMeasurementKey={layoutMeasurementKey}
               sessionId={sessionId}
               messages={messages}
+              historical={hasNewer}
               streaming={streaming}
               latestRunProps={latestRunProps}
               scrollElement={transcriptElement}
@@ -377,17 +385,35 @@ export function FocusTranscript({
           </div>
         )}
       </div>
-      {hasUnread && (
+      {(hasUnread || hasNewer) && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[6px] z-[5] flex justify-center">
           <Button
             type="button"
             variant="outline"
             size="lg"
             className="pointer-events-auto bg-surface-subtle min-h-[32px] [border-color:var(--accent-border)] text-[var(--star-strong)] shadow-[0_8px_18px_-14px_var(--shadow)]"
-            onClick={() => scrollToBottom('smooth')}
+            disabled={loadingLatest}
+            aria-busy={loadingLatest || undefined}
+            onClick={async () => {
+              if (!hasNewer) {
+                scrollToBottom('smooth')
+                return
+              }
+              const originSession = sessionId
+              if (hasNewer) {
+                setLoadingLatest(true)
+                try {
+                  await onLoadLatest?.()
+                } finally {
+                  if (activeSessionRef.current === originSession) setLoadingLatest(false)
+                }
+              }
+              if (activeSessionRef.current !== originSession) return
+              requestAnimationFrame(() => scrollToBottom('auto'))
+            }}
           >
             <ArrowDown size={14} />
-            {t('chat:focusSession.newContent')}
+            {hasNewer ? t('chat:focusSession.returnToLatest') : t('chat:focusSession.newContent')}
           </Button>
         </div>
       )}

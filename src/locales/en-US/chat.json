@@ -782,5 +782,9 @@
   "chatMessage.copyMessage": "Copy message",
   "chatMessage.copyReply": "Copy response",
   "chatMessage.copyReplyFailed": "Copy failed. Try again or select the text manually.",
-  "chatMessage.moreReplyActions": "More response actions"
+  "chatMessage.moreReplyActions": "More response actions",
+  "focusSession.preparingAttachments": "Preparing attachments",
+  "focusSession.stopping": "Stopping",
+  "focusSession.waitingForModel": "Switching model. Please wait.",
+  "focusSession.returnToLatest": "Return to latest messages"
 }

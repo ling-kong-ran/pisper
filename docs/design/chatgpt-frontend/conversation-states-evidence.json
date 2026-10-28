@@ -1,0 +1,794 @@
+[
+  {
+    "id": "E001",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 104741,
+    "excerpt": "ri=q.isLoading&&!Vt,ai=q.isError&&!qt,oi;t[106]!==q.error||t[107]!==E?(oi=E||dt(q.error)||!(q.error instanceof Ee&&[401,403,404].includes(q.error.status)),t[106]=q.error,t[107]=E,t[108]=oi):oi=t[108];let si=oi,li,ui;t[109]!==q.error||t[110]!==n||t[111]!==ai||t[112]!==E||t[113]!==O||t[114]!==d?(li=()=>{ai&&!E&&At.loadFailed(O,n,d,q.error)},ui=[q.error,n,ai,E,O,d],t[109]=q.error,t[110]=n,t[111]=ai,t[112]=E,t[113]=O,t[114]=d,t[115]=li,t[116]=ui):(li=t[115],ui=t[116]),(0,Q.useEffect)(li,ui);let fi;t[117]!==n||t[118]!==F||t[119]!==U?(fi=null,F||(fi=U??(_c(n)?",
+    "claim": "页面 loading/error 派生考虑已有状态：loading 要求 isLoading 且没有 Vt；error 要求 isError 且非 qt，不是将所有 fetching 等同全页加载。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E002",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 104812,
+    "excerpt": "oi=E||dt(q.error)||!(q.error instanceof Ee&&[401,403,404].includes(q.error.status)),t[106]=q.error,t[107]=E,t[108]=oi):oi=t[108];let si=oi,li,ui;t[109]!==q.error||t[110]!==n||t[111]!==ai||t[112]!==E||t[113]!==O||t[114]!==d?(li=()=>{ai&&!E&&At.loadFailed(O,n,d,q.error)},ui=[q.error,n,ai,E,O,d],t[109]=q.error,t[110]=n,t[111]=ai,t[112]=E,t[1",
+    "claim": "是否提供加载重试排除了部分普通401/403/404错误，但有E/dt例外；不是所有错误一律显示Try again。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E003",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 122843,
+    "excerpt": "r,t[494]=_):_=t[494];let y=!Y,S=ir?null:ni,w;t[495]!==q||t[496]!==si?(w=si?()=>{q.refetch({cancelRefetch:!1})}:void 0,t[495]=q,t[496]=si,t[497]=w):w=t[497];let A=gr.length>0,j;t[498]!==ke||t[499]!==ir?(j=ir?ke.formatMessage(yp.readOnlyPlace",
+    "claim": "可重试错误回调使用 refetch(cancelRefetch:false)，否则不向内容层提供回调。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E004",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 24822,
+    "excerpt": "function pm(e){let t=(0,mm.c)(4),{isFetching:r,isSharedConversation:i,onRetry:a}=e,o=z(!i&&ia)||r,s;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,hm.jsx)(C,{id:`chatgptConversations.preview.retry`,defaultMessage:`Try again`,description:`Retry loading a ChatGPT conversation after its history could not be loaded`}),t[0]=s):s=t[0];let c;return t[1]!==a||t[2]!==o?(c=(0,hm.jsx)(n,{color:`ghost`,disabled:o,onClick:a,children:s}),t[1]=a,t[2]=o,t[3]=c):c=t[3],c}var mm,hm;function gm(){return(gm=e((()=>{mm=W(),j(),H(),Je(),Lr(),hm=G()})))()}function _m(e){let t=(0,v",
+    "claim": "会话错误Try again是ghost按钮；fetching或非共享分支的共享ia状态为真时disabled。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E005",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 25367,
+    "excerpt": "function _m(e){let t=(0,vm.c)(7),{isFetching:n,isSharedConversation:r,onRetry:i}=e,a;t[0]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,ym.jsx)(C,{id:`chatgptConversations.loadError`,defaultMessage:`Could not load this ChatGPT conversation`,description:`Error state when a ChatGPT conversation fetch fails`}),t[0]=a):a=t[0];let o;t[1]!==n||t[2]!==r||t[3]!==i?(o=i==null?null:(0,ym.jsx)(pm,{isFetching:n,isSharedConversation:r,onRetry:i}),t[1]=n,t[2]=r,t[3]=i,t[4]=o):o=t[4];let s;return t[5]===o?s=t[6]:(s=(0,ym.jsxs)(`div`,{className:`rounded-xl border border-default bg-surface-secondar",
+    "claim": "历史加载失败显示Could not load this ChatGPT conversation；只有onRetry存在才挂载重试按钮；错误卡rounded-xl、border、secondary/92、p-4。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E006",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 144756,
+    "excerpt": "x?(0,$.jsx)(_m,{isFetching:k,isSharedConversation:j,onRetry:S}):A?(0,$.jsx)(`div`,{\"aria-busy\":`true`,\"aria-label\":v,className:`relative min-h-0 flex-1`,role:`status`,children:(0,$.jsx)(hl,{debugName:`ChatGptConversationPage`,fillParent:!0})}):T?(0,$.jsxs)(jf,{value:Ze,children:[!m&&!p?(0,$.jsxs)($.Fragment,{children:[null,(0,$.jsx)($p,{entries:y,TurnRowComponent:Dh})]}):null,(0,$.jsx)(Vh,{conversationId:s,entries:y,onApiChange:Ae,onVisibleContentReady:()=>je(!0),responseSpacerState:Re})]}):Oe&&Ee==null&&(0,$.jsx)(`div`,{className:`rounded-xl border border-default bg-surface-secondar",
+    "claim": "页面呈现优先级为load error→loading→可渲染turns→空内容；loading外层role=status、aria-busy=true并带可访问加载名称。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E007",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 145279,
+    "excerpt": "v`,{className:`rounded-xl border border-default bg-surface-secondary/92 p-4 text-sm text-codex-description`,children:(0,$.jsx)(C,{id:`chatgptConversations.emptyConversation`,defaultMessage:`No renderable ChatGPT messages were found in this conversation`,description:`Empty state when a ChatGPT conversation has no user or assistant text messages`})}),!ot&&ht,R&&!E?(0,$.jsx)(w_,{conversationId:s,moreDetailsEnabled:O,onAddSelectedText:ue}):null]}),m?null:(0,$.jsx)(ep,{i",
+    "claim": "无可渲染消息显示专门emptyConversation卡片；不是缺少历史请求结果就显示新建聊天欢迎语。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E008",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 5006397,
+    "excerpt": "function SL(e){let t=(0,W_i.c)(31),{overlay:n,fillParent:r,delay:i,variant:a,debugName:o,startupIndicator:s}=e,c=n!==void 0&&n,l=r!==void 0&&r,u=i===void 0||i,d=a===void 0?`page`:a,[f,p]=(0,G_i.useState)(!1),m=d===`page`&&u&&H_i.delayedIndicator,h=d===`blossom`&&H_i.delayedBlossom,g;t[0]!==m||t[1]!==h?(g=fs(`flex flex-col items-center gap-2`,m,h),t[0]=m,t[1]=h,t[2]=g):g=t[2];let _=g,v;t[3]!==s||t[4]!==d?(v=d===`blossom`?s??(0,CL.jsx)(N_i,{className:`size-14`}):(0,CL.jsx)(nl,{className:`icon-lg text-secondary`}),t[3]=s,t[4]=d,t[5]=v):v=t[5];let y;t[6]!==!1||t[7]!==o||t[8]!==f?(y=null,",
+    "claim": "页面loading共享组件默认page变体和delay；默认用旋转图标，blossom另有分支；fillParent用absolute inset-0透明背景，不是消息骨架条。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E009",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 5007137,
+    "excerpt": "S=c?`absolute inset-0 z-10 bg-surface-secondary/70`:l?`absolute inset-0 bg-transparent`:`relative size-full bg-transparent`,C;t[13]===S?C=t[14]:(C=fs(`flex items-center justify-center`,S),t[13]=S,t[14]=C);let w;t[15]===!1?w=t[16]:(w=()=>{},t[15]=!1,t[16]=w);let T;t[17]!==l||t[18]!==c?(T=c||l?null:(0,CL.jsx)(`div`,{className:`absolute inset-x-0 top-0 draggable electron:h-toolbar extension:h-toolbar",
+    "claim": "loading支持overlay、fillParent和普通相对容器三种布局；内部role=presentation，由页面外层承担status语义。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E010",
+    "path": "webview/assets/thread-history-loading-c61169ed127d.js",
+    "offset": 235,
+    "excerpt": "s=o==null?(0,d.jsxs)(`div`,{role:`status`,children:[(0,d.jsx)(a,{}),(0,d.jsx)(`span`,{className:`sr-only`,children:(0,d.jsx)(n,{id:`chatgpt.pagination.loading`,defaultMessage:`Loading older messages…`,description:`Accessible status while an older page of conversation messages loads`})})]}):(0,d.jsx)(t,{color:`secondary`,onClick:o,children:(0,d.jsx)(n,{id:`chatgpt.pagination.retry`,defaultMessage:`Try again`,description:`Button to retry loading older conversation messages after a failure`})}),r[0]=o,r[1]=s);let c;return r[2]!==i||r[3]!==s?(c=(0,d.jsx)(`div`,{ref:i,className:`flex just",
+    "claim": "旧消息分页占位无onRetry时展示spinner+sr-only Loading older messages；有onRetry时改为secondary Try again，居中py-4。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E011",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 82094,
+    "excerpt": "!==m||t[16]!==h?(g={queryKey:f,enabled:p,staleTime:m,retry:!1,queryFn:h},t[13]=f,t[14]=p,t[15]=m,t[16]=h,t[17]=g):g=t[17];let{isError:_,refetch:v}=se(g),y;return t[18]!==_||t[19]!==v?(y=_?(0,c_.jsx)(n,{color:`secondary`,onClick:()=>void v(),children:(0,c_.jsx)(C,{id:`chatgpt.pagination.retryMessage`,defaultMessage:`Retry loading this message`,description:`Button to retry loading the full conversation for a link to an older message`})}):null,t[18]=_,t[19]=v,t[20]=y):y=t[20],y}var s_,c_;function l_(){return(l_=e((()=>{s_=W(),ce(),j(),H(),fe(),Je(),et(),vl(),xf(),fi(),c_=G()})))()}funct",
+    "claim": "深链目标消息查询禁止自动retry；失败显示Retry loading this message并调用refetch。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E012",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 117468,
+    "excerpt": "if(!F&&(q.error instanceof Ee&&q.error.status===423||Os(J?.context_scopes)&&Ut==null)){let e;t[389]!==q||t[390]!==n||t[391]!==O?(e=(0,$.jsx)(Wa,{onUnlocked:()=>{Nc(O.get(is)?.projectId,[n]),q.refetch()}}),t[389]=q,t[390]=n,t[391]=O,t[392]=e):e=t[392],Ha=e;break bb0}if(nr!=null){let e;t[393]===nr?e=t[394]:(e=(0,$.jsx)(Be,{replace:!0,to:nr}),t[393]=nr,t[394]=e),Ha=e;break bb0}da=g_,t[395]!==q.data||t[396]!==q.fetchStat",
+    "claim": "非共享会话遇到423或受保护上下文缺少解锁态时先显示解锁surface；onUnlocked使项目/会话状态失效并refetch。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E013",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 72385,
+    "excerpt": "R=c&&!I&&!te,oe;t[9]!==m||t[10]!==p?(oe=()=>ls(m.query.getData(Zr,p),m.get(Us),m.get(Jn)),t[9]=m,t[10]=p,t[11]=oe):oe=t[11];let se;t[12]!==R||t[13]!==oe?(se={enabled:R,isActive:oe},t[12]=R,t[13]=oe,t[14]=se):se=t[14],Kc(`deleteChat`,L,se);let ce;t[15]!==E||t[16]!==te||t[17]!==D||t[18]!==m||t[19]!==p?(ce=()=>{!te&&ls(m.query.getData(Zr,p),m.get(Us),m.get(Jn))&&(k(!0),Ta({scope:m,conversationId:p}).then(()=>{ee(null),D(`/`)}).catch(()=>{m.get(Te).danger(E.formatMessage(Zt.deleteError),{errorAnalyt",
+    "claim": "deleteChat快捷键只在聊天会话、非I事务进行中状态、非删除中启用，并用isActive再次核对当前会话可管理性。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E014",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 72687,
+    "excerpt": "ce=()=>{!te&&ls(m.query.getData(Zr,p),m.get(Us),m.get(Jn))&&(k(!0),Ta({scope:m,conversationId:p}).then(()=>{ee(null),D(`/`)}).catch(()=>{m.get(Te).danger(E.formatMessage(Zt.deleteError),{errorAnalytics:{toastId:`conversation_delete_failed`}})}).finally(()=>k(!1)))},t[15]=E,t[16]=te,t[17]=D,t[18]=m,t[19]=p,t[20]=ce):ce=t[20];let le=ce,ue;t[21]===E?ue=t[22]:(ue=E.formatMessage(Jg.more),t[21]=E,t[22]=ue);let B=ue,de;t[23]!==m||t[24]!==p?(de=async()=>{ie.current=[]},t[23]=m,t[24]=p,t[25]=de):de=t[25];let fe=de,pe;t[26]!==m||t[27]!==p?(pe=()=>{let e=m.query.getData(Zr,p)??Zi(m.queryClient",
+    "claim": "删除提交防重并重检权限；成功关闭确认导航首页，失败toast，finally解除删除中。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E015",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 75668,
+    "excerpt": "onRename:!v||I||s?void 0:()=>Bm(m,i),isPinned:m.get(Hn,p)??y?.is_starred===!0,onTogglePin:b?()=>{let e=V();e!=null&&!m.get(qs,p)&&ls(e,m.get(Us),m.get(Jn))&&Wc({scope:m,conversation:`conversation_id`in e?{gizmo_id:e.gizmo_id,id:e.conversation_id,is_archived:e.is_archived,is_starred:e.is_starred,title:e.title}:e}).catch(Ug)}:void 0,onArchive:!v||I||s?void 0:()=>Uc(m,p),onUnarchive:!v||I||!s?void 0:()=>{yl({scope:m,conversationId:p}).then(()=>{m.get(Te).success(E.formatMessage(Gc.unarchiveSuccessPlain))}).catch(()=>{m.get(Te).danger(E.formatMessage(Zt.unarchiveError),{errorAnalytics:{t",
+    "claim": "会话菜单重命名/归档要求可管理、非归档/删除事务中且未归档；已归档改为Unarchive，删除仍要求可管理且非归档/删除事务中。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E016",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 77254,
+    "excerpt": "let be=O===`shortcut`,xe=O!=null,Se;t[61]===O?Se=t[62]:(Se=()=>{re.current=O===`menu`?M.current:null,ee(null)},t[61]=O,t[62]=Se);let Ce;t[63]===Symbol.for(`react.memo_cache_sentinel`)?(Ce=e=>{let t=re.current;if(re.current=null,t==null)return;e.preventDefault();let n=t.ownerDocument.activeElement;t.isConnected&&(n===t.ownerDocument.body||e.target instanceof HTMLElement&&e.target.contains(n))&&t.focus({preventScroll:!0})},t[63]=Ce):Ce=t[63];let we;t[64]!==le||t[65]!==te||t[66]!==be||t[67]!==xe||t[68]!==Se||t[69]!==a?(we=(0,qg",
+    "claim": "删除确认区分shortcut/menu来源；快捷键入口autoFocusConfirm=true，菜单关闭记住More触发器。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E017",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 77439,
+    "excerpt": "Ce=e=>{let t=re.current;if(re.current=null,t==null)return;e.preventDefault();let n=t.ownerDocument.activeElement;t.isConnected&&(n===t.ownerDocument.body||e.target instanceof HTMLElement&&e.target.contains(n))&&t.focus({preventScroll:!0})},t[63]=Ce):Ce=t[63];let we;t[64]!==le||t[65]!==te||t[66]!==be||t[67]!==xe||t[68]!==Se||t[69]!==a?(we=(0,qg.jsx)(mo,{autoFocusConfirm:be,open:xe,onOpenChange:Se,onCloseAutoFocus:Ce,isDeleting:te,onConfirm:le,title:a}),t[64]=le,t[65]",
+    "claim": "删除确认关闭仅当More仍连接且焦点在body或原弹窗内部才恢复More，避免覆盖其它新焦点。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E018",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10766539,
+    "excerpt": "function p4c(e){let t=(0,m4c.c)(36),{autoFocusConfirm:n,isDeleting:r,onConfirm:i,onCloseAutoFocus:a,onOpenChange:o,open:c,title:l}=e;if(!c)return null;let u;t[0]===a?u=t[1]:(u={onCloseAutoFocus:a},t[0]=a,t[1]=u);let d;t[2]!==r||t[3]!==o?(d=e=>{!e&&!r&&o(!1)},t[2]=r,t[3]=o,t[4]=d):d=t[4];let f;t[5]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,m3.jsx)(ho,{className:`sr-only`,children:(0,m3.jsx)(W,{...DW.deleteDialogTitle})}),t[5]=f):f=t[5];let p;t[6]===l?p=t[7]:(p=(0,m3.jsx)(ms,{className:`sr-only`,children:(0,m3.jsx)(W,{...DW.deleteDialogDescription,values:{title:l}})}),t[6]=l,t[7]",
+    "claim": "ChatGPT删除确认open=false时不挂载，删除中拒绝onOpenChange关闭；独立sr-only标题/描述。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E019",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10767857,
+    "excerpt": "y=(0,m3.jsx)(s,{color:`outline`,disabled:r,type:`button`,onClick:_,children:v}),t[17]=r,t[18]=_,t[19]=y):y=t[19];let b;t[20]===Symbol.for(`react.memo_cache_sentinel`)?(b=(0,m3.jsx)(W,{...DW.delete}),t[20]=b):b=t[20];let x;t[21]!==n||t[22]!==r?(x=(0,m3.jsx)(s,{autoFocus:n,color:`danger`,loading:r,type:`submit`,children:b}),t[21]=n,t[22]=r,t[23]=x):x=t[23];let S;t[24]!==y||t[25]!==x?(S=(0,m3.jsx)(ic,{children:(0,m3.jsxs)(fl,{children:[y,x]})}),t[24]=y,t[25]=x,t[26]=S):S=t[26];let C;t[27]!==S||t[28]!==m||t[29]!==g?(C=(0,m3.jsxs)(Nc,{as:`form`,onSubmit:m,children:[g,S]}),t[27]=S,t[28]=m,",
+    "claim": "删除确认Cancel为outline且删除中禁用；Delete为danger、loading随isDeleting、type=submit，autoFocus由入口传入。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E020",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10762434,
+    "excerpt": "function X2c(e,t,{onArchiveSuccess:n,onManualArchiveSuccess:r,onArchiveUndoSuccess:i}={}){let a=!1,o=vga({scope:e,conversationId:t}),s=e.get(Ts).info((0,Z2c.jsx)($Dc,{}),{leading:(0,Z2c.jsx)(Vi,{\"aria-hidden\":!1,asset:Cue}),primaryAction:rOc(`undo`,()=>{a||(a=!0,s?.close(),o.undo().then(()=>{i?.()}).catch(()=>{e.get(Ts).danger(e.get(nh).formatMessage(DW.unarchiveError),{errorAnalytics:{toastId:`archiveChatgptConversationWithFeedback.undoArchive.unarchiveError`}})}))},Q2c),secondaryAction:rOc(`view`,()=>{$m(e,`/archive`)&&(k$(e,Ls),s?.close())},Q2c),duration:Tme/1e3,id:`archive-chatgp",
+    "claim": "归档直接启动可撤销任务并展示toast；Undo防重复、关闭toast并调用undo，失败显示unarchiveError；View进入archive。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E021",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10763047,
+    "excerpt": "o.promise.then(i=>{i===`archived`&&(e.get(OCt)===`idle`&&zsi(e,t)&&$m(e,`/`,{replace:!0}),n?.(),a||r?.())}).catch(()=>{if(s?.close(),a){n?.();return}e.get(Ts).danger(e.get(nh).formatMessage(DW.archiveError),{errorAnalytics:{toastId:`archiveChatgptConversationWithFeedback.archiveChatGptConversationWithFeedback.archiveError`}})})}var Z2c,Q2c;function $2c(){return($2c=t((()=>{Pr(),sl(),th(),nOc(),aOc(),PF(),Gi(),sc(),rh(),gWs(),Lc(),OW(),bI(),BW(),Z2c=$(),Q2c=`https://chatgpt.co",
+    "claim": "归档成功可将当前活跃聊天导航首页；失败关闭原toast并提示，已触发撤销时有独立回调分支。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E022",
+    "path": "webview/assets/chatgpt-conversation-page-b32f049e04ed.js",
+    "offset": 32071,
+    "excerpt": "function Bm(e,t){let n=Um(e,t);if(n==null||!Zn(e,n.conversation_id))return;let r=e.get($c,t)?e.get(Ii,t):n.title;Rn(e,Ba,{initialValue:r??``,metadataThreadId:n.conversation_id,protectedProjectId:Os(n.context_scopes)?n.gizmo_id:void 0,onSave:t=>fs({scope:e,conversationId:n.conversation_id,previousTitle:r,title:t}),requireNonEmpty:!0,trimOnSave:!0})}function Vm(e,t){let n=Um(e,t);n!=null&&Zn(e,n.conversation_id)&&Wc({scope:e,conversation:{gizmo_id:n.gizmo_id,id:n.conversation_i",
+    "claim": "重命名前检查会话存在和可操作性；初值来自本地标题或服务标题，明确requireNonEmpty和trimOnSave，并绑定previousTitle。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E023",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10254982,
+    "excerpt": "let te=ee,ne=L||v&&te.length===0,re=k===i?void 0:o,ie;t[6]===Symbol.for(`react.memo_cache_sentinel`)?(ie=e=>A(e.target.value),t[6]=ie):ie=t[6];let ae;t[7]!==D||t[8]!==x.placeholder||t[9]!==x.values?(ae=D.formatMessage(x.placeholder,x.values),t[7]=D,t[8]=x.placeholder,t[9]=x.values,t[10]=ae):ae=t[10];let oe;t[11]!==D||t[12]!==x.ariaLabel||t[13]!==x.values?(oe=D.formatMessage(x.ariaLabel,x.values),t[11]=D,t[12]=x.ariaLabel,t[13]=x.values,t[14]=oe):oe=t[14];let se=v&&te.length===0?!0:void 0,ce;t[15]!==L||t[16]!==a||t[17]!==re||t[18]!==ae||t[19]!==oe||t[20]!==se||t[21]!==k?(ce={ref:O,dis",
+    "claim": "重命名输入空白或保存中禁用保存，空白设置aria-invalid；输入在保存中disabled。",
+    "scope": "fRc共享重命名实现已由ChatGPT Bm→Ba/cY→dRc链挂载。"
+  },
+  {
+    "id": "E024",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10255814,
+    "excerpt": "ue=()=>{O.current?.focus(),O.current?.select()},t[23]=ue):ue=t[23];let de=ue,fe;t[24]!==V||t[25]!==H||t[26]!==P||t[27]!==g||t[28]!==D||t[29]!==n||t[30]!==p||t[31]!==m||t[32]!==ne||t[33]!==b||t[34]!==M||t[35]!==S||t[36]!==y||t[37]!==te||t[38]!==k?(fe=async e=>{if(e.preventDefault(),ne){de();return}R(!0),B(null);let t=b&&H===g&&(!V||P===void 0||P===M);t&&p();let r=`title`;try{let e=y?te:k,i=I.current;(i?.value!==e||i.color!==H)&&(await m(e,H),I.current={value:e,color:H}),r=`emoji`,V&&n!=null&&P!==void 0&&P!==M&&await DVi(S,n,P),t||p()}catch(e){let n=F1o(e)?`name`:r;t?S.get(Ts).danger(D",
+    "claim": "重命名打开时聚焦并选中原名称；无效提交也回到该输入；前台保存成功才关闭，失败保留对话框并设置错误类别。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E025",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10256353,
+    "excerpt": "catch(e){let n=F1o(e)?`name`:r;t?S.get(Ts).danger(D.formatMessage(hRc[n]),{errorAnalytics:{toastId:`sidebarRenameDialog.saveFailed`}}):B(n)}t||R(!1)},t[24]=V,t[25]=H,t[26]=P,t[27]=g,t[28]=D,t[29]=n,t[30]=p,t[31]=m,t[32]=ne,t[33]=b,t[34]=M,t[35]=S,t[36]=y,t[37]=te,t[38]=k,t[39]=fe):fe=t[39];let pe=fe;if(w)return null;let me;t[40]!==L||t[41]!==p?(me=e=>{!e&&!L&&p()},t[40]=L,t[41]=p,t[42]=me):me=t[42",
+    "claim": "重命名区分name/title/emoji错误；后台保存走toast，否则设置内联错误，保存后解除loading。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E026",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10257706,
+    "excerpt": "=t[63];let Ce;t[64]===z?Ce=t[65]:(Ce=z==null?null:(0,n4.jsx)(`div`,{className:`text-sm text-danger`,role:`alert`,children:(0,n4.jsx)(W,{...hRc[z]})}),t[64]=z,t[65]=Ce);let we;t[66]!==xe||t[67]!==Se||t[68]!==Ce?(we=(0,n4.jsxs)(ic,{className:`gap-2`,children:[xe,Se,Ce]}),t[66]=xe,t[67]=Se,t[68]=Ce,t[6",
+    "claim": "重命名内联错误带role=alert；保存期间onOpenChange不允许关闭。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E027",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1821389,
+    "excerpt": "l=r&&!a&&s?.eligibleAnnouncements?.includes(`oai/apps/hasSeenTemporaryChatOnboarding`)===!0,t[0]=a,t[1]=r,t[2]=s?.eligibleAnnouncements,t[3]=l):l=t[3];let u=l,d,f;t[4]===i?(d=t[5],f=t[6]):(d=()=>nEt(i),f=[i],t[4]=i,t[5]=d,t[6]=f),(0,j3.useEffect)(d,f);let p=r&&!a&&c,m;t[7]!==u||t[8]!==p?(m=CGe({isLoading:p,isEligible:u}),t[7]=u,t[8]=p,t[9]=m):m=t[9];let h;t[10]===i?h=t[11]:(h=e=>(0,M3.jsx)(cEt,{onPresented:e,onClose:()=>{window.localStorage.setItem(ore,`true`),o(!0),tEt(i)}}),t[10]=i,t[11]=h);let g;t[12]!==m||t[13]!==h?(g=(0,M3.jsx)(DF,{source:`temporary-chat`,candidate:{id:`temporar",
+    "claim": "临时聊天首次引导要求isTemporaryChat、未本地已看、服务eligibleAnnouncements含目标key；设置加载中会产生loading候选。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E028",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1821744,
+    "excerpt": " h;t[10]===i?h=t[11]:(h=e=>(0,M3.jsx)(cEt,{onPresented:e,onClose:()=>{window.localStorage.setItem(ore,`true`),o(!0),tEt(i)}}),t[10]=i,t[11]=h);let g;t[12]!==m||t[13]!==h?(g=(0,M3.jsx)(DF,{source:`temporary-chat`,candidate:{id:`temporary-chat-onboarding`,waitsForPresentation:!0,status:m,render:h}}),t[12]=m,t[13]=h,t[14]=g):g=t[14];let _;t[15]!==n||t[16]!==u?(_=n?.(u),t[15]=n,t[16]=u,t[17]=_):_=t[17];let v;return t[18]!==g||t[19]!==_?(v=(0,M3.jsxs)(M3.Fragment,{children:[g,_]}),t[18]=g,t[19]=_,t[20]=v):v=t[20],v}function sEt(){return window.local",
+    "claim": "临时引导关闭先记录本地已看，再执行服务ack；通过公告候选source temporary-chat进行展示仲裁。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E029",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1820431,
+    "excerpt": "et n=t.get(rEt);if(n==null)return;let r=()=>{e.get(k3,n)||(e.set(k3,n,!0),Ybe(e).then(()=>{e.set(O3,e=>{let t={...e};return delete t[n],t})}).catch(()=>{re.warning(`Failed to acknowledge temporary chat onboarding`)}).finally(()=>{e.set(k3,n,!1)}))};return r(),window.addEventListener(`online`,r),window.addEventListener(`focus`,r),()=>{window.removeEventListener(`online`,r),window.removeEventListener(`focus`,r)}})}var O3,rEt,k3;function iEt(){return(iEt=e((()=>{Y(),af(),_i(),AO(),Xh(),oC(),O3=PT(`chatgpt-temporary-chat-onboarding-pendin",
+    "claim": "临时引导ack失败保留待确认状态；online/focus事件触发重试，卸载移除监听。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E030",
+    "path": "webview/assets/onboarding-modal-e0a40cb6dfd1.js",
+    "offset": 5070,
+    "excerpt": "!==s||n[13]!==t?(l=(0,Y.jsx)(k,{asForm:!0,hasDescription:!0,initialFocus:`primary`,mediaClassName:`h-40`,shouldIgnoreClickOutside:!0,titleClassName:`select-none`,title:e,body:t,media:a,onDismiss:s,onOpenAutoFocus:T,onPrimaryAction:s,primaryActionLabel:c}),n[11]=T,n[12]=s,n[13]=t,n[14]=l):l=n[14],l}let E;n[15]===T?E=n[16]:(E={onOpenAutoFocus:T,onEscapeKeyDown:oe},n[15]=T,n[16]=E);let D;n[17]===s?D=n[18]:(D=e=>{e||s()},n[17]=s,n[18]=D);le",
+    "claim": "个性化临时引导变体初始焦点primary、媒体区h-40、忽略外部点击，Continue/主动作调用onClose。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E031",
+    "path": "webview/assets/onboarding-modal-e0a40cb6dfd1.js",
+    "offset": 5364,
+    "excerpt": "4],l}let E;n[15]===T?E=n[16]:(E={onOpenAutoFocus:T,onEscapeKeyDown:oe},n[15]=T,n[16]=E);let D;n[17]===s?D=n[18]:(D=e=>{e||s()},n[17]=s,n[18]=D);let j;n[19]===Symbol.for(`react.memo_cache_sentinel`)?(j=(0,Y.jsx)(te,{children:(0,Y.jsx)(i,{...",
+    "claim": "传统临时引导注册Escape处理；oe preventDefault，另有宽弹窗、隐藏关闭按钮及忽略外部点击。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E032",
+    "path": "webview/assets/onboarding-modal-e0a40cb6dfd1.js",
+    "offset": 7308,
+    "excerpt": "urn n[41]!==Q||n[42]!==E||n[43]!==D?($=(0,Y.jsx)(g,{open:!0,contentProps:E,onOpenChange:D,shouldIgnoreClickOutside:!0,showDialogClose:!1,size:`wide`,children:Q}),n[41]=Q,n[42]=E,n[43]=D,n[44]=$):$=n[44],$}function oe(e){",
+    "claim": "传统临时聊天引导宽弹窗只通过Continue表单确认关闭；显式阻止Escape，点击外部也不退出。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E033",
+    "path": "webview/assets/chatgpt-image-upload-reminder-dialog-48aad644ebc2.js",
+    "offset": 262,
+    "excerpt": "{onAcknowledge:s,onShown:f,overlayClassName:p}=e,m=(0,b.useRef)(!1),h;a[0]===s?h=a[1]:(h=e=>{e.preventDefault(),e.stopPropagation(),s()},a[0]=s,a[1]=h);let g=h,_;a[2]===f?_=a[3]:(_={onOpenAutoFocus:()=>{m.current||(m.current=!0,f?.())}},a[2]=f,a[3]=_);let S;a[4]===Symbol.for(`react.memo_cache_sentinel`)?(S=(0,x.jsx)(r,{children:(0,x.jsx)(n,{id:`chatgptConversations.imageUploadReminder.title`,defaultMessage:`Check before sharing`,description:`Title of a privacy reminder asking teens to check photos for sensitive information when attaching them to ChatGPT`})}),a[4]=S):S=a[4];let C;a[5]",
+    "claim": "图片提醒只有Got it确认；submit preventDefault和stopPropagation，onShown由ref保证单次；用于青少年照片隐私提醒而非所有用户通用弹窗。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E034",
+    "path": "webview/assets/chatgpt-image-upload-reminder-dialog-48aad644ebc2.js",
+    "offset": 1899,
+    "excerpt": "==p||a[10]!==_||a[11]!==T?(E=(0,x.jsx)(l,{open:!0,shouldIgnoreClickOutside:!0,showDialogClose:!1,size:`compact`,overlayClassName:p,onOpenChange:v,contentProps:_,children:T}),a[9]=p,a[10]=_,a[11]=T,a[12]=E):E=a[12],E}function v(){}var y,b,x;function S(){return(S=e((()=>{y=m(),b=g(),s(),f(),p(),a(),x=h()})))()}export{S as n,_ as t};\n//# sou",
+    "claim": "图片隐私提醒compact、无关闭X、忽略外部点击且onOpenChange为空函数；确认由onAcknowledge决定后续。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E035",
+    "path": "webview/assets/sensitive-image-reminder-742a5354761d.js",
+    "offset": 1626,
+    "excerpt": "return null;let s=r.experimentEnabled??f(l,`67629032`).get(`enable_new_sensitive_image_upload_reminder`,!1);c.set(k,o,e=>e.map(e=>e.batchId===r.batchId?{...e,experimentEnabled:s}:e));let u=null;if(s)try{u=(await _.safePost(`/files/{file_id}/image_safety_preview`,{additionalHeaders:{\"ChatGPT-Account-ID\":r.accountId},parameters:{path:{file_id:e.fileId},query:r.gizmoId==null?void 0:{gizmo_id:r.gizmoId}},signal:n})).is_sensitive}catch{}let d=c.get(w);return!n.aborted&&d.accountId===r.accountId&&d.userId===r.userId&&c.set(k,o,t=>t.map(t=>t.batchId===r.batchId?{...t,files:t.files.map(t=>t.",
+    "claim": "上传后敏感图片预览由实验决定；向image_safety_preview发请求，异常捕获不抛给整个聊天，结果回写前核对账户与abort。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E036",
+    "path": "webview/assets/sensitive-image-reminder-742a5354761d.js",
+    "offset": 2732,
+    "excerpt": "let N=A;if(N==null)return null;let B;r[21]===Symbol.for(`react.memo_cache_sentinel`)?(B=(0,z.jsx)(`span`,{ref:g,hidden:!0,\"data-chatgpt-sensitive-image-reminder-candidate\":!0}),r[21]=B):B=r[21];let H;r[22]!==x||r[23]!==o||r[24]!==s||r[25]!==m||r[26]!==c||r[27]!==N?(H=x&&!s&&!m?(0,z.jsx)(j,{overlayClassName:V,onShown:()=>{h(c,C,{entrySurface:`chat_composer`})},onAcknowledge:()=>{let e=c.get(w);c.set(k,o,t=>t.map(t=>t.batchId===N.batchId&&t.accountId===e.accountId&&t.userId===e.userId?{...t,acknowledged:!0}:t).filter(O))}},N.batchId):null,r[22]=x,r[23]=o,r[24]=s,r[25]=m,r[26]=c,r[27]=N",
+    "claim": "敏感提醒只处理当前账户未ack且有result=true文件的batch；只有自身候选获展示、无竞争弹窗与共享阻塞状态才展示。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E037",
+    "path": "webview/assets/sensitive-image-reminder-742a5354761d.js",
+    "offset": 483,
+    "excerpt": "function M(e){return e!=null&&typeof document<`u`&&document.querySelector(B)===e&&document.querySelector(`.codex-dialog-overlay:not(.${V})`)==null}function N(e){let r=(0,L.c)(31),{conversationId:o,hasCompetingDialog:s}=e,c=n(t),l=y(),u=d(k,o),p=a(w),m=v(),g=(0,R.useRef)(null),b;r[0]===Symbol.for(`re",
+    "claim": "敏感提醒候选必须是document中首个匹配候选，且不存在其它非自身overlay；避免多个提醒堆叠。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E038",
+    "path": "webview/assets/request-496b2a8816e3.js",
+    "offset": 41228,
+    "excerpt": "Ke=()=>u||ae===`loading`||D.current!=null?Promise.resolve(!1):(At(d,m),ae===`eligible`?(D.current=s(),se(!0),D.current.promise):Promise.resolve(!0)),t[35]=ae,t[36]=d,t[37]=m,t[38]=u,t[39]=Ke):Ke=t[39];let qe;t[40]!==H||t[41]!==O||t[42]!==z||t[43]!==u||t[44]!==j?(qe=(e,t,n)=>(0,Un.jsx)(Sn,{disabled:u||n,selectedFileIds:(j[e]??[]).flatMap(Nn),isUploading:t=>(j[e]??[]).some(n=>n.status===`u",
+    "claim": "ImageGen问卷打开文件前若上传禁用/资格加载/已有提醒则返回false；eligible时等待用户确认promise，其余可继续。",
+    "scope": "特定ImageGen问卷，不泛化成所有普通composer上传前都同此处理。"
+  },
+  {
+    "id": "E039",
+    "path": "webview/assets/request-496b2a8816e3.js",
+    "offset": 43621,
+    "excerpt": "onCancelLoadError:()=>{D.current?.resolve(!1),D.current=null,se(!1)},onAcknowledge:()=>{Et(d).catch(Dn),se(!1),D.current?.resolve(!0),D.current=null}}):null,t[78]=oe,t[79]=d,t[80]=q):q=t[80];let Qe;return t[81]!==U||t[82]!==n.messageId||t[83]!==we||t[84]!==W||t[85]!==Xe||t[86]!==Ze||t[87]!==q?(Qe=(0,Un.jsxs)(U,{conversationId:we,messageId:Te,children:[W,Xe,Ze,q]}),t[81]=U,t[82]=n.messageId,t[83]=we,t[84]=W,t[85]=Xe,t",
+    "claim": "问卷隐私提醒懒加载失败或取消会resolve(false)取消文件选择；确认ack后resolve(true)继续。",
+    "scope": "ImageGen问卷入口。"
+  },
+  {
+    "id": "E040",
+    "path": "webview/assets/request-496b2a8816e3.js",
+    "offset": 45592,
+    "excerpt": "`,title:(0,Un.jsx)(_,{id:`chatgptConversations.imageUploadReminder.loadError.title`,defaultMessage:`Couldn't open the photo privacy reminder`,description:`Title of an error dialog when the teen photo privacy reminder cannot be downloaded before selecting a file in an ImageGen questionnaire. Closing cancels file selection; reloading is needed to try again.`}),onOpenChange:t=>{t||e()}})}),Gn=a(async()=>(await ce(async()=>{let{LibraryFilePickerDialog:e}=await import(`.",
+    "claim": "问卷隐私提醒下载失败显示专用错误对话框；关闭取消文件选择，提示重新加载后再试。",
+    "scope": "以errorFallback处理，不把模块下载失败默认为已确认。"
+  },
+  {
+    "id": "E041",
+    "path": "webview/assets/chatgpt-ecosystem-widget-9ac3d263a470.js",
+    "offset": 13522,
+    "excerpt": "g=s.kind===`ready`&&s.result.request.mode===`modal`?Math.max(c??s.result.widget.height_hint??0,0)||void 0:c,_=s.kind===`ready`?s.result.tracking:s.tracking,ae=s.kind===`ready`&&s.result.request.mode===`fullscreen`,oe;t[2]!==ae||t[3]!==o||t[4]!==_?(oe=()=>{ae&&(_?.close(`user_dismissed`),o())},t[2]=ae,t[3]=o,t[4]=_,t[5]=oe):oe=t[5];let se=(0,Z.useEffectEvent)(oe),v;t[6]!==se||t[7]!==h||t[8]!==f||t[9]!==_?(v=()=>{let e=f.watch(e=>{let t=e.get(ke,h);if(t!=null&&e.get(tt,t)?.isOpen===!1){se();return}e.get(F,h)&&_?.renderReady(),e.get(Pe,h)!=null&&_?.error(`widget_render`)});return()=>{e(",
+    "claim": "生态App surface使用loading/error/ready状态；modal高度从heightHint或widget hint计算，fullscreen走独立渲染通路。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E042",
+    "path": "webview/assets/chatgpt-ecosystem-widget-9ac3d263a470.js",
+    "offset": 14700,
+    "excerpt": "let le=u===!1,b;t[22]===u?b=t[23]:(b=e=>{u===!1&&e.preventDefault()},t[22]=u,t[23]=b);let x;t[24]===p?x=t[25]:(x=p.formatMessage($.appTitle),t[24]=p,t[25]=x);let S;t[26]===g?S=t[27]:(S=g==null?void 0:{height:g},t[26]=g,t[27]=S);let C;t[28]!==b||t[29]!==x||t[30]!==S?(C={onEscapeKeyDown:b,\"aria-label\":x,style:S},t[28]=b,t[29]=x,t[30]=S,t[31]=C):C=t[31];let w;t[32]!==o||t[33]!==_?(w=e=>{e||(_?.close(`user_dismissed`),o())},t[32]=o,t[33]=_,t[34]=w):w=t[34];let T;t[35]!==r||t[36]!==i||t[37]!==h||t[38]!==d||t[39]!==s.error||t[40]!==s.kind||",
+    "claim": "allowsInteractiveDismissal=false时Escape被preventDefault且外部点击忽略；模态宽度可传widthHint，size=appLauncher。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E043",
+    "path": "webview/assets/chatgpt-ecosystem-widget-9ac3d263a470.js",
+    "offset": 15258,
+    "excerpt": "T=s.kind===`loading`?(0,Q.jsx)(`div`,{className:`flex h-full items-center justify-center`,role:`status`,children:(0,Q.jsx)(ee,{...$.openingApp})}):s.kind===`error`?(0,Q.jsx)(`div`,{className:`flex h-full flex-col items-center justify-center gap-2 p-8 text-center`,children:M(s.error)?(0,Q.jsx)(zt,{}):(0,Q.jsxs)(Q.Fragment,{children:[(0,Q.jsx)(re,{className:`text-lg font-medium`,children:(0,Q.jsx)(ee,{...$.openAppError})}),(0,Q.jsx)(`p`,{className:`text-codex-description`,children:(0,Q.jsx)(ee,{...$.openAppErrorDescription})})]})}):(0,Q.jsx)(Qt,{recipient:d,conversationId:r,hostId:i,in",
+    "claim": "生态App加载显示role=status的Opening app；error显示特殊分类surface或Couldn’t open app+Try opening again；组件没有内联Retry按钮。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E044",
+    "path": "webview/assets/chatgpt-ecosystem-widget-9ac3d263a470.js",
+    "offset": 13953,
+    "excerpt": ">{let t=e.get(ke,h);if(t!=null&&e.get(tt,t)?.isOpen===!1){se();return}e.get(F,h)&&_?.renderReady(),e.get(Pe,h)!=null&&_?.error(`widget_render`)});return()=>{e(),_?.close(`navigation_changed`)}},t[6]=se,t[7]=h,t[8]=f,t[9]=_,t[10]=v):v=t[10];let y;if(t[11]!==h||t[12]!==f||t[13]!==_?(y=[f,h,_],t[11]=h,t[12]=f,t[13]=_,t[14]=y):y=t[14],(0,Z.useEffect)(v",
+    "claim": "生态App观察renderReady/渲染错误/关闭状态；卸载解除watch并记录navigation_changed，不把旧surface生命周期遗留。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E045",
+    "path": "webview/assets/chatgpt-ecosystem-widget-9ac3d263a470.js",
+    "offset": 25072,
+    "excerpt": "e||n[139]!==z?(X=!C&&fe?(0,Q.jsx)(`div`,{className:`flex items-center`,children:F===`launcher`&&!je.isOpen?(0,Q.jsx)(t,{color:`ghost`,size:`compact`,onClick:()=>ve(D,p),children:(0,Q.jsx)(ee,{id:`chatgpt.widget.open`,defaultMessage:`Open {name}`,description:`Reopen a closed embedded app`,values:{name:z}})}):(0,Q.jsx)(gt,{disabled:!1,mcpAppId:p})}):null,n[133]=je,n[134]=C,n[135]=p,n[136]=F,n[137]=D,n[138]=fe,n[139]=z,n[140]=X):X=n[140];let ht;n[14",
+    "claim": "关闭的内嵌App在特定非fullSurface分支提供Open{name}重新打开按钮。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E046",
+    "path": "webview/assets/chatgpt-ecosystem-widget-resource-244044237d89.js",
+    "offset": 998,
+    "excerpt": "imeType:`text/html+skybridge`,text:r,uri:e.request.template}]},o=h(a);if(o?.kind!==`html`)throw Error(`The app returned an unsupported widget resource.`);return{...o,resourceKey:e.resourceKey,resourceQuery:e.resourceQuery,widget:e.widget,appIcon:{alt:e.widget.name??void 0,logoUrl:e.widget.logo_url,logoDarkUrl:e.widget.logo_url_dark},fitWidth:!1,widthHint:e.widget.widt",
+    "claim": "生态widget资源转换要求HTML类型，否则抛unsupported widget resource；CSP、height、边框等元信息独立映射。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E047",
+    "path": "webview/assets/mcp-app-follow-up-confirmation-dialog-ec9ddeefd593.js",
+    "offset": 1205,
+    "excerpt": "U),o[4]=U,o[5]=q);let J=q,Y;o[6]!==x||o[7]!==N||o[8]!==O||o[9]!==g?(Y=()=>{let e=O.getText().trim();x&&e.length>0&&g(M({context:N,prompt:e}))},o[6]=x,o[7]=N,o[8]=O,o[9]=g,o[10]=Y):Y=o[10];let X=Y,Z;o[11]===h?Z=o[12]:(Z=e=>{e||h()},o[11]=h,o[12]=Z);let Q;o[13]!==x||o[14]!==X||o[15]!==N||o[16]!==U||o[17]!==O||o[18]!==p||o[19]!==j||o[20]!==m||o[21]!==",
+    "claim": "App follow-up确认允许编辑prompt，canConfirm及trim非空才提交；新建输入controller禁用file/skill/slash，Enter配置newline。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E048",
+    "path": "webview/assets/mcp-app-follow-up-confirmation-dialog-ec9ddeefd593.js",
+    "offset": 2908,
+    "excerpt": "`Cancel button for a dialog asking whether an MCP app may send a follow-up prompt`})}),(0,B.jsx)(t,{disabled:!x||!j,type:`submit`,children:(0,B.jsx)(n,{id:`codex.mcpTool.confirmFollowUp.confirm`,defaultMessage:`Send`,description:`Confirm button for a dialog asking whether an MCP app may send a follow-up prompt`})})]})]",
+    "claim": "follow-up确认Send禁用受canConfirm/非空限制，Cancel调用onCancel；没有独立submitting/loading状态参数。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E049",
+    "path": "webview/assets/mcp-app-follow-up-confirmation-dialog-ec9ddeefd593.js",
+    "offset": 3928,
+    "excerpt": "x.mcpTool.confirmFollowUp.widgetStateAriaLabel`,defaultMessage:`Widget state JSON`,description:`Aria label for the editable JSON widget state in a follow-up confirmation dialog`}),autoFocus:!0,spellCheck:!1,value:U,onChange:e=>{W(e.target.value)}}),J==null?(0,B.jsx)(`p`,{className:`text-sm text-danger`,role:`alert`,children:(0,B.jsx)(n,{id:`codex.mcpTool.confirmFollowUp.invalidWidgetState`,defaultMessage:`Enter a valid JSON object under 32 KB`,description:`Validation error for invalid editable widget state JSON`})}",
+    "claim": "widget-state编辑器自动聚焦、关闭拼写检查，校验失败aria-invalid并role=alert；文案要求32KB内JSON对象。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E050",
+    "path": "webview/assets/mcp-app-follow-up-confirmation-dialog-ec9ddeefd593.js",
+    "offset": 4478,
+    "excerpt": ":`justify-start gap-2`,children:[(0,B.jsx)(t,{color:`ghost`,disabled:U===H,type:`button`,onClick:()=>{W(H)},children:(0,B.jsx)(n,{id:`codex.mcpTool.confirmFollowUp.resetWidgetState`,defaultMessage:`Reset`,description:`Button that resets edited widget state to the value supplied by the widget`})}),(0,B.jsx)(`div`,{className:`flex-1`}),(0,B.jsx)(t,{color:`secondary`,type:`button`,onClick:()=>{W(I(N)),K(`prompt`)},children:(0,B.jsx)(n,{id:`codex.mcpTool.confirmFollowUp.backToPrompt`,defaultMessage:`Back`,description:`Button that returns from widget state editing to the follow-up prompt`",
+    "claim": "widget-state Reset恢复最初值，Back放弃未应用改动返回prompt，Apply有效才写context并返回prompt。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E051",
+    "path": "webview/assets/mcp-app-follow-up-confirmation-dialog-ec9ddeefd593.js",
+    "offset": 6519,
+    "excerpt": "function L(e){try{return b(JSON.parse(e))}catch{return}}var R,z,B;function V(){return(V=e((()=>{R=m(),z=g(),c(),w(),O(),x(),f(),p(),o(),_(),E(),j(),B=h()})))()}export{V as n,N as t};\n//# sourceMapping",
+    "claim": "widget-state先JSON.parse再共享校验；失败undefined，从而禁用Apply。",
+    "scope": "32KB是可见校验提示；共享b的边界本轮未进一步展开，不声称由字符串length直接判断。"
+  },
+  {
+    "id": "E052",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 12024,
+    "excerpt": "!0,[P,te]=(0,Rn.useState)(!1),[re,ae]=(0,Rn.useState)(null),F=x!=null&&i.conversationContextType===`user_memory`&&i.memoryId!=null,[I,oe]=(0,Rn.useState)(null),[L,R]=(0,Rn.useState)(!1),z;n[6]===i?z=n[7]:(z=kn(i),n[6]=i,n[7]=z);let B=z,V=x!=null&&B!=null,H=S&&T!=null&&i.citationUuid!=null,le=x!=null&&g&&v,U=le&&v&&i.conversationContextType===`user_memory`,G=le&&i.conversationContextType===`user_instructions`,K;n[8]!==x||n[9]!==y||n[10]!==i.sidebarCitation?(K=x!=null&&i.sidebarCitation!=null&&y.get(`sidebar_explain_enabled`,!1),n[8]=x,n[9]=y,n[10]=i.sidebarCitation,n[11]=K):K=n[11];le",
+    "claim": "来源菜单按账户、source类型、memoryId、过去会话ID、citationUuid和实验分别开放，不是所有Sources行相同菜单。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E053",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 13218,
+    "excerpt": "if(!H&&!V&&!F&&q==null&&!U&&!G&&!pe)return null;let ve=fe;j===`positive`?ve=de:j===`negative`&&(ve=ce);let ye;n[21]!==d||n[22]!==i||n[23]!==a||n[24]!==k||n[25]!==o?(ye=e=>{wn(d,{target:k,source:i,sources:a,feedback:e,turn:o})},n[21]=d,n[22]=i,n[23]=a,n[24]=k,n[25]=o,n[26]=ye):ye=n[26];let ",
+    "claim": "没有任何可用动作的来源不渲染菜单；相关性反馈与解释、删除、纠错各自门控。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E054",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 16265,
+    "excerpt": "n[51]===je?Me=n[52]:(Me=W(`absolute inset-y-0 end-3 flex items-center group-focus-within/memory-source:pointer-events-auto group-focus-within/memory-source:opacity-100 group-hover/memory-source:pointer-events-auto group-hover/memory-source:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100`,je),n[51]=je,n[52]=Me);let Ne;n[53]===ve?Ne=n[54]:(Ne=(0,Y.jsx)(ve,{}),n[53]=ve,n[54]=Ne);let Pe;n[55]!==Ae||n[56]!==N||n[57]!==Ne?(Pe=(0,Y.jsx)(t,{\"aria-label\":Ae,color:`ghost`,size:`toolbar`,uniform:!0,disabled:N,children:Ne}),n[55]=Ae,n[56]=N,n[57]=Ne,n[58]=Pe",
+    "claim": "Memory actions默认可隐藏；hover/focus-within显示，hover:none触屏始终可见；pending禁用触发按钮。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E055",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 17156,
+    "excerpt": "con:(0,Y.jsx)(ge,{}),rightIcon:j===`positive`?(0,Y.jsx)(m,{}):void 0,disabled:N,onSelect:()=>xe(`positive`),children:(0,Y.jsx)(b,{id:`chatgptConversations.summaryPanel.sources.memory.feedback.relevant`,defaultMessage:`Relevant`,description:`Feedback menu option indicating a memory source was relevant`})}),(0,Y.jsx)(M.Item,{leftIcon:(0,Y.jsx)(r,{}),rightIcon:j===`negative`?(0,Y.jsx)(m,{}):void 0,disabled:N,onSelect:()=>xe(`negative`),children:(0,Y.jsx)(b,{id:`chatgptConversations.summaryPanel.sources.memory.feedback.notRelevant`,defaultMessage:`Not relevant`,descri",
+    "claim": "来源相关性可选Relevant/Not relevant，当前状态打勾，pending禁用；与整条消息thumbs不同。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E056",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 18003,
+    "excerpt": "73]!==o.conversationId?(ze=q==null?null:(0,Y.jsx)(M.Item,{leftIcon:(0,Y.jsx)(E,{asset:w}),onSelect:()=>{tn(d,o.conversationId,q),Gt(d)},children:(0,Y.jsx)(b,{...Bn.makeCorrection})}),n[71]=q,n[72]=d,n[73]=o.conversationId,n[74]=ze):ze=n[74];let Be;n[75]!==q||n[76]!==i.conversationContextType||n[77]!==De?(Be=q!=null&&i.conversationContextType===`general_memory`?(0,Y.jsx)(M.Item,{leftIcon:(0,Y.jsx)(E,{asset:C}),onSelect:()=>De(),children:(0,Y.jsx)(b,{...Bn.dontMentionAgain})}):null,n[75]=q,n[76]=i.conversationContextType,n[77]=De,n[78]=",
+    "claim": "来源Make correction调用会话纠错处理后关闭侧栏；general_memory另有Don’t mention again。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E057",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 18662,
+    "excerpt": "arator,{}):null,(0,Y.jsx)(M.Item,{leftIcon:(0,Y.jsx)(se,{}),onSelect:()=>oe({accountId:x,conversationId:B}),tone:`danger`,children:(0,Y.jsx)(b,{id:`chatgptConversations.summaryPanel.sources.pastConversation.delete`,defaultMessage:`Delete chat`,description:`Action on a past-chat citation in Sources. Opens the standard permanent chat-deletion confirmation dialog.`})})]}):null,n[79]=x,n[80]=V,n[81]=H,n[82]=B,n[83]=Ve):Ve=n[83];let He;n[84]!==x||n[85]!==F||n[86]!==N?(He=F?(0,Y.jsx)(M.Item,{disabled:N,leftIcon:(0,Y.jsx)(se,{}),onSelect:()=>ae(x),tone:`danger`,children:(0,Y.jsx)(b,{id:`cha",
+    "claim": "过去聊天来源Delete chat先保存accountId/conversationId并打开标准永久删除确认；saved memory另有Delete确认。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E058",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 14615,
+    "excerpt": "x||n[38]!==f||n[39]!==L||n[40]!==I||n[41]!==d?(we=()=>{I==null||L||I.accountId!==x||(R(!0),ot({scope:d,conversationId:I.conversationId}).then(async()=>{let e={queryKey:[`chatgpt-past-conversation-visibility`,I.accountId]};await d.queryClient.cancelQueries(e),d.queryClient.setQueriesData(e,e=>({...e,[I.conversationId]:!1})),oe(null)}).catch(()=>{d.get(ue).danger(f.formatMessage({id:`chatgptConversations.summaryPanel.sources.pastConversation.deleteError`,defaultMessage:`Failed to delete chat`,description:`Error toast shown when deleting a past chat cited as a memory source fails.`}),{e",
+    "claim": "来源删除过去聊天防重并核对当前账户；成功取消visibility查询并把目标设不可见再关闭；失败toast保持确认可重试。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E059",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 19866,
+    "excerpt": "9]=p,n[90]=Ue):Ue=n[90];let We;n[91]!==G||n[92]!==p?(We=G?(0,Y.jsx)(M.Item,{onSelect:()=>{p(`/settings/personalization#chatgpt-custom-instructions`)},children:(0,Y.jsx)(b,{id:`chatgptConversations.summaryPanel.sources.memory.viewCustomInstructions`,defaultMessage:`View custom instructions`,description:`Action on a custom-instructions citation in Sources. Opens Personalization settings with keyboard focus in the Custom instructions field.`})}):null,n[91]=G,n[92]=p,n[93]=We):We=n[93];let Ke;n[94]!==pe||n[95]!==Ce?(Ke=pe?(0,Y.jsx)(M.Item,{leftIcon:(0,Y.jsx)(l,{}),onSelect:Ce,children:(0",
+    "claim": "来源菜单可跳转Saved memories或Custom instructions设置；Why this memory还受sidebar_explain_enabled门控。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E060",
+    "path": "webview/assets/chatgpt-sources-floating-panel-60e64b44b1a8.js",
+    "offset": 1899,
+    "excerpt": "m;t[11]!==r||t[12]!==s||t[13]!==d?(m=(0,b.jsx)(u,{autoFocusClose:!0,closeLabel:s,isTransparent:!1,title:d,onClose:r}),t[11]=r,t[12]=s,t[13]=d,t[14]=m):m=t[14];let h;t[15]===i?h=t[16]:(h=(0,b.jsx)(`div`,{className:`min-h-0 flex-1`,children:(0,b.jsx)(f,{...i})}),t[15]=i,t[16]=h);let g;return t[17]!==m||t[18]!==h?(g=(0,b.jsxs)(b.Fragment,{children:[m,h]}),t[17]=m,t[18]=h,t[19]=g):g=t[19],g}var y,b;function x(){return(x=e((()=>{y=a(),r(),_(),d(),l(),",
+    "claim": "Sources浮层将初始焦点设为关闭按钮，标题h2，另有Memory FAQ帮助链接；主内容复用side panel。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E061",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 50565,
+    "excerpt": "ionId:r,group:i.key},t[0]=l,t[1]=r,t[2]=i.key,t[3]=p):p=t[3];let m=p,h=ke(Tr,m),_=o===`side-panel`&&i.sources.length>wr,v=i.sources.length-wr,y;t[4]!==i.sources||t[5]!==d||t[6]!==_?(y=_&&!d?i.sources.slice(0,wr):i.sources,t[4]=i.sources,t[5]=d,t[6]=_,t[7]=y):y=t[7];let x=y;if(o===`summary`&&!i.showHeading){let e;t[8]!==n||t[9]!==i.sources?(e=i.sources.map(n),t[8]=n,t[9]=i.sources,t[10]=e):e=t[10];let r;return t[11]===e?r=t[12]:(r=(0,$.jsx)(`ul`,{className:`flex flex-col`,children:e}),t[11]=e,t[12]=r),r}let S=re;i.key===`memory`&&(S=I),i.key===`web`&&(S=Ee),i.key===`files`&&",
+    "claim": "来源分组在side-panel超过阈值时局部截断；summary按共享展开状态控制，二者不是同一展开规则。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E062",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 52126,
+    "excerpt": "ex flex-col px-3 py-2`,children:[x.map(n),_?(0,$.jsx)(`li`,{children:(0,$.jsxs)(`button`,{\"aria-controls\":u,\"aria-expanded\":d,\"aria-label\":d?void 0:c.formatMessage({id:`chatgptConversations.sources.showMore.ariaLabel`,defaultMessage:`Show {count, plural, one {# more} other {# more}}`,description:`Accessible label for a button that reveals hidden sources in one category of the ChatGPT Sources panel`},{count:v}),className:`inline-flex h-8 cursor-interaction items-center justify-start gap-1 rounded-lg bg-transparent px-3 text-sm leading-5 font-med",
+    "claim": "来源Show more/less按钮关联列表并报告展开态，显示隐藏数量；保留focus-visible描边。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E063",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 3584,
+    "excerpt": "?[{id:`safety-or-legal-concern`,label:z.safety}]:[],...me.slice(-1)]),O=b===`response`&&g;let t=O?void 0:C,i;n[32]!==w||n[33]!==t||n[34]!==S||n[35]!==b?(i=(b===`image`||S)&&(w.length>0||!!t?.trim()),n[32]=w,n[33]=t,n[34]=S,n[35]=b,n[36]=i):i=n[36],D=i;let a;n[37]!==C||n[38]!==d||n[39]!==b?(a=e=>{le(t=>b===`response`?[e]:t.includes(e)?t.filter(t=>t!==e):[...t,e]),e===`safety-or-legal-concern`&&d(C)},n[37]=C,n[38]=d,n[39]=b,n[40]=a):a=n[40];let ee=a,o=async()=>{if(D&&!T){if(w.includes(`safety-or-legal-concern`)){d(C);return}de(!0),await p({details:t,tags:w,tagChoices:e.map(ye)}).finall",
+    "claim": "详细反馈response可隐藏自由文本；选项/文本与共享能力共同决定是否可提交，image与response的选择规则不同。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E064",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 4982,
+    "excerpt": "p gap-3 select-none`;let s;n[47]!==ee||n[48]!==w||n[49]!==b?(s=e=>(0,R.jsx)(`button`,{type:`button`,role:b===`response`?`radio`:void 0,\"aria-checked\":b===`response`?w.includes(e.id):void 0,\"aria-pressed\":b===`image`?w.includes(e.id):void 0,className:ne(`cursor-interaction inline-flex items-center justify-center gap-2 rounded-full border border-default px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`,w.includes(e.id)?`bg-primary-solid text-primary-solid`:`text-default hover:bg-surface-secondary`),onClick:()=>ee(e.id),children:(0,R.jsx)(r,{...e",
+    "claim": "反馈response选项radio且单选，image选项aria-pressed且多选；选中实色背景，未选hover背景，键盘focus ring。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E065",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 3978,
+    "excerpt": "&&d(C)},n[37]=C,n[38]=d,n[39]=b,n[40]=a):a=n[40];let ee=a,o=async()=>{if(D&&!T){if(w.includes(`safety-or-legal-concern`)){d(C);return}de(!0),await p({details:t,tags:w,tagChoices:e.map(ye)}).finally(()=>{de(!1)})&&ae()&&u()}};E=f,N=!0,n[41]===Symbol.for(`react.memo_cache_sentinel`)?(P={\"aria-describedby\":void 0},n[41]=P):P=n[41],n[42]===u?F=n[43]:(F=e=>{e||u()},n[42]=u,n[43]=F),I=`feedback`,L=`chatgpt`,A=`flex max-h-dvh flex-col`,j=e=>{e.preventDefault(),o()},n[44]===Symbol.for(`react.memo_cache_",
+    "claim": "反馈安全/法律项走onReport而非普通提交；普通提交防重复，成功且仍活跃才onClose，finally清loading。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E066",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 6199,
+    "excerpt": "O||n[58]!==x?(G=O?null:(0,R.jsx)(`div`,{className:`mt-6`,children:(0,R.jsx)(ie,{variant:`feedback`,name:`feedback`,autoComplete:`off`,\"aria-label\":x.formatMessage({id:`chatgpt.feedback.additionalFeedback`,defaultMessage:`Additional feedback`,description:`Accessible label for the optional text field in the ChatGPT response feedback dialog`}),placeholder:x.formatMessage({id:`feedbackFormDialog.detailsPlaceholder.optional`,defaultMessage:`Share details (optional)`,description:`Placeholder for an optional freeform feed",
+    "claim": "反馈附加文本可选，aria-label独立，关闭autoComplete；某些response模式不渲染它。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E067",
+    "path": "webview/assets/message-rating-1e090893572e.js",
+    "offset": 8449,
+    "excerpt": "let Ce=!D,we;n[73]===Symbol.for(`react.memo_cache_sentinel`)?(we=(0,R.jsx)(r,{id:`feedbackFormDialog.submit`,defaultMessage:`Submit`,description:`Label for the button that submits feedback`}),n[73]=we):we=n[73];let Z;n[74]!==T||n[75]!==Ce?(Z=(0,R.jsx)(`div`,{className:`mt-5 flex justify-end sm:mt-4`,children:(0,R.jsx)(t,{color:`primary`,size:`dialog`,type:`submit`,disabled:Ce,loading:T,children:we})}),n[74]=T,n[75]=Ce,n[76]=Z):Z=n[76];let Q;n[77]!==k||n[78]!==W||n[79]!==G||n[80]!==X||n[81]!==Z?(Q=(0,R.jsxs)(`div`,{className:k,children:[W,G,X,Z]}),n[77]=k,n[78]=W,n[79]=G,n[8",
+    "claim": "反馈Submit可用性来自D，loading来自提交中T；弹窗max-h-dvh和内部overflow-y-auto保证长表单滚动。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E068",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 7670,
+    "excerpt": "function qr({hasConversationSearchError:e,hasProjectListError:t,isConversationSearchFetching:n,isProjectListLoading:r,query:i,showChatGptProjects:a}){return!a||i.trim().length===0?null:r||n?`searching`:t||e?`error`:null}function Jr({chatGptSearchStatus:e,hasProjectListError:t,isProjectCatalogLoading:n,rowCount:r}){return t?`project-error`:r===0?n||e===`searching`?`loading`:e===`error`?`error`:`empty`:e===`error`?`partial-error`:e}function Yr({cloudRows:e=[],groups:t,query:n,sortDirection:r,sortKey:i,tasks:a,getSearchTitle:o}){let s=new Map(a.ma",
+    "claim": "项目搜索空白或不显示ChatGPT项目时不进入搜索状态；catalog/fetching为searching；错误与loading明确区分。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E069",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 7890,
+    "excerpt": "function Jr({chatGptSearchStatus:e,hasProjectListError:t,isProjectCatalogLoading:n,rowCount:r}){return t?`project-error`:r===0?n||e===`searching`?`loading`:e===`error`?`error`:`empty`:e===`error`?`partial-error`:e}function Yr({cloudRows:e=[],groups:t,query:n,sortDirection:r,sortKey:i,tasks:a,getSearchTitle:o}){let s=new Map(a.map(e=>[e.ke",
+    "claim": "项目状态优先project-error；零行+加载为loading、零行+搜索错为error，否则empty；有行+搜索错为partial-error。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E070",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 10022,
+    "excerpt": "a===`project-error`){let e;n[2]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Z.jsx)(o,{id:`projectsIndex.chatGpt.loadError`,defaultMessage:`Unable to load projects`,description:`Error shown on the Projects page when the ChatGPT project list fails to load. Previously loaded projects may remain visible above this message`}),n[2]=e):e=n[2];let a;n[3]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,Z.jsx)(o,{id:`projectsIndex.chatGpt.retry`,defaultMessage:`Retry`,description:`Button to retry loading the ChatGPT project list after a request fails`}),n[3]=a):a=n[3];let s;return n[4]!==r",
+    "claim": "ChatGPT项目列表失败保留此前已加载项目，并提供Retry按钮；重试期间按钮loading。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E071",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 11050,
+    "excerpt": "case`error`:{let e;n[8]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Z.jsx)(o,{id:`projectsIndex.search.chatGpt.error.full`,defaultMessage:`Couldn’t search ChatGPT chats`,description:`Full error state below the Projects table when searching returns no ChatGPT chats because the backend request failed. This does not mean there are no matching chats`}),n[8]=e):e=n[8],s=e;break bb0}case`partial-error`:{let e;n[9]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Z.jsx)(o,{id:`projectsIndex.search.chatGpt.error.partial`,defaultMessage:`Some ChatGPT chats may be missing`,description:`Warn",
+    "claim": "项目搜索完全失败说明Couldn’t search ChatGPT chats；partial-error说明Some chats may be missing，不伪装零匹配。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E072",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 12614,
+    "excerpt": "i=Array.from({length:4},oi),t[2]=i):i=t[2];let a;return t[3]===r?a=t[4]:(a=(0,Z.jsxs)(`div`,{\"aria-live\":`polite`,role:`status`,children:[r,i]}),t[3]=r,t[4]=a),a}function oi(e,t){return(0,Z.jsxs)(`div`,{className:A(Nr,Ir,`min-h-[70px] items-center py-2`),children:[(0,Z.jsx)(de,{className:`max-w-64`,lines:1,maxWidth:88,minWidth:52,seed:`projects-index-loading-name-${t}`}),(0,Z.jsx)(de,{className:`max-w-20 max-[680px]:hidden`,lines:1,maxWidth:92,minWidth:64,seed:`projects-index-loading-updated-${t}`,size:`sm`}),(0,Z.jsx)(`span`,{})]},t)}var si,Z;function ci(){return(ci=e((()=>{si=X(),T",
+    "claim": "项目加载/继续搜索渲染四行骨架，aria-live polite/status；每行min-height70px，Updated列680px以下隐藏。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E073",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 16594,
+    "excerpt": "zmo.id))):[],se;e[19]===c?se=e[20]:(se=c.trim().toLowerCase(),e[19]=c,e[20]=se);let ce=se,le=Zn(ce,Yi),de=O&&ce.length>0&&le.length>0&&!y.isProjectLoading,fe;e[21]===de?fe=e[22]:(fe={enabled:de},e[21]=de,e[22]=fe);let{hasError:pe,isFetching:me,projectResults:he}=ue(Qn,{projectIds:oe.map(hi),query:le},fe),ge;e[23]===_?ge=e[24]:(ge=e=>{let{conversations:t,projectId:n}=e;return[n,t.filter(e=>je(e.conversation_origin,_))]},e[23]=_",
+    "claim": "项目搜索先trim/lowercase并使用Yi时间参数；非空、允许显示且项目非loading才发ChatGPT搜索；延迟值Yi=200。",
+    "scope": "Zn共享实现未展开，时间参数按调用与常量确认，不推定每种键盘事件精确时间。"
+  },
+  {
+    "id": "E074",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 21681,
+    "excerpt": "r=e.matchingThreadKeys.length>0||e.matchingConversations.length>0;return n==null?null:(0,$.jsx)(wi,{expanded:t||r,isPinned:xe.has(e.projectId),onToggleExpanded:()=>Ne(e.id),project:n,projectCrudStatus:y.projectCrudStatus,row:e,searchForcedExpanded:r,canStartLocalTask:g,conversationFilter:_},e.id)}return(0,$.jsx)(Ni,{expanded:t||e.matchingThreadKeys.length>0,onShowAllChange:t=>Fe(e.projectId,t),onToggleExpanded:()=>Ne(e.id),row",
+    "claim": "匹配会话或本地任务的项目行强制展开；普通expanded本地集合仍独立保留。",
+    "scope": "此页混合本地与ChatGPT项目，本条仅cloud分支。"
+  },
+  {
+    "id": "E075",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 34057,
+    "excerpt": "if(v){let e;n[9]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(ji,{children:(0,$.jsx)(Hn,{children:(0,$.jsx)(o,{id:`projectsIndex.chatGpt.chats.loading`,defaultMessage:`Loading chats`,description:`Loading state for an expanded ChatGPT project on the projects index`})})}),n[9]=e):e=n[9],y=e}else if(g){let e;n[10]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,$.jsx)(ji,{children:(0,$.jsx)(o,{id:`projectsIndex.chatGpt.chats.error`,defaultMessage:`Could not load chats`,description:`Error state for an expanded ChatGPT project on the projects index`})}),n[10]=e):e=n[10],y=e}else",
+    "claim": "展开ChatGPT项目内部区分Loading chats/加载错误/No chats/列表；hideEmptyState可抑制No chats。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E076",
+    "path": "webview/assets/projects-index-page-792869f4bee7.js",
+    "offset": 35445,
+    "excerpt": "!==h||n[23]!==_?(S=h?(0,$.jsx)(t,{className:`mt-1`,color:`ghostMuted`,disabled:_,onClick:()=>{m()},children:_?(0,$.jsx)(o,{id:`projectsIndex.chatGpt.chats.loadingMore`,defaultMessage:`Loading…`,description:`Button label while loading more ChatGPT project chats`}):(0,$.jsx)(o,{id:`projectsIndex.chatGpt.chats.showMore`,defaultMessage:`Show more`,description:`Button label to load more ChatGPT project chats`})}):null,n[21]=m,n[22]=h,n[23]=_,n[24]=S):S=n[24];let C;return n[25]!==y||n[26]!==b||n[27]!==x||n[28]!==S?(C=(0,$.jsxs)(`div`,{className:`pb-3`,\"aria-label\":b,rol",
+    "claim": "项目聊天hasNextPage才显示加载更多；请求中禁用并切Loading文案；该错误分支未见内联Retry按钮。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E077",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10754639,
+    "excerpt": "Name:`flex items-center pe-8 text-base text-codex-description opacity-50`,children:[(0,p3.jsx)(NQ,{}),(0,p3.jsx)(W,{id:`chatgptConversations.sidebar.projectChatsError`,defaultMessage:`Could not load project chats`,description:`Error state for ChatGPT project conversations in the sidebar`}),b==null?null:(0,p3.jsx)(s,{color:`ghostSecondary`,onClick:b,children:(0,p3.jsx)(W,{id:`linkedProject.chats.retry`,defaultMessage:`Try again`,descript",
+    "claim": "另一个项目侧栏列表错误可选传onRetry；只有回调存在才渲染ghostSecondary Retry，不能把项目索引的错误UI与侧栏混为一处。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E078",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 40133,
+    "excerpt": "H=F&&!a.some(dr)?(0,$.jsx)(`ul`,{\"aria-hidden\":!0,className:`flex flex-col px-3 py-2`,children:(0,$.jsx)(vr,{})}):null,n[41]!==I||n[42]!==R||n[43]!==F?(ce=R?(0,$.jsxs)(`div`,{role:`alert`,className:`flex items-center justify-between gap-3 px-4 py-4 text-sm text-codex-description select-none`,children:[(0,$.jsx)(`span`,{children:(0,$.jsx)(b,{id:`chatgptConversations.summaryPanel.sources.context.loadError`,defaultMessage:`Couldn’t load sources`,description:`Error message in the ChatGPT Sources side panel when sources from memory, files, or connected apps fail to load. The user can retr",
+    "claim": "Sources初始loading且无memory分组时显示骨架；失败查询集合非空则role=alert+Couldn’t load sources，重试按钮loading跟随聚合fetching。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E079",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 40733,
+    "excerpt": " nearby button.`})}),(0,$.jsx)(t,{color:`secondary`,loading:F,size:`compact`,onClick:()=>{Promise.all(I.map(ur))},children:(0,$.jsx)(b,{id:`chatgptConversations.summaryPanel.sources.retry`,defaultMessage:`Try again`,description:`Compact button in the ChatGPT Sources side panel that retries loading sources from memory, files, or connected apps after a request failure.`})})]}):null,n[41]=I,n[42]=R,n[43]=F,n[44]=ce):ce=n[44],le=a.length===0&&!F&&!R?(0,$.jsx)(`div`,{className:`px-4 py-4 text-sm text-codex-description select-none`,children:_.formatMessage({id:`chatgptConversations.summary",
+    "claim": "Sources Try again只refetch失败查询集合；无分组、非fetching且无错误才显示No sources yet。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E080",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 53779,
+    "excerpt": "function vr(){let e=(0,Sr.c)(1),t;return e[0]===Symbol.for(`react.memo_cache_sentinel`)?(t=(0,$.jsx)($.Fragment,{children:Array.from({length:3},yr)}),e[0]=t):t=e[0],t}function yr(e,t){return(0,$.jsx)(`li`,{className:`flex items-center px-3 py-2.5`,\"aria-hidden\":!0,children:(0,$.jsx)(Ae,{lines:1,seed:`chatgpt-sources-loading-${t}`})},t)}function br(e,t){switch(e.conversationContextType){case`user_instructions`:return t.formatMessage(mn.userInstructions);case`user_memory`:return t.formatMessage(mn",
+    "claim": "Sources骨架为三行，li设置aria-hidden；side-panel分组默认最多6个来源，超过显示More。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E081",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 55197,
+    "excerpt": "t(),ht(),f(),$=Te(),ve(),wr=6,Tr=V(yt,e=>!1),Er=s(async()=>{let{MemorySummaryDialog:e}=await U(async()=>{let{MemorySummaryDialog:e}=await import(`./about-you-su",
+    "claim": "Sources每组side-panel折叠阈值为6；summary共享展开默认false。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E082",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 22247,
+    "excerpt": "function Fn(e){return e.preventDefault()}function In(){return null}var Ln,Rn,Y,zn,Bn;function Vn(){return(Vn=e((()=>{Ln=Ce(),ye(),",
+    "claim": "来源菜单onCloseAutoFocus显式preventDefault，不能宣称该菜单关闭后必然自动聚焦触发器。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E083",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 1904978,
+    "excerpt": "Rn=St?(0,w6.jsx)(MOt,{onAcknowledge:()=>{if(Ct(!1),Tt(null),!It()||tt.current!=null)return;let e=new AbortController;if(tt.current=e,NIe(W,e.signal).catch(()=>{e.signal.aborted||re.warning(`Failed to acknowledge ChatGPT image upload reminder`)}),!Rt()||wt==null&&rt.current===!1){ot();return}if(wt!=null){F(wt.files,de,wt.source);return}document.getElementById(mt)?.click()}}):null,t[190]=Rt,t[191]=ot,t[192]=It,t[193]=St,t[194]=F,t[195]=wt,t[196]=mt,t[197]=W,t[198]=Ct,t[199]=Tt,t[200]=de,t[201]=Rn):Rn=t[201];let zn;t[202]!==x||t[203]!==St||t[204]!==vt?(zn=x==null?null:(0,w6.jsx)(BDt,{co",
+    "claim": "公共ChatGPT上下文入口图片提醒确认后关闭提醒、清待处理状态、重检有效性并启动ack；继续处理已选文件或触发原文件picker，条件失败回到退出/焦点回调。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E084",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10768761,
+    "excerpt": "function g4c(e,t,n){if(e==null||e.is_temporary_chat)return!1;let r=`owner`in e?e.owner?.user_id:null,i=n?t?.split(`__`)[0]:t;return r==null||r===i}function _4c(){return(_4c=t((()=>{})))()}var v4c;function y4c(){return(y4c=t((()=>{v4c=`<svg\n  width=\"21\"\n  heigh",
+    "claim": "会话管理资格排除null与temporary chat，再按owner.user_id与当前user id核对；未提供owner也允许。",
+    "scope": "P页ls→app-initial.mW→g4c。"
+  },
+  {
+    "id": "E085",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 6024282,
+    "excerpt": "async function yga({scope:e,conversationId:t}){let n=Bha(e,t),r=e.get(Mg),i=e.get(Ov),a=e.get(Ng);e.set(jW,t,!0),oI(t);try{await zC.safeDelete(`/conversation/id/{conversation_id}`,{isExpectedError:e=>e.status===404&&e.errorCode===`conversation_deleted`,parameters:{path:{conversation_id:t}}}).catch(e=>{if(!(e instanceof Es)||e.status!==404||e.errorCode!==`conversation_deleted`)throw e}),n(),rAr(e,t,i,a),m7n(e,r,t),AW(e,t,`remove`),Nga(e,t);let{forgetPageWorkCompanionConversation:o}=await J(async()=>{let{fo",
+    "claim": "删除服务设置jW操作中，并将404且errorCode=conversation_deleted视作已删除；其它错误抛出。",
+    "scope": "P页qs→app-initial.qan→jW；该状态不是锁定/加密权限。"
+  },
+  {
+    "id": "E086",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 6024920,
+    "excerpt": "sation:e}},[],import.meta.url);o(e,yj(t)),Gga(e,t),bO(e,ID(t),r,`deleted`),e.queryClient.removeQueries({exact:!0,queryKey:[`chatgpt-conversation`,t]}),a_a(e.queryClient)}finally{oI(t),e.set(jW,t,!1)}}async function bga({scope:e,conversationId:t}){oI(t),await z",
+    "claim": "删除成功清理对应会话查询与附属状态；finally恢复jW=false，使失败后动作可再次触发。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E087",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 5040034,
+    "excerpt": "function Vyi(e,t={}){let n=e.get(JL.activeTab$),r=(n?.paneTransitions??n?.tabType.paneTransitions)?.exit;Vk(e,!1,{...t,animate:t.animate??(r==null?void 0:r===`animate`)})}function KL(e,t,n={}){if(t&&e.get(JL.activeTab$)?.tabType.allowFullWidth===!1||(e.set(ub,t?`full`:`split`),t||e.set(ib,",
+    "claim": "Sources菜单Gt映射到关闭侧栏Vyi：读取pane退出动画策略并调用关闭状态更新。",
+    "scope": "S文件Gt→app-initial.uwn→Vyi，不能解释为focusComposer。"
+  },
+  {
+    "id": "E088",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2324954,
+    "excerpt": "function Jzt(e){\"use forget\";let t=(0,N9.c)(21),{conversationId:n,customGpt:r,isTemporaryChat:i,locationKey:a,mode:o,onStarterPromptSelect:s,onBusinessAgentStarterPromptSelect:c}=e,[l]=(0,tBt.useState)(Wzt);if(o===`chat`&&r!=null){let e;t[0]!==n||t[1]!==r||t[2]!==s?(e=(0,P9.jsx)(Qzt,{conversationId:n,customGpt:r,onStarterPromptSelect:s}),t[0]=n,t[1]=r,t[2]=s,t[3]=e):e=t[3];let i=e;if(n!=null){let e;return t[4]!==n||t[5]!==i||t[6]!==c?(e=(0,P9.jsx)(XIt,{conversationId:n,fallback:i,onStarterPromptSelect:c}),t[4]=n,t[5]=i,t[6]=c,t[7]=e):e=t[7],e}return i}let u=o===`chat`&&i,d;t[8]===Sym",
+    "claim": "首页hero在chat且customGpt存在时进入自定义GPT介绍；否则chat临时态显示Temporary chat，普通chat走欢迎标题，work走工作标题。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E089",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2324103,
+    "excerpt": "function Wzt(){let e;return({id:t,locationKey:n,navigationType:r,name:i,userId:a})=>{if(e?.userId===a&&(e.locationKey===n||r===Td.Replace))return e.locationKey=n,e.headline;let o;if(e==null){let e=document.getElementById(t);o=Kzt.safeParse({message:e?.dataset.headline,name:e?.dataset.headlineName}).data}let s=o??Gzt(i);return e={locationKey:n,userId:a,headline:s},s}}function Gzt(e){if(e!=null){let t=Math.floor(Math.random()*(M9.length+j9.length));return t<M9.length?{message:M9[t],name:e}:{message:j9[t-M9.length],name:void 0}}return{message:j9[Math.floor(Math.random()*j9.len",
+    "claim": "欢迎标题按用户与location缓存；同location或Replace导航复用，初次可从DOM已有headline恢复，随后才随机选择。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E090",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2324472,
+    "excerpt": "function Gzt(e){if(e!=null){let t=Math.floor(Math.random()*(M9.length+j9.length));return t<M9.length?{message:M9[t],name:e}:{message:j9[t-M9.length],name:void 0}}return{message:j9[Math.floor(Math.random()*j9.length)],name:void 0}}var j9,M9,Kzt;function qzt(){return(qzt=e((()=>{So(),Me(),j9=[`readyWhenYouAre`,`onYourMind`,`agendaToday`,`shouldWeBegin`],M9=[`goodToSeeYou`,`readyToDiveIn`,`howCanIHelp`],Kzt=jn([cu({message:ql(j9),name:kd()}),cu({message:ql(M9),name:Ni()})])})))()}function Jzt(e){\"use forget\";let t=(0,N9.c)(21),{conversationId:n,customGpt:r,isTemporar",
+    "claim": "有可用昵称时从具名与无名标题集合共同选择；无名时只选四个通用标题，因此开启昵称也不保证每次问候都含姓名。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E091",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2323645,
+    "excerpt": "793646`),r=sde(`1704793646`)?.value,i={enabled:n?.get(`greeting_web`,!1)??r?.greeting_web===!0,nameCharLimit:n?.get(`name_char_limit`,20)??(typeof r?.name_char_limit==`number`?r.name_char_limit:20)};if(!i.enabled)return{name:void 0,ready:n!=null,options:i,userId:t};let a=e(rue,{accountId:e($D),userId:t}).data,o=e(qQ).data;return{name:a&&o?Rzt(a,o,n?.get(`full_name_llm`,!1)??r?.full_name_llm===!0):void 0,ready:a!=null&&o!=null,options:i,userId:t}})})))()}function Wzt(){let e;return({id:t,location",
+    "claim": "昵称问候由greeting_web门控并限制长度，默认20字符；个人资料和偏好尚未齐备时不提供name。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E092",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2322690,
+    "excerpt": "[11]===i?_=t[12]:(_=e=>(0,A9.jsx)(Dc,{title:i.formatMessage({id:`chatgptConversations.home.hero.editNickname`,defaultMessage:`Edit nickname`,description:`Tooltip on the name in the Chat home greeting. Clicking opens Personalization settings to edit the user's nickname.`}),to:`/settings/personalization?instructions=nickname`,children:e}),t[11]=i,t[1",
+    "claim": "首页欢迎标题中的昵称是链接，tooltip为Edit nickname，进入Personalization的nickname参数页面。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E093",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2327572,
+    "excerpt": "[12]!==u||t[13]!==s?.gizmo.display.prompt_starters||t[14]!==c||t[15]!==a){let e=s?.gizmo.display.prompt_starters?.slice(0,4),n;t[17]===u?n=t[18]:(n=(0,P9.jsx)(gC,{className:`size-12`,customGpt:u}),t[17]=u,t[18]=n);let i;t[19]===u.name?i=t[20]:(i=(0,P9.jsx)(`h1`,{className:`heading-xl font-normal text-default`,children:u.name}),t[19]=u.name,t[20]=i);let o;t[21]===f?o=t[22]:(o=f==null||f.length===0?null:(0,P9.jsx)(`p`,{className:`text-base text-secondary`,children:(0,P9.jsx)(J,{id:`chatgptConversa",
+    "claim": "自定义GPT主页最多取4条prompt starters；图标size12、名称h1，可选作者与描述；详情未加载时先用传入的customGpt基本信息。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E094",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2328698,
+    "excerpt": "zs(`mt-3 flex flex-wrap justify-center gap-2`,c&&`pointer-events-none`),inert:c,children:e.map(e=>(0,P9.jsx)(r,{color:`secondary`,disabled:a==null,size:`medium`,onClick:()=>a?.(e),children:e},e))})]}),t[10]=f,t[11]=m,t[12]=u,t[13]=s?.gizmo.display.prompt_starters,t[14]=c,t[15]=a,t[16]=h}else h=t[16];return h}function $zt(e){\"use forget\";l",
+    "claim": "GPT starter按钮无回调则disabled，另一共享阻塞状态让整个starter容器inert且pointer-events-none；点击只调用上层starter选择回调。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E095",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2329210,
+    "excerpt": "ash-screen-headline)`},t[0]=o):o=t[0];let s;t[1]===r?s=t[2]:(s=(0,P9.jsx)(`h1`,{\"aria-hidden\":!0,inert:!0,className:`heading-xl invisible font-normal whitespace-pre-wrap browser:min-h-10.5`,children:r}),t[1]=r,t[2]=s);let c;t[3]!==n||t[4]!==r||t[5]!==i||t[6]!==a?(c=(0,P9.jsx)(Di,{initial:!1,mode:`wait`,children:i?(0,P9.jsx)(eBt,{conversationId:n,headline:r},`temporary-chat-content`):(0,P9.jsx)(xo.div,{animate:{opacity:1,y:0},className:`absolute inset-x-0 bottom-0`,exit:{opacity:0,y:-4,transition:{duration:0}},initial:{opacity:0,y:-4},transition:{duration:.2,ease:`easeInOut`},children",
+    "claim": "hero以隐藏/inert的h1保留布局尺寸；可见headline进入动画opacity/y，200ms easeInOut，临时聊天另用独立key。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E096",
+    "path": "webview/assets/app-primary-b4ce9e46e8cf.js",
+    "offset": 2331117,
+    "excerpt": ",{className:`text-base leading-6 text-pretty text-secondary`,children:i===void 0?(0,P9.jsx)(J,{id:`chatgptConversations.home.temporaryDescription`,defaultMessage:`This chat won't appear in your conversation history`,description:`Short explanatory text shown on the ChatGPT temporary chat home page in Codex Desktop when optional personalization is unavailable`}):(0,P9.jsx)(J,{id:`chatgptConversations.home.temporaryDescription.personalization`,defaultMessage:`{personalized, select, true {This chat can reference memory, plugins, and custom instructions, but it won’t appear in your histor",
+    "claim": "临时首页副标题按可选个性化状态区分：能力不可用仅说明不入历史；明确true/false分别说明是否引用记忆/插件/自定义指令。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E097",
+    "path": "webview/assets/chatgpt-saved-memory-source-delete-dialog-be46f389b1ea.js",
+    "offset": 218,
+    "excerpt": "s\";function g(e){let a=(0,_.c)(20),{title:s,onClose:f,onConfirm:p}=e,m;a[0]===f?m=a[1]:(m=e=>{e||f()},a[0]=f,a[1]=m);let h;a[2]===p?h=a[3]:(h=e=>{e.preventDefault(),p()},a[2]=p,a[3]=h);let g;a[4]===Symbol.for(`react.memo_cache_sentinel`)?(g=(0,v.jsx)(c,{children:(0,v.jsx)(i,{title:(0,v.jsx)(r,{children:(0,v.jsx)(n,{id:`chatgptConversations.summaryPanel.sources.memory.delete.title`,defaultMessage:`Delete this memory?`,description:`Title of the con",
+    "claim": "保存记忆删除确认使用title与onConfirm；表单preventDefault后确认，未提供pending/loading状态；关闭调用onClose。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E098",
+    "path": "webview/assets/chatgpt-saved-memory-source-delete-dialog-be46f389b1ea.js",
+    "offset": 1641,
+    "excerpt": "]=b):b=a[7];let x;a[8]===f?x=a[9]:(x=(0,v.jsx)(t,{color:`secondary`,type:`button`,onClick:f,children:b}),a[8]=f,a[9]=x);let S;a[10]===Symbol.for(`react.memo_cache_sentinel`)?(S=(0,v.jsx)(t,{color:`danger`,type:`submit`,children:(0,v.jsx)(n,{id:`chatgptConversations.summaryPanel.sources.memory.delete.confirm`,defaultMessage:`Delete`,description:`Destructive confirmation button that permanently deletes the cited saved account memory from the ChatGPT Sources side panel.`})}),a[10]=S):S=a[10];let C;a[11]===x?C=a[12]:(C=(0,v.jsxs)(d,{child",
+    "claim": "保存记忆删除Cancel=secondary、Delete=danger submit；只删除被引用账户记忆，不等同删除历史聊天。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  },
+  {
+    "id": "E099",
+    "path": "webview/assets/chatgpt-sources-side-panel-tab-60b332fe3329.js",
+    "offset": 21785,
+    "excerpt": "==x&&x!=null&&i.memoryId!=null?(0,Y.jsx)(zn,{title:i.label,onClose:()=>ae(null),onConfirm:()=>{ae(null),On(d,{accountId:x,conversationId:T,messageId:i.messageId??o.messageId,source:i,onDeleteFailed:c})}},x):null,n[118]=x,n[119]=re,n[120]=c,n[121]=d,n[122]=T,n[123]=i,n[124]=o.messageId,n[125]=Qe):Qe=n[125];let $e;return n[126]!==Je||n[127]!==Ze||n[128]!==Qe?($e=(0,Y.jsxs)(Y.Fragment,{children:[Je,Ze,Qe]}),n[126]=Je,n[",
+    "claim": "来源保存记忆确认先关闭对话框，再调用删除服务并传onDeleteFailed；区别于过去聊天删除成功后才关闭。",
+    "scope": "本机构建静态实现；未运行目标代码，未证明当前账户开启。"
+  }
+]

@@ -2,8 +2,14 @@
 // 每个条目的标题同时收录 zh-CN 与 en-US 两套文案，实现跨语言别名匹配
 // （输入 "model" 命中「模型配置」、输入「通知」命中 Notifications）；
 // 另用硬编码别名表补充常见口语词（provider/主题/宠物/更新/远程 等）。
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { translateText, type SupportedLanguage } from '@/app/i18n'
+import {
+  LEGACY_RUNTIME_CAPABILITIES,
+  runtimeConfigSectionAvailable,
+  runtimeFeatureAvailable,
+  type RuntimeCapabilities,
+} from '@/types/runtime-capabilities'
 
 export type ConfigSearchEntry = {
   // 条目唯一 id（别名表指向与去重排序的依据）
@@ -13,6 +19,8 @@ export type ConfigSearchEntry = {
   // 点击后要定位高亮的卡片锚点（对应 data-config-card 属性值）；
   // 'section' 表示分区级条目，锚到分区根容器
   card: string
+  targetId?: string
+  expandGroup?: string
   // 卡片标题的 i18n key（渲染时按当前语言取文案）
   titleKey: string
   // 硬编码双语别名：只参与匹配，不参与展示
@@ -125,6 +133,7 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     id: 'models-current-model',
     section: 'models',
     card: 'models-current-model',
+    targetId: 'models-connections',
     titleKey: 'config:configPage.currentChatModel',
     keywords: ['model', 'provider', 'quick setup', '模型', '供应商', '快速配置', '对话模型'],
   },
@@ -138,7 +147,9 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
   {
     id: 'models-runtime-policy',
     section: 'models',
-    card: 'models-connections',
+    card: 'models-advanced',
+    targetId: 'models-runtime-policy',
+    expandGroup: 'models-advanced',
     titleKey: 'config:configPage.agentRuntimePolicy',
     keywords: ['runtime', 'agent', 'policy', '运行策略', '运行时', '执行策略'],
   },
@@ -146,6 +157,8 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     id: 'models-visual',
     section: 'models',
     card: 'models-visual',
+    targetId: 'models-visual',
+    expandGroup: 'models-advanced',
     titleKey: 'config:configPage.currentVisualModel',
     keywords: ['image', 'video', 'visual', '图片', '图像', '视频', '视觉', '生图'],
   },
@@ -192,6 +205,7 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     id: 'interface-style',
     section: 'interface',
     card: 'interface-style',
+    expandGroup: 'interface-advanced',
     titleKey: 'config:interfaceSettings.interfaceStyle',
     keywords: ['font', 'corner', 'radius', '字体', '字号', '圆角'],
   },
@@ -199,6 +213,7 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     id: 'interface-motion',
     section: 'interface',
     card: 'interface-motion',
+    expandGroup: 'interface-advanced',
     titleKey: 'config:interfaceSettings.displayAndMotion',
     keywords: ['motion', 'density', 'animation', '动效', '动画', '密度', '显示'],
   },
@@ -360,7 +375,14 @@ function titlePair(entry: ConfigSearchEntry): [string, string] {
 }
 
 // 搜索设置索引：返回按相关度排序的条目（别名命中 > 标题精确/前缀 > 标题包含 > 关键词）。
-export function searchConfig(query: string, language: SupportedLanguage): ConfigSearchMatch[] {
+export function searchConfig(
+  query: string,
+  language: SupportedLanguage,
+  {
+    capabilities = LEGACY_RUNTIME_CAPABILITIES,
+    mobileApp,
+  }: { capabilities?: RuntimeCapabilities; mobileApp?: boolean } = {},
+): ConfigSearchMatch[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return []
 
@@ -372,6 +394,15 @@ export function searchConfig(query: string, language: SupportedLanguage): Config
 
   const scored: Array<{ entry: ConfigSearchEntry; score: number }> = []
   for (const entry of ENTRIES) {
+    if (!runtimeConfigSectionAvailable(capabilities, entry.section)) continue
+    if (entry.id === 'models-visual' && !runtimeFeatureAvailable(capabilities, 'visualGeneration'))
+      continue
+    if (
+      mobileApp !== undefined &&
+      ((entry.section === 'mobile-server' && !mobileApp) ||
+        (entry.section === 'remote-access' && mobileApp))
+    )
+      continue
     if (
       typeof window !== 'undefined' &&
       ((entry.id === 'remote-workspaces' && !window.pisperDesktop?.remoteWorkspaces) ||
@@ -416,82 +447,95 @@ export function searchConfig(query: string, language: SupportedLanguage): Config
   return matches
 }
 
-// —— 目标卡片高亮桥接 ——
-// 搜索框（PageHeader 内）与设置卡片（ConfigPage 内）分属不同组件树，
-// 用模块级 pending + 自定义事件传递「点击结果 → 高亮卡片」请求；
-// 分区切换后由 useConfigCardHighlight 在新 DOM 挂载后消费。
+// 搜索请求保留显式展开目标与单调递增的导航标识；目标页在懒加载完成后才消费。
 export const CONFIG_CARD_HIGHLIGHT_EVENT = 'pisper:config-card-highlight'
 
-type PendingHighlight = {
+export type ConfigSearchTarget = {
   card: string
   section: string
+  targetId: string
+  targetText?: string
+  expandGroup?: string
+  navigationKey: number
 }
 
-let pendingHighlight: PendingHighlight | null = null
+let pendingHighlight: ConfigSearchTarget | null = null
+let navigationKey = 0
+const subscribers = new Set<() => void>()
+function publishTarget() {
+  for (const subscriber of subscribers) subscriber()
+}
+function subscribeTarget(subscriber: () => void) {
+  subscribers.add(subscriber)
+  return () => {
+    subscribers.delete(subscriber)
+  }
+}
 
-export function requestConfigCardHighlight(card: string, section: string) {
-  pendingHighlight = { card, section }
+export function requestConfigCardHighlight(
+  card: string,
+  section: string,
+  target: { targetId?: string; targetText?: string; expandGroup?: string } = {},
+) {
+  pendingHighlight = {
+    card,
+    section,
+    ...target,
+    targetId: target.targetId || card,
+    navigationKey: ++navigationKey,
+  }
+  publishTarget()
   window.dispatchEvent(new Event(CONFIG_CARD_HIGHLIGHT_EVENT))
 }
 
-function takePendingHighlight(section: string): PendingHighlight | null {
-  if (pendingHighlight?.section !== section) return null
-  const pending = pendingHighlight
-  pendingHighlight = null
-  return pending
-}
-
-// 对目标卡片做 1.2s 高亮闪烁：平滑滚动到视口中央，用现有焦点 token
-// （--focus / --focus-ring）临时加强 ring 与描边，到点后还原原内联样式。
-function flashConfigCard(pending: PendingHighlight) {
-  let target = document.querySelector<HTMLElement>(`[data-config-card="${pending.card}"]`)
-  // 目标卡片不存在（如条件渲染的卡片）时回退到分区根容器，保证点击总有反馈。
-  if (!target)
-    target = document.querySelector<HTMLElement>(`[data-config-card="${CONFIG_SECTION_ANCHOR}"]`)
-  if (!target) return
-  // 搜索命中折叠分组中的选项时先展开祖先，避免滚动到不可见控件。
-  for (let ancestor = target.parentElement; ancestor; ancestor = ancestor.parentElement) {
-    if (ancestor instanceof HTMLDetailsElement) ancestor.open = true
-  }
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  const previous = {
-    boxShadow: target.style.boxShadow,
-    borderColor: target.style.borderColor,
-    transition: target.style.transition,
-  }
-  target.style.transition = 'box-shadow .3s ease, border-color .3s ease'
-  target.style.boxShadow = '0 0 0 3px var(--focus-ring)'
-  target.style.borderColor = 'var(--focus)'
-  window.setTimeout(() => {
-    target.style.boxShadow = previous.boxShadow
-    target.style.borderColor = previous.borderColor
-    target.style.transition = previous.transition
-  }, 1200)
-}
-
-// ConfigPage 挂载/分区切换时消费待处理的高亮请求。
-// 同分区点击由事件监听即时消费；跨分区点击在新区内容渲染后由本效应消费。
+// 由目标页展开受控分组后再定位；MutationObserver 也覆盖模型目录异步加载和标签切换。
+// 新请求到来时清理旧观察者，旧分区与晚到内容不能抢走最新请求的焦点。
 export function useConfigCardHighlight(section: string) {
+  const pending = useSyncExternalStore(
+    subscribeTarget,
+    () => pendingHighlight,
+    () => null,
+  )
   useEffect(() => {
-    let prepareFrame = 0
-    let highlightFrame = 0
-    const consume = () => {
-      // 旧分区不能提前消耗新分区的请求，否则懒加载期间只能命中旧页面。
-      const pending = takePendingHighlight(section)
-      if (!pending) return
-      // 双 rAF：等分区切换后的新卡片完成布局再查找锚点。
-      cancelAnimationFrame(prepareFrame)
-      cancelAnimationFrame(highlightFrame)
-      prepareFrame = requestAnimationFrame(() => {
-        highlightFrame = requestAnimationFrame(() => flashConfigCard(pending))
+    if (!pending || pending.section !== section) return
+    let frame = 0
+    const locate = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (pendingHighlight?.navigationKey !== pending.navigationKey) return
+        const target = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-config-target], [data-config-card]'),
+        ).find(
+          (node) =>
+            node.dataset.configTarget === pending.targetId ||
+            node.dataset.configCard === pending.targetId,
+        )
+        if (!target || !target.getClientRects().length) return
+        const focusTarget =
+          target.querySelector<HTMLElement>(
+            'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex="0"]',
+          ) || target
+        if (!focusTarget.hasAttribute('tabindex') && focusTarget === target)
+          focusTarget.tabIndex = -1
+        focusTarget.focus({ preventScroll: true })
+        target.scrollIntoView({ block: 'center' })
+        observer.disconnect()
+        pendingHighlight = null
+        publishTarget()
       })
     }
-    consume()
-    window.addEventListener(CONFIG_CARD_HIGHLIGHT_EVENT, consume)
+    const observer = new MutationObserver(locate)
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden', 'style', 'data-state'],
+    })
+    locate()
     return () => {
-      window.removeEventListener(CONFIG_CARD_HIGHLIGHT_EVENT, consume)
-      cancelAnimationFrame(prepareFrame)
-      cancelAnimationFrame(highlightFrame)
+      cancelAnimationFrame(frame)
+      observer.disconnect()
     }
-  }, [section])
+  }, [pending, section])
+  return pending?.section === section ? pending : null
 }

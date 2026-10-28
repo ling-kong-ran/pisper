@@ -189,5 +189,11 @@
   "rail.resources": "资源",
   "rail.extensions": "扩展",
   "rail.automation": "自动化",
-  "pageHeader.themeLabel": "主题：{theme}"
+  "pageHeader.themeLabel": "主题：{theme}",
+  "appSidebar.resizeSidebar": "调整侧栏宽度",
+  "appOverlays.pages": "页面",
+  "appOverlays.labels": "会话标记",
+  "appOverlays.searchLabelsFailed": "无法搜索会话标记",
+  "appOverlays.loadChatsFailed": "无法读取会话列表",
+  "appOverlays.openResultFailed": "无法打开此结果，请重试"
 }

@@ -6,7 +6,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'
 
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useIsCompactSidebarViewport } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -76,8 +76,8 @@ function SidebarProvider({
   mobilePresentation?: 'sheet' | 'pane'
   persistent?: boolean
 }) {
-  const phoneViewport = useIsMobile()
-  const isMobile = mobile ?? phoneViewport
+  const compactSidebarViewport = useIsCompactSidebarViewport()
+  const isMobile = mobile ?? compactSidebarViewport
   const [_openMobile, _setOpenMobile] = React.useState(false)
   const openMobile = openMobileProp ?? _openMobile
   const setOpenMobile = React.useCallback(
@@ -186,7 +186,7 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          'flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground',
+          'flex h-full w-(--sidebar-width) shrink-0 flex-col bg-sidebar text-sidebar-foreground',
           className,
         )}
         {...props}
@@ -257,7 +257,7 @@ function Sidebar({
 
   return (
     <div
-      className="group peer hidden text-sidebar-foreground min-[651px]:block"
+      className="group peer text-sidebar-foreground"
       data-state={state}
       data-collapsible={state === 'collapsed' ? collapsible : ''}
       data-variant={variant}
@@ -268,7 +268,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
+          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear group-data-[resizing=true]/sidebar-wrapper:transition-none',
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -281,7 +281,7 @@ function Sidebar({
         data-side={side}
         inert={state === 'collapsed' && collapsible === 'offcanvas'}
         className={cn(
-          'absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-(--activity-rail-width) data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--activity-rail-width)-var(--sidebar-width))] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] min-[651px]:flex',
+          'absolute inset-y-0 z-10 flex h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear group-data-[resizing=true]/sidebar-wrapper:transition-none data-[side=left]:left-(--activity-rail-width) data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--activity-rail-width)-var(--sidebar-width))] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
           // Adjust the padding for floating and inset variants.
           variant === 'floating' || variant === 'inset'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'

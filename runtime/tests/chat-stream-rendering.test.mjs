@@ -5,6 +5,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TooltipProvider } from '../../src/components/ui/tooltip.tsx'
 import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
+import { ComposerSendButton } from '../../src/features/chat/focus-session-composer-bits.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
   const [page, liveSync, prompt] = await Promise.all([
@@ -168,22 +169,30 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.doesNotMatch(transcript, /WelcomeEffects|WelcomeFallback/)
 })
 
-test('composer send action has distinct enabled, disabled, and streaming states', async () => {
-  // 发送/停止按钮随 composer 展示组件拆分到 focus-session-composer-bits.tsx。
-  const focus = await readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8')
-  assert.doesNotMatch(focus, /className="button danger tiny" onClick=\{onAbort\}/)
-  assert.match(focus, /type=\{streaming \? 'button' : 'submit'\}/)
-  assert.match(focus, /send-button[^`\n]*\$\{streaming \? 'stop[^']*' : ''\}/)
-  assert.match(focus, /onClick=\{streaming \? onAbort : undefined\}/)
-  assert.match(focus, /streaming \? \(\s*<Square size=\{12\} fill="currentColor"/)
-  assert.match(focus, /send-button[^`\n]*bg-foreground[^`\n]*text-background/)
-  assert.doesNotMatch(focus, /send-button[^`\n]*bg-\[var\(--surface-subtle\)\]/)
-  assert.match(focus, /send-button[^`\n]*stop[^`\n]*bg-\[var\(--danger\)\]/)
-  assert.match(focus, /send-button[^`\n]*disabled:bg-foreground\/20/)
-  assert.match(focus, /send-button[^`\n]*disabled:text-background\/70/)
-  assert.doesNotMatch(focus, /send-button[^`\n]*disabled:opacity-/)
-  assert.match(focus, /<ArrowUp size=\{17\}/)
-  assert.match(focus, /rounded-full/)
+test('composer actions distinguish sending, steering, stopping, preparing and blocked states', () => {
+  const render = (props) =>
+    renderToStaticMarkup(
+      React.createElement(ComposerSendButton, {
+        queueing: false,
+        disabled: false,
+        onAbort() {},
+        ...props,
+      }),
+    )
+  assert.match(render({}), /type="submit"/)
+  assert.match(render({ streaming: true }), /type="button"/)
+  assert.match(render({ streaming: true, hasDraft: true, canQueue: true }), /type="submit"/)
+  assert.match(render({ streaming: true, hasDraft: true, canQueue: false }), /type="button"/)
+  for (const state of ['queueing', 'submitting', 'stopping', 'preparing']) {
+    const html = render({ [state]: true })
+    assert.match(html, /aria-busy="true"/)
+    assert.match(html, / disabled=""/)
+  }
+  const blocked = render({ blockedReason: 'Fixture unavailable' })
+  assert.match(blocked, /aria-disabled="true"/)
+  assert.match(blocked, /aria-label="[^"]*Fixture unavailable"/)
+  assert.doesNotMatch(blocked, / disabled=""/)
+  // 激活、IME及异步状态切换由 smoke-replica-chat 的真实组件夹具覆盖。
 })
 
 test('image previews portal above session-level controls', async () => {
@@ -357,7 +366,8 @@ test('stale streaming queue errors settle the old stream and resend as a new tur
   assert.match(queueHandler, /isEndedSessionQueueError\(error\)/)
   assert.match(queueHandler, /if \(activeStream\) await activeStream\.promise/)
   assert.match(queueHandler, /await loadSessionMessages\(sessionId, \{ force: true \}\)/)
-  assert.match(queueHandler, /void sendPrompt\(message, sessionId, attachments\)/)
+  // 回退必须等待新请求的接收结果；拒绝保留草稿由 replica-chat-behavior 实际调用验证。
+  assert.doesNotMatch(queueHandler, /void sendPrompt\(/)
   assert.doesNotMatch(
     queueHandler,
     /notify\(chatErrorMessage\(error\), 'error'\)[\s\S]*isEndedSessionQueueError/,

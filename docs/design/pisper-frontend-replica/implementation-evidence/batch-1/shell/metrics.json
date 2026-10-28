@@ -1,0 +1,32 @@
+{
+  "browser": "151.0.7922.34",
+  "locale": "zh-CN",
+  "timezone": "Asia/Shanghai",
+  "fixtureTime": "2026-10-20T09:00:00Z",
+  "desktop": {
+    "viewport": {
+      "width": 1200,
+      "height": 800
+    },
+    "width": 520,
+    "height": 213.25,
+    "radius": "16px",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif",
+    "fontSize": "13px",
+    "rootFontSize": "16px",
+    "devicePixelRatio": 1
+  },
+  "narrow": {
+    "viewport": {
+      "width": 390,
+      "height": 420
+    },
+    "dialog": {
+      "x": 15.6015625,
+      "y": 21,
+      "width": 358.796875,
+      "height": 213.25
+    }
+  },
+  "referenceScreenshotCompared": false
+}

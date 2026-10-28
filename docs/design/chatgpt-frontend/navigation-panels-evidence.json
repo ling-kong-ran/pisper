@@ -1,0 +1,770 @@
+[
+  {
+    "id": "N001",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 2068891,
+    "excerpt": "function zYt(){return tb(_h(WYt,340))}function BYt(e){vh(WYt,tb(e))}function VYt(){return zYt()}function HYt(e){}function tb(e,t=1/0,n=240){return Number.isFinite(e)?Math.max(n,Math.min(e,520,t-240)):Math.max(340,n)}var UYt,WYt;function nb(){return(nb=t((()=>{Rie(),ahe(),Th(),Mhe(),UYt=`(min-width: 768px)`,WYt=`sidebar-width`})))()}function GYt({defaultWidth:e,mainContentWidth:t,shellHeight:n}){return e===600?Math.max(320,Math.min(n*rXt,t-tXt),Math.min(nXt,t-iXt)):e}function KYt(e,t,n=`regular`){let r=Number.isFinite(e)?e:600,i=ZYt(t,n);return Math.max(Math.min(320,i),Math.",
+    "claim": "侧栏持久化键 sidebar-width；默认 340，有限值下限 240、上限 520，并受可用宽度减 240 约束；响应式查询 768px。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N002",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 2069225,
+    "excerpt": "function GYt({defaultWidth:e,mainContentWidth:t,shellHeight:n}){return e===600?Math.max(320,Math.min(n*rXt,t-tXt),Math.min(nXt,t-iXt)):e}function KYt(e,t,n=`regular`){let r=Number.isFinite(e)?e:600,i=ZYt(t,n);return Math.max(Math.min(320,i),Math.min(r,i))}function qYt({defaultWidth:e,mainContentWidth:t,storageKey:n,widthMode:r}){let i=_h(n,null);return i==null||!Number.isFinite(i)?YYt(e,t,r):i<=1?$Yt(i):YYt(i,t,r)}function JYt({mainContentWidth:e,storageKey:t,width:n,widthMode:r}){vh(t,YYt(n,e,r))}function YYt(e,t,n=`regular`){let r=QYt(t,n),i=r.maximum-r.minimum;return i==",
+    "claim": "右面板默认宽 600 时使用 shell 高度与主区宽度计算；宽度被 KYt 约束，保存前经 YYt 转比例。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N003",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 2069940,
+    "excerpt": "function ZYt(e,t){return t===`full`?Math.max(320,e):Math.max(320,e-(t===`unified`?320:iXt))}function QYt(e,t){let n=ZYt(e,t);return{maximum:n,minimum:Math.min(320,n)}}function $Yt(e){return Math.max(0,Math.min(1,e))}var eXt,tXt,nXt,rXt,iXt;function aXt(){return(aXt=t((()=>{ppe(),Th(),eXt=`app-shell:right-panel-width:v3`,tXt=500,nXt=640,rXt=16/10,iXt=352})))()}function rb(e,t,{updateWorkspaceFocusArea:n=!0}={}){n&&t!==`bottom-panel`&&e.get(gb)!==t&&e.set(gb,t),e.get(hb)!==t&&e.set(hb,t)}function oXt(e,t){e.get(KXt)!==t&&e.set(KXt,t)}function sXt(e,t){e.get(qXt)!==t&&e.set(qX",
+    "claim": "右面板最小 320；full 使用全宽，unified 保留 320，regular 保留 352；持久化键 app-shell:right-panel-width:v3。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N004",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 100260,
+    "excerpt": "@media not all and (width>=768px){._Layout_etoz9_2[data-app-shell-responsive-sidebar=true]{--app-shell-left-panel-width:0px}._Layout_etoz9_2[data-app-shell-responsive-sidebar=true] ._ResponsiveLeftPanel_etoz9_2{display:none}._Layout_etoz9_2[data-app-shell-responsive-sidebar=true] ._MainContentLeftBorder_etoz9_2{border-left:0}}._SidebarToolbarSeparator_etoz9_2{top:calc(var(--app-shell-root-banner-height,0px) + var(--app-shell-application-menu-height) + var(--height-toolbar))}._Workspace_etoz9_2:has(._MainContentViewport_etoz9_2 [data-app-shell-page-scrolled]):has([data-app-s",
+    "claim": "启用 responsive-sidebar 的壳在 768px 以下把左面板宽置零、隐藏响应式左面板并去掉主区左边框。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N005",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11393572,
+    "excerpt": "Xe,at=!d&&B&&M&&re&&!P7n()&&!Fe&&!Xe,ot;t[46]===L?ot=t[47]:(ot=L.formatMessage({id:`sidebarElectron.chatHistoryNavigation`,defaultMessage:`Chat history`,description:`Navigation landmark for the main sidebar with new chat, projects, and recent chats`}),t[46]=L,t[47]=ot);let st=ot;if(d){let e=w==null?null:sL[w]?.sidebar;if(e===`conversations`){let e;t[48]===L?e=t[49]:(e=L.formatMessage({id:`sidebarElectron.homeNavigation`,defaultMessage:`Home`,description:`Navigation landmark for the Home sidebar`}),t[48]=L,t[49]=e),st=e}else if(e===`scheduled`){let e;t[50]===L?e=t[51]:(e=L.formatMessage({id:`si",
+    "claim": "主侧栏使用 Chat history landmark；按 feature sidebar 类型切换 Home、Scheduled 等可访问标签。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N006",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11392033,
+    "excerpt": "let Me=fu(je),Ne=Oe===`work`?`chatgpt`:`codex`,Pe=Eu(B&&!d?eva:!1,Ne),Fe=Eu(Zhi,Ne)&&(!d||w===`home`),Ie;t[28]!==Oe||t[29]!==k?(Ie=Oe!==`work`||lO(k),t[28]=Oe,t[29]=k,t[30]=Ie):Ie=t[30];let Le=Ie,Re;t[31]!==Oe||t[32]!==O?(Re=Oe!==`work`||lO(O),t[31]=Oe,t[32]=O,t[33]=Re):Re=t[33];let ze=Re,Be=ze||Le,Ve=yza(),He=!M||!Be?`off`:Ve,Ue=Eu(B&&He===`header_icon`?zBa:!1,Ne),We;t[34]!==ke||t[35]!==s?(We=()=>Pza(s,ke),t[34]=ke,t[35]=s,t[36]=We):We=t[36];let Ge=B&&!g&&He===`header_icon`,Ke;t[37]===Ge?Ke=t[38]:(Ke={enabled:Ge},t[37]=Ge,t[38]=Ke),uj(`togglePriorityFilter`,We,Ke);let qe=a",
+    "claim": "主壳按 productMode work 映射 chatgpt，否则 codex；work 云端/本地内容分别门控。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N007",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10425073,
+    "excerpt": "`group/sidebar-rail relative flex min-h-0 shrink-0 flex-col items-center gap-2 px-2 pb-2 select-none browser:w-13 browser:gap-0 browser:px-0 browser:pt-0 browser:[--height-token-nav-row:36px] browser:[--height-token-row:36px] browser:[--padding-row-cell-x:8px] browser:[--padding-row-x:8px] browser:max-md:border-e browser:max-md:border-subtle browser:max-md:dark:border-default`,pe,`pt-[calc((var(--sidebar-navigation-header-height,calc(var(--spacing)*10))-var(--spacing)*9)/2)]`,`[[data-app-shell-page-surface=true]_&]:pb-1`),t[67]=pe,t[68]=M),N=!0,t[69]===_?P=t[70]:(P=_.format",
+    "claim": "主导航 rail 是独立纵向 flex，浏览器宽度 w-13，nav row 36px，横向 padding 8px，支持小屏边框。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N008",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10428654,
+    "excerpt": "id:`sidebarElectron.rail.reorder.instructions`,defaultMessage:`Drag to reorder pinned navigation items`,description:`Screen reader instructions for reordering pinned navigation rail items`})}},onDragEnd:e=>{let{active:t,over:n}=e,r=ae.find(e=>e===t.id),i=ae.find(e=>e===n?.id);r!=null&&i!=null&&oe(r,i)},children:(0,x4.jsx)(Uz,{items:ae,strategy:Kz,children:ne.length>0&&(0,x4.jsx)(gV,{className:fs(`shrink-0 items-center browser:items-stretch`,m&&`browser:gap-y-4`),itemSpacing:`rail`,children:ne.map(e=>e.id===pL.activity?(0,x4.jsx)(_Wc.Fragment,{children:n},e.id):(0,x4.jsx)(MUc,{item:e,draggable:",
+    "claim": "导航 rail 支持可访问拖动排序；onDragEnd 校验 active/over 均属 eligible 项才调用 reorder。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N009",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10584654,
+    "excerpt": "id:`sidebarCustomization.reorder.instructions`,defaultMessage:`To reorder this sidebar item, press Space or Enter. Use the arrow keys to move it, press Space or Enter to drop it, or press Escape to cancel`,description:`Screen reader instructions for reordering a sidebar destination with the keyboard`}),t[28]=o,t[29]=O);let k;t[30]===O?k=t[31]:(k={draggable:O},t[30]=O,t[31]=k);let A;t[32]!==D||t[33]!==k?(A={announcements:D,container:document.body,screenReaderInstructions:k},t[32]=D,t[33]=k,t[34]=A):A=t[34];let j=Iz,M;t[35]===i?M=t[36]:(M=()=>{u(null),i(!1)},t[35]=i,t[36]=M);",
+    "claim": "自定义侧栏排序提供 Space/Enter、方向键、放下与 Escape 的键盘说明。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N010",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10669731,
+    "excerpt": "O=T.length>=8,k;t[5]===a?k=t[6]:(k=a.formatMessage({id:`sidebarCustomization.moreMenu`,defaultMessage:`Explore`,description:`Opens the sidebar Explore menu containing secondary destinations`}),t[5]=a,t[6]=k);let A=k,j;t[7]!==d||t[8]!==n||t[9]!==i?(j=()=>{let e=i.get(F$c),t=n.map(k$c).filter(t=>N$c(t,d,e));if(t.length===0)return;let r=d??`anonymous`;i.set(F$c,e=>({...e,[r]:[...e?.[r]??[],...t]}))},t[7]=d,t[8]=n,t[9]=i,t[10]=j):j=t[10];let M=(0,r3.",
+    "claim": "Explore 导航 pin 数量上限 8；包含当前目标不在已固定集合的判断。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N011",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 4980682,
+    "excerpt": "id:`sidebarCustomization.pinLimitReached`,defaultMessage:`Up to {limit} pins allowed`,description:`Explains why adding another pinned sidebar destination is unavailable when the pin limit has been reached`},{limit:8}),{errorAnalytics:{toastId:`sidebarCustomization.pinLimitReached`}})}function whi(e,t){let n=e??`anonymous`;return{version:2,orderByAccountId:{[n]:t.order},visibilityByAccountId:{[n]:t.pinOverrides}}}function Thi(e,t){return(e.accountId==null||e.accountId===t.accountId)&&(e.userId==n",
+    "claim": "达到 8 个导航 pin 时显示 up to limit 文案，区别于聊天置顶数量。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N012",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 9910259,
+    "excerpt": "function ywc(){hs.dispatchHostMessage({type:`chat-search-command-menu`})}var bwc,H0;function xwc(){return(xwc=t((()=>{bwc=Z(),G(),Us(),Qz(),Sa(),tc(),Go(),bs(),xV(),yV(),MXi(),hwc(),H0=$()})))()}var S",
+    "claim": "主侧栏 Search handler dispatch chat-search-command-menu host message。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N013",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 9909888,
+    "excerpt": "function vwc(){let e=(0,bwc.c)(5),t=za();Eu(Zz,`searchChats`);let n=Eu(Zz,`openCommandMenu`),r;e[0]===t?r=e[1]:(r=t.formatMessage({id:`sidebarElectron.search`,defaultMessage:`Search`,description:`Sidebar navigation item that opens task search`}),e[0]=t,e[1]=r);let i=n,a;return e[2]!==r||e[3]!==i?(a={searchMessage:r,searchShortcutLabel:i},e[2]=r,e[3]=i,e[4]=a):a=e[4],a}function ywc(){hs.dispatchHostMessage({type:`chat-search-command-menu`})}var bwc,H0;function xwc(){return(xwc=t((()=>{bwc=Z(),G(),Us(),Qz(),Sa(),tc(),Go(),bs(),xV(),yV(),MXi(),hwc(),H0=$()})))()}var Swc,Cwc,wwc;function Twc(){ret",
+    "claim": "Search tooltip 读取 openCommandMenu 的当前快捷键标签而非硬编码。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N014",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10615915,
+    "excerpt": "function rQc(e){let t=(0,W4.c)(2),{sidebarMode:n}=e,r;return t[0]===n?r=t[1]:(r=n===`chatgpt`?(0,K4.jsx)(iQc,{}):(0,K4.jsx)(aQc,{homeComposerMode:`work`}),t[0]=n,t[1]=r),r}function iQc(){let e=(0,W4.c)(2),{previewNavigationState:t}=(0,G4.useContext)(jq),n=Eu(Tqt,t?.sidebarProductMode),{state:r}=ru(),i=r?.aeonDraft==null?n:`work`;if(i==null)return null;let a;return e[0]===i?a=e[1]:(a=(0,K4.jsx)(aQc,{homeComposerMode:i}),e[0]=i,e[1]=a),a}function aQc(e){let t=(0,W4.c)(30),{homeComposerMode:n}=e,r=hi(U),{previewNavigationState:i}=(0,G4.useContext)(jq),a=Br(),{pathname:o,state:",
+    "claim": "ChatGPT New chat 读取当前 homeComposerMode；Codex 使用 work；缺失 mode 时不显示。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N015",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10616895,
+    "excerpt": "f=()=>{if(n===`chat`&&!tto(r)){nto(r,i);return}d({selectChat:!0})},t[3]=d,t[4]=n,t[5]=i,t[6]=r,t[7]=f):f=t[7];let p=fu(f),m;t[8]===d?m=t[9]:(m=()=>d({selectChat:!0}),t[8]=d,t[9]=m),uj(`newTask`,m);let h;t[10]!==d||t[11]!==a||t[12]!==i?(h=e=>{e==null?a(`/`,{state:{chatGptProjectId:null,...i}}):d({target:e})},t[10]=d,t[11]=a,t[12]=i,t[13]=h):h=t[13];let g;t[14]!==c||t[15]!==n||t[16]!==l||t[17]!==o||t[18]!==s?.sidebarCustomSectionId?(g=l&&pc(o)&&s?.sidebarCustomSectionId==null&&(n===`chat`||c==null",
+    "claim": "New chat handler 根据 chat 模式和能力调用 nto 或项目/普通聊天启动分派器，并注册 newTask 命令。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N016",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11291149,
+    "excerpt": "id:`sidebarElectron.pinnedThreads`,defaultMessage:`Pinned`,description:`List label for pinned threads in the sidebar`}),t[95]=R,t[96]=jn);let Mn=jn,Nn=`Recents`,Pn;t[97]===R?Pn=t[98]:(Pn=R.formatMessage({id:`sidebarElectron.chatGptWork.recents`,defaultMessage:`Recents`,description:`Short sidebar section label for the unified list of recent ChatGPT chats and Codex tasks`}),t[97]=R,t[98]=Pn);let Fn=Pn;if(f){Nn=`Unreads`;let e;t[99]===R?e=t[100]:(e=R.formatMessage(YHc.unreadsTitle),t[99]=R,t[100]=e),Fn=e}let In=uKi(Pt.chatAttentionStates),Ln=a2c({catalogPageState:qe,canFetchNe",
+    "claim": "统一侧栏具备 Pinned 与 Recents 标签；Recents 文案描述统一 ChatGPT chats 和 Codex tasks。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N017",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 11298773,
+    "excerpt": "id:`sidebarElectron.projectsError`,defaultMessage:`Projects couldn't be loaded`,description:`Error state for ChatGPT projects in the sidebar`}),At.isProjectListError?(0,W6.jsx)(s,{color:`secondary`,size:`actionSm`,loading:At.isProjectListRequestInProgress,onClick:At.refetchProjectList,children:(0,W6.jsx)(W,{id:`sidebarElectron.projectsRetry`,defaultMessage:`Retry`,description:`Button to retry loading the ChatGPT project list in the sidebar after a request fails`})}):null]}):null]}),ar=ue===`connection`?$n:(0,W6.jsx)(F0,{className:`-mb-4 pb-4 browser:-mb-5 browser:pb-5`,containerId:`c",
+    "claim": "项目列表有加载错误与 Retry，Retry 实际调用 refetchProjectList。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N018",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10593660,
+    "excerpt": "id:`sidebarElectron.groupByMenu.submenuTitle`,defaultMessage:`Organize sidebar`,description:`Menu item that opens sidebar organization options`},sort:{id:`sidebarElectron.chatsSortMenu.title`,defaultMessage:`Sort chats by`,description:`Header for sidebar task sort dropdown`},project:{id:`sidebarElectron.flatProjectSidebar.byProject`,defaultMessage:`By project`,description:`Menu item that organizes flat sidebar tasks by project`},connection:{id:`sidebarElectron.groupByMenu.connection`,defaultMessage:`By connection`,description:`Option to group sidebar projects by connected r",
+    "claim": "Organize sidebar 包含按项目/连接/单列表；本片段为消息表，实际可用选项另受 handler 条件限制。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N019",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10597108,
+    "excerpt": "id:`sort-sidebar`,icon:Wpe,message:iZc.sort,submenu:nZc([`updated_at`,`manual`],a===`projects`?x:b,e)})}!c&&a===`chats`&&S.push(...Gma(u,m&&r===`project`?f:null,h)),g&&a===`chats`&&(S.length>0&&S.push({id:`section-separator`,type:`separator`}),S.push(POc(u))),t[11]=b,t[12]=v,t[13]=g,t[14]=r,t[15]=c,",
+    "claim": "实际侧栏排序子菜单使用 updated_at 与 manual，不把消息表中 created_at 当成当前菜单。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N020",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10020648,
+    "excerpt": "id:`sidebarElectron.archiveThreadShort`,defaultMessage:`Archive`,description:`Sidebar chat action that archives the chat`},pin:{id:`sidebarElectron.pinThreadShort`,defaultMessage:`Pin`,description:`Sidebar chat action that pins the chat`},project:{id:`sidebar.threadProject.projectMenu`,defaultMessage:`Project`,description:`Submenu label for moving a chat between sidebar projects`},rename:{id:`sidebarElectron.renameThreadShort`,defaultMessage:`Rename`,description:`Sidebar chat action that renames the chat`},section:{id:`sidebarCustomSections.sectionMenu`,defaultMessage:`Sect",
+    "claim": "聊天行菜单文本覆盖归档、固定、项目、重命名、分区；各项可见性不能仅由文案断言。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N021",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 10260202,
+    "excerpt": "id:`sidebarElectron.renameThreadEmojiSaveFailed`,defaultMessage:`Your title is saved, but the emoji couldn't be saved. Try again`,description:`Error shown when saving a task title succeeded but saving its separate emoji failed`}})}})))()}function _Rc(e,t,n){return!hl(t)||!e.get(rg,`459748632`)?!1:(hs.dispatchMessage(`open-in-new-window`,{",
+    "claim": "重命名错误明确区分全部保存失败与标题已保存但 emoji 失败。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N022",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 31315,
+    "excerpt": "queryKey:[`command-menu-thread-search`,e,ae,R],queryFn:async()=>{try{return await Bn(d,e).searchThreads({query:ae,limit:R})}catch{return[]}},enabled:F&&oe&&ae.length>0,staleTime:N.THIRTY_SECONDS}))}),B=oe&&ae===I,V;t[12]!==F||t[13]!==B||t[14]!==le?(V=gi(F&&B?le.flatMap(qa):[]),t[12]=F,t[13]=B,t[14]=le,t[15]=V):V=t[15];let ue=L(V),de;t[16]!==ue||t[17]!==z.searchResults||t[18]!==re||t[19]!==R||t[20]!==I?(de=ln({asyncResults:ue,chatGptResults:z.searchResults,loadedChatSearchResults:re,limit:R,query:I}),t[16]=ue,t[17]=z.searchResults,t[18]=re,t[19]=R,t[20]=I,t[21]=de):de=t[21];",
+    "claim": "命令搜索按 host、去抖 query、limit 建查询键；只在功能启用、包含内容结果且 query 非空时请求；30 秒 staleTime。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N023",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 50842,
+    "excerpt": "xo=200,So=7,Co=2e3,wo=`w-24 shrink-0 text-end`,To=De(u,({get:e})=>{if(!e(Yt))return null;l",
+    "claim": "搜索去抖常量 xo=200；其用途由 Ga 中 ii(I,xo) 调用确定。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N024",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 31062,
+    "excerpt": "let I=ie,ae=ii(I,xo),{includeContentResults:oe,maxResults:R}=s,se=M&&oe,ce;t[7]!==R||t[8]!==l||t[9]!==se||t[10]!==I?(ce={enabled:se,eventLogger:l,limit:R,search:I},t[7]=R,t[8]=l,t[9]=se,t[10]=I,t[11]=ce):ce=t[11];let z=Hi(ce),le=ee({queries:ne.map(e=>({queryKey:[`command-menu-thread-search`,e,ae,R],queryFn:async()=>{try{return await Bn(d,e).searchThreads({query:ae,limit:R})}catch{return[]}},enabled:F&&oe&&ae.length>0,staleTime:N.THIRTY_SECONDS}))}),B=oe&&ae===I,V;t[12]!==F||t[13]!==B||t[14]!==le?(V=gi(F&&B?le.flatMap(qa):[]),t[12]=F,t[13]=B,t[14]=le,t[15]=V):V=t[15];let ue=",
+    "claim": "输入 trim 后经过 ii(I,xo)，聊天内容搜索与 host 搜索合并；新旧 query 不一致时不使用异步 host 结果。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N025",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 4660,
+    "excerpt": "enabled:f,eventLogger:null,includeSpace:u,limit:5,search:c,searchScope:`space`},t[0]=c,t[1]=u,t[2]=f,t[3]=p):p=t[3];let h=Hi(p),g,y,b,x,S,C,w,T,E;if(t[4]!==n||t[5]!==i||t[6]!==a||t[7]!==d||t[8]!==s||t[9]!==o||t[10]!==c||t[11]!==l||t[12]!==r||t[13]!==h||t[14]!==u){y=Symbol.for(`react.early_return_sentinel`);bb0:{let e=wn(c),f=d?.",
+    "claim": "Page 搜索 scope=space、limit=5，只有允许 Space 且 query 非空时执行。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N026",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 6230,
+    "excerpt": "u`}):(0,aa.jsx)(_,{id:`codex.space.page.commandMenu.recent`,defaultMessage:`Recent Pages`,description:`Heading for up to five locally remembered Pages, most recently opened first, below recent chats in the command menu`}),m?(0,aa.jsx)(Me,{as:`span`,className:`icon-xxs`}):null]}):void 0,t[30]===m?T=t[31]:(T=m?(0,aa.jsx)(`span`,{className:`sr-only`,role:`status`,children:(0,aa.js",
+    "claim": "空查询的 Recent Pages 文案限定最多五个本地记忆的最近页面。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N027",
+    "path": "webview/assets/command-menu-dialog-b7417e12fb37.js",
+    "offset": 27332,
+    "excerpt": "contentClassName:`codex-dialog command-menu-dialog global-command-menu-dialog bg-transparent p-0 shadow-none fixed left-1/2 z-50 -translate-x-1/2`,onOpenChange:Ae,children:[Me,Pe,Ee]}),t[212]=ve,t[213]=Ee,t[214]=De,t[215]=Oe,t[216]=Ae,t[217]=Me,t[218]=Pe,t[219]=Fe):Fe=t[219],Fe}function ja(e){let{id:t}=e;return t}function Ma(e){",
+    "claim": "命令菜单采用 Dialog、fixed 水平居中、z-50、透明外壳与内层内容。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N028",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 272357,
+    "excerpt": ".command-menu-dialog{--command-menu-list-max-height:min(300px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)));--command-menu-max-height:calc(var(--command-menu-list-max-height) + 64px);top:max(calc(var(--spacing) * 4 / var(--codex-window-zoom,1)), calc((100vh / var(--codex-window-zoom,1) - var(--command-menu-max-height)) / 2));width:min(520px, calc(92vw / var(--codex-window-zoom,1)));zoom:var(--codex-window-zoom,1)}.global-command-menu-dialog{--command-menu-list-max-height:min(440px, max(120px, calc(90vh / var(--codex-window-zoom,1) - 64px)))}.search-command-menu-dialog{",
+    "claim": "普通命令菜单宽 min(520px,92vw/zoom)；列表最大高度 min(300px,max(120px,90vh/zoom-64px))；全局菜单上限 440px。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N029",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 274105,
+    "excerpt": "[cmdk-item]{border-radius:var(--radius-md)}:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]):where([data-theme=dark]){border-color:var(--color-border)}@container style(--theme-variant:dark){:is(.command-menu-dialog [cmdk-root],.command-menu-dialog [data-cmdk-root]):where(:not([data-theme])){border-color:var(--color-border)}}[cmdk-item]{content-visibility:auto;border-radius:var(--radius-lg);width:100%;cursor:var(--cursor-interaction);color:var(--color-text);padding:var(--padding-row-y) var(--padding-row-x);min-height:calc(var(--spacing) * 6);-webkit-user-select:none;us",
+    "claim": "命令项支持 content-visibility:auto、全宽、圆角、至少 spacing*6 高；禁用透明度 .25，hover/selected/focus 样式统一。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N030",
+    "path": "webview/assets/settings-page-cd654a99d29b.js",
+    "offset": 35007,
+    "excerpt": "tMessage:`Clear settings search`,description:`Button label to clear settings search input`}),t[1]=a,t[2]=c);let l;t[3]===a?l=t[4]:(l=a.formatMessage({id:`settings.search.label`,defaultMessage:`Search settings`,description:`Accessible label for the settings search input`}),t[3]=a,t[4]=l);let u;t[5]===a?u=t[6]:(u=a.formatMessage({id:`settings.search.placeholder`,defaultMessage:`Search`,description:`Placeholder text for the settings search input`}),",
+    "claim": "设置侧栏具有搜索标签、placeholder 和 settings-search id。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N031",
+    "path": "webview/assets/settings-page-cd654a99d29b.js",
+    "offset": 48765,
+    "excerpt": "canCollapse:!1,codexMicroDeviceModel:c,showEnterpriseUsageLabel:O,settingsSections:D,searchableSections:W,activeSection:qe,onClearHostFilter:ke,searchHostId:g,sidebarHostSelector:Oe,onSelect:G,onSelectPlugin:K,onSelectTeam:Le,onBack:$e,groupSettingsSections:!0})}),e[110]=ke,e[111]=c,e[112]=Le,e[113]=qe,e[114]=g,e[115]=D,e[116]=O,e[117]=Oe,e[118]=W,e[119]=G,e[120]=K,e[121]=$e,e[122]=q):q=e[122];let J=`${m.key}:${I?.navigationKey??0}`,Y;e[123]===m.hash?Y=e[124]:(Y=m.hash.slice(1)||null,e[123]=m.hash,e[124]=Y);let tt=I?.route===`${m.path",
+    "claim": "设置页把导航组件设为不可折叠，分组开启；搜索范围与可见设置分开传入。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N032",
+    "path": "webview/assets/use-visible-settings-sections-9bd5da3d2a1e.js",
+    "offset": 36835,
+    "excerpt": "case`appearance`:return{visible:!0,pending:!1};case`chronicle`:return{visible:a&&!_t.isLoading&&_t.available,pending:_t.isLoading};case`voice`:return{visible:le?.dictationHistory!=null||He||Ke||Be||We,pending:F||Ue||Ge};case`debug`:return{visible:Xa({buildFlavor:`prod`,isGpuTearingDebugEnabled:qe}),pending:F};case`pets`:return{visible:g,pending:!1};case`git-settings`:case`worktrees`:case`local-environments`:case`environments`:return{visible:!0,pending:!1};case`import`:return{visible:!F&&me&&!he,pending:F};case`ads-controls`:return{visible:ge,pending:_e||U};case`archived-cha",
+    "claim": "Appearance 始终可见；Voice 由 dictationHistory 或若干能力条件决定；Debug、Pets 等另有门控。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N033",
+    "path": "webview/assets/settings-page-cd654a99d29b.js",
+    "offset": 21260,
+    "excerpt": "e.sectionSlug===`appearance`?{...e,messages:e.messages.filter(e=>!s&&Lr.includes(e.id)?!1:l||!e.id.startsWith(Rr))}:e.sectionSlug===`agent`?{...e,terms:m}:e.sectionSlug===`general-settings`?{...e,terms:g}:e,t[17]=m,t[18]=l,t[19]=s,t[20]=g,t[21]=e):e=t[21],_=i.map(e),t[11]=m,t[12]=i,t[13]=l,t[14]=s,t[15]=g,t[16]=_}else _=t[16];return _}function Pr(e){return{locale:e.locale,language:e.locale}}function Fr(e){return[e.displayName??e.name,...e.description==null?[]:[e.description]]}var Ir,Lr,Rr;functi",
+    "claim": "设置搜索索引过滤不可用的半透明侧栏和 Dock 图标相关文案，避免搜索出不可见设置。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N034",
+    "path": "webview/assets/settings-unsaved-changes-dialog-59e2e623bec8.js",
+    "offset": 388,
+    "excerpt": "h=e=>{e.preventDefault();let t=s;f(),t?.()},a[2]=f,a[3]=s,a[4]=h):h=a[4];let g;a[5]===Symbol.for(`react.memo_cache_sentinel`)?(g=(0,v.jsx)(r,{children:(0,v.jsx)(n,{id:`settings.unsavedChanges.discardTitle`,defaultMessage:`Discard changes?`,description:`Title for the confirmation dialog shown before leaving Settings with unsaved changes`})}),a[5]=g):g=a[5];let y;a[6]===Symbol.for(`react.memo_cache_sentinel`)?(y=(0,v.jsx)(c,{children:(0,v.jsx)(i,{title:g,subtitle:(0,v.jsx)(o,{children:(0,v.jsx)(n,{id:`settings.unsavedChanges.discardDesc",
+    "claim": "放弃未保存设置的 form handler 先清待执行导航再执行它；继续编辑只清 pending。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N035",
+    "path": "webview/assets/settings-unsaved-changes-dialog-59e2e623bec8.js",
+    "offset": 2063,
+    "excerpt": "open:p,showDialogClose:!1,size:`compact`,onOpenChange:m,children:w}),a[16]=p,a[17]=w,a[18]=m,a[19]=T):T=a[19],T}var _,v;function y(){return(y=e((()=>{_=m(),s(),f(),p(),a(),v=h()})))()}export{y as n,g as t};\n//# sourceMap",
+    "claim": "未保存变更对话框 compact，隐藏右上关闭按钮。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N036",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 1694522,
+    "excerpt": "eZ={sans:{min:11,max:16},code:{min:8,max:24}},tZ={theme:AX({agentAccess:`read-write`,default:`system`,description:`Preferred app appearance mode`,key:`appearanceTheme`,schema:Kf([`system`,`light`,`dark`])}),lightChromeTheme:AX({agentAccess:`read-write`,default:void 0,description:`Chrome theme used in light mode`,key:`appearanceLightChromeTheme`,schema:Bet}),darkChromeTheme:AX({agentAccess:`read-write`,default:void 0,description:`Chrome theme used in dark mode`,key:`appearanceDarkChromeTheme`,schema:Bet}),lightCodeThemeId:AX({agentAccess:`read-write`,default:xX.CODEX,descrip",
+    "claim": "UI 字体大小允许 11–16；代码字体允许 8–24；appearanceTheme 默认 system，枚举 system/light/dark。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N037",
+    "path": "webview/assets/app-shared-52443cbe9ac4.js",
+    "offset": 1695522,
+    "excerpt": "sansFontSize:AX({agentAccess:`read-write`,default:14,description:`Base UI font size`,key:`sansFontSize`,schema:mf().min(eZ.sans.min).max(eZ.sans.max)}),codeFontSize:AX({agentAccess:`read-write`,default:12,description:`Code font size`,key:`codeFontSize`,schema:mf().min(eZ.code.min).max(eZ.code.max)}),useOpenAISans:AX({agentAccess:`hidden`,default:!0,description:`Whether enrolled ChatGPT Web account",
+    "claim": "UI 默认字号 14，代码默认 12；两者使用上述 schema 上下限校验。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N038",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 137390,
+    "excerpt": "function yc(){let e=(0,Q.c)(11),t=T(p),r=I(),i=n(R.theme)??`system`,a;e[0]===t?a=e[1]:(a=function(e){z(t,R.theme,e,{optimistic:!1})},e[0]=t,e[1]=a);let o=a,s;e[2]===r?s=e[3]:(s=r.formatMessage(J.theme),e[2]=r,e[3]=s);let c;e[4]!==o||e[5]!==r||e[6]!==i?(c=Uc.map(e=>(0,$.jsx)(kc,{ariaLabel:r.formatMessage(e.label),mode:e.id,selected:i===e.id,onSelect:()=>{o(e.id)}},e.id)),e[4]=o,e[5]=r,e[6]=i,e[7]=c):c=e[7];let l;return e[8]!==s||e[9]!==c?(l=(0,$.jsx)(`div`,{\"aria-label\":s,className:`grid w-68 max-w-full grid-cols-3 gap-4`,role:`radiogroup`,children:c}),e[8]=s,e[9]=c,e[10]=l):l=e[10],l}function ",
+    "claim": "主题模式选择采用 radiogroup 三列；写入 appearanceTheme 时 optimistic:false。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N039",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 137866,
+    "excerpt": "className:`grid w-68 max-w-full grid-cols-3 gap-4`,role:`radiogroup`,children:c}),e[8]=s,e[9]=c,e[10]=l):l=e[10],l}function bc(){let e=(0,Q.c)(10),t=T(p),r=I(),",
+    "claim": "主题选择栅格宽 w-68、三列 gap-4；单项 radio 在后续 kc 中。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N040",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 151302,
+    "excerpt": "function kc(e){let t=(0,Q.c)(13),{ariaLabel:n,mode:r,selected:i,onSelect:a}=e,o;t[0]!==n||t[1]!==a||t[2]!==i?(o=(0,$.jsx)(`input`,{\"aria-label\":n,checked:i,className:`peer sr-only`,name:`appearance-theme`,onChange:a,type:`radio`}),t[0]=n,t[1]=a,t[2]=i,t[3]=o):o=t[3];let s;t[4]!==r||t[5]!==i?(s=(0,$.jsx)(Ac,{mode:r,selected:i}),t[4]=r,t[5]=i,t[6]=s):s=t[6];let c;t[7]!==o||t[8]!==s?(c=(0,$.jsxs)(`label`,{className:`group flex min-w-0 cursor-interaction flex-col items-center gap-1.5 text-center`,children:[o,s]}),t[7]=o,t[8]=s,t[9]=c):c=t[9];let l;return t[10]!==n||t[11]!==c?(l=(0,$.jsx)(ct,{toolt",
+    "claim": "主题项为 label 包裹 sr-only radio；checked/onChange 与视觉选中状态绑定。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N041",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 152581,
+    "excerpt": "className:`relative isolate block aspect-4/3 w-full overflow-hidden rounded-lg text-info peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring`,children:[a,c]}),t[6]=a,t[7]=c,t[8]=l):l=t[8],l}function jc(){let e=(0,Q.c)(25),t=T(p),r=I(),",
+    "claim": "主题缩略卡宽度自适应，4:3、圆角，focus-visible outline。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N042",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 113394,
+    "excerpt": "function tc(e){let n=(0,Q.c)(31),{defaultAdvancedExpanded:r}=e,i=r!==void 0&&r,a=(0,Lc.useId)(),[o,s]=(0,Lc.useState)(i),[c,u]=(0,Lc.useState)(!1),d=L(Wn),f;n[0]===Symbol.for(`react.memo_cache_sentinel`)?(f=(0,$.jsx)(H.Header,{title:(0,$.jsx)(b,{id:`settings.appearance.visualStyle`,defaultMessage:`Visual style`,description:`Heading for mode, theme, color, and font preferences`})}),n[0]=f):f=n[0];let p;n[1]===Symbol.for(`react.memo_cache_sentinel`)?(p=(0,$.jsxs)(Qe,{children:[(0,$.jsx)(B,{variant:`nested`,label:(0,$.jsx)(`span`,{className:`font-",
+    "claim": "Appearance 初始分为 Visual style 与 Advanced；Advanced 初始由外部定位标志控制，Separate modes 初始 false。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N043",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 114760,
+    "excerpt": "\"aria-controls\":a,\"aria-expanded\":o,color:`ghostTertiary`,radius:`small`,size:`inline`,onClick:h,children:[g,_]}),n[9]=a,n[10]=o,n[11]=h,n[12]=_,n[13]=v):v=n[13];let y;n[14]===Symbol.for(`react.memo_cache_sentinel`)?(y=()=>u(!1),n[14]=y):y=n[14];let x;n[15]===c?x=n[16]:(x=(0,$.jsx)(Xo,{separateModes:c,onResetSeparateModes:y}),n[15]=c,n[16]=x);let S;n[17]!==x",
+    "claim": "Advanced 按钮绑定 aria-controls 和展开状态。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N044",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 115562,
+    "excerpt": "id:`settings.appearance.separateModes`,defaultMessage:`Separate light and dark modes`,description:`Label for showing independent light and dark theme controls`}),description:(0,$.jsx)(b,{id:`settings.appearance.separateModes.description`,defaultMessage:`Choose a theme, colors, and font for each`,description:`Explains that this switch reveals both saved themes without changing their values`}),control:e=>(0,$.jsx)(Ve,{...e,checked:c,onChange:u})})]}),(0,$.jsx)(Qa,{section:`advanced`,separateModes:c})]}),(0,$.jsx)(da,{}),(0,$.jsxs)(Qe,{children:[null,d?(0,$.jsx)(Tc,{}):null,(0,$.jsxs)($.Fragment,",
+    "claim": "Separate light and dark modes 仅显示两份已保存配置，不更改配置值；toggle 使用本地状态 u。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N045",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 48861,
+    "excerpt": "s=o?.isSystemBackdropSupported!==!1,c;t[0]!==a||t[1]!==r?(c=r?[`light`,`dark`]:[a],t[0]=a,t[1]=r,t[2]=c):c=t[2];let l=c,u;return t[3]!==n||t[4]!==s||t[5]!==l?(u=(0,X.jsx)(`div`,{className:`flex flex-col gap-[var(--padding-panel)]`,children:l.map(e=>(0,X.jsx)($a,{section:n,showTranslucentSidebarToggle:s,showVariantTitle:l.length>1,variant:e},e))}),t[3]=n,t[4]=s,t[5]=l,t[6]=u):u=t[6],u}function $a(e){let n=(0,fo.c)(7),{section:r,showTranslucentSide",
+    "claim": "系统 backdrop 明确不支持时不显示半透明侧栏开关；分模式时渲染 light/dark，否则当前有效主题。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N046",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 56366,
+    "excerpt": "checked:!k.opaqueWindows,onChange:e=>{O({opaqueWindows:!e})},ariaLabel:c.formatMessage({id:`settings.general.appearance.chromeTheme.translucentSidebar`,defaultMessage:`{variant} translucent sidebar`,description:`Aria label for the translucent sidebar toggle in chrome theme settings`},{variant:A})}),label:g}):null,r===`advanced`&&(0,X.jsx)(B,{size:`compact`,control:(0,X.jsx)(co,{ariaLabel:c.formatMessage({id:`settings.general.appearance.chromeThem",
+    "claim": "半透明侧栏 UI 状态与 opaqueWindows 互为取反。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N047",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 40767,
+    "excerpt": "function Ma(e){let t=e.toUpperCase().replace(/[^0-9A-F#]/g,``).replaceAll(`#`,``);return t.length===0?`#`:`#${t.slice(0,6)}`}function Na(e){return/^#[0-9A-F]{6}$/.test(e)?e.toLowerCase():null}var Pa,Fa,Ia;function La(){return(La=e((()=>{Pa=pt(),Fa=yt(),Ai(),oe(),Ia=V()}",
+    "claim": "色值输入清理为最多六位十六进制，并仅在合法 #RRGGBB 时提交小写值。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N048",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 40030,
+    "excerpt": "className:`relative flex h-7 w-24 shrink-0 items-center gap-2 rounded-full border border-default px-2 text-default focus-within:ring-2 focus-within:ring-ring`,children:[p,y]}),t[17]=p,t[18]=y,t[19]=b):b=t[19];let x;t[20]===i?x=t[21]:(x=e=>{i(e)},t[20]=i,t[21]=x);let S;t[22]!==x||t[23]!==r?(S=(0,Ia.jsx)(c,{align:`end`,className:`w-auto rounded-xl p-3`,sideOffset:8,onOpenAutoFocus:ka,children:(0,Ia.jsx)(ji,{className:`h-34 w-34`,color:r,onChange:x})}),t[22]=x,t[23]=r,t[24]=S):S=t[24];let C;return t[25]!==a||t[26]!==b||t[27]!==S?(C=(0,Ia.jsxs)(ne,{open:a,onOpenChange:u,children:[b,S]}),t[25]=a,t[",
+    "claim": "色值输入胶囊 h-7/w-24；颜色浮层 end 对齐，sideOffset 8、rounded-xl、p-3、色盘 h-34/w-34。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N049",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 64007,
+    "excerpt": "function co(e){let t=(0,fo.c)(14),{ariaLabel:n,theme:r,value:i,onChange:a}=e,o;t[0]===a?o=t[1]:(o=e=>{a(Number(e.target.value))},t[0]=a,t[1]=o);let s=`linear-gradient(90deg, color-mix(in srgb, ${r.accent} 35%, ${r.surface}) 0%, ${r.accent} 32%, ${r.accent} 100%)`,c;t[2]===s?c=t[3]:(c={background:s,color:`var(--color-text)`},t[2]=s,t[3]=c);let l;t[4]!==n||t[5]!==o||t[6]!==c||t[7]!==i?(l=(0,X.jsx)(Ri,{\"aria-label\":n,max:100,min:0,onChange:o,step:1,style:c,value:i}),t[4]=n,t[5]=o,t[6]=c,t[7]=i,t[8]=l):l=t[8];let u;t[9]===i?u=t[10]:(u=(0,X.jsx)(`span`,{className:`w-9 text-end text-sm text-default ",
+    "claim": "对比度滑杆 0–100、step 1，渐变受 accent/surface 驱动。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N050",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 44418,
+    "excerpt": "queryFn:async()=>await D.systemFonts?.getFontFamilies()??null,queryKey:[`system-font-families`],retry:!1,staleTime:1/0}))})))()}function qa(e){let t=(0,Ya.c)(42),{ariaLabel:n,controls:r,defaultFont:i,monospaceOnly:a,selectedThemeFontFace:o,styleAriaL",
+    "claim": "系统字体枚举通过 native bridge，可返回 null；不重试，staleTime 无限。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N051",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 44546,
+    "excerpt": "function qa(e){let t=(0,Ya.c)(42),{ariaLabel:n,controls:r,defaultFont:i,monospaceOnly:a,selectedThemeFontFace:o,styleAriaLabel:s,value:c,onChange:l}=e,u=r===void 0?`both`:r,d=i===void 0?`system`:i,{data:p,isPending:m}=L(Ga),[h,g]=(0,Xa.useState)(c??``),[_,v]=(0,Xa.useState)(!1),[y,x]=(0,Xa.useState)(!1);if(m){let e;return t[0]===Symbol.for(`react.memo_cache_sentinel`)?(e=(0,Y.jsx)(et,{className:`icon-xs text-secondary`}),t[0]=e):e=t[0],e}let S,C,w;if(t[1]!==n||t[2]!==u||t[3]!==h||t[4]!==d||t[5]!==_||t[6]!==a||t[7]!==l||t[8]!==o||t[9]!==s||t[10]!==y||t[11]!==p||t[12]!==c){let e=Ha(c,p,o),r=e?.f",
+    "claim": "字体控件加载时显示 spinner；支持 family/style/both、default system 或跟随 UI、仅等宽过滤。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N052",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 46078,
+    "excerpt": "if(m){let e;t[25]===Symbol.for(`react.memo_cache_sentinel`)?(e=e=>{g(e.target.value)},t[25]=e):e=t[25];let r;t[26]===M?r=t[27]:(r=e=>{e.key===`Enter`&&(e.preventDefault(),M())},t[26]=M,t[27]=r);let i;t[28]!==n||t[29]!==h||t[30]!==r?(i=(0,Y.jsx)(F.Input,{\"aria-label\":n,spellCheck:!1,value:h,onChange:e,onKeyDown:r}),t[28]=n,t[29]=h,t[30]=r,t[31]=i):i=t[31];let a;t[32]===Symbol.for(`react.memo_cache_sentinel`)?(a=(0,Y.jsx)(b,{id:`settings.general.appearance.chromeTheme.customFontValue`,defaultMessage:`Use custom font value`,description:`Menu item that applies a manually entered CSS font family or",
+    "claim": "无法枚举字体时显示 CSS 字体值输入，Enter 执行 custom font 提交。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N053",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 47186,
+    "excerpt": "C=u!==`style`&&(0,Y.jsx)(f,{align:`end`,contentMaxHeight:`tall`,contentWidth:`menuWide`,open:_,onOpenChange:e=>{v(e),e&&g(c??``)},triggerButton:(0,Y.jsx)(xn,{\"aria-label\":n,className:`w-full max-w-36 max-sm:max-w-none`,radius:`full`,size:`menuRow`,children:(0,Y.jsx)(`span`,{className:`truncate`,children:T??D})}),children:(0,Y.jsxs)(F.Section,{children:[(0,Y.jsx)(F.Item,{rightIconAsset:T==null?_t:void 0,onSelect:()=>{(c!=null||o!=null)&&l(null,void 0)},children:D}),(0,Y.jsx)(F.Separator,{}),N]})}),w=u!==`family`&&(0,Y.jsx)(f,{align:`end`,contentMaxHeight:`tall`,contentWidth:`menuNarrow`,disable",
+    "claim": "字体族下拉 end 对齐、tall、menuWide；按钮 max-w-36，窄屏取消最大宽度；样式下拉 menuNarrow。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N054",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 48589,
+    "excerpt": "function Ja(e,t){return!t||e.faces.every(e=>e.isMonospaced)}var Ya,Xa,Y;function",
+    "claim": "code 字体过滤要求字体族内所有 face 均 isMonospaced。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N055",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 152816,
+    "excerpt": "function jc(){let e=(0,Q.c)(25),t=T(p),r=I(),i=n(R.sansFontSize),a=(0,Lc.useRef)(null),o;e[0]!==i||e[1]!==t?(o=function(e){let n=Number.parseFloat(e.value);if(!R.sansFontSize.schema.safeParse(n).success){e.value=String(i);return}e.value=String(n),n!==i&&z(t,R.sansFontSize,n)},e[0]=i,e[1]=t,e[2]=o):o=e[2];let s=o,c,l;e[3]===Symbol.for(`react.memo_cache_sentinel`)?(c=(0,$.jsx)(b,{...J.uiFontSize}),l=(0,$.jsx)(b,{id:`settings.appearance.ui",
+    "claim": "UI 字号 parseFloat 后 schema 校验；失败恢复旧显示值，有变化才写入。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N056",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 153594,
+    "excerpt": "d=e=>{a.current!=null&&a.current!==e.currentTarget.value&&s(e.currentTarget),a.current=null},f=e=>{s(e.currentTarget)},m=e=>{e.key===`Enter`&&(e.preventDefault(),s(e.currentTarget))},e[6]=s,e[7]=d,e[8]=f,e[9]=m);let h;e[10]===r?h=e[11]:(h=r.formatMessage({id:`settings.general.appearance.sansFontSize`,defaultMessage:`Sans font si",
+    "claim": "字号在 pointerUp 检测变化、blur 或 Enter 提交；Enter 阻止默认行为。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N057",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 156825,
+    "excerpt": "function Nc(){let e=(0,Q.c)(10),t=T(p),r=I(),{platform:i}=er(),a=i===`macOS`,o=n(Rc);if(!a)return null;let s,c;e[0]===Symbol.for(`react.memo_cache_sentinel`)?(s=(0,$.jsx)(b,{...J.fontSmoothing}),c=(0,$.jsx)(b,{id:`settings.general.appearance.fontSmoothing.description`,defaultMessage:`Use native macOS font anti-aliasing`,description:`Description for the macOS font smoothing setting`}),e[0]=s,e[1]=c):(s=e[0],c=e[1]);let l;e[2]===t?l=e[3]:(l=e=>{z(t,Rc,e)},e[",
+    "claim": "Font smoothing 控件仅 macOS 渲染，其他平台 return null。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N058",
+    "path": "webview/assets/general-settings-679bf39c78a4.js",
+    "offset": 85627,
+    "excerpt": "function Xo(e){let n=(0,Qo.c)(12),{separateModes:r,onResetSeparateModes:i}=e,a=T(p),o=I(),[s,c]=(0,$o.useState)(!1),l=L(ns),u=fn(`light`),d=fn(`dark`);if(!r&&!l&&!u.hasAdvancedThemeChanges&&!d.hasAdvancedThemeChanges)return null;let f;n[0]!==d||n[1]!==o||n[2]!==u||n[3]!==i||n[4]!==a?(f=async function(){c(!0),i();let e=await Promise.allSettled([...a.get(ts).map(e=>z(a,e,e.default,{optimistic:!1})),u.resetAdvancedThemeSettings(),d.resetAdvancedThemeSettings()]);c(!1),e.some(Zo)&&a.get(je).danger(o.formatMessage({id:`settings.appearance.resetError`,defaultMessage:`Some appearance settings could n",
+    "claim": "Reset advanced 无变化时隐藏；以 Promise.allSettled 重置两主题高级配置与偏好，部分失败显示 toast。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N059",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 31649,
+    "excerpt": "let je=Ae,Pe=je.length===0,Fe=je.length>50,L=Pe||Fe,Ie=i.gizmo.current_user_permission?.can_write,Le;t[11]!==a||t[12]!==Ie?(Le=I(Ie,a),t[11]=a,t[12]=Ie,t[13]=Le):Le=t[13];let ze=Le,R=ze,Be;t[14]===E?Be=t[15]:(Be=E.trim(),t[14]=E,t[15]=Be);let Ve=je!==Be,We=A!==T||M!==D,z=ye??pe,Ke=z!==pe,qe=k==null&&ue.isPending,Xe=k==null&&ue.isError,B=ae??(ue.data!=null&&`memory_scope`in ue.data.gizmo?ue.data.gizmo.memory_scope:void 0),V,Ze;t[16]!==B||t[17]!==i.gizmo.gizmo_snorlax_type?(V=B==null?null:xe(B),Ze",
+    "claim": "项目名称 trim 后必填且最多 50 字符；写权限与 CRUD 状态联合决定可编辑。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N060",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 32944,
+    "excerpt": "g`,ft=H&&G.isError||st||K===`unavailable`,Y=R&&!J.isPending,X=ze&&!F&&!L&&(Ve||We||Ke),Z;t[33]!==p||t[34]!==o?(Z=(e,t,n)=>{let r=Ue(e)?.trim()||n;o.get(S).danger(t,{error",
+    "claim": "Save 仅在权限允许、无保存/待处理任务、名字有效且名称/外观/指令有更改时启用。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N061",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 34844,
+    "excerpt": "Ot=async()=>{ke(!1),Se(!0);try{await ve({scope:o,emoji:A,instructions:Ke?z:null,name:j,project:i,queryClient:u,theme:M}),Se(!1),r(!1)}catch{ke(!0),Se(!1)}},t[55]=A,t[56]=z,t[57]=Ke,t[58]=j,t[59]=r,t[60]=i,t[61]=u,t[62]=o,t[63]=M,t[64]=Ot):Ot=t[64];let kt=Ot,Q;t[65]!==X||t[66]!==kt||t[67]!==y?(Q=e=>{e.preventDefault(),y!==`advanced`&&X&&kt()},t[65]=X,t[66]=kt,t[67]=y,t",
+    "claim": "项目保存将 emoji/instructions/name/project/theme 交给服务；成功关闭，失败保留并显示错误状态。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N062",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 35264,
+    "excerpt": "jt=e=>{(e||!F)&&r(e)},t[69]=F,t[70]=r,t[71]=jt):jt=t[71];let Mt=jt,Nt;t[72]===Symbol.for(`react.memo_cache_sentinel`)?(Nt={\"aria-describedby\":void 0},t[72]=Nt):Nt=t[72];let Pt;t[73",
+    "claim": "项目有保存/待处理操作时拒绝关闭对话框。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N063",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 38015,
+    "excerpt": "className:`max-h-[calc(100vh-6rem)] min-h-0 gap-4 overflow-hidden`,onSubmit:At,children:[Pt,Ht]}),t[116]=At,t[117]=Pt,t[118]=Ht,t[119]=Ut):Ut=t[119];let Wt;return t[120]!==Mt||t[121]!==Ut?(Wt=(0,zt.jsx)(O,{open:!0,contentProps:Nt,",
+    "claim": "项目设置 form 最大高度 100vh-6rem、flex 内容可滚动并限制溢出。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N064",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 21571,
+    "excerpt": "className:`flex h-[320px] max-h-full w-full cursor-interaction items-center justify-center rounded-2xl border border-dashed border-default px-6 text-center text-base text-codex-description outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed`,disabled:e,onClick:a,type:`button`,children:o}),t[3]=a,t[4]=e,t[5]=c):c=t[5],c}let d;t[6]===i?d=t[7]:(d=i?(0,Q.jsx)(Y,{}):null,t[6]=i,t[7]=d);let f;t[8]==",
+    "claim": "项目空来源区为 320px 高，虚线圆角可点击区域，键盘焦点环和 disabled cursor。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N065",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 22572,
+    "excerpt": "className:`vertical-scroll-fade-mask flex max-h-[320px] min-h-0 flex-col overflow-x-hidden overflow-y-auto rounded-lg border border-border/60`,children:p}),t[19]=p,t[20]=m);let h;return t[21]!==d||t[2",
+    "claim": "来源列表最大高 320px、纵向滚动、隐藏横溢出。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N066",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 5708,
+    "excerpt": "Project can only access its own memories. Its memories are hidden from outside chats. This cannot be changed.`,description:`Help text below the read-only Project-only memory value in ChatGPT project settings, explaining memory isolation and that this setting is not editable`}):(0,K.jsx)(s,{id:`chatgptConversations.sidebar.projectSettings.memoryDescription`,defaultMessage:`Project can access memories from outside chats, and vice versa. This cannot be changed.`,description:`Description for the read-only ChatGPT project memory access control`})})]}),(0,K.jsx)(`div`,{\"aria-label\":_.formatMessage({",
+    "claim": "高级项目设置说明 project-only 记忆不可变；此证据仅证明说明与展示，非服务器执行。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N067",
+    "path": "webview/assets/chatgpt-project-settings-dialog-9fb39b5b19e8.js",
+    "offset": 38707,
+    "excerpt": "Vt=8e3})))()}Ht();export{Pt as ChatGptProjectSetti",
+    "claim": "项目自定义指令本地限长常量 8000。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N068",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 15676,
+    "excerpt": "let[O,me]=(0,yn.useState)(fe),[he]=(0,yn.useState)(dn),k=ee??he,[A,_e]=(0,yn.useState)(`idle`),[ve,ye]=(0,yn.useState)(c==null?null:`copy-failed`),[be,xe]=(0,yn.useState)(!1),Se;t[12]===x?Se=t[13]:(Se=[`chatgpt-conversation-share`,x],t[12]=x,t[13]=Se);let Ce=Se,we=c==null&&y==null&&v==null&&r==null&&l==null&&w==null,Te;t[14]!==n||t[15]!==x?(Te=()=>Xe({conversationId:x,currentNodeId:n}),t[14]=n,t[1",
+    "claim": "分享有 idle/creating/copied 状态，错误状态独立；已有 share 数据来自参数或 query cache。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N069",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 20562,
+    "excerpt": "let It=A===`copied`?$.copied:$.copyLink;W?It=$.updateLink:wt==null&&A!==`copied`&&(It=$.createLink);let Rt;t[58]!==E||t[59]!==A?(Rt=A===`copied`?E.formatMessage($.copied):E.formatMessage($.copyLink),t[58]=E,t[59]=A,t[60]=Rt):Rt=t[60];let Bt=Rt,Ut;t[61]!==E||t[62]!==T?(Ut=function(e,t){let n=e instanceof Et?`blocked`:t;n!==`blocked`&&a.warning(`chatgpt_conversation_share_failed`,{safe:{stage:n},sensitive:{error:e}});let r;bb543",
+    "claim": "分享主按钮根据 copied、是否需要更新、是否已有 link 切换 Copied/Copy link/Update link/Create link。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N070",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 23809,
+    "excerpt": "Jt=async function(){if(G||I||i?.actionsDisabled)return;let e=lt(T,{actor:Gt,attachmentType:J,widgetMetadata:w?.metadata,contentType:X,conversationId:P?void 0:x,shareId:U?.shareLinkId??(V?j.share_id:void 0),shareSessionId:k,source:Y,usedExistingLink:wt!=null&&!W});ye(null),_e(`creating`);let t=i!=null||wt==null||W?`create-failed`:`copy-failed`,n=U;try{let r=await qt(`copy`);n=r,t=`copy-failed`;let i=r.shareLinkUrl,a;if(a=await Le(i),!a){e({result:`copy-failed`,shareId:r.shareLinkId}),q(Error(`Failed to copy ChatGPT conversation share link`),`copy-failed`);return}e({result:`link-copied`,shareId:",
+    "claim": "分享 action 在 creating、图片预览源尚不可用或 actionsDisabled 时直接返回；先清错误并进入 creating，再创建或复用链接。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N071",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 24231,
+    "excerpt": "a=await Le(i),!a){e({result:`copy-failed`,shareId:r.shareLinkId}),q(Error(`Failed to copy ChatGPT conversation share link`),`copy-failed`);return}e({result:`link-copied`,shareId:r.shareLinkId}),_e(`copied`),z||(ct(T),m())}catch(r){let i=r,a=q(i,t);e(a===`create-failed`?{result:a,error:i}:{result:a,shareId:n?.shareLinkId})}},t[90]=Gt,t[91]=J,t[92]=X,t[93]=U,t[94]=qt,t[95]=V,t[96]=j,t[97]=i,t[98]=I,t[99]=P,t[100]=W,t[101]=G,t[102]=m,t[103]=q,t[104]=T,t[105]=x,t[106]=wt,t[107]=k",
+    "claim": "复制链接失败与创建失败分开处理；复制成功进入 copied，可根据 z 控制关闭。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N072",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 21003,
+    "excerpt": "case`blocked`:r=E.formatMessage($.shareBlocked);break bb543;case`copy-failed`:r=E.formatMessage($.shareCopyFailed);break bb543;case`create-failed`:r=E.formatMessage($.shareCreateFailed)}return ye(n),_e(`idle`),T.get(pe).danger(r,{errorAnalytics:{toastId:{\"copy-failed\":`failed_to_copy_share_link`,\"create-failed\":`failed_to_generate_share_link`,blocked:`chatgptConversationShareDialog.shareBlocked`}[n]}}),n},t[61]=E,t[62]=T,t[63]=Ut):Ut=t[63];let q=Ut,Gt,J,Y;t[64]!==M||t[65]!==Je||t[66]!==L||t[67]!==P||t[68]!==y||t[69]!==S||t[70]!==w?(Gt=P?nt.CHATGPT_SHARE_FLOW_ACTOR_RECEIVER:",
+    "claim": "分享错误分 blocked、copy-failed、create-failed，回到 idle 并 toast。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N073",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 4594,
+    "excerpt": "Anyone with this link can access messages up to this point. Memory sources won't be shared with viewers. <learnMore>Learn more</learnMore>`,description:`Audience and privacy explanation in the personal ChatGPT conversation sharing dialog. The link includes messages through the selected point, but does not give viewers ",
+    "claim": "公开聊天分享提示到当前点、记忆来源不共享；不同内容类型/工作区分支有独立文案。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N074",
+    "path": "webview/assets/chatgpt-conversation-share-dialog-9f0c5b854355.js",
+    "offset": 57774,
+    "excerpt": "Any messages you add after sharing will be visible to members of your workspace. Project files and custom instructions won’t be accessible via the shared link.`,description:`Privacy description in the ChatGPT conversation share dialog for a workspace project chat. It contrasts later-message visibility with project files and custom instructions that link viewers cannot access. Standalone two-sentence notice with no placeholders.`}})})))()}export{Bt as a,q as i,on as n,Lt as o,bn as r,Rt as s,sn as t};\n//# sourceMappingURL=chatgpt-conversation-share-dialog-9f0c5b854355.js.map",
+    "claim": "工作区分享存在后续消息可见的另一文案分支，不可概括所有分享都冻结。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N075",
+    "path": "webview/assets/dialog-shell-86cd59d677bd.js",
+    "offset": 2531,
+    "excerpt": "K=e=>{!e&&!j&&b()},r[20]=j,r[21]=b,r[22]=K):K=r[22];let q;r[23]!==a||r[24]!==A||r[25]!==h||r[26]!==R||r[27]!==j||r[28]!==F||r[29]!==T?(q=F?(0,N.jsxs)(m,{as:T==null?`div`:`form`,variant:`chatgpt`,className:l(k.imageSheetBody,`min-h-0`),onSubmit:T==null?void 0:e=>{e.preventDefault(),e.stopPropagation(),j||T()},children:[(0,N.jsxs)(`div`,{className:`flex min-h-0 flex-col`,children:[R,a]}),(0,N.jsx)(`div`,{className:`mt-12 shrink-0`,children:h})]}):(0,N.jsx)(x,{collapseEmptyContent:A,header:R,footer:h,onSubmit:T==null?void 0:e=>{e.prevent",
+    "claim": "通用 DialogShell dismissal disabled 时阻止 onOpenChange 关闭；imageSheet 使用特殊布局。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N076",
+    "path": "webview/assets/dialog-shell-86cd59d677bd.js",
+    "offset": 3297,
+    "excerpt": "[39]!==H||r[40]!==U?(J=(0,N.jsx)(f,{open:!0,contentOverflow:`visible`,contentProps:V,shouldIgnoreClickOutside:j,showDialogClose:H,size:E,variant:U,unstyledContent:F,contentClassName:W,overlayClassName:G,onOpenChange:K,children:q}),r[31]=j,r[32]=F,r[33]=E,r[34]=W,r[35]=G",
+    "claim": "关闭限制同时传到底层 outside-click；header/footer 与 form submit 封装在统一 shell。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N077",
+    "path": "webview/assets/dialog-shell-615700c272c0.css",
+    "offset": 1334,
+    "excerpt": "._imageSheetSurface_yae8n_2{width:100%;height:auto;color:var(--color-text);--color-text:var(--lightningcss-light,#0d0d0d)var(--lightningcss-dark,#dfdfdf);--color-text-secondary:var(--lightningcss-light,#5d5d5d)var(--lightningcss-dark,#aaa);--color-text-tertiary:var(--lightningcss-light,#8f8f8f)var(--lightningcss-dark,#aaa);inset-inline:0;background:var(--lightningcss-light,#fff)var(--lightningcss-dark,#212121);border-radius:40px 40px 0 0;padding-bottom:0;font-family:OpenAI Sans,sans-serif;bottom:0;overflow:hidden;box-shadow:0 8px 12px #00000014,0 0 1px #0000009e}._imageSheetSurface_yae8n_2:whe",
+    "claim": "imageSheet 满宽贴底、顶部双角 40px、OpenAI Sans、浅白/深 #212121 背景。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N078",
+    "path": "webview/assets/thread-panel-toggle-button-75e2c5e3b58f.js",
+    "offset": 177,
+    "excerpt": "let n=(0,u.c)(15),{children:r,disabled:o,label:s,tooltipContent:c,onClick:l,color:f,appearance:p,size:m,pressed:h,shortcut:g}=e,_=o!==void 0&&o,v=c===void 0?s:c,y=f===void 0?`ghost`:f,b=p===void 0?`toolbar`:p,x=m===void 0?`toolbar`:m,S=h?`secondary`:y;y===`outline`&&(S=h?`outlineActive`:`outline`);let C;n[0]!==r||n[1]!==_||n[2]!==s||n[3]!==l||n[4]!==h?(C={\"aria-label\":s,\"aria-pressed\":h,disabled:_,onClick:l,uniform:!0,children:r},n[0]=r,n[1]=_,n[2]=s,n[3]=l,n[4]=h,n[5]=C):C=n[5];let w=C,T;n[6]!==b||n[7]!==S||n[8]!==w||n[9]!==x?(T=b===`floating`?(0,d.jsx)(i,{...w}):(0,d.jsx)(t,{size:x,color:S,.",
+    "claim": "面板按钮按 pressed 显示 secondary；outline 对应 outlineActive；提供 aria-pressed、disabled 与快捷键 tooltip。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N079",
+    "path": "webview/assets/panel-visibility-41b91d8768ec.js",
+    "offset": 768,
+    "excerpt": "if(s===!1||s==null&&N){E(e,j??`right`),f!=null&&n(f,g);return}if(j===`bottom`){let t=_?.browserTabId??o(C),n=_?.tab.tabId??C?.tabId;if(t==null||n==null)return;!N&&f!=null&&T(f,t,{initiator:i,source:d}),w(e,`bottom`,n);return}let P=e.get(b.tabs$),F=M(P,g),I=f==null?null:a.getBrowserUseActiveBrowserTabId(f),L=null;if(f!=null&&(L=F==null?u(g??I??void 0):o(P.find(e=>e.tabId===F)??{tabId:F})),F==null){let t=v(e,{browserTabId:L??void 0}),n=f==null?L:p(e,f)??L;t&&f!=null&&n!=null&&!N&&T(f,n,{initiator:i,source:d});return}f!=null&&L!=null&&!N&&T(f,L,{initiator:i,source:d}),w(e,`right`,F)}function M(e,",
+    "claim": "浏览器面板 toggler 判断 bottom/right 和活动浏览器 tab，打开前后与浏览器服务协调，非简单 boolean CSS 隐藏。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N080",
+    "path": "webview/assets/chatgpt-image-lightbox-ab4be5fdabb7.js",
+    "offset": 3469,
+    "excerpt": "[C,de]=(0,T.useState)(f.selectedIndex),w;t[4]===Symbol.for(`react.memo_cache_sentinel`)?(w=[],t[4]=w):w=t[4];let[D,_e]=(0,T.useState)(w),[ve]=(0,T.useState)(me),O=f.images[C],ye=O?.src??``,k;t[5]===f.imageAssetContext?.conversationId?k=t[6]:(k=f.imageAssetContext?.conversationId??a(`chatgpt:image-lightbox`),t[5]=f.imageAssetContext?.conversationId,t[6]=k);let be=f.imageAssetContext?.imageAssetResolver,A;t[7]!==ye||t[8]!==k||t[9]!==be?(A={src:ye,conversationId:k,imageAssetResolver:be,shouldLoadFileDataUrl:!1},t[7]=ye,t[8]=k,t[9]=be,t[10]=A):A=t[10];let{previewSrc:j}=le(A);if(O==null)return null",
+    "claim": "图片查看器持有 selectedIndex 及失败 URL 集合；原图解析失败可退缩略图。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N081",
+    "path": "webview/assets/chatgpt-image-lightbox-ab4be5fdabb7.js",
+    "offset": 6786,
+    "excerpt": "J=e=>{e.preventDefault(),d??ve?.focus()},t[43]=d,t[44]=ve,t[45]=J):J=t[45];let Y=J,we;t[46]!==u||t[47]!==f.images.length||t[48]!==C?(we=C>=f.images.length-1?void 0:()=>{de(C+1),u?.(C+1,`next`)},t[46]=u,t[47]=f.images.length,t[48]=C,t[49]=we):we=t[49];let X=we,Te;t[50]!==u||t[51]!==C?(Te=C===0?void 0:()=>{de(C-1),u?.(C-1,`previous`)},t[50]=u,t[51]=C,t[52]=Te):Te=t[52];let Z=Te;if(S){let e;t[53]!==n||t[54]!==C?(e=()=>n?.(C)??null,t[53]=n,t[54]=C,t[55]=e):e=t[55];let i=j!=null&&D.includes(j)?O.fallbackSrc??O.src:O.src,a=N??O.src,s;t[56]===f.viewOnly?s=t[57]:(s=e=>{let{saveAction:t}=e;re",
+    "claim": "关闭图片查看器恢复先前焦点；前后导航在头尾提供 undefined，不循环。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N082",
+    "path": "webview/assets/chatgpt-image-lightbox-ab4be5fdabb7.js",
+    "offset": 7934,
+    "excerpt": "readOnly:!0,referrerPolicy:`no-referrer`,renderHeaderActions:s,renderHeaderTitle:c,src:ee,title:u},t[62]=z,t[63]=U,t[64]=O.downloadFileName,t[65]=r,t[66]=l,t[67]=q,t[68]=i,t[69]=a,t[70]=s,t[71]=c,t[72",
+    "claim": "图片 overlay 用 readOnly 图像展示；无 referrer；overlay 由实验参数与 portal 条件决定。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N083",
+    "path": "webview/assets/image-lightbox-94594a0c28a9.js",
+    "offset": 799,
+    "excerpt": "if(h.some((e,t)=>e.isLoading&&!w.has(m[t])))return null;let A;if(r[3]!==w||r[4]!==o||r[5]!==a.dilV2||r[6]!==a.images||r[7]!==a.payload||r[8]!==a.selectedIndex||r[9]!==s||r[10]!==l||r[11]!==c){let e=[],t=0;for(let[n,r]of a.images.entries()){let i=r.fallbackSrc&&w.has(r.fallbackSrc)?r.fallbackSrc:null,o=w.has(r.src)?r.src:i;o!=null&&(n===a.selectedIndex&&(t=e.length),e.push({...r,src:o,fallbackSrc:i,originalIndex:n}))}A=e.length>0?(0,k.jsx)(C,{request:{images:e,selectedIndex:t,favorites:c?.shouldBlockExternalEgress||c?.productReference!=null||c?.conversationType===`sidebar`?void 0:{sources:e.map",
+    "claim": "外链图片 lightbox 在安全 URL 检查完成后过滤不允许地址；可回退安全 thumbnail，空结果不渲染。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N084",
+    "path": "webview/assets/generated-image-gallery-80189646564d.js",
+    "offset": 24873,
+    "excerpt": "onEdit:L&&xe&&_e(K).canEdit&&!K.isPreview&&K.status===`completed`?e=>{zt(K,e,`lightbox_edit_button`)&&tt(null)}:void 0,onOpenChange:e=>{e||tt(null)},onPreviousImage:K.isPreview||bt==null?void 0:()=>{tt(bt.id),E?.(bt,`view`)},onNextImage:K.isPreview||xt==null?void 0:()=>{tt(xt.id),E?.(xt,`view`)}}):null,t[62]=K,t[63]=yt,t[64]=u,t[65]=L,t[66]=U,t[67]=h,t[68]=Be,t[69]=b,t[70]=R,t[71]=S,t[72]=xt,t[73]=E,t[74]=zt,t[75]=Me,t[76]=bt,t[77]=V,t[78]=tt,t[79]=xe,t[80]=fe,t[81]=tn):tn=t[",
+    "claim": "生成图编辑按钮需要编辑能力、非 preview、completed 状态；prev/next 也跳过 preview。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N085",
+    "path": "webview/assets/generated-image-gallery-80189646564d.js",
+    "offset": 9113,
+    "excerpt": "className:`size-14 shrink-0 overflow-hidden rounded-lg`,\"aria-hidden\":n.length===0||t>0,children:(0,Z.jsx)(qe,{ariaLabel:s,presentation:`thumbnail`,isAnimating:!1})},t),t[29]=n.length,t[30]=s,t[31]=e):e=t[31],b=Array.from({length:o},e),t[25]=n.length,t[26]=s,t[27]=o,t[28]=b}else b=t[28];let x;return t[32]!==v||t[33]!==y||t[34]!==te||t[35]!==b?(x=(0,Z.jsxs)(`div`,{ref:f,className:`vertical-scroll-fade-mask relative flex shrink-0 flex-col gap-2 overflow-y-auto p-1`,role:`group`,\"aria-label\":v,style:y,children:[te,b]}),t[32]=v,t[33]=y,t[34]=te,t[35]=b,t[36]=x):x=t[36],x}functi",
+    "claim": "生成图缩略导航单项 size-14、rounded-lg，纵向滚动容器 gap-2/p-1。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N086",
+    "path": "webview/assets/generated-image-gallery-80189646564d.js",
+    "offset": 25605,
+    "excerpt": "className:`flex gap-2 transition-transform duration-basic ease-out motion-reduce:transition-none`,style:{height:q.heightPx,transform:q.aspectRatio===`square`?`translateX(-${wt}px)`:void 0},children:[Zt,Qt]}),$t]}),en]}),tn]})}function Pt(e){return e.status===`completed`&&!e.isPreview}function Ft(e){",
+    "claim": "生成图水平轨道 gap-2；平移动画使用 duration-basic/ease-out，并遵守 motion-reduce。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N087",
+    "path": "webview/assets/generated-image-gallery-80189646564d.js",
+    "offset": 37027,
+    "excerpt": "id:`codex.localConversation.generatedImageGallery.openCanvas`,defaultMessage:`Canvas`,description:`Label for opening multiple generated images in the image canvas view`}),t[0]=r,t[1]=i):(r=t[0],i=t[1]);let a;return t[2]===n?a=t[3]:(a=(0,$.jsxs)(st,{onClick:n,children:[r,i]}),t[2]=n,t[3]=a),a}function Lt(e){let t=(0,Wt.c)(29),{overflowCount:r,canGoToPreviousImages:i,canGoToNextImages:a,onOpenCanvas:o,onPrevi",
+    "claim": "生成图 Canvas 入口是多图画布，与文字代码 Canvas 不可混同。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N088",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13979398,
+    "excerpt": "function Lgd(e){let t=(0,Rgd.c)(43),{action:n,isMuted:r,phase:i,presentation:a,shouldPlayButtonSounds:o,onClick:c}=e,l=a===void 0?`default`:a,u=o!==void 0&&o,d=za();if(n===`end`){let e;if(i===`starting`){let n;t[0]!==d||t[1]!==l?(n=l===`integrated`?d.formatMessage({id:`integratedux.cancelLoadingAria`,defaultMessage:`Cancel loading`,description:`Screen reader text that tells the user the button cancels Voice loading`}):d.formatMessage({id:`composer.realtime.cancel`,defaultMessage:`Cancel voice chat`,description:`Accessible label for cancelling realtime voice startup from the composer`}),t[0]=d,",
+    "claim": "实时语音控制接收 action/isMuted/phase/presentation，起始可取消、停止中显示 Ending。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N089",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13982814,
+    "excerpt": "let h=i!==`active`,g;t[27]!==p||t[28]!==n||t[29]!==r||t[30]!==l?(g=n===`microphone`?(0,zgd.jsx)(Ngd,{className:l===`integrated`&&!r?`shrink-0 text-codex-icon`:`shrink-0`}):(0,zgd.jsx)(p,{className:`icon-xs`}),t[27]=p,t[28]=n,t[29]=r,t[30]=l,t[31]=g):g=t[31];let _;t[32]!==f||t[33]!==r||t[34]!==m||t[35]!==c||t[36]!==u||t[37]!==h||t[38]!==g?(_=(0,zgd.jsx)(Ogd,{uniform:!0,\"aria-label\":m,color:f,disabled:h,isOnAfterRelease:r,shouldPlaySounds:u,size:`composer`,onClick:c,children:g}),t[32]=f,t[33]=r,t[34]=m,t[35]=c,t[36]=u,t[37]=h,t[38]=g,t[39]=_):_=t[39];let v;return t[40]!==m||t[41]!==_?(v=(0,zgd.j",
+    "claim": "语音麦克风/输出静音按钮仅 active 时启用。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N090",
+    "path": "webview/assets/app-initial-90eb42395b7d.js",
+    "offset": 13980831,
+    "excerpt": "let n=i===`stopping`||void 0,r=i===`stopping`,a;t[9]===i?a=t[10]:(a=i===`stopping`?(0,zgd.jsx)(nl,{className:`icon-primary-action`}):(0,zgd.jsx)(hu,{className:`icon-primary-action`}),t[9]=i,t[10]=a);let o;return t[11]!==e||t[12]!==c||t[13]!==n||t[14]!==r||t[15]!==a?(o=(0,zgd.jsx)(s,{uniform:!0,\"aria-label\":e,\"aria-disabled\":n,color:`composerPrimary`,disabled:r,radius:`full`,size:`composer`,onClick:c,children:a}),t[11]=e,t[12]=c,t[13]=n,t[14]=r,t[15]=a,t[16]=o):o=t[16],o}let f,p=ngd,m;if(n===`microphone`&&r){f=`dangerSolid`;let e;t[17]!==d||t[18]!==l?(e=l===`integrated`?d.formatMessage({id:`int",
+    "claim": "停止语音期间按钮 aria-disabled、disabled，并显示 spinner；正常为 composerPrimary 圆形按钮。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N091",
+    "path": "webview/assets/thread-app-shell-chrome-448dfc36547b.js",
+    "offset": 59332,
+    "excerpt": "onActivateTab:W,onCloseTab:Ye,onCloseFocusFallback:G,startInstantTransition:s,renderTab:Qe,leadingTab:$e}),t[72]=Fe,t[73]=I,t[74]=de,t[75]=ge,t[76]=pe,t[77]=s,t[78]=Ie.panelId,t[79]=Le,t[80]=Re,t[81]=Be,t[82]=We,t[83]=Ge,t[84]=Ke,t[85]=qe,t[86]=Je,t[87]=W,t[88]=Ye,t[89]=G,t[90]=Qe,t[91]=$e,t[92]=et):et=t[92];let tt;return t[93]!==Me||t[94]!==Ne||t[95]!==Pe||t[96]!==et?(tt=(0,Z.jsx)(Me,{items:Ne,strategy:Pe,children:et}),t[93]=Me,t[94]=Ne,t[95]=Pe,t[96]=et,t[97]=tt):tt=t[97],tt}function Cc(e){return e.dndId}function wc(e){return e.isWorkspaceHome}function Tc(e){return[e.dndId,e]}funct",
+    "claim": "Tab strip 向基础组件传激活、关闭、关闭后焦点回退、reducedMotion 与 keyboardNavigationDisabled。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N092",
+    "path": "webview/assets/thread-app-shell-chrome-448dfc36547b.js",
+    "offset": 64274,
+    "excerpt": "\"aria-label\":n,\"aria-orientation\":`horizontal`,role:`tablist`,children:y}),t[57]=b.tab.title,t[58]=y,t[59]=x):x=t[59];let C;t[60]!==a||t[61]!==b.tab||t[62]!==i||t[63]!==l||t[64]!==S?(C=si(b.tab,l)?(0,Q.jsx)(K.HeaderToolbar.Actions,{children:(0,Q.jsx)(tr,{\"data-app-shell-tab-close-button\":!0,\"aria-label\":a.formatMessage({id:`codex.tabs.closeNamed`,defaultMessage:`Close {title} tab`,description:`Accessible label for closing a named tab`},{title:b.tab.title}),color:`ghost`,uniform:!0,onClick:()=>J.closeTab(i,b.tab.tabId),onMouseDown:Pc,children:(0,Q.jsx)(fe,{className:!S&&b.tab.requires",
+    "claim": "单个主标签仍使用水平 tablist 语义；关闭按钮命名 Close title tab 并调用 closeTab。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N093",
+    "path": "webview/assets/thread-app-shell-chrome-448dfc36547b.js",
+    "offset": 43603,
+    "excerpt": "className:`pointer-events-none absolute end-1 top-1/2 z-30 -translate-y-1/2 opacity-0 group-focus-within/tab:pointer-events-auto group-focus-within/tab:opacity-100 group-hover/tab:pointer-events-auto group-hover/tab:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100`,\"aria-label\":u,color:`ghost`,disabled:c,radius:`small`,size:`compact`,uniform:!0,onClick:y,onMouseDown:ec,onPointerDown:$s,children:b}),t[22]=c,t[23]=u,t[24]=y,t[25]=x):x=t[25];let S;return t[26]!==x||t[27]!==f|",
+    "claim": "标签关闭图标默认隐藏且不接收指针，hover/focus-within/focus-visible 时可交互。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N094",
+    "path": "webview/assets/thread-app-shell-chrome-448dfc36547b.js",
+    "offset": 44208,
+    "excerpt": "function $s(e){return e.stopPropagation()}function ec(e){e.preventDefault(),e.stopPropagation()}var tc,nc,rc;function ic(){return(ic=e((()=>{tc=W",
+    "claim": "Tab 关闭按钮阻止 pointer 冒泡，mousedown 同时 preventDefault/stopPropagation，避免误激活和抢焦点。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N095",
+    "path": "webview/assets/thread-app-shell-chrome-448dfc36547b.js",
+    "offset": 72832,
+    "excerpt": "id:`thread.bottomPanel.hide`,defaultMessage:`Hide bottom panel`,description:`Button label for hiding the thread bottom panel without closing its tabs`}):r.formatMessage({id:`thread.bottomPanel.close`,defaultMessage:`Close`,description:`Button label for closing the thread bottom panel`}),e[0]=l,e[1]=r,e[2]=u):u=e[2];let d=u,f=i&&!0,p;e[3]!==c||e[4]!==t||e[5]!==f?(p=f&&c&&Xa(t),e[3]=c,e[4]=t,e[5]=f,e[6]=p):p=e[6];let m=p,h,g;e[7]===t?(h=e[8],g=e[9]",
+    "claim": "底部面板有隐藏不关闭 tabs 的分支，不可将 hide 与 closeTab 混为一谈。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  },
+  {
+    "id": "N096",
+    "path": "webview/assets/app-initial-e7c27dd40beb.css",
+    "offset": 102746,
+    "excerpt": "._PageSurface_etoz9_2{inset-block:var(--app-shell-titlebar-height) 0;inset-inline:var(--app-shell-navigation-rail-width) 0;border-radius:var(--app-shell-window-radius,var(--radius-xl-base));box-shadow:var(--app-shell-page-surface-shadow);pointer-events:none;position:absolute}._FullHeightPageSurface_etoz9_2{border-start-end-radius:0;border-end-end-radius:0;inset-block-start:0}@media not all and (width>=768px){._FullHeightPageSurface_etoz9_2{display:none}}@media (width>=768px){._FullHeightPageSurfaceLayout_etoz9_2{ba",
+    "claim": "页面表面位于标题栏以下、导航 rail 之后，使用 window-radius 与 page-surface-shadow；装饰表面 pointer-events:none。",
+    "scope": "提取包静态代码；不证明当前账户/运行界面已启用。"
+  }
+]

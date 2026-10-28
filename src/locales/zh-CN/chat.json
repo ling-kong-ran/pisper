@@ -782,5 +782,9 @@
   "chatMessage.copyMessage": "复制消息",
   "chatMessage.copyReply": "复制回复",
   "chatMessage.copyReplyFailed": "复制失败，请重试或手动选择文字。",
-  "chatMessage.moreReplyActions": "更多回复操作"
+  "chatMessage.moreReplyActions": "更多回复操作",
+  "focusSession.preparingAttachments": "正在准备附件",
+  "focusSession.stopping": "正在停止",
+  "focusSession.waitingForModel": "正在切换模型，请稍候",
+  "focusSession.returnToLatest": "返回最新消息"
 }

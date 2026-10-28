@@ -35,5 +35,19 @@
   "assetsPage.openInApplication": "以应用打开",
   "assetsPage.preview": "预览",
   "assetsPage.thisFileTypeCanBeDownloadedSupportedDocumentsCanAlsoBeAddedToAChatForAnalysis": "此类型可下载，支持的文档也可以直接加入对话分析。",
-  "assetsPage.useInChat": "用于对话"
+  "assetsPage.useInChat": "用于对话",
+  "assetsPage.filters": "筛选",
+  "assetsPage.assetType": "资产类型",
+  "assetsPage.removeFilter": "移除{filter}筛选",
+  "assetsPage.refreshAssets": "刷新资产",
+  "assetsPage.refreshingAssets": "正在刷新资产…",
+  "assetsPage.retry": "重试",
+  "assetsPage.mediaFailed": "媒体加载失败",
+  "assetsPage.loadingPreview": "正在加载预览…",
+  "assetsPage.previewTruncated": "预览内容已截断；下载可获取完整文件。",
+  "assetsPage.noActiveSession": "请选择一个会话以查看其资产。",
+  "assetsPage.noCurrentAssets": "当前会话中没有符合条件的资产",
+  "assetsPage.noMatchingAssets": "没有匹配的资产",
+  "assetsPage.tryOtherFilters": "尝试其他筛选条件或搜索词。",
+  "assetsPage.invalidLink": "请输入有效的 http 或 https 链接。"
 }

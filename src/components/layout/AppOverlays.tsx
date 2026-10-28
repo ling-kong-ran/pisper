@@ -1,8 +1,25 @@
 // 全站浮层：命令面板（Cmd+K，导航/搜索/直达）与快捷创建（新会话/资源）。
 // 两个都懒加载并按需挂载，避免常驻开销；搜索会话走 React Query 缓存。
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LoaderCircle, MessageSquare, Plus, Search, Tag, X, type LucideIcon } from 'lucide-react'
+import {
+  AlertCircle,
+  LoaderCircle,
+  MessageSquare,
+  Plus,
+  Search,
+  Tag,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { startupQueryOptions } from '@/lib/startup-queries'
 import { Button } from '@/components/ui/button'
@@ -10,6 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/ui/field'
 import { relativeTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
 
 import { AppCardHeader } from '@/components/ui/app-primitives'
@@ -30,7 +48,9 @@ type CommandEntry = {
   hint: string
   meta?: string
   title?: string
-  run: () => void | Promise<void>
+  run: () => void | Promise<unknown>
+  group: 'actions' | 'pages' | 'labels' | 'sessions'
+  keepOpen?: boolean
 }
 
 type CommandPaletteProps = {
@@ -53,59 +73,79 @@ export function CommandPalette({
   onNewChat,
 }: CommandPaletteProps) {
   const { t, language } = useI18n()
+  const listId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const composing = useRef(false)
+  const pendingRef = useRef(false)
+  const pointerPosition = useRef({ x: -1, y: -1 })
   const [query, setQuery] = useState('')
-  const { data: sessionData } = useQuery(
-    startupQueryOptions<{ sessions?: SessionSummary[] }>('sessions'),
-  )
-  const sessions = useMemo(() => sessionData?.sessions || [], [sessionData])
+  const keyword = query.trim()
+  const sessionQuery = useQuery(startupQueryOptions<{ sessions?: SessionSummary[] }>('sessions'))
+  const { isError: sessionsError, refetch: refetchSessions } = sessionQuery
+  const sessions = useMemo(() => sessionQuery.data?.sessions || [], [sessionQuery.data])
   const [labelMatches, setLabelMatches] = useState<SessionTreeLabelMatch[]>([])
   const [labelsSearching, setLabelsSearching] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [labelsError, setLabelsError] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [pendingEntryId, setPendingEntryId] = useState('')
+  const [openError, setOpenError] = useState('')
+  const [pointerSnapshot, setPointerSnapshot] = useState<{
+    query: string
+    entries: CommandEntry[]
+  } | null>(null)
 
   useEffect(() => {
-    const keyword = query.trim()
+    setLabelsError(false)
+    setLabelMatches([])
     if (!keyword) {
-      setLabelMatches([])
       setLabelsSearching(false)
-      return undefined
+      return
     }
-    let active = true
+    const controller = new AbortController()
     setLabelsSearching(true)
     const timer = window.setTimeout(() => {
-      void chatApi
-        .searchSessionTreeLabels(keyword, 12)
-        .then((data) => {
-          if (!active) return
+      void chatApi.searchSessionTreeLabels(keyword, 12, controller.signal).then(
+        (data) => {
+          if (controller.signal.aborted) return
           setLabelMatches(data.labels || [])
           setLabelsSearching(false)
-        })
-        .catch(() => {
-          if (!active) return
-          setLabelMatches([])
+        },
+        () => {
+          if (controller.signal.aborted) return
+          setLabelsError(true)
           setLabelsSearching(false)
-        })
-    }, 140)
+        },
+      )
+    }, 250)
     return () => {
-      active = false
+      controller.abort()
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [keyword, retry])
 
-  const entries = useMemo(() => {
-    const keyword = query.trim().toLocaleLowerCase(language)
+  const groups = {
+    actions: t('navigation:appOverlays.actions'),
+    pages: t('navigation:appOverlays.pages'),
+    labels: t('navigation:appOverlays.labels'),
+    sessions: t('navigation:appSidebar.recentChats'),
+  }
+  const currentEntries = useMemo(() => {
+    const needle = keyword.toLocaleLowerCase(language)
     const matches = (...values: unknown[]) =>
-      !keyword ||
+      !needle ||
       values.some((value) =>
         String(value || '')
           .toLocaleLowerCase(language)
-          .includes(keyword),
+          .includes(needle),
       )
     const result: CommandEntry[] = []
     const newChatLabel = t('navigation:appOverlays.newChat')
     if (matches(newChatLabel, t('navigation:appOverlays.actions'))) {
       result.push({
         id: 'action:new-chat',
+        group: 'actions',
         Icon: Plus,
         label: newChatLabel,
         hint: t('navigation:appOverlays.actions'),
@@ -114,24 +154,30 @@ export function CommandPalette({
     }
     for (const [group, items] of navigation) {
       for (const [id, label, Icon] of items) {
-        if (matches(label, group, id)) {
-          result.push({ id: `page:${id}`, Icon, label, hint: group, run: () => onNavigate(id) })
-        }
+        if (matches(label, group, id))
+          result.push({
+            id: `page:${id}`,
+            group: 'pages',
+            Icon,
+            label,
+            hint: group,
+            run: () => onNavigate(id),
+          })
       }
     }
     const formatTimestamp = (value: string) => {
       const timestamp = Date.parse(value)
       if (!Number.isFinite(timestamp)) return t('navigation:appOverlays.unknownTime')
-      return new Intl.DateTimeFormat(language, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(timestamp)
+      return new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(
+        timestamp,
+      )
     }
     for (const label of labelMatches) {
       const sessionTime = formatTimestamp(label.sessionCreated || label.sessionModified)
       const nodeTime = formatTimestamp(label.nodeTimestamp)
       result.push({
         id: `label:${label.sessionId}:${label.entryId}`,
+        group: 'labels',
         Icon: Tag,
         label: label.label,
         hint: label.sessionName || t('navigation:appOverlays.untitledChat'),
@@ -140,146 +186,281 @@ export function CommandPalette({
         run: () => onOpenSession(label.sessionId, label.entryId, label.active),
       })
     }
+    if (labelsError)
+      result.push({
+        id: 'retry:labels',
+        group: 'labels',
+        Icon: AlertCircle,
+        label: t('navigation:appOverlays.searchLabelsFailed'),
+        hint: t('common:pageTemplate.retry'),
+        run: () => setRetry((value) => value + 1),
+        keepOpen: true,
+      })
+    let sessionCount = 0
     for (const session of [...sessions].sort(
       (a, b) => Date.parse(b.modified) - Date.parse(a.modified),
     )) {
       if (!matches(session.name, session.firstMessage)) continue
       result.push({
         id: `session:${session.id}`,
+        group: 'sessions',
         Icon: MessageSquare,
         label: session.name || t('navigation:appOverlays.untitledChat'),
         hint: relativeTime(session.modified, language),
         run: () => onOpenSession(session.id),
       })
-      if (result.filter((entry) => entry.id.startsWith('session:')).length >= 8) break
+      if (++sessionCount >= 8) break
     }
+    if (sessionsError)
+      result.push({
+        id: 'retry:sessions',
+        group: 'sessions',
+        Icon: AlertCircle,
+        label: t('navigation:appOverlays.loadChatsFailed'),
+        hint: t('common:pageTemplate.retry'),
+        run: () => refetchSessions(),
+        keepOpen: true,
+      })
     return result
-  }, [labelMatches, language, navigation, onNavigate, onNewChat, onOpenSession, query, sessions, t])
+  }, [
+    keyword,
+    language,
+    labelMatches,
+    labelsError,
+    navigation,
+    onNavigate,
+    onNewChat,
+    onOpenSession,
+    sessions,
+    sessionsError,
+    refetchSessions,
+    t,
+  ])
 
+  // 同一查询下冻结指针进入时的结果，防止迟到的标签插入后改变点击对象。
+  const entries = pointerSnapshot?.query === query ? pointerSnapshot.entries : currentEntries
+  const selectedIndex = Math.max(
+    0,
+    entries.findIndex((entry) => entry.id === activeId),
+  )
+  const selectedEntry = entries[selectedIndex]
   useEffect(() => {
-    setActiveIndex(0)
-  }, [query])
-  const selectedIndex = Math.min(activeIndex, Math.max(0, entries.length - 1))
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [activeId])
+
   const runEntry = async (entry?: CommandEntry) => {
-    if (!entry || pendingEntryId) return
-    if (!entry.id.startsWith('label:')) {
-      onClose()
-      void entry.run()
-      return
-    }
+    if (!entry || pendingRef.current) return
+    pendingRef.current = true
+    setPointerSnapshot(null)
     setPendingEntryId(entry.id)
+    setOpenError('')
     try {
       await entry.run()
-      onClose()
+      if (!entry.keepOpen) onClose()
     } catch {
+      setOpenError(
+        entry.group === 'labels'
+          ? t('navigation:appOverlays.openLabeledTurnFailed')
+          : t('navigation:appOverlays.openResultFailed'),
+      )
+    } finally {
+      pendingRef.current = false
       setPendingEntryId('')
+      inputRef.current?.focus()
     }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (pendingEntryId) {
+    if (event.nativeEvent.isComposing || composing.current || event.keyCode === 229) return
+    if (pendingRef.current) {
       event.preventDefault()
       return
     }
-    if (event.key === 'ArrowDown') {
+    const select = (index: number) => {
+      setPointerSnapshot(null)
+      setActiveId(entries[index]?.id ?? null)
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      setActiveIndex((current) => (entries.length ? (current + 1) % entries.length : 0))
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setActiveIndex((current) =>
-        entries.length ? (current - 1 + entries.length) % entries.length : 0,
+      const direction = event.key === 'ArrowDown' ? 1 : -1
+      select(entries.length ? (selectedIndex + direction + entries.length) % entries.length : 0)
+    } else if (event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      const starts = entries.flatMap((entry, index) =>
+        index === 0 || entry.group !== entries[index - 1].group ? [index] : [],
       )
+      if (starts.length < 2) return
+      event.preventDefault()
+      const group = starts.findIndex((start) => entries[start].group === selectedEntry?.group)
+      select(starts[(group + (event.shiftKey ? -1 : 1) + starts.length) % starts.length])
     } else if (event.key === 'Enter') {
       event.preventDefault()
-      void runEntry(entries[selectedIndex])
-    } else if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
+      void runEntry(selectedEntry)
     }
   }
-
+  const highlight = (label: string) => {
+    const start = keyword
+      ? label.toLocaleLowerCase(language).indexOf(keyword.toLocaleLowerCase(language))
+      : -1
+    if (start < 0) return label
+    return (
+      <>
+        {label.slice(0, start)}
+        <mark className="bg-transparent font-semibold text-foreground">
+          {label.slice(start, start + keyword.length)}
+        </mark>
+        {label.slice(start + keyword.length)}
+      </>
+    )
+  }
+  const searching = labelsSearching || sessionQuery.isPending
   return (
-    <Dialog open onOpenChange={(open) => !open && !pendingEntryId && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !pendingRef.current && onClose()}>
       <DialogContent
         showCloseButton={false}
         aria-busy={Boolean(pendingEntryId)}
-        className="command-palette max-[650px]:w-full w-[min(560px,calc(100vw_-_40px))] overflow-hidden [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] shadow-[0_28px_80px_-24px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] top-[16vh]! max-w-[calc(100vw-40px)]! translate-y-0! gap-0 p-0 ring-0 max-sm:top-[8vh]! sm:max-w-[560px]!"
+        onEscapeKeyDown={(event) => {
+          if (composing.current || pendingRef.current) event.preventDefault()
+        }}
+        onPointerDownOutside={(event) => {
+          if (pendingRef.current) event.preventDefault()
+        }}
+        className="command-palette top-[max(16px,calc((100dvh-min(504px,90dvh))/2))]! w-[min(520px,92vw)]! max-w-none! translate-y-0! gap-1 overflow-hidden rounded-2xl border border-transparent bg-popover p-1 text-sm shadow-2xl ring-0 dark:border-border"
       >
         <DialogTitle className="sr-only">{t('navigation:appOverlays.commandPalette')}</DialogTitle>
         <DialogDescription className="sr-only">
           {t('navigation:appOverlays.searchPagesChatsOrActions')}
         </DialogDescription>
-        <label className="palette-input [&_input]:w-full [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:text-[var(--text)] [&_input]:text-[14px] [&_kbd]:flex-none [&_kbd]:[border:1px_solid_var(--stroke)] [&_kbd]:rounded-[5px] [&_kbd]:bg-[var(--surface-subtle)] [&_kbd]:p-[1px_5px] [&_kbd]:text-[var(--text-muted)] [&_kbd]:font-[inherit] [&_kbd]:text-[10px] flex h-[46px] items-center gap-[9px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:0_14px] text-[var(--text-muted)]">
-          <Search size={16} />
+        <label className="flex min-h-11 shrink-0 items-center gap-2 border-b border-border/50 px-3 text-muted-foreground">
+          <Search className="size-4 shrink-0" aria-hidden="true" />
           <input
+            ref={inputRef}
             autoFocus
+            role="combobox"
+            aria-label={t('navigation:appOverlays.searchPagesChatsOrActions')}
+            aria-autocomplete="list"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={selectedEntry ? `${listId}-${selectedIndex}` : undefined}
+            className="h-11 min-w-0 flex-1 border-0 bg-transparent text-base text-foreground outline-none"
             value={query}
-            disabled={Boolean(pendingEntryId)}
-            onChange={(event) => setQuery(event.target.value)}
+            readOnly={Boolean(pendingEntryId)}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setActiveId(null)
+              setPointerSnapshot(null)
+              setOpenError('')
+            }}
+            onCompositionStart={() => {
+              composing.current = true
+            }}
+            onCompositionEnd={() => {
+              composing.current = false
+            }}
             onKeyDown={onKeyDown}
             placeholder={t('navigation:appOverlays.searchPagesChatsOrActions')}
           />
           {pendingEntryId ? (
-            <span
-              className="flex shrink-0 items-center gap-1.5 text-xs"
-              role="status"
-              aria-live="polite"
-            >
-              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-              {t('navigation:appOverlays.locatingLabel')}
-            </span>
+            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
           ) : (
-            <kbd>Esc</kbd>
+            <kbd className="rounded-sm border border-border px-1 text-xs">Esc</kbd>
           )}
         </label>
+        {pendingEntryId && (
+          <span role="status" className="sr-only">
+            {pendingEntryId.startsWith('label:')
+              ? t('navigation:appOverlays.locatingLabel')
+              : t('common:pageTemplate.loading')}
+          </span>
+        )}
+        {openError && (
+          <div role="alert" className="px-3 py-2 text-sm text-destructive">
+            {openError}
+          </div>
+        )}
         <div
-          className="max-h-[min(380px,50vh)] overflow-y-auto [padding:6px]"
+          id={listId}
+          ref={listRef}
+          className="max-h-[min(440px,max(120px,calc(90dvh-64px)))] overflow-y-auto overscroll-contain p-1"
           role="listbox"
+          aria-busy={searching}
           aria-label={t('navigation:appOverlays.commandPalette')}
+          onPointerMove={(event) => {
+            const previous = pointerPosition.current
+            pointerPosition.current = { x: event.clientX, y: event.clientY }
+            if (
+              event.pointerType !== 'touch' &&
+              entries.length &&
+              (event.clientX !== previous.x || event.clientY !== previous.y) &&
+              pointerSnapshot?.query !== query
+            )
+              setPointerSnapshot({ query, entries })
+          }}
+          onPointerLeave={() => setPointerSnapshot(null)}
+          onPointerCancel={() => setPointerSnapshot(null)}
         >
-          {entries.map((entry, index) => (
-            <button
-              type="button"
-              className={`palette-item [&_>_svg]:flex-none [&_>_svg]:text-[var(--text-muted)] [&.active]:bg-[var(--star-soft)] [&.active]:text-[var(--text)] [&.active_>_svg]:text-[var(--star-strong)] flex w-full items-center gap-[10px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:9px_10px] text-[var(--text-secondary)] text-[13px] text-left cursor-pointer ${entry.meta ? 'has-meta' : ''}    ${index === selectedIndex ? 'active' : ''}`}
-              title={entry.title}
-              role="option"
-              aria-selected={index === selectedIndex}
-              disabled={Boolean(pendingEntryId)}
-              aria-busy={pendingEntryId === entry.id}
-              onMouseEnter={() => !pendingEntryId && setActiveIndex(index)}
-              onClick={() => void runEntry(entry)}
-              key={entry.id}
-            >
-              {pendingEntryId === entry.id ? (
-                <LoaderCircle className="size-[15px] animate-spin" aria-hidden="true" />
-              ) : (
-                <entry.Icon size={15} />
-              )}
-              <span className="palette-item-copy [&_>_small]:overflow-hidden [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[10px] [&_>_small]:text-ellipsis [&_>_small]:whitespace-nowrap flex min-w-0 flex-1 flex-col gap-[2px]">
-                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                  {entry.label}
-                </span>
-                {entry.meta && <small>{entry.meta}</small>}
-              </span>
-              <span className="palette-item-hint max-[650px]:max-w-[34vw] max-w-[180px] flex-none overflow-hidden text-[var(--text-muted)] text-[11px] text-ellipsis whitespace-nowrap">
-                {pendingEntryId === entry.id
-                  ? t('navigation:appOverlays.locatingLabel')
-                  : entry.hint}
-              </span>
-            </button>
-          ))}
-          {!entries.length && (
-            <div className="palette-empty [padding:20px] text-[var(--text-muted)] text-[12px] text-center">
-              {labelsSearching
-                ? t('navigation:appOverlays.searchingLabels')
-                : t('navigation:appOverlays.noMatchingResults')}
+          {(['actions', 'pages', 'labels', 'sessions'] as const).map((group) => {
+            const items = entries.filter((entry) => entry.group === group)
+            if (!items.length) return null
+            return (
+              <div role="group" aria-label={groups[group]} key={group}>
+                <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+                  {groups[group]}
+                  {group === 'labels' && labelsSearching && (
+                    <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+                  )}
+                </div>
+                {items.map((entry) => {
+                  const index = entries.indexOf(entry)
+                  return (
+                    <button
+                      id={`${listId}-${index}`}
+                      type="button"
+                      tabIndex={-1}
+                      role="option"
+                      aria-selected={index === selectedIndex}
+                      aria-disabled={Boolean(pendingEntryId)}
+                      aria-busy={pendingEntryId === entry.id}
+                      key={entry.id}
+                      title={entry.title}
+                      className={cn(
+                        'palette-item flex min-h-6 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm opacity-75 outline-none hover:bg-accent hover:opacity-100 focus-visible:bg-accent focus-visible:opacity-100 aria-disabled:opacity-25',
+                        index === selectedIndex && 'bg-accent opacity-100',
+                      )}
+                      onPointerMove={() => {
+                        if (!pendingRef.current) setActiveId(entry.id)
+                      }}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => void runEntry(entry)}
+                    >
+                      {pendingEntryId === entry.id ? (
+                        <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <entry.Icon className="size-4 shrink-0" aria-hidden="true" />
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{highlight(entry.label)}</span>
+                        {entry.meta && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {entry.meta}
+                          </span>
+                        )}
+                      </span>
+                      <span className="w-24 shrink-0 truncate text-right text-xs text-muted-foreground">
+                        {entry.hint}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
+          {searching && (
+            <div role="status" className="px-3 py-2 text-sm text-muted-foreground">
+              {t('navigation:appOverlays.searchingLabels')}
             </div>
           )}
-          {entries.length > 0 && labelsSearching && (
-            <div
-              aria-live="polite"
-              className="palette-empty [padding:20px] text-[var(--text-muted)] text-[12px] text-center palette-searching [.palette-empty&]:p-[8px_12px]"
-            >
-              {t('navigation:appOverlays.searchingLabels')}
+          {!entries.length && !searching && (
+            <div role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
+              {t('navigation:appOverlays.noMatchingResults')}
             </div>
           )}
         </div>

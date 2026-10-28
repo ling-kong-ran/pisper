@@ -1,12 +1,14 @@
 // 聚焦会话输入区状态与提交逻辑：执行模式/预算状态、资源调用选择、
 // 排队与手动压缩守卫，以及「发送/排队」提交流程。
-// 从 FocusSession.tsx 拆出：行为与原先逐行一致，仅改变代码所在位置。
+// 接收确认与会话身份共同约束草稿清理，拒绝时保留原输入。
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import type { ChatAttachment, EntityRecord, ResourceInvocation } from '@/types/chat'
+import type { ComposerSubmission } from './composer-drafts'
 import type { ComposerExecutionMode } from './GoalModeControl'
 
 type ComposerSelection = {
   attachments: ChatAttachment[]
+  preparingAttachments?: { id: string; name: string }[]
 }
 
 const COMPOSER_RUN_MODES: ComposerExecutionMode[] = ['plan', 'goal', 'team']
@@ -30,11 +32,13 @@ export function useFocusComposer({
   value,
   selection,
   clearDraft,
+  captureSubmission,
   promptRef,
   onCompact,
   onGoalPause,
   onSend,
   onQueue,
+  onAbort,
   setToolsOpen,
   requestTranscriptBottom,
 }: {
@@ -49,6 +53,7 @@ export function useFocusComposer({
   value: string
   selection: ComposerSelection
   clearDraft: () => void
+  captureSubmission?: () => ComposerSubmission
   promptRef: RefObject<HTMLTextAreaElement | null>
   onCompact?: () => Promise<void> | void
   onGoalPause?: () => Promise<void> | void
@@ -59,12 +64,15 @@ export function useFocusComposer({
     teamMode: boolean,
     goalTokenBudget: number | null,
     invocation?: ResourceInvocation | null,
-  ) => Promise<void> | void
+    onAccepted?: () => void,
+  ) => Promise<boolean | void> | boolean | void
   onQueue?: (
     value: string,
     attachments: ChatAttachment[],
     behavior: string,
+    onAccepted?: () => void,
   ) => Promise<boolean> | boolean
+  onAbort?: () => Promise<void> | void
   setToolsOpen: (open: boolean) => void
   requestTranscriptBottom: () => void
 }) {
@@ -78,14 +86,26 @@ export function useFocusComposer({
   const [teamTokenBudget, setTeamTokenBudget] = useState<number | null>(null)
   const goalPausePromiseRef = useRef<Promise<void> | null>(null)
   const [queueing, setQueueing] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const pendingSubmissionRef = useRef<object | null>(null)
+  const activeSessionRef = useRef(sessionId)
+  activeSessionRef.current = sessionId
   const [compactingManually, setCompactingManually] = useState(false)
   const [invocation, setInvocation] = useState<ResourceInvocation | null>(null)
+  const invocationRef = useRef(invocation)
+  invocationRef.current = invocation
 
   useEffect(() => {
     setComposerExecutionMode(normalizeComposerRunMode(runModeRef.current))
     goalPausePromiseRef.current = null
     setGoalTokenBudget(null)
     setTeamTokenBudget(null)
+    pendingSubmissionRef.current = null
+    setSubmitting(false)
+    setStopping(false)
+    setSubmitError('')
     setQueueing(false)
     setCompactingManually(false)
     setInvocation(null)
@@ -132,55 +152,93 @@ export function useFocusComposer({
       setCompactingManually(false)
     }
   }
-  // 提交输入：空输入不发送；流式中走排队，否则发送目标模式/资源命令并清空草稿。
+  const stop = async () => {
+    if (stopping || !onAbort) return
+    const originSession = sessionId
+    setStopping(true)
+    try {
+      await onAbort()
+    } catch (error) {
+      if (activeSessionRef.current === originSession)
+        setSubmitError(error instanceof Error ? error.message : String(error))
+    } finally {
+      if (activeSessionRef.current === originSession) setStopping(false)
+    }
+  }
+
+  // 草稿在服务端确认接收时才清理；请求拒绝前保持完整文本与附件，避免恢复覆盖新输入。
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (pendingSubmissionRef.current || stopping || selection.preparingAttachments?.length) return
     if (!value.trim() && !selection.attachments.length && !invocation) return
-    if (streaming) {
-      if ((!value.trim() && !selection.attachments.length) || queueing) return
-      setQueueing(true)
-      const queued = await onQueue?.(value, selection.attachments, 'steer')
+    if (streaming && ((!value.trim() && !selection.attachments.length) || !onQueue)) return
+    const identity = {}
+    const originSession = sessionId
+    pendingSubmissionRef.current = identity
+    const ownsRequest = () =>
+      activeSessionRef.current === originSession && pendingSubmissionRef.current === identity
+    const snapshot = captureSubmission?.()
+    let accepted = false
+    const accept = () => {
+      if (accepted) return
+      accepted = true
+      if (snapshot) snapshot.accept()
+      else clearDraft()
+      if (!ownsRequest()) return
+      setSubmitting(false)
       setQueueing(false)
-      if (!queued) return
-      clearDraft()
       setComposerExecutionMode('plan')
       setToolsOpen(false)
+      if (invocationRef.current === invocation) setInvocation(null)
       requestTranscriptBottom()
       if (promptRef.current) promptRef.current.style.height = 'auto'
-      return
+      pendingSubmissionRef.current = null
     }
-    const pendingGoalPause = goalPausePromiseRef.current
-    if (pendingGoalPause) {
-      try {
-        await pendingGoalPause
-      } catch {
-        goalPausePromiseRef.current = null
+    setSubmitError('')
+    if (streaming) setQueueing(true)
+    else setSubmitting(true)
+    try {
+      if (streaming) {
+        if (await onQueue?.(value, selection.attachments, 'steer', accept)) accept()
         return
       }
-      goalPausePromiseRef.current = null
-    } else if (
-      goal?.status === 'active' &&
-      (composerExecutionMode === 'plan' || composerExecutionMode !== goal.mode)
-    )
-      await onGoalPause?.()
-    onSend(
-      value,
-      selection.attachments,
-      composerExecutionMode === 'goal' || composerExecutionMode === 'team',
-      composerExecutionMode === 'team',
-      composerExecutionMode === 'team'
-        ? teamTokenBudget
-        : composerExecutionMode === 'goal'
-          ? goalTokenBudget
-          : null,
-      invocation,
-    )
-    requestTranscriptBottom()
-    clearDraft()
-    setComposerExecutionMode('plan')
-    setToolsOpen(false)
-    setInvocation(null)
-    if (promptRef.current) promptRef.current.style.height = 'auto'
+      const pendingGoalPause = goalPausePromiseRef.current
+      if (pendingGoalPause) {
+        await pendingGoalPause
+        goalPausePromiseRef.current = null
+      } else if (
+        goal?.status === 'active' &&
+        (composerExecutionMode === 'plan' || composerExecutionMode !== goal.mode)
+      )
+        await onGoalPause?.()
+      if (!ownsRequest()) return
+      const result = await onSend(
+        value,
+        selection.attachments,
+        composerExecutionMode === 'goal' || composerExecutionMode === 'team',
+        composerExecutionMode === 'team',
+        composerExecutionMode === 'team'
+          ? teamTokenBudget
+          : composerExecutionMode === 'goal'
+            ? goalTokenBudget
+            : null,
+        invocation,
+        accept,
+      )
+      // 旧调用方以完成 Promise 表示接收，新调用方通过回调在 SSE 开始时确认。
+      if (!accepted && result !== false) accept()
+    } catch (error) {
+      if (ownsRequest()) {
+        goalPausePromiseRef.current = null
+        setSubmitError(error instanceof Error ? error.message : String(error))
+      }
+    } finally {
+      if (ownsRequest()) {
+        pendingSubmissionRef.current = null
+        setSubmitting(false)
+        setQueueing(false)
+      }
+    }
   }
 
   return {
@@ -191,6 +249,10 @@ export function useFocusComposer({
     teamTokenBudget,
     setTeamTokenBudget,
     queueing,
+    submitting,
+    stopping,
+    submitError,
+    stop,
     compactingManually,
     invocation,
     setInvocation,

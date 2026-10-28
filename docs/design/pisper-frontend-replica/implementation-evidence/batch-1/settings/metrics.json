@@ -1,0 +1,1032 @@
+{
+  "generatedAt": "2026-10-20T09:32:52.614Z",
+  "capture": {
+    "css": "all current dist/assets/*.css, sorted by filename",
+    "animations": "disabled for screenshots; finite popover animations settled before measurement",
+    "reducedMotion": "reduce",
+    "fixtureSurface": "real PageFrame settings content, without App shell"
+  },
+  "browser": "151.0.7922.34",
+  "cssFiles": [
+    {
+      "name": "TaskTerminalView-BrP-ENHg.css",
+      "bytes": 3939,
+      "sha256": "0e5386f16cb4be78a2fe911e014a810da76ea2db47d8c8b2a966516b2fd5270b",
+      "modifiedAt": "2026-10-20T09:25:03.365Z"
+    },
+    {
+      "name": "index-DSMZSnVj.css",
+      "bytes": 423433,
+      "sha256": "9df2cf3fe437f6c6bc3785cbf095ddc37620dddaa4aa169013dbe53b8784c0bb",
+      "modifiedAt": "2026-10-20T09:25:03.366Z"
+    },
+    {
+      "name": "react-bits-DQli9s7O.css",
+      "bytes": 4978,
+      "sha256": "dd6b3b5721c78cf623b24e597ed42fe4c46ee266f42d1ebd3915e0a62303ddc5",
+      "modifiedAt": "2026-10-20T09:25:03.366Z"
+    },
+    {
+      "name": "vendor-dockview-D5adAaCg.css",
+      "bytes": 103092,
+      "sha256": "0e1ae6a04ae0ff12a638429143f3a040a42db1156c0de239873c43e9be3dfa0c",
+      "modifiedAt": "2026-10-20T09:25:03.366Z"
+    },
+    {
+      "name": "vendor-markdown-plugins-DEcVZfaU.css",
+      "bytes": 28836,
+      "sha256": "e3e391a763650a96600053095451bbaf9daeb554a92c13f14b496d595c502251",
+      "modifiedAt": "2026-10-20T09:25:03.366Z"
+    },
+    {
+      "name": "vendor-xyflow-DLioOiRN.css",
+      "bytes": 15413,
+      "sha256": "b0cb7bd6fec5951c9c8f5808821438206604b1629a912c96009ac427f38e7d69",
+      "modifiedAt": "2026-10-20T09:25:03.366Z"
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "light-1280",
+      "width": 1280,
+      "theme": "light",
+      "longLabels": false,
+      "screenshots": {
+        "closed": "appearance-light-1280.png",
+        "popover": "appearance-light-1280-popover.png"
+      },
+      "measurement": {
+        "viewport": {
+          "width": 1280,
+          "height": 900,
+          "devicePixelRatio": 1
+        },
+        "theme": "light",
+        "darkClass": false,
+        "typography": {
+          "rootPx": 16,
+          "uiPx": 14,
+          "uiBaseToken": "14px",
+          "bodyFontFamily": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif"
+        },
+        "colors": {
+          "body": "rgb(255, 255, 255)",
+          "foreground": "rgb(26, 28, 31)",
+          "backgroundToken": "#fff",
+          "popover": "rgb(255, 255, 255)"
+        },
+        "modeGroup": {
+          "x": 732,
+          "y": 67.4375,
+          "width": 272,
+          "height": 84,
+          "right": 1004,
+          "bottom": 151.4375,
+          "gridTemplateColumns": "80px 80px 80px",
+          "columnGap": "16px"
+        },
+        "thumbnails": [
+          {
+            "x": 732,
+            "y": 67.4375,
+            "width": 80,
+            "height": 60,
+            "right": 812,
+            "bottom": 127.4375,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 828,
+            "y": 67.4375,
+            "width": 80,
+            "height": 60,
+            "right": 908,
+            "bottom": 127.4375,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 924,
+            "y": 67.4375,
+            "width": 80,
+            "height": 60,
+            "right": 1004,
+            "bottom": 127.4375,
+            "aspectRatio": 1.3333333333333333
+          }
+        ],
+        "capsule": {
+          "x": 908,
+          "y": 181.46875,
+          "width": 96,
+          "height": 28,
+          "right": 1004,
+          "bottom": 209.46875
+        },
+        "colorPlane": {
+          "x": 861,
+          "y": 229,
+          "width": 136,
+          "height": 136,
+          "right": 997,
+          "bottom": 365
+        },
+        "popover": {
+          "x": 849,
+          "y": 217,
+          "width": 160,
+          "height": 282,
+          "right": 1009,
+          "bottom": 499
+        },
+        "scrollRegions": [
+          {
+            "tag": "HTML",
+            "slot": "",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "BODY",
+            "slot": "",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "root",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "settings",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "popover-content",
+            "scrollWidth": 160,
+            "clientWidth": 160,
+            "horizontalOverflow": false
+          }
+        ],
+        "offenders": [],
+        "labels": [
+          {
+            "text": "跟随系统",
+            "x": 732,
+            "y": 67.4375,
+            "width": 80,
+            "height": 84,
+            "right": 812,
+            "bottom": 151.4375,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "浅色",
+            "x": 828,
+            "y": 67.4375,
+            "width": 80,
+            "height": 84,
+            "right": 908,
+            "bottom": 151.4375,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "深色",
+            "x": 924,
+            "y": 67.4375,
+            "width": 80,
+            "height": 84,
+            "right": 1004,
+            "bottom": 151.4375,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          }
+        ]
+      },
+      "focusSequence": [
+        {
+          "tag": "DIV",
+          "role": "slider",
+          "label": "强调色饱和度和亮度",
+          "type": null
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "强调色色相",
+          "type": "range"
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "输入 HEX 颜色",
+          "type": "text"
+        }
+      ],
+      "checks": {
+        "themeApplied": true,
+        "threeColumns": true,
+        "noHorizontalOverflow": true,
+        "popoverWithinViewport": true,
+        "focusOnOpen": true,
+        "tabToHueAndHex": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "name": "dark-1280",
+      "width": 1280,
+      "theme": "dark",
+      "longLabels": false,
+      "screenshots": {
+        "closed": "appearance-dark-1280.png",
+        "popover": "appearance-dark-1280-popover.png"
+      },
+      "measurement": {
+        "viewport": {
+          "width": 1280,
+          "height": 900,
+          "devicePixelRatio": 1
+        },
+        "theme": "dark",
+        "darkClass": true,
+        "typography": {
+          "rootPx": 16,
+          "uiPx": 14,
+          "uiBaseToken": "14px",
+          "bodyFontFamily": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif"
+        },
+        "colors": {
+          "body": "rgb(24, 24, 24)",
+          "foreground": "rgb(223, 223, 223)",
+          "backgroundToken": "#181818",
+          "popover": "rgb(38, 38, 38)"
+        },
+        "modeGroup": {
+          "x": 732,
+          "y": 67.4375,
+          "width": 272,
+          "height": 84,
+          "right": 1004,
+          "bottom": 151.4375,
+          "gridTemplateColumns": "80px 80px 80px",
+          "columnGap": "16px"
+        },
+        "thumbnails": [
+          {
+            "x": 732,
+            "y": 67.4375,
+            "width": 80,
+            "height": 60,
+            "right": 812,
+            "bottom": 127.4375,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 828,
+            "y": 67.4375,
+            "width": 80,
+            "height": 60,
+            "right": 908,
+            "bottom": 127.4375,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 924,
+            "y": 67.4375,
+            "width": 80,
+            "height": 60,
+            "right": 1004,
+            "bottom": 127.4375,
+            "aspectRatio": 1.3333333333333333
+          }
+        ],
+        "capsule": {
+          "x": 908,
+          "y": 181.46875,
+          "width": 96,
+          "height": 28,
+          "right": 1004,
+          "bottom": 209.46875
+        },
+        "colorPlane": {
+          "x": 861,
+          "y": 229,
+          "width": 136,
+          "height": 136,
+          "right": 997,
+          "bottom": 365
+        },
+        "popover": {
+          "x": 849,
+          "y": 217,
+          "width": 160,
+          "height": 282,
+          "right": 1009,
+          "bottom": 499
+        },
+        "scrollRegions": [
+          {
+            "tag": "HTML",
+            "slot": "",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "BODY",
+            "slot": "",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "root",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "settings",
+            "scrollWidth": 1280,
+            "clientWidth": 1280,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "popover-content",
+            "scrollWidth": 160,
+            "clientWidth": 160,
+            "horizontalOverflow": false
+          }
+        ],
+        "offenders": [],
+        "labels": [
+          {
+            "text": "跟随系统",
+            "x": 732,
+            "y": 67.4375,
+            "width": 80,
+            "height": 84,
+            "right": 812,
+            "bottom": 151.4375,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "浅色",
+            "x": 828,
+            "y": 67.4375,
+            "width": 80,
+            "height": 84,
+            "right": 908,
+            "bottom": 151.4375,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "深色",
+            "x": 924,
+            "y": 67.4375,
+            "width": 80,
+            "height": 84,
+            "right": 1004,
+            "bottom": 151.4375,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          }
+        ]
+      },
+      "focusSequence": [
+        {
+          "tag": "DIV",
+          "role": "slider",
+          "label": "强调色饱和度和亮度",
+          "type": null
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "强调色色相",
+          "type": "range"
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "输入 HEX 颜色",
+          "type": "text"
+        }
+      ],
+      "checks": {
+        "themeApplied": true,
+        "threeColumns": true,
+        "noHorizontalOverflow": true,
+        "popoverWithinViewport": true,
+        "focusOnOpen": true,
+        "tabToHueAndHex": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "name": "light-390",
+      "width": 390,
+      "theme": "light",
+      "longLabels": false,
+      "screenshots": {
+        "closed": "appearance-light-390.png",
+        "popover": "appearance-light-390-popover.png"
+      },
+      "measurement": {
+        "viewport": {
+          "width": 390,
+          "height": 900,
+          "devicePixelRatio": 1
+        },
+        "theme": "light",
+        "darkClass": false,
+        "typography": {
+          "rootPx": 16,
+          "uiPx": 14,
+          "uiBaseToken": "14px",
+          "bodyFontFamily": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif"
+        },
+        "colors": {
+          "body": "rgb(255, 255, 255)",
+          "foreground": "rgb(26, 28, 31)",
+          "backgroundToken": "#fff",
+          "popover": "rgb(255, 255, 255)"
+        },
+        "modeGroup": {
+          "x": 16,
+          "y": 98,
+          "width": 272,
+          "height": 84,
+          "right": 288,
+          "bottom": 182,
+          "gridTemplateColumns": "80px 80px 80px",
+          "columnGap": "16px"
+        },
+        "thumbnails": [
+          {
+            "x": 16,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 96,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 112,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 192,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 208,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 288,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          }
+        ],
+        "capsule": {
+          "x": 139,
+          "y": 278.5625,
+          "width": 96,
+          "height": 28,
+          "right": 235,
+          "bottom": 306.5625
+        },
+        "colorPlane": {
+          "x": 92,
+          "y": 327,
+          "width": 136,
+          "height": 136,
+          "right": 228,
+          "bottom": 463
+        },
+        "popover": {
+          "x": 80,
+          "y": 315,
+          "width": 160,
+          "height": 282,
+          "right": 240,
+          "bottom": 597
+        },
+        "scrollRegions": [
+          {
+            "tag": "HTML",
+            "slot": "",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "BODY",
+            "slot": "",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "root",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "settings",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "popover-content",
+            "scrollWidth": 160,
+            "clientWidth": 160,
+            "horizontalOverflow": false
+          }
+        ],
+        "offenders": [],
+        "labels": [
+          {
+            "text": "跟随系统",
+            "x": 16,
+            "y": 98,
+            "width": 80,
+            "height": 84,
+            "right": 96,
+            "bottom": 182,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "浅色",
+            "x": 112,
+            "y": 98,
+            "width": 80,
+            "height": 84,
+            "right": 192,
+            "bottom": 182,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "深色",
+            "x": 208,
+            "y": 98,
+            "width": 80,
+            "height": 84,
+            "right": 288,
+            "bottom": 182,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          }
+        ]
+      },
+      "focusSequence": [
+        {
+          "tag": "DIV",
+          "role": "slider",
+          "label": "强调色饱和度和亮度",
+          "type": null
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "强调色色相",
+          "type": "range"
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "输入 HEX 颜色",
+          "type": "text"
+        }
+      ],
+      "checks": {
+        "themeApplied": true,
+        "threeColumns": true,
+        "noHorizontalOverflow": true,
+        "popoverWithinViewport": true,
+        "focusOnOpen": true,
+        "tabToHueAndHex": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "name": "dark-390",
+      "width": 390,
+      "theme": "dark",
+      "longLabels": false,
+      "screenshots": {
+        "closed": "appearance-dark-390.png",
+        "popover": "appearance-dark-390-popover.png"
+      },
+      "measurement": {
+        "viewport": {
+          "width": 390,
+          "height": 900,
+          "devicePixelRatio": 1
+        },
+        "theme": "dark",
+        "darkClass": true,
+        "typography": {
+          "rootPx": 16,
+          "uiPx": 14,
+          "uiBaseToken": "14px",
+          "bodyFontFamily": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif"
+        },
+        "colors": {
+          "body": "rgb(24, 24, 24)",
+          "foreground": "rgb(223, 223, 223)",
+          "backgroundToken": "#181818",
+          "popover": "rgb(38, 38, 38)"
+        },
+        "modeGroup": {
+          "x": 16,
+          "y": 98,
+          "width": 272,
+          "height": 84,
+          "right": 288,
+          "bottom": 182,
+          "gridTemplateColumns": "80px 80px 80px",
+          "columnGap": "16px"
+        },
+        "thumbnails": [
+          {
+            "x": 16,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 96,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 112,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 192,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 208,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 288,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          }
+        ],
+        "capsule": {
+          "x": 139,
+          "y": 278.5625,
+          "width": 96,
+          "height": 28,
+          "right": 235,
+          "bottom": 306.5625
+        },
+        "colorPlane": {
+          "x": 92,
+          "y": 327,
+          "width": 136,
+          "height": 136,
+          "right": 228,
+          "bottom": 463
+        },
+        "popover": {
+          "x": 80,
+          "y": 315,
+          "width": 160,
+          "height": 282,
+          "right": 240,
+          "bottom": 597
+        },
+        "scrollRegions": [
+          {
+            "tag": "HTML",
+            "slot": "",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "BODY",
+            "slot": "",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "root",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "settings",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "popover-content",
+            "scrollWidth": 160,
+            "clientWidth": 160,
+            "horizontalOverflow": false
+          }
+        ],
+        "offenders": [],
+        "labels": [
+          {
+            "text": "跟随系统",
+            "x": 16,
+            "y": 98,
+            "width": 80,
+            "height": 84,
+            "right": 96,
+            "bottom": 182,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "浅色",
+            "x": 112,
+            "y": 98,
+            "width": 80,
+            "height": 84,
+            "right": 192,
+            "bottom": 182,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "深色",
+            "x": 208,
+            "y": 98,
+            "width": 80,
+            "height": 84,
+            "right": 288,
+            "bottom": 182,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          }
+        ]
+      },
+      "focusSequence": [
+        {
+          "tag": "DIV",
+          "role": "slider",
+          "label": "强调色饱和度和亮度",
+          "type": null
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "强调色色相",
+          "type": "range"
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "输入 HEX 颜色",
+          "type": "text"
+        }
+      ],
+      "checks": {
+        "themeApplied": true,
+        "threeColumns": true,
+        "noHorizontalOverflow": true,
+        "popoverWithinViewport": true,
+        "focusOnOpen": true,
+        "tabToHueAndHex": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "name": "dark-390-long-zh",
+      "width": 390,
+      "theme": "dark",
+      "longLabels": true,
+      "screenshots": {
+        "closed": "appearance-dark-390-long-zh.png",
+        "popover": "appearance-dark-390-long-zh-popover.png"
+      },
+      "measurement": {
+        "viewport": {
+          "width": 390,
+          "height": 900,
+          "devicePixelRatio": 1
+        },
+        "theme": "dark",
+        "darkClass": true,
+        "typography": {
+          "rootPx": 16,
+          "uiPx": 14,
+          "uiBaseToken": "14px",
+          "bodyFontFamily": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif"
+        },
+        "colors": {
+          "body": "rgb(24, 24, 24)",
+          "foreground": "rgb(223, 223, 223)",
+          "backgroundToken": "#181818",
+          "popover": "rgb(38, 38, 38)"
+        },
+        "modeGroup": {
+          "x": 16,
+          "y": 98,
+          "width": 272,
+          "height": 132,
+          "right": 288,
+          "bottom": 230,
+          "gridTemplateColumns": "80px 80px 80px",
+          "columnGap": "16px"
+        },
+        "thumbnails": [
+          {
+            "x": 16,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 96,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 112,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 192,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          },
+          {
+            "x": 208,
+            "y": 98,
+            "width": 80,
+            "height": 60,
+            "right": 288,
+            "bottom": 158,
+            "aspectRatio": 1.3333333333333333
+          }
+        ],
+        "capsule": {
+          "x": 139,
+          "y": 326.5625,
+          "width": 96,
+          "height": 28,
+          "right": 235,
+          "bottom": 354.5625
+        },
+        "colorPlane": {
+          "x": 92,
+          "y": 375,
+          "width": 136,
+          "height": 136,
+          "right": 228,
+          "bottom": 511
+        },
+        "popover": {
+          "x": 80,
+          "y": 363,
+          "width": 160,
+          "height": 282,
+          "right": 240,
+          "bottom": 645
+        },
+        "scrollRegions": [
+          {
+            "tag": "HTML",
+            "slot": "",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "BODY",
+            "slot": "",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "root",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "settings",
+            "scrollWidth": 390,
+            "clientWidth": 390,
+            "horizontalOverflow": false
+          },
+          {
+            "tag": "DIV",
+            "slot": "popover-content",
+            "scrollWidth": 160,
+            "clientWidth": 160,
+            "horizontalOverflow": false
+          }
+        ],
+        "offenders": [],
+        "labels": [
+          {
+            "text": "跟随系统自动切换并同步当前设备的深浅外观",
+            "x": 16,
+            "y": 98,
+            "width": 80,
+            "height": 132,
+            "right": 96,
+            "bottom": 230,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "浅色模式，适合明亮环境与较长中文标签",
+            "x": 112,
+            "y": 98,
+            "width": 80,
+            "height": 132,
+            "right": 192,
+            "bottom": 230,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          },
+          {
+            "text": "深色模式，适合夜间阅读与较长中文标签",
+            "x": 208,
+            "y": 98,
+            "width": 80,
+            "height": 132,
+            "right": 288,
+            "bottom": 230,
+            "scrollWidth": 80,
+            "clientWidth": 80
+          }
+        ]
+      },
+      "focusSequence": [
+        {
+          "tag": "DIV",
+          "role": "slider",
+          "label": "强调色饱和度和亮度",
+          "type": null
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "强调色色相",
+          "type": "range"
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "label": "输入 HEX 颜色",
+          "type": "text"
+        }
+      ],
+      "checks": {
+        "themeApplied": true,
+        "threeColumns": true,
+        "noHorizontalOverflow": true,
+        "popoverWithinViewport": true,
+        "focusOnOpen": true,
+        "tabToHueAndHex": true,
+        "focusReturned": true
+      }
+    }
+  ],
+  "findings": [],
+  "externalRequests": []
+}

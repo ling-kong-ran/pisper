@@ -35,5 +35,19 @@
   "assetsPage.openInApplication": "Open in app",
   "assetsPage.preview": "Preview",
   "assetsPage.thisFileTypeCanBeDownloadedSupportedDocumentsCanAlsoBeAddedToAChatForAnalysis": "This file type can be downloaded. Supported documents can also be added to a chat for analysis.",
-  "assetsPage.useInChat": "Use in chat"
+  "assetsPage.useInChat": "Use in chat",
+  "assetsPage.filters": "Filters",
+  "assetsPage.assetType": "Asset type",
+  "assetsPage.removeFilter": "Remove {filter} filter",
+  "assetsPage.refreshAssets": "Refresh assets",
+  "assetsPage.refreshingAssets": "Refreshing assets…",
+  "assetsPage.retry": "Retry",
+  "assetsPage.mediaFailed": "Media could not be loaded",
+  "assetsPage.loadingPreview": "Loading preview…",
+  "assetsPage.previewTruncated": "Preview is truncated. Download the complete file.",
+  "assetsPage.noActiveSession": "Select a conversation to view its assets.",
+  "assetsPage.noCurrentAssets": "No matching assets in this conversation",
+  "assetsPage.noMatchingAssets": "No matching assets",
+  "assetsPage.tryOtherFilters": "Try other filters or search terms.",
+  "assetsPage.invalidLink": "Enter a valid http or https link."
 }

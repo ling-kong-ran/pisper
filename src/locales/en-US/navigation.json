@@ -189,5 +189,11 @@
   "rail.resources": "Resources",
   "rail.extensions": "Extensions",
   "rail.automation": "Automation",
-  "pageHeader.themeLabel": "Theme: {theme}"
+  "pageHeader.themeLabel": "Theme: {theme}",
+  "appSidebar.resizeSidebar": "Resize sidebar",
+  "appOverlays.pages": "Pages",
+  "appOverlays.labels": "Conversation labels",
+  "appOverlays.searchLabelsFailed": "Could not search conversation labels",
+  "appOverlays.loadChatsFailed": "Could not load conversations",
+  "appOverlays.openResultFailed": "Could not open this result. Try again."
 }
