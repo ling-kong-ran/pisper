@@ -1,5 +1,4 @@
 import { useBackLayer } from '@/hooks/use-back-layer'
-import { useMobileShell } from '@/components/layout/MobileShellContext'
 import { summarizeProjectDiff } from './project-diff-summary'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
@@ -31,7 +30,6 @@ export function TaskSummary({
   streaming: boolean
 }) {
   const { t } = useI18n()
-  const shell = useMobileShell()
   const records = useTerminals(sessionId)
   const service = useTerminalService()
   const [limit, setLimit] = useState(false)
@@ -57,11 +55,7 @@ export function TaskSummary({
     useContextPagesStore
       .getState()
       .update(sessionId, 'new', { type: 'workspace', summaryOpen: false })
-  const restore = () =>
-    (
-      document.getElementById(`task-${sessionId}-summary-toggle`) ||
-      document.getElementById(`task-${sessionId}-more`)
-    )?.focus()
+  const restore = () => document.getElementById(`task-${sessionId}-summary-toggle`)?.focus()
   useEffect(() => {
     if (!mobile) area.current?.focus()
   }, [mobile])
@@ -73,7 +67,6 @@ export function TaskSummary({
       return
     }
     openedContent.current = true
-    if (shell.active) shell.openContext('session-tools')
     const pageId = useContextPagesStore.getState().sessions[sessionId]?.activeId
     if (id && pageId)
       store.update(sessionId, kind, {

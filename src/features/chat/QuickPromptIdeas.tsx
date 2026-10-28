@@ -86,7 +86,7 @@ export default function QuickPromptIdeas({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-full max-[650px]:size-11"
+            className="size-9 rounded-full"
             aria-label={t('chat:workbench.previousIdeas')}
             disabled={currentPage === 0}
             onClick={() => setPage(currentPage - 1)}
@@ -97,7 +97,7 @@ export default function QuickPromptIdeas({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-full max-[650px]:size-11"
+            className="size-9 rounded-full"
             aria-label={t('chat:workbench.nextIdeas')}
             disabled={currentPage === lastPage}
             onClick={() => setPage(currentPage + 1)}
@@ -106,7 +106,7 @@ export default function QuickPromptIdeas({
           </Button>
         </div>
       </div>
-      <div className="welcome-chips grid grid-cols-3 gap-3 @max-[600px]:grid-cols-1">
+      <div className="welcome-chips grid grid-cols-3 gap-3 @max-[600px]:flex @max-[600px]:snap-x @max-[600px]:overflow-x-auto @max-[600px]:pb-2">
         {chips.slice(currentPage * 3, currentPage * 3 + 3).map((chip) => (
           <button
             type="button"
@@ -114,7 +114,7 @@ export default function QuickPromptIdeas({
             aria-label={chip.label}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
-            className="flex min-h-32 min-w-0 flex-col gap-3 rounded-2xl border border-border bg-background p-3 text-left font-normal shadow-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @max-[600px]:min-h-0 @max-[600px]:w-full"
+            className="flex min-h-32 min-w-0 flex-col gap-3 rounded-2xl border border-border bg-background p-3 text-left font-normal shadow-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @max-[600px]:w-[min(240px,80cqw)] @max-[600px]:shrink-0 @max-[600px]:snap-start"
           >
             <span className="flex w-full items-center justify-between gap-2">
               <chip.icon size={20} aria-hidden="true" />

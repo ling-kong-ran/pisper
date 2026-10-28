@@ -5,14 +5,14 @@ import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { AppEmptyState } from '@/components/ui/app-primitives'
-import { useIsMobileViewport } from '@/hooks/use-mobile'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
 import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { SingleSessionPanel } from './ChatDock'
+import { MobileSessionPanel } from './ChatDock'
 import { chatApi } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useChatDock } from './use-chat-dock'
@@ -46,7 +46,6 @@ type ChatPageProps = {
   navigate: (page: string, options?: { replace?: boolean }) => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
-  reportActiveSessionRun: (state: { sessionId: string; streaming: boolean } | null) => void
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -58,7 +57,6 @@ export function ChatPage({
   navigate,
   browserNotify,
   registerPrimaryAction,
-  reportActiveSessionRun,
   pendingAsset,
   onAssetConsumed,
   requestText,
@@ -67,8 +65,8 @@ export function ChatPage({
   const { t } = useI18n()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
-  const mobileViewport = useIsMobileViewport()
-  const mobileLayout = mobileApp || mobileViewport
+  const phoneViewport = useIsPhoneViewport()
+  const mobileLayout = mobileApp || phoneViewport
   const chatLayoutRef = useRef<HTMLDivElement>(null)
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
@@ -307,8 +305,6 @@ export function ChatPage({
       onAssetConsumed,
       notify,
       openModelSettings,
-      reportActiveSessionRun,
-      createSession,
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
       sendPrompt: promptCommands.sendPrompt,
@@ -353,8 +349,6 @@ export function ChatPage({
       onAssetConsumed,
       notify,
       openModelSettings,
-      reportActiveSessionRun,
-      createSession,
       liveSync.loadSessionMessages,
       liveSync.loadOlderMessages,
       promptCommands.sendPrompt,
@@ -432,7 +426,12 @@ export function ChatPage({
             <ChatDockContext.Provider value={dockContextValue}>
               {clientLoaded &&
                 (mobileLayout ? (
-                  <SingleSessionPanel onCreateSession={createSession} />
+                  <MobileSessionPanel
+                    sessionIds={dock.mobileSessionIds}
+                    onSelectSession={dock.openSessionInDock}
+                    onCreateSession={createSession}
+                    onOpenHistory={() => navigate('chatHistory')}
+                  />
                 ) : (
                   <Suspense
                     fallback={

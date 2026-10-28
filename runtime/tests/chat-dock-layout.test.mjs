@@ -123,11 +123,11 @@ test('task workspaces use lazy desktop splits while preserving mobile session ma
   assert.match(actions, /canSplit &&[\s\n]*splitActions\.map/)
   assert.match(page, /singleSessionLayout: mobileLayout/)
   assert.match(page, /<LazyChatDockView/)
-  assert.match(page, /<SingleSessionPanel/)
+  assert.match(page, /<MobileSessionPanel/)
   assert.match(dock, /<TaskWorkspace/)
   const singlePanel = dock.slice(
     dock.indexOf('export function SingleSessionPanel'),
-    dock.indexOf('type SessionPanelProps'),
+    dock.indexOf('type MobileSessionPanelProps'),
   )
   assert.match(singlePanel, /key=\{activeId\}/)
   assert.match(singlePanel, /canSplitPanel=\{false\}/)
@@ -136,10 +136,12 @@ test('task workspaces use lazy desktop splits while preserving mobile session ma
     dockHook,
     /if \(singleSessionLayoutRef\.current\) \{[\s\S]*?setActiveId\(sessionId\)[\s\S]*?return true/,
   )
-  // 手机复用单会话渲染，切换由会话列表负责，不另建标签或持久化第二份打开列表。
-  assert.doesNotMatch(singlePanel, /role="tablist"|role="tab"|mobileSessionTabs/)
-  assert.match(singlePanel, /data-single-session/)
+  assert.match(dock, /role="tablist"/)
+  assert.match(dock, /role="tab"/)
+  assert.match(dock, /onOpenHistory/)
   assert.match(dock, /onCreateSession/)
+  assert.match(dock, /closeMobileSessionTab/)
+  assert.match(dock, /chat:chatPage\.closeChat/)
   assert.match(page, /waitForMobileRuntimeReady/)
   assert.match(page, /mobile_state/)
   assert.match(page, /shouldInheritRecentSessionCwd\(mobileApp, mobileState\)/)
@@ -150,8 +152,8 @@ test('task workspaces use lazy desktop splits while preserving mobile session ma
   assert.match(app, /mobileApp=\{mobileApp\}/)
   assert.match(header, /page === 'chat'[\s\S]*mobileApp[\s\S]*newChat/)
   assert.match(header, /page === 'chat' && mobileApp && 'hidden'/)
-  assert.doesNotMatch(dockHook, /mobileOpenedSessionIds/)
-  assert.match(singlePanel, /context\?\.sessions\.find/)
+  assert.match(dockHook, /mobileOpenedSessionIds/)
+  assert.match(dock, /activeSession\?\.id \|\| visibleTabs\[0\]\?\.id/)
   assert.doesNotMatch(focus, /WorkspaceTrustNotice/)
 })
 

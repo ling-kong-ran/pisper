@@ -28,71 +28,64 @@ export function ChatRequestNotice({
     <Alert
       role="group"
       className={cn(
-        '@container min-w-0 border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-3 py-2.5 text-[var(--text-secondary)]',
+        'min-w-0 border-[var(--stroke-soft)] bg-[var(--surface-subtle)] px-3 py-2.5 text-[var(--text-secondary)]',
         className,
       )}
     >
-      <Collapsible open={open} onOpenChange={setOpen} className="min-w-0">
-        <div className="flex min-w-0 flex-col gap-2 @min-[420px]:flex-row @min-[420px]:items-center @min-[420px]:gap-3">
-          <div
-            role="status"
-            className="flex min-w-0 flex-1 items-start gap-2 text-[13px] leading-6"
-          >
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div role="status" className="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
             <Icon
               aria-hidden="true"
               className={cn(
-                'mt-1 size-4 shrink-0 text-[var(--text-muted)]',
+                'size-4 shrink-0 text-[var(--text-muted)]',
                 pending && 'animate-spin motion-reduce:animate-none',
               )}
             />
-            <span className="min-w-0 [overflow-wrap:anywhere]">
-              {title || t('chat:requestNotice.incomplete')}
-            </span>
+            <span>{title || t('chat:requestNotice.incomplete')}</span>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 @min-[420px]:shrink-0">
-            {onRetry && (
+          {onRetry && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-11 shrink-0 gap-1 px-2 text-xs text-[var(--text-secondary)]"
+              disabled={pending || retrying}
+              onClick={async () => {
+                if (retrying) return
+                setRetrying(true)
+                try {
+                  await onRetry()
+                } catch {
+                  // 重试失败由会话请求状态呈现；按钮在这里恢复为可操作。
+                } finally {
+                  setRetrying(false)
+                }
+              }}
+            >
+              <RotateCcw
+                aria-hidden="true"
+                className={cn('size-3.5', retrying && 'animate-spin')}
+              />
+              {t('chat:chatMessage.retry')}
+            </Button>
+          )}
+          {error && (
+            <CollapsibleTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="min-h-11 shrink-0 gap-1 px-2 text-xs text-[var(--text-secondary)]"
-                disabled={pending || retrying}
-                onClick={async () => {
-                  if (retrying) return
-                  setRetrying(true)
-                  try {
-                    await onRetry()
-                  } catch {
-                    // 重试失败由会话请求状态呈现；按钮在这里恢复为可操作。
-                  } finally {
-                    setRetrying(false)
-                  }
-                }}
+                className="min-h-11 shrink-0 gap-1 px-2 text-xs text-[var(--text-muted)]"
               >
-                <RotateCcw
+                {open ? t('chat:requestNotice.hideDetails') : t('chat:requestNotice.showDetails')}
+                <ChevronDown
                   aria-hidden="true"
-                  className={cn('size-3.5', retrying && 'animate-spin')}
+                  className={cn('size-3 transition-transform', open && 'rotate-180')}
                 />
-                {t('chat:chatMessage.retry')}
               </Button>
-            )}
-            {error && (
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="min-h-11 shrink-0 gap-1 px-2 text-xs text-[var(--text-muted)]"
-                >
-                  {open ? t('chat:requestNotice.hideDetails') : t('chat:requestNotice.showDetails')}
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={cn('size-3 transition-transform', open && 'rotate-180')}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-            )}
-          </div>
+            </CollapsibleTrigger>
+          )}
         </div>
         <CollapsibleContent>
           <pre

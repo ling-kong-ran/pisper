@@ -1,33 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isMobileDevice } from '../../src/lib/mobile-device.ts'
 import {
   resolveMobileShellMode,
   moveMobileShellPane,
   swipeDeltaToDirection,
 } from '../../src/components/layout/mobile-shell-layout.ts'
 
-test('mobile navigation distinguishes tablets from desktop touch hardware', () => {
-  for (const userAgent of ['Android', 'iPhone', 'iPad', 'iPod'])
-    assert.equal(isMobileDevice({ userAgent, platform: '', maxTouchPoints: 0 }), true)
-  assert.equal(
-    isMobileDevice({ userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 5 }),
-    true,
-    'iPad desktop browsing still uses the tablet shell',
-  )
-  for (const device of [
-    { userAgent: 'Windows NT 10.0', platform: 'Win32', maxTouchPoints: 10 },
-    { userAgent: 'X11; Linux x86_64', platform: 'Linux x86_64', maxTouchPoints: 10 },
-    { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 0 },
-  ])
-    assert.equal(
-      isMobileDevice(device),
-      false,
-      'Desktop touch support does not enable mobile views',
-    )
-})
-
-test('mobile shell distinguishes compact and spacious viewports without orientation assumptions', () => {
+test('mobile shell keeps compact and short landscape viewports on one pane', () => {
   for (const [width, height] of [
     [390, 844],
     [844, 390],

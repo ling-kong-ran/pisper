@@ -18,7 +18,6 @@ import type { LucideIcon } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
-import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatTokenCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -543,7 +542,6 @@ export function ModelThinkingControl({
   status,
   message,
   onThinkingChange,
-  onOpenModelSettings,
   modelDisabled,
   thinkingDisabled,
   deferred = false,
@@ -557,7 +555,6 @@ export function ModelThinkingControl({
   status?: string
   message?: string
   onThinkingChange: (level: string) => Promise<void> | void
-  onOpenModelSettings?: () => void
   modelDisabled?: boolean
   thinkingDisabled?: boolean
   deferred?: boolean
@@ -568,28 +565,22 @@ export function ModelThinkingControl({
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const currentModel = models.find((item) => item.key === model)
-  const modelUnconfigured = models.length === 0
-  const modelLabel = modelUnconfigured
-    ? t('chat:chatPage.noModelConfigured')
-    : currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
-  const supported = !modelUnconfigured && status !== 'unsupported' && levels.length > 0
+  const modelLabel =
+    currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
+  const supported = status !== 'unsupported' && levels.length > 0
   const index = Math.max(0, levels.indexOf(thinkingLevel))
   const selected = draft ?? index
   const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
-  const effortHint = modelUnconfigured
-    ? t('chat:focusSession.noModelConfiguredHint')
-    : pendingModel
-      ? t('chat:focusSession.thinkingAfterModelSwitch')
-      : supported
-        ? effortLabel
-        : message ||
-          (status === 'unsupported'
-            ? t('chat:focusSession.thinkingLevelUnsupported')
-            : t('chat:focusSession.loadingThinkingLevels'))
+  const effortHint = pendingModel
+    ? t('chat:focusSession.thinkingAfterModelSwitch')
+    : supported
+      ? effortLabel
+      : message ||
+        (status === 'unsupported'
+          ? t('chat:focusSession.thinkingLevelUnsupported')
+          : t('chat:focusSession.loadingThinkingLevels'))
   const disabled = thinkingDisabled || saving || !supported || levels.length < 2
-  const label = `${t('chat:focusSession.modelAndThinking')} · ${
-    modelUnconfigured ? modelLabel : resolveModelLabel(model, models)
-  } · ${effortHint}`
+  const label = `${t('chat:focusSession.modelAndThinking')} · ${resolveModelLabel(model, models)} · ${effortHint}`
   const levelsKey = levels.join('|')
   useEffect(() => {
     setDraft(null)
@@ -606,44 +597,6 @@ export function ModelThinkingControl({
       setSaving(false)
       setDraft(null)
     }
-  }
-  if (modelUnconfigured) {
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="model-effort-pill inline-flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={label}
-            title={label}
-          >
-            <span className="min-w-0 truncate">{modelLabel}</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          side="top"
-          sideOffset={8}
-          className="model-effort-popover w-[264px] max-w-[calc(100vw_-_24px)] rounded-2xl border-border/70 bg-popover p-3 shadow-xl"
-        >
-          <div className="grid gap-2 text-center">
-            <p className="text-sm font-medium text-content">{modelLabel}</p>
-            <p className="text-xs leading-relaxed text-muted-foreground" role="status">
-              {effortHint}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              className="min-h-9 max-[650px]:min-h-11"
-              disabled={!onOpenModelSettings}
-              onClick={onOpenModelSettings}
-            >
-              {t('chat:focusSession.openModelSettings')}
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-    )
   }
   return (
     <Popover>

@@ -84,7 +84,7 @@ function ChoiceGrid<T extends string>({
       }}
       className={cn(
         preview
-          ? 'grid w-full grid-cols-2 gap-3 min-[651px]:flex min-[651px]:w-auto min-[651px]:flex-wrap min-[651px]:justify-end'
+          ? 'flex w-auto flex-wrap justify-end gap-3'
           : 'mt-4 grid grid-cols-4 gap-2 max-[650px]:grid-cols-1 max-[1300px]:grid-cols-2',
         className,
       )}
@@ -102,7 +102,7 @@ function ChoiceGrid<T extends string>({
               aria-label={`${option.label} ${option.description}`}
               title={option.description}
               className={cn(
-                'group flex w-full min-w-0 flex-col items-center gap-1.5 rounded-xl p-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring min-[651px]:w-20',
+                'group flex w-20 flex-col items-center gap-1.5 rounded-xl p-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 selected && 'text-foreground',
               )}
             >
@@ -191,7 +191,7 @@ function CompactChoices<T extends string>({
       {options.map((option) => (
         <RadioGroupOption
           type="button"
-          className={`min-h-9 max-[650px]:min-h-11 whitespace-nowrap rounded-lg px-2 text-sm font-normal transition ${option.value === value ? 'bg-[var(--solid)] text-[var(--text)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+          className={`min-h-9 max-[650px]:min-h-11 rounded-lg px-2 text-sm font-normal transition ${option.value === value ? 'bg-[var(--solid)] text-[var(--text)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
           value={option.value}
           key={option.value}
         >
@@ -240,7 +240,6 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
 
   // HEX 草稿:允许中间态输入,只有完整 6 位才落库生效
   const [hexDraft, setHexDraft] = useState(customAccent)
-  const [advancedOpen, setAdvancedOpen] = useState(true)
   useEffect(() => setHexDraft(customAccent), [customAccent])
   const normalizedDraft = normalizeHexColor(hexDraft)
   const hexInvalid = Boolean(hexDraft.trim()) && !normalizedDraft
@@ -334,7 +333,6 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
     { value: 'small', label: t('config:interfaceSettings.small') },
     { value: 'default', label: t('config:interfaceSettings.standard') },
     { value: 'large', label: t('config:interfaceSettings.large') },
-    { value: 'xlarge', label: t('config:interfaceSettings.extraLarge') },
   ]
   const radiusOptions: Array<{ value: RadiusMode; label: string }> = [
     { value: 'sharp', label: t('config:interfaceSettings.sharp') },
@@ -460,11 +458,7 @@ export function InterfaceSettings({ notify }: { notify: Notify }) {
         </div>
       </Panel>
 
-      <details
-        className="group/advanced"
-        open={advancedOpen}
-        onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-      >
+      <details className="group/advanced">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-1 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
           {t('config:interfaceSettings.advanced')}
           <ChevronDown

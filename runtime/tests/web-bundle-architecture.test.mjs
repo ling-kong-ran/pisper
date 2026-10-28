@@ -227,7 +227,7 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
   // IME 组词双保险：Chromium 看 isComposing，Mac WebKit 看自行跟踪的 imeComposingRef。
   assert.match(focusSession, /event\.nativeEvent\.isComposing \|\| imeComposingRef\.current/)
   assert.match(focusSession, /event\.currentTarget\.form\?\.requestSubmit\(\)/)
-  assert.match(focusSession, /const mobileLayout = mobileApp \|\| mobileViewport/)
+  assert.match(focusSession, /const mobileLayout = mobileApp \|\| phoneViewport/)
   assert.match(
     focusSession,
     /enterKeyHint=\{\s*mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\s*\}/,
@@ -521,12 +521,12 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   // 桌面分屏按需加载；手机只显示所选任务，不能把 Dockview 样式拖入入口。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
   assert.match(chat, /import\('\.\/ChatDockView'\)/)
-  assert.match(chat, /<SingleSessionPanel/)
+  assert.match(chat, /<MobileSessionPanel/)
   assert.match(chat, /singleSessionLayout: mobileLayout/)
-  assert.match(chatDock, /data-single-session/)
-  assert.doesNotMatch(chatDock, /mobile-session-tabs|role="tablist"/)
+  assert.match(chatDock, /className="mobile-session-tabs/)
+  assert.match(chatDock, /role="tablist"/)
   assert.doesNotMatch(chatDock, /MOBILE_SESSION_TAB_LIMIT/)
-  assert.doesNotMatch(chatDock, /STORAGE_KEYS\.mobileSessionTabs/)
+  assert.match(chatDock, /STORAGE_KEYS\.mobileSessionTabs/)
   assert.match(chatDock, /onCreateSession/)
   assert.match(dockView, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
   assert.match(workflows, /import '@xyflow\/react\/dist\/style\.css'/)

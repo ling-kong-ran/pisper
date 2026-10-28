@@ -26,7 +26,6 @@ export async function chatRoute() {
         navigate={context.navigate}
         browserNotify={context.browserNotify}
         registerPrimaryAction={context.registerPrimaryAction}
-        reportActiveSessionRun={context.reportActiveSessionRun}
         pendingAsset={context.pendingAsset}
         onAssetConsumed={context.onAssetConsumed}
         requestText={context.requestText}

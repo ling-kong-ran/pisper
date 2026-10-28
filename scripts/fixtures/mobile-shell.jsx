@@ -146,7 +146,7 @@ export function Fixture() {
               <MobileContextScreen
                 tab={tab}
                 onTabChange={setTab}
-                visible={pane === 'context'}
+                visible={mode === 'pad' || pane === 'context'}
                 sessionStreaming={streaming}
                 onCloseTerminal={() => setPane('chat')}
                 onOpenChat={() => setStreaming(false)}

@@ -90,13 +90,11 @@ export async function verifyPisperIteration({
   )
 
   await page.goto(base + '/#/config/interface')
+  await page.getByText('高级', { exact: true }).click()
   const fontGroup = page.getByRole('radiogroup', { name: '字体大小', exact: true })
-  await fontGroup.waitFor({ state: 'attached' })
-  if (!(await fontGroup.isVisible())) await page.getByText('高级', { exact: true }).click()
   for (const [label, scale, size] of [
     ['小', 'small', 13.5],
     ['大', 'large', 14.5],
-    ['特大', 'xlarge', 16],
     ['标准', 'default', 14],
   ]) {
     await fontGroup.getByRole('radio', { name: label, exact: true }).click()
@@ -116,21 +114,17 @@ export async function verifyPisperIteration({
         icon: el.querySelector('svg').getBoundingClientRect().width,
         root: getComputedStyle(document.documentElement).fontSize,
       }))
-    // CSS 相对单位序列化可能产生亚像素尾差，字号仍须落在千分之一像素内。
-    assert.ok(Math.abs(dimensions.font - size) < 0.001)
-    const { height, icon, root } = dimensions
-    assert.deepEqual({ height, icon, root }, { height: 36, icon: 16, root: '16px' })
+    assert.deepEqual(dimensions, { font: size, height: 36, icon: 16, root: '16px' })
   }
   await page.reload()
-  await fontGroup.waitFor({ state: 'attached' })
-  if (!(await fontGroup.isVisible())) await page.getByText('高级', { exact: true }).click()
+  await page.getByText('高级', { exact: true }).click()
   await fontGroup.waitFor()
   assert.equal(
     await fontGroup.getByRole('radio', { name: '标准', exact: true }).getAttribute('aria-checked'),
     'true',
   )
   report.checks.push(
-    'Font scales include 13.5/14/14.5/16px and persist; root spacing, 36px desktop settings row and 16px icon remain unchanged',
+    'Font scales are limited to 13.5/14/14.5px and persist; root spacing, 36px desktop settings row and 16px icon remain unchanged',
   )
 
   const openWorkflowSettings = async () => {

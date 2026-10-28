@@ -15,7 +15,6 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
     let orientationTimer = 0
     let keyboardTransitionTimer = 0
     let viewportBaseline = Math.max(window.innerHeight, viewport?.height ?? 0)
-    let layoutWidth = window.innerWidth
     const composerSelector = '[data-mobile-composer-input]'
 
     const clearKeyboardTransitionTimer = () => {
@@ -65,22 +64,9 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
       frame = 0
       const height = Math.max(1, Math.round(viewport?.height ?? window.innerHeight))
       const offsetTop = Math.max(0, Math.round(viewport?.offsetTop ?? 0))
-      // 平板旋转、分屏调整可能只派发 resize；宽度变化时重建基线，避免把横屏误当键盘。
-      if (layoutWidth !== window.innerWidth) {
-        layoutWidth = window.innerWidth
-        viewportBaseline = 0
-      }
-      const active = document.activeElement
-      const editing =
-        active instanceof HTMLElement && active.matches('input, textarea, [contenteditable="true"]')
-      // 未编辑时的窗口缩放不是软键盘；同步更新基线，避免随后聚焦输入框再误判。
-      // 已打开的键盘则保留基线，等可视高度恢复后再结束关闭动画。
-      if (!editing && !shell.dataset.mobileKeyboard) viewportBaseline = 0
       viewportBaseline = Math.max(viewportBaseline, window.innerHeight, height + offsetTop)
       const keyboardInset = Math.max(0, viewportBaseline - height - offsetTop)
-      const keyboardOpen =
-        keyboardInset >= viewportBaseline * 0.2 &&
-        (editing || shell.dataset.mobileKeyboard === 'open')
+      const keyboardOpen = keyboardInset >= viewportBaseline * 0.2
       if (keyboardOpen) {
         // iOS 可能只收缩 visualViewport，Android adjustResize 则会同时收缩布局视口；
         // 两种情况下都把外壳底部放到键盘顶部，但不会再叠加一个额外的 inset。

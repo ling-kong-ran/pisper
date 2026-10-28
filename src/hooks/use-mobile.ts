@@ -1,25 +1,7 @@
 // 手机视口使用抽屉式导航；窄桌面窗口仍保留可折叠的图标侧栏。
 import * as React from 'react'
-import { isMobileDevice } from '@/lib/mobile-device'
 
 const PHONE_BREAKPOINT = 651
-const MOBILE_LAYOUT_BREAKPOINT = 1025
-
-// 窄窗口按可用空间切换三视图；手机和平板在宽屏时也保留触屏导航。
-// 宽桌面不能仅凭 coarse pointer 判定为平板，避免触屏电脑误入移动布局。
-export function useIsMobileViewport() {
-  const [compactViewport, setCompactViewport] = React.useState(
-    () => window.matchMedia(`(max-width: ${MOBILE_LAYOUT_BREAKPOINT - 1}px)`).matches,
-  )
-  React.useEffect(() => {
-    const media = window.matchMedia(`(max-width: ${MOBILE_LAYOUT_BREAKPOINT - 1}px)`)
-    const update = () => setCompactViewport(media.matches)
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
-  return compactViewport || isMobileDevice(window.navigator)
-}
 
 // 通用 Sidebar 和浮动组件共用手机视口边界；原生移动 App 由调用方补充判断。
 export function useIsMobile() {

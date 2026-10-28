@@ -120,10 +120,9 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.match(focus, /\[&\.idle\]:hidden/)
 })
 
-test('working directories stay in desktop title headers and mobile title menus, outside the composer', async () => {
-  const [focus, header, transcript, chinese, english] = await Promise.all([
+test('all chats expose their working directory in the title header, not in the composer or welcome screen', async () => {
+  const [focus, transcript, chinese, english] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/TaskWorkspaceHeader.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
     readFile('src/locales/zh-CN/chat.json', 'utf8'),
     readFile('src/locales/en-US/chat.json', 'utf8'),
@@ -134,12 +133,7 @@ test('working directories stay in desktop title headers and mobile title menus, 
   assert.match(focus, /workspaceName\(cwd, language\)/)
   assert.match(focus, /aria-label=\{t\('chat:focusSession\.changeWorkingDirectoryWorkspace'/)
   assert.match(focus, /onClick=\{onWorkspace\}/)
-  assert.match(
-    focus,
-    /const headerBlock[\s\S]*\{!mobileLayout && workspaceBlock\}[\s\S]*onClick=\{onRename\}/,
-  )
-  assert.match(header, /<DropdownMenuItem onSelect=\{onWorkspace\}>/)
-  assert.match(header, /t\('chat:workbench\.workspace'\)/)
+  assert.match(focus, /const headerBlock[\s\S]*\{workspaceBlock\}[\s\S]*onClick=\{onRename\}/)
   assert.doesNotMatch(
     focus.slice(focus.indexOf('const composerBlock')),
     /kind="workspace"|workspaceBlock/,

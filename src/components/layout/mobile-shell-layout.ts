@@ -1,4 +1,4 @@
-// 手机和平板共享整页切换；模式仅描述可用空间，不改变导航和手势行为。
+// 手机壳只在窄屏用整页切换；宽且高的 Pad 同时露出三栏，避免横屏仍要来回滑动。
 export const MOBILE_SHELL_PANES = ['sessions', 'chat', 'context'] as const
 
 export type MobileShellPane = (typeof MOBILE_SHELL_PANES)[number]

@@ -45,7 +45,7 @@ export function AppSidebar({
   settingsSearch,
 }: AppSidebarProps) {
   const { t } = useI18n()
-  const { isMobile, setOpenMobile, open, toggleSidebar, persistent } = useSidebar()
+  const { isMobile, setOpenMobile, open, toggleSidebar } = useSidebar()
   const mobileApp = useIsMobileApp()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const settingsNavigation = useMemo(
@@ -102,7 +102,7 @@ export function AppSidebar({
               <PanelLeftClose size={18} />
             </Button>
           )}
-          {isMobile && !persistent && (
+          {isMobile && (
             <Button
               variant="ghost"
               className="ml-auto size-11"

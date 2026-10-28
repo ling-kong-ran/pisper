@@ -1,5 +1,5 @@
 // Dock 分屏视图：dockview 多会话面板布局（含样式）。桌面端按需懒加载；
-// 移动端 App 走单会话视图（SingleSessionPanel），不下载/执行本模块。
+// 移动端 App 走单会话视图（MobileSessionPanel），不下载/执行本模块。
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import 'dockview-react/dist/styles/dockview.css'
 import {

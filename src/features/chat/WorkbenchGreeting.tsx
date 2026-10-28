@@ -50,7 +50,7 @@ export function WorkbenchGreeting() {
       <h1
         ref={container}
         style={{ fontSize: Math.min(24, fontSize) }}
-        className="relative z-10 m-0 w-full overflow-hidden px-4 text-center leading-[1.4] font-normal"
+        className="relative z-10 m-0 w-full px-4 text-center leading-[1.4] font-normal"
       >
         <span
           ref={measurement}

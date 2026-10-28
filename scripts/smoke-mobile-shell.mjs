@@ -416,32 +416,12 @@ try {
   await page.setViewportSize({ width: 1024, height: 768 })
   await page.evaluate(() => window.controls.setMode('pad'))
   await page.waitForFunction(() => document.querySelector('[data-mobile-shell="pad"]'))
-  const tabletPager = page.getByRole('tablist', { name: 'navigation:mobileShell.pager' })
-  await tabletPager.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).click()
   const widths = await page
     .locator('[data-mobile-shell] > div > section')
     .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().width))
   assert.equal(widths.length, 3)
-  assert.deepEqual(widths, [0, 1024, 0], 'Tablet shows only the selected pane at full width')
-  const tabletNav = await tabletPager.boundingBox()
-  const tabletShell = await page.locator('[data-mobile-shell="pad"]').boundingBox()
-  assert.ok(Math.abs(tabletNav.y + tabletNav.height - tabletShell.y - tabletShell.height) < 1)
-  await page.getByRole('textbox', { name: 'composer', exact: true }).fill('tablet draft')
-  const tabletCdp = await page.context().newCDPSession(page)
-  for (const [type, touchPoints] of [
-    ['touchStart', [{ x: 600, y: 300 }]],
-    ['touchMove', [{ x: 450, y: 300 }]],
-    ['touchEnd', []],
-  ])
-    await tabletCdp.send('Input.dispatchTouchEvent', { type, touchPoints })
-  await page.waitForFunction(() => !document.getElementById('mobile-shell-pane-context').inert)
-  await page.setViewportSize({ width: 768, height: 1024 })
-  assert.equal(await page.locator('#mobile-shell-pane-chat').evaluate((node) => node.inert), true)
-  await tabletPager.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).click()
-  assert.equal(
-    await page.getByRole('textbox', { name: 'composer', exact: true }).inputValue(),
-    'tablet draft',
-  )
+  assert(widths.every((width) => width > 0))
+  assert.equal(Math.round(widths.reduce((sum, width) => sum + width, 0)), 1024)
   await page.setViewportSize({ width: 390, height: 844 })
   await page.evaluate(() => {
     window.controls.setMode('phone')
@@ -496,35 +476,6 @@ try {
     delete document.documentElement.dataset.mobileKeyboard
   })
   assert.equal(await pager.isVisible(), true)
-  const pagerTargets = await pager
-    .getByRole('tab')
-    .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))
-  assert.ok(pagerTargets.every((height) => height >= 44))
-  const pagerBounds = await pager.boundingBox()
-  const shellBounds = await page.locator('[data-mobile-shell="phone"]').boundingBox()
-  assert.ok(
-    Math.abs(pagerBounds.y + pagerBounds.height - shellBounds.y - shellBounds.height) < 1,
-    'Phone pane navigation must stay at the bottom of the shell',
-  )
-  await pager.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).focus()
-  await pager.getByRole('tab', { name: 'navigation:mobileShell.chat', exact: true }).press('End')
-  await page.waitForFunction(
-    () => !document.querySelector('section[aria-label="navigation:mobileShell.context"]').inert,
-  )
-  await pager
-    .getByRole('tab', { name: 'navigation:mobileShell.context', exact: true })
-    .press('Home')
-  await page.waitForFunction(
-    () => !document.querySelector('section[aria-label="navigation:mobileShell.sessions"]').inert,
-  )
-  await pager
-    .getByRole('tab', { name: 'navigation:mobileShell.sessions', exact: true })
-    .press('ArrowRight')
-  await page.waitForFunction(() => {
-    const pane = document.querySelector('section[aria-label="navigation:mobileShell.chat"]')
-    return !pane.inert && Math.abs(pane.getBoundingClientRect().x) < 1
-  })
-  assert.equal(await page.evaluate(() => document.activeElement?.id), 'mobile-shell-tab-chat')
   for (const [type, points] of [
     ['touchStart', [{ x: 270, y: 300 }]],
     ['touchMove', [{ x: 150, y: 300 }]],
