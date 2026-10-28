@@ -5,8 +5,8 @@
 //! 流事件经 `apply_stream_event` 直接更新状态。
 
 use std::{
-    cell::Cell,
-    collections::{HashMap, VecDeque},
+    cell::{Cell, RefCell},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -18,8 +18,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zeroize::Zeroize;
 
+use ratatui::layout::Rect;
+
 use crate::{
     api::MESSAGE_PAGE_LIMIT,
+    disclosure::{
+        region_at, thinking_key, tool_group_key, tool_key, ClickRegion, ExpandKey, RunFinish,
+        FINISH_NOTICE, STALL_AFTER,
+    },
     model::{
         ChatMessage, ContextUsage, ImageThumbnail, MessageAttachment, MessagePage, ModelOption,
         Plan, PromptMode, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate,
@@ -65,9 +71,15 @@ fn env_flag(name: &str) -> bool {
     })
 }
 
-/// 供 main 读取环境开关（鼠标捕获等终端会话级配置）。
-pub(crate) fn env_flag_enabled(name: &str) -> bool {
-    env_flag(name)
+/// 鼠标捕获默认开启（滚轮滚动、点击展开命令详情）；
+/// `PISPER_TUI_MOUSE=0/false/no/off` 关闭，以恢复终端原生的文本拖选。
+pub(crate) fn mouse_capture_enabled() -> bool {
+    !std::env::var("PISPER_TUI_MOUSE").is_ok_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "0" | "false" | "no" | "off"
+        )
+    })
 }
 // 整页滚动步长。
 const PAGE_SCROLL_STEP: u16 = 8;
@@ -392,6 +404,42 @@ pub struct App {
     slash_usage: HashMap<String, SlashUsage>,
     slash_usage_path: Option<PathBuf>,
     pending_slash_command: Option<String>,
+    /// 已展开的工具、思考与工具组；变化时递增代际让渲染缓存失效。
+    pub expanded: HashSet<ExpandKey>,
+    pub expansion_generation: u64,
+    /// 最近一帧渲染的可点击区域（转写区行号）、聊天视口与滚动顶行，供鼠标点击反查。
+    pub click_regions: RefCell<Vec<ClickRegion>>,
+    pub chat_viewport: Cell<Rect>,
+    pub chat_scroll_top: Cell<u16>,
+    /// 本轮运行开始时刻与最近一次收到流事件的时刻，用于状态栏计时与停顿提示。
+    run_started_at: Option<Instant>,
+    last_stream_event_at: Option<Instant>,
+    run_finished: Option<(Instant, RunFinish)>,
+}
+
+/// 状态栏展示的运行阶段。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RunPhase {
+    Approval,
+    Compacting,
+    Thinking,
+    Tool {
+        name: String,
+        elapsed: Option<Duration>,
+    },
+    Responding,
+    /// 流式回合长时间没有任何事件，且没有工具在运行。
+    Waiting {
+        silent: Duration,
+    },
+    Reconnecting,
+}
+
+/// 状态栏的运行概况：阶段与本轮总用时。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RunStatus {
+    pub phase: RunPhase,
+    pub elapsed: Duration,
 }
 
 impl App {
@@ -511,6 +559,14 @@ impl App {
             slash_usage: load_slash_usage(),
             slash_usage_path: slash_usage_path(),
             pending_slash_command: None,
+            expanded: HashSet::new(),
+            expansion_generation: 0,
+            click_regions: RefCell::new(Vec::new()),
+            chat_viewport: Cell::new(Rect::default()),
+            chat_scroll_top: Cell::new(0),
+            run_started_at: None,
+            last_stream_event_at: None,
+            run_finished: None,
         }
     }
 
@@ -594,6 +650,166 @@ impl App {
             || self.compacting_context
             || matches!(self.status.as_str(), "thinking" | "streaming")
             || self.status.starts_with("running ")
+    }
+
+    /// 状态栏运行概况：未运行且无待审批时返回 None。`wall_ms` 为当前墙钟毫秒，
+    /// 用于计算 Runtime 以时间戳下发的工具耗时。
+    pub fn run_status(&self, now: Instant, wall_ms: u64) -> Option<RunStatus> {
+        if !self.is_running_state() && self.approval.is_none() {
+            return None;
+        }
+        let elapsed = self
+            .run_started_at
+            .map(|started| now.saturating_duration_since(started))
+            .unwrap_or_default();
+        let live = self.live.as_ref();
+        let running_tool = live.and_then(|live| {
+            live.tools
+                .iter()
+                .rev()
+                .find(|tool| tool.status == "running")
+        });
+        let silent = self
+            .last_stream_event_at
+            .map(|last| now.saturating_duration_since(last))
+            .unwrap_or_default();
+        let phase = if self.approval.is_some() {
+            RunPhase::Approval
+        } else if self.compacting_context {
+            RunPhase::Compacting
+        } else if self.is_streaming() && self.status.starts_with("reconnecting stream") {
+            RunPhase::Reconnecting
+        } else if let Some(tool) = running_tool {
+            RunPhase::Tool {
+                name: tool.name.clone(),
+                elapsed: (tool.started_at > 0 && wall_ms >= tool.started_at)
+                    .then(|| Duration::from_millis(wall_ms - tool.started_at)),
+            }
+        } else if self.is_streaming() && silent >= STALL_AFTER {
+            RunPhase::Waiting { silent }
+        } else if live.is_some_and(|live| !live.text_target.is_empty()) {
+            RunPhase::Responding
+        } else {
+            RunPhase::Thinking
+        };
+        Some(RunStatus { phase, elapsed })
+    }
+
+    /// 刚结束的一轮运行摘要；超过展示时长后返回 None。
+    pub fn run_finish_notice(&self, now: Instant) -> Option<RunFinish> {
+        self.run_finished
+            .filter(|(at, _)| now.saturating_duration_since(*at) < FINISH_NOTICE)
+            .map(|(_, finish)| finish)
+    }
+
+    /// 是否需要每秒刷新（运行计时、停顿提示或结束摘要仍在展示）。
+    pub fn needs_clock(&self, now: Instant) -> bool {
+        self.is_running_state() || self.approval.is_some() || self.run_finish_notice(now).is_some()
+    }
+
+    fn begin_run_clock(&mut self) {
+        let now = Instant::now();
+        self.run_started_at = Some(now);
+        self.last_stream_event_at = Some(now);
+        self.run_finished = None;
+    }
+
+    fn finish_run_clock(&mut self, ok: bool) {
+        let Some(started) = self.run_started_at.take() else {
+            return;
+        };
+        let now = Instant::now();
+        self.run_finished = Some((
+            now,
+            RunFinish {
+                elapsed: now.saturating_duration_since(started),
+                ok,
+            },
+        ));
+    }
+
+    /// 鼠标左键点击：命中转写区里的工具、思考或折叠汇总行时切换展开状态，返回是否需要重绘。
+    pub fn handle_mouse_click(&mut self, column: u16, row: u16) -> bool {
+        if self.view != View::Chat
+            || self.session_picker
+            || self.path_picker
+            || self.settings_picker.is_some()
+            || self.api_key_dialog
+        {
+            return false;
+        }
+        let viewport = self.chat_viewport.get();
+        let inside = column >= viewport.x
+            && column < viewport.x.saturating_add(viewport.width)
+            && row >= viewport.y
+            && row < viewport.y.saturating_add(viewport.height);
+        if !inside {
+            return false;
+        }
+        let transcript_row = self.chat_scroll_top.get() as usize + (row - viewport.y) as usize;
+        let key = region_at(&self.click_regions.borrow(), transcript_row).cloned();
+        let Some(key) = key else {
+            return false;
+        };
+        if !self.expanded.remove(&key) {
+            self.expanded.insert(key);
+        }
+        self.expansion_generation = self.expansion_generation.wrapping_add(1);
+        true
+    }
+
+    /// Ctrl+E：展开或收起最近一条回复的全部细节（思考、工具组与每个工具）；
+    /// 只要有一项已展开就全部收起，否则全部展开。
+    pub fn toggle_latest_details(&mut self) {
+        let keys = self.latest_detail_keys();
+        if keys.is_empty() {
+            return;
+        }
+        let collapse = keys.iter().any(|key| self.expanded.contains(key));
+        for key in keys {
+            if collapse {
+                self.expanded.remove(&key);
+            } else {
+                self.expanded.insert(key);
+            }
+        }
+        self.expansion_generation = self.expansion_generation.wrapping_add(1);
+    }
+
+    fn latest_detail_keys(&self) -> Vec<ExpandKey> {
+        if let Some(live) = self
+            .live
+            .as_ref()
+            .filter(|live| !live.tools.is_empty() || !live.thinking_target.is_empty())
+        {
+            let mut keys = Vec::new();
+            if !live.thinking_target.is_empty() {
+                keys.push(ExpandKey::LiveThinking);
+            }
+            if !live.tools.is_empty() {
+                keys.push(ExpandKey::LiveToolGroup);
+            }
+            keys.extend(live.tools.iter().map(tool_key));
+            return keys;
+        }
+        let Some(activity) = self
+            .messages
+            .iter()
+            .rev()
+            .filter(|message| message.role == "agent")
+            .find_map(|message| message.run_activity.as_ref())
+        else {
+            return Vec::new();
+        };
+        let mut keys = Vec::new();
+        if !activity.thinking_text.is_empty() {
+            keys.push(thinking_key(&activity.thinking_text));
+        }
+        if !activity.tools.is_empty() {
+            keys.push(tool_group_key(&activity.tools));
+        }
+        keys.extend(activity.tools.iter().map(tool_key));
+        keys
     }
 
     /// 是否有未完成流式渲染（打字机动画需要继续推进）。
@@ -988,7 +1204,7 @@ impl App {
         self.thinking_options.clear();
         self.thinking_message.clear();
         self.thinking_availability = ThinkingAvailability::Loading;
-        self.status = "loading thinking levels".to_owned();
+        self.status = "loading effort levels".to_owned();
         self.status_error = false;
     }
 
@@ -996,7 +1212,7 @@ impl App {
     /// 若正处于加载态则把状态栏切换为结果提示。
     pub fn set_thinking_state(&mut self, updated: ThinkingLevelUpdate) {
         let was_loading = self.thinking_availability == ThinkingAvailability::Loading
-            && self.status == "loading thinking levels";
+            && self.status == "loading effort levels";
         self.thinking_options = updated.available_levels;
         self.thinking_message = updated.message;
         self.thinking_availability = match updated.status.as_str() {
@@ -1019,7 +1235,7 @@ impl App {
         if was_loading {
             self.status = match &self.thinking_availability {
                 ThinkingAvailability::Unsupported => {
-                    "thinking levels unavailable for this model".to_owned()
+                    "effort levels unavailable for this model".to_owned()
                 }
                 _ => format!("thinking · {}", self.thinking_level),
             };
@@ -1032,7 +1248,7 @@ impl App {
         self.thinking_options.clear();
         self.thinking_message.clone_from(&error);
         self.thinking_availability = ThinkingAvailability::Error(error.clone());
-        self.status = format!("thinking levels unavailable · {error}");
+        self.status = format!("effort levels unavailable · {error}");
         self.status_error = true;
     }
 
@@ -1105,7 +1321,7 @@ impl App {
                 .unwrap_or(0),
             SettingsPicker::Approval => APPROVAL_MODES
                 .iter()
-                .position(|(mode, _)| *mode == self.execution_mode)
+                .position(|(mode, _, _)| *mode == self.execution_mode)
                 .unwrap_or(0),
             SettingsPicker::RunMode => PromptMode::all()
                 .iter()
@@ -1162,35 +1378,34 @@ impl App {
                 detail: skill.description.clone(),
             });
         }
+        // 旧命令名（/thinking、/sessions、/dir、/mode、/apikey）仍可直接输入，但不在目录中重复出现。
         items.extend([
-            command("/init", "Create or improve workspace AGENTS.md"),
+            command("/init", "Create or improve the workspace AGENTS.md"),
             command("/new", "Start a new conversation"),
-            command("/sessions", "Resume a conversation from any workspace"),
-            command("/dir", "Change the active conversation directory"),
-            command("/changes", "Inspect Git or SVN workspace changes"),
+            command("/resume", "Resume a conversation from any workspace"),
+            command("/cwd", "Change this conversation's working directory"),
+            command("/changes", "Review Git or SVN changes, commit, or push"),
             command("/chat", "Return to the conversation"),
             command("/model", "Switch model; keep context (/compact optional)"),
-            command("/thinking", "Switch the active session thinking level"),
+            command(
+                "/effort",
+                "Set reasoning effort (thinking level) for this conversation",
+            ),
             command(
                 "/provider",
-                "Edit a Provider protocol, Base URL, and API Key securely",
+                "Edit a Provider protocol, Base URL, and API Key",
             ),
-            command("/web", "Open the installed Web settings"),
+            command("/web", "Open Web settings in the browser"),
             command("/compact", "Summarize older context now"),
-            command("/attach", "Add image, text, code, or document files"),
-            command("/mode", "Pick the approval mode interactively"),
-            command(
-                "/mode approval-required",
-                "Ask before writes, shell, and high-risk tools",
-            ),
-            command(
-                "/mode workspace-write",
-                "Auto-approve workspace edits and routine commands",
-            ),
-            command(
-                "/mode full-access",
-                "Allow unrestricted files, network, and shell",
-            ),
+            command("/attach", "Attach images, text, code, or documents"),
+            command("/approval", "Choose when tools need your approval"),
+        ]);
+        items.extend(
+            APPROVAL_MODES
+                .iter()
+                .map(|(_, alias, detail)| command(&format!("/approval {alias}"), detail)),
+        );
+        items.extend([
             command("/run", "Pick the run mode: plan, goal, or team"),
             command("/run plan", "Plan mode: finish this turn, then wait"),
             command("/run goal", "Goal mode: one agent drives the objective"),
@@ -1200,7 +1415,7 @@ impl App {
                 "Set the goal/team token budget (off to clear)",
             ),
             command("/run pause", "Pause the active goal"),
-            command("/quit", "Exit Pisper"),
+            command("/quit", "Exit Pisper (/exit)"),
         ]);
         items.retain(|item| {
             query.is_empty()
@@ -1358,6 +1573,14 @@ impl App {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('o') {
             // Ctrl+O：直接打开附件选择器（不丢弃输入框草稿）。
             self.open_path_picker();
+            return Action::None;
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.code == KeyCode::Char('e')
+            && self.view == View::Chat
+        {
+            // Ctrl+E：不用鼠标也能展开最近一条回复的命令、参数与输出。
+            self.toggle_latest_details();
             return Action::None;
         }
         if self.path_picker {
@@ -2083,7 +2306,7 @@ impl App {
                         .unwrap_or(Action::None),
                     SettingsPicker::Approval => APPROVAL_MODES
                         .get(self.settings_selected)
-                        .map(|(mode, _)| Action::SetExecutionMode((*mode).to_owned()))
+                        .map(|(mode, _, _)| Action::SetExecutionMode((*mode).to_owned()))
                         .unwrap_or(Action::None),
                     SettingsPicker::RunMode => PromptMode::all()
                         .get(self.settings_selected)
@@ -2222,13 +2445,13 @@ impl App {
     }
 
     /// Tab 补全当前选中的 Slash 项（命令项不带尾随空格，
-    /// 便于直接回车提交；`/dir` 例外需后续参数）。
+    /// 便于直接回车提交；`/cwd` 例外需后续参数）。
     fn complete_slash(&mut self) {
         let items = self.slash_items();
         let Some(item) = items.get(self.slash_selected).cloned() else {
             return;
         };
-        let completed = if item.kind == SlashKind::Command && item.command != "/dir" {
+        let completed = if item.kind == SlashKind::Command && item.command != "/cwd" {
             item.command
         } else {
             format!("{} ", item.command)
@@ -2238,11 +2461,15 @@ impl App {
 
     /// 回车选择 Slash 项：命令类直接提交，工具/技能类补全到输入框。
     fn choose_slash(&mut self) -> Action {
+        // 旧命令名不在目录里，完整输入时按原样提交，避免回车被目录里的其他命令抢走。
+        if LEGACY_COMMANDS.contains(&self.input_text().as_str()) {
+            return self.submit_action();
+        }
         let items = self.slash_items();
         let Some(item) = items.get(self.slash_selected).cloned() else {
             return Action::None;
         };
-        if item.kind == SlashKind::Command && item.command != "/dir" {
+        if item.kind == SlashKind::Command && item.command != "/cwd" {
             self.set_input(&item.command);
             return self.submit_action();
         }
@@ -2261,7 +2488,7 @@ impl App {
         }
         self.status_error = false;
         match message.as_str() {
-            "/quit" => {
+            "/quit" | "/exit" => {
                 self.mark_slash_use("/quit");
                 self.clear_input();
                 Action::Quit
@@ -2318,29 +2545,33 @@ impl App {
                 self.clear_input();
                 Action::NewSession
             }
-            "/sessions" => {
+            "/resume" | "/sessions" => {
                 if self.is_streaming() {
                     self.status = "Stop the active run before switching conversations".to_owned();
                     return Action::None;
                 }
-                self.mark_slash_use("/sessions");
+                self.mark_slash_use("/resume");
                 self.clear_input();
                 let request_id = self.begin_session_list_load(false);
                 Action::LoadSessions { request_id }
             }
-            "/dir" => {
-                self.status = format!("directory · {} · use /dir <path>", self.cwd);
+            "/cwd" | "/dir" => {
+                self.status = format!("directory · {} · use /cwd <path>", self.cwd);
                 self.clear_input();
                 Action::None
             }
-            _ if message.starts_with("/dir ") => {
+            _ if message.starts_with("/cwd ") || message.starts_with("/dir ") => {
                 if self.is_streaming() {
                     self.status = "Stop the active run before changing directory".to_owned();
                     return Action::None;
                 }
-                let value = message.trim_start_matches("/dir ").trim();
+                let value = message
+                    .split_once(' ')
+                    .map(|(_, value)| value)
+                    .unwrap_or_default()
+                    .trim();
                 if value.is_empty() {
-                    self.status = "usage · /dir <path>".to_owned();
+                    self.status = "usage · /cwd <path>".to_owned();
                     self.clear_input();
                     return Action::None;
                 }
@@ -2350,7 +2581,7 @@ impl App {
                 } else {
                     Path::new(&self.cwd).join(requested)
                 };
-                self.mark_slash_use("/dir");
+                self.mark_slash_use("/cwd");
                 self.clear_input();
                 Action::SetCwd(requested)
             }
@@ -2360,8 +2591,8 @@ impl App {
                 self.open_settings_picker(SettingsPicker::Model);
                 Action::None
             }
-            "/thinking" => {
-                self.mark_slash_use("/thinking");
+            "/effort" | "/thinking" => {
+                self.mark_slash_use("/effort");
                 self.clear_input();
                 Action::RefreshThinking
             }
@@ -2428,7 +2659,7 @@ impl App {
                 self.open_path_picker();
                 Action::None
             }
-            "/mode" => {
+            "/approval" | "/mode" => {
                 self.clear_input();
                 self.open_settings_picker(SettingsPicker::Approval);
                 Action::None
@@ -2438,9 +2669,8 @@ impl App {
                 self.clear_input();
                 Action::SetExecutionMode(mode.to_owned())
             }
-            _ if message.starts_with("/mode ") => {
-                self.status =
-                    "usage · /mode approval-required|workspace-write|full-access".to_owned();
+            _ if message.starts_with("/approval ") || message.starts_with("/mode ") => {
+                self.status = "usage · /approval ask|auto|full".to_owned();
                 self.clear_input();
                 Action::None
             }
@@ -2548,6 +2778,7 @@ impl App {
             streaming: true,
             ..LiveTurn::default()
         });
+        self.begin_run_clock();
         self.status = if prompt.prompt_mode == PromptMode::Plan {
             "thinking".to_owned()
         } else {
@@ -2952,7 +3183,7 @@ impl App {
     }
 
     /// 审批模式选项（选择器渲染与 /mode 命令共用）。
-    pub fn approval_mode_options(&self) -> &'static [(&'static str, &'static str)] {
+    pub fn approval_mode_options(&self) -> &'static [(&'static str, &'static str, &'static str)] {
         APPROVAL_MODES
     }
 
@@ -2986,7 +3217,7 @@ impl App {
 
     /// 应用执行模式变更。
     pub fn set_execution_mode(&mut self, mode: String) {
-        self.mark_slash_use(&format!("/mode {mode}"));
+        self.mark_slash_use(&format!("/approval {}", approval_alias(&mode)));
         self.execution_mode.clone_from(&mode);
         self.session.execution_mode.clone_from(&mode);
         if let Some(session) = self
@@ -3083,6 +3314,15 @@ impl App {
         if event.name == "permission_resolved" {
             self.approval_resolution_succeeded(&string_field(&event.data, "id"));
             return;
+        }
+        if self.live.is_none() {
+            return;
+        }
+        self.last_stream_event_at = Some(Instant::now());
+        match event.name.as_str() {
+            "done" => self.finish_run_clock(true),
+            "error" => self.finish_run_clock(false),
+            _ => {}
         }
         let Some(live) = self.live.as_mut() else {
             return;
@@ -3301,6 +3541,7 @@ impl App {
         if let Some(live) = self.live.as_mut() {
             live.streaming = false;
         }
+        self.finish_run_clock(false);
         self.clear_approvals();
         self.runtime_queued_count = 0;
         self.abort_pressed = false;
@@ -3630,38 +3871,58 @@ fn attachment_kind(path: &Path) -> Option<&'static str> {
     }
 }
 
-/// 审批模式的三个档位与一句话说明（/mode 选择器与直接命令共用）。
-const APPROVAL_MODES: &[(&str, &str)] = &[
+/// 改名前的命令：仍可完整输入执行，但不在 Slash 目录中重复出现。
+const LEGACY_COMMANDS: &[&str] = &[
+    "/thinking",
+    "/sessions",
+    "/dir",
+    "/mode",
+    "/apikey",
+    "/exit",
+];
+
+/// 审批模式的三个档位：Runtime 值、命令短名与一句话说明（/approval 选择器与直接命令共用）。
+const APPROVAL_MODES: &[(&str, &str, &str)] = &[
     (
         "approval-required",
+        "ask",
         "Ask before writes, shell, and high-risk tools",
     ),
     (
         "workspace-write",
+        "auto",
         "Auto-approve workspace edits and routine commands",
     ),
     (
         "full-access",
+        "full",
         "Allow unrestricted files, network, and shell",
     ),
 ];
 
-/// 解析 `/mode <approval-required|workspace-write|full-access>` 形式的命令，格式非法返回 None。
-fn execution_mode_command(message: &str) -> Option<&str> {
+/// 解析 `/approval <ask|auto|full>` 命令，返回 Runtime 执行模式；
+/// 兼容旧的 `/mode` 前缀与完整模式名，格式非法返回 None。
+fn execution_mode_command(message: &str) -> Option<&'static str> {
     let mut parts = message.split_whitespace();
-    if parts.next()? != "/mode" {
+    if !matches!(parts.next()?, "/approval" | "/mode") {
         return None;
     }
-    let mode = parts.next()?;
-    if parts.next().is_some()
-        || !matches!(
-            mode,
-            "approval-required" | "workspace-write" | "full-access"
-        )
-    {
+    let value = parts.next()?;
+    if parts.next().is_some() {
         return None;
     }
-    Some(mode)
+    APPROVAL_MODES
+        .iter()
+        .find(|(mode, alias, _)| value == *mode || value == *alias)
+        .map(|(mode, _, _)| *mode)
+}
+
+/// 执行模式对应的命令短名（用于记录命令使用频率）。
+fn approval_alias(mode: &str) -> &str {
+    APPROVAL_MODES
+        .iter()
+        .find(|(value, _, _)| *value == mode)
+        .map_or(mode, |(_, alias, _)| alias)
 }
 
 /// `/run` 命令的解析结果。
@@ -3856,14 +4117,15 @@ mod tests {
 
     use super::{
         advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, AttachmentDraft,
-        LiveTurn, SettingsPicker, SlashCategory, View, HISTORY_IDLE_EVICT_DELAY,
+        LiveTurn, RunPhase, SettingsPicker, SlashCategory, View, HISTORY_IDLE_EVICT_DELAY,
         HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
+    use crate::disclosure::{thinking_key, ExpandKey, FINISH_NOTICE};
     use crate::model::{
         ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
-        PromptMode, ProviderOption, SessionCwdUpdate, SessionModelUpdate, SessionSummary,
-        StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolDefinition, VcsChanges,
-        VcsFile,
+        PromptMode, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate,
+        SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolActivity,
+        ToolDefinition, VcsChanges, VcsFile,
     };
     use serde_json::json;
 
@@ -4411,14 +4673,16 @@ mod tests {
         }
     }
 
-    /// 验证未知的 /mode 值按非法格式处理。
+    /// 验证未知的审批模式值按非法格式处理，并提示新的短名写法。
     #[test]
     fn mode_command_rejects_unknown_execution_mode() {
-        let mut app = test_app(Vec::new());
-        app.set_input("/mode unsupported");
+        for input in ["/approval unsupported", "/mode unsupported"] {
+            let mut app = test_app(Vec::new());
+            app.set_input(input);
 
-        assert!(matches!(app.submit_action(), Action::None));
-        assert!(app.status.contains("approval-required"));
+            assert!(matches!(app.submit_action(), Action::None));
+            assert!(app.status.contains("/approval ask|auto|full"));
+        }
     }
 
     /// 裸 /mode 打开审批模式选择器，/mode <值> 直接切换。
@@ -5771,6 +6035,152 @@ mod tests {
     }
 
     /// 构造标准测试 App（一个固定会话 + 给定工具，其余字段取默认）。
+    /// 验证改名后的命令：目录只列新名字，新名字与旧别名回车后执行同一动作。
+    #[test]
+    fn renamed_commands_keep_legacy_aliases_working() {
+        let catalog: Vec<String> = test_app(Vec::new())
+            .slash_items()
+            .into_iter()
+            .map(|item| item.command)
+            .collect();
+        for command in ["/effort", "/resume", "/cwd", "/approval", "/approval auto"] {
+            assert!(catalog.contains(&command.to_owned()), "{command}");
+        }
+        for legacy in super::LEGACY_COMMANDS {
+            assert!(!catalog.contains(&(*legacy).to_owned()), "{legacy}");
+        }
+
+        let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        for input in ["/effort", "/thinking"] {
+            let mut app = test_app(Vec::new());
+            app.set_input(input);
+            assert!(
+                matches!(app.handle_key(enter), Action::RefreshThinking),
+                "{input}"
+            );
+        }
+        for input in ["/resume", "/sessions"] {
+            let mut app = test_app(Vec::new());
+            app.set_input(input);
+            assert!(
+                matches!(app.handle_key(enter), Action::LoadSessions { .. }),
+                "{input}"
+            );
+        }
+        for input in ["/quit", "/exit"] {
+            let mut app = test_app(Vec::new());
+            app.set_input(input);
+            assert!(matches!(app.handle_key(enter), Action::Quit), "{input}");
+        }
+        for input in ["/cwd src", "/dir src"] {
+            let mut app = test_app(Vec::new());
+            app.set_input(input);
+            assert!(
+                matches!(app.submit_action(), Action::SetCwd(path) if path.ends_with("src")),
+                "{input}"
+            );
+        }
+        for (input, mode) in [
+            ("/approval ask", "approval-required"),
+            ("/approval auto", "workspace-write"),
+            ("/approval full", "full-access"),
+            ("/mode workspace-write", "workspace-write"),
+        ] {
+            let mut app = test_app(Vec::new());
+            app.set_input(input);
+            assert!(
+                matches!(app.submit_action(), Action::SetExecutionMode(value) if value == mode),
+                "{input}"
+            );
+        }
+    }
+
+    /// 验证状态栏运行阶段：工具计时、长时间无输出的等待提示，以及结束摘要的展示时长。
+    #[test]
+    fn run_status_reports_tools_stalls_and_completion() {
+        let mut app = test_app(Vec::new());
+        let now = Instant::now();
+        assert_eq!(app.run_status(now, 0), None);
+        app.live = Some(LiveTurn {
+            streaming: true,
+            tools: vec![ToolActivity {
+                id: "t1".to_owned(),
+                name: "bash".to_owned(),
+                status: "running".to_owned(),
+                started_at: 10_000,
+                ..ToolActivity::default()
+            }],
+            ..LiveTurn::default()
+        });
+        app.run_started_at = Some(now - Duration::from_secs(70));
+        app.last_stream_event_at = Some(now - Duration::from_secs(40));
+        let running = app.run_status(now, 22_000).unwrap();
+        assert_eq!(running.elapsed, Duration::from_secs(70));
+        // 工具在运行时，长时间无事件也不算停顿。
+        assert_eq!(
+            running.phase,
+            RunPhase::Tool {
+                name: "bash".to_owned(),
+                elapsed: Some(Duration::from_secs(12)),
+            }
+        );
+
+        app.live.as_mut().unwrap().tools[0].status = "done".to_owned();
+        assert_eq!(
+            app.run_status(now, 22_000).unwrap().phase,
+            RunPhase::Waiting {
+                silent: Duration::from_secs(40)
+            }
+        );
+        app.last_stream_event_at = Some(now);
+        app.live.as_mut().unwrap().text_target = "partial".to_owned();
+        assert_eq!(app.run_status(now, 0).unwrap().phase, RunPhase::Responding);
+
+        app.apply_stream_event(StreamEvent {
+            name: "done".to_owned(),
+            data: json!({ "text": "final", "tools": [], "contextUsage": {} }),
+            id: None,
+        });
+        let finished_at = Instant::now();
+        let finish = app.run_finish_notice(finished_at).unwrap();
+        assert!(finish.ok);
+        assert!(finish.elapsed >= Duration::from_secs(70));
+        assert!(app.needs_clock(finished_at));
+        let later = finished_at + FINISH_NOTICE;
+        assert_eq!(app.run_finish_notice(later), None);
+        assert!(!app.needs_clock(later));
+    }
+
+    /// 验证 Ctrl+E 展开与收起最近一条回复的全部细节，且不受输入框草稿影响。
+    #[test]
+    fn ctrl_e_toggles_latest_reply_details() {
+        let mut app = test_app(Vec::new());
+        app.messages.push(ChatMessage {
+            role: "agent".to_owned(),
+            text: "done".to_owned(),
+            run_activity: Some(RunActivity {
+                thinking_text: "plan".to_owned(),
+                tools: vec![ToolActivity {
+                    id: "t1".to_owned(),
+                    name: "bash".to_owned(),
+                    status: "done".to_owned(),
+                    ..ToolActivity::default()
+                }],
+                ..RunActivity::default()
+            }),
+            ..ChatMessage::default()
+        });
+        app.input = "draft".chars().collect();
+        let ctrl_e = KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL);
+        app.handle_key(ctrl_e);
+        assert!(app.expanded.contains(&ExpandKey::Tool("t1".to_owned())));
+        assert!(app.expanded.contains(&thinking_key("plan")));
+        assert_eq!(app.input_text(), "draft");
+        app.handle_key(ctrl_e);
+        assert!(app.expanded.is_empty());
+        assert_eq!(app.expansion_generation, 2);
+    }
+
     fn test_app(tools: Vec<ToolDefinition>) -> App {
         let session = SessionSummary {
             id: "session-1".to_owned(),

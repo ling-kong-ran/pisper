@@ -7,6 +7,7 @@
 mod api;
 mod app;
 mod component_update;
+mod disclosure;
 mod model;
 mod notification;
 mod paste_burst;
@@ -31,7 +32,8 @@ use crossterm::{
     cursor::MoveTo,
     event::{
         DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-        Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
+        Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton,
+        MouseEventKind,
     },
     execute,
     terminal::{
@@ -51,7 +53,7 @@ use zeroize::Zeroize;
 
 use crate::{
     api::ApiClient,
-    app::env_flag_enabled,
+    app::mouse_capture_enabled,
     paste_burst::{CharDecision, FlushResult, PasteBurst},
     sidecar::SidecarConnection,
     startup::StartupIndicator,
@@ -99,8 +101,9 @@ Examples:
   pisper help web
 
 Environment:
-  PISPER_TUI_MOUSE=1           Enable mouse wheel scrolling in the transcript.
-                               Note: mouse capture replaces the terminal's native text selection.
+  PISPER_TUI_MOUSE=0           Disable mouse capture (enabled by default for wheel scrolling
+                               and clicking a command to expand it). While capture is on, most
+                               terminals select text with Shift+drag.
   PISPER_TUI_REDUCED_MOTION=1  Disable the typewriter reveal and status animations
                                (streaming text appears immediately).";
 
@@ -307,6 +310,9 @@ async fn run_event_loop(
     // 状态栏扫描动画（80ms）。
     let mut status_animation = tokio::time::interval(Duration::from_millis(80));
     status_animation.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // 运行计时、停顿提示与结束摘要每秒刷新；减动画模式下同样需要更新时间。
+    let mut clock = tokio::time::interval(Duration::from_secs(1));
+    clock.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // 历史消息空闲回收检查（5s 一次）。
     let mut history_eviction = tokio::time::interval(Duration::from_secs(5));
     history_eviction.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -357,16 +363,26 @@ async fn run_event_loop(
                         pending_resize.is_none()
                     }
                     Some(Ok(Event::Mouse(mouse))) => {
-                        // 滚轮翻聊天记录（仅在 PISPER_TUI_MOUSE 启用捕获后才会收到）。
+                        // 滚轮翻聊天记录，左键点击展开/收起命令、思考与折叠的工具组
+                        // （PISPER_TUI_MOUSE=0 关闭捕获后终端不再上报）。
+                        // 鼠标移动等其他事件不触发重绘，避免捕获开启后每次移动都整屏刷新。
                         let action = match mouse.kind {
-                            MouseEventKind::ScrollUp => app.handle_mouse_wheel(true),
-                            MouseEventKind::ScrollDown => app.handle_mouse_wheel(false),
-                            _ => Action::None,
+                            MouseEventKind::ScrollUp => Some(app.handle_mouse_wheel(true)),
+                            MouseEventKind::ScrollDown => Some(app.handle_mouse_wheel(false)),
+                            MouseEventKind::Down(MouseButton::Left) => app
+                                .handle_mouse_click(mouse.column, mouse.row)
+                                .then_some(Action::None),
+                            _ => None,
                         };
-                        if execute_action(action, &mut app, &api, &runtime_tx).await? {
-                            break;
+                        match action {
+                            Some(action) => {
+                                if execute_action(action, &mut app, &api, &runtime_tx).await? {
+                                    break;
+                                }
+                                true
+                            }
+                            None => false,
                         }
-                        true
                     }
                     Some(Ok(Event::Resize(width, height))) => {
                         // 终端缩放会产生连续事件，先记录区域并等待其稳定后再重绘。
@@ -670,6 +686,7 @@ async fn run_event_loop(
                 app.advance_status_animation();
                 true
             }
+            _ = clock.tick(), if app.needs_clock(std::time::Instant::now()) => true,
             _ = history_eviction.tick() => {
                 app.evict_idle_history(Instant::now().into())
             }
@@ -1597,13 +1614,13 @@ struct TerminalSession {
 
 impl TerminalSession {
     /// 进入终端会话：启用 raw mode、切到备用屏、开启 bracketed-paste，
-    /// 按需开启鼠标捕获（滚轮滚动，代价是终端原生文本选择被接管），
+    /// 默认开启鼠标捕获（滚轮滚动、点击展开；终端原生选择改用 Shift+拖动），
     /// 返回包装后的 Terminal；任一步失败时中止（保持终端原状）。
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
-        if env_flag_enabled("PISPER_TUI_MOUSE") {
+        if mouse_capture_enabled() {
             execute!(stdout, EnableMouseCapture)?;
         }
         let terminal = Terminal::new(CrosstermBackend::new(stdout))?;

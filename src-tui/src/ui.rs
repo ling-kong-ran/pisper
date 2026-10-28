@@ -15,11 +15,23 @@ use ratatui::{
 };
 use ratatui_image::{picker::Picker, Image as TerminalImage, Resize};
 use serde_json::Value;
-use std::{cell::RefCell, collections::HashMap, sync::OnceLock, time::SystemTime};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    sync::OnceLock,
+    time::{Instant, SystemTime, UNIX_EPOCH},
+};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    app::{App, Approval, LiveTurn, SettingsPicker, SlashCategory, SlashKind, View},
+    app::{
+        App, Approval, LiveTurn, RunPhase, RunStatus, SettingsPicker, SlashCategory, SlashKind,
+        View,
+    },
+    disclosure::{
+        format_elapsed, thinking_key, tool_arguments, tool_command, tool_group_key, tool_key,
+        ClickRegion, ExpandKey,
+    },
     model::{
         ChatMessage, ImageThumbnail, MessageAttachment, PromptMode, RunActivity,
         ThinkingAvailability, ToolActivity, PROVIDER_APIS,
@@ -481,10 +493,12 @@ fn render_overlays(frame: &mut Frame, app: &App, composer: Rect, area: Rect) {
 struct CachedTranscriptLines {
     lines: Vec<Line<'static>>,
     rows: usize,
+    /// 可点击行：（消息内起始行号, 行数, 展开键）。
+    targets: Vec<(usize, usize, ExpandKey)>,
 }
 
-/// 渲染行缓存键：(App 令牌, transcript_epoch, 消息序号, 视口宽度, thumbnail_generation)。
-type TranscriptLineCacheKey = (u64, u64, usize, u16, u64);
+/// 渲染行缓存键：(App 令牌, transcript_epoch, 消息序号, 视口宽度, thumbnail_generation, 展开代际)。
+type TranscriptLineCacheKey = (u64, u64, usize, u16, u64, u64);
 
 thread_local! {
     // 转录渲染行缓存：历史消息一经提交不再变化，
@@ -508,35 +522,54 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
     let epoch = app.transcript_epoch.get();
     let thumbnails = app.thumbnail_generation.get();
     let mut total_rows = 0usize;
+    let mut regions = Vec::new();
+    let expansion = app.expansion_generation;
     TRANSCRIPT_LINE_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.len() > TRANSCRIPT_LINE_CACHE_LIMIT {
             cache.clear();
         }
         for (index, message) in app.messages.iter().enumerate() {
-            let key = (cache_token, epoch, index, viewport.width, thumbnails);
+            let key = (
+                cache_token,
+                epoch,
+                index,
+                viewport.width,
+                thumbnails,
+                expansion,
+            );
             let entry = cache.entry(key).or_insert_with(|| {
                 let mut message_lines = Vec::new();
+                let mut targets = Vec::new();
                 push_message(
                     &mut message_lines,
                     message,
                     content_width,
                     &app.image_thumbnails,
+                    &app.expanded,
+                    &mut targets,
                 );
                 let rows = Paragraph::new(Text::from(message_lines.clone()))
                     .wrap(Wrap { trim: false })
                     .line_count(viewport.width);
                 CachedTranscriptLines {
+                    targets: target_rows(&message_lines, &targets, viewport.width),
                     lines: message_lines,
                     rows,
                 }
             });
+            regions.extend(entry.targets.iter().map(|(row, rows, key)| ClickRegion {
+                start_row: total_rows + row,
+                rows: *rows,
+                key: key.clone(),
+            }));
             lines.extend(entry.lines.iter().cloned());
             total_rows += entry.rows;
         }
     });
     if let Some(live) = &app.live {
         let live_start = lines.len();
+        let mut targets = Vec::new();
         push_live(
             &mut lines,
             live,
@@ -544,9 +577,25 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
             content_width,
             area.height.saturating_sub(2) as usize,
             app.status_frame,
+            &app.expanded,
+            &mut targets,
+        );
+        let live_lines = lines[live_start..].to_vec();
+        let relative: Vec<(usize, ExpandKey)> = targets
+            .into_iter()
+            .map(|(line, key)| (line - live_start, key))
+            .collect();
+        regions.extend(
+            target_rows(&live_lines, &relative, viewport.width)
+                .into_iter()
+                .map(|(row, rows, key)| ClickRegion {
+                    start_row: total_rows + row,
+                    rows,
+                    key,
+                }),
         );
         // live 回合每帧都在变，行数即时计算（行数有限，成本可忽略）。
-        total_rows += Paragraph::new(Text::from(lines[live_start..].to_vec()))
+        total_rows += Paragraph::new(Text::from(live_lines))
             .wrap(Wrap { trim: false })
             .line_count(viewport.width);
     }
@@ -558,7 +607,35 @@ fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
         .min(u16::MAX as usize) as u16;
     app.render_max_scroll.set(max_scroll);
     let scroll = max_scroll.saturating_sub(app.scroll.get().min(max_scroll));
+    // 记录本帧的可点击区域与视口，鼠标点击按「滚动顶行 + 视口内行号」反查。
+    app.chat_viewport.set(viewport);
+    app.chat_scroll_top.set(scroll);
+    *app.click_regions.borrow_mut() = regions;
     frame.render_widget(paragraph.scroll((scroll, 0)), viewport);
+}
+
+/// 把「行序号 → 展开键」换算成折行后的「起始行号, 行数」；只累计到最后一个目标行为止。
+fn target_rows(
+    lines: &[Line<'static>],
+    targets: &[(usize, ExpandKey)],
+    width: u16,
+) -> Vec<(usize, usize, ExpandKey)> {
+    let mut result = Vec::with_capacity(targets.len());
+    let mut row = 0usize;
+    let mut pending = targets.iter().peekable();
+    for (index, line) in lines.iter().enumerate() {
+        if pending.peek().is_none() {
+            break;
+        }
+        let rows = Paragraph::new(line.clone())
+            .wrap(Wrap { trim: false })
+            .line_count(width);
+        while let Some((_, key)) = pending.next_if(|(target, _)| *target == index) {
+            result.push((row, rows, key.clone()));
+        }
+        row += rows;
+    }
+    result
 }
 
 /// 计划面板高度：无计划/太矮/太窄时收起；
@@ -958,11 +1035,14 @@ impl ActivityRail {
 }
 
 /// 把一条消息压成渲染行：用户消息带蓝色标签，Agent 消息渲染活动 + Markdown。
+/// `targets` 收集可点击行（行序号, 展开键），供鼠标点击切换折叠。
 fn push_message(
     lines: &mut Vec<Line<'static>>,
     message: &ChatMessage,
     width: usize,
     thumbnails: &HashMap<String, ImageThumbnail>,
+    expanded: &HashSet<ExpandKey>,
+    targets: &mut Vec<(usize, ExpandKey)>,
 ) {
     let prose_width = width.min(CONVERSATION_WIDTH as usize);
     if message.role == "user" {
@@ -975,7 +1055,7 @@ fn push_message(
         return;
     }
     if let Some(activity) = &message.run_activity {
-        push_activity(lines, activity, width);
+        push_activity(lines, activity, width, expanded, targets);
     }
     if !message.text.is_empty() {
         push_markdown(lines, "", ACCENT, &message.text, prose_width);
@@ -984,7 +1064,9 @@ fn push_message(
     lines.push(Line::default());
 }
 
-/// 把流式 LiveTurn 压成渲染行：思考、工具、子代理与正文按预算分层展示。
+/// 把流式 LiveTurn 压成渲染行：思考、工具、子代理与正文按预算分层展示；
+/// 展开的思考或工具组不受视口预算限制。
+#[allow(clippy::too_many_arguments)]
 fn push_live(
     lines: &mut Vec<Line<'static>>,
     live: &LiveTurn,
@@ -992,20 +1074,31 @@ fn push_live(
     width: usize,
     viewport_rows: usize,
     animation_frame: u64,
+    expanded: &HashSet<ExpandKey>,
+    targets: &mut Vec<(usize, ExpandKey)>,
 ) {
     let (thinking_rows, tool_rows) = live_activity_budget(viewport_rows);
     let tool_running = live.tools.iter().any(|tool| tool.status == "running");
     let thinking_active = thinking && !tool_running;
     let mut rail = ActivityRail::default();
     if !live.thinking.is_empty() || (thinking && live.text.is_empty()) {
+        let open = expanded.contains(&ExpandKey::LiveThinking);
+        if !live.thinking.is_empty() {
+            targets.push((lines.len(), ExpandKey::LiveThinking));
+        }
         push_thinking(
             lines,
             &mut rail,
             &live.thinking,
             thinking_active,
             width,
-            thinking_rows,
+            if open {
+                EXPANDED_THINKING_LINES
+            } else {
+                thinking_rows
+            },
             animation_frame,
+            (!live.thinking.is_empty()).then_some(open),
         );
     }
     push_tool_group(
@@ -1015,6 +1108,12 @@ fn push_live(
         width,
         tool_rows,
         animation_frame,
+        &ToolGroupDisclosure {
+            key: ExpandKey::LiveToolGroup,
+            expanded,
+            wall_ms: wall_clock_millis(),
+        },
+        targets,
     );
     push_tool_agents(lines, &mut rail, &live.tools, width);
     if rail.started && !thinking_active && !tool_running && !live.text.is_empty() {
@@ -1053,20 +1152,43 @@ fn live_activity_budget(viewport_rows: usize) -> (usize, usize) {
 }
 
 /// 把一条已提交消息的活动渲染为树形轨道。
-fn push_activity(lines: &mut Vec<Line<'static>>, activity: &RunActivity, width: usize) {
+fn push_activity(
+    lines: &mut Vec<Line<'static>>,
+    activity: &RunActivity,
+    width: usize,
+    expanded: &HashSet<ExpandKey>,
+    targets: &mut Vec<(usize, ExpandKey)>,
+) {
     let mut rail = ActivityRail::default();
     if !activity.thinking_text.is_empty() {
+        let key = thinking_key(&activity.thinking_text);
+        let open = expanded.contains(&key);
+        targets.push((lines.len(), key));
         push_thinking(
             lines,
             &mut rail,
             &activity.thinking_text,
             false,
             width,
-            2,
+            if open { EXPANDED_THINKING_LINES } else { 2 },
             0,
+            Some(open),
         );
     }
-    push_tool_group(lines, &mut rail, &activity.tools, width, 3, 0);
+    push_tool_group(
+        lines,
+        &mut rail,
+        &activity.tools,
+        width,
+        3,
+        0,
+        &ToolGroupDisclosure {
+            key: tool_group_key(&activity.tools),
+            expanded,
+            wall_ms: 0,
+        },
+        targets,
+    );
     if activity.agents.is_empty() {
         push_tool_agents(lines, &mut rail, &activity.tools, width);
     } else {
@@ -1149,8 +1271,23 @@ fn push_agent_values<'a>(
     }
 }
 
+/// 展开后的思考最多显示的行数（超出时保留尾部）。
+const EXPANDED_THINKING_LINES: usize = 200;
+/// 展开工具时输出保留的尾部行数：运行中的工具只看最新输出，已完成的多留一些上下文。
+const EXPANDED_OUTPUT_LINES: usize = 20;
+const EXPANDED_LIVE_OUTPUT_LINES: usize = 12;
+
+/// 折叠指示符：▸ 可展开，▾ 已展开。
+fn disclosure_span(open: bool) -> Span<'static> {
+    Span::styled(
+        if open { " ▾" } else { " ▸" },
+        Style::default().fg(if open { ACCENT } else { FAINT }),
+    )
+}
+
 /// 渲染思考区：活动时带 spinner 与强调色，否则用静态符号；
-/// 内容按预算换行并保留尾部（旧行被截掉）。
+/// 内容按预算换行并保留尾部（旧行被截掉）。`disclosure` 为 Some 时在标签后显示折叠指示符。
+#[allow(clippy::too_many_arguments)]
 fn push_thinking(
     lines: &mut Vec<Line<'static>>,
     rail: &mut ActivityRail,
@@ -1159,9 +1296,10 @@ fn push_thinking(
     width: usize,
     max_lines: usize,
     animation_frame: u64,
+    disclosure: Option<bool>,
 ) {
     let label = if width >= 32 { "thinking" } else { "think" };
-    let content_indent = 2 + label.width() + 2;
+    let content_indent = 2 + label.width() + 2 + if disclosure.is_some() { 2 } else { 0 };
     let content_width = width
         .saturating_sub(ACTIVITY_GUTTER_WIDTH + content_indent)
         .max(4);
@@ -1185,6 +1323,9 @@ fn push_thinking(
         ),
         Span::styled(label.to_owned(), label_style),
     ];
+    if let Some(open) = disclosure {
+        first.push(disclosure_span(open));
+    }
     if let Some(content) = content.first() {
         first.push(Span::raw("  "));
         first.push(Span::styled(content.clone(), Style::default().fg(MUTED)));
@@ -1214,8 +1355,17 @@ fn wrapped_tail(value: &str, width: usize, max_lines: usize) -> Vec<String> {
     wrapped
 }
 
+/// 工具组的折叠上下文：组展开键、全部展开键集合与当前墙钟（运行中工具计时）。
+struct ToolGroupDisclosure<'a> {
+    key: ExpandKey,
+    expanded: &'a HashSet<ExpandKey>,
+    wall_ms: u64,
+}
+
 /// 渲染工具组：优先展示运行中的工具，其余从新到旧补位；
-/// 超预算时折叠为「N earlier · M completed」摘要行。
+/// 超预算时折叠为「N earlier · M completed」摘要行，点击摘要可展开全部工具；
+/// 每个工具行可单独点击展开命令、参数与输出。
+#[allow(clippy::too_many_arguments)]
 fn push_tool_group(
     lines: &mut Vec<Line<'static>>,
     rail: &mut ActivityRail,
@@ -1223,10 +1373,17 @@ fn push_tool_group(
     width: usize,
     max_rows: usize,
     animation_frame: u64,
+    disclosure: &ToolGroupDisclosure<'_>,
+    targets: &mut Vec<(usize, ExpandKey)>,
 ) {
     if tools.is_empty() || max_rows == 0 {
         return;
     }
+    let max_rows = if disclosure.expanded.contains(&disclosure.key) {
+        tools.len()
+    } else {
+        max_rows
+    };
     let active_index = tools.iter().rposition(|tool| tool.status == "running");
     let reserve_summary = tools.len() > max_rows && max_rows > 1;
     let tool_capacity = max_rows.saturating_sub(usize::from(reserve_summary));
@@ -1252,6 +1409,7 @@ fn push_tool_group(
         } else {
             String::new()
         };
+        targets.push((lines.len(), disclosure.key.clone()));
         rail.push(
             lines,
             vec![
@@ -1260,30 +1418,158 @@ fn push_tool_group(
                     format!("{hidden} earlier · {completed} completed{active}"),
                     Style::default().fg(MUTED),
                 ),
+                disclosure_span(false),
             ],
         );
     }
     for index in selected {
+        let tool = &tools[index];
         let active = Some(index) == active_index;
-        let rail_color = match tools[index].status.as_str() {
+        let rail_color = match tool.status.as_str() {
             "running" if active => ACCENT,
             "error" => RED,
             _ => FAINT,
         };
+        let key = tool_key(tool);
+        let open = disclosure.expanded.contains(&key);
+        targets.push((lines.len(), key));
         rail.push_with_color(
             lines,
-            tool_spans(&tools[index], width, active, animation_frame),
+            tool_spans(
+                tool,
+                width,
+                active,
+                animation_frame,
+                disclosure.wall_ms,
+                Some(open),
+            ),
             rail_color,
+        );
+        if open {
+            push_tool_details(lines, rail, tool, width);
+        }
+    }
+}
+
+/// 展开后的工具详情：完整命令（`$ …`）、其余参数，以及输出尾部。
+fn push_tool_details(
+    lines: &mut Vec<Line<'static>>,
+    rail: &mut ActivityRail,
+    tool: &ToolActivity,
+    width: usize,
+) {
+    const INDENT: &str = "    ";
+    let content_width = width
+        .saturating_sub(ACTIVITY_GUTTER_WIDTH + INDENT.len())
+        .max(8);
+    let mut detail = |rail: &mut ActivityRail, text: String, style: Style| {
+        rail.continuation(lines, vec![Span::raw(INDENT), Span::styled(text, style)]);
+    };
+    let mut wrote = false;
+    if let Some(command) = tool_command(tool) {
+        for line in wrap_verbatim(&format!("$ {command}"), content_width) {
+            detail(rail, line, Style::default().fg(TEXT));
+        }
+        wrote = true;
+    }
+    for (key, value) in tool_arguments(tool) {
+        detail(
+            rail,
+            single_line(&format!("{key}: {value}"), content_width),
+            Style::default().fg(MUTED),
+        );
+        wrote = true;
+    }
+    let output = if tool.output.trim().is_empty() {
+        tool.message.as_str()
+    } else {
+        tool.output.as_str()
+    };
+    if !output.trim().is_empty() {
+        let limit = if tool.status == "running" {
+            EXPANDED_LIVE_OUTPUT_LINES
+        } else {
+            EXPANDED_OUTPUT_LINES
+        };
+        let mut wrapped = wrap_verbatim(output.trim_end(), content_width);
+        if wrapped.len() > limit {
+            let hidden = wrapped.len() - limit;
+            wrapped.drain(..hidden);
+            detail(
+                rail,
+                format!("… {hidden} earlier lines"),
+                Style::default().fg(FAINT),
+            );
+        }
+        for line in wrapped {
+            detail(rail, line, Style::default().fg(MUTED));
+        }
+        wrote = true;
+    }
+    if !wrote {
+        detail(
+            rail,
+            "no details recorded".to_owned(),
+            Style::default().fg(FAINT),
         );
     }
 }
 
-/// 构造工具单行：状态符号 + 名称 + 详情 + 耗时，按终端宽度自适应列宽。
+/// 保留缩进的按宽度折行：去掉 ANSI 转义与回车，制表符展开为 4 个空格，超宽行按显示宽度硬切。
+fn wrap_verbatim(value: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut result = Vec::new();
+    for source in strip_terminal_controls(value).lines() {
+        if source.width() <= width {
+            result.push(source.to_owned());
+        } else {
+            result.extend(hard_wrap_word(source, width));
+        }
+    }
+    result
+}
+
+/// 去掉工具输出里的 ANSI CSI 转义（颜色、光标）与回车，避免污染终端渲染。
+fn strip_terminal_controls(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(character) = chars.next() {
+        match character {
+            '\u{1b}' => {
+                if chars.peek() == Some(&'[') {
+                    chars.next();
+                    while let Some(next) = chars.next() {
+                        if next.is_ascii_alphabetic() || next == '~' {
+                            break;
+                        }
+                    }
+                }
+            }
+            '\r' => {}
+            '\t' => result.push_str("    "),
+            other if other.is_control() && other != '\n' => {}
+            other => result.push(other),
+        }
+    }
+    result
+}
+
+/// 当前墙钟毫秒（Runtime 工具时间戳同为毫秒）。
+fn wall_clock_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or_default()
+}
+
+/// 构造工具单行：状态符号 + 名称 + 详情 + 耗时 + 折叠指示符，按终端宽度自适应列宽。
 fn tool_spans(
     tool: &ToolActivity,
     width: usize,
     animate: bool,
     animation_frame: u64,
+    wall_ms: u64,
+    disclosure: Option<bool>,
 ) -> Vec<Span<'static>> {
     let name_width = match width {
         0..=43 => 7,
@@ -1299,8 +1585,9 @@ fn tool_spans(
     } else {
         0
     };
+    let disclosure_width = if disclosure.is_some() { 2 } else { 0 };
     let available = width.saturating_sub(ACTIVITY_GUTTER_WIDTH);
-    let detail_width = available.saturating_sub(2 + name_width + meta_width);
+    let detail_width = available.saturating_sub(2 + name_width + meta_width + disclosure_width);
     let status_color = match tool.status.as_str() {
         "error" => RED,
         "done" => GREEN,
@@ -1337,16 +1624,20 @@ fn tool_spans(
         ));
     }
     if meta_width > 0 {
+        let running = tool.status == "running";
         spans.push(Span::styled(
-            format!("{:>meta_width$}", tool_duration(tool)),
-            Style::default().fg(MUTED),
+            format!("{:>meta_width$}", tool_duration(tool, wall_ms)),
+            Style::default().fg(if running { AMBER } else { MUTED }),
         ));
+    }
+    if let Some(open) = disclosure {
+        spans.push(disclosure_span(open));
     }
     spans
 }
 
-/// 工具耗时文本（完成态显示用时，运行中显示 running）。
-fn tool_duration(tool: &ToolActivity) -> String {
+/// 工具耗时文本：完成态显示用时；运行中按墙钟实时计时，缺少开始时间时显示 running。
+fn tool_duration(tool: &ToolActivity, wall_ms: u64) -> String {
     if tool.finished_at > tool.started_at && tool.started_at > 0 {
         let elapsed = tool.finished_at - tool.started_at;
         if elapsed >= 1000 {
@@ -1355,7 +1646,11 @@ fn tool_duration(tool: &ToolActivity) -> String {
             format!("{elapsed} ms")
         }
     } else if tool.status == "running" {
-        "running".to_owned()
+        if tool.started_at > 0 && wall_ms >= tool.started_at {
+            format_elapsed(std::time::Duration::from_millis(wall_ms - tool.started_at))
+        } else {
+            "running".to_owned()
+        }
     } else {
         String::new()
     }
@@ -2422,19 +2717,82 @@ fn compact_token_count(value: u64) -> String {
 }
 
 /// 渲染底部状态栏：运行动画/活动提示 + 模式/模型/思考级别/用量。
+/// 状态栏精简级别：宽度不足时依次去掉中止提示、用量指标与波形动画；
+/// 执行模式（安全相关）、运行阶段、用时、模型与思考等级始终保留。
+#[derive(Clone, Copy)]
+struct StatusDensity {
+    stop_hint: bool,
+    metrics: bool,
+    wave: bool,
+}
+
+const STATUS_DENSITIES: [StatusDensity; 4] = [
+    StatusDensity {
+        stop_hint: true,
+        metrics: true,
+        wave: true,
+    },
+    StatusDensity {
+        stop_hint: false,
+        metrics: true,
+        wave: true,
+    },
+    StatusDensity {
+        stop_hint: false,
+        metrics: false,
+        wave: true,
+    },
+    StatusDensity {
+        stop_hint: false,
+        metrics: false,
+        wave: false,
+    },
+];
+
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     if area.width == 0 || area.height == 0 {
         return;
     }
+    let now = Instant::now();
+    let run = app.run_status(now, wall_clock_millis());
+    let width = area.width as usize;
+    let line = STATUS_DENSITIES
+        .iter()
+        .map(|density| status_line(app, run.as_ref(), now, *density))
+        .find(|line| line.width() <= width)
+        .unwrap_or_else(|| status_line(app, run.as_ref(), now, STATUS_DENSITIES[3]));
+    frame.render_widget(Paragraph::new(line).style(Style::default().bg(BG)), area);
+}
 
-    let activity = status_activity(app);
+fn status_line(
+    app: &App,
+    run: Option<&RunStatus>,
+    now: Instant,
+    density: StatusDensity,
+) -> Line<'static> {
     let metrics = status_metrics(app);
     let mut spans = Vec::new();
-    if status_is_running(app) {
-        spans.extend(run_animation_spans(app.status_frame));
+    if let Some(run) = run {
+        spans.extend(run_status_spans(app, run, density));
         spans.push(Span::raw("  "));
-    }
-    if let Some((label, color)) = activity {
+    } else if app.status_error {
+        spans.push(Span::styled(
+            single_line(&app.status, 28),
+            Style::default().fg(RED).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw("  "));
+    } else if let Some(finish) = app.run_finish_notice(now) {
+        let (label, color) = if finish.ok {
+            (
+                format!("✓ done in {}", format_elapsed(finish.elapsed)),
+                GREEN,
+            )
+        } else {
+            (
+                format!("■ stopped after {}", format_elapsed(finish.elapsed)),
+                MUTED,
+            )
+        };
         spans.push(Span::styled(
             label,
             Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -2445,15 +2803,15 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
         format!("[{}]", display_execution_mode(&app.execution_mode)),
         Style::default().fg(MUTED),
     ));
+    spans.push(Span::raw("  "));
     // 非 Plan 的发送执行模式在状态栏点亮，提交前一眼可见。
     if app.prompt_mode != PromptMode::Plan {
-        spans.push(Span::raw("  "));
         spans.push(Span::styled(
             format!("[{}]", app.prompt_mode.label().to_lowercase()),
             Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
         ));
+        spans.push(Span::raw("  "));
     }
-    spans.push(Span::raw("  "));
     spans.push(Span::styled(
         display_model(&app.model).to_owned(),
         Style::default().fg(TEXT),
@@ -2465,33 +2823,60 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         ));
     }
-    if !metrics.is_empty() {
+    if density.metrics && !metrics.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(FAINT)));
         spans.push(Span::styled(metrics, Style::default().fg(MUTED)));
     }
-    frame.render_widget(
-        Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
-        area,
-    );
+    Line::from(spans)
 }
 
-/// 状态栏是否处于「运行中」动画态（无审批/无错误且运行中）。
-fn status_is_running(app: &App) -> bool {
-    app.approval.is_none() && !app.status_error && app.is_running_state()
-}
-
-/// 状态栏的活动提示（审批中/错误/连接恢复）。
-fn status_activity(app: &App) -> Option<(String, Color)> {
-    if app.approval.is_some() {
-        return Some(("Approval required".to_owned(), AMBER));
+/// 运行中的状态栏前缀：动画 + 当前阶段 + 本轮用时 + 中止提示，
+/// 让用户随时知道命令是否还在跑、跑了多久、卡在哪一步。
+fn run_status_spans(app: &App, run: &RunStatus, density: StatusDensity) -> Vec<Span<'static>> {
+    let (label, color) = match &run.phase {
+        RunPhase::Approval => ("approval required".to_owned(), AMBER),
+        RunPhase::Compacting => ("compacting context".to_owned(), ACCENT),
+        RunPhase::Thinking => ("thinking".to_owned(), ACCENT),
+        RunPhase::Responding => ("responding".to_owned(), ACCENT),
+        RunPhase::Tool { name, elapsed } => (
+            match elapsed {
+                Some(elapsed) => format!("running {name} · {}", format_elapsed(*elapsed)),
+                None => format!("running {name}"),
+            },
+            ACCENT,
+        ),
+        RunPhase::Waiting { silent } => (
+            format!("waiting for model · no output {}", format_elapsed(*silent)),
+            AMBER,
+        ),
+        RunPhase::Reconnecting => (single_line(&app.status, 28), AMBER),
+    };
+    let mut spans = Vec::new();
+    if matches!(run.phase, RunPhase::Approval) {
+        spans.push(Span::styled("◆ ", Style::default().fg(AMBER)));
+    } else if density.wave {
+        spans.extend(run_animation_spans(app.status_frame));
+        spans.push(Span::raw("  "));
+    } else {
+        spans.push(Span::styled(
+            format!("{} ", spinner_frame(app.status_frame)),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ));
     }
-    if app.status_error {
-        return Some((single_line(&app.status, 28), RED));
+    spans.push(Span::styled(
+        label,
+        Style::default().fg(color).add_modifier(Modifier::BOLD),
+    ));
+    if !run.elapsed.is_zero() {
+        spans.push(Span::styled(
+            format!("  {}", format_elapsed(run.elapsed)),
+            Style::default().fg(MUTED),
+        ));
     }
-    if app.is_streaming() && app.status.starts_with("reconnecting stream") {
-        return Some((single_line(&app.status, 28), AMBER));
+    if density.stop_hint && !matches!(run.phase, RunPhase::Approval) {
+        spans.push(Span::styled("  ctrl+c stop", Style::default().fg(FAINT)));
     }
-    None
+    spans
 }
 
 /// 状态栏的用量指标：token/缓存命中率/上下文占用/排队/审批。
@@ -3041,7 +3426,7 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Clear, popup);
     let title = match picker {
         SettingsPicker::Model => " Switch model ",
-        SettingsPicker::Thinking => " Thinking level ",
+        SettingsPicker::Thinking => " Reasoning effort ",
         SettingsPicker::Approval => " Approval mode ",
         SettingsPicker::RunMode => " Run mode ",
     };
@@ -3088,17 +3473,17 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
             .collect(),
         SettingsPicker::Thinking if app.thinking_levels().is_empty() => {
             let (message, color) = match &app.thinking_availability {
-                ThinkingAvailability::Loading => ("Loading thinking levels…", MUTED),
+                ThinkingAvailability::Loading => ("Loading effort levels…", MUTED),
                 ThinkingAvailability::Unsupported => (
                     if app.thinking_message.is_empty() {
-                        "The current model has no configurable thinking levels"
+                        "The current model has no configurable effort levels"
                     } else {
                         app.thinking_message.as_str()
                     },
                     MUTED,
                 ),
                 ThinkingAvailability::Error(error) => (error.as_str(), RED),
-                ThinkingAvailability::Supported => ("No thinking levels returned", RED),
+                ThinkingAvailability::Supported => ("No effort levels returned", RED),
             };
             vec![ListItem::new(Span::styled(
                 format!(" {message}"),
@@ -3134,7 +3519,7 @@ fn render_settings_picker(frame: &mut Frame, app: &App, area: Rect) {
         SettingsPicker::Approval => app
             .approval_mode_options()
             .iter()
-            .map(|(mode, detail)| {
+            .map(|(mode, _, detail)| {
                 ListItem::new(Line::from(vec![
                     Span::styled(
                         if *mode == app.execution_mode {
@@ -3836,7 +4221,7 @@ fn display_execution_mode(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use ratatui::{backend::TestBackend, style::Modifier, Terminal};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use unicode_width::UnicodeWidthStr;
 
     use super::{
@@ -3880,6 +4265,130 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal.draw(|frame| draw(frame, app)).unwrap();
         terminal.backend().buffer().clone()
+    }
+
+    /// 带一次已完成 Shell 调用的会话，供折叠/展开命令的端到端断言。
+    fn command_test_app() -> App {
+        let session = SessionSummary {
+            id: "session-commands".to_owned(),
+            cwd: "/workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let messages = vec![
+            ChatMessage {
+                role: "user".to_owned(),
+                text: "run the tests".to_owned(),
+                ..ChatMessage::default()
+            },
+            ChatMessage {
+                role: "agent".to_owned(),
+                text: "Tests finished.".to_owned(),
+                run_activity: Some(crate::model::RunActivity {
+                    tools: vec![ToolActivity {
+                        id: "call-1".to_owned(),
+                        name: "bash".to_owned(),
+                        status: "error".to_owned(),
+                        args: json!({ "command": "npm test -- --runInBand --verbose", "timeout": 120 }),
+                        output: "\u{1b}[32mPASS\u{1b}[0m src/a.test.js\nFAIL src/b.test.js\n  expected 1 to equal 2"
+                            .to_owned(),
+                        started_at: 1_000,
+                        finished_at: 3_500,
+                        ..ToolActivity::default()
+                    }],
+                    ..crate::model::RunActivity::default()
+                }),
+                ..ChatMessage::default()
+            },
+        ];
+        App::new(
+            vec![session.clone()],
+            session,
+            messages,
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    /// 验证点击折叠的命令行可展开完整命令、参数与输出（去掉 ANSI 颜色），再次点击收起。
+    #[test]
+    fn clicking_a_command_row_expands_and_collapses_its_details() {
+        let mut app = command_test_app();
+        let (width, height) = (100, 30);
+        let rows = buffer_rows(&render_test_buffer(&app, width, height), width, height);
+        let row = rows
+            .iter()
+            .position(|line| line.contains("bash") && line.contains('▸'))
+            .expect("collapsed command row");
+        assert!(!rows
+            .iter()
+            .any(|line| line.contains("expected 1 to equal 2")));
+
+        assert!(app.handle_mouse_click(10, row as u16));
+        let rows = buffer_rows(&render_test_buffer(&app, width, height), width, height);
+        let text = rows.join("\n");
+        assert!(text.contains("$ npm test -- --runInBand --verbose"));
+        assert!(text.contains("timeout: 120"));
+        assert!(text.contains("PASS src/a.test.js"));
+        assert!(text.contains("expected 1 to equal 2"));
+        assert!(!text.contains("[32m"));
+        assert!(rows[row].contains('▾'));
+
+        assert!(app.handle_mouse_click(10, row as u16));
+        let rows = buffer_rows(&render_test_buffer(&app, width, height), width, height);
+        assert!(!rows
+            .iter()
+            .any(|line| line.contains("expected 1 to equal 2")));
+        // 点击非可展开行（用户消息）不改变状态。
+        let user_row = rows
+            .iter()
+            .position(|line| line.contains("run the tests"))
+            .unwrap();
+        assert!(!app.handle_mouse_click(10, user_row as u16));
+    }
+
+    /// 验证运行中状态栏同时显示当前命令、命令用时与中止提示。
+    #[test]
+    fn status_bar_shows_the_running_command_and_how_to_stop_it() {
+        let mut app = command_test_app();
+        let started_at = super::wall_clock_millis() - 12_000;
+        app.live = Some(LiveTurn {
+            streaming: true,
+            tools: vec![ToolActivity {
+                id: "call-2".to_owned(),
+                name: "bash".to_owned(),
+                status: "running".to_owned(),
+                args: json!({ "command": "npm run build" }),
+                started_at,
+                ..ToolActivity::default()
+            }],
+            ..LiveTurn::default()
+        });
+        app.status = "running bash".to_owned();
+        let (width, height) = (120, 30);
+        let rows = buffer_rows(&render_test_buffer(&app, width, height), width, height);
+        let status = rows.last().unwrap();
+        assert!(status.contains("running bash · 12s"), "{status}");
+        assert!(status.contains("ctrl+c stop"), "{status}");
+        // 运行中的命令行右侧实时计时，而不是固定的 running 字样。
+        assert!(rows
+            .iter()
+            .any(|line| line.contains("npm run build") && line.contains("12s")));
+    }
+
+    /// 断言状态栏以运行指示开头并紧跟阶段文字：宽终端为波形动画，窄终端为单个 spinner。
+    fn assert_run_status(rows: &[String], width: u16, label: &str) -> String {
+        let status = rows.last().unwrap().trim_start().to_owned();
+        let indicator = if width >= 80 {
+            "▁▂▄▆█▆▄  "
+        } else {
+            "⠋ "
+        };
+        assert!(
+            status.starts_with(&format!("{indicator}{label}")),
+            "{width}: {status}"
+        );
+        status
     }
 
     /// 构造“欢迎视图”测试应用（空会话、无活动），供空态 UI 断言。
@@ -4249,6 +4758,8 @@ mod tests {
             80,
             20,
             0,
+            &HashSet::new(),
+            &mut Vec::new(),
         );
 
         assert_eq!(lines.len(), 1);
@@ -4281,6 +4792,8 @@ mod tests {
             80,
             20,
             0,
+            &HashSet::new(),
+            &mut Vec::new(),
         );
 
         let rendered = lines
@@ -4332,6 +4845,8 @@ mod tests {
             48,
             12,
             0,
+            &HashSet::new(),
+            &mut Vec::new(),
         );
 
         let rendered = lines
@@ -4380,6 +4895,8 @@ mod tests {
             120,
             20,
             0,
+            &HashSet::new(),
+            &mut Vec::new(),
         );
 
         let spans = lines
@@ -4420,6 +4937,8 @@ mod tests {
             },
             160,
             &HashMap::new(),
+            &HashSet::new(),
+            &mut Vec::new(),
         );
         assert!(prose
             .iter()
@@ -4442,6 +4961,8 @@ mod tests {
             160,
             20,
             0,
+            &HashSet::new(),
+            &mut Vec::new(),
         );
         assert_eq!(activity[0].width(), 160);
     }
@@ -4466,12 +4987,9 @@ mod tests {
                 .position(|row| row.contains("╭─ ⠋ thinking"))
                 .unwrap() as u16;
             assert_eq!(thinking_buffer.cell((0, thinking_row)).unwrap().fg, AMBER);
-            assert!(thinking_rows
-                .last()
-                .unwrap()
-                .trim_start()
-                .starts_with("▁▂▄▆█▆▄"));
-            assert!(thinking_rows.last().unwrap().contains("gpt-5.6-sol  high"));
+            let status = assert_run_status(&thinking_rows, width, "thinking");
+            assert!(status.contains("[full-access]"), "{status}");
+            assert!(status.contains("gpt-5.6-sol  high"), "{status}");
             assert!(!thinking_rows.last().unwrap().contains("Thinking"));
             assert!(!thinking_text.contains("THINK"));
             assert!(!thinking_text.contains("current run active"));
@@ -4524,13 +5042,11 @@ mod tests {
                 .unwrap() as u16;
             assert_eq!(running_buffer.cell((0, completed_row)).unwrap().fg, FAINT);
             assert_eq!(running_buffer.cell((0, active_row)).unwrap().fg, ACCENT);
-            assert!(running_rows
-                .last()
-                .unwrap()
-                .trim_start()
-                .starts_with("▁▂▄▆█▆▄"));
+            assert_run_status(&running_rows, width, "running bash");
             assert!(!running_rows.last().unwrap().contains("Running bash"));
-            assert_eq!(running_text.matches('⠋').count(), 1);
+            // 转写区只有运行中的工具带 spinner（窄终端的状态栏 spinner 不计入）。
+            let transcript = running_rows[..running_rows.len() - 1].join("\n");
+            assert_eq!(transcript.matches('⠋').count(), 1);
             assert!(!running_text.contains("TOOL"));
 
             let responding = live_test_app(
@@ -4563,11 +5079,7 @@ mod tests {
             );
             assert!(responding_text.contains("The hierarchy is now stable."));
             assert!(!responding_text.contains("PIS  The hierarchy"));
-            assert!(responding_rows
-                .last()
-                .unwrap()
-                .trim_start()
-                .starts_with("▁▂▄▆█▆▄"));
+            assert_run_status(&responding_rows, width, "responding");
             assert!(!responding_rows.last().unwrap().contains("Responding"));
 
             let mut error = live_test_app("stream_read_error", LiveTurn::default());

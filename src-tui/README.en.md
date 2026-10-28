@@ -30,8 +30,14 @@ For an external launch failure containing `MZ` and a Node syntax error, use the 
 
 | Variable | Description |
 | :--- | :--- |
-| `PISPER_TUI_MOUSE=1` | Enable mouse wheel scrolling in the transcript; mouse capture replaces the terminal's native text selection. |
+| `PISPER_TUI_MOUSE=0` | Disable mouse capture. It is on by default for wheel scrolling and clicking a command to expand it; while it is on, most terminals select text with Shift+drag. |
 | `PISPER_TUI_REDUCED_MOTION=1` | Disable the typewriter reveal and status animations (streaming text appears immediately); useful on low-end terminals and SSH sessions. |
+
+## Run Status and Command Details
+
+- The status bar shows the current phase and elapsed time, for example `running bash · 12s  1m 03s  ctrl+c stop`. When nothing has arrived for 15 seconds and no command is running, it shows `waiting for model · no output 18s`. After a run, it briefly shows `✓ done in 1m 05s`.
+- Tool calls are folded into one row; a trailing `▸` means the row can expand. Click it to show the full command (`$ …`), remaining arguments, and the tail of the output; click again to fold it. The `thinking` row and the `… N earlier` summary expand the same way.
+- `Ctrl+E` expands or folds every detail of the latest reply without a mouse.
 
 ## Slash Commands
 
@@ -39,29 +45,29 @@ For an external launch failure containing `MZ` and a Node syntax error, use the 
 | :--- | :--- |
 | `/init` | Analyze the current project and create or improve `AGENTS.md` at the project root. Existing useful guidance is preserved, and no other project files are changed. |
 | `/new` | Create an empty conversation in the TUI launch directory. Unavailable during an Agent run. |
-| `/sessions` | Open the conversation picker across all directories. Switching is unavailable during an Agent run. |
-| `/dir <directory>` | Change the active conversation's working directory. Relative paths resolve from its current directory. Unavailable during an Agent run. |
+| `/resume` | Open the conversation picker across all directories. Switching is unavailable during an Agent run. The old name `/sessions` still works. |
+| `/cwd <directory>` | Change the active conversation's working directory. Relative paths resolve from its current directory. Unavailable during an Agent run. The old name `/dir` still works. |
 | `/changes` | Open the Git or SVN changes view. In that view, `R` refreshes, `C` commits, `P` pushes Git, and pressing `V` twice reverts. SVN has no Push operation. |
 | `/changes commit <message>` | Commit the current Git or SVN changes with an explicit message. |
 | `/chat` | Return to the Chat message stream from another view. |
 | `/model` | Open the model picker and switch the active conversation model. Context is kept and you can send immediately; use `/compact` if desired. Only configured Provider models are listed. Unavailable during an Agent run. |
-| `/thinking` | Refresh and select thinking levels supported by the active model. Unavailable during an Agent run. |
+| `/effort` | Refresh and select the reasoning effort levels supported by the active model. Unavailable during an Agent run. The old name `/thinking` still works. |
 | `/provider [id]` | Edit a Provider's protocol, effective Base URL, and masked API key. Pass `id` to open a known Provider directly. |
 | `/apikey [id]` | Compatibility alias for `/provider`. |
 | `/web` | Open the authenticated local settings page in the default browser using the installed Web frontend. |
 | `/compact` | Summarize older context immediately. Available only for idle conversations with enough history. |
 | `/attach` | Open the attachment picker rooted at the active conversation directory. |
-| `/mode` | Open the approval mode picker. Unavailable during an Agent run; use `/mode <mode>` directly instead. |
-| `/mode approval-required` | Ask before writes, Shell commands, and high-risk tools. |
-| `/mode workspace-write` | Auto-approve workspace edits and routine commands. |
-| `/mode full-access` | Allow local files, network access, and Shell commands as the current operating-system user. |
+| `/approval` | Open the approval mode picker. Unavailable during an Agent run; use `/approval <mode>` directly instead. The old name `/mode` and full mode names still work. |
+| `/approval ask` | Ask before writes, Shell commands, and high-risk tools (`approval-required`). |
+| `/approval auto` | Auto-approve workspace edits and routine commands (`workspace-write`). |
+| `/approval full` | Allow local files, network access, and Shell commands as the current operating-system user (`full-access`). |
 | `/run` | Open the run mode picker (plan / goal / team). Unavailable during an Agent run. |
 | `/run plan` | Plan mode (default): drive the current message by plan, then wait for the next instruction. |
 | `/run goal` | Goal mode: one agent keeps pursuing the objective autonomously until done or paused. |
 | `/run team` | Team mode: a lead agent dynamically coordinates subagents on the objective. |
 | `/run budget <tokens>` | Set the Goal/Team token budget; `off` or an omitted value clears it. Submitted with the message. |
 | `/run pause` | Pause the active goal of the current conversation. |
-| `/quit` | Exit the TUI. |
+| `/quit` | Exit the TUI. `/exit` also works. |
 
 ## Tool and Skill Commands
 

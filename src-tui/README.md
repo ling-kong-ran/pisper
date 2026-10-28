@@ -30,8 +30,14 @@ Windows 桌面版安装到 `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe
 
 | 变量 | 解释 |
 | :--- | :--- |
-| `PISPER_TUI_MOUSE=1` | 启用鼠标滚轮滚动聊天记录；鼠标捕获会接管终端原生文本选择。 |
+| `PISPER_TUI_MOUSE=0` | 关闭鼠标捕获。默认开启：滚轮滚动聊天记录、点击命令展开详情；开启时多数终端可按住 Shift 拖动选择文字。 |
 | `PISPER_TUI_REDUCED_MOTION=1` | 关闭打字机逐字显现与状态动画（流式文本立即完整显示），适合低配终端与 SSH 会话。 |
+
+## 运行状态与命令详情
+
+- 状态栏实时显示当前阶段与本轮用时，例如 `running bash · 12s  1m 03s  ctrl+c stop`；超过 15 秒没有任何输出且没有命令在运行时，显示 `waiting for model · no output 18s`；结束后短暂显示 `✓ done in 1m 05s`。
+- 工具调用默认折叠为一行，行尾 `▸` 表示可展开。点击该行展开完整命令（`$ …`）、其余参数与输出尾部，再次点击收起；点击 `thinking` 或 `… N earlier` 汇总行同样可以展开。
+- `Ctrl+E` 展开或收起最近一条回复的全部细节，不需要鼠标。
 
 ## Slash Command
 
@@ -39,29 +45,29 @@ Windows 桌面版安装到 `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe
 | :--- | :--- |
 | `/init` | 分析当前项目并创建或完善项目根目录的 `AGENTS.md`；保留已有有效说明，不修改其他项目文件。 |
 | `/new` | 在 TUI 启动目录创建空会话；Agent 运行期间不可执行。 |
-| `/sessions` | 打开跨所有目录的历史会话选择器；Agent 运行期间不可切换会话。 |
-| `/dir <目录>` | 修改当前会话的工作目录；相对路径以当前会话目录为基准，Agent 运行期间不可修改。 |
+| `/resume` | 打开跨所有目录的历史会话选择器；Agent 运行期间不可切换会话。旧名 `/sessions` 仍可使用。 |
+| `/cwd <目录>` | 修改当前会话的工作目录；相对路径以当前会话目录为基准，Agent 运行期间不可修改。旧名 `/dir` 仍可使用。 |
 | `/changes` | 打开 Git 或 SVN 改动视图。视图内 `R` 刷新、`C` 提交、`P` 推送 Git、连续两次 `V` 撤销；SVN 不提供 Push。 |
 | `/changes commit <message>` | 使用指定提交信息提交当前 Git 或 SVN 工作区改动。 |
 | `/chat` | 从其他视图返回 Chat 消息流。 |
 | `/model` | 打开模型选择器并切换当前会话模型；默认保留上下文，可直接继续发送，需要压缩时使用 `/compact`。只列出已配置 Provider 的模型，Agent 运行期间不可切换。 |
-| `/thinking` | 刷新并选择当前模型支持的思考等级；Agent 运行期间不可切换。 |
+| `/effort` | 刷新并选择当前模型支持的思考强度（reasoning effort）；Agent 运行期间不可切换。旧名 `/thinking` 仍可使用。 |
 | `/provider [id]` | 编辑 Provider 协议、当前生效 Base URL 与掩码 API Key；传入 `id` 可直达指定 Provider。 |
 | `/apikey [id]` | `/provider` 的兼容别名。 |
 | `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅适用于有足够历史且当前空闲的会话。 |
 | `/attach` | 打开当前会话目录的附件选择器。 |
-| `/mode` | 打开审批模式选择器；Agent 运行期间不可打开，此时可改用 `/mode <模式>` 直接切换。 |
-| `/mode approval-required` | 写入、Shell 和高风险工具执行前请求授权。 |
-| `/mode workspace-write` | 自动批准工作区修改和常规命令。 |
-| `/mode full-access` | 允许以当前系统用户权限访问本机文件、网络与 Shell。 |
+| `/approval` | 打开审批模式选择器；Agent 运行期间不可打开，此时可改用 `/approval <模式>` 直接切换。旧名 `/mode` 及完整模式名仍可使用。 |
+| `/approval ask` | 写入、Shell 和高风险工具执行前请求授权（`approval-required`）。 |
+| `/approval auto` | 自动批准工作区修改和常规命令（`workspace-write`）。 |
+| `/approval full` | 允许以当前系统用户权限访问本机文件、网络与 Shell（`full-access`）。 |
 | `/run` | 打开运行模式选择器（plan / goal / team）；Agent 运行期间不可打开。 |
 | `/run plan` | 计划模式（默认）：按计划推进当前消息，完成本轮后等待下一条指令。 |
 | `/run goal` | 目标模式：单个 Agent 围绕目标持续自主推进，直到完成或暂停。 |
 | `/run team` | 团队模式：主 Agent 动态组织多个子 Agent 分工协同。 |
 | `/run budget <tokens>` | 设置 Goal/Team 的 Token 预算，`off` 或缺省清除，随消息一起提交。 |
 | `/run pause` | 暂停当前会话的活动目标。 |
-| `/quit` | 退出 TUI。 |
+| `/quit` | 退出 TUI；也可输入 `/exit`。 |
 
 ## Tool 与 Skill 命令
 
