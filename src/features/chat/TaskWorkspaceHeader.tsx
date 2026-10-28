@@ -61,6 +61,14 @@ export function TaskWorkspaceHeader({
     ['below', t('chat:focusSession.splitToBottom'), PanelBottom],
   ]
   const others = context?.sessions.filter((session) => session.id !== sessionId) || []
+  const openNewContentTab = () => {
+    const result = useContextPagesStore
+      .getState()
+      .update(sessionId, 'new', { type: 'add', kind: 'new' })
+    if (result === 'limit') notify?.(t('chat:sessionContext.pageLimit'), 'info')
+  }
+  // 手机标签条已有“新会话”加号；新建内容页收进更多菜单，避免同一屏出现两个含义不同的加号。
+  const compactActions = Boolean(context?.mobileLayout)
   return (
     <header {...props} className={cn('flex min-w-0 shrink-0 items-center gap-1', className)}>
       {children}
@@ -100,6 +108,12 @@ export function TaskWorkspaceHeader({
             <FolderOpen />
             {t('chat:workbench.workspace')}
           </DropdownMenuItem>
+          {compactActions && (
+            <DropdownMenuItem onSelect={openNewContentTab}>
+              <Plus />
+              {t('chat:workbench.newTab')}
+            </DropdownMenuItem>
+          )}
           {actions && <DropdownMenuSeparator />}
           {actions}
           {!context?.mobileLayout && others.length > 0 && (
@@ -155,21 +169,18 @@ export function TaskWorkspaceHeader({
       >
         <ListFilter size={16} />
       </Button>
-      <Button
-        variant="ghost"
-        className="size-9 shrink-0 max-[650px]:size-11"
-        id={`task-${sessionId}-new-content-tab`}
-        aria-label={t('chat:workbench.newTab')}
-        title={t('chat:workbench.newTab')}
-        onClick={() => {
-          const result = useContextPagesStore
-            .getState()
-            .update(sessionId, 'new', { type: 'add', kind: 'new' })
-          if (result === 'limit') notify?.(t('chat:sessionContext.pageLimit'), 'info')
-        }}
-      >
-        <Plus size={16} />
-      </Button>
+      {!compactActions && (
+        <Button
+          variant="ghost"
+          className="size-9 shrink-0"
+          id={`task-${sessionId}-new-content-tab`}
+          aria-label={t('chat:workbench.newTab')}
+          title={t('chat:workbench.newTab')}
+          onClick={openNewContentTab}
+        >
+          <Plus size={16} />
+        </Button>
+      )}
     </header>
   )
 }

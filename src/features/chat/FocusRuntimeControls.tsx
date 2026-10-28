@@ -6,7 +6,7 @@ import {
   Bot,
   Brain,
   Check,
-  ChevronRight,
+  ChevronsUpDown,
   Database,
   FileCheck2,
   Gauge,
@@ -383,7 +383,7 @@ export function ContextUsageIndicator({
 }
 
 const LABEL_SELECT_CLASSES =
-  'relative flex h-10 min-w-0 items-center gap-1 rounded-lg px-1.5 text-[13px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground focus-within:ring-2 focus-within:ring-ring'
+  'relative flex h-10 min-w-0 items-center gap-1 rounded-lg px-1.5 text-[13px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring'
 
 const ICON_SELECT_CLASSES =
   'session-model-select relative grid size-[38px] min-w-[38px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--star-soft)] hover:text-[var(--star-strong)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)] [&.compact]:size-8 [&.compact]:min-w-8'
@@ -464,6 +464,7 @@ function thinkingLevelLabel(t: Translate, level: string) {
     medium: t('chat:focusSession.thinkingLabel.medium'),
     high: t('chat:focusSession.thinkingLabel.high'),
     xhigh: t('chat:focusSession.thinkingLabel.xhigh'),
+    max: t('chat:focusSession.thinkingLabel.max'),
   }
   return thinkingLabels[level] || level
 }
@@ -617,91 +618,126 @@ export function ModelThinkingControl({
         align="end"
         side="top"
         sideOffset={8}
-        className="model-effort-popover w-[224px] max-w-[calc(100vw_-_24px)] rounded-2xl border-border/70 bg-popover p-3 shadow-xl"
+        className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] gap-0 rounded-2xl border-border/70 bg-popover p-1.5 shadow-xl"
       >
-        <div className="model-effort-model flex justify-center pb-2.5">
+        {/* 上段选模型、下段调思考等级；分区标题让两个控件的作用一眼可辨。 */}
+        <div className="model-effort-model flex flex-col gap-1 p-1.5 pb-2">
+          <span className="px-1 text-[11px] font-medium text-muted-foreground">
+            {t('chat:focusSession.toolbarModel')}
+          </span>
           <SessionModelSelect
             showLabel
             value={model}
             models={models}
             onChange={onModelChange}
             disabled={modelDisabled || saving}
-            className="h-auto min-w-20 max-w-full bg-foreground/5 px-3 py-1.5 hover:bg-foreground/10"
+            className="h-auto w-full rounded-xl bg-foreground/[0.04] px-2.5 py-2 text-foreground hover:bg-foreground/[0.08] [&>span]:flex-1"
             displayLabel={
-              <span className="flex min-w-0 flex-col items-center gap-0.5">
-                <span
-                  className="model-effort-heading text-base leading-5 font-semibold text-[#329bff]"
-                  aria-live="polite"
-                >
-                  {effortLabel}
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-background text-muted-foreground shadow-[0_0_0_1px_var(--stroke-soft)]">
+                  <Bot size={15} aria-hidden="true" />
                 </span>
-                <span className="inline-flex max-w-full items-center gap-0.5 text-sm leading-5">
-                  <span className="truncate">{modelLabel}</span>
-                  <ChevronRight size={14} className="shrink-0" aria-hidden="true" />
+                <span className="flex min-w-0 flex-1 flex-col text-left">
+                  <span className="truncate text-[13px] leading-5 font-medium">{modelLabel}</span>
+                  {currentModel?.providerName && (
+                    <span className="truncate text-[11px] leading-4 text-muted-foreground">
+                      {currentModel.providerName}
+                    </span>
+                  )}
                 </span>
+                <ChevronsUpDown
+                  size={14}
+                  className="shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
               </span>
             }
           />
         </div>
         {supported && (
-          <div
-            className="relative h-7"
-            style={
-              {
-                '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
-              } as React.CSSProperties
-            }
-          >
-            <div
-              aria-hidden="true"
-              className="effort-track absolute inset-y-1 inset-x-0 overflow-hidden rounded-full bg-foreground/10"
-            >
-              <div className="h-full bg-[#329bff]" style={{ width: 'var(--effort-fill)' }} />
-              <div className="absolute inset-0 flex items-center justify-between px-2.5">
-                {levels.map((level) => (
-                  <i key={level} className="size-1.5 rounded-full bg-foreground/20" />
-                ))}
-              </div>
+          <div className="border-t border-[var(--stroke-soft)] p-1.5 pt-2.5">
+            <div className="flex items-baseline justify-between px-1 pb-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {t('chat:focusSession.thinkingLevelTitle')}
+              </span>
+              <span
+                className="model-effort-heading text-[13px] leading-5 font-semibold text-[var(--brand-blue)]"
+                aria-live="polite"
+              >
+                {effortLabel}
+              </span>
             </div>
-            <input
-              className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
-              type="range"
-              min={0}
-              max={Math.max(1, levels.length - 1)}
-              step={1}
-              value={selected}
-              disabled={disabled}
-              aria-label={t('chat:focusSession.currentThinkingLevel')}
-              aria-valuetext={effortLabel}
-              onChange={(event) => setDraft(Number(event.currentTarget.value))}
-              onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
-              onBlur={(event) => void commit(Number(event.currentTarget.value))}
-              onKeyUp={(event) => {
-                if (
-                  [
-                    'ArrowLeft',
-                    'ArrowRight',
-                    'ArrowUp',
-                    'ArrowDown',
-                    'Home',
-                    'End',
-                    'PageUp',
-                    'PageDown',
-                  ].includes(event.key)
-                )
-                  void commit(Number(event.currentTarget.value))
-              }}
-            />
+            <div
+              className="relative h-7"
+              style={
+                {
+                  '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
+                } as React.CSSProperties
+              }
+            >
+              <div
+                aria-hidden="true"
+                className="effort-track absolute inset-y-1 inset-x-0 overflow-hidden rounded-full bg-foreground/10"
+              >
+                <div
+                  className="h-full bg-[var(--brand-blue)]"
+                  style={{ width: 'var(--effort-fill)' }}
+                />
+                <div className="absolute inset-0 flex items-center justify-between px-2.5">
+                  {levels.map((level) => (
+                    <i key={level} className="size-1.5 rounded-full bg-foreground/20" />
+                  ))}
+                </div>
+              </div>
+              <input
+                className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
+                type="range"
+                min={0}
+                max={Math.max(1, levels.length - 1)}
+                step={1}
+                value={selected}
+                disabled={disabled}
+                aria-label={t('chat:focusSession.currentThinkingLevel')}
+                aria-valuetext={effortLabel}
+                onChange={(event) => setDraft(Number(event.currentTarget.value))}
+                onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
+                onBlur={(event) => void commit(Number(event.currentTarget.value))}
+                onKeyUp={(event) => {
+                  if (
+                    [
+                      'ArrowLeft',
+                      'ArrowRight',
+                      'ArrowUp',
+                      'ArrowDown',
+                      'Home',
+                      'End',
+                      'PageUp',
+                      'PageDown',
+                    ].includes(event.key)
+                  )
+                    void commit(Number(event.currentTarget.value))
+                }}
+              />
+            </div>
+            {levels.length > 1 && (
+              <div
+                className="flex justify-between px-1 pt-1 text-[11px] text-muted-foreground"
+                aria-hidden="true"
+              >
+                <span>{thinkingLevelLabel(t, levels[0])}</span>
+                <span>{thinkingLevelLabel(t, levels.at(-1) || '')}</span>
+              </div>
+            )}
           </div>
         )}
         {deferred && (
-          <p className="pt-2 text-center text-xs leading-4 text-muted-foreground" role="status">
+          <p className="px-2.5 pt-1 pb-2 text-xs leading-4 text-muted-foreground" role="status">
             {t('chat:focusSession.runtimeSelectionDeferred')}
           </p>
         )}
         {(!supported || levels.length === 1) && (
           <p
-            className="pt-2 text-center text-xs leading-relaxed text-muted-foreground"
+            className="border-t border-[var(--stroke-soft)] px-2.5 pt-2.5 pb-2 text-xs leading-relaxed text-muted-foreground"
             role="status"
           >
             {supported

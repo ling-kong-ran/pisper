@@ -504,7 +504,6 @@ export function InterfaceSettings({
           }
         />
         <SettingsRow
-          nested
           title={t('config:interfaceSettings.accentColor')}
           description={t('config:interfaceSettings.accentDescription')}
           control={

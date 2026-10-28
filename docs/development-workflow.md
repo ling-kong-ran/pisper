@@ -79,17 +79,6 @@ Release 正文遵循[统一更新说明规范](release-notes.md)。各渠道共�
 | Feature 归属与入口 | MCP 已归独立领域并使用查询缓存，聊天工具栏 Store 已归聊天，当前跨 Feature 导入已有公开契约与守卫；其他领域仍需核验入口和全局模型归属 | 按领域继续治理，避免无选择的聚合导出，保持懒加载和依赖检查 |
 | Runtime/TUI 职责 | 核心 Runtime 仍通过继承、原型注入共享大量状态；TUI 混合多个渲染与交互职责 | 分批明确状态所有者和窄接口；按独立变化原因拆分或合并，保持行为与跨端契约，不能仅以减少行数验收 |
 
-### 决策审批与 Computer Use 验证接线
-
-决策服务仍由 App Runtime 持有，通过 `SkillsService` 的窄依赖传入资源加载器。`runtime/runtime/computer-use-verification.mjs` 只装饰 Pi 已加载的官方 `act_ui` 定义，复用其参数、执行闭包与会话生命周期；不再单独加载同名扩展或创建第二份 bridge 状态。主会话及 Runtime 派生的子代理共用此接线，未注入决策服务的独立加载器保留官方工具。
-
-审批参数先经过现有结构化凭据检测；命中时不外发、不对脱敏后的不完整输入自动批准，而是回落人工审批。检测复用 `runtime/security/secret-redaction.mjs` 的模式，属于保守的已知凭据检测，不能保证识别所有无标签秘密。验证入口为 `runtime/tests/computer-use-verification.test.mjs`、`runtime/tests/decision-service.test.mjs` 和既有脱敏测试。回滚应同时恢复加载器及工具装饰接线，不能恢复两份 `bridge.ts` 实例；无持久化迁移。
-
-### 决策模型扩展
-
-决策服务通过静态注册表选择供应商、协议和型号能力，新增协议由窄适配器实现。自动审批策略按精确型号登记，阈值绑定供应商、型号、端点和策略版本；无策略或绑定不匹配时回落会话权限。现有 Jev 默认型号采用兼容策略，不代表新模型自动获得同样的概率解释。迁移、回滚及三端范围见[决策模型边界](architecture/decision-models.md)，测试入口为 `runtime/tests/decision-models.test.mjs` 及原决策协议测试。
-
-
 ## 前端工作台验收入口
 
 `npm run test:workbench` 使用真实 React、Dockview、任务标签、终端视图与生产 CSS；只在 HTTP 和原生桥接边界使用隔离数据。先运行 `npm run build`。覆盖任务切换、草稿与阅读位置、资源归属、迟到响应、逐文件差异、来源预览与附件添加、进程生命周期、分屏恢复及移动摘要/返回。截图写入工具创建的临时目录，路径在命令末尾输出；不依赖开发者本地的技能缓存目录。

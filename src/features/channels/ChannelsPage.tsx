@@ -1,5 +1,6 @@
 import { PageFrame } from '@/components/app/PageFrame'
 import { ListDetailLayout } from '@/components/app/ListDetailLayout'
+import { InlineEmptyState } from '@/components/app/PageState'
 // 渠道页：外部消息渠道（飞书/微信/QQ/Telegram）连接管理、状态与测试。
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -582,15 +583,13 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
                     </div>
                   ))
                 ) : (
-                  <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center">
-                    <StarOrbit size={38} />
-                    <strong>{t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}</strong>
-                    <span>
-                      {t(
-                        'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
-                      )}
-                    </span>
-                  </div>
+                  <InlineEmptyState
+                    illustration={<StarOrbit size={38} />}
+                    title={t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}
+                    description={t(
+                      'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
+                    )}
+                  />
                 )}
               </Panel>
               {selectedConnection && (

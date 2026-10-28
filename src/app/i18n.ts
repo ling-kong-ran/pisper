@@ -12,7 +12,6 @@ import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
 import enSchedules from '@/locales/en-US/schedules.json' with { type: 'json' }
-import enDecisions from '@/locales/en-US/decisions.json' with { type: 'json' }
 import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
 import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
 import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
@@ -23,7 +22,6 @@ import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
 import zhSchedules from '@/locales/zh-CN/schedules.json' with { type: 'json' }
-import zhDecisions from '@/locales/zh-CN/decisions.json' with { type: 'json' }
 import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
 import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
 import { STORAGE_KEYS } from './storage.ts'
@@ -59,7 +57,6 @@ export const I18N_NAMESPACES = Object.freeze([
   'plugins',
   'schedules',
   'skills',
-  'decisions',
   'terminal',
   'workflows',
 ] as const)
@@ -92,7 +89,6 @@ void i18n.use(initReactI18next).init({
       config: zhConfig,
       memory: zhMemory,
       plugins: zhPlugins,
-      decisions: zhDecisions,
       schedules: zhSchedules,
       skills: zhSkills,
       terminal: zhTerminal,
@@ -105,7 +101,6 @@ void i18n.use(initReactI18next).init({
       config: enConfig,
       memory: enMemory,
       plugins: enPlugins,
-      decisions: enDecisions,
       schedules: enSchedules,
       skills: enSkills,
       terminal: enTerminal,

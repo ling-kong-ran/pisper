@@ -5,7 +5,7 @@ import { useI18n } from '@/app/use-i18n'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { AppSelect } from '@/components/AppSelect'
-import { PROVIDER_APIS } from './provider-constants'
+import { providerApiOptions } from './provider-constants'
 import { providerApi } from './provider-api'
 import type { ConfigData, ProviderConfig } from './config-types'
 export type ProviderConnectionDraft = { name: string; api: string; baseUrl: string; apiKey: string }
@@ -93,7 +93,7 @@ export function ProviderConnectionEditor({
               value={draft.api}
               onChange={(event) => onDraftChange({ ...draft, api: event.target.value })}
             >
-              {PROVIDER_APIS.map(([value, label]) => (
+              {providerApiOptions(draft.api).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

@@ -30,7 +30,7 @@ import {
   createWorkflowNode,
   NODE_TYPE_NAMES,
   templateWorkflow,
-  WORKFLOW_TEMPLATES,
+  findWorkflowTemplate,
 } from './workflow-templates'
 
 // 工作流编辑器 hook：节点/连线编辑、保存、运行，
@@ -124,7 +124,7 @@ export function useWorkflowEditor({
           workflowId !== 'new'
             ? result.workflows.find((workflow) => workflow.id === workflowId)
             : null
-        const template = WORKFLOW_TEMPLATES.find((item) => item.id === templateId)
+        const template = findWorkflowTemplate(templateId)
         const next = stored
           ? structuredClone(stored)
           : template

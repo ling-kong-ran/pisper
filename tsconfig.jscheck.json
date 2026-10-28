@@ -20,8 +20,6 @@
     "runtime/services/custom-ui-builtins.mjs",
     "runtime/services/custom-ui-path.mjs",
     "runtime/http/route-registry.mjs",
-    "runtime/services/decision-remote-client.mjs",
-    "runtime/services/decision-service.mjs",
     "runtime/services/chat-session-organization.mjs",
     "runtime/services/side-chat-service.mjs",
     "runtime/runtime/workspace-directories.mjs",

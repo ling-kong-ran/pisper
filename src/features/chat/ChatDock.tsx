@@ -169,7 +169,8 @@ export function MobileSessionPanel({
 
   return (
     <div className="mobile-session-shell flex h-full min-h-0 min-w-0 flex-col bg-[var(--panel)]">
-      <div className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)]">
+      {/* 浮动侧栏开关压在首行左侧；标签条让出该宽度，会话内容区不再重复让位。 */}
+      <div className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)] pl-[calc(var(--workbench-leading-inset,0px)+4px)]">
         <button
           type="button"
           className="flex min-h-11 flex-none items-center gap-1.5 border-0 border-r border-[var(--stroke-soft)] bg-transparent px-3 text-[length:var(--app-small-size)] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
@@ -241,7 +242,7 @@ export function MobileSessionPanel({
         </button>
       </div>
       <div
-        className="min-h-0 min-w-0 flex-1"
+        className="min-h-0 min-w-0 flex-1 [--workbench-leading-inset:0px]"
         role="tabpanel"
         id="mobile-session-tabpanel"
         aria-labelledby={sessionId ? `mobile-session-tab-${sessionId}` : undefined}

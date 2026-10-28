@@ -15,7 +15,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
-  SlidersHorizontal,
+  Gauge,
   TerminalSquare,
   Pencil,
   X,
@@ -492,8 +492,9 @@ export const FocusSession = memo(function FocusSession({
     availableComposerToolIds,
     // Respect the actual composer width; small layouts may move secondary settings into +.
     Math.max(toolbarCapacity, mobileLayout ? 5 : 8.5),
+    // 窄屏下审批与执行模式只剩图标（见下方容器查询），按图标宽度计，模型选择才能留在工具栏。
     mobileLayout
-      ? { permission: 2.3, 'run-mode': 1.8, model: 3.6 }
+      ? { permission: 1, 'run-mode': 1, model: 3 }
       : { permission: 2.6, 'run-mode': 2, model: 3.9 },
   )
   const renderComposerTool = (id: ComposerToolId) => (
@@ -508,13 +509,20 @@ export const FocusSession = memo(function FocusSession({
           '@max-[440px]/composer-footer:[&_.task-execution-mode-trigger>span]:hidden @max-[440px]/composer-footer:[&_.task-execution-mode-trigger>svg]:block!',
         !['model', 'permission', 'run-mode'].includes(id) &&
           'h-10 [&>button]:!size-10 [&>div]:!size-10 [&>div>button]:!size-10',
+        // 收纳区里整行是一个菜单项：统一悬停底色，图标不再各自带底，文字也可点击。
+        '[.composer-tool-tray_&]:cursor-pointer [.composer-tool-tray_&]:rounded-lg [.composer-tool-tray_&]:pr-2 [.composer-tool-tray_&]:hover:bg-foreground/5 [.composer-tool-tray_&_button]:!bg-transparent [.composer-tool-tray_&]:has-[button:disabled]:cursor-default [.composer-tool-tray_&]:has-[button:disabled]:opacity-50 [.composer-tool-tray_&]:has-[button:disabled]:hover:bg-transparent',
       )}
       data-composer-tool-id={id}
       key={id}
+      onClick={(event) => {
+        if (!event.currentTarget.closest('.composer-tool-tray')) return
+        if ((event.target as Element).closest('button, a, input, select, [role="button"]')) return
+        event.currentTarget.querySelector<HTMLButtonElement>('button:not(:disabled)')?.click()
+      }}
     >
       {composerTools[id]}
       {!['model', 'permission', 'run-mode'].includes(id) && (
-        <span className="hidden text-xs text-muted-foreground [.composer-tool-tray_&]:block">
+        <span className="hidden text-[13px] text-foreground [.composer-tool-tray_&]:block">
           {composerToolLabels[id]}
         </span>
       )}
@@ -679,14 +687,16 @@ export const FocusSession = memo(function FocusSession({
         {toolbarAllocation.overflow.map(renderComposerTool)}
         <button
           type="button"
-          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
+          className="flex h-10 w-full items-center gap-2 rounded-lg pr-2 text-[13px] text-foreground hover:bg-foreground/5"
           aria-expanded={detailsOpen}
           onClick={() => {
             setDetailsOpen((open) => !open)
             setToolsOpen(false)
           }}
         >
-          <SlidersHorizontal size={15} />
+          <span className="grid size-10 shrink-0 place-items-center text-muted-foreground">
+            <Gauge size={16} />
+          </span>
           {detailsOpen ? t('chat:focusSession.hideDetails') : t('chat:focusSession.details')}
         </button>
         <div className="w-full border-t border-[var(--stroke-soft)] pt-1">

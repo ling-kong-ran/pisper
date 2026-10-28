@@ -4,15 +4,7 @@ import { PageToolbar } from '@/components/app/PageToolbar'
 // 管理工作流目录、保存与运行，并向壳层注册主操作。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import '@xyflow/react/dist/style.css'
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowUpRight,
-  Film,
-  PanelRight,
-  RefreshCw,
-  Settings2,
-} from 'lucide-react'
+import { AlertTriangle, ArrowLeft, PanelRight, RefreshCw, Settings2 } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PAGE_PATHS, workflowPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
@@ -101,7 +93,6 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
   const requestedView = searchParams.get('view')
   const view: WorkflowView =
     requestedView === 'runs' || requestedView === 'templates' ? requestedView : 'workflows'
-  const openSpriteTemplate = () => navigate(`${workflowPath('new')}?template=sprite`)
   const setView = (next: WorkflowView) =>
     setSearchParams((current) => {
       const params = new URLSearchParams(current)
@@ -131,23 +122,6 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
           <WorkflowViewTabs value={view} t={t} onChange={setView} />
           <WorkflowOperationsSummary data={catalog.data} t={t} />
         </PageToolbar>
-        {view === 'workflows' && (
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-5">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-blue-soft)] text-[var(--star-strong)]">
-                <Film className="size-5" />
-              </span>
-              <div className="space-y-1">
-                <h2 className="text-sm font-medium">{t('workflows:sprite.title')}</h2>
-                <p className="text-sm text-muted-foreground">{t('workflows:sprite.description')}</p>
-              </div>
-            </div>
-            <Button variant="outline" onClick={openSpriteTemplate}>
-              {t('workflows:sprite.openStudio')}
-              <ArrowUpRight className="size-4" />
-            </Button>
-          </div>
-        )}
         {view === 'workflows' ? (
           <WorkflowAssetList
             workflows={catalog.visibleWorkflows}

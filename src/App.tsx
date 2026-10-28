@@ -214,6 +214,12 @@ function App() {
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  // 底部标签栏只给真实手机端；桌面壳窗口拖窄时仍保留功能栏，避免与 Windows 自绘窗口按钮冲突。
+  const phoneShell = mobileLayout && !window.pisperDesktop
+  useEffect(() => {
+    // 侧栏抽屉经 Portal 挂到 body，需要在根节点上让出原功能栏宽度。
+    document.documentElement.toggleAttribute('data-phone-shell', phoneShell)
+  }, [phoneShell])
   const compactSidebarViewport = useIsCompactSidebarViewport()
   const drawerSidebar = mobileLayout || compactSidebarViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -728,6 +734,17 @@ function App() {
     appUpdate,
     registerWorkflowActions,
   }
+  const workbenchNavigationProps = {
+    activeSessionId,
+    page,
+    installedTools,
+    onSelect: (id: string) => {
+      if (id.startsWith('component:'))
+        routerNavigate(`/tools/components/${encodeURIComponent(id.slice(10))}`)
+      else navigate(id)
+    },
+    onSettings: () => navigateSettings({ type: 'config', id: 'models' }),
+  }
 
   if (!startupReady || !capabilitiesLoaded)
     return (
@@ -747,8 +764,9 @@ function App() {
       <TerminalProvider bridge={window.pisperDesktop}>
         <div
           ref={appShellRef}
-          className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0"
+          className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
           data-mobile-app={mobileLayout || undefined}
+          data-phone-shell={phoneShell || undefined}
           data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
         >
           {window.pisperDesktop?.customTitlebar && (
@@ -815,27 +833,19 @@ function App() {
                 onSettings={() => navigate('config')}
               />
             </Suspense>
-            <Suspense
-              fallback={
-                <nav
-                  aria-busy="true"
-                  aria-label={t('navigation:appSidebar.mainNavigation')}
-                  className="h-full w-(--activity-rail-width) shrink-0 bg-sidebar"
-                />
-              }
-            >
-              <WorkbenchNavigation
-                activeSessionId={activeSessionId}
-                page={page}
-                installedTools={installedTools}
-                onSelect={(id) => {
-                  if (id.startsWith('component:'))
-                    routerNavigate(`/tools/components/${encodeURIComponent(id.slice(10))}`)
-                  else navigate(id)
-                }}
-                onSettings={() => navigateSettings({ type: 'config', id: 'models' })}
-              />
-            </Suspense>
+            {!phoneShell && (
+              <Suspense
+                fallback={
+                  <nav
+                    aria-busy="true"
+                    aria-label={t('navigation:appSidebar.mainNavigation')}
+                    className="h-full w-(--activity-rail-width) shrink-0 bg-sidebar"
+                  />
+                }
+              >
+                <WorkbenchNavigation {...workbenchNavigationProps} />
+              </Suspense>
+            )}
             <AppSidebar
               page={page}
               configSection={configSection}
@@ -877,7 +887,7 @@ function App() {
               }
             />
             <SidebarInset
-              className={`main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background ${!drawerSidebar ? 'rounded-r-2xl' : ''} ${sidebarCollapsed || drawerSidebar ? 'rounded-l-2xl' : ''}`}
+              className={`main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background ${phoneShell ? '' : `${!drawerSidebar ? 'rounded-r-2xl' : ''} ${sidebarCollapsed || drawerSidebar ? 'rounded-l-2xl' : ''}`}`}
             >
               <WorkbenchHeader
                 title={activeMeta[0]}
@@ -936,7 +946,7 @@ function App() {
                 />
               )}
               <div
-                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['config', 'decisions', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'gameAssetWorkbench', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pb-5 max-[650px]:px-3`}`}
+                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pb-5 max-[650px]:px-3`}`}
                 key={page}
               >
                 <Outlet context={routeContext} />
@@ -957,6 +967,11 @@ function App() {
                 )}
             </SidebarInset>
           </SidebarProvider>
+          {phoneShell && (
+            <Suspense fallback={<div className="h-14 flex-none" aria-hidden="true" />}>
+              <WorkbenchNavigation variant="tabbar" {...workbenchNavigationProps} />
+            </Suspense>
+          )}
           <Suspense fallback={null}>
             <FloatingWidgets anchorRef={pageHeaderRef} notify={notify} />
           </Suspense>

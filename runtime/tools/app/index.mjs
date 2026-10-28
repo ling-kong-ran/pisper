@@ -14,7 +14,6 @@ import {
 import { createSkillCreateTool, manifest as skillCreateManifest } from './skill-create.mjs'
 import { createPluginCreateTool, manifest as pluginCreateManifest } from './plugin-create.mjs'
 import { createMobileDeviceTool, manifest as mobileDeviceManifest } from './mobile-device.mjs'
-import { createDecisionTool, manifest as decisionManifest } from './decision.mjs'
 import { createImageAssetsTool, manifest as imageAssetsManifest } from './image-assets.mjs'
 
 // Multi-agent tools are internal runtime tools (like goal/plan) and are intentionally
@@ -26,7 +25,6 @@ export const APP_TOOL_CATALOG = [
   skillCreateManifest,
   pluginCreateManifest,
   mobileDeviceManifest,
-  decisionManifest,
   imageAssetsManifest,
   ...memoryManifests,
   ...mcpManifests,
@@ -40,7 +38,6 @@ const APP_TOOL_FACTORIES = {
   [skillCreateManifest.id]: createSkillCreateTool,
   [pluginCreateManifest.id]: createPluginCreateTool,
   [mobileDeviceManifest.id]: createMobileDeviceTool,
-  [decisionManifest.id]: createDecisionTool,
   [imageAssetsManifest.id]: createImageAssetsTool,
   ...memoryFactories,
   ...mcpFactories,

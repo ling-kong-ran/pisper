@@ -94,7 +94,6 @@ export const TOOL_PRESETS = {
     'memory_remember',
     'mcp_list',
     'mcp_manage',
-    'typed_decide',
   ],
 }
 

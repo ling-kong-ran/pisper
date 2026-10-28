@@ -147,8 +147,11 @@ export function ComposerToolbarSettings({
           type="button"
           variant="ghost"
           className={cn(
-            'h-11 gap-2 text-[var(--text-muted)]',
-            labeled ? 'w-full justify-start px-2 text-xs' : 'w-11 px-0',
+            'text-[var(--text-muted)]',
+            // 收纳区内与上方菜单行对齐：图标居中于 40px 列，文字同字号。
+            labeled
+              ? 'h-10 w-full justify-start gap-5 rounded-lg pr-2 pl-3 text-[13px] font-normal'
+              : 'h-11 w-11 gap-2 px-0',
           )}
           title={t('chat:focusSession.customizeShortcuts')}
           aria-label={t('chat:focusSession.customizeShortcuts')}

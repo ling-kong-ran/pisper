@@ -219,7 +219,7 @@ export function ComposerSendButton({
   return (
     <button
       type={stopAction ? 'button' : 'submit'}
-      className="send-button grid size-8 min-w-8 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-colors cursor-pointer hover:enabled:opacity-85 active:enabled:scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 aria-disabled:opacity-50"
+      className="send-button grid size-8 min-w-8 pointer-coarse:size-10 pointer-coarse:min-w-10 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-colors cursor-pointer hover:enabled:opacity-85 active:enabled:scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 aria-disabled:opacity-50"
       title={
         blockedReason ||
         (!stopAction && !busy && sendShortcut ? `${label} (${sendShortcut})` : label)

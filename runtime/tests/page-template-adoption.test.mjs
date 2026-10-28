@@ -4,7 +4,6 @@ import test from 'node:test'
 test('migrated route pages give scroll and outer spacing ownership to a page template', async () => {
   const paths = [
     'config/ConfigPage',
-    'decisions/DecisionsPage',
     'schedules/SchedulesPage',
     'mcp/McpPage',
     'skills/SkillsPage',

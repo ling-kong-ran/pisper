@@ -222,18 +222,6 @@ export async function componentsRoute() {
   return { Component: LegacyComponentsRoute }
 }
 
-export async function gameAssetWorkbenchRoute() {
-  const [{ CustomUiToolPage }] = await Promise.all([
-    import('@/features/custom-ui/public'),
-    ensureCustomUiMessages(),
-  ])
-  function GameAssetWorkbenchRoute() {
-    const context = useAppRouteContext()
-    return <CustomUiToolPage componentId="pisper-game-asset-workbench" notify={context.notify} />
-  }
-  return { Component: GameAssetWorkbenchRoute }
-}
-
 export async function customComponentRoute() {
   const [{ CustomUiToolPage }] = await Promise.all([
     import('@/features/custom-ui/public'),
@@ -245,17 +233,6 @@ export async function customComponentRoute() {
     return <CustomUiToolPage componentId={componentId} notify={context.notify} />
   }
   return { Component: CustomComponentRoute }
-}
-
-export async function decisionsRoute() {
-  const { DecisionsPage } = await import('@/features/decisions/DecisionsPage')
-
-  function DecisionsRoute() {
-    const context = useAppRouteContext()
-    return <DecisionsPage notify={context.notify} />
-  }
-
-  return { Component: DecisionsRoute }
 }
 
 export async function workflowsRoute() {

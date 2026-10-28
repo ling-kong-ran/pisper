@@ -14,7 +14,9 @@ import {
   RefreshCw,
   Square,
   Trash2,
+  Workflow as WorkflowIcon,
 } from 'lucide-react'
+import { InlineEmptyState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -221,9 +223,13 @@ export function WorkflowAssetList({
             })}
           </div>
         ) : (
-          <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-            <strong>{t('workflows:workflowsPage.noMatchingWorkflows')}</strong>
-          </div>
+          <InlineEmptyState
+            compact
+            icon={WorkflowIcon}
+            title={t('workflows:workflowsPage.noMatchingWorkflows')}
+            description={t('workflows:workflowsPage.emptyHint')}
+            className="[.workflow-assets-panel_&]:min-h-[150px]"
+          />
         )}
       </CardContent>
     </Card>

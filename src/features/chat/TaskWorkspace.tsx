@@ -124,8 +124,12 @@ export function TaskWorkspace({
   const closeContent = () => {
     window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
     update(sessionId, 'files', { type: 'workspace', contentOpen: false })
+    // 手机端新建内容页收在更多菜单里，焦点回到菜单按钮。
     requestAnimationFrame(() =>
-      document.getElementById(`task-${sessionId}-new-content-tab`)?.focus(),
+      (
+        document.getElementById(`task-${sessionId}-new-content-tab`) ||
+        document.getElementById(`task-${sessionId}-more`)
+      )?.focus(),
     )
   }
   useBackLayer(active && presentation === 'content', 100, closeContent)

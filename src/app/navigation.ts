@@ -55,17 +55,9 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
       t('navigation:navigation.components'),
       t('navigation:navigation.componentsDescription'),
     ],
-    decisions: [
-      t('navigation:navigation.decisions'),
-      t('navigation:navigation.decisionsDescription'),
-    ],
     workflows: [
       t('navigation:navigation.workflows'),
       t('navigation:navigation.workflowsDescription'),
-    ],
-    gameAssetWorkbench: [
-      t('navigation:navigation.gameAssetWorkbench'),
-      t('navigation:navigation.gameAssetWorkbenchDescription'),
     ],
     customComponentTool: [
       t('navigation:navigation.components'),

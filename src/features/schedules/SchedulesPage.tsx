@@ -1,5 +1,6 @@
 import { PageFrame } from '@/components/app/PageFrame'
 import { ListDetailLayout } from '@/components/app/ListDetailLayout'
+import { InlineEmptyState } from '@/components/app/PageState'
 // 定时计划页：查看/创建/启停周期任务（如每日对话/工作流运行），
 // 展示下次执行时间与历史。
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -679,15 +680,13 @@ export function SchedulesPage({
                       </div>
                     ))
                   ) : (
-                    <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center">
-                      <StarOrbit size={38} />
-                      <strong>{t('schedules:schedulesPage.theTimelineIsStillUnlit')}</strong>
-                      <span>
-                        {t(
-                          'schedules:schedulesPage.createATaskAndLetItSetOutAutomaticallyAtTheAppointedTime',
-                        )}
-                      </span>
-                    </div>
+                    <InlineEmptyState
+                      illustration={<StarOrbit size={38} />}
+                      title={t('schedules:schedulesPage.theTimelineIsStillUnlit')}
+                      description={t(
+                        'schedules:schedulesPage.createATaskAndLetItSetOutAutomaticallyAtTheAppointedTime',
+                      )}
+                    />
                   )}
                 </Panel>
               }
@@ -946,10 +945,11 @@ export function SchedulesPage({
                           </div>
                         ))
                       ) : (
-                        <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                          <StarOrbit size={32} />
-                          <strong>{t('schedules:schedulesPage.noRunHistory')}</strong>
-                        </div>
+                        <InlineEmptyState
+                          compact
+                          illustration={<StarOrbit size={32} />}
+                          title={t('schedules:schedulesPage.noRunHistory')}
+                        />
                       )}
                     </Panel>
                   </div>

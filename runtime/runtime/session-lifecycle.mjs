@@ -28,6 +28,8 @@ import {
 } from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
+// Pi 会话管理器给空会话填的英文占位；列表输出时视为“无摘要”，由客户端显示本地化文案。
+const PI_EMPTY_FIRST_MESSAGE = '(no messages)'
 const MAX_MANUAL_SESSION_TITLE_CHARS = 120
 
 // 手动输入的标题独立于首条消息自动命名；超过输入框上限时明确报错，避免静默截断。
@@ -387,6 +389,8 @@ export class SessionLifecycle {
     })
     const result = sessions.map((session) => {
       const active = this.sessions.get(session.id)
+      const firstMessage =
+        session.firstMessage === PI_EMPTY_FIRST_MESSAGE ? '' : session.firstMessage
       const contextModel = active?.session.model
         ? `${active.session.model.provider}/${active.session.model.id}`
         : sessionMeta[session.id]?.model || defaultModel
@@ -396,9 +400,9 @@ export class SessionLifecycle {
           active?.name ||
           sessionMeta[session.id]?.name ||
           session.name ||
-          session.firstMessage ||
+          firstMessage ||
           DEFAULT_SESSION_NAME,
-        firstMessage: session.firstMessage || '',
+        firstMessage: firstMessage || '',
         messageCount: active
           ? active.session.messages.filter((message) =>
               ['user', 'assistant'].includes(message.role),

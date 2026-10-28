@@ -71,7 +71,6 @@
     "@tencent-connect/qqbot-connector": "^1.2.0",
     "@tesseract.js-data/chi_sim": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
-    "@typesafe-ai/sdk": "0.6.0",
     "fflate": "0.8.3",
     "html-void-elements": "3.0.0",
     "jpeg-js": "0.4.4",

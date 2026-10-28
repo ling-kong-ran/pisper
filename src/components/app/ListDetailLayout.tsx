@@ -78,7 +78,8 @@ export function ListDetailLayout({
       data-selected={selected}
       className="@container/list-detail flex-1 h-full min-h-0 min-w-0 overflow-hidden"
     >
-      <div className="grid h-full min-h-0 grid-cols-1 @min-[760px]/list-detail:grid-cols-[minmax(240px,30%)_minmax(0,1fr)]">
+      {/* 列表卡片含标题、说明与操作，低于 280px 会把标题折成多行。 */}
+      <div className="grid h-full min-h-0 grid-cols-1 @min-[760px]/list-detail:grid-cols-[clamp(280px,32%,360px)_minmax(0,1fr)]">
         <div
           ref={listRoot}
           tabIndex={-1}

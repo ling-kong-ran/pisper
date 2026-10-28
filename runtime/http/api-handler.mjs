@@ -12,7 +12,6 @@ import {
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { customUiRoutes } from './routes/custom-ui.mjs'
-import { decisionRoutes } from './routes/decisions.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
 import { memoryAssetRoutes } from './routes/memory-assets.mjs'
@@ -42,7 +41,6 @@ const registry = createRouteRegistry([
   ...integrationRoutes,
   ...mcpHostRoutes,
   ...desktopRoutes,
-  ...decisionRoutes,
   ...customUiRoutes,
 ])
 
@@ -161,7 +159,6 @@ export function createApiHandler(
     speechCatalog,
     speechTerms,
     runs,
-    decisions,
     customUi,
     mcpHost,
   } = {},
@@ -177,7 +174,6 @@ export function createApiHandler(
     speechModels,
     speechCatalog,
     speechTerms,
-    decisions,
     customUi,
     mcpHost,
     runs: runs || new RunRegistry(),

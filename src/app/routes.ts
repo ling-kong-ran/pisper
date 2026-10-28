@@ -13,10 +13,8 @@ export const PAGE_PATHS = Object.freeze({
   mcp: '/mcp',
   skills: '/skills',
   components: '/components',
-  decisions: '/decisions',
   workflows: '/workflows',
   workflowCreate: '/workflows/new',
-  gameAssetWorkbench: '/tools/game-assets',
   customComponentTool: '/tools/components',
   config: '/config/models',
 } as const)

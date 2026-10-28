@@ -5,7 +5,6 @@ import {
   ArchiveRestore,
   ChevronRight,
   CircleAlert,
-  History,
   MessageSquare,
   MoreHorizontal,
   Pencil,
@@ -23,6 +22,7 @@ import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { StarOrbit } from '@/components/StarOrbit'
 import { AppCard as Panel, AppError, AppEmptyState } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -249,49 +249,50 @@ export function ChatHistoryPage({
 
   return (
     <div className="flex min-h-[100%] flex-col gap-[12px]">
-      <div className="chat-history-summary [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:items-center [&_>_div]:gap-[10px] [&_>_div]:text-[var(--star-strong)] [&_>_div_>_span]:flex [&_>_div_>_span]:min-w-0 [&_>_div_>_span]:flex-col [&_>_div_>_span]:gap-[2px] [&_strong]:text-[var(--text)] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] flex min-h-[52px] items-center justify-between gap-[12px] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--panel)] [padding:8px_10px_8px_14px] shadow-[var(--sh-1)]">
-        <div>
-          <History size={18} />
-          <span>
-            <strong>
-              {t('chat:chatHistoryPage.countChatHistoryItems', { count: sessions.length })}
-            </strong>
-            <small>
-              {query
-                ? t('chat:chatHistoryPage.countCurrentlyFiltered', { count: visible.total })
-                : t('chat:chatHistoryPage.sortedByMostRecentlyUpdated')}
-            </small>
-          </span>
-        </div>
-        <Button
-          variant="outline"
-          size="lg"
-          className="bg-surface-subtle"
-          onClick={() => void load()}
-          disabled={loading}
+      {/* 分区切换与统计同一行：统计只做说明，不再单独占一张卡片。 */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div
+          role="group"
+          aria-label={t('chat:chatHistoryPage.historySections')}
+          className="inline-flex rounded-lg bg-[var(--surface-subtle)] p-1"
         >
-          <RefreshCw className={loading ? 'animate-spin' : ''} size={14} />
-          {t('chat:chatHistoryPage.refresh')}
-        </Button>
-      </div>
-      <div
-        role="group"
-        aria-label={t('chat:chatHistoryPage.historySections')}
-        className="flex gap-2"
-      >
-        {(['active', 'archived'] as const).map((view) => (
+          {(['active', 'archived'] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={historyView === view}
+              className={cn(
+                'h-8 rounded-md px-3 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-10',
+                historyView === view && 'bg-background font-medium text-foreground shadow-sm',
+              )}
+              onClick={() => setHistoryView(view)}
+            >
+              {view === 'active'
+                ? t('chat:chatHistoryPage.activeChats')
+                : t('chat:chatHistoryPage.archivedChats', { count: archivedCount })}
+            </button>
+          ))}
+        </div>
+        <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <span className="truncate">
+            {t('chat:chatHistoryPage.countChatHistoryItems', { count: sessions.length })}
+            {' · '}
+            {query
+              ? t('chat:chatHistoryPage.countCurrentlyFiltered', { count: visible.total })
+              : t('chat:chatHistoryPage.sortedByMostRecentlyUpdated')}
+          </span>
           <Button
-            key={view}
-            aria-pressed={historyView === view}
-            variant={historyView === view ? 'secondary' : 'ghost'}
-            className="min-h-11"
-            onClick={() => setHistoryView(view)}
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground"
+            aria-label={t('chat:chatHistoryPage.refresh')}
+            title={t('chat:chatHistoryPage.refresh')}
+            onClick={() => void load()}
+            disabled={loading}
           >
-            {view === 'active'
-              ? t('chat:chatHistoryPage.activeChats')
-              : t('chat:chatHistoryPage.archivedChats', { count: archivedCount })}
+            <RefreshCw className={loading ? 'animate-spin' : ''} size={14} />
           </Button>
-        ))}
+        </div>
       </div>
       {error && <AppError>{error}</AppError>}
       {loading && !sessions.length ? (

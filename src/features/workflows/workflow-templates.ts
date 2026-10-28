@@ -529,7 +529,13 @@ function spriteWorkflowTemplate(): WorkflowTemplate {
   }
 }
 
-WORKFLOW_TEMPLATES.push(spriteWorkflowTemplate())
+// 游戏精灵图模板的界面入口已移除，不进入模板库；保留给直接链接和图片引擎的端到端验收。
+export const SPRITE_WORKFLOW_TEMPLATE = spriteWorkflowTemplate()
+const BUILT_IN_TEMPLATES = [...WORKFLOW_TEMPLATES, SPRITE_WORKFLOW_TEMPLATE]
+
+export function findWorkflowTemplate(id: string | null | undefined) {
+  return BUILT_IN_TEMPLATES.find((item) => item.id === id)
+}
 
 export function workflowImageRequestCount(workflow: Pick<Workflow, 'nodes'>) {
   return workflow.nodes.reduce(
@@ -591,13 +597,13 @@ export function templateWorkflow(
     ...(template.id === 'sprite' && t ? { label: spriteNodeLabel(item, t) } : {}),
     id: crypto.randomUUID(),
   }))
-  const labels = WORKFLOW_TEMPLATES.includes(template) ? reusableInputs(t) : []
+  const labels = BUILT_IN_TEMPLATES.includes(template) ? reusableInputs(t) : []
   const nodeIds = new Map(template.nodes.map((node, index) => [node.id, nodes[index].id]))
   return {
     ...blankWorkflow(cwd, t),
-    name: t && WORKFLOW_TEMPLATES.includes(template) ? templateName(template.id, t) : template.name,
+    name: t && BUILT_IN_TEMPLATES.includes(template) ? templateName(template.id, t) : template.name,
     description:
-      t && WORKFLOW_TEMPLATES.includes(template)
+      t && BUILT_IN_TEMPLATES.includes(template)
         ? templateDescription(template.id, t)
         : template.description,
     inputs: template.inputs.map((input) => {

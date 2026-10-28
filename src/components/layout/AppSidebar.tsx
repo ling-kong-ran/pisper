@@ -52,7 +52,7 @@ export function AppSidebar({
   onWidthCommit,
 }: AppSidebarProps) {
   const { t } = useI18n()
-  const { isMobile, setOpenMobile, open, toggleSidebar } = useSidebar()
+  const { isMobile, setOpenMobile, open, setOpen, toggleSidebar } = useSidebar()
   const mobileApp = useIsMobileApp()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const settingsNavigation = useMemo(
@@ -190,8 +190,14 @@ export function AppSidebar({
           <SidebarResizeHandle
             width={width}
             label={t('navigation:appSidebar.resizeSidebar')}
+            hint={
+              settingsActive
+                ? t('navigation:appSidebar.resizeSidebarHint')
+                : t('navigation:appSidebar.resizeSidebarCollapseHint')
+            }
             onPreview={onWidthPreview}
             onCommit={onWidthCommit}
+            onCollapse={settingsActive ? undefined : () => setOpen(false)}
           />
         )}
       </aside>

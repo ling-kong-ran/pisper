@@ -848,6 +848,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .app-shell[data-custom-titlebar] { position: relative; }
 .app-shell[data-custom-titlebar] .auxiliary-page-header { padding-right: 136px; }
 .app-shell[data-custom-titlebar] .workbench-chat-header:not([data-context-aside]) { padding-right: 144px; }
+/* 窄窗口的会话标签条同样位于首行，新建按钮需让开 Windows 自绘窗口按钮。 */
+.app-shell[data-custom-titlebar] .mobile-session-tabs { padding-right: 132px; }
 
 /* === 旧 WebView 透明度工具类降级 ===
    Tailwind 对「var 色 + 透明度」工具类(如 bg-muted/50)生成的构建降级值是全强度基色,
@@ -963,4 +965,14 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 
 @media (max-width: 650px) {
   :root { --activity-rail-width: 44px; }
+}
+
+/* 手机底部标签栏取代功能栏，抽屉与内容不再预留左侧宽度。 */
+:root[data-phone-shell] { --activity-rail-width: 0px; }
+
+/* 拖动侧栏宽度时整页保持调整光标，且不误选正文。 */
+:root[data-sidebar-resizing],
+:root[data-sidebar-resizing] * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }

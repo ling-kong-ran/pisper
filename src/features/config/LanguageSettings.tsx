@@ -1,7 +1,6 @@
 // 语言设置独立成卡片，避免与外观偏好耦合；切换后即时同步应用语言。
 import { useId } from 'react'
 import { LANGUAGE_OPTIONS, translateText, useI18n } from '@/app/use-i18n'
-import { SettingsCard as Panel } from './settings-primitives'
 import type { SupportedLanguage } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
 
@@ -38,15 +37,16 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
   }
 
   return (
-    <Panel
-      className="flex flex-row flex-wrap items-center justify-between gap-3 rounded-2xl p-4 shadow-none"
+    // 与界面设置的其他行同一层级，不再单独套卡片。
+    <div
+      className="flex flex-row flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border py-4"
       data-config-card="interface-language"
     >
       <div className="min-w-0 flex-1 basis-40">
-        <h2 id={labelId} className="text-base font-medium">
+        <h2 id={labelId} className="text-sm font-medium">
           {t('config:languageSettings.displayLanguage')}
         </h2>
-        <p id={descriptionId} className="mt-1 text-sm leading-relaxed text-muted-foreground">
+        <p id={descriptionId} className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {t('config:languageSettings.interfaceOnlyHint')}
         </p>
       </div>
@@ -76,6 +76,6 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
           ))}
         </SelectContent>
       </Select>
-    </Panel>
+    </div>
   )
 }

@@ -898,7 +898,10 @@ try {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
     const taskHeader = page.locator('.workbench-chat-header')
-    await taskHeader.getByRole('button', { name: '新建标签页', exact: true }).waitFor()
+    // 手机标签条已有“新会话”加号，新建标签页收进更多菜单，标题行只保留两个按钮。
+    const headerControls =
+      width <= 650 ? ['项目与任务设置', '置顶摘要'] : ['项目与任务设置', '置顶摘要', '新建标签页']
+    await taskHeader.getByRole('button', { name: headerControls.at(-1), exact: true }).waitFor()
     await taskHeader.evaluate(async (header) => {
       header.getBoundingClientRect()
       await Promise.all(
@@ -908,12 +911,12 @@ try {
       )
     })
     // 跨断点会重新挂载桌面/手机工作区；一次读取整组尺寸，避免跨调用混用两棵树。
-    const headerMetrics = await taskHeader.evaluate((header) => {
+    const headerMetrics = await taskHeader.evaluate((header, names) => {
       const rect = header.getBoundingClientRect()
       return {
         left: rect.left,
         right: rect.right,
-        controls: ['项目与任务设置', '置顶摘要', '新建标签页'].map((name) => {
+        controls: names.map((name) => {
           const button = [...header.querySelectorAll('button')].find(
             (item) => item.getAttribute('aria-label') === name,
           )
@@ -927,7 +930,7 @@ try {
           }
         }),
       }
-    })
+    }, headerControls)
     let previousRight = headerMetrics.left
     for (const bounds of headerMetrics.controls) {
       assert.ok(
@@ -1474,7 +1477,6 @@ try {
     ['/plugins', 'plugins', '插件'],
     ['/mcp', 'mcp', 'MCP'],
     ['/skills', 'skills', '技能'],
-    ['/decisions', 'decisions', '决策模型'],
     ['/memory', 'memory', '星忆'],
     ['/channels', 'channels', '渠道'],
     ['/components', 'config', '界面设置', 'interface-custom-ui'],
@@ -1588,11 +1590,13 @@ try {
   await expandSidebar.click()
   const mobileSidebar = page.locator('[data-slot="sidebar"][data-mobile="true"]')
   await mobileSidebar.waitFor()
+  // 手机端由底部标签栏取代功能栏，抽屉从屏幕左缘展开。
   await page.waitForFunction(() => {
     const el = document.querySelector('[data-slot="sidebar"][data-mobile="true"]')
-    return el && el.getBoundingClientRect().x >= 44
+    return el && el.getBoundingClientRect().x === 0
   })
-  assert.ok((await mobileSidebar.boundingBox()).x >= 44)
+  assert.equal(await rail.count(), 0)
+  assert.equal(await page.getByTestId('mobile-tab-bar').isVisible(), true)
   assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
   await mobileSidebar.waitFor({ state: 'hidden' })
   await page.setViewportSize(desktopViewport)
@@ -1607,7 +1611,7 @@ try {
   assert.equal(await collapseSidebar.getAttribute('aria-expanded'), 'true')
   assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
   report.checks.push(
-    'Permanent activity rail remains visible at every width; hidden project sidebar uses zero width, mobile drawer closes one layer through native back, preferences and draft survive keyboard toggling and reload',
+    'Activity rail stays visible down to 651px and phones switch to the bottom tab bar; hidden project sidebar uses zero width, mobile drawer opens from the screen edge and closes one layer through native back, preferences and draft survive keyboard toggling and reload',
   )
   await page.goto(base + '/#/config/interface?view=widgets')
   await page.locator('[data-config-card="interface-custom-ui"]').waitFor()

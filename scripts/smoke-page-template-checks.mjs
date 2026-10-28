@@ -22,7 +22,6 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
       for (const route of [
         '/config/interface',
         '/config/models',
-        '/decisions',
         '/schedules',
         '/mcp',
         '/skills',
@@ -88,7 +87,6 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
       await page.setViewportSize({ width, height: 844 })
       for (const route of [
         '/config/models',
-        '/decisions',
         '/schedules',
         '/mcp',
         '/skills',
@@ -117,20 +115,20 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
     await page.locator('[data-config-card="interface-language"]').getByRole('combobox').click()
     await page.getByRole('option', { name: 'Simplified Chinese', exact: true }).click()
     await page.setViewportSize({ width: 1280, height: 900 })
-    await page.goto(base + '/#/decisions')
+    await page.goto(base + '/#/config/notifications')
     await page.locator('[data-page-template="settings"]').waitFor()
     // 配置读取失败必须保留可重试错误，不显示为成功或空配置。
-    await page.route('**/api/decisions/status', (route) =>
+    await page.route('**/api/settings/notifications', (route) =>
       route.fulfill({
         status: 503,
         contentType: 'application/json',
         body: JSON.stringify({ error: 'Template fixture load failure' }),
       }),
     )
-    report.expectedFailedApi.push({ path: '/api/decisions/status', status: 503 })
+    report.expectedFailedApi.push({ path: '/api/settings/notifications', status: 503 })
     await page.reload()
     await page.getByRole('alert').filter({ hasText: 'Template fixture load failure' }).waitFor()
-    await page.unroute('**/api/decisions/status')
+    await page.unroute('**/api/settings/notifications')
     await page.getByRole('button', { name: '重试', exact: true }).click()
     await page
       .getByRole('alert')
@@ -140,7 +138,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
       'Four page templates: actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, list/detail native back, embedded catalog, and settings error/retry',
     )
   } finally {
-    await page.unroute('**/api/decisions/status')
+    await page.unroute('**/api/settings/notifications')
     await api('/api/schedules/' + encodeURIComponent(scheduleId), 'DELETE')
     await page.setViewportSize(original)
     await page.evaluate(() => {

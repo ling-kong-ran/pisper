@@ -6,14 +6,14 @@ import {
 } from '../../shared/workflow-image-nodes.mjs'
 import {
   createWorkflowNode,
+  SPRITE_WORKFLOW_TEMPLATE,
   templateWorkflow,
-  WORKFLOW_TEMPLATES,
   WORKFLOW_PALETTE,
   workflowImageRequestCount,
 } from '../../src/features/workflows/workflow-templates.ts'
 
 test('sprite template is an editable workflow graph with four action branches and one export', () => {
-  const template = WORKFLOW_TEMPLATES.find((item) => item.id === 'sprite')
+  const template = SPRITE_WORKFLOW_TEMPLATE
   assert.ok(template)
   const workflow = templateWorkflow(template)
   const second = templateWorkflow(template)
@@ -55,7 +55,7 @@ test('sprite template is an editable workflow graph with four action branches an
 })
 
 test('image request estimate follows editable directions and enabled action nodes', () => {
-  const template = WORKFLOW_TEMPLATES.find((item) => item.id === 'sprite')
+  const template = SPRITE_WORKFLOW_TEMPLATE
   const workflow = templateWorkflow(template)
   assert.equal(workflowImageRequestCount(workflow), 32)
   const generators = workflow.nodes.filter((node) => node.kind === 'media-generate')

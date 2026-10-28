@@ -101,7 +101,6 @@ const PAGE_FEATURES: Partial<Record<string, RuntimeFeature>> = {
   skills: 'skills',
   workflows: 'workflows',
   workflowCreate: 'workflows',
-  gameAssetWorkbench: 'imageAssets',
 }
 
 const CONFIG_FEATURES: Partial<Record<string, RuntimeFeature>> = {

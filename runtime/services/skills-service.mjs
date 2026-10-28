@@ -25,7 +25,6 @@ import {
   getComputerUseOcrExtensionPath,
   getOfficialComputerUseExtensionPath,
 } from '../runtime/computer-use-extension.mjs'
-import { withComputerUseVerification } from '../runtime/computer-use-verification.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const SKILLS_STATE_VERSION = 2
@@ -438,7 +437,6 @@ export class SkillsService {
     createPackageManager,
     configPath,
     extensionFactories = [],
-    decisionService = null,
     computerUseAvailable = true,
   } = {}) {
     this.path = path
@@ -449,7 +447,6 @@ export class SkillsService {
     this.getSettingsManager = getSettingsManager || (() => null)
     this.createPackageManager = createPackageManager || null
     this.extensionFactories = extensionFactories
-    this.decisionService = decisionService
     this.computerUseAvailable = computerUseAvailable
     this.state = { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }
     this.write = Promise.resolve()
@@ -554,21 +551,15 @@ export class SkillsService {
           ? [getOfficialComputerUseExtensionPath(), getComputerUseOcrExtensionPath()]
           : [],
       additionalSkillPaths: resources.map((item) => item.path),
-      extensionsOverride: (current) => {
-        const enabled = {
-          ...current,
-          extensions: current.extensions.filter(
-            (extension) =>
-              !disabledExtensionRoots.some((root) =>
-                pathInside(root, extension.resolvedPath || extension.path),
-              ),
-          ),
-        }
-        // 手机包刻意裁掉桌面 Computer Use；会话加载时不能为了装饰它而解析已裁掉的包。
-        return !this.computerUseAvailable || isMobileRuntime()
-          ? enabled
-          : withComputerUseVerification(enabled, this.decisionService)
-      },
+      extensionsOverride: (current) => ({
+        ...current,
+        extensions: current.extensions.filter(
+          (extension) =>
+            !disabledExtensionRoots.some((root) =>
+              pathInside(root, extension.resolvedPath || extension.path),
+            ),
+        ),
+      }),
       ...(existsSync(promptDir)
         ? {
             additionalPromptTemplatePaths: [promptDir],

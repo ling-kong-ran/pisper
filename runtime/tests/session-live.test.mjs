@@ -221,6 +221,30 @@ test('session catalog and runtime LRU treat a live tool run as active between Pi
   assert.equal(runtime.sessions.get(id), value)
 })
 
+test('session catalog hides the Pi empty-session placeholder from names and summaries', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-empty-session-catalog-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.settingsManager = { getGlobalSettings: () => ({}) }
+  runtime.listStoredSessions = async () => [
+    {
+      id: 'session-empty',
+      path: join(directory, 'session.jsonl'),
+      name: '',
+      firstMessage: '(no messages)',
+      messageCount: 0,
+      cwd: directory,
+      created: new Date('2026-10-28T08:00:00.000Z'),
+      modified: new Date('2026-10-28T08:00:00.000Z'),
+    },
+  ]
+
+  const [summary] = await runtime.listSessions()
+
+  assert.equal(summary.firstMessage, '')
+  assert.equal(summary.name, '新会话')
+})
+
 test('live tool runs block reentrant prompts and session configuration between Pi stream turns', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-live-session-guards-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

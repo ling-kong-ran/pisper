@@ -98,21 +98,30 @@ export function PageHeader({
       ref={elementRef}
       data-window-drag-region
       className={cn(
-        'relative z-[2] flex min-h-14 flex-none items-center gap-3.5 px-6 pt-[9px] pb-[7px] in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
+        'relative z-[2] flex min-h-16 flex-none items-center gap-3.5 px-6 py-2.5 in-data-[density=compact]:min-h-[50px] in-data-[density=compact]:pt-1.5 in-data-[density=compact]:pb-[5px] max-[650px]:min-h-[126px] max-[650px]:flex-wrap max-[650px]:content-center max-[650px]:gap-2.5 max-[650px]:px-4 max-[650px]:py-2.5',
         page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
         desktop && '[-webkit-app-region:drag]',
-        window.pisperDesktop?.customTitlebar && 'pr-[148px]',
+        // 窄窗口的 px-4 会覆盖右侧留白，需在同一断点重申，避免压到 Windows 自绘窗口按钮。
+        window.pisperDesktop?.customTitlebar && 'pr-[148px] max-[650px]:pr-[148px]',
         'pl-[calc(24px+var(--workbench-leading-inset,0px))] max-[650px]:pl-[calc(16px+var(--workbench-leading-inset,0px))]',
-        page === 'config' &&
-          'mx-auto w-full min-h-24 px-6 py-8 max-[650px]:min-h-24 max-[650px]:pt-14',
+        page === 'config' && 'mx-auto w-full min-h-24 px-6 py-8 max-[650px]:min-h-24',
+        // 桌面壳窄窗口需要让开右上角窗口按钮；手机端标题已经避开侧栏开关，与其他页同一行。
+        page === 'config' && (desktop ? 'max-[650px]:pt-14' : 'max-[650px]:pt-2.5'),
         page === 'config' && (configSection === 'models' ? 'max-w-[1040px]' : 'max-w-[776px]'),
       )}
     >
-      <div className="mr-auto flex min-w-[170px] items-baseline gap-2.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1">
+      <div
+        className={cn(
+          // 标题与说明分两行，和设置页的标题层级一致，不再挤在一行小字里。
+          'mr-auto flex min-w-[170px] flex-col items-start gap-0.5 max-[650px]:block max-[650px]:min-w-0 max-[650px]:flex-1',
+          // 手机上主题按钮绝对定位在右上角，标题区让出按钮宽度。
+          page !== 'config' && page !== 'chat' && 'max-[650px]:pr-12',
+        )}
+      >
         <h1
           className={cn(
-            'shrink-0 whitespace-nowrap text-base leading-[1.15] font-semibold tracking-normal max-[650px]:text-[21px]',
-            page === 'config' && 'text-2xl',
+            'shrink-0 whitespace-nowrap text-lg leading-6 font-semibold tracking-normal max-[650px]:text-[21px]',
+            page === 'config' && 'text-xl leading-9',
           )}
         >
           {meta[0]}
@@ -133,7 +142,7 @@ export function PageHeader({
             'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
           page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
           desktop && '[-webkit-app-region:no-drag]',
-          desktopPlatform && desktopPlatform !== 'darwin' && 'pr-[138px]',
+          desktopPlatform && desktopPlatform !== 'darwin' && 'pr-[138px] max-[650px]:pr-0',
         )}
       >
         {page === 'workflowCreate' ? (
@@ -160,9 +169,7 @@ export function PageHeader({
                 : t('navigation:pageHeader.testRun')}
             </Button>
           </>
-        ) : page === 'chat' ||
-          page === 'gameAssetWorkbench' ||
-          page === 'customComponentTool' ? null : page === 'config' ? (
+        ) : page === 'chat' || page === 'customComponentTool' ? null : page === 'config' ? (
           searchSlot
         ) : (
           <label
@@ -233,11 +240,15 @@ export function PageHeader({
         )}
         {page !== 'config' && (
           <ThemeToggleButton
+            compact
             theme={theme}
             onCycle={onCycleTheme}
             className={cn(
-              'bg-[var(--solid)]',
+              'size-9',
               page !== 'chat' && 'max-[650px]:absolute max-[650px]:top-3.5 max-[650px]:right-4',
+              page !== 'chat' &&
+                window.pisperDesktop?.customTitlebar &&
+                'max-[650px]:right-[148px]',
             )}
           />
         )}

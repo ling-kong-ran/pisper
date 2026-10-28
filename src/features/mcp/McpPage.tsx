@@ -1,8 +1,9 @@
 import { PageFrame } from '@/components/app/PageFrame'
 import { ListDetailLayout } from '@/components/app/ListDetailLayout'
+import { InlineEmptyState } from '@/components/app/PageState'
 // MCP 页面负责选择与操作编排；远程快照和请求生命周期由领域查询层持有。
 import { useCallback, useState, type ReactNode } from 'react'
-import { CircleDot, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
+import { CircleDot, History, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -283,9 +284,7 @@ export function McpPage({
                         )
                       })
                     ) : (
-                      <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                        {t('mcp:noServerConfigured')}
-                      </div>
+                      <InlineEmptyState compact icon={Server} title={t('mcp:noServerConfigured')} />
                     )}
                   </McpPanel>
                 }
@@ -354,9 +353,7 @@ export function McpPage({
                           </div>
                         ))
                       ) : (
-                        <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                          {t('mcp:noToolsAvailable')}
-                        </div>
+                        <InlineEmptyState compact icon={Wrench} title={t('mcp:noToolsAvailable')} />
                       )}
                     </McpPanel>
                   </div>
@@ -464,9 +461,7 @@ export function McpPage({
                           </div>
                         ))
                       ) : (
-                        <div className="channel-route-empty [&_strong]:mt-[9px] [&_strong]:text-[var(--text)] [&_strong]:text-[12px] [&_span]:mt-[4px] [&_span]:text-[13px] [&.compact]:min-h-[110px] [.workflow-assets-panel_&]:min-h-[150px] [.workflow-assets-panel_&]:border-0 [.workflow-assets-panel_&]:bg-transparent grid min-h-[185px] place-content-center justify-items-center text-[var(--text-muted)] text-center compact">
-                          {t('mcp:noRecentCalls')}
-                        </div>
+                        <InlineEmptyState compact icon={History} title={t('mcp:noRecentCalls')} />
                       )}
                     </McpPanel>
                   </div>

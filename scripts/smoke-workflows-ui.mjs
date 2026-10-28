@@ -240,8 +240,8 @@ try {
   report.checks.push(
     'Opacity utilities over theme vars degrade to soft design tokens instead of full-strength bases',
   )
-  await page.getByRole('button', { name: '使用工作流', exact: true }).click()
-  await page.waitForURL((url) => url.hash === '#/workflows/new?template=sprite')
+  // 精灵图模板已不在界面展示入口，只通过直接链接打开，继续验收图片工作流引擎。
+  await page.goto(base + '/#/workflows/new?template=sprite')
   await page.locator('.builder-layout').waitFor({ state: 'attached' })
   report.canvasMetrics = await page.locator('.builder-layout').evaluate((element) => ({
     height: element.getBoundingClientRect().height,

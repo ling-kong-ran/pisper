@@ -23,7 +23,6 @@ import { createStartupObserver } from './startup-observer.mjs'
 import { json as sendJson } from './http/response.mjs'
 import { SpeechEngineService } from './services/speech-engine-service.mjs'
 import { SpeechModelDownloadService } from './services/speech-model-download-service.mjs'
-import { DecisionService } from './services/decision-service.mjs'
 import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
 import { SpeechTermsService } from './services/speech-terms-service.mjs'
 import { CustomUiService } from './services/custom-ui-service.mjs'
@@ -111,8 +110,6 @@ export async function createPisperRuntime({
   let speech = null
   let speechModels = null
   let sponsorsInitialized = null
-  let decisions = null
-  let decisionsInitialized = null
   let runtimeInitialized = null
   let startInitialization
 
@@ -282,16 +279,10 @@ export async function createPisperRuntime({
 
     const packageJson = JSON.parse(packageText)
     const { AgentRuntimeService } = runtimeModule
-    // 决策服务先于 AgentRuntime 创建：Agent 工具与 HTTP 路由共享同一实例与配置。
-    const decisionsService = new DecisionService({ dataDir: agentDir })
-    decisions = decisionsService
-    decisionsInitialized = decisionsService.init()
-    await decisionsInitialized
     runtime = new AgentRuntimeService({
       cwd,
       dataDir: agentDir,
       appVersion: packageJson.version,
-      decisionService: decisionsService,
       browserAutomationDriver,
       capabilities,
       eventObserver: (payload) => {
@@ -372,7 +363,6 @@ export async function createPisperRuntime({
       speechModels,
       speechCatalog,
       speechTerms,
-      decisions,
       customUi,
       mcpHost,
       engineVersion,
@@ -538,8 +528,6 @@ export async function createPisperRuntime({
         await mcpHost.close()
         await speech?.dispose()
         await speechModels?.dispose()
-        await decisionsInitialized?.catch(() => null)
-        await decisions?.dispose()
         customUi.dispose()
         await browserPreferences.dispose()
         await runtime?.dispose()
