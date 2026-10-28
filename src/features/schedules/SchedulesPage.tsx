@@ -33,7 +33,7 @@ import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
-import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { FormEvent } from 'react'
 import type { Notify } from '@/app/route-context'
@@ -389,16 +389,16 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
   const [pickerError, setPickerError] = useState('')
   const [webPickerOpen, setWebPickerOpen] = useState(false)
 
-  // 浏览选择工作目录：桌面环境用系统选择器，否则退回 Web 输入对话框。
+  // 浏览选择工作目录：打开系统文件管理器，系统对话框无法出现时才退回手动输入。
   const browse = async () => {
     setPickerError('')
-    if (!hasSystemDirectoryPicker()) {
-      setWebPickerOpen(true)
-      return
-    }
     try {
-      const selected = await pickSystemDirectory(value)
-      if (selected) onChange(selected)
+      const result = await pickSystemDirectory(
+        value,
+        t('common:workspacePicker.selectWorkspaceForSchedule'),
+      )
+      if (result.status === 'picked') onChange(result.path)
+      else if (result.status === 'unavailable') setWebPickerOpen(true)
     } catch (error) {
       setPickerError(error instanceof Error ? error.message : String(error))
     }

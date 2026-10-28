@@ -39,6 +39,7 @@
   "workspacePicker.selectWorkspaceForSchedule": "选择定时任务运行的工作目录",
   "workspacePicker.setWorkingDirectory": "设置工作目录",
   "workspacePicker.switching": "正在切换…",
+  "workspacePicker.systemPickerUnavailable": "此设备无法打开系统文件管理器，请直接输入路径。",
   "workspacePicker.useThisFolder": "使用此目录",
   "workspacePicker.workingDirectoryPath": "工作目录路径",
   "webPreview.back": "后退",

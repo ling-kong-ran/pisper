@@ -1,13 +1,29 @@
-// 桌面桥接目录选择：只有 Tauri 桌面壳提供 pickDirectory 时才可用，
-// 纯 Web 只能手动填写 Runtime 路径，浏览器的目录句柄不能用作 Node 工作目录。
-/** Return whether the desktop shell can provide an absolute directory path. */
-export function hasSystemDirectoryPicker(): boolean {
-  return typeof window !== 'undefined' && typeof window.pisperDesktop?.pickDirectory === 'function'
-}
+// 选择工作目录一律交给系统文件管理器：桌面壳走 Tauri 桥接，同机浏览器由本机 Runtime 弹出原生对话框。
+// 只有系统对话框确实无法出现（配对设备、无图形会话的主机、手机 Runtime）时才返回 unavailable，
+// 由调用方退回手动填写 Runtime 路径。
+import { apiJson } from '@/lib/api'
 
-/** Pick a directory through the Tauri desktop bridge. Pure Web accepts a manually entered Runtime path instead. */
-export async function pickSystemDirectory(initialDirectory = ''): Promise<string | null> {
+export type SystemDirectoryPick =
+  { status: 'picked'; path: string } | { status: 'cancelled' } | { status: 'unavailable' }
+
+type RuntimePickResponse = { status?: string; path?: string }
+
+/** Open the operating system folder picker and return an absolute Runtime path. */
+export async function pickSystemDirectory(
+  initialDirectory = '',
+  title = '',
+): Promise<SystemDirectoryPick> {
   const pickDirectory = window.pisperDesktop?.pickDirectory
-  if (!pickDirectory) return null
-  return pickDirectory(initialDirectory || undefined)
+  if (pickDirectory) {
+    const path = await pickDirectory(initialDirectory || undefined)
+    return path ? { status: 'picked', path } : { status: 'cancelled' }
+  }
+  const result = await apiJson<RuntimePickResponse>('/api/local/directory-picker', {
+    method: 'POST',
+    body: JSON.stringify({ initialDirectory, title }),
+  })
+  if (result.status === 'picked' && result.path) return { status: 'picked', path: result.path }
+  // busy 表示系统对话框已经打开，本次点击不再叠加窗口。
+  if (result.status === 'cancelled' || result.status === 'busy') return { status: 'cancelled' }
+  return { status: 'unavailable' }
 }

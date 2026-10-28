@@ -3,6 +3,7 @@
 // 远程侧供已配对设备（Bearer）查看/管理自身。
 import QRCode from 'qrcode'
 import { RemoteAccessError } from '../../services/remote-access-service.mjs'
+import { isLocalAppRequest } from '../local-request.mjs'
 
 function publicRemoteStatus(status) {
   return {
@@ -65,17 +66,7 @@ function requireDesktopListener(req, json) {
 
 // 请求已经经过回环侧的原有桌面鉴权；这里再限制传输来源和主机，防止远端或 DNS 重绑定触发提权。
 function requireLocalFirewallRequest(req, json) {
-  const address = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '')
-  const loopback = address === '::1' || /^127\.(?:\d{1,3}\.){2}\d{1,3}$/.test(address)
-  let localHost = false
-  try {
-    const local = new URL(`http://${req.headers.host}`)
-    localHost = ['127.0.0.1', 'localhost', '[::1]'].includes(local.hostname)
-    if (req.headers.origin && req.headers.origin !== local.origin) localHost = false
-  } catch {
-    // 无法校验 Host 的请求不能进入系统授权入口。
-  }
-  if (!req.pisperRemote && loopback && localHost) return true
+  if (isLocalAppRequest(req)) return true
   json(403, { error: '防火墙策略只能在本机桌面设置中管理。', code: 'local_firewall_required' })
   return false
 }

@@ -39,6 +39,7 @@
   "workspacePicker.selectWorkspaceForSchedule": "Select the working directory for this schedule",
   "workspacePicker.setWorkingDirectory": "Set working directory",
   "workspacePicker.switching": "Switching…",
+  "workspacePicker.systemPickerUnavailable": "The system file manager is not available on this device. Enter the path directly.",
   "workspacePicker.useThisFolder": "Use this directory",
   "workspacePicker.workingDirectoryPath": "Working directory path",
   "webPreview.back": "Back",

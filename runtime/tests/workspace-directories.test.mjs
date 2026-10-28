@@ -61,7 +61,7 @@ test('workspace paths are validated without listing directory contents on deskto
   }
 })
 
-test('workspace selection keeps native system dialogs and a manual Runtime path fallback', async () => {
+test('workspace selection opens system dialogs and falls back to manual paths only when unavailable', async () => {
   const [cargo, shell, command, bridge, permissions, picker, workspacePicker, chat, schedules] =
     await Promise.all([
       readFile('src-tauri/Cargo.toml', 'utf8'),
@@ -88,10 +88,13 @@ test('workspace selection keeps native system dialogs and a manual Runtime path 
   assert.match(permissions, /"desktop_pick_directory"/)
   assert.match(permissions, /"desktop_pick_files"/)
   assert.match(picker, /window\.pisperDesktop\?\.pickDirectory/)
+  // 同机浏览器经本机 Runtime 弹出系统对话框，不在页面里枚举文件系统。
+  assert.match(picker, /\/api\/local\/directory-picker/)
   assert.doesNotMatch(picker, /showDirectoryPicker|webkitdirectory/)
   assert.doesNotMatch(workspacePicker, /\/api\/directories|\/api\/workspace-entries/)
-  assert.match(chat, /setWorkspaceSession\(session\)/)
-  assert.match(chat, /pickSystemDirectory\(session\.cwd\)/)
+  assert.match(chat, /status === 'unavailable'\) setWorkspaceSession\(session\)/)
+  assert.match(chat, /pickSystemDirectory\(\s*session\.cwd/)
   assert.match(schedules, /<WorkspacePicker/)
-  assert.match(schedules, /pickSystemDirectory\(value\)/)
+  assert.match(schedules, /pickSystemDirectory\(\s*value/)
+  assert.match(schedules, /status === 'unavailable'\) setWebPickerOpen\(true\)/)
 })

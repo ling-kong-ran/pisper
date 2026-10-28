@@ -5,7 +5,7 @@ import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { workspaceName } from '@/lib/format'
 import { ApiError } from '@/lib/http'
-import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi } from './chat-api'
@@ -528,13 +528,13 @@ export function useSessionCommands({
         notify(t('chat:chatPage.stopTheActiveRunBeforeChangingTheWorkspace'), 'info')
         return
       }
-      if (!hasSystemDirectoryPicker()) {
-        setWorkspaceSession(session)
-        return
-      }
       try {
-        const cwd = await pickSystemDirectory(session.cwd)
-        if (cwd) await switchSessionCwd(session, cwd)
+        const result = await pickSystemDirectory(
+          session.cwd,
+          t('common:workspacePicker.setWorkingDirectory'),
+        )
+        if (result.status === 'picked') await switchSessionCwd(session, result.path)
+        else if (result.status === 'unavailable') setWorkspaceSession(session)
       } catch (error) {
         updateSessionState(session.id, {
           switchingCwd: false,

@@ -65,7 +65,7 @@ import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
-import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -271,16 +271,15 @@ export function ProjectTaskList({
 
   const chooseProject = async () => {
     if (projectPickingRef.current) return
-    if (!hasSystemDirectoryPicker()) {
-      setProjectPickerOpen(true)
-      return
-    }
     projectPickingRef.current = true
     setProjectPicking(true)
     const request = ++projectRequestRef.current
     try {
-      const path = await pickSystemDirectory()
-      if (request === projectRequestRef.current && path) createSessionInWorkspace(path)
+      const result = await pickSystemDirectory('', t('common:workspacePicker.setWorkingDirectory'))
+      if (request !== projectRequestRef.current) return
+      if (result.status === 'picked') createSessionInWorkspace(result.path)
+      // 系统对话框无法出现时（配对设备、无图形会话）才退回手动填写路径。
+      else if (result.status === 'unavailable') setProjectPickerOpen(true)
     } catch (error) {
       if (request === projectRequestRef.current)
         notify(error instanceof Error ? error.message : String(error), 'error')

@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { apiJson } from '@/lib/api'
-import { hasSystemDirectoryPicker, pickSystemDirectory } from '@/lib/pick-system-directory'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { PluginInspection } from '@/features/plugins/plugin-types'
 
 import { Button } from '@/components/ui/button'
@@ -49,10 +49,12 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
   const chooseDirectory = async () => {
     setError('')
     try {
-      const selected = await pickSystemDirectory(path)
-      if (selected) {
-        setPath(selected)
+      const result = await pickSystemDirectory(path, t('plugins:pluginsPage.chooseDirectory'))
+      if (result.status === 'picked') {
+        setPath(result.path)
         setInspection(null)
+      } else if (result.status === 'unavailable') {
+        setError(t('common:workspacePicker.systemPickerUnavailable'))
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -125,18 +127,16 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
                   setInspection(null)
                 }}
               />
-              {hasSystemDirectoryPicker() && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-10 shrink-0"
-                  title={t('plugins:pluginsPage.chooseDirectory')}
-                  onClick={chooseDirectory}
-                >
-                  <FolderOpen size={16} />
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-10 shrink-0"
+                title={t('plugins:pluginsPage.chooseDirectory')}
+                onClick={chooseDirectory}
+              >
+                <FolderOpen size={16} />
+              </Button>
             </span>
           </label>
 

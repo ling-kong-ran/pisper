@@ -16,6 +16,8 @@ import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
 import { memoryAssetRoutes } from './routes/memory-assets.mjs'
 import { mcpHostRoutes } from './routes/mcp-host.mjs'
+import { directoryPickerRoutes } from './routes/directory-picker.mjs'
+import { NativeDirectoryPicker } from '../services/native-directory-picker.mjs'
 import { remoteRoutes } from './routes/remote.mjs'
 import { runRoutes } from './routes/runs.mjs'
 import { sessionRuntimeRoutes } from './routes/sessions-runtime.mjs'
@@ -40,6 +42,7 @@ const registry = createRouteRegistry([
   ...runRoutes,
   ...integrationRoutes,
   ...mcpHostRoutes,
+  ...directoryPickerRoutes,
   ...desktopRoutes,
   ...customUiRoutes,
 ])
@@ -161,6 +164,7 @@ export function createApiHandler(
     runs,
     customUi,
     mcpHost,
+    directoryPicker = new NativeDirectoryPicker(),
   } = {},
 ) {
   const services = {
@@ -176,6 +180,7 @@ export function createApiHandler(
     speechTerms,
     customUi,
     mcpHost,
+    directoryPicker,
     runs: runs || new RunRegistry(),
   }
   return async function handleApi(req, res, url) {
