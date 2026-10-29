@@ -135,6 +135,16 @@ export function consumeSessionSelectionRequest() {
   return request
 }
 
+// 只读查看待处理的会话意图（不消费）：应用壳的 navigate('chat') 兼容垫片据此决定去会话页还是看板。
+// 创建请求优先于打开请求，与聊天页挂载时的处理顺序一致。
+export function peekSessionNavigationIntent():
+  { type: 'create' } | { type: 'open'; sessionId: string } | null {
+  if (parseSessionCreateRequest(localStorage.getItem(STORAGE_KEYS.sessionCreateRequest)))
+    return { type: 'create' }
+  const request = parseSessionOpenRequest(localStorage.getItem(STORAGE_KEYS.sessionOpenRequest))
+  return request ? { type: 'open', sessionId: request.sessionId } : null
+}
+
 // 广播“活动会话已变更”（带 id 与模型），供状态栏/其它面板订阅。
 export function announceActiveSession(id: string, model = '') {
   window.dispatchEvent(

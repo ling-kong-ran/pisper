@@ -3,6 +3,7 @@ import { afterEach, test } from 'node:test'
 import { QueryObserver } from '@tanstack/react-query'
 import { chatApi } from '../../src/features/chat/chat-api.ts'
 import {
+  SESSIONS_QUERY_KEY,
   fetchStartupQuery,
   installStartupQueryEvents,
   invalidateStartupQuery,
@@ -109,7 +110,9 @@ test('one event listener refreshes all observers and cleanup is StrictMode safe'
   target.dispatchEvent(new Event('pisper:sessions-updated'))
   await fetchStartupQuery('sessions')
   assert.equal(revision, 2)
-  assert.equal(queryClient.getQueryData(['sessions']).revision, 2)
+  // 会话列表只有一份权威缓存：外壳、看板、侧栏与聊天页都读启动查询的同一个键。
+  assert.deepEqual(startupQueryOptions('sessions').queryKey, SESSIONS_QUERY_KEY)
+  assert.equal(queryClient.getQueryData(SESSIONS_QUERY_KEY).revision, 2)
   cleanup()
   target.dispatchEvent(new Event('pisper:sessions-updated'))
   await tick()
@@ -135,7 +138,7 @@ test('session mutation invalidates a pending old snapshot before the next explic
   assert.equal((await stale).sessions[0].model, 'new')
   await tick()
   assert.equal(current.sessions[0].model, 'new')
-  assert.equal(queryClient.getQueryData(['sessions']).sessions[0].model, 'new')
+  assert.equal(queryClient.getQueryData(SESSIONS_QUERY_KEY).sessions[0].model, 'new')
 })
 
 test('an event burst shares the pending request and publishes only the replacement snapshot', async () => {
@@ -169,10 +172,11 @@ test('an event burst shares the pending request and publishes only the replaceme
 })
 
 test('failed mutation leaves the last valid snapshot intact and invalidated config reloads', async () => {
-  queryClient.setQueryData(['sessions'], { sessions: [{ id: 's' }] })
+  queryClient.setQueryData(SESSIONS_QUERY_KEY, { sessions: [{ id: 's' }] })
   globalThis.fetch = async () => new Response('{"error":"failed"}', { status: 500 })
   await assert.rejects(chatApi.renameSession('s', 'new'), /failed/)
-  assert.equal(queryClient.getQueryState(['sessions']).isInvalidated, false)
+  assert.equal(queryClient.getQueryState(SESSIONS_QUERY_KEY).isInvalidated, false)
+  assert.deepEqual(queryClient.getQueryData(SESSIONS_QUERY_KEY), { sessions: [{ id: 's' }] })
   queryClient.setQueryData(['config'], { model: 'old' })
   await invalidateStartupQuery('config')
   globalThis.fetch = async () => json({ providers: [], model: 'new' })

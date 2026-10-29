@@ -1,27 +1,41 @@
 import assert from 'node:assert/strict'
-import { readdir, mkdtemp } from 'node:fs/promises'
+import { readdir, readFile, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'vite'
 import { chromium } from 'playwright-core'
 
+// 新外壳工作台验收：看板（/board）→ 会话页（/board/:id，单会话视图，不挂载 Dockview）。
+// 会话时间相对当前时间生成，四个任务都落在看板的“已完成”泳道里，可以从卡片打开。
 const output = await mkdtemp(join(tmpdir(), 'pisper-workbench-'))
-const sessions = ['a', 'b', 'c', 'd'].map((id) => ({
-  id,
-  name: `Task ${id.toUpperCase()}`,
-  cwd: `/fixture/project-${id === 'd' ? 'a' : id}`,
-  modified: '2026-10-14T00:00:00Z',
-  model: 'fixture/model',
-  streaming: false,
-}))
+const fixtureNow = Date.now()
+// 已完成泳道默认只显示“今天”：刚过本地零点时把完成时间夹到当天。
+const fixtureDayStart = Math.min(fixtureNow, new Date(fixtureNow).setHours(0, 0, 0, 0) + 1000)
+const sessions = ['a', 'b', 'c', 'd'].map((id, index) => {
+  const finished = new Date(
+    Math.max(fixtureNow - (index + 1) * 60_000, fixtureDayStart),
+  ).toISOString()
+  return {
+    id,
+    name: `Task ${id.toUpperCase()}`,
+    firstMessage: `Task ${id.toUpperCase()}`,
+    messageCount: 32,
+    cwd: `/fixture/project-${id === 'd' ? 'a' : id}`,
+    created: new Date(fixtureNow - (index + 1) * 3_600_000).toISOString(),
+    modified: finished,
+    lastCompletedAt: finished,
+    model: 'fixture/model',
+    streaming: false,
+  }
+})
 const requests = []
-let savedLayout = null
-let invalidLayout = false
 let runningTask = false
 let snapshotVersion = 0
 let holdProjectA = false
 let releaseProjectA = () => {}
-const css = (await readdir('dist/assets')).find((name) => /^index-.*\.css$/.test(name))
+const distAssets = await readdir('dist/assets')
+const css = distAssets.find((name) => /^index-.*\.css$/.test(name))
+const fonts = new Set(distAssets.filter((name) => name.endsWith('.woff2')))
 assert.ok(css, 'build production CSS before running workbench verification')
 const server = await createServer({
   server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
@@ -32,6 +46,12 @@ const server = await createServer({
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
           const url = new URL(req.url, 'http://fixture')
+          // 生产 CSS 里的字体按站点根路径 /assets/ 引用；夹具从 dist/assets 原样提供。
+          if (url.pathname.startsWith('/assets/') && fonts.has(url.pathname.slice(8))) {
+            res.setHeader('Content-Type', 'font/woff2')
+            res.end(await readFile(join('dist/assets', url.pathname.slice(8))))
+            return
+          }
           if (url.pathname === '/__preview') {
             res.setHeader('Content-Type', 'text/html')
             res.end('<p>Legacy preview fixture</p>')
@@ -72,17 +92,13 @@ const server = await createServer({
               sessions: sessions.map((session) => ({
                 ...session,
                 streaming: runningTask && session.id === 'a',
+                ...(runningTask && session.id === 'a' ? { lastCompletedAt: undefined } : {}),
               })),
             }
           else if (url.pathname === '/api/client-info') data = { client: 'web' }
-          else if (url.pathname === '/api/settings/chat-dock-layout') {
-            if (req.method === 'PUT') {
-              let body = ''
-              for await (const chunk of req) body += chunk
-              savedLayout = JSON.parse(body)
-            }
-            data = invalidLayout ? { version: 999, engine: 'future', layout: {} } : savedLayout
-          } else if (url.pathname.endsWith('/tree'))
+          // 会话页不再使用 Dock 布局；读取只返回空，写入由收尾断言确认从未发生。
+          else if (url.pathname === '/api/settings/chat-dock-layout') data = null
+          else if (url.pathname.endsWith('/tree'))
             data = {
               sessionId: url.pathname.split('/')[3],
               leafId: null,
@@ -204,53 +220,99 @@ const reviewExpect = (condition, label) => {
 try {
   await server.listen()
   const address = server.httpServer.address()
-  browser = await chromium.launch({ headless: true })
-  const backgroundPage = await browser.newPage({
-    viewport: { width: 2400, height: 1000 },
-    locale: 'zh-CN',
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PISPER_UI_BROWSER_PATH
+      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH }
+      : process.platform === 'win32'
+        ? { channel: 'msedge' }
+        : {}),
   })
-  await backgroundPage.goto(`http://127.0.0.1:${address.port}/__workbench`)
-  await backgroundPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
-  await backgroundPage.evaluate(() => window.workbenchFixture.open('b', 'right'))
-  const backgroundComposer = backgroundPage.locator(
-    '[data-task-workspace="b"] .focus-composer textarea',
-  )
-  await backgroundComposer.fill('继续编辑 B')
-  // 使用自动展示的同一入口，验证后台任务更新不能改变当前输入目标。
-  await backgroundPage.evaluate(() => window.workbenchFixture.revealFiles('a'))
-  await backgroundPage.locator('[data-task-workspace="a"] [role="tab"]').waitFor()
-  await backgroundPage.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  )
-  assert.equal(await backgroundComposer.evaluate((el) => el === document.activeElement), true)
-  assert.equal(
-    await backgroundPage.locator('[data-task-workspace="b"][data-active="true"]').count(),
-    1,
-    'Background resource reveal preserves the active task',
-  )
-  const foregroundComposer = backgroundPage.locator(
-    '[data-task-workspace="a"] .focus-composer textarea',
-  )
-  await foregroundComposer.click()
-  await backgroundPage.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  )
-  assert.equal(await foregroundComposer.evaluate((el) => el === document.activeElement), true)
-  await backgroundPage.close()
-  savedLayout = null
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' })
+  const fixtureUrl = (session) =>
+    `http://127.0.0.1:${address.port}/__workbench${session ? `?session=${session}` : ''}`
+  const nextFrame = (target) =>
+    target.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    )
   const errors = []
+  const watch = (target) => {
+    target.on('pageerror', (error) => errors.push(error.message))
+    target.on('console', (message) => {
+      // 资源加载失败只有通用文案，附上地址便于定位。
+      if (message.type() === 'error')
+        errors.push(`${message.text()} ${message.location()?.url || ''}`.trim())
+    })
+  }
+
+  // 看板是首页：卡片来自同一份会话目录；打开卡片进入 /board/:id，返回条回到看板并把焦点还给来源卡片。
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' })
   await page.addInitScript(() =>
     window.addEventListener('error', (event) => console.error(event.message)),
   )
-  page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-
-  await page.goto(`http://127.0.0.1:${address.port}/__workbench`)
+  watch(page)
+  await page.goto(fixtureUrl())
+  await page.locator('[data-board-root]').waitFor({ timeout: 45000 })
+  for (const id of ['a', 'b', 'c', 'd'])
+    await page.locator(`[data-board-card="${id}"][data-lane="done"]`).waitFor()
+  await page.locator('[data-board-card="a"]').click()
   await page.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
+  assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/a')
+  assert.equal(await page.locator('[data-board-root]').count(), 0)
+  assert.equal(
+    await page.locator('.dv-dockview').count(),
+    0,
+    'the session page embeds the single-session view without Dockview',
+  )
+  const returnBar = page.getByRole('button', { name: /^返回看板/ })
+  await returnBar.waitFor()
+  await page.getByText('Task A', { exact: true }).first().waitFor()
+  await returnBar.click()
+  await page.locator('[data-board-root]').waitFor()
+  await page.waitForFunction(() =>
+    document.activeElement?.closest('[data-board-card]')?.getAttribute('data-board-card'),
+  )
+  assert.equal(
+    await page.evaluate(() =>
+      document.activeElement?.closest('[data-board-card]')?.getAttribute('data-board-card'),
+    ),
+    'a',
+    'returning to the board restores focus to the source card',
+  )
+  await page.locator('[data-board-card="b"]').focus()
+  await page.keyboard.press('Enter')
+  await page.locator('[data-task-workspace="b"]').waitFor()
+  assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/b')
+
+  // 后台任务的资源自动展示不能切走当前会话，也不能抢走输入焦点。
+  const backgroundComposer = page.locator('[data-task-workspace="b"] .focus-composer textarea')
+  await backgroundComposer.fill('继续编辑 B')
+  await page.evaluate(() => window.workbenchFixture.revealFiles('a'))
+  await nextFrame(page)
+  assert.equal(await backgroundComposer.evaluate((el) => el === document.activeElement), true)
+  assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/b')
+  assert.equal(
+    await page.locator('[data-task-workspace="a"]').count(),
+    0,
+    'Background resource reveal preserves the routed task',
+  )
+  // 会话页内部的“打开会话”事件经路由切换，地址栏始终是选中依据。
+  await page.evaluate(() => window.workbenchFixture.select('a'))
+  await page.locator('[data-task-workspace="a"]').waitFor()
+  assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/a')
+  assert.equal(await page.locator('[data-task-workspace]').count(), 1)
+  await page.locator('[data-task-workspace="a"] [role="tab"]').first().waitFor()
   const initialPane = page.locator('[data-task-workspace="a"]')
+  await initialPane
+    .getByRole('button', { name: /关闭辅助页面/ })
+    .first()
+    .click()
+  await initialPane.getByRole('tab').first().waitFor({ state: 'detached' })
+  await page.evaluate(() => window.workbenchFixture.open('b'))
+  await page.locator('[data-task-workspace="b"]').waitFor()
+  assert.equal(await backgroundComposer.inputValue(), '继续编辑 B')
+  await page.evaluate(() => window.workbenchFixture.open('a'))
+  await initialPane.waitFor()
+
   await page.setViewportSize({ width: 320, height: 1000 })
   const mobileMore = page.getByRole('button', { name: '项目与任务设置', exact: true })
   await mobileMore.waitFor()
@@ -267,6 +329,8 @@ try {
   await page.getByRole('menuitem', { name: '追忆', exact: true }).waitFor()
   assert.equal(await initialPane.getByTestId('theme-toggle').count(), 0)
   await page.getByRole('menuitem', { name: /^主题：/ }).waitFor()
+  // 单会话页没有分屏：菜单里不再出现拆分与关闭分屏。
+  assert.equal(await page.getByRole('menuitem', { name: /拆分到|关闭分屏/ }).count(), 0)
   await page.getByRole('menuitem', { name: '追忆', exact: true }).click()
   const recallDialog = page.getByRole('dialog', { name: '追忆', exact: true })
   await recallDialog.waitFor()
@@ -321,9 +385,7 @@ try {
     }, sourcesTabId)
   await initialPane.getByRole('tab', { name: '项目变更', exact: true }).click()
   await changesPane.locator('[data-pisper-diff-row-count]').waitFor()
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  )
+  await nextFrame(page)
   const lastResourceOffset = await changesPane
     .locator('[data-pisper-diff-row-count]')
     .locator('..')
@@ -366,22 +428,20 @@ try {
   await initialPane.getByRole('button', { name: '关闭辅助页面 · 来源', exact: true }).click()
   await initialPane.getByRole('button', { name: '关闭辅助页面 · 项目变更', exact: true }).click()
 
+  // 会话间切换走路由：同一时刻只挂载一个会话视图，草稿与阅读位置按会话保留。
   await initialPane.locator('.transcript').evaluate((el) => {
     el.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }))
     el.scrollTop = 360
     el.dispatchEvent(new Event('scroll', { bubbles: true }))
   })
-  await initialPane.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '拆分到右侧', exact: true }).hover()
-  await page.getByRole('menuitem', { name: 'Task B', exact: true }).click()
+  await page.evaluate(() => window.workbenchFixture.open('b'))
   await page.locator('[data-task-workspace="b"]').waitFor()
-  assert.equal(await page.locator('[data-task-workspace]').count(), 2)
   await page.evaluate(() => window.workbenchFixture.open('c'))
   await page.locator('[data-task-workspace="c"]').waitFor()
-  assert.equal(await page.locator('[data-task-workspace="a"]').count(), 1)
-  assert.equal(await page.locator('[data-task-workspace="b"]').count(), 0)
+  assert.equal(await page.locator('[data-task-workspace]').count(), 1)
   await page.evaluate(() => window.workbenchFixture.open('a'))
-  assert.equal(await page.locator('[data-task-workspace]').count(), 2)
+  await page.locator('[data-task-workspace="a"]').waitFor()
+  assert.equal(await page.locator('[data-task-workspace]').count(), 1)
   const pane = page.locator('[data-task-workspace="a"]')
   await pane.getByRole('button', { name: '新建标签页', exact: true }).click()
   await pane.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
@@ -389,7 +449,7 @@ try {
   const contentHeading = await pane.locator('.auxiliary-page-header').boundingBox()
   assert.ok(
     taskHeading && contentHeading && Math.abs(taskHeading.y - contentHeading.y) <= 1,
-    'Task title and resource tabs share the top row in a split workspace',
+    'Task title and resource tabs share the top row on the session page',
   )
   assert.equal(await pane.getByRole('tab').count(), 1)
   await pane.getByRole('button', { name: '网页预览', exact: true }).click()
@@ -438,18 +498,25 @@ try {
     savedReadingPosition,
   )
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.locator('.mobile-session-shell').waitFor()
+  // 会话页在手机宽度仍是同一个单会话视图（没有旧的多标签手机外壳），标题行换成 44px 触控尺寸。
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#task-a-more')?.getBoundingClientRect().height >= 44 &&
+      !document.querySelector('.mobile-session-shell'),
+  )
   const mobilePane = page.locator('[data-task-workspace="a"]')
   assert.equal(
     await mobilePane.locator('.focus-composer textarea').isVisible(),
     false,
     'content-only view must hide the conversation',
   )
-  assert.equal(
-    await mobilePane.getByRole('button', { name: '新建标签页', exact: true }).isVisible(),
-    true,
-    'task header stays visible in content mode',
-  )
+  // 手机标题行只保留“项目与任务设置”和“置顶摘要”；新建标签页已收进更多菜单（标签条另有加号）。
+  for (const name of ['项目与任务设置', '置顶摘要'])
+    assert.equal(
+      await mobilePane.getByRole('button', { name, exact: true }).isVisible(),
+      true,
+      `task header keeps ${name} visible in content mode`,
+    )
   await mobilePane.getByRole('button', { name: '置顶摘要', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '置顶摘要', exact: true })
   await sheet.waitFor()
@@ -489,20 +556,18 @@ try {
   await page.evaluate(() => window.workbenchFixture.open('b'))
   await page.locator('[data-task-workspace="b"]').waitFor()
   await page.setViewportSize({ width: 1600, height: 1000 })
-  await page.locator('.mobile-session-shell').waitFor({ state: 'detached' })
-  await page.locator('[data-task-workspace="c"]').waitFor()
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  await page.waitForFunction(
+    () => document.querySelector('#task-b-more')?.getBoundingClientRect().height < 44,
   )
+  await nextFrame(page)
   reviewExpect(
-    (await page.locator('[data-task-workspace="b"][data-active="true"]').count()) === 1,
+    (await page.locator('[data-task-workspace="b"]').count()) === 1 &&
+      (await page.evaluate(() => window.workbenchFixture.path())) === '/board/b',
     'R1: mobile task selection must survive desktop restoration',
   )
   await page.evaluate(() => window.workbenchFixture.open('a'))
   await page.locator('[data-task-workspace="a"]').waitFor()
-
-  await page.locator('[data-task-workspace="c"]').waitFor()
-  assert.equal(await page.locator('[data-task-workspace]').count(), 2)
+  assert.equal(await page.locator('[data-task-workspace]').count(), 1)
   assert.equal(
     await page.locator('[data-task-workspace="a"] .focus-composer textarea').inputValue(),
     'A 的未发送草稿',
@@ -518,12 +583,6 @@ try {
   await restored.getByRole('button', { name: /关闭辅助页面/ }).click()
   assert.equal(await restored.getByRole('tab').count(), 0)
   await page.waitForFunction(() => document.activeElement?.id === 'task-a-new-content-tab')
-  await restored.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '关闭分屏', exact: true }).click()
-  await page.locator('[data-task-workspace="a"]').waitFor({ state: 'detached' })
-  assert.equal(await page.locator('[data-task-workspace="c"]').count(), 1)
-  await page.evaluate(() => window.workbenchFixture.open('a', 'right'))
-  await page.locator('[data-task-workspace="a"]').waitFor()
   assert.equal(
     await page.locator('[data-task-workspace="a"] .focus-composer textarea').inputValue(),
     'A 的未发送草稿',
@@ -589,7 +648,10 @@ try {
   await terminalOwner.getByRole('tab', { name: '终端', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '停止进程', exact: true }).click()
   assert.deepEqual(await page.evaluate(() => window.terminalFixture.closed), [terminalId])
+  // 离开会话页（换到别的会话）只卸载视图，终端进程归会话所有，回来后仍是同一个。
+  await page.evaluate(() => window.workbenchFixture.open('c'))
   const secondOwner = page.locator('[data-task-workspace="c"]')
+  await secondOwner.waitFor()
   await secondOwner.getByRole('button', { name: '新建标签页', exact: true }).click()
   await secondOwner.getByRole('button', { name: '终端', exact: true }).click()
   await secondOwner.getByRole('button', { name: '创建终端', exact: true }).click()
@@ -602,15 +664,14 @@ try {
     await page.evaluate(() => window.terminalFixture.created[1].cwd),
     '/fixture/project-c',
   )
-  await secondOwner.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '关闭分屏', exact: true }).click()
+  await page.evaluate(() => window.workbenchFixture.open('a'))
   await secondOwner.waitFor({ state: 'detached' })
   assert.deepEqual(await page.evaluate(() => window.terminalFixture.closed), [terminalId])
   await page.evaluate(
     (id) => window.terminalFixture.emit(id, 'continued in task C\r\n'),
     secondTerminalId,
   )
-  await page.evaluate(() => window.workbenchFixture.open('c', 'right'))
+  await page.evaluate(() => window.workbenchFixture.open('c'))
   await secondOwner.locator('[data-terminal-id]').waitFor()
   assert.equal(
     await secondOwner.locator('[data-terminal-id]').getAttribute('data-terminal-id'),
@@ -626,10 +687,10 @@ try {
     secondTerminalId,
   ])
 
-  await page.evaluate(() => window.workbenchFixture.open('d'))
-  const sharedA = page.locator('[data-task-workspace="a"]')
-  const sharedD = page.locator('[data-task-workspace="d"]')
-  for (const owner of [sharedA, sharedD]) {
+  // A 与 D 共用 project-a：项目数据共享，但展开状态与检查器宽度按会话各自保存。
+  for (const id of ['a', 'd']) {
+    await page.evaluate((target) => window.workbenchFixture.open(target), id)
+    const owner = page.locator(`[data-task-workspace="${id}"]`)
     await owner.getByRole('button', { name: '置顶摘要', exact: true }).click()
     await owner
       .getByRole('region', { name: '置顶摘要', exact: true })
@@ -640,24 +701,21 @@ try {
       .getByText('/fixture/project-a', { exact: true })
       .waitFor()
   }
-  const separatorA = sharedA.getByRole('separator')
-  const separatorD = sharedD.getByRole('separator')
-  await page.setViewportSize({ width: 2600, height: 1000 })
-  await separatorA.press('Home')
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  )
-  const otherWidth = await separatorD.getAttribute('aria-valuenow')
-  await separatorA.press('ArrowLeft')
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  )
+  const sharedD = page.locator('[data-task-workspace="d"]')
+  await sharedD.getByRole('separator').press('Home')
+  await nextFrame(page)
+  const otherWidth = await sharedD.getByRole('separator').getAttribute('aria-valuenow')
+  await page.evaluate(() => window.workbenchFixture.open('a'))
+  const sharedA = page.locator('[data-task-workspace="a"]')
+  await sharedA.getByRole('separator').press('ArrowLeft')
+  await sharedA.getByRole('button', { name: 'src/one.ts M', exact: true }).click()
+  await nextFrame(page)
+  await page.evaluate(() => window.workbenchFixture.open('d'))
+  await sharedD.getByRole('separator').waitFor()
   reviewExpect(
-    (await separatorD.getAttribute('aria-valuenow')) === otherWidth,
+    (await sharedD.getByRole('separator').getAttribute('aria-valuenow')) === otherWidth,
     'R4: resizing A must not resize D',
   )
-  await page.setViewportSize({ width: 1600, height: 1000 })
-  await sharedA.getByRole('button', { name: 'src/one.ts M', exact: true }).click()
   assert.equal(
     await sharedD
       .getByRole('button', { name: 'src/one.ts M', exact: true })
@@ -665,35 +723,23 @@ try {
     'false',
     'shared project data does not share per-task expansion state',
   )
-  await page.waitForTimeout(250)
-  await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.request().method() === 'PUT' &&
-        response.url().endsWith('/api/settings/chat-dock-layout'),
-    ),
-    page.evaluate(() => window.workbenchFixture.preview(location.origin + '/__preview')),
-  ])
-  await page.frameLocator('iframe').getByText('Legacy preview fixture', { exact: true }).waitFor()
-  await page.reload()
-  await page.frameLocator('iframe').getByText('Legacy preview fixture', { exact: true }).waitFor()
-  assert.ok(
-    (await page.locator('[data-task-workspace]').count()) > 0,
-    'legacy preview restoration retains task panes',
-  )
+  // 外链预览在会话页落到当前会话检查器的网页预览页（没有 Dock 预览面板）。
+  await page.evaluate(() => window.workbenchFixture.preview(location.origin + '/__preview'))
+  await sharedD
+    .frameLocator('iframe')
+    .getByText('Legacy preview fixture', { exact: true })
+    .waitFor()
+  assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/d')
   await page.close()
+
   holdProjectA = true
-  savedLayout = null
   const delayedPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
   await delayedPage.addInitScript(() =>
     window.addEventListener('error', (event) => console.error(event.message)),
   )
-  delayedPage.on('pageerror', (error) => errors.push(error.message))
-  delayedPage.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  await delayedPage.goto(`http://127.0.0.1:${address.port}/__workbench`)
-  await delayedPage.locator('[data-task-workspace="a"]').waitFor()
+  watch(delayedPage)
+  await delayedPage.goto(fixtureUrl('a'))
+  await delayedPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
   await Promise.all([
     delayedPage.waitForRequest((request) => request.url().endsWith('/a/vcs/changes')),
     delayedPage.getByRole('button', { name: '置顶摘要', exact: true }).click(),
@@ -725,65 +771,45 @@ try {
     'new tabs must not expose the retired workspace browser',
   )
   await delayedPage.close()
-  invalidLayout = true
-  const invalidStart = requests.length
-  const invalidPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
-  await invalidPage.addInitScript(() =>
-    window.addEventListener('error', (event) => console.error(event.message)),
-  )
-  invalidPage.on('pageerror', (error) => errors.push(error.message))
-  invalidPage.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  await invalidPage.goto(`http://127.0.0.1:${address.port}/__workbench`)
-  await invalidPage.locator('[data-task-workspace="a"]').waitFor()
-  await invalidPage.evaluate(() => window.workbenchFixture.open('b', 'right'))
-  await invalidPage.locator('[data-task-workspace="b"]').waitFor()
-  await invalidPage.waitForTimeout(300)
-  assert.equal(
-    requests
-      .slice(invalidStart)
-      .some(
-        (request) => request.method === 'PUT' && request.path === '/api/settings/chat-dock-layout',
-      ),
-    false,
-  )
-  await invalidPage.close()
-  invalidLayout = false
+
+  // 运行中的会话：离开会话页回到看板不会中止后端运行，卡片留在“运行中”泳道。
   runningTask = true
-  savedLayout = null
   const runningStart = requests.length
   const runningPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
   await runningPage.addInitScript(() =>
     window.addEventListener('error', (event) => console.error(event.message)),
   )
-  runningPage.on('pageerror', (error) => errors.push(error.message))
-  runningPage.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  await runningPage.goto(`http://127.0.0.1:${address.port}/__workbench`)
-  await runningPage.locator('[data-task-workspace="a"]').waitFor()
+  watch(runningPage)
+  await runningPage.goto(fixtureUrl('a'))
+  await runningPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
   await runningPage.getByText('Running task output', { exact: true }).waitFor()
-  await runningPage
-    .locator('[data-task-workspace="a"]')
-    .getByRole('button', { name: '项目与任务设置', exact: true })
-    .click()
-  await runningPage.getByRole('menuitem', { name: '关闭分屏', exact: true }).click()
+  await runningPage.getByRole('button', { name: /^返回看板/ }).click()
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ state: 'detached' })
-  await runningPage.waitForRequest((request) => request.url().endsWith('/api/sessions/a/live'), {
-    timeout: 6000,
-  })
+  await runningPage.locator('[data-board-card="a"][data-lane="running"]').waitFor()
+  await runningPage.waitForRequest(
+    (request) => new URL(request.url()).pathname === '/api/sessions',
+    { timeout: 6000 },
+  )
   assert.equal(
     requests.slice(runningStart).some((request) => request.path.endsWith('/abort')),
     false,
   )
   await runningPage.close()
+  runningTask = false
+  assert.equal(
+    requests.some(
+      (request) => request.method === 'PUT' && request.path === '/api/settings/chat-dock-layout',
+    ),
+    false,
+    'the session page never writes the retired Dock layout',
+  )
   const reviewPage = await browser.newPage({ viewport: { width: 390, height: 844 } })
   await reviewPage.addInitScript(() =>
     window.addEventListener('error', (event) => console.error(event.message)),
   )
   reviewPage.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
+    if (message.type() === 'error')
+      errors.push(`${message.text()} ${message.location()?.url || ''}`.trim())
   })
   reviewPage.on('pageerror', (error) => errors.push(error.message))
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=focus`)
@@ -1047,11 +1073,12 @@ try {
   await languagePicker.waitFor()
   const advancedSettings = reviewPage.getByText('高级', { exact: true })
   await advancedSettings.waitFor({ timeout: 5000 })
-  const fontGroup = reviewPage.getByRole('radiogroup', { name: '字体大小', exact: true })
-  assert.equal(await fontGroup.isVisible(), false)
+  // 界面字号已改为 11–16px 的数字输入（不再是“字体大小”单选组），其余外观选项仍是单选组。
+  const fontInput = reviewPage.getByRole('spinbutton', { name: '界面字号', exact: true })
+  assert.equal(await fontInput.isVisible(), false)
   await advancedSettings.press('Enter')
-  await fontGroup.waitFor()
-  for (const label of ['颜色模式', '字体大小', '圆角风格', '界面密度', '界面动效']) {
+  await fontInput.waitFor()
+  for (const label of ['颜色模式', '圆角风格', '界面密度', '界面动效']) {
     const group = reviewPage.getByRole('radiogroup', { name: label, exact: true })
     await group.waitFor({ timeout: 5000 })
     const radios = group.getByRole('radio')
@@ -1103,13 +1130,15 @@ try {
     )
     await reviewPage.keyboard.up('ArrowLeft')
   }
-  await fontGroup.getByRole('radio', { name: '大', exact: true }).click()
+  await fontInput.fill('16')
+  await fontInput.press('Enter')
   await advancedSettings.press('Space')
-  assert.equal(await fontGroup.isVisible(), false)
+  assert.equal(await fontInput.isVisible(), false)
   await reviewPage.getByRole('button', { name: 'Locate font setting' }).click()
-  await fontGroup.waitFor()
-  assert.equal(await fontGroup.getByRole('radio', { name: '大', exact: true }).isChecked(), true)
-  await fontGroup.getByRole('radio', { name: '标准', exact: true }).click()
+  await fontInput.waitFor()
+  assert.equal(await fontInput.inputValue(), '16')
+  await fontInput.fill('14')
+  await fontInput.press('Enter')
   const accentPicker = reviewPage.getByRole('combobox', { name: '强调色', exact: true })
   await accentPicker.click()
   await reviewPage.getByRole('option', { name: '自定义', exact: true }).click()
@@ -1131,7 +1160,7 @@ try {
   )
   await reviewPage.getByRole('button', { name: 'Finish navigation' }).click()
   await reviewPage
-    .getByRole('radiogroup', { name: '字体大小', exact: true })
+    .getByRole('spinbutton', { name: '界面字号', exact: true })
     .waitFor({ timeout: 5000 })
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=drawer`)
   const drawerToggle = reviewPage.getByRole('button', { name: 'Show sidebar', exact: true })
@@ -1168,7 +1197,7 @@ try {
   assert.deepEqual(reviewFailures, [])
   assert.deepEqual(errors, [])
   console.log(
-    'Workbench: task splits, drafts, last-scroll navigation race, tabs, resource summary, per-file diff, sources, delayed task responses, native terminal ownership, mobile round trip and snapshot fallback passed.',
+    'Workbench: board to session routing, focus return, per-session drafts and last-scroll navigation race, tabs, resource summary, per-file diff, sources, delayed task responses, native terminal ownership, mobile round trip and snapshot fallback passed.',
   )
 } catch (error) {
   console.error('Workbench API paths:', [...new Set(requests.map((request) => request.path))])

@@ -66,15 +66,18 @@ export function SessionDockPanel({ params, api }: IDockviewPanelProps<{ sessionI
   )
 }
 
-// 简约工作台只挂载活动会话；切换、历史和并行后台运行仍由会话目录负责。
+// 简约工作台只挂载一个会话；切换、历史和并行后台运行仍由会话目录负责。
 // 不挂载 Dockview，因此旧的分屏持久化数据不会再次打开无法关闭的窗口。
+// 会话页（/board/:sessionId）传入路由里的 sessionId 作为唯一选中依据，缺省时沿用活动会话。
 export function SingleSessionPanel({
+  sessionId,
   onCreateSession,
 }: {
+  sessionId?: string
   onCreateSession: () => Promise<unknown>
 }) {
   const context = useContext(ChatDockContext)
-  const activeId = context?.activeId || ''
+  const activeId = sessionId ?? (context?.activeId || '')
   if (!activeId) return <ChatDockWatermark onNewSession={onCreateSession} />
   return (
     <SessionPanel

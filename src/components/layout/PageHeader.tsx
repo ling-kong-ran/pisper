@@ -1,8 +1,10 @@
-// 页头：48px 面包屑顶栏（所属分组 / 当前页）+ 搜索框 + 主操作按钮 + 主题/终端等工具。
+// 页头：48px 面包屑顶栏（所属标签 / 当前页）+ 搜索框 + 主操作按钮 + 主题/终端等工具。
 // 设置分区在顶栏下方另起 20/600 页标题；手机宽度改为 52px 居中标题栏 + 一行搜索与主操作。
 // 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
+// 从“更多”进入的功能页，面包屑上一级是可点的“‹ 更多”；窗口按钮已移到应用标题栏，页头不再为它留白。
 import type { ReactNode, RefObject } from 'react'
 import {
+  ChevronLeft,
   Link2,
   Plus,
   Rocket,
@@ -13,7 +15,7 @@ import {
   Play,
   type LucideIcon,
 } from 'lucide-react'
-import { getActivityNavigation } from '@/app/activity-navigation'
+import { MORE_PAGES } from '@/app/more-pages'
 import { SETTINGS_PAGES } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import type { ThemeMode } from '@/stores/ui-store'
@@ -52,6 +54,8 @@ type PageHeaderProps = {
   mobileApp?: boolean
   terminalOpen: boolean
   onToggleTerminal: () => void
+  // 当前页从“更多”进入（或只属于“更多”）时提供，渲染“‹ 更多”返回。
+  onBackToMore?: () => void
 }
 
 export function PageHeader({
@@ -73,6 +77,7 @@ export function PageHeader({
   mobileApp = false,
   terminalOpen,
   onToggleTerminal,
+  onBackToMore,
 }: PageHeaderProps) {
   const { t } = useI18n()
   const primaryShortcut = useShortcutLabel('primaryAction')
@@ -100,21 +105,16 @@ export function PageHeader({
           : null
         : primaryActions[page]
   const desktop = Boolean(desktopPlatform)
-  // 面包屑上一级：归设置的页面归「设置」，其余页面归功能栏分组（长组名用短名）；
-  // 自定义组件工具页没有独立导航项，随「组件」归扩展分组。
-  const activityPage =
-    page === 'workflowCreate' ? 'workflows' : page === 'customComponentTool' ? 'components' : page
-  const activityGroup = getActivityNavigation(t).find((group) =>
-    group.items.some((item) => item.id === activityPage),
-  )
+  // 面包屑上一级：归设置的页面归「设置」，“更多”里的功能页归「更多」（可点返回）；
+  // 一级标签页（组件、更多本身）没有上一级。
   const parent =
     page === 'chat'
       ? ''
       : (settingsOwned ?? SETTINGS_PAGES.has(page))
         ? t('navigation:navigation.settings')
-        : activityGroup?.id === 'workspace'
-          ? t('navigation:rail.workspaceShort')
-          : activityGroup?.label || ''
+        : MORE_PAGES.has(page)
+          ? t('navigation:shell.more')
+          : ''
   // 设置分区的语义标题是下方 20/600 大标题（随界面字号等比缩放）；顶栏里的当前项只作面包屑显示。
   const titleBlock = page === 'config'
   const CurrentCrumb = titleBlock ? 'span' : 'h1'
@@ -132,9 +132,6 @@ export function PageHeader({
         className={cn(
           'flex min-h-12 items-center gap-2 border-b border-stroke-soft py-1.5 pr-2.5 in-data-[density=compact]:min-h-11 max-[650px]:min-h-0 max-[650px]:flex-wrap max-[650px]:gap-x-2 max-[650px]:gap-y-0 max-[650px]:border-b-0 max-[650px]:px-4 max-[650px]:pt-0 max-[650px]:pb-3',
           page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
-          // 让开 Windows 自绘窗口按钮：桌面宽度整行留白；窄窗口换成两行后只有首行标题与按钮同高，
-          // 留白改由标题行承担，第二行搜索与主操作可用满宽度。
-          window.pisperDesktop?.customTitlebar && 'pr-[148px] max-[650px]:pr-4',
           'pl-[calc(16px+var(--workbench-leading-inset,0px))] max-[650px]:pl-4',
         )}
       >
@@ -144,16 +141,33 @@ export function PageHeader({
             // 手机：52px 居中标题 + 12px 说明；两侧各让出 44px 给抽屉键与主题键。
             'max-[650px]:h-[52px] max-[650px]:basis-full max-[650px]:flex-col max-[650px]:justify-center max-[650px]:gap-0 max-[650px]:px-11 max-[650px]:text-center',
             page === 'chat' && 'max-[650px]:h-auto max-[650px]:basis-auto max-[650px]:px-0',
-            page !== 'chat' && window.pisperDesktop?.customTitlebar && 'max-[650px]:pr-[176px]',
           )}
         >
-          {parent && (
+          {parent && onBackToMore && !(settingsOwned ?? SETTINGS_PAGES.has(page)) ? (
             <>
-              <span className="shrink-0 text-content-muted max-[900px]:hidden">{parent}</span>
-              <span aria-hidden="true" className="shrink-0 text-content-faint max-[900px]:hidden">
+              {/* 桌面是面包屑里的“‹ 更多”；手机收成标题左侧 44px 的返回键，与居中标题同一行。 */}
+              <button
+                type="button"
+                className="-ml-1.5 flex h-7 shrink-0 items-center gap-0.5 rounded-sm pr-1.5 pl-1 text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus max-[650px]:absolute max-[650px]:top-1 max-[650px]:left-1 max-[650px]:ml-0 max-[650px]:size-11 max-[650px]:justify-center max-[650px]:px-0"
+                aria-label={t('navigation:shell.backToMoreLabel')}
+                onClick={onBackToMore}
+              >
+                <ChevronLeft className="size-4 max-[650px]:size-[22px]" aria-hidden="true" />
+                <span className="max-[650px]:sr-only">{parent}</span>
+              </button>
+              <span aria-hidden="true" className="shrink-0 text-content-faint max-[650px]:hidden">
                 /
               </span>
             </>
+          ) : (
+            parent && (
+              <>
+                <span className="shrink-0 text-content-muted max-[900px]:hidden">{parent}</span>
+                <span aria-hidden="true" className="shrink-0 text-content-faint max-[900px]:hidden">
+                  /
+                </span>
+              </>
+            )
           )}
           <CurrentCrumb className="max-w-full min-w-[4em] truncate text-[13px] leading-5 font-medium text-content max-[650px]:text-base max-[650px]:font-semibold max-[650px]:tracking-[-.01em]">
             {meta[0]}
@@ -172,10 +186,6 @@ export function PageHeader({
               'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
             page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
             desktop && '[-webkit-app-region:no-drag]',
-            desktopPlatform &&
-              desktopPlatform !== 'darwin' &&
-              !window.pisperDesktop?.customTitlebar &&
-              'pr-[138px] max-[650px]:pr-0',
           )}
         >
           {page === 'workflowCreate' ? (
@@ -200,7 +210,9 @@ export function PageHeader({
                   : t('navigation:pageHeader.testRun')}
               </Button>
             </>
-          ) : page === 'chat' || page === 'customComponentTool' ? null : page === 'config' ? (
+          ) : page === 'chat' ||
+            page === 'customComponentTool' ||
+            page === 'components' ? null : page === 'config' ? (
             searchSlot
           ) : (
             <label
@@ -284,9 +296,6 @@ export function PageHeader({
               className={cn(
                 page !== 'chat' &&
                   'pointer-coarse:size-11 max-[650px]:absolute max-[650px]:top-1 max-[650px]:right-1 max-[650px]:size-11',
-                page !== 'chat' &&
-                  window.pisperDesktop?.customTitlebar &&
-                  'max-[650px]:right-[148px]',
               )}
             />
           )}

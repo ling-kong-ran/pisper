@@ -153,8 +153,8 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
 
     stage = 'mobile-stop'
     await page.setViewportSize({ width: 390, height: 844 })
-    // 手机使用单面内容视图；返回只隐藏内容，保留临时聊天状态。
-    await page.locator('.mobile-session-shell').waitFor()
+    // 手机外壳下会话页使用单面内容视图；返回只隐藏内容，保留临时聊天状态。
+    await page.locator('html[data-phone-shell]').waitFor({ state: 'attached' })
     await mainInput.waitFor({ state: 'hidden' })
     await page.locator('[data-session-context-panel]').waitFor()
     assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)

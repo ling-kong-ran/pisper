@@ -25,6 +25,9 @@ export type ChatDockContextValue = {
   activeId: string
   compactDock: boolean
   mobileLayout: boolean
+  // 只有挂载 Dock 的多会话布局能分屏；会话页（路由模式）与手机单会话视图不提供拆分入口，
+  // 否则“拆分到右侧”只会换掉当前会话。
+  splitAvailable: boolean
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   sessionTreePulseSessionId: string
   sessionTreePulseToken: number

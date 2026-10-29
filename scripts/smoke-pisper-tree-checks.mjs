@@ -2,16 +2,17 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 
 export async function verifySessionTreeLifecycle({ page, base, api, report, output }) {
-  await page.goto(base + '/#/chat')
-  const previous = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
-  await page.getByTestId('workbench-new-task').click()
-  await page.waitForFunction(
-    (previous) => localStorage.getItem('pisper-active-session') !== previous,
-    previous,
-  )
-  const sessionId = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
+  // 新外壳里会话页地址（/board/:id）就是选中依据：/board/new 建好会话后以 replace 换成真实 id。
+  const activeSession = () =>
+    page.evaluate(() => {
+      const match = /^#\/board\/([^/?]+)$/.exec(location.hash)
+      return match && match[1] !== 'new' ? decodeURIComponent(match[1]) : ''
+    })
+  await page.goto(base + '/#/board/new')
+  await page.waitForFunction(() => /^#\/board\/(?!new$)[^/?]+$/.test(location.hash))
+  const sessionId = await activeSession()
+  assert.ok(sessionId)
   const tree = () => api(`/api/sessions/${sessionId}/tree`)
-  const activeSession = () => page.evaluate(() => localStorage.getItem('pisper-active-session'))
   async function send(text) {
     await page.getByRole('textbox', { name: '任务描述', exact: true }).fill(text)
     await page.getByRole('button', { name: '发送消息', exact: true }).click()
@@ -71,7 +72,7 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
     const child = await api(`/api/sessions/${childId}/tree`)
     assert.equal(child.lineage.parentSessionId, sessionId)
     assert.equal(child.lineage.sourceEntryId, first.id)
-    // Dock 的新面板需一次绘制；仍在旧 550ms 导航回调之前返回，保留竞态保护。
+    // 子会话页需一次绘制；仍在旧 550ms 导航回调之前返回，保留竞态保护。
     await page.clock.runFor(32)
     await page.getByRole('button', { name: '项目与任务设置', exact: true }).click({ force: true })
     await page.getByRole('menuitem', { name: '追忆', exact: true }).click({ force: true })

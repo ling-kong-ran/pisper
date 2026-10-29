@@ -49,31 +49,67 @@ test('Pisper greeting font measurement remains bounded and tolerates hidden cont
 })
 
 test('Pisper shell separates global navigation from task tools and keeps capability filtering', async () => {
-  const app = await readFile('src/App.tsx', 'utf8')
-  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
-  const sidebar = await readFile('src/components/layout/AppSidebar.tsx', 'utf8')
+  const [app, focus, palette, more] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/app/palette-navigation.ts', 'utf8'),
+    readFile('src/app/more-navigation.ts', 'utf8'),
+  ])
   assert.doesNotMatch(app, /<ChatLayoutSwitcher|<ChatLayoutNavigation|<StatusBar/)
-  assert.match(app, /page !== 'chat' &&/)
+  // 一级导航在 48px 标题栏（手机外壳换成底部标签栏）；旧的侧栏、活动栏、工作台页头与
+  // 侧栏会话列表不再挂载，源码保留到第 6 期统一删除。
+  assert.match(app, /\{!phoneShell && \(\s*<AppTitlebar\b/)
+  assert.match(app, /\{phoneShell && \([\s\S]{0,120}<ShellTabBar\b/)
+  // 静态与懒加载的导入都算：只把源码留在仓库里，不把它们带进外壳的模块图。
+  const imports = [...app.matchAll(/^import\s[\s\S]*?\sfrom\s+'[^']+'|\bimport\('[^']+'\)/gm)].join(
+    '\n',
+  )
+  assert.match(imports, /@\/app\/AppTitlebar/)
+  for (const retired of [
+    'AppSidebar',
+    'ActivityRail',
+    'WorkbenchNavigation',
+    'WorkbenchHeader',
+    'ProjectTaskList',
+    'SidebarProvider',
+    'SidebarInset',
+    'MobileThreePane',
+  ]) {
+    assert.doesNotMatch(app, new RegExp(`<${retired}\\b`), `${retired} must not be mounted`)
+    assert.doesNotMatch(imports, new RegExp(`\\b${retired}\\b`), `${retired} must not be imported`)
+  }
+  // 看板、会话页与更多页自带页头；其余功能页沿用共享页头。
+  assert.match(
+    app,
+    /const sharedPageHeader = !\['board', 'session', 'more', 'chat'\]\.includes\(page\)/,
+  )
+  assert.match(app, /\{sharedPageHeader && \(/)
+  // 新任务只有一条路径：⌘N、标题栏、手机居中按钮与命令面板都交给 startNewTask，
+  // 看板认领时聚焦启动台，否则打开派发浮层。
+  for (const source of ['shortcut', 'titlebar', 'tabbar', 'palette'])
+    assert.match(app, new RegExp(`startNewTask\\('${source}'\\)`), source)
+  assert.match(
+    app,
+    /if \(page === 'board' && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+  )
+  // 旧调用方在会话页里新建会话仍走就地创建事件。
   assert.match(app, /requestSessionCreation\(''\)/)
-  assert.equal(app.match(/onNewChat=\{startNewChat\}/g)?.length, 2)
-  assert.match(app, /<WorkbenchHeader/)
   assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)
   assert.match(focus, /<QuickPromptIdeas/)
   assert.match(focus, /<ExecutionModeSelect/)
-  assert.match(app, /<ProjectTaskList/)
-  assert.match(sidebar, /\{tasks\}/)
-  assert.match(app, /<WorkbenchNavigation/)
-  // 工作流/资产取自壳层已按能力过滤的清单；可选后台工具仍通过更多菜单或设置访问。
-  const navigation = await readFile('src/app/navigation.ts', 'utf8')
+  // 命令面板与“更多”只列出 Runtime 未裁剪的页面；壳层兜底把不可用页面送回看板。
   assert.match(
-    navigation,
-    /items\.filter\(\(\[page\]\) => runtimePageAvailable\(capabilities, page\)\)/,
+    palette,
+    /features\.filter\(\(\[page\]\) => runtimePageAvailable\(capabilities, page\)\)/,
   )
+  assert.match(more, /runtimePageAvailable\(capabilities, id\)/)
   assert.match(
-    await readFile('src/app/WorkbenchNavigation.tsx', 'utf8'),
-    /getActivityNavigation\(t, capabilities\)/,
+    app,
+    /if \(capabilitiesLoaded && !runtimePageAvailable\(capabilities, page\)\) \{\s*routerNavigate\(PAGE_PATHS\.board, \{ replace: true \}\)/,
   )
-  assert.match(app, /navigateSettings\(\{ type: 'config', id: 'models' \}\)/)
+  // 设置标签与 ⌘, 落到模型分区，与旧功能栏的设置键一致。
+  assert.match(app, /if \(tab === 'settings'\) setConfigSection\('models'\)/)
+  assert.match(app, /onSettings=\{\(\) => selectShellTab\('settings'\)\}/)
 })
 
 test('Windows controls remain a narrow capability', async () => {

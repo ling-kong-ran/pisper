@@ -376,28 +376,45 @@ try {
       localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
     } catch {}
   })
-  await page.goto(base + '/#/chat')
-  await page.getByRole('textbox', { name: '任务描述' }).waitFor({ timeout: 60000 })
-  await page.getByTestId('workbench-new-task').click()
-  await page.getByTestId('workbench-greeting').waitFor()
-  const prompt = page.getByRole('textbox', { name: '任务描述' })
-  await page.getByTestId('workbench-greeting').getByRole('heading').waitFor()
+  // 新外壳首页是看板：空看板时启动台放大居中，下方给“试试”建议；点建议只填草稿，不派发。
+  await page.goto(base + '/#/board')
+  await page.locator('[data-board-root]').waitFor({ timeout: 60000 })
+  const launchInput = page.locator('[data-launch-input]')
+  await launchInput.waitFor({ timeout: 60000 })
   const suggestions = page.getByRole('region', { name: '试试这些任务', exact: true })
   await suggestions.getByRole('button', { name: '解释代码', exact: true }).click()
-  assert.ok((await prompt.inputValue()).length > 0)
+  await page.waitForFunction(() => document.querySelector('[data-launch-input]')?.value.length > 0)
   assert.equal(report.requests, 0)
-  assert.ok((await suggestions.boundingBox()).y > (await prompt.boundingBox()).y)
-  await prompt.fill('')
+  assert.ok((await suggestions.boundingBox()).y > (await launchInput.boundingBox()).y)
+  await launchInput.fill('')
   report.checks.push(
-    'New conversation has a welcome heading and task suggestions below the composer; clicking a suggestion fills but never sends',
+    'Empty board centres the launch console with task suggestions below it; clicking a suggestion fills but never sends',
   )
-  const nav = page.getByTestId('workbench-sidebar')
-  const rail = page.getByTestId('activity-rail')
-  for (const label of ['工作台与项目', '资源', '自动化', '扩展', '设置'])
-    assert.equal(await rail.getByRole('button', { name: label, exact: true }).isVisible(), true)
-  await rail.getByRole('button', { name: '自动化', exact: true }).click()
-  await page.getByRole('menuitem', { name: '工作流', exact: true }).waitFor()
-  await page.keyboard.press('Escape')
+  const titlebar = page.locator('[data-app-titlebar]')
+  const shellTab = (tab) => titlebar.locator(`[data-shell-tab="${tab}"]`)
+  // 标题栏舰队计量（所有页面常驻）：运行数与需要你计数写在分组的可访问名称里。
+  const fleet = (running, attention = 0) =>
+    titlebar.getByRole('group', {
+      name: `代理概况：${running} 个运行中，${attention} 项需要你`,
+      exact: true,
+    })
+  assert.deepEqual(
+    await titlebar
+      .locator('[data-shell-tab]')
+      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab'))),
+    ['board', 'components', 'more', 'settings'],
+  )
+  await shellTab('more').click()
+  await page.locator('[data-more-tile="page:workflows"]').waitFor()
+  // 会话页：/board/new 建好会话后以 replace 换成真实 id；会话页沿用单会话视图与欢迎语。
+  await page.goto(base + '/#/board/new')
+  await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
+  const sessionHash = new URL(page.url()).hash
+  await page.getByTestId('workbench-greeting').getByRole('heading').waitFor()
+  // 看板启动台的输入框也叫“任务描述”；限定在会话输入区，避免换页瞬间写进将要卸载的启动台。
+  const prompt = page.locator('.focus-composer').getByRole('textbox', { name: '任务描述' })
+  await prompt.waitFor()
+  assert.equal(await page.locator('[data-board-root]').count(), 0)
   const sendBox = await page.getByRole('button', { name: '发送消息', exact: true }).boundingBox()
   assert.equal(sendBox.width, 32)
   assert.equal(sendBox.height, 32)
@@ -410,7 +427,7 @@ try {
     await route.fulfill({ response })
   })
   await prompt.fill('return home keeps this draft')
-  await rail.getByRole('button', { name: '设置', exact: true }).click()
+  await shellTab('settings').click()
   await page.locator('[data-model-provider-split-panel]').waitFor()
   await page.getByRole('heading', { name: '模型配置', level: 1, exact: true }).waitFor()
   assert.match(page.url(), /config\/models/)
@@ -619,19 +636,19 @@ try {
     'Model deletion supports cancel and confirmation, removes only the selected model, and retains an empty provider connection after the last model is deleted',
   )
 
-  await nav
+  await page
     .getByRole('navigation', { name: '设置导航', exact: true })
     .getByRole('button', { name: '界面设置', exact: true })
     .click()
   await page.waitForURL('**/#/config/interface')
-  await rail.getByRole('button', { name: '工作台与项目', exact: true }).click()
-  await page.getByRole('menuitem', { name: '会话', exact: true }).click()
-  await page.waitForURL('**/#/chat')
+  await titlebar.locator('[data-shell-tab="settings"][aria-current="page"]').waitFor()
+  // 空会话不上看板；经会话链接回到会话页（同一文档内的哈希跳转，不刷新），草稿仍在。
+  await page.goto(base + '/' + sessionHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'return home keeps this draft')
   await prompt.fill('')
   report.checks.push(
-    '32px send button; workflows/assets primary navigation; Settings opens complete settings navigation and Home restores the conversation draft',
+    '32px send button; title bar tabs board/components/more/settings with workflows on More; Settings opens the section navigation and returning through the session link restores the conversation draft',
     'Provider navigation shows configured or custom connections with one Quick setup entry and no preset catalog',
   )
 
@@ -883,9 +900,13 @@ try {
   console.log('PERMISSIONS', await page.getByRole('menu').ariaSnapshot())
   await page.keyboard.press('Escape')
   report.checks.push('right context files/plan/web-preview keyboard tabs and close/reopen')
-  await rail.getByRole('button', { name: '资源', exact: true }).click()
-  assert.equal(await page.getByRole('menuitem', { name: '项目文件', exact: true }).count(), 0)
-  await page.getByRole('menuitem', { name: '来源', exact: true }).click()
+  // 活动栏的全局“资源”菜单随旧外壳退役；同样的资源页从当前会话的新建标签页打开。
+  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
+  await page.getByRole('button', { name: '新增辅助页面', exact: true }).click()
+  await page.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: '项目文件', exact: true }).count(), 0)
+  await page.getByRole('button', { name: '来源', exact: true }).click()
   await page.getByRole('tab', { name: '来源', exact: true }).waitFor()
   assert.equal(
     await page.getByRole('tab', { name: '来源', exact: true }).getAttribute('aria-selected'),
@@ -893,7 +914,7 @@ try {
   )
   await page.getByRole('button', { name: '关闭辅助页面 · 来源', exact: true }).click()
   await page.getByRole('button', { name: '返回对话', exact: true }).click()
-  report.checks.push('Global resource menu opens a content tab in the focused task')
+  report.checks.push('The focused task opens a sources content tab from its own new-tab page')
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
@@ -1130,10 +1151,8 @@ try {
     .getByText(/正在生成停止测试/)
     .first()
     .waitFor({ timeout: 30000 })
-  await page
-    .getByRole('button', { name: /^正在执行 PI background-run QA / })
-    .locator('svg.animate-spin')
-    .waitFor()
+  // 旧侧栏的会话转圈随外壳退役；运行状态由标题栏舰队计量和看板“运行中”泳道承载。
+  await fleet(1).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   assert.equal(
     await page
@@ -1164,14 +1183,23 @@ try {
     'reasoning remains editable during streaming; selection is staged without mutating the active run',
   )
 
-  await page.getByTestId('workbench-new-task').click()
+  await page.goto(base + '/#/board/new')
+  await page.waitForFunction(
+    (previous) => /^#\/board\/(?!new$)[^/]+$/.test(location.hash) && location.hash !== previous,
+    `#/board/${sessionId}`,
+  )
   await page.getByTestId('workbench-greeting').waitFor()
-  const secondaryId = await page.evaluate(() => localStorage.getItem('pisper-active-session'))
+  const secondaryId = decodeURIComponent(new URL(page.url()).hash.slice('#/board/'.length))
   assert.notEqual(secondaryId, sessionId)
   await api(`/api/sessions/${secondaryId}`, 'PATCH', { name: 'PI draft side-session' })
   await prompt.fill('第二会话未发送草稿')
   assert.equal(report.stopConnectionClosed, false)
-  await page.getByRole('button', { name: /^(正在执行 )?PI background-run QA / }).click()
+  // 回到后台运行中的会话：看板“运行中”泳道的卡片打开会话页。
+  await shellTab('board').click()
+  const backgroundCard = page.locator(`[data-board-card="${sessionId}"]`)
+  await backgroundCard.and(page.locator('[data-lane="running"]')).waitFor({ timeout: 15000 })
+  await backgroundCard.click()
+  await page.waitForFunction((hash) => location.hash === hash, `#/board/${sessionId}`)
   await page
     .getByText(/正在生成停止测试/)
     .first()
@@ -1185,7 +1213,9 @@ try {
   await page.getByRole('button', { name: '撤回消息', exact: true }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: '撤回消息', exact: true }).click()
   await page.waitForFunction(
-    () => document.querySelector('textarea[aria-label="任务描述"]')?.value === '排队与撤回验收',
+    () =>
+      document.querySelector('.focus-composer textarea[aria-label="任务描述"]')?.value ===
+      '排队与撤回验收',
   )
   await prompt.fill('')
   report.checks.push('Enter while streaming queues input; withdrawing restores the draft')
@@ -1206,16 +1236,9 @@ try {
     }, 25)
   })
   assert.equal(report.stopConnectionClosed, true)
-  await page.getByRole('button', { name: /^(未读 )?PI background-run QA / }).waitFor()
-  assert.equal(
-    await page
-      .getByRole('button', { name: /^(未读 )?PI background-run QA / })
-      .locator('svg.animate-spin')
-      .count(),
-    0,
-  )
+  await fleet(0).waitFor({ timeout: 15000 })
   report.checks.push(
-    'Session spinner appears while running and clears after stop; Stop aborts backend run and closes upstream stream',
+    'The title-bar fleet meter counts the run while it streams and clears after stop; Stop aborts backend run and closes upstream stream',
   )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page.waitForFunction(
@@ -1223,16 +1246,30 @@ try {
       document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
         '关闭' && !document.querySelector('[aria-label="当前思考等级"]')?.disabled,
   )
-  assert.equal((await api(`/api/sessions/${sessionId}/thinking-level`)).thinkingLevel, 'off')
+  // 预选由与路由无关的命令队列每 750ms 探测一次运行状态后写入；轮询 API 等它落地。
+  const stagedDeadline = Date.now() + 10000
+  let stagedLevel
+  do {
+    stagedLevel = (await api(`/api/sessions/${sessionId}/thinking-level`)).thinkingLevel
+    if (stagedLevel === 'off') break
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  } while (Date.now() < stagedDeadline)
+  report.stagedReasoningAppliedAfterMs = 10000 - (stagedDeadline - Date.now())
+  assert.equal(stagedLevel, 'off')
   await page.keyboard.press('Escape')
   report.checks.push('staged reasoning survives session switching and is saved after cancellation')
   // 自然完成也应用模型预选；在 PUT 结束前不得启动下一轮。
-  await page.getByRole('button', { name: /^PI draft side-session / }).click()
+  // 草稿会话没有消息，不上看板；经会话链接（同一文档内哈希跳转）切过去。
+  await page.goto(`${base}/#/board/${encodeURIComponent(secondaryId)}`)
   await page.waitForFunction(
-    () => document.querySelector('textarea[aria-label="任务描述"]')?.value === '第二会话未发送草稿',
+    () =>
+      document.querySelector('.focus-composer textarea[aria-label="任务描述"]')?.value ===
+      '第二会话未发送草稿',
   )
   report.checks.push('per-session unsent drafts survive session switching')
-  await page.getByRole('button', { name: /^(正在执行 )?PI background-run QA / }).click()
+  await shellTab('board').click()
+  await backgroundCard.click()
+  await page.waitForFunction((hash) => location.hash === hash, `#/board/${sessionId}`)
   await prompt.fill('defer-model-test [pi-ui-sse]')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await page
@@ -1264,16 +1301,9 @@ try {
   } while (Date.now() < selectionDeadline)
   assert.equal(appliedSelection.model, provider + '-fixed/' + model + '-fixed')
   assert.equal(appliedSelection.thinkingLevel, 'off')
-  await page.getByRole('button', { name: /^(未读 )?PI background-run QA / }).waitFor()
-  assert.equal(
-    await page
-      .getByRole('button', { name: /^(未读 )?PI background-run QA / })
-      .locator('svg.animate-spin')
-      .count(),
-    0,
-  )
-  report.checks.push('Session spinner clears after natural completion even while viewing workflows')
-  await page.goto(base + '/#/chat')
+  await fleet(0).waitFor({ timeout: 15000 })
+  report.checks.push('The fleet meter clears after natural completion even while viewing workflows')
+  await page.goto(`${base}/#/board/${encodeURIComponent(sessionId)}`)
   await page
     .getByRole('heading', { name: '工作流', level: 1, exact: true })
     .waitFor({ state: 'hidden' })
@@ -1363,12 +1393,15 @@ try {
     finishDeferredResponse()
     modelFailureDiagnostic.fixture = { ...activeDeferredFixture }
     await within(modelSaveStarted.promise, 'deferred model save starts')
-    await page.getByRole('button', { name: '发送消息', exact: true }).waitFor({ timeout: 10000 })
+    // 模型切换写入期间，发送键的可访问名称带上等待原因并以 aria-disabled 阻止发送
+    // （982c4705 起的行为；基线在这里按旧名称“发送消息”等待而超时）。
+    const blockedSend = page.getByRole('button', {
+      name: '发送消息: 正在切换模型，请稍候',
+      exact: true,
+    })
+    await blockedSend.waitFor({ timeout: 10000 })
     await prompt.fill('保存失败仍然保留草稿', { timeout: 10000 })
-    assert.equal(
-      await page.getByRole('button', { name: '发送消息', exact: true }).isDisabled(),
-      true,
-    )
+    assert.equal(await blockedSend.isDisabled(), true)
     const requestCount = report.requests
     await prompt.press('Enter', { timeout: 10000 })
     assert.equal(await prompt.inputValue(), '保存失败仍然保留草稿')
@@ -1482,7 +1515,8 @@ try {
     ['/skills', 'skills', '技能'],
     ['/memory', 'memory', '星忆'],
     ['/channels', 'channels', '渠道'],
-    ['/components', 'config', '界面设置', 'interface-custom-ui'],
+    ['/components', 'components', '组件'],
+    ['/more', 'more', '更多'],
     ...[
       ['models', 'models-connections', '模型配置'],
       ['notifications', 'notifications-browser', '通知设置'],
@@ -1518,113 +1552,87 @@ try {
     assert.equal(await page.locator('main h1').first().innerText(), heading)
     report.routes.push({ route, heading, resolvedHash: new URL(page.url()).hash })
   }
-  report.checks.push('all 20 release feature/configuration routes render without a React error')
+  report.checks.push('all 21 release feature/configuration routes render without a React error')
   await verifyPageTemplates({ page, base, api, workspace, output, report })
-  await page.goto(base + '/#/chat')
+  // 新外壳的布局切换：桌面（含窄到 651px 的窗口）由 48px 标题栏承载一级导航，
+  // 手机宽度换成底部标签栏；切换与刷新都不丢会话草稿，设置标签点亮“设置”。
+  await page.goto(base + '/#/board/new')
+  await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
+  const layoutHash = new URL(page.url()).hash
   await prompt.waitFor()
-  await prompt.fill('layout and sidebar draft')
-  const sidebar = page.locator('[data-slot="sidebar"][data-state]')
-  assert.equal(await sidebar.getAttribute('data-state'), 'expanded')
-  const collapseSidebar = page.getByRole('button', { name: '收起侧栏', exact: true })
-  const expandSidebar = page.getByRole('button', { name: '展开侧栏', exact: true })
-  assert.equal(await collapseSidebar.count(), 1)
-  await collapseSidebar.press('Enter')
-  await page.waitForFunction(
-    () =>
-      document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
-        'collapsed' && document.activeElement?.id === 'workbench-sidebar-toggle',
-  )
-  assert.equal(await expandSidebar.getAttribute('aria-expanded'), 'false')
+  await prompt.fill('layout and titlebar draft')
   const desktopViewport = page.viewportSize()
-  await page.waitForFunction(
-    () => document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 0,
-  )
-  assert.equal(await rail.isVisible(), true)
-  assert.equal(await nav.evaluate((el) => Boolean(el.closest('[inert]'))), true)
-  await page.setViewportSize({ width: desktopViewport.width, height: 400 })
-  assert.ok(
-    await expandSidebar.evaluate((el) => {
-      const bounds = el.getBoundingClientRect()
-      return bounds.top >= 0 && bounds.bottom <= window.innerHeight
-    }),
-  )
-  await page.setViewportSize(desktopViewport)
-  for (const width of [800, 651]) {
+  for (const width of [1080, 800, 651]) {
     await page.setViewportSize({ width, height: 700 })
-    await page.waitForFunction(
-      () =>
-        document.querySelector('[data-slot="sidebar-gap"]')?.getBoundingClientRect().width === 0,
+    await titlebar.waitFor()
+    assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      true,
+      `${width}px title bar must not overflow the window`,
     )
-    assert.equal(await rail.isVisible(), true, `${width}px must keep the permanent rail`)
-    assert.equal(await page.locator('[data-slot="sidebar"][data-mobile="true"]').count(), 0)
-    for (const name of ['工作台与项目', '资源', '自动化', '扩展', '设置']) {
-      const bounds = await rail.getByRole('button', { name, exact: true }).boundingBox()
-      assert.ok(bounds && bounds.width >= 44 && bounds.height >= 44)
+    for (const tab of ['board', 'components', 'more', 'settings']) {
+      const bounds = await shellTab(tab).boundingBox()
+      assert.ok(
+        bounds && bounds.height >= 28 && bounds.x >= 0 && bounds.x + bounds.width <= width,
+        `${tab} tab stays reachable at ${width}px: ${JSON.stringify(bounds)}`,
+      )
     }
   }
   await page.setViewportSize({ width: 650, height: 700 })
-  await sidebar.waitFor({ state: 'hidden' })
-  await expandSidebar.waitFor()
+  await page.getByTestId('mobile-tab-bar').waitFor()
+  assert.equal(await titlebar.count(), 0)
+  assert.equal(
+    await page.evaluate(() => document.documentElement.hasAttribute('data-phone-shell')),
+    true,
+  )
+  assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
   await page.setViewportSize(desktopViewport)
-  await sidebar.waitFor({ state: 'attached' })
-  assert.equal(await nav.evaluate((el) => Boolean(el.closest('[inert]'))), true)
-  await rail.getByRole('button', { name: '扩展', exact: true }).click()
-  await page.getByRole('menu').waitFor()
-  await page.keyboard.press('Escape')
-  await rail.getByRole('button', { name: '设置', exact: true }).click()
+  await titlebar.waitFor()
+  assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
+  await shellTab('settings').click()
   await page.waitForURL('**/#/config/models')
-  assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
-  await rail.getByRole('button', { name: '工作台与项目', exact: true }).click()
-  await page.getByRole('menuitem', { name: '会话', exact: true }).click()
+  await titlebar.locator('[data-shell-tab="settings"][aria-current="page"]').waitFor()
+  await page.goto(base + '/' + layoutHash)
   await prompt.waitFor()
-  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+  assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
+  await titlebar.locator('[data-shell-tab="board"][aria-current="page"]').waitFor()
   await page.reload()
-  await expandSidebar.waitFor()
-  assert.equal(await sidebar.getAttribute('data-state'), 'collapsed')
-  // 草稿按既有契约只在内存保留；刷新仅检查折叠偏好，重建草稿验证后续布局切换。
-  await prompt.fill('layout and sidebar draft')
+  await titlebar.waitFor()
+  await prompt.waitFor()
+  // 草稿按既有契约只在内存保留；刷新后重建草稿，验证后续布局切换。
+  await prompt.fill('layout and titlebar draft')
   await page.setViewportSize({ width: 390, height: 844 })
   const preservedContextSheet = page.locator('[data-slot="sheet-content"]')
   if (await preservedContextSheet.isVisible()) {
     await page.keyboard.press('Escape')
     await preservedContextSheet.waitFor({ state: 'hidden' })
   }
-  await sidebar.waitFor({ state: 'hidden' })
-  await expandSidebar.click()
-  const mobileSidebar = page.locator('[data-slot="sidebar"][data-mobile="true"]')
-  await mobileSidebar.waitFor()
-  // 手机端由底部标签栏取代功能栏，抽屉从屏幕左缘展开。
-  await page.waitForFunction(() => {
-    const el = document.querySelector('[data-slot="sidebar"][data-mobile="true"]')
-    return el && el.getBoundingClientRect().x === 0
-  })
-  assert.equal(await rail.count(), 0)
+  await page.getByTestId('mobile-tab-bar').waitFor()
   assert.equal(await page.getByTestId('mobile-tab-bar').isVisible(), true)
-  assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
-  await mobileSidebar.waitFor({ state: 'hidden' })
+  assert.equal(await titlebar.count(), 0)
   await page.setViewportSize(desktopViewport)
-  await sidebar.waitFor({ state: 'attached' })
-  await expandSidebar.waitFor()
-  await expandSidebar.press('Enter')
-  await page.waitForFunction(
-    () =>
-      document.querySelector('[data-slot="sidebar"][data-state]')?.getAttribute('data-state') ===
-        'expanded' && document.activeElement?.id === 'workbench-sidebar-toggle',
-  )
-  assert.equal(await collapseSidebar.getAttribute('aria-expanded'), 'true')
-  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+  await titlebar.waitFor()
+  assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
   report.checks.push(
-    'Activity rail stays visible down to 651px and phones switch to the bottom tab bar; hidden project sidebar uses zero width, mobile drawer opens from the screen edge and closes one layer through native back, preferences and draft survive keyboard toggling and reload',
+    'The title bar keeps all four tabs reachable without overflow down to 651px and phones switch to the bottom tab bar; the session draft survives layout switching, settings navigation and the round trip back',
   )
+  // 独立组件已迁到“组件”标签：旧的 ?view=widgets 链接直达组件页，聊天布局切换器不再出现。
   await page.goto(base + '/#/config/interface?view=widgets')
-  await page.locator('[data-config-card="interface-custom-ui"]').waitFor()
+  await page.waitForURL('**/#/components')
+  await page.locator('.page-content.page-components').waitFor()
+  await titlebar.locator('[data-shell-tab="components"][aria-current="page"]').waitFor()
   assert.equal(await page.getByRole('tab', { name: '会话布局' }).count(), 0)
+  // 旧的 /chat 入口回到看板；会话草稿仍在原会话里。
   await page.goto(base + '/#/chat')
+  await page.waitForURL('**/#/board')
+  await page.locator('[data-board-root]').waitFor()
+  await page.goto(base + '/' + layoutHash)
   await prompt.waitFor()
-  assert.equal(await prompt.inputValue(), 'layout and sidebar draft')
+  assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
   assert.equal(await page.getByRole('button', { name: '会话布局' }).count(), 0)
   report.checks.push(
-    'Custom component settings remain available without the removed layout editor or chat layout switcher, and navigation preserves the chat draft',
+    'Old widget-settings links open the Components tab, /chat returns to the board, the removed chat layout switcher stays absent and navigation preserves the chat draft',
   )
 
   await verifyRemoteWorkspaceSettings({ browser, base, report, output })

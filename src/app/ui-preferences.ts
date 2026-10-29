@@ -24,12 +24,15 @@ export type UiPreferenceAttributes = {
 const CUSTOM_ACCENT_STYLE_ID = 'pisper-custom-accent-style'
 
 const UI_SIZE_ROLES = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'] as const
+// 14px 基准下各角色字号：元信息 / 密集控件 / 卡片标题 / 面板 h1 / 桌面页 h1 / 手机 h1 / 数字主值。
+// 大号收在 28 以内，界面靠字重和细线分层，而不是放大标题。
+const UI_SIZE_BASE = [12, 13, 14, 16, 20, 24, 28] as const
 
 export function uiTextSizes(scale: FontScale | number): number[] {
   const { uiFontSize } = normalizeTypographyPreferences(
     typeof scale === 'number' ? { uiFontSize: scale } : { fontScale: scale },
   )
-  return [12, 13, 14, 16, 28, 36, 48].map((size) => Math.round((size * uiFontSize) / 14))
+  return UI_SIZE_BASE.map((size) => Math.round((size * uiFontSize) / 14))
 }
 
 export function resolveDarkTheme(

@@ -65,7 +65,9 @@ function McpMetric({
     <div className="metric flex min-w-0 flex-col gap-1 px-3.5 py-3 max-[650px]:px-3">
       <small className="truncate text-xs text-content-muted">{label}</small>
       <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
-        <strong className="text-xl leading-7 font-medium text-content tabular-nums">{value}</strong>
+        <strong className="text-3xl leading-7 font-medium text-content tabular-nums">
+          {value}
+        </strong>
         <span className="truncate text-xs text-content-muted tabular-nums">{note}</span>
       </span>
     </div>

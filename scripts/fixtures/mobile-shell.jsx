@@ -187,6 +187,13 @@ function SidebarFixture() {
     </QueryClientProvider>
   )
 }
+// 资产页（982c4705 起）经 React Query 读取列表；应用壳始终提供 QueryClient，夹具同样提供。
 createRoot(document.getElementById('root')).render(
-  location.search === '?sidebar' ? <SidebarFixture /> : <Fixture />,
+  location.search === '?sidebar' ? (
+    <SidebarFixture />
+  ) : (
+    <QueryClientProvider client={queryClient}>
+      <Fixture />
+    </QueryClientProvider>
+  ),
 )

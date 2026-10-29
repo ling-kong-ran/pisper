@@ -1,10 +1,17 @@
 // Web 预览提供器：拦截跨源链接点击（不携带修饰键/非下载），
 // 通过事件把链接交给预览面板打开；同源链接正常导航。
+// 预览落在会话页检查器的网页预览页：不在会话页时带着请求跳到最近的活动会话，
+// 请求随 localStorage 保留到会话页挂载时补开。没有有效的活动会话（从没打开过、已删除或已归档）时
+// 不为了显示网页去新建空会话，直接在外部浏览器打开。
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { pagePath } from '@/app/routes'
+import { pageFromPath, sessionPath } from '@/app/routes'
+import { STORAGE_KEYS } from '@/app/storage'
 import { requestWebPreview } from '@/features/chat/web-preview-events'
+import { pageStateStorage } from '@/lib/page-state-storage'
+import { queryClient, SESSIONS_QUERY_KEY } from '@/lib/startup-queries'
 import { shouldOpenWebPreview } from '@/lib/web-preview'
+import { previewSessionTarget, type CachedSessions } from './web-preview-target'
 
 export function WebPreviewProvider() {
   const location = useLocation()
@@ -30,8 +37,20 @@ export function WebPreviewProvider() {
       if (!url) return
       event.preventDefault()
       event.stopPropagation()
+      if (pageFromPath(location.pathname) === 'session') {
+        requestWebPreview(url)
+        return
+      }
+      const sessionId = previewSessionTarget(
+        pageStateStorage.getItem(STORAGE_KEYS.activeSession),
+        queryClient.getQueryData<CachedSessions>(SESSIONS_QUERY_KEY),
+      )
+      if (!sessionId) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+        return
+      }
       requestWebPreview(url)
-      if (location.pathname !== pagePath('chat')) navigate(pagePath('chat'))
+      navigate(sessionPath(sessionId))
     }
 
     document.addEventListener('click', captureExternalLink, true)

@@ -1,6 +1,8 @@
 // 会话目录 hook：拉取/刷新会话列表，维护会话状态缓存（含实时流），
 // 处理会话树的展开与定位，并负责新会话的创建（含工作区分组）。
-import { useQueryClient } from '@tanstack/react-query'
+// 会话列表不再由本 hook 持有：sessions 是权威缓存 ['sessions','board'] 的镜像（看板同步负责轮询），
+// 本地写入经 setQueryData 回到同一份缓存；sessionStates（转录与流状态）仍按会话由聊天视图持有。
+import { hashKey, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { APP_NAME } from '@/app/brand'
 import { STORAGE_KEYS } from '@/app/storage'
@@ -15,7 +17,7 @@ import type { SessionStateUpdate } from '@/lib/session-state'
 import { planFromPayloadOr } from '@/lib/plan-protocol'
 import type { Notify } from '@/app/route-context'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
-import { chatApi } from './chat-api'
+import { chatApi, SESSIONS_QUERY_KEY } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import {
   announceActiveSession,
@@ -33,8 +35,11 @@ import {
 } from './session-list'
 
 export const FOCUS_MESSAGE_PAGE_SIZE = 40
+// 前台恢复时本机 Runtime 可能短暂返回空目录；之后这段时间内镜像不接受空快照。
+const RECOVERY_EMPTY_GRACE_MS = 10_000
 
 type SessionsUpdate = SessionSummary[] | ((current: SessionSummary[]) => SessionSummary[])
+type SessionCatalogData = { sessions: SessionSummary[] }
 
 type SessionCatalogOptions = {
   notify: Notify
@@ -64,16 +69,50 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const creatingSessionRef = useRef<Promise<string> | null>(null)
   const retainedSessionStatesRef = useRef(new Map<string, number>())
   const discardedSessionStatesRef = useRef(new Set<string>())
+  // 恢复期刷新时暂停“缓存 → 镜像”，先用刷新前的镜像判断服务端是否只是暂时返回空目录。
+  const mirrorHoldsRef = useRef(0)
+  const preserveNonEmptyUntilRef = useRef(0)
   const [titleReconciler] = useState(createSessionTitleReconciler)
 
-  // 更新会话列表（函数式或替换），同步 ref 与 state。
-  const updateSessions = useCallback((update: SessionsUpdate) => {
-    const current = sessionsRef.current
-    const next = typeof update === 'function' ? update(current) : update
-    sessionsRef.current = next
-    setSessions(next)
-    return next
-  }, [])
+  // 更新会话列表（函数式或替换）：先写回权威缓存让侧栏、看板看到同一份目录，再同步镜像。
+  // 缓存还没有快照时不凭空创建，避免把局部列表当成新鲜的完整目录交给其他读者；
+  // 结构共享在内容未变时保留旧引用，镜像据此跳过无谓的重渲染。
+  const updateSessions = useCallback(
+    (update: SessionsUpdate) => {
+      const current = sessionsRef.current
+      const next = typeof update === 'function' ? update(current) : update
+      if (next === current) return next
+      const stored = queryClient.setQueryData<SessionCatalogData>(SESSIONS_QUERY_KEY, (data) =>
+        data ? { ...data, sessions: next } : undefined,
+      )
+      const mirrored = stored?.sessions ?? next
+      if (mirrored !== sessionsRef.current) {
+        sessionsRef.current = mirrored
+        setSessions(mirrored)
+      }
+      return mirrored
+    },
+    [queryClient],
+  )
+
+  // 缓存 → 镜像：订阅同步触发，保证 sessionsRef 与缓存一致后再被函数式更新读取。
+  const syncSessionsMirror = useCallback(() => {
+    if (mirrorHoldsRef.current) return
+    const cached = queryClient.getQueryData<SessionCatalogData>(SESSIONS_QUERY_KEY)?.sessions
+    if (!Array.isArray(cached) || cached === sessionsRef.current) return
+    if (cached.length) preserveNonEmptyUntilRef.current = 0
+    else if (sessionsRef.current.length && Date.now() < preserveNonEmptyUntilRef.current) return
+    sessionsRef.current = cached
+    setSessions(cached)
+  }, [queryClient])
+
+  useEffect(() => {
+    syncSessionsMirror()
+    const sessionsHash = hashKey(SESSIONS_QUERY_KEY)
+    return queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'updated' && event.query.queryHash === sessionsHash) syncSessionsMirror()
+    })
+  }, [queryClient, syncSessionsMirror])
 
   useEffect(() => {
     return subscribeSessionTitleUpdates(window, (titleUpdate) => {
@@ -106,7 +145,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       )
       if (changedActivity.length) {
         const changed = new Set(changedActivity)
-        queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (catalog) =>
+        queryClient.setQueryData<SessionCatalogData>(SESSIONS_QUERY_KEY, (catalog) =>
           catalog
             ? {
                 ...catalog,
@@ -233,11 +272,27 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const refreshSessions = useCallback(
     async (preferredId?: string, { preserveExistingOnEmpty = false } = {}) => {
       const titleRevision = titleReconciler.getRevision()
-      const data = await chatApi.listSessions()
-      const nextSessions =
-        preserveExistingOnEmpty && !data.sessions.length && sessionsRef.current.length
+      // 请求落地时缓存会同步收到服务端原始快照；恢复期先冻结镜像，空目录不能抢先覆盖已有会话。
+      if (preserveExistingOnEmpty) mirrorHoldsRef.current += 1
+      let nextSessions: SessionSummary[]
+      try {
+        const data = await chatApi.listSessions()
+        const preserve = Boolean(
+          preserveExistingOnEmpty && !data.sessions.length && sessionsRef.current.length,
+        )
+        // 刷新结束后的失效重读和轮询可能仍拿到空目录，短暂窗口内继续保留已有会话。
+        if (preserve) preserveNonEmptyUntilRef.current = Date.now() + RECOVERY_EMPTY_GRACE_MS
+        nextSessions = preserve
           ? sessionsRef.current
           : titleReconciler.reconcile(data.sessions, titleRevision)
+      } finally {
+        if (preserveExistingOnEmpty) {
+          mirrorHoldsRef.current -= 1
+          // 冻结期间被忽略的其他更新在这里补齐；成功路径随后还会写回最终目录。
+          syncSessionsMirror()
+        }
+      }
+      // 保留旧目录时镜像未变，不写缓存：其他读者照常显示服务端快照，只有会话页保留页签。
       updateSessions(nextSessions)
       if (preferredId) setActiveId(preferredId)
       else
@@ -249,7 +304,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       announceSessionsUpdated()
       return nextSessions
     },
-    [titleReconciler, updateSessions],
+    [syncSessionsMirror, titleReconciler, updateSessions],
   )
 
   // 创建会话记录：按调用方决定是否继承最近会话的工作目录；

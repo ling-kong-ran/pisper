@@ -1,6 +1,9 @@
 // 历史会话页：搜索完整会话目录并分批展示，支持继续打开和管理。
 // 列表按置顶/今天/近 7 天/更早分组；桌面每组是一张细线卡片，手机为平铺列表与内缩分隔线。
+// 会话目录只有一个权威所有者（['sessions','board'] 缓存，由看板同步每 3 秒刷新）：本页只读这份缓存，
+// 写操作把服务端确认的结果写回缓存，不再保留第二份本地列表，也不自带轮询。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Archive,
   ArchiveRestore,
@@ -33,16 +36,18 @@ import {
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
-import { fetchStartupQuery } from '@/lib/startup-queries'
+import {
+  fetchStartupQuery,
+  queryClient,
+  SESSIONS_QUERY_KEY,
+  startupQueryOptions,
+} from '@/lib/startup-queries'
 import type { SessionSummary } from '@/types/chat'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
-  SESSIONS_UPDATED_EVENT,
   announceActiveSession,
   announceSessionsUpdated,
   requestSessionSelection,
-  sessionDeletionUpdateFromEvent,
-  sessionOrganizationUpdateFromEvent,
 } from './events'
 import {
   HISTORY_BATCH_SIZE,
@@ -57,6 +62,15 @@ import {
   type SessionOrganizationPatch,
 } from './session-organization-api'
 import { SessionChangeIndicator } from './SessionChangeIndicator'
+
+type SessionsData = { sessions?: SessionSummary[] }
+
+// 写回权威缓存：与看板、聊天目录读到的是同一份列表，下一轮轮询以服务端快照为准。
+function writeSessions(update: (sessions: SessionSummary[]) => SessionSummary[]) {
+  queryClient.setQueryData<SessionsData>(SESSIONS_QUERY_KEY, (current) =>
+    current ? { ...current, sessions: update(current.sessions || []) } : current,
+  )
+}
 
 type ChatHistoryPageProps = {
   query: string
@@ -74,18 +88,28 @@ export function ChatHistoryPage({
   requestText,
 }: ChatHistoryPageProps) {
   const { t, language } = useI18n()
-  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const sessionsQuery = useQuery(startupQueryOptions<SessionsData>('sessions'))
+  const sessions = useMemo(
+    () => orderVisibleSessions(sessionsQuery.data?.sessions || []),
+    [sessionsQuery.data],
+  )
   const [historyView, setHistoryView] = useState<HistoryView>('active')
   const filterKey = `${historyView}\0${query}`
   const [pageLimit, setPageLimit] = useState({ filterKey, count: HISTORY_BATCH_SIZE })
-  const loadGenerationRef = useRef(0)
   const completedBatchFocusRef = useRef(false)
   const completedBatchStatusRef = useRef<HTMLParagraphElement>(null)
   const [activeId, setActiveId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
-  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const loading = sessionsQuery.isPending || refreshing
+  const listError =
+    sessionsQuery.error && !sessionsQuery.data
+      ? sessionsQuery.error instanceof Error
+        ? sessionsQuery.error.message
+        : String(sessionsQuery.error)
+      : ''
 
   useEffect(() => {
     setPageLimit((current) =>
@@ -95,21 +119,16 @@ export function ChatHistoryPage({
     )
   }, [filterKey])
 
-  const load = useCallback(async (silent = false) => {
-    const generation = ++loadGenerationRef.current
-    if (!silent) {
-      setLoading(true)
-      setError('')
-    }
+  // 手动刷新：与轮询共用同一个在途请求和同一份缓存。
+  const load = useCallback(async () => {
+    setRefreshing(true)
+    setError('')
     try {
-      const data = await fetchStartupQuery<{ sessions?: SessionSummary[] }>('sessions', true)
-      if (generation !== loadGenerationRef.current) return
-      setSessions(orderVisibleSessions(data.sessions || []))
+      await fetchStartupQuery<SessionsData>('sessions', true)
     } catch (caught) {
-      if (generation === loadGenerationRef.current)
-        setError(caught instanceof Error ? caught.message : String(caught))
+      setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
-      if (generation === loadGenerationRef.current) setLoading(false)
+      setRefreshing(false)
     }
   }, [])
 
@@ -121,44 +140,15 @@ export function ChatHistoryPage({
   }, [t])
 
   useEffect(() => {
-    void load()
-    const refresh = (event: Event) => {
-      const deletion = sessionDeletionUpdateFromEvent(event)
-      if (deletion) {
-        const deleted = new Set(deletion.deletedIds)
-        setSessions((current) => current.filter((session) => !deleted.has(session.id)))
-      }
-      const organization = sessionOrganizationUpdateFromEvent(event)
-      if (organization)
-        setSessions((current) => applySessionOrganizationUpdate(current, organization))
-      void load(true)
-    }
     const syncActive = (event: Event) =>
       setActiveId(
         (event as CustomEvent<{ id?: string }>).detail?.id ||
           pageStateStorage.getItem(STORAGE_KEYS.activeSession) ||
           '',
       )
-    window.addEventListener(SESSIONS_UPDATED_EVENT, refresh)
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
-    return () => {
-      window.removeEventListener(SESSIONS_UPDATED_EVENT, refresh)
-      window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
-    }
-  }, [load])
-
-  // 会话可在聊天页之外由后台任务结算；历史页停留期间定期读取真实状态。
-  useEffect(() => {
-    const refreshVisible = () => {
-      if (document.visibilityState === 'visible') void load(true)
-    }
-    const timer = window.setInterval(refreshVisible, 20_000)
-    document.addEventListener('visibilitychange', refreshVisible)
-    return () => {
-      window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', refreshVisible)
-    }
-  }, [load])
+    return () => window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
+  }, [])
 
   // 搜索先覆盖完整目录，再限制挂载行数；切换搜索词立即回到首批结果。
   const visibleCount = pageLimit.filterKey === filterKey ? pageLimit.count : HISTORY_BATCH_SIZE
@@ -205,7 +195,7 @@ export function ChatHistoryPage({
           body: JSON.stringify({ name }),
         },
       )
-      setSessions((current) =>
+      writeSessions((current) =>
         current.map((item) => (item.id === session.id ? { ...item, name: updated.name } : item)),
       )
       announceSessionsUpdated({ id: session.id, name: updated.name })
@@ -222,7 +212,7 @@ export function ChatHistoryPage({
   ) => {
     try {
       const updated = await updateSessionOrganization(session.id, patch)
-      setSessions((current) => applySessionOrganizationUpdate(current, updated))
+      writeSessions((current) => applySessionOrganizationUpdate(current, updated))
       notify(message)
     } catch (caught) {
       setError(
@@ -247,7 +237,7 @@ export function ChatHistoryPage({
     try {
       await apiJson(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' })
       const remaining = sessions.filter((item) => item.id !== session.id)
-      setSessions(remaining)
+      writeSessions((current) => current.filter((item) => item.id !== session.id))
       if (activeId === session.id) {
         const nextId = remaining[0]?.id || ''
         setActiveId(nextId)
@@ -345,7 +335,7 @@ export function ChatHistoryPage({
           </Button>
         </div>
       </div>
-      {error && <AppError>{error}</AppError>}
+      {(error || listError) && <AppError>{error || listError}</AppError>}
       {loading && !sessions.length ? (
         <PageState kind="loading" title={t('chat:chatHistoryPage.loadingChatHistory')} />
       ) : visible.total ? (

@@ -1,40 +1,18 @@
-// 侧边栏导航与页面元信息（标题/描述）的集中定义，翻译由调用方注入。
-// 用数组而非对象保持分组顺序稳定；getPageMeta 供文档标题与路由描述使用。
-import { CalendarClock, FolderOpen, MessageSquare, Workflow, type LucideIcon } from 'lucide-react'
+// 页面元信息（标题/描述）的集中定义，翻译由调用方注入；getPageMeta 供页头与文档标题使用。
+// 命令面板的页面分组（带图标）在 palette-navigation.ts，随命令面板按需加载，不进入启动包。
+import type { LucideIcon } from 'lucide-react'
 import type { PageId } from './routes'
-import {
-  LEGACY_RUNTIME_CAPABILITIES,
-  runtimePageAvailable,
-  type RuntimeCapabilities,
-} from '@/types/runtime-capabilities'
 
 export type Translate = (message: string, values?: Record<string, unknown>) => string
 export type Navigation = Array<[string, Array<[PageId, string, LucideIcon]>]>
 export type PageMeta = readonly [string, string]
 
-// 应用导航分组：目前只有“应用”一组（聊天/资源/工作流/计划），
-// 数组保持顺序稳定，图标由调用方渲染。
-export function getNavigation(
-  t: Translate = (value) => value,
-  capabilities: RuntimeCapabilities = LEGACY_RUNTIME_CAPABILITIES,
-): Navigation {
-  const items: Navigation[number][1] = [
-    ['chat', t('navigation:navigation.chat'), MessageSquare],
-    ['assets', t('navigation:navigation.assets'), FolderOpen],
-    ['workflows', t('navigation:navigation.workflows'), Workflow],
-    ['schedules', t('navigation:navigation.schedules'), CalendarClock],
-  ]
-  return [
-    [
-      t('navigation:navigation.app'),
-      items.filter(([page]) => runtimePageAvailable(capabilities, page)),
-    ],
-  ]
-}
-
 // 页面元信息（标题/描述）表：供页头与文档标题使用，全部翻译化。
 export function getPageMeta(t: Translate = (value) => value): Record<PageId, PageMeta> {
   return {
+    board: [t('navigation:shell.board'), t('navigation:shell.boardDescription')],
+    session: [t('navigation:navigation.chat'), ''],
+    more: [t('navigation:shell.more'), t('navigation:shell.moreDescription')],
     chat: [t('navigation:navigation.chat'), t('navigation:navigation.chatDescription')],
     chatHistory: [
       t('navigation:navigation.chatHistory'),
@@ -52,7 +30,7 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
     mcp: [t('navigation:navigation.mcp'), t('navigation:navigation.mcpDescription')],
     skills: [t('navigation:navigation.skills'), t('navigation:navigation.skillsDescription')],
     components: [
-      t('navigation:navigation.components'),
+      t('navigation:shell.components'),
       t('navigation:navigation.componentsDescription'),
     ],
     workflows: [

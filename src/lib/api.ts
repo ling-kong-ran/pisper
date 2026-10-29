@@ -1,3 +1,4 @@
+import { abortReason, throwIfAborted } from '@/lib/abort-signal'
 import { readHttpError } from '@/lib/http-response'
 import { ApiError, requestJson, type HttpRequestOptions } from './http.ts'
 
@@ -108,6 +109,9 @@ type StreamResumeOptions<T> = {
   onEvent: (event: string, data: T) => boolean | void
   maxAttempts?: number
   baseDelayMs?: number
+  // 所有者停止消费时中断：不再重挂、不再等待退避；open/resume 自己负责把它交给 fetch。
+  // Runtime 侧的 run 与连接解耦，中断消费不会停止运行。
+  signal?: AbortSignal
 }
 
 const STREAM_RESUME_MAX_ATTEMPTS = 5
@@ -122,12 +126,32 @@ const STREAM_RESUME_BASE_DELAY_MS = 400
 // 干净 EOF 没有终态帧也按传输中断处理。
 const STREAM_ENDED_BEFORE_TERMINAL_ERROR = 'SSE 流在终态事件前结束'
 
+// 重挂退避同样响应中断，并清掉定时器，避免所有者释放后仍留下待触发的等待。
+function resumeBackoff(delayMs: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal))
+      return
+    }
+    const aborted = () => {
+      clearTimeout(timer)
+      if (signal) reject(abortReason(signal))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', aborted)
+      resolve()
+    }, delayMs)
+    signal?.addEventListener('abort', aborted, { once: true })
+  })
+}
+
 export async function streamEventsWithResume<T = Record<string, unknown>>({
   open,
   resume,
   onEvent,
   maxAttempts = STREAM_RESUME_MAX_ATTEMPTS,
   baseDelayMs = STREAM_RESUME_BASE_DELAY_MS,
+  signal,
 }: StreamResumeOptions<T>): Promise<void> {
   let runId = ''
   let cursor = 0
@@ -168,9 +192,10 @@ export async function streamEventsWithResume<T = Record<string, unknown>>({
 
   let attempts = 0
   for (;;) {
+    throwIfAborted(signal)
     attempts += 1
     if (attempts > maxAttempts) throw transportError ?? new Error('流式连接中断且重挂失败')
-    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** (attempts - 1)))
+    await resumeBackoff(baseDelayMs * 2 ** (attempts - 1), signal)
     const cursorBefore = cursor
     try {
       await handleResponse(await resume(runId, cursor))

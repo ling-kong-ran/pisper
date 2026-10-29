@@ -44,6 +44,7 @@ export const LANGUAGE_OPTIONS = [
 
 export const I18N_NAMESPACES = Object.freeze([
   'assets',
+  'board',
   'channels',
   'common',
   'navigation',
@@ -179,6 +180,23 @@ export function translateText(
   values?: I18nValues,
 ): string {
   return i18n.getFixedT(language)(message, values)
+}
+
+// 看板页与派发浮层的文案随看板路由加载；标题栏、更多页等外壳文案在常驻的 navigation 命名空间里。
+let boardMessagesPromise: Promise<void> | null = null
+export function ensureBoardMessages(): Promise<void> {
+  if (i18n.hasResourceBundle('zh-CN', 'board') && i18n.hasResourceBundle('en-US', 'board'))
+    return Promise.resolve()
+  boardMessagesPromise ??= import('./board-messages')
+    .then(({ boardMessages: { zh, en } }) => {
+      i18n.addResourceBundle('zh-CN', 'board', zh)
+      i18n.addResourceBundle('en-US', 'board', en)
+    })
+    .catch((error: unknown) => {
+      boardMessagesPromise = null
+      throw error
+    })
+  return boardMessagesPromise
 }
 
 // 工作流文案随页面加载，图片算法与输入编辑器不占用会话首屏预算。

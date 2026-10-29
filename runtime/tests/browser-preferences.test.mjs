@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,6 +11,7 @@ import {
 } from '../../shared/browser-preferences.mjs'
 import { BrowserPreferencesService } from '../services/browser-preferences-service.mjs'
 import { handleLocalBrowserPreferences } from '../http/local-browser-preferences.mjs'
+import { STORAGE_KEYS } from '../../src/app/storage.ts'
 
 test('browser preferences survive a runtime restart and concurrent writes', async (t) => {
   const dataDir = await mkdtemp(join(tmpdir(), 'pisper-browser-preferences-'))
@@ -220,4 +221,56 @@ test('local preference HTTP endpoint restores the same state on a new loopback p
   )
   assert.equal(restored.values['pisper-session-context-layout'], '{"state":{"open":true}}')
   assert.equal(restored.values['pisper-ui'], escaped)
+})
+
+async function sourceFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true })
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const target = join(directory, entry.name)
+      if (entry.isDirectory()) return sourceFiles(target)
+      return /\.tsx?$/.test(entry.name) ? [target] : []
+    }),
+  )
+  return nested.flat()
+}
+
+test('every persisted UI store and shortcut table is registered for restart sync', async () => {
+  // 本机 Runtime 端口每次启动都会变，未登记的偏好重启后就丢了；新键必须先登记到共享白名单。
+  const names = []
+  for (const file of await sourceFiles('src')) {
+    const source = await readFile(file, 'utf8')
+    if (!/\bpersist\s*[<(]/.test(source)) continue
+    for (const [, literal, constant] of source.matchAll(
+      /^\s+name: (?:'([^']+)'|([A-Z][A-Z_]+)),$/gm,
+    )) {
+      const value = literal ?? source.match(new RegExp(`export const ${constant} = '([^']+)'`))?.[1]
+      assert.ok(value, `${file} persists under an unresolved name ${constant}`)
+      names.push(value)
+    }
+  }
+  assert.ok(names.includes('pisper-board-view'))
+  assert.ok(names.includes('pisper-launch-defaults'))
+  for (const key of [...names, STORAGE_KEYS.shortcuts, STORAGE_KEYS.boardShortcuts])
+    assert.ok(BROWSER_PREFERENCE_KEYS.includes(key), `${key} is not a registered preference`)
+  assert.equal(STORAGE_KEYS.boardShortcuts, 'pisper-board-shortcuts')
+
+  // 看板偏好只经 page-state-storage 落盘（未登记的键在那里直接报错），不直接写浏览器存储。
+  const [boardStorage, ...boardSources] = await Promise.all([
+    readFile('src/features/board/board-preference-storage.ts', 'utf8'),
+    ...(await sourceFiles('src/features/board')).map((file) => readFile(file, 'utf8')),
+  ])
+  assert.match(boardStorage, /pageStateStorage\.setItem\(name, value\)/)
+  for (const source of boardSources) assert.doesNotMatch(source, /\b(?:local|session)Storage\b/)
+  for (const store of ['board-view-store.ts', 'launch-defaults-store.ts'])
+    assert.match(
+      await readFile(`src/features/board/${store}`, 'utf8'),
+      /storage: boardPreferenceStorage</,
+      store,
+    )
+  const shortcuts = await readFile('src/stores/shortcut-store.ts', 'utf8')
+  assert.match(
+    shortcuts,
+    /pageStateStorage\.setItem\(STORAGE_KEYS\.boardShortcuts, JSON\.stringify\(boardBindings\)\)/,
+  )
 })

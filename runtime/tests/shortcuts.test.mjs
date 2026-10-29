@@ -38,6 +38,12 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'focusComposer',
     'sendMessage',
     'voiceInput',
+    // 新外壳的一级标签与并行感知动作追加在末尾，旧动作的顺序和默认键不变。
+    'openBoard',
+    'openComponents',
+    'openMore',
+    'jumpToAttention',
+    'backToBoard',
   ])
   assert.deepEqual(Object.values(DEFAULT_SHORTCUTS), [
     'Mod+KeyK',
@@ -49,6 +55,11 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'Mod+Shift+KeyL',
     'Enter',
     'F8',
+    'Mod+Digit1',
+    'Mod+Digit2',
+    'Mod+Digit3',
+    'Alt+KeyA',
+    'Mod+BracketLeft',
   ])
   assert.deepEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
   assert.notEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
@@ -227,9 +238,17 @@ test('bare typing and navigation keys are reserved with action-specific Enter an
   invalid(bindingsWith('voiceInput', 'Slash'))
   for (const action of SHORTCUT_ACTIONS) {
     invalid(bindingsWith(action, 'Shift+Enter'))
-    for (const binding of ['F1', 'F12', 'Alt+KeyK', 'Mod+Digit1', 'Ctrl+Alt+Period']) {
+    // 带修饰键的数字组合可以改绑；Mod+Digit1/2/3 已是一级标签的默认键，示例改用未占用的 Mod+Digit9。
+    for (const binding of ['F1', 'F12', 'Alt+KeyK', 'Mod+Digit9', 'Ctrl+Alt+Period']) {
       assert.equal(validateShortcutBindings(bindingsWith(action, binding))[action], binding)
     }
+  }
+  for (const [action, owner] of [
+    ['voiceInput', 'openBoard'],
+    ['focusComposer', 'jumpToAttention'],
+  ]) {
+    invalid(bindingsWith(action, DEFAULT_SHORTCUTS[owner]), 'conflict')
+    assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, action, DEFAULT_SHORTCUTS[owner]), owner)
   }
   assert.equal(
     validateShortcutBindings(bindingsWith('sendMessage', 'Mod+Enter')).sendMessage,
@@ -361,6 +380,7 @@ test('all default bindings can be recorded and matched on both platforms', () =>
       const input = event(code, {
         ctrlKey: parts.includes('Mod') && !mac,
         metaKey: parts.includes('Mod') && mac,
+        altKey: parts.includes('Alt'),
         shiftKey: parts.includes('Shift'),
       })
       assert.equal(shortcutFromEvent(input, mac), binding)

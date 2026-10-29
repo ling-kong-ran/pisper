@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 
 // 徽标：20px、r-xs、12/500。neutral 为默认；accent 用于「默认」等强调标记，
 // ok/bad/warn 对应成功、失败、待审批，run 为运行中（调用方放入轨道指示）。
+// 运行中属于状态色，取 --st-run 青色族而不是强调色，切换强调色不会改变它。
 const badgeVariants = cva(
   'group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-xs border border-transparent px-1.5 text-xs leading-none font-medium whitespace-nowrap tabular-nums transition-colors has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-invalid:border-destructive [&>svg]:pointer-events-none [&>svg]:size-3!',
   {
@@ -18,7 +19,7 @@ const badgeVariants = cva(
         ok: 'bg-success-soft text-success',
         bad: 'bg-danger-soft text-danger',
         warn: 'bg-warning-soft text-warning-strong',
-        run: 'bg-star-soft text-accent-fg',
+        run: 'bg-st-run-soft text-st-run',
         destructive: 'bg-danger-soft text-danger',
         outline: 'border-stroke text-foreground [a]:hover:bg-surface-hover',
         ghost: 'hover:bg-surface-hover',

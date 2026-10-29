@@ -49,7 +49,9 @@ export async function verifyPisperIteration({
   assert.equal(connection.configured, true)
   assert.deepEqual(connection.models.find((m) => m.id === modelId).capabilities, ['image'])
   assert.notEqual(connection.defaultModel, modelId)
-  await page.goto(base + '/#/chat')
+  // 会话页（/board/new 建好后换成真实 id）里的真实模型选择器。
+  await page.goto(base + '/#/board/new')
+  await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('listbox').waitFor()
@@ -89,42 +91,37 @@ export async function verifyPisperIteration({
     'Model editor saves image-only capabilities on the existing connection, preserves failed drafts, and persists chat+image/reasoning/vision/token limits after reload',
   )
 
+  // 界面字号是 11–16px 的数字输入（旧的小/标准/大三档已退役）；设置页左侧分区导航的当前行
+  // 随界面字号缩放，行高、图标与根字号保持不变。旧侧栏 36px 行随外壳退役，分区导航行高为 32px。
   await page.goto(base + '/#/config/interface')
   await page.getByText('高级', { exact: true }).click()
-  const fontGroup = page.getByRole('radiogroup', { name: '字体大小', exact: true })
-  for (const [label, scale, size] of [
-    ['小', 'small', 13.5],
-    ['大', 'large', 14.5],
-    ['标准', 'default', 14],
-  ]) {
-    await fontGroup.getByRole('radio', { name: label, exact: true }).click()
-    await page.waitForFunction(
-      (scale) => document.documentElement.dataset.fontScale === scale,
-      scale,
-    )
+  const fontInput = page.getByRole('spinbutton', { name: '界面字号', exact: true })
+  const activeSection = page
+    .getByRole('navigation', { name: '设置导航', exact: true })
+    .locator('button[aria-current="page"]')
+  for (const size of [12, 16, 14]) {
+    await fontInput.fill(String(size))
+    await fontInput.press('Enter')
     await page.waitForFunction((size) => {
-      const label = document.querySelector('#workbench-sidebar button[aria-current="page"] span')
+      const label = document.querySelector(
+        'nav[aria-label="设置导航"] button[aria-current="page"] span',
+      )
       return label && Math.abs(parseFloat(getComputedStyle(label).fontSize) - size) < 0.001
     }, size)
-    const dimensions = await page
-      .locator('#workbench-sidebar button[aria-current="page"]')
-      .evaluate((el) => ({
-        font: parseFloat(getComputedStyle(el.querySelector('span')).fontSize),
-        height: el.getBoundingClientRect().height,
-        icon: el.querySelector('svg').getBoundingClientRect().width,
-        root: getComputedStyle(document.documentElement).fontSize,
-      }))
-    assert.deepEqual(dimensions, { font: size, height: 36, icon: 16, root: '16px' })
+    const dimensions = await activeSection.evaluate((el) => ({
+      font: parseFloat(getComputedStyle(el.querySelector('span')).fontSize),
+      height: el.getBoundingClientRect().height,
+      icon: el.querySelector('svg').getBoundingClientRect().width,
+      root: getComputedStyle(document.documentElement).fontSize,
+    }))
+    assert.deepEqual(dimensions, { font: size, height: 32, icon: 16, root: '16px' })
   }
   await page.reload()
   await page.getByText('高级', { exact: true }).click()
-  await fontGroup.waitFor()
-  assert.equal(
-    await fontGroup.getByRole('radio', { name: '标准', exact: true }).getAttribute('aria-checked'),
-    'true',
-  )
+  await fontInput.waitFor()
+  assert.equal(await fontInput.inputValue(), '14')
   report.checks.push(
-    'Font scales are limited to 13.5/14/14.5px and persist; root spacing, 36px desktop settings row and 16px icon remain unchanged',
+    'The numeric UI font size scales the active settings-section row and persists; root spacing, the 32px section row and 16px icon remain unchanged',
   )
 
   const openWorkflowSettings = async () => {

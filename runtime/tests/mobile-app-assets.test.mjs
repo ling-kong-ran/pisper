@@ -349,14 +349,15 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(stabilizer, /viewport\?\.addEventListener\('resize', schedule\)/)
   assert.match(stabilizer, /viewport\?\.addEventListener\('scroll', schedule\)/)
   assert.match(stabilizer, /shell\.dataset\.mobileKeyboard = 'open'/)
-  // 常驻功能栏不随键盘隐藏；不再保留占用输入区域高度的底部主导航。
+  // 手机外壳的一级导航是底部标签栏（规格 7.1）：软键盘打开时整条收起，不占输入区域高度；
+  // 外壳的底部安全区留白也随之归零。旧的底部主导航不再保留。
   assert.doesNotMatch(navigation, /data-mobile-navigation="primary"/)
-  const rail = await readFile(
-    new URL('../../src/components/layout/ActivityRail.tsx', import.meta.url),
-    'utf8',
+  const tabBar = await readFile(new URL('../../src/app/ShellTabBar.tsx', import.meta.url), 'utf8')
+  assert.match(
+    tabBar,
+    /data-testid="mobile-tab-bar"\s+className="[^"]*\[\[data-mobile-keyboard='open'\]_&\]:hidden"/,
   )
-  assert.doesNotMatch(rail, /data-mobile-keyboard/)
-  assert.match(rail, /overflow-y-auto/)
+  assert.match(app, /app-shell[^"\n]*\[&\[data-mobile-keyboard='open'\]\]:pb-0/)
   assert.match(stabilizer, /document\.addEventListener\('touchstart', handleTouch, true\)/)
   assert.match(stabilizer, /document\.addEventListener\('pointerdown', handleTouch, true\)/)
   assert.match(stabilizer, /document\.addEventListener\('focusin', handleFocus, true\)/)

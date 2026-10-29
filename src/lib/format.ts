@@ -76,6 +76,18 @@ export function workspaceName(value: unknown, locale = 'zh-CN') {
   return path.split(/[\\/]/).pop() || path || (locale === 'en-US' ? 'No folder set' : '未设置目录')
 }
 
+// 紧凑时长（等待时长、运行时长）：<1 分钟到秒，<1 小时到分秒，<1 天到时分，再长只取天；
+// 单位用通用缩写，等宽数字排版下宽度稳定。负数和非法值按 0 处理。
+export function formatCompactDuration(milliseconds: number) {
+  const seconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h${String(minutes % 60).padStart(2, '0')}m`
+  return `${Math.floor(hours / 24)}d`
+}
+
 // 文件大小：B/KB/MB 自适应，<1KB 精确到字节，MB 保留一位小数。
 export function formatFileSize(size: number | null | undefined) {
   if (!size) return ''

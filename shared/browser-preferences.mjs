@@ -8,10 +8,15 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   // 旧键保留在恢复白名单中，输入栏 Store 首次读取时迁到新名称。
   'pisper-zcode-composer-toolbar',
   'pisper-workspace-order',
+  // 看板视图（分组、项目/状态筛选、折叠泳道、已完成时间窗）与启动台上次的选择。
+  'pisper-board-view',
+  'pisper-launch-defaults',
   'pisper-floating-widgets',
   'pisper-floating-placement',
   'pisper-language',
   'pisper-shortcuts',
+  // 看板单字母快捷键（J/K/H/L、A/D/R、T、G）与应用级绑定分表保存。
+  'pisper-board-shortcuts',
   'pisper-active-session',
   'pisper-mobile-session-tabs',
   'pisper-terminal-panel',

@@ -195,11 +195,12 @@ export async function verifyFirstRunSetup({
       return next
     }
     const onboarding = () => page.getByRole('dialog', { name: '先连接一个模型', exact: true })
-    const chatReady = () => page.getByRole('textbox', { name: '任务描述', exact: true }).waitFor()
+    // 新外壳首页是看板：看板根节点就绪即应用可用（旧的 /chat 入口也会重定向到这里）。
+    const chatReady = () => page.locator('[data-board-root]').waitFor()
 
     stage = 'desktop-dismiss'
     page = await freshPage()
-    await page.goto(base + '/#/chat')
+    await page.goto(base + '/#/board')
     await onboarding().waitFor()
     await verifyDialogBounds(page, onboarding())
     await page.screenshot({ path: join(output, 'first-run-desktop.png') })
@@ -216,7 +217,7 @@ export async function verifyFirstRunSetup({
       'Fresh install onboarding can be dismissed with Escape and stays dismissed after reload',
     )
     page = await freshPage()
-    await page.goto(base + '/#/chat')
+    await page.goto(base + '/#/board')
     await chatReady()
     assert.equal(await onboarding().count(), 0)
     report.checks.push('Onboarding dismissal also survives a fresh WebView storage origin')
@@ -224,7 +225,7 @@ export async function verifyFirstRunSetup({
     stage = 'mobile-dismiss'
     await resetOnboardingPreference()
     page = await freshPage({ width: 390, height: 844 })
-    await page.goto(base + '/#/chat')
+    await page.goto(base + '/#/board')
     await onboarding().waitFor()
     const close = await verifyDialogBounds(page, onboarding())
     await page.screenshot({ path: join(output, 'first-run-mobile.png') })
@@ -240,7 +241,7 @@ export async function verifyFirstRunSetup({
     stage = 'empty-providers'
     await resetOnboardingPreference()
     page = await freshPage()
-    await page.goto(base + '/#/chat')
+    await page.goto(base + '/#/board')
     await onboarding().waitFor()
     await onboarding().getByRole('button', { name: '设置模型', exact: true }).click()
     const wizard = page.getByRole('dialog', { name: '快速配置模型', exact: true })
@@ -302,7 +303,12 @@ export async function verifyFirstRunSetup({
       .getByRole('navigation', { name: '连接', exact: true })
       .getByRole('button', { name: connectionName, exact: true })
     await providerButton.getByText('默认', { exact: true }).waitFor()
-    await connections.getByText('默认供应商', { exact: true }).waitFor()
+    // 连接详情头部的默认徽标（1d7eee0f 起文案为“默认”，不再是“默认供应商”）。
+    await connections
+      .locator('h2', { hasText: connectionName })
+      .locator('..')
+      .getByText('默认', { exact: true })
+      .waitFor()
     await page.screenshot({ path: join(output, 'first-run-configured.png') })
     report.checks.push(
       'Real Quick Setup discovers and saves the first loopback connection as default, with visible default badges',
@@ -310,7 +316,7 @@ export async function verifyFirstRunSetup({
 
     stage = 'configured-startup-and-channels'
     page = await freshPage()
-    await page.goto(base + '/#/chat')
+    await page.goto(base + '/#/board')
     await chatReady()
     assert.equal(
       await onboarding().count(),
@@ -321,8 +327,9 @@ export async function verifyFirstRunSetup({
     await chatReady()
     assert.equal(await onboarding().count(), 0)
     await page.goto(base + '/#/channels')
-    await page.getByRole('heading', { name: '飞书应用机器人', exact: true }).waitFor()
-    await page.getByRole('heading', { name: 'Telegram 机器人', exact: true }).waitFor()
+    // 渠道页（1d7eee0f 起）只给选中的平台渲染标题（标题里还带连接状态），其余平台是列表项。
+    await page.getByRole('heading', { name: /^飞书应用机器人/ }).waitFor()
+    await page.getByText('Telegram 机器人', { exact: true }).first().waitFor()
     assert.equal(
       await page.getByText('channels:channelsPage.feishuAppBot', { exact: true }).count(),
       0,

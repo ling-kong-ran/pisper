@@ -8,6 +8,9 @@ import {
   type HttpRequestOptions,
 } from '@/lib/http'
 import { fetchStartupQuery, invalidateStartupQuery } from '@/lib/startup-queries'
+// 会话目录缓存键随会话 API 一起公开：chatApi.listSessions 读写的就是这份缓存，
+// 目录垫片与看板通过同一个键协作，不各自持有会话列表。
+export { SESSIONS_QUERY_KEY } from '@/lib/startup-queries'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -30,6 +33,8 @@ export type WithdrawQueuedInputResponse = QueuedInputResponse & {
   withdrawnInput?: WithdrawnInput
 }
 type StreamEventHandler = (event: string, data: ApiRecord) => boolean | void
+// 流的所有者用 signal 停止消费（含断流重挂）；Runtime 的 run 不随连接结束。
+type StreamOptions = { signal?: AbortSignal }
 
 type SessionListResponse = { sessions: SessionSummary[] }
 type MessagePageResponse = EntityRecord & {
@@ -277,6 +282,7 @@ export const chatApi = {
       invocation?: ResourceInvocation | null
     },
     onEvent: StreamEventHandler,
+    { signal }: StreamOptions = {},
   ) => {
     await streamEventsWithResume({
       open: async () => {
@@ -285,28 +291,35 @@ export const chatApi = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
+          signal,
         })
       },
       resume: async (runId, cursor) => {
         await waitForMobileRuntimeReady()
-        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`)
+        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`, { signal })
       },
       onEvent,
+      signal,
     })
   },
 
   // 重试最后一轮：服务端先把活跃叶子撤回上一轮边界，再复用同一 SSE 管道原地重跑。
-  retryLastTurn: async (sessionId: string, onEvent: StreamEventHandler) => {
+  retryLastTurn: async (
+    sessionId: string,
+    onEvent: StreamEventHandler,
+    { signal }: StreamOptions = {},
+  ) => {
     await streamEventsWithResume({
       open: async () => {
         await waitForMobileRuntimeReady()
-        return fetch(`${sessionPath(sessionId)}/retry`, { method: 'POST' })
+        return fetch(`${sessionPath(sessionId)}/retry`, { method: 'POST', signal })
       },
       resume: async (runId, cursor) => {
         await waitForMobileRuntimeReady()
-        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`)
+        return fetch(`/api/runs/${encodeURIComponent(runId)}/events?after=${cursor}`, { signal })
       },
       onEvent,
+      signal,
     })
   },
 

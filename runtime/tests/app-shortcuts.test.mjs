@@ -16,6 +16,10 @@ function fixture({
   blocked = false,
   terminal = true,
   bindings = shortcuts.DEFAULT_SHORTCUTS,
+  // 外壳只在有处理对象时传入：⌥A 需要有等待中的事项，⌘[ 只在会话页可用。
+  attention = true,
+  session = true,
+  platform = 'Win32',
 } = {}) {
   const handlers = new Set()
   const calls = []
@@ -44,7 +48,7 @@ function fixture({
     },
   }
   const store = { useShortcutStore: (selector) => selector({ bindings }) }
-  const environment = { window, document, HTMLElement: Element, navigator: { platform: 'Win32' } }
+  const environment = { window, document, HTMLElement: Element, navigator: { platform } }
   const evaluate = (source, require) => {
     const module = { exports: {} }
     runInNewContext(source, { ...environment, module, exports: module.exports, require })
@@ -74,6 +78,11 @@ function fixture({
     onSearch: () => calls.push('search'),
     onToggleTerminal: terminal ? () => calls.push('terminal') : undefined,
     onSettings: () => calls.push('settings'),
+    onOpenBoard: () => calls.push('board'),
+    onOpenComponents: () => calls.push('components'),
+    onOpenMore: () => calls.push('more'),
+    onJumpToAttention: attention ? () => calls.push('attention') : undefined,
+    onBackToBoard: session ? () => calls.push('back') : undefined,
   })
   const press = (code, properties = {}) => {
     const event = {
@@ -111,25 +120,73 @@ test('global bindings dispatch each supported action once and prevent the consum
     ['KeyB', 'sidebar'],
     ['Backquote', 'terminal'],
     ['Comma', 'settings'],
+    ['Digit1', 'board'],
+    ['Digit2', 'components'],
+    ['Digit3', 'more'],
+    ['BracketLeft', 'back'],
   ]) {
     f.calls.length = 0
     assert.equal(f.press(code, { ctrlKey: code !== 'Slash' }).defaultPrevented, true)
     assert.deepEqual(f.calls, [action])
   }
+  f.calls.length = 0
+  assert.equal(f.press('KeyA', { ctrlKey: false, altKey: true }).defaultPrevented, true)
+  assert.deepEqual(f.calls, ['attention'])
   f.unmount()
   assert.equal(f.handlers.size, 0)
 })
 
-test('editable controls retain typing and primary-action keys without blocking the palette', () => {
+test('editable controls keep bare typing keys while application chords still work', () => {
+  // 应用级组合键在输入框内同样生效（规格 2.8：⌘N 新任务、⌘1/2/3 切标签、⌥A 跳到需要你），
+  // 不带修饰键的单键（/ 聚焦搜索）只在焦点不在输入框时生效，不能吞掉正常打字。
   const f = fixture()
   for (const selector of ['input', 'textarea', 'select', '[role="textbox"]', '[contenteditable]']) {
     const target = new f.Element(selector)
-    assert.equal(f.press('KeyN', { target }).defaultPrevented, false)
     assert.equal(f.press('Slash', { target, ctrlKey: false }).defaultPrevented, false)
+    assert.equal(f.press('KeyA', { target, ctrlKey: false }).defaultPrevented, false)
+    assert.equal(f.press('Digit1', { target, ctrlKey: false }).defaultPrevented, false)
   }
   assert.deepEqual(f.calls, [])
-  f.press('KeyK', { target: new f.Element('textarea') })
-  assert.deepEqual(f.calls, ['palette'])
+  const target = new f.Element('textarea')
+  for (const [code, properties, action] of [
+    ['KeyK', {}, 'palette'],
+    ['KeyN', {}, 'primary'],
+    ['Digit2', {}, 'components'],
+    ['Comma', {}, 'settings'],
+    ['KeyA', { ctrlKey: false, altKey: true }, 'attention'],
+  ]) {
+    f.calls.length = 0
+    assert.equal(f.press(code, { target, ...properties }).defaultPrevented, true, code)
+    assert.deepEqual(f.calls, [action])
+  }
+})
+
+test('macOS Option typing inside editable controls is never taken by Alt-only chords', () => {
+  // ⌥A 在 macOS 上输入“å”：焦点在输入框内时交还输入框，不能跳走；输入框外仍是“跳到需要你”。
+  const mac = fixture({ platform: 'MacIntel' })
+  for (const selector of ['input', 'textarea', '[contenteditable]']) {
+    const target = new mac.Element(selector)
+    const event = mac.press('KeyA', { target, key: 'å', ctrlKey: false, altKey: true })
+    assert.equal(event.defaultPrevented, false, selector)
+  }
+  assert.deepEqual(mac.calls, [])
+  assert.equal(mac.press('KeyA', { key: 'å', ctrlKey: false, altKey: true }).defaultPrevented, true)
+  assert.deepEqual(mac.calls, ['attention'])
+  // ⌘ 组合在 macOS 输入框内照常生效。
+  mac.calls.length = 0
+  const target = new mac.Element('textarea')
+  assert.equal(mac.press('KeyN', { target, ctrlKey: false, metaKey: true }).defaultPrevented, true)
+  assert.deepEqual(mac.calls, ['primary'])
+})
+
+test('shell actions without a current target leave the key to the page', () => {
+  // 没有等待中的事项时 ⌥A 不消费；不在会话页时 ⌘[ 交还浏览器或页面自己的处理。
+  const f = fixture({ attention: false, session: false })
+  assert.equal(f.press('KeyA', { ctrlKey: false, altKey: true }).defaultPrevented, false)
+  assert.equal(f.press('BracketLeft').defaultPrevented, false)
+  assert.deepEqual(f.calls, [])
+  assert.equal(f.press('Digit1').defaultPrevented, true)
+  assert.deepEqual(f.calls, ['board'])
 })
 
 test('recorders, terminal input, menus, dialogs, hidden documents and blocked overlays suppress global actions', () => {

@@ -891,7 +891,9 @@ try {
   await page.getByRole('textbox', { name: '搜索节点', exact: true }).waitFor({ state: 'hidden' })
   await page.getByRole('button', { name: '返回工作流', exact: true }).click()
   await page.waitForURL((url) => url.hash === '#/workflows')
-  await page.getByRole('button', { name: '使用工作流', exact: true }).waitFor()
+  // 列表页（79d0a896 起没有“使用工作流”入口）：以新建入口和工作流列表标题确认回到列表。
+  await page.getByRole('button', { name: '新建工作流', exact: true }).waitFor()
+  await page.getByRole('heading', { name: /^工作流 \d+$/, level: 2 }).waitFor()
   report.checks.push(
     'Searchable node palette adds an inpaint node through the UI; explicit Back to workflows returns to the list',
   )

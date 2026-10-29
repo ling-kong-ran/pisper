@@ -8,6 +8,11 @@ export const SHORTCUT_ACTIONS: readonly [
   'focusComposer',
   'sendMessage',
   'voiceInput',
+  'openBoard',
+  'openComponents',
+  'openMore',
+  'jumpToAttention',
+  'backToBoard',
 ]
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number]
@@ -55,3 +60,30 @@ export function matchesShortcut(
   mac?: boolean,
 ): boolean
 export function formatShortcut(binding: string | null, mac?: boolean): string
+
+export const BOARD_SHORTCUT_ACTIONS: readonly [
+  'boardNext',
+  'boardPrevious',
+  'boardLaneLeft',
+  'boardLaneRight',
+  'boardApprove',
+  'boardDeny',
+  'boardRetry',
+  'boardTriage',
+  'boardToggleGrouping',
+]
+
+export type BoardShortcutAction = (typeof BOARD_SHORTCUT_ACTIONS)[number]
+export type BoardShortcutBindings = Record<BoardShortcutAction, string | null>
+
+export const DEFAULT_BOARD_SHORTCUTS: Readonly<BoardShortcutBindings>
+
+export function findBoardShortcutConflict(
+  bindings: Partial<BoardShortcutBindings>,
+  action: BoardShortcutAction,
+  candidate: string | null,
+): BoardShortcutAction | null
+export function validateBoardShortcutBindings(input: unknown): BoardShortcutBindings
+export function normalizeBoardShortcutBindings(input: unknown): BoardShortcutBindings
+export function boardShortcutFromEvent(event: ShortcutKeyboardEvent): string | null
+export function matchesBoardShortcut(event: ShortcutKeyboardEvent, binding: string | null): boolean

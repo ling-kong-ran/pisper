@@ -20,11 +20,12 @@ export type FontScale = 'small' | 'default' | 'large'
 export type RadiusMode = 'sharp' | 'default' | 'soft'
 export type MotionMode = 'system' | 'full' | 'reduced'
 
-// Quiet Precision 起默认强调色为信号钴蓝（Pisper 蓝）；中性档保留为单色墨黑版本。
+// 新安装默认强调色为「石墨」（neutral，墨色主操作），琥珀只留给「需要你」。
+// 已持久化的强调色不迁移：store 无法区分「默认的 blue」和「主动选的 blue」。
 export const DEFAULT_UI_PREFERENCES = {
   theme: 'system',
   density: 'comfortable',
-  accent: 'blue',
+  accent: 'neutral',
   customAccent: '#3d4bef',
   fontScale: 'default',
   uiFontSize: UI_FONT_SIZE.default,
@@ -87,6 +88,9 @@ type PersistedUiState = Pick<
   | 'motion'
 >
 
+// v3 迁移时的默认强调色；只用于迁移旧数据，新安装使用 DEFAULT_UI_PREFERENCES.accent。
+const V3_DEFAULT_ACCENT: AccentPreset = 'blue'
+
 // 快捷按钮只循环三种常用模式；旧的定时偏好仍可读取并在设置页使用。
 const THEME_SEQUENCE: readonly ThemeMode[] = ['system', 'dark', 'light']
 const STORED_THEME_MODES: readonly ThemeMode[] = ['system', 'scheduled', 'light', 'dark']
@@ -135,11 +139,11 @@ export const useUiStore = create<UiState>()(
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
           ...normalizeTypographyPreferences(stored),
-          // v3 起默认强调色改为 blue：旧版本无法区分「默认中性档」与「主动选择中性档」，
-          // 统一把旧中性档迁移为新默认；迁移后再次选择中性档会被保留。
+          // v3 迁移把旧中性档统一改为当时的默认 blue；之后默认值改为石墨，但这里仍按
+          // v3 的结果迁移（缺省也视为 blue），保证升级用户看到的强调色不变。
           accent:
-            version < 3 && stored.accent === 'neutral'
-              ? 'blue'
+            version < 3 && (stored.accent === 'neutral' || stored.accent === undefined)
+              ? V3_DEFAULT_ACCENT
               : (stored.accent ?? DEFAULT_UI_PREFERENCES.accent),
           theme:
             version === 0 && stored.theme === 'system' ? 'scheduled' : (stored.theme ?? 'system'),

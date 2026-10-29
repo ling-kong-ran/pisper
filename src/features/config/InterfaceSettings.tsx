@@ -85,8 +85,10 @@ function CompactChoices<T extends string>({
   )
 }
 
+// 石墨预设就是固定墨色的 --primary（浅色墨黑、深色近白），跟随明暗切换才能在暗色下看得见；
+// 其余预设展示各自的浅色主色。
 const ACCENT_SWATCHES: Record<AccentPreset, string> = {
-  neutral: '#17171a',
+  neutral: 'var(--primary)',
   blue: '#3d4bef',
   teal: '#0f766e',
   violet: '#6d4ad6',

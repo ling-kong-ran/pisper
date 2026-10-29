@@ -129,7 +129,7 @@ export function TaskWorkspaceHeader({
           )}
           {actions && <DropdownMenuSeparator />}
           {actions}
-          {!context?.mobileLayout && others.length > 0 && (
+          {context?.splitAvailable && others.length > 0 && (
             <>
               <DropdownMenuSeparator />
               {splitDirections.map(([direction, label, Icon]) => (

@@ -1,9 +1,11 @@
 import { BackNavigation } from '@/components/layout/BackNavigation'
 // 应用外壳：持有全站共享状态（当前页/搜索词/活动会话/Toast/对话框/通知
-// 设置/更新控制器/工作流动作），组装侧边栏 + 页头 + 内容 Outlet + 状态栏，
-// 并通过 Outlet 上下文向各页面注入公共能力。启动时探测是否已配置可用
-// Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键（Cmd+K 命令面板、
-// Cmd+N 主操作、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
+// 设置/更新控制器/工作流动作），组装 48px 应用标题栏 + 全宽内容区（页头 + Outlet）
+// + 手机底部标签栏，并通过 Outlet 上下文向各页面注入公共能力。桌面没有侧栏与活动栏，
+// 一级导航（看板/组件/更多/设置）在标题栏里；设置页的分区导航在设置内容区左侧。
+// 启动时探测是否已配置可用 Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键
+// （⌘K 命令面板、⌘N 新任务、⌘1/2/3/, 一级标签、⌥A 跳到需要你、⌘[ 返回看板、` 终端、/ 搜索、
+// Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
   Suspense,
@@ -13,7 +15,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
+  type ComponentProps,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
@@ -21,11 +23,12 @@ import { createPrimaryActionRegistry } from '@/app/primary-action'
 import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
-import { clampSidebarWidth } from '@/lib/sidebar-width'
-import { getNavigation, getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
-import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
+import { getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
+import { MORE_SEARCH_INPUT_ID } from '@/app/more-pages'
+import { PAGE_IDS, PAGE_PATHS, pageFromPath, pagePath, sessionPath } from '@/app/routes'
+import { activeShellTab, SHELL_TAB_PAGES, type ShellTab } from '@/app/shell-tabs'
+import { AppTitlebar } from '@/app/AppTitlebar'
 import {
-  ACTIVITY_NAVIGATION_STATE,
   CONFIG_SECTIONS,
   getSettingsNavigation,
   SETTINGS_PAGES,
@@ -33,23 +36,26 @@ import {
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
-import { ensureCustomUiMessages } from '@/app/i18n'
+import { ensureBoardMessages, ensureCustomUiMessages } from '@/app/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
-import { cn } from '@/lib/utils'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { TerminalProvider } from '@/features/terminal/public'
-import { AppSidebar } from '@/components/layout/AppSidebar'
-import { WorkbenchHeader } from '@/components/layout/WorkbenchHeader'
 import { MobileSettingsNavigation } from '@/components/layout/MobileNavigation'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
 import { chatApi } from '@/features/chat/chat-api'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
+  peekSessionNavigationIntent,
   requestSessionSelection,
   requestSessionCreation,
 } from '@/features/chat/events'
+import {
+  BOARD_FILTER_ID,
+  requestBoardNewTask,
+  type BoardNewTaskSource,
+} from '@/features/board/new-task'
 import { apiJson } from '@/lib/api'
 import {
   fetchStartupQuery,
@@ -60,10 +66,9 @@ import {
 import { markStartupPhase } from '@/lib/startup-diagnostics'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
-import { useIsCompactSidebarViewport, useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useUiStore } from '@/stores/ui-store'
 import { useClientStore } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -93,11 +98,20 @@ const FloatingWidgets = lazy(async () => {
   ])
   return { default: FloatingWidgets }
 })
-const CommandPalette = lazy(() =>
-  import('@/components/layout/AppOverlays').then((module) => ({
-    default: module.CommandPalette,
-  })),
-)
+// 命令面板的页面分组带一组图标，与面板一起按需加载；分组随语言与 Runtime 能力即时计算。
+const CommandPalette = lazy(async () => {
+  const [{ CommandPalette }, { getNavigation }] = await Promise.all([
+    import('@/components/layout/AppOverlays'),
+    import('@/app/palette-navigation'),
+  ])
+  function AppCommandPalette(props: Omit<ComponentProps<typeof CommandPalette>, 'navigation'>) {
+    const { t } = useI18n()
+    const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+    const navigation = useMemo(() => getNavigation(t, capabilities), [capabilities, t])
+    return <CommandPalette {...props} navigation={navigation} />
+  }
+  return { default: AppCommandPalette }
+})
 const AppDialog = lazy(() =>
   import('@/components/layout/AppDialog').then((module) => ({ default: module.AppDialog })),
 )
@@ -119,15 +133,28 @@ const ModelOnboardingDialog = lazy(() =>
     default: module.ModelOnboardingDialog,
   })),
 )
-const WorkbenchNavigation = lazy(() =>
-  import('@/app/WorkbenchNavigation').then((module) => ({ default: module.WorkbenchNavigation })),
+// 舰队计量与手机标签栏依赖看板数据层（单一轮询者）；按需加载，不进入启动包。
+const FleetMeter = lazy(() =>
+  import('@/app/FleetMeter').then((module) => ({ default: module.FleetMeter })),
 )
-
-const ProjectTaskList = lazy(() =>
-  import('@/features/chat/public-navigation').then((module) => ({
-    default: module.ProjectTaskList,
+const ShellTabBar = lazy(() =>
+  import('@/app/ShellTabBar').then((module) => ({ default: module.ShellTabBar })),
+)
+// 更新提示只在确有可用更新时加载，常驻标题栏不为它增加启动体积。
+const SidebarUpdateStatus = lazy(() => import('@/components/layout/SidebarUpdateStatus'))
+const SettingsSectionNav = lazy(() =>
+  import('@/components/layout/SettingsSectionNav').then((module) => ({
+    default: module.SettingsSectionNav,
   })),
 )
+// 派发浮层的文案在看板命名空间里，随浮层一起按需注册。
+const DispatchOverlay = lazy(async () => {
+  const [{ DispatchOverlay }] = await Promise.all([
+    import('@/features/board/DispatchOverlay'),
+    ensureBoardMessages(),
+  ])
+  return { default: DispatchOverlay }
+})
 
 const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
@@ -186,65 +213,30 @@ function App() {
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const capabilitiesLoaded = useRuntimeCapabilitiesStore((state) => state.loaded)
   const loadRuntimeCapabilities = useRuntimeCapabilitiesStore((state) => state.load)
-  const navigation = useMemo(() => getNavigation(t, capabilities), [capabilities, t])
   const pageMeta = useMemo(() => getPageMeta(t), [t])
-  const page = pageFromPath(location.pathname) || 'chat'
-  // 同时挂在功能栏分组与设置导航下的页面按进入来源确定唯一归属，壳层各处共用这一结论。
+  const page = pageFromPath(location.pathname) || 'board'
+  // 同时挂在“更多”与设置导航下的页面按进入来源确定唯一归属，壳层各处共用这一结论。
   const settingsOwned = settingsOwnsPage(page, location.state)
+  const shellTab = activeShellTab(page, settingsOwned)
   const startupPageRef = useRef(page)
   const [query, setQuery] = useState('')
-  const [installedTools, setInstalledTools] = useState<Array<{ id: string; name: string }>>([])
-  useEffect(() => {
-    let mounted = true
-    void import('@/features/custom-ui/catalog')
-      .then(({ listCustomUiComponents }) => listCustomUiComponents())
-      .then(({ components }) => {
-        if (mounted)
-          setInstalledTools(
-            components
-              .filter((component) => !component.builtIn)
-              .map(({ id, name }) => ({ id, name })),
-          )
-      })
-      .catch(() => {})
-    return () => {
-      mounted = false
-    }
-  }, [])
   const [activeSessionId, setActiveSessionId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
-  const [mobileNav, setMobileNav] = useState(false)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  // 底部标签栏只给真实手机端；桌面壳窗口拖窄时仍保留功能栏，避免与 Windows 自绘窗口按钮冲突。
+  // 底部标签栏只给真实手机端；桌面壳窗口拖窄时仍保留标题栏，避免与 Windows 自绘窗口按钮冲突。
   const phoneShell = mobileLayout && !window.pisperDesktop
   useEffect(() => {
-    // 侧栏抽屉经 Portal 挂到 body，需要在根节点上让出原功能栏宽度。
+    // 底部表单等经 Portal 挂到 body 的界面按根节点属性适配手机外壳（圆角、安全区）。
     document.documentElement.toggleAttribute('data-phone-shell', phoneShell)
   }, [phoneShell])
-  const compactSidebarViewport = useIsCompactSidebarViewport()
-  const drawerSidebar = mobileLayout || compactSidebarViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const preferredSidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
-  const persistentSettingsSidebar = !drawerSidebar && settingsOwned
-  const sidebarCollapsed = !persistentSettingsSidebar && preferredSidebarCollapsed
-  const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
-  const preferredSidebarWidth = useUiStore((state) => state.sidebarWidth)
-  const setSidebarWidth = useUiStore((state) => state.setSidebarWidth)
-  const [sidebarWidthPreview, setSidebarWidthPreview] = useState<number | null>(null)
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
-  useEffect(() => {
-    const update = () => setViewportWidth(window.innerWidth)
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [])
-  const sidebarWidth = clampSidebarWidth(
-    sidebarWidthPreview ?? preferredSidebarWidth,
-    viewportWidth - 52,
-  )
+  const [dispatchOpen, setDispatchOpen] = useState(false)
+  // 等待最久的需要你事项：由舰队计量（桌面）或底部标签栏（手机）上报，⌥A 只据此跳转。
+  const [longestWaitingId, setLongestWaitingId] = useState('')
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const density = useUiStore((state) => state.density)
@@ -470,24 +462,71 @@ function App() {
   }, [])
 
   // 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
+  // navigate('chat') 是旧调用方的兼容垫片：先 requestSessionSelection(id) / requestSessionCreation()
+  // 再 navigate('chat')。会话页已挂载时请求已被它就地处理；否则按待处理意图去 '/board/:id'、
+  // '/board/new'（新建），没有意图时回到看板。
   const navigate = useCallback(
     (next: string, options?: NavigateOptions) => {
       if (!PAGE_IDS.has(next) || !runtimePageAvailable(capabilities, next)) return
-      routerNavigate(pagePath(next), options)
+      if (next === 'chat') {
+        if (page !== 'session') {
+          const intent = peekSessionNavigationIntent()
+          routerNavigate(
+            intent?.type === 'create'
+              ? sessionPath()
+              : intent?.type === 'open'
+                ? sessionPath(intent.sessionId)
+                : PAGE_PATHS.board,
+            options,
+          )
+        }
+      } else routerNavigate(pagePath(next), options)
       setQuery('')
     },
-    [capabilities, routerNavigate],
+    [capabilities, page, routerNavigate],
   )
 
-  // Persist the chat-specific request before routing; never invoke the previous page's primary action.
+  // 打开会话：URL 是会话页的选中依据。会话页已挂载时选择事件由它就地转成路由切换，
+  // 外壳不再重复导航，避免同一地址被压入两次历史。
+  const openSession = useCallback(
+    (id: string, targetEntryId = '') => {
+      if (!id) return
+      requestSessionSelection(id, 'open', targetEntryId)
+      if (page !== 'session') routerNavigate(sessionPath(id))
+      setQuery('')
+    },
+    [page, routerNavigate],
+  )
+
+  // 新任务：看板页先请求看板认领（聚焦启动台）；没有视图认领或在其他页面时打开派发浮层。
+  const startNewTask = useCallback(
+    (source: BoardNewTaskSource) => {
+      if (page === 'board' && requestBoardNewTask(source)) return
+      setDispatchOpen(true)
+    },
+    [page],
+  )
+
+  // 派发浮层受理后：⌘↵ 打开该会话；↵ 留在当前页，只提示已派发（新卡片出现在看板与舰队计量里）。
+  const taskDispatched = useCallback(
+    (sessionId: string, { open }: { open: boolean }) => {
+      setDispatchOpen(false)
+      if (open) openSession(sessionId)
+      else notify(t('board:launch.dispatched'))
+    },
+    [notify, openSession, t],
+  )
+
+  // 新会话（命令面板、历史页等旧入口）：直接进入新建会话页。
   const startNewChat = useCallback(() => {
-    requestSessionCreation('')
-    navigate('chat')
-  }, [navigate])
+    if (page === 'session') requestSessionCreation('')
+    else routerNavigate(sessionPath())
+    setQuery('')
+  }, [page, routerNavigate])
 
   useEffect(() => {
     if (capabilitiesLoaded && !runtimePageAvailable(capabilities, page)) {
-      routerNavigate('/chat', { replace: true })
+      routerNavigate(PAGE_PATHS.board, { replace: true })
       return
     }
     if (page === 'config' && requestedConfigSection !== configSection) {
@@ -509,12 +548,21 @@ function App() {
         CONFIG_SECTIONS.has(section) && runtimeConfigSectionAvailable(capabilities, section)
           ? section
           : 'models'
-      const search =
-        nextSection === 'interface' && view && view !== 'appearance' ? `?view=${view}` : ''
-      routerNavigate(`/config/${nextSection}${search}`)
+      // 独立组件已迁到“组件”标签，旧调用方传 widgets 时直接去组件页。
+      if (nextSection === 'interface' && view === 'widgets') routerNavigate(PAGE_PATHS.components)
+      else routerNavigate(`/config/${nextSection}`)
       setQuery('')
     },
     [capabilities, routerNavigate],
+  )
+
+  // 一级标签：设置标签回到模型分区（与旧功能栏的设置键一致）。
+  const selectShellTab = useCallback(
+    (tab: ShellTab) => {
+      if (tab === 'settings') setConfigSection('models')
+      else navigate(SHELL_TAB_PAGES[tab])
+    },
+    [navigate, setConfigSection],
   )
 
   const dismissModelOnboarding = useCallback(() => {
@@ -566,16 +614,16 @@ function App() {
     return data.sessions?.find((session) => session.id === sessionId)?.cwd || ''
   }, [])
 
-  // 使用资源：把资源（附件）标记为待投递到活动会话，跳转聊天页，
-  // 若已存在活动会话则触发选中事件让输入框接收。
+  // 使用资源：把资源（附件）标记为待投递到活动会话并打开该会话；
+  // 没有活动会话时新建一个，由新会话的输入框接收。
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
       const targetSessionId = pageStateStorage.getItem(STORAGE_KEYS.activeSession) || ''
       setPendingAsset({ asset, targetSessionId })
-      if (targetSessionId) requestSessionSelection(targetSessionId)
-      navigate('chat')
+      if (targetSessionId) openSession(targetSessionId)
+      else routerNavigate(sessionPath())
     },
-    [navigate],
+    [openSession, routerNavigate],
   )
 
   // 主操作分发：按当前页面决定触发哪个动作（新建会话/新建工作流/快捷创建）；
@@ -584,7 +632,7 @@ function App() {
     if (page === 'config' && configSection !== 'models') return
     if (
       [
-        'chat',
+        'session',
         'config',
         'assets',
         'plugins',
@@ -597,12 +645,10 @@ function App() {
       ].includes(page)
     )
       invokePrimaryAction()
-    else if (page === 'chatHistory') {
-      navigate('chat')
-      invokePrimaryAction()
-    } else if (page === 'workflows') navigate('workflowCreate')
+    else if (page === 'chatHistory') startNewChat()
+    else if (page === 'workflows') navigate('workflowCreate')
     else setModal(page)
-  }, [configSection, invokePrimaryAction, navigate, page])
+  }, [configSection, invokePrimaryAction, navigate, page, startNewChat])
 
   useEffect(() => {
     const openCommandPalette = () => {
@@ -628,7 +674,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, mobileNav, modal, modelOnboardingOpen, paletteOpen])
+  }, [appDialog.dialog, modal, modelOnboardingOpen, paletteOpen])
 
   const startupConfigHandled = useRef(false)
   useEffect(() => {
@@ -650,7 +696,7 @@ function App() {
   }, [configData, configPending, configSucceeded])
 
   useEffect(() => {
-    if (startupReady && capabilitiesLoaded && page === 'chat') {
+    if (startupReady && capabilitiesLoaded && (page === 'board' || page === 'session')) {
       markStartupPhase('chat-shell-ready')
     }
   }, [capabilitiesLoaded, page, startupReady])
@@ -747,22 +793,28 @@ function App() {
     appUpdate,
     registerWorkflowActions,
   }
-  const workbenchNavigationProps = {
-    activeSessionId,
-    page,
-    settingsOwned,
-    componentId:
-      page === 'customComponentTool'
-        ? decodePathSegment(location.pathname.split('/')[3] || '')
-        : '',
-    installedTools,
-    onSelect: (id: string) => {
-      if (id.startsWith('component:'))
-        routerNavigate(`/tools/components/${encodeURIComponent(id.slice(10))}`)
-      else navigate(id, { state: ACTIVITY_NAVIGATION_STATE })
-    },
-    onSettings: () => navigateSettings({ type: 'config', id: 'models' }),
-  }
+  // 会话页回看板、从“更多”进入的功能页回更多：手机返回键与页头“‹ 更多”共用这一层级。
+  const moreOwned = shellTab === 'more' && page !== 'more'
+  const backToBoard = useCallback(() => routerNavigate(PAGE_PATHS.board), [routerNavigate])
+  const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
+  const routeBack = useCallback(() => {
+    if (page === 'session') backToBoard()
+    else if (moreOwned) backToMore()
+    else return false
+    return true
+  }, [backToBoard, backToMore, moreOwned, page])
+  const jumpToAttention = useCallback(() => {
+    if (longestWaitingId) openSession(longestWaitingId)
+  }, [longestWaitingId, openSession])
+  const focusPageSearch = useCallback(() => {
+    if (page === 'more') document.getElementById(MORE_SEARCH_INPUT_ID)?.focus()
+    // 看板页的 / 聚焦筛选（项目筛选控件；没有项目时是状态筛选）。
+    else if (page === 'board') document.getElementById(BOARD_FILTER_ID)?.focus()
+    else searchInputRef.current?.focus()
+  }, [page])
+  // 看板、会话页与更多页自带页头；其余功能页沿用共享页头（面包屑、搜索、主操作）。
+  const sharedPageHeader = !['board', 'session', 'more', 'chat'].includes(page)
+  const settingsLayout = settingsOwned && !mobileLayout
 
   if (!startupReady || !capabilitiesLoaded)
     return (
@@ -777,14 +829,29 @@ function App() {
       </div>
     )
 
+  const configSearch = (placement?: 'sidebar') => (
+    <Suspense fallback={null}>
+      <ConfigSearchBox
+        query={query}
+        onQueryChange={setQuery}
+        onSelect={setConfigSection}
+        inputRef={searchInputRef}
+        placement={placement}
+      />
+    </Suspense>
+  )
+
   return (
     <ToastProvider duration={2800} swipeDirection="right">
       <TerminalProvider bridge={window.pisperDesktop}>
         <div
           ref={appShellRef}
-          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
+          // 手机外壳的顶部安全区由外壳底色铺满：看板与更多页的页头是页面底色（--bg），其余页面是纸面，
+          // 状态栏区域跟随当前页头，避免出现一条白带接灰色页头的两段色。
+          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel [&[data-phone-shell][data-shell-canvas]]:bg-background pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
           data-mobile-app={mobileLayout || undefined}
           data-phone-shell={phoneShell || undefined}
+          data-shell-canvas={page === 'board' || page === 'more' || undefined}
           data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
         >
           {window.pisperDesktop?.customTitlebar && (
@@ -806,134 +873,87 @@ function App() {
               <WebDesktopPet />
             </Suspense>
           )}
-          <BackNavigation />
-          <SidebarProvider
-            style={
-              {
-                '--sidebar-width': `${sidebarWidth}px`,
-                '--workbench-leading-inset': drawerSidebar
-                  ? '44px'
-                  : sidebarCollapsed
-                    ? '32px'
-                    : '0px',
-              } as CSSProperties
-            }
-            className="app-body flex min-h-0 flex-1 overflow-hidden bg-chrome"
-            data-mobile-app={mobileLayout || undefined}
-            data-resizing={sidebarWidthPreview !== null || undefined}
-            mobile={drawerSidebar}
-            persistent={persistentSettingsSidebar}
-            open={!sidebarCollapsed}
-            onOpenChange={(open) => !persistentSettingsSidebar && setSidebarCollapsed(!open)}
-            openMobile={mobileNav}
-            onOpenMobileChange={setMobileNav}
-          >
-            <Suspense fallback={null}>
-              <AppShortcuts
-                blocked={Boolean(appDialog.dialog || modal || modelOnboardingOpen || paletteOpen)}
-                onCommandPalette={() => setPaletteOpen(true)}
-                onPrimary={handlePrimary}
-                onToggleSidebar={() =>
-                  drawerSidebar
-                    ? setMobileNav((value) => !value)
-                    : !persistentSettingsSidebar && setSidebarCollapsed(!sidebarCollapsed)
-                }
-                onSearch={() => {
-                  if (page === 'chat') {
-                    navigate('chatHistory')
-                    requestAnimationFrame(() =>
-                      requestAnimationFrame(() => searchInputRef.current?.focus()),
-                    )
-                  } else searchInputRef.current?.focus()
-                }}
-                onToggleTerminal={
-                  window.pisperDesktop?.terminalProfiles &&
-                  runtimeFeatureAvailable(capabilities, 'terminal')
-                    ? () => setTerminalOpen((value) => !value)
-                    : undefined
-                }
-                onSettings={() => navigate('config')}
-              />
-            </Suspense>
-            {!phoneShell && (
-              <Suspense
-                fallback={
-                  <nav
-                    aria-busy="true"
-                    aria-label={t('navigation:appSidebar.mainNavigation')}
-                    className="h-full w-(--activity-rail-width) shrink-0 bg-sidebar"
-                  />
-                }
-              >
-                <WorkbenchNavigation {...workbenchNavigationProps} />
-              </Suspense>
-            )}
-            <AppSidebar
-              page={page}
-              settingsOwned={settingsOwned}
-              configSection={configSection}
-              navigate={navigate}
-              navigateSettings={navigateSettings}
-              onNewChat={startNewChat}
-              onSearch={() => setPaletteOpen(true)}
-              width={sidebarWidth}
-              onWidthPreview={setSidebarWidthPreview}
-              onWidthCommit={setSidebarWidth}
-              settingsSearch={
-                page === 'config' && !drawerSidebar && !sidebarCollapsed ? (
+          <BackNavigation onRouteBack={mobileLayout ? routeBack : undefined} />
+          <Suspense fallback={null}>
+            <AppShortcuts
+              blocked={Boolean(
+                appDialog.dialog || modal || modelOnboardingOpen || paletteOpen || dispatchOpen,
+              )}
+              onCommandPalette={() => setPaletteOpen(true)}
+              onPrimary={() => startNewTask('shortcut')}
+              onSearch={focusPageSearch}
+              onToggleTerminal={
+                window.pisperDesktop?.terminalProfiles &&
+                runtimeFeatureAvailable(capabilities, 'terminal')
+                  ? () => setTerminalOpen((value) => !value)
+                  : undefined
+              }
+              onSettings={() => selectShellTab('settings')}
+              onOpenBoard={() => selectShellTab('board')}
+              onOpenComponents={() => selectShellTab('components')}
+              onOpenMore={() => selectShellTab('more')}
+              onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
+              onBackToBoard={page === 'session' ? backToBoard : undefined}
+            />
+          </Suspense>
+          {/* 桌面（含手机 App 以外的窄窗口）由标题栏承载一级导航；手机外壳改用底部标签栏。 */}
+          {!phoneShell && (
+            <AppTitlebar
+              activeTab={shellTab}
+              onSelectTab={selectShellTab}
+              onOpenPalette={() => setPaletteOpen(true)}
+              onNewTask={() => startNewTask('titlebar')}
+              status={
+                appUpdate.status &&
+                ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state) ? (
                   <Suspense fallback={null}>
-                    <ConfigSearchBox
-                      query={query}
-                      onQueryChange={setQuery}
-                      onSelect={setConfigSection}
-                      inputRef={searchInputRef}
-                      placement="sidebar"
-                    />
+                    {/* 沿用原侧栏的更新提示，收成 32px 图标键放进标题栏。 */}
+                    <div className="flex-none [&>button]:size-8 [&>button]:min-h-0">
+                      <SidebarUpdateStatus
+                        update={appUpdate}
+                        collapsed
+                        onOpen={openUpdateSettings}
+                      />
+                    </div>
                   </Suspense>
                 ) : undefined
               }
-              update={appUpdate}
-              onOpenUpdates={openUpdateSettings}
-              tasks={
-                <Suspense
-                  fallback={
-                    <div className="mx-2 h-20 animate-pulse rounded-lg bg-sidebar-accent" />
-                  }
-                >
-                  <ProjectTaskList
-                    navigate={navigate}
-                    requestText={appDialog.prompt}
-                    requestConfirm={appDialog.confirm}
-                    notify={notify}
+              fleet={
+                <Suspense fallback={<span className="h-8 w-24 flex-none" aria-hidden="true" />}>
+                  <FleetMeter
+                    onOpenSession={openSession}
+                    onLongestWaitingChange={setLongestWaitingId}
                   />
                 </Suspense>
               }
             />
-            {/* 主内容是内嵌纸面：上/右/下留 8px 外壳边距、10px 圆角与 1px 细线；手机壳整屏铺满。
-                Windows 自绘标题栏时纸面贴住窗口顶部和右缘，让窗口按钮落在真实窗角、压在页头预留区上。 */}
-            <SidebarInset
-              className={cn(
-                'main-surface relative flex min-w-0 flex-1 flex-col overflow-hidden bg-panel',
-                phoneShell
-                  ? 'h-full'
-                  : 'my-2 mr-2 rounded-lg border border-stroke shadow-raise [[data-custom-titlebar]_&]:mt-0 [[data-custom-titlebar]_&]:mr-0 [[data-custom-titlebar]_&]:rounded-tr-none [[data-custom-titlebar]_&]:border-t-0 [[data-custom-titlebar]_&]:border-r-0',
-              )}
-            >
-              <WorkbenchHeader
-                title={activeMeta[0]}
-                sidebarOpen={drawerSidebar ? mobileNav : !sidebarCollapsed}
-                onToggleSidebar={() =>
-                  drawerSidebar
-                    ? setMobileNav((value) => !value)
-                    : !persistentSettingsSidebar && setSidebarCollapsed(!sidebarCollapsed)
+          )}
+          <div
+            className="app-body flex min-h-0 flex-1 overflow-hidden"
+            data-mobile-app={mobileLayout || undefined}
+          >
+            {settingsLayout && (
+              <Suspense
+                fallback={
+                  <nav
+                    aria-busy="true"
+                    aria-label={t('config:settingsShell.settingsNavigation')}
+                    className="w-[232px] flex-none border-r border-stroke-soft bg-panel"
+                  />
                 }
-                toggleLabel={
-                  (drawerSidebar ? mobileNav : !sidebarCollapsed)
-                    ? t('navigation:appSidebar.collapseSidebar')
-                    : t('navigation:appSidebar.expandSidebar')
-                }
-              />
-              {page !== 'chat' && (
+              >
+                <SettingsSectionNav
+                  page={page}
+                  configSection={configSection}
+                  mobileApp={mobileApp}
+                  onNavigate={navigateSettings}
+                  search={page === 'config' ? configSearch('sidebar') : undefined}
+                  version={appUpdate.info?.version}
+                />
+              </Suspense>
+            )}
+            <main className="main-surface relative flex min-w-0 flex-1 flex-col overflow-hidden bg-panel">
+              {sharedPageHeader && (
                 <Suspense fallback={null}>
                   <PageHeader
                     elementRef={pageHeaderRef}
@@ -943,20 +963,9 @@ function App() {
                     query={query}
                     setQuery={setQuery}
                     configSection={configSection}
-                    onMenu={() => setMobileNav(true)}
+                    onMenu={() => setPaletteOpen(true)}
                     onPrimary={handlePrimary}
-                    searchSlot={
-                      page === 'config' && (drawerSidebar || sidebarCollapsed) ? (
-                        <Suspense fallback={null}>
-                          <ConfigSearchBox
-                            query={query}
-                            onQueryChange={setQuery}
-                            onSelect={setConfigSection}
-                            inputRef={searchInputRef}
-                          />
-                        </Suspense>
-                      ) : undefined
-                    }
+                    searchSlot={page === 'config' && !settingsLayout ? configSearch() : undefined}
                     searchInputRef={searchInputRef}
                     theme={theme}
                     onCycleTheme={cycleTheme}
@@ -965,6 +974,7 @@ function App() {
                     mobileApp={mobileApp}
                     terminalOpen={terminalOpen}
                     onToggleTerminal={() => setTerminalOpen((value) => !value)}
+                    onBackToMore={moreOwned ? backToMore : undefined}
                   />
                 </Suspense>
               )}
@@ -977,7 +987,8 @@ function App() {
                 />
               )}
               <div
-                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
+                // 会话页沿用聊天页的内容区布局：可收缩的 flex 容器，下方终端面板展开时对话区随之让高。
+                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'session' || page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['board', 'more', 'config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
                 key={page}
               >
                 <Outlet context={routeContext} />
@@ -996,11 +1007,16 @@ function App() {
                     />
                   </Suspense>
                 )}
-            </SidebarInset>
-          </SidebarProvider>
+            </main>
+          </div>
           {phoneShell && (
             <Suspense fallback={<div className="h-14 flex-none" aria-hidden="true" />}>
-              <WorkbenchNavigation variant="tabbar" {...workbenchNavigationProps} />
+              <ShellTabBar
+                activeTab={shellTab}
+                onSelectTab={selectShellTab}
+                onNewTask={() => startNewTask('tabbar')}
+                onLongestWaitingChange={setLongestWaitingId}
+              />
             </Suspense>
           )}
           <Suspense fallback={null}>
@@ -1047,7 +1063,6 @@ function App() {
           <Suspense fallback={null}>
             {paletteOpen && (
               <CommandPalette
-                navigation={navigation}
                 onClose={() => setPaletteOpen(false)}
                 onNavigate={navigate}
                 onOpenSession={async (id, targetEntryId, targetActive) => {
@@ -1055,17 +1070,27 @@ function App() {
                     if (targetEntryId && !targetActive) {
                       await chatApi.navigateSessionTreeTarget(id, targetEntryId)
                     }
-                    requestSessionSelection(id, 'open', targetEntryId)
-                    navigate('chat')
+                    openSession(id, targetEntryId)
                   } catch (error) {
                     notify(t('navigation:appOverlays.openLabeledTurnFailed'), 'error')
                     throw error
                   }
                 }}
-                onNewChat={startNewChat}
+                onNewChat={() => startNewTask('palette')}
               />
             )}
             {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
+          </Suspense>
+          <Suspense fallback={null}>
+            {dispatchOpen && (
+              <DispatchOverlay
+                open
+                phone={phoneShell}
+                onOpenChange={setDispatchOpen}
+                onDispatched={taskDispatched}
+                onConfigureModels={() => routerNavigate('/config/models')}
+              />
+            )}
           </Suspense>
         </div>
       </TerminalProvider>

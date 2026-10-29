@@ -16,6 +16,7 @@
   },
   "files": [
     "shared/browser-preferences.mjs",
+    "shared/session-board-status.mjs",
     "runtime/services/browser-preferences-service.mjs",
     "runtime/services/custom-ui-builtins.mjs",
     "runtime/services/custom-ui-path.mjs",

@@ -306,12 +306,13 @@ test('new sessions inherit the most recently listed workspace', async () => {
 })
 
 test('workspace groups create chats with their exact working directory', async () => {
-  // 「最近会话」区块拆分懒加载后，工作区分组与会话列表的实现在
-  // ProjectTaskList.tsx，应用壳只保留懒加载入口。
-  const [sidebar, sidebarShell, events, chatPage, catalog, storage, english, chinese] =
+  // 新外壳没有侧栏：按项目新建任务的入口是看板启动台 / 派发浮层的“在 [项目 ▾] 中”，
+  // 所选项目的目录原样交给建会话接口。侧栏的工作区分组（ProjectTaskList）保留到第 6 期删除。
+  const [sidebar, launch, launchConsole, events, chatPage, catalog, storage, english, chinese] =
     await Promise.all([
       readFile('src/features/chat/ProjectTaskList.tsx', 'utf8'),
-      readFile('src/App.tsx', 'utf8'),
+      readFile('src/features/board/board-launch.ts', 'utf8'),
+      readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
       readFile('src/features/chat/events.ts', 'utf8'),
       readFile('src/features/chat/ChatPage.tsx', 'utf8'),
       readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
@@ -320,7 +321,12 @@ test('workspace groups create chats with their exact working directory', async (
       readFile('src/locales/zh-CN/navigation.json', 'utf8').then(JSON.parse),
     ])
 
-  assert.match(sidebarShell, /ProjectTaskList/)
+  assert.match(launch, /created = await chatApi\.createSession\('', request\.cwd\)/)
+  assert.match(launchConsole, /await launchBoardTask\(\{\s*prompt,\s*cwd,/)
+  assert.match(
+    launchConsole,
+    /onValueChange=\{\(next\) => defaults\.rememberLaunch\(\{ cwd: next \}\)\}/,
+  )
   assert.match(sidebar, /requestSessionCreation\(cwd\)/)
   assert.match(sidebar, /onClick=\{\(\) => createSessionInWorkspace\(group\.cwd\)\}/)
   assert.match(sidebar, /<Plus size=\{14\}/)

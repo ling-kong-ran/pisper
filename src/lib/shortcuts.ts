@@ -42,6 +42,15 @@ export function isEditableTarget(target: EventTarget | null) {
   )
 }
 
+// macOS 的 Option（Alt）是输入修饰键：⌥A 打出“å”，⌥E 是重音死键。焦点在可编辑元素内时，
+// 只带 Alt（不带 ⌘ / Ctrl）的组合按打字处理，交还输入框，不触发应用级快捷键。
+export function optionTypingInEditable(
+  event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'target'>,
+  mac = usesCommandKey,
+) {
+  return mac && event.altKey && !event.ctrlKey && !event.metaKey && isEditableTarget(event.target)
+}
+
 export function shortcutEventBlocked(event: KeyboardEvent) {
   return (
     event.defaultPrevented ||

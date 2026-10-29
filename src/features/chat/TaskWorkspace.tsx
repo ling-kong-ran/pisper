@@ -168,7 +168,8 @@ export function TaskWorkspace({
         tabIndex={-1}
         data-task-workspace={sessionId}
         data-active={active}
-        className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+        // 会话主体是纸面 --panel；--background 现在指向更深一级的页面底 --bg。
+        className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel"
       >
         <div
           ref={setHeaderHost}

@@ -12,9 +12,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ── Quiet Precision 设计 Token ──
-   仪器式界面：冷调锌灰 + 1px 细线分层；唯一强调色（默认档为「信号钴蓝」）只用于
-   选中刻度、焦点环、运行指示、进度细线、开关和主操作。选中物体成为凸起的「键帽」
+/* Geist 只承担拉丁字符：只声明 latin 子集并限定 unicode-range，中文永远落到系统 CJK 字体，
+   既不下载无用字形，也不让中文字形被 Web 字体替换。 */
+@font-face {
+  font-family: 'Geist Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ── Control Room Lanes · Graphite 设计 Token ──
+   仪器式界面：冷调纸白 / 石墨炭灰 + 1px 细线分层；强调色（默认档为「石墨」墨色）只用于
+   主操作，焦点固定用 --focus。状态色 --st-* 独立于强调色：琥珀只表示「需要你」，
+   运行青、完成绿、失败红、排队灰不挪作他用。选中物体成为凸起的「键帽」
    （--key-bg 面 + --key-border 边 + --key-shadow 投影），其余元素平铺在细线之后。
    收敛约定：新代码一律使用 @theme 映射出的工具类（bg-key、border-control、
    text-accent-fg、shadow-float、bg-code、rounded-* 等）；--r-*、--sh-* 及
@@ -28,19 +40,19 @@
   --pisper-safe-area-right: env(safe-area-inset-right, 0px);
   --pisper-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --pisper-safe-area-left: env(safe-area-inset-left, 0px);
-  /* 优先使用平台界面字体：不引入 Web 字体，保持体积预算并让中文与系统字形原生配对。 */
-  --app-font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  /* 拉丁字符用 Geist（见文件头 @font-face 的 unicode-range），中文回退系统 CJK 字体。 */
+  --app-font-family: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
   font-family: var(--app-font-family);
   color: var(--text);
   background: var(--app-chrome);
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
-  --app-chrome: #f3f3f4;
+  --app-chrome: #e6e9ee;
   --scrollbar-thumb: rgba(23, 23, 26, .2);
   --scrollbar-thumb-hover: rgba(23, 23, 26, .34);
   --selection-bg: rgba(61, 75, 239, .16);
 
-  /* ── 强调色：中性档即墨色单色版；焦点与状态蓝固定为信号钴蓝，与选中态区分 ── */
+  /* ── 强调色：默认「石墨」档（neutral）即墨色单色版；焦点固定为信号钴蓝，与主操作区分，永不用琥珀 ── */
   --star: #17171a;
   --star-hover: #2c2c31;
   --star-strong: #17171a;
@@ -62,65 +74,107 @@
   --accent-ring: rgba(23, 23, 26, .12);
   --focus: var(--brand-blue);
   --focus-ring: rgba(61, 75, 239, .22);
-  --status-blue: #2b38c4;
+  /* 运行中的青色墨水；--st-run 是它的语义别名。 */
+  --status-blue: #06709a;
   --selection-ring: rgba(23, 23, 26, .08);
   --node-pulse-color: rgba(23, 23, 26, .3);
 
-  /* ── 中性阶梯：外壳 chrome < 主纸面 panel；控件边框单独加深到 ≥3:1 ── */
-  --bg: #fff;
+  /* ── 中性阶梯：外壳 chrome < 页面底 bg < 泳道 < 纸面 panel / 卡片 solid；控件边框单独加深到 ≥3:1 ── */
+  --bg: #f2f4f7;
   --panel: #fff;
   --solid: #fff;
-  --surface-subtle: #f9f9fa;
-  --surface-muted: #f3f3f4;
-  --surface-hover: #ebebed;
-  --surface-active: #e4e4e7;
-  --surface-sunken: #f6f6f7;
+  --surface-subtle: #f6f7f9;
+  --surface-muted: #eef0f3;
+  --surface-hover: #e4e7ec;
+  --surface-active: #dbdfe5;
+  --surface-sunken: #f0f2f5;
   --surface-highlight: #f6f6f7;
-  --stroke: #e3e3e6;
-  --stroke-soft: #ededef;
-  --stroke-strong: #d1d1d6;
+  --stroke: #d3d7de;
+  --stroke-soft: #e1e4e9;
+  --stroke-strong: #b6bcc6;
   --stroke-hover: var(--stroke-strong);
-  --control-border: #8a8a92;
+  --control-border: #7a828f;
   --control-muted: #c4c4ca;
   --control-selected-bg: var(--primary);
   --control-selected-text: var(--primary-foreground);
   --control-selected-border: var(--primary);
-  --text: #17171a;
-  --text-soft: #36363c;
-  --text-secondary: #505058;
-  --text-tertiary: #67676f;
-  --text-muted: #67676f;
+  --text: #13161b;
+  --text-soft: #252a31;
+  --text-secondary: #454c57;
+  --text-tertiary: var(--text-muted);
+  --text-muted: #585f6b;
   /* 仅用于装饰性分隔点与引导线，不得承载文字。 */
-  --text-faint: #a1a1a8;
+  --text-faint: #9aa1ac;
   --ink: #17171a;
   --ink-strong: #17171a;
   --on-ink: #fff;
-  --key-bg: #fff;
+  /* 键帽即凸起控件，与卡片同用 --solid 面；暗色纸面抬亮后键帽仍需比纸面高一级。 */
+  --key-bg: var(--solid);
   --key-border: #e0e0e4;
   --key-shadow: 0 1px 0 rgba(16, 16, 24, .04), 0 1px 3px rgba(16, 16, 24, .05);
-  --edge-highlight: inset 0 0 0 0 transparent;
+  --edge-highlight: inset 0 1px 0 rgba(255, 255, 255, .7);
 
-  /* ── 语义色：只作为文字、图标或小面积底色 ── */
-  --success: #1a7f3c;
-  --success-soft: #edf7f0;
+  /* ── 语义色：只作为文字、图标或小面积底色；--st-* 状态族是它们的语义别名 ── */
+  --success: #18763f;
+  --success-soft: #e3f2e9;
   --success-strong: #166a32;
-  --success-border: #bfe2cb;
+  --success-border: #aed8be;
   --success-subtle: #f3faf5;
-  --danger: #c8281d;
-  --danger-soft: #fdf1f0;
-  --danger-border: #f4c9c5;
-  --amber: #c25e0a;
-  --warning-soft: #fdf4e8;
-  --warning-strong: #a85207;
-  --warning-border: #f2d5ae;
+  --danger: #bd2b1f;
+  --danger-soft: #fcebe8;
+  --danger-border: #eeb8b1;
+  --amber: #c97a00;
+  --warning-soft: #fdf3e1;
+  --warning-strong: #975000;
+  --warning-border: #e6bd78;
   --warning-subtle: #fef9f2;
   --warning-code-bg: #451a03;
-  --info-soft: #eef0fe;
-  --status-green: #1f9d55;
-  --status-muted: #a1a1a8;
+  /* 信息色与运行中同色族，浅底跟随运行浅底，避免青色文字落在蓝紫底上。 */
+  --info-soft: var(--st-run-soft);
+  --status-green: #1f8a4b;
+  --status-muted: #7a828f;
+
+  /* ── 状态族（--st-*）：独立于强调色，任何强调色预设都不得覆写。
+     墨水（无后缀）用于文字和图标（≥4.5:1）；-fill 用于条带与形状；-soft / -border 是浅底与描边。 */
+  --st-run: var(--status-blue);
+  --st-run-fill: #0b84b3;
+  --st-run-soft: #e1f0f6;
+  --st-run-border: #a6d0e2;
+  --st-attn: var(--warning-strong);
+  --st-attn-fill: var(--amber);
+  --st-attn-soft: var(--warning-soft);
+  --st-attn-border: var(--warning-border);
+  /* 实心琥珀（舰队标签、徽标）：浅色下本体对白底不足 3:1，用 --st-attn-ring 内描边补足边界。 */
+  --st-attn-solid: #f0a02a;
+  --st-attn-ring: #8c4a00;
+  --on-attn: #1c1204;
+  /* 斜纹警示线是颜色之外的形状线索，与需要你的琥珀描边同源。 */
+  --hatch-attn: repeating-linear-gradient(135deg, var(--st-attn-fill) 0 6px, transparent 6px 12px);
+  --st-fail: var(--danger);
+  --st-fail-fill: #d23a2d;
+  --st-fail-soft: var(--danger-soft);
+  --st-fail-border: var(--danger-border);
+  --st-done: var(--success);
+  --st-done-fill: var(--status-green);
+  --st-done-soft: var(--success-soft);
+  --st-done-border: var(--success-border);
+  --st-queue: #585f6b;
+  --st-queue-fill: var(--status-muted);
+  --st-queue-soft: #eceef2;
+  --st-queue-border: #a9b0bb;
+  --lane-bg: #e8ebf0;
+  /* 井：尾巴、命令、代码框等机器输出的凹陷底。 */
+  --well-bg: var(--surface-sunken);
+  --well-stroke: #dde1e7;
+  --well-text: #252a31;
+  --well-muted: #585f6b;
+  --diff-add-bg: #e5f3ea;
+  --diff-add-mark: #bfe3cc;
+  --diff-del-bg: #fbebe9;
+  --diff-del-mark: #f3cbc6;
 
   /* 用户消息靠位置和轻量底色区分，避免与主操作争夺注意力。 */
-  --user-bubble-bg: #f3f3f4;
+  --user-bubble-bg: var(--surface-muted);
   --user-bubble-text: var(--text);
 
   /* 颜色模式预览描绘的是浅色/深色主题本身，两套主题下取值固定，暗色根节点不覆盖。 */
@@ -131,13 +185,16 @@
   --preview-dark-side: #09090b;
   --preview-dark-line: #3a3a42;
 
-  /* ── 圆角阶梯 4/6/8/10/12；data-radius 档位按比例缩放 ── */
+  /* ── 圆角阶梯：xs 4 小标记 / sm 6 按钮输入芯片 / md 8 卡片框 / lg 10 菜单浮层 / sheet 14 手机底部表单；
+     data-radius 档位按比例缩放 ── */
   --r-xs: 4px;
   --r-sm: 6px;
   --r-md: 8px;
-  --r-sheet: 10px;
-  --r-lg: 12px;
+  --r-sheet: 14px;
+  --r-lg: 10px;
   --r-pill: 999px;
+  /* 卡片圆角跟随 --r-md（随 data-radius 缩放），手机外壳下再加 4px。 */
+  --r-card: var(--r-md);
   --radius-scale: 1;
   --corner-radius-scale: 1;
   --composer-radius: 22px;
@@ -146,14 +203,15 @@
 
   /* ── 阴影：细线优先，只保留键帽、输入器、浮层三档 ── */
   --sh-raise: 0 1px 0 rgba(16, 16, 24, .03), 0 1px 2px rgba(16, 16, 24, .04);
-  --sh-float: 0 0 0 1px var(--stroke), 0 12px 32px -12px rgba(16, 16, 24, .18), 0 2px 6px -2px rgba(16, 16, 24, .06);
+  --sh-float: 0 0 0 1px var(--stroke), 0 18px 44px -18px rgba(19, 22, 27, .28), 0 2px 6px -2px rgba(19, 22, 27, .08);
   --sh-composer: 0 1px 2px rgba(16, 16, 24, .04), 0 8px 24px -16px rgba(16, 16, 24, .16);
   /* 主操作实心键：顶部 1px 白色内高光 + 极浅落影，让强调色按钮像被按下的键而不是色块。 */
   --sh-primary: inset 0 1px 0 rgba(255, 255, 255, .14), 0 1px 2px rgba(16, 16, 24, .12);
   --elevation-stroke: 0 0 0 1px var(--stroke);
   --elevation-composer: var(--sh-composer);
   --shadow-composer: var(--sh-composer), var(--edge-highlight);
-  --sh-1: var(--sh-raise);
+  /* 卡片阴影：层次主要靠细线，阴影只做辅助。 */
+  --sh-1: 0 1px 0 rgba(19, 22, 27, .03), 0 1px 3px rgba(19, 22, 27, .06);
   --sh-edge: rgba(16, 16, 24, .04);
   --sh-2: 0 12px 32px -16px rgba(16, 16, 24, .18);
   --sh-surface: var(--sh-raise);
@@ -172,6 +230,8 @@
   --duration-slow: 300ms;
   --d1: var(--duration-fast);
   --d2: var(--duration-normal);
+  /* 泳道迁移：卡片 FLIP 换泳道的时长，配合 --ease-enter。 */
+  --d-lane: 240ms;
 
   /* ── 字体：数值档位由 ui-preferences 按用户字号内联覆盖 ── */
   --ui-font-size: 14px;
@@ -180,19 +240,21 @@
   --font-ui-weight: 400;
   --font-content-family: var(--app-font-family);
   --font-content-size: 16px;
-  --font-code-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  /* 等宽只用于机器输出（尾巴、命令、路径、计数、时长），中文一律不用等宽。 */
+  --font-code-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, Menlo, "DejaVu Sans Mono", "Liberation Mono", monospace;
   --font-code-size: 12px;
   --app-message-font-size: var(--font-content-size);
+  /* 角色：xs 元信息 / sm 密集控件 / base 卡片标题 / lg 面板 h1 / xl 桌面页 h1 / 2xl 手机 h1 / 3xl 数字主值。 */
   --font-ui-xs: 12px;
   --font-ui-sm: 13px;
   --font-ui-base: 14px;
   --font-ui-lg: 16px;
-  --font-ui-xl: 28px;
-  --font-ui-2xl: 36px;
-  --font-ui-3xl: 48px;
+  --font-ui-xl: 20px;
+  --font-ui-2xl: 24px;
+  --font-ui-3xl: 28px;
 
   /* ── 表面与场景：功能栏和侧栏共用外壳底色，主内容是内嵌纸面 ── */
-  --sidebar-bg: var(--app-chrome);
+  --sidebar-bg: #eceef2;
   --sidebar: var(--app-chrome);
   --main-surface-bg: var(--panel);
   --search-bg: var(--panel);
@@ -206,11 +268,12 @@
   --code-bg: #f9f9fa;
   --code-gutter: #6f6f77;
   --inline-code-bg: #f1f1f3;
-  --code-keyword: #3d4bef;
-  --code-fn: #6b2fc0;
-  --code-string: #1a7f3c;
-  --code-number: #a85207;
-  --code-comment: #7a7a82;
+  --code-keyword: #6f35b8;
+  --code-fn: #1f5fae;
+  --code-string: #3f7417;
+  --code-number: #a8326a;
+  --code-comment: #6a717d;
+  --code-type: #0d6b78;
   /* 代码卡片外观全部跟随中性阶梯，暗色主题自动换值，无需单独覆写。 */
   --code-border: var(--stroke);
   --code-text: var(--text-soft);
@@ -233,7 +296,7 @@
   --violet-soft: #f2f0f6;
   --violet-strong: #6e6899;
   --workflow-violet: #8378b0;
-  --approval-border: #bfe2cb;
+  --approval-border: var(--success-border);
   --notification-border: var(--stroke-strong);
   --notification-soft: var(--surface-subtle);
   --modal-overlay: var(--overlay-scrim);
@@ -305,9 +368,9 @@
   /* 输入、选择框等控件边界需与相邻底色达到 3:1。 */
   --input: var(--control-border);
   --ring: var(--focus);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
+  --chart-1: #2b3038;
+  --chart-2: #7a828f;
+  --chart-3: #b6bcc6;
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: var(--r-sm);
@@ -321,15 +384,14 @@
   --sidebar-ring: var(--focus);
 }
 
-/* 暗色是独立主题：近黑外壳、略微抬起的纸面、凹陷代码井与凸起键帽，靠亮度阶梯分层。 */
+/* 暗色是独立主题（深色优先）：分层石墨炭灰外壳、略微抬起的纸面、凹陷代码井与凸起键帽，靠亮度阶梯分层。 */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --app-chrome: #09090b;
+  --app-chrome: #0d0e10;
   --overlay-scrim: rgb(0 0 0 / .5);
   --primary: #ededf0;
   --primary-hover: #fff;
   --primary-foreground: #0f0f12;
-  --info-soft: rgba(95, 106, 255, .13);
   --star: #e4e4e7;
   --star-hover: #fff;
   --star-strong: #ededf0;
@@ -345,59 +407,81 @@
   --accent-ring: rgba(255, 255, 255, .12);
   --focus: #8d95ff;
   --focus-ring: rgba(141, 149, 255, .28);
-  --status-blue: #9aa1ff;
+  --status-blue: #66caec;
   --selection-bg: rgba(120, 130, 255, .3);
   --selection-ring: rgba(255, 255, 255, .1);
   --node-pulse-color: rgba(255, 255, 255, .26);
-  --bg: #0f0f12;
-  --panel: #0f0f12;
-  --solid: #17171b;
-  --surface-subtle: #131316;
-  --surface-muted: #18181c;
-  --surface-hover: #1e1e23;
-  --surface-active: #26262c;
-  --surface-sunken: #0b0b0d;
+  --bg: #131417;
+  --sidebar-bg: #101113;
+  --panel: #16171a;
+  --solid: #1f2024;
+  --surface-subtle: #1a1b1e;
+  --surface-muted: #222327;
+  --surface-hover: #292a2f;
+  --surface-active: #313238;
+  --surface-sunken: #0f1012;
   --surface-highlight: #1a1a1f;
-  --stroke: #232329;
-  --stroke-soft: #1a1a1f;
-  --stroke-strong: #34343c;
-  --control-border: #686872;
+  --stroke: #2c2e33;
+  --stroke-soft: #232428;
+  --stroke-strong: #3d4047;
+  --control-border: #70747d;
   --control-muted: #3a3a42;
-  --text: #ededf0;
-  --text-soft: #d0d0d6;
-  --text-secondary: #a9a9b3;
-  --text-tertiary: #8b8b95;
-  --text-muted: #8b8b95;
-  --text-faint: #55555e;
+  --text: #edebe7;
+  --text-soft: #d8d6d1;
+  --text-secondary: #b4b1ab;
+  --text-muted: #928f89;
+  --text-faint: #55575d;
   --scrollbar-thumb: rgba(237, 237, 240, .18);
   --scrollbar-thumb-hover: rgba(237, 237, 240, .3);
   --ink: #ededf0;
   --ink-strong: #0b0b0d;
   --on-ink: #0f0f12;
-  --key-bg: #1a1a1f;
   --key-border: #2c2c33;
   --key-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 1px 2px rgba(0, 0, 0, .5);
-  --edge-highlight: inset 0 1px 0 0 rgba(255, 255, 255, .04);
-  --success: #3fb26f;
-  --success-soft: rgba(63, 178, 111, .12);
+  --edge-highlight: inset 0 1px 0 rgba(255, 255, 255, .035);
+  --success: #66d092;
+  --success-soft: rgba(102, 208, 146, .09);
   --success-strong: #6fcf97;
-  --success-border: rgba(63, 178, 111, .36);
-  --success-subtle: rgba(63, 178, 111, .08);
-  --danger: #f0645a;
-  --danger-soft: rgba(240, 100, 90, .12);
-  --danger-border: rgba(240, 100, 90, .36);
-  --amber: #e8a23a;
-  --warning-soft: rgba(232, 162, 58, .12);
-  --warning-strong: #e8a23a;
-  --warning-border: rgba(232, 162, 58, .36);
-  --warning-subtle: rgba(232, 162, 58, .07);
+  --success-border: rgba(102, 208, 146, .32);
+  --success-subtle: rgba(102, 208, 146, .06);
+  --danger: #ff7d6f;
+  --danger-soft: rgba(255, 125, 111, .10);
+  --danger-border: rgba(255, 125, 111, .42);
+  --amber: #f5a83a;
+  --warning-soft: rgba(245, 168, 58, .10);
+  --warning-strong: #f5a83a;
+  --warning-border: rgba(245, 168, 58, .46);
+  --warning-subtle: rgba(245, 168, 58, .07);
   --warning-code-bg: #401703;
-  --status-green: #3fb26f;
-  --status-muted: #74747e;
-  --user-bubble-bg: #1a1a1f;
+  --status-green: #4dbb7b;
+  --status-muted: #7d8089;
+  /* 状态族暗色值：未列出的成员沿用 :root 中指向语义色的别名，随上面的暗色语义色自动换值。 */
+  --st-run-fill: #4fb8dd;
+  --st-run-soft: rgba(102, 202, 236, .09);
+  --st-run-border: rgba(102, 202, 236, .34);
+  --st-attn-solid: #f5a83a;
+  /* 深色下实心琥珀本体对纸面已达 9:1，不需要内描边。 */
+  --st-attn-ring: transparent;
+  --on-attn: #1a1103;
+  --st-fail-fill: #f0675a;
+  --st-queue: #a2a5ad;
+  --st-queue-soft: rgba(162, 165, 173, .07);
+  --st-queue-border: #4c4f57;
+  --lane-bg: #18191c;
+  --well-stroke: #26282c;
+  --well-text: #d9d7d2;
+  --well-muted: #8d8a84;
+  --diff-add-bg: rgba(102, 208, 146, .09);
+  --diff-add-mark: rgba(102, 208, 146, .22);
+  --diff-del-bg: rgba(255, 125, 111, .09);
+  --diff-del-mark: rgba(255, 125, 111, .22);
+  --chart-1: #e4e2dd;
+  --chart-2: #8f8c86;
+  --chart-3: #4f5157;
   --sh-edge: rgba(0, 0, 0, .3);
   --sh-raise: 0 1px 0 rgba(0, 0, 0, .4);
-  --sh-float: 0 0 0 1px var(--stroke-strong), 0 16px 40px -12px rgba(0, 0, 0, .7);
+  --sh-1: 0 1px 0 rgba(0, 0, 0, .35);
+  --sh-float: 0 0 0 1px var(--stroke-strong), 0 22px 48px -18px rgba(0, 0, 0, .75);
   --sh-composer: 0 12px 32px -16px rgba(0, 0, 0, .8);
   --sh-2: 0 16px 40px -16px rgba(0, 0, 0, .7);
   --menu-shadow: rgba(0, 0, 0, .6);
@@ -409,11 +493,12 @@
   --code-bg: #0b0b0d;
   --code-gutter: #84848e;
   --inline-code-bg: #1c1c21;
-  --code-keyword: #9aa1ff;
-  --code-fn: #d2a8ff;
-  --code-string: #6fcf97;
-  --code-number: #e8a23a;
-  --code-comment: #74747e;
+  --code-keyword: #c49bf2;
+  --code-fn: #86b6ff;
+  --code-string: #a9d38a;
+  --code-number: #f29ac0;
+  --code-comment: #85827c;
+  --code-type: #79d0d8;
   --floating-shadow: rgba(0, 0, 0, .6);
   --canvas-edge: #55555e;
   --node-shadow: #000;
@@ -421,7 +506,6 @@
   --violet-soft: #23232e;
   --violet-strong: #a8a8cd;
   --workflow-violet: #9e9ecc;
-  --approval-border: rgba(63, 178, 111, .36);
   --shadow: rgba(0, 0, 0, .5);
   --shadow-strong: rgba(0, 0, 0, .65);
   --agent-body-start: #38a5dd;
@@ -564,16 +648,16 @@
   --r-xs: 3px;
   --r-sm: 4px;
   --r-md: 5px;
-  --r-sheet: 6px;
-  --r-lg: 8px;
+  --r-sheet: 9px;
+  --r-lg: 6px;
 }
 :root[data-radius='soft'] {
   --radius-scale: 1.4;
   --r-xs: 6px;
   --r-sm: 8px;
   --r-md: 11px;
-  --r-sheet: 14px;
-  --r-lg: 17px;
+  --r-sheet: 20px;
+  --r-lg: 14px;
 }
 
 
@@ -735,6 +819,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes modal-in { from { opacity: 0; transform: scale(.96); } }
 /* 暗色微星点：极淡星点纹理，营造「夜空感」（透明度 ≤ .06） */
 /* 墨色脉冲环（激活图谱节点 / 工作流节点） */
+/* 需要你计数的单次脉冲：只用 transform，不循环；减少动效偏好下由全局闸门压到瞬时。 */
+@keyframes attn-pulse { 0%, 100% { transform: scale(1); } 35% { transform: scale(1.08); } }
 @keyframes star-node-pulse { 0% { box-shadow: 0 0 0 0 var(--node-pulse-color), 0 6px 16px -10px var(--shadow); } 70%,100% { box-shadow: 0 0 0 10px transparent, 0 6px 16px -10px var(--shadow); } }
 
 @keyframes web-pet-state {
@@ -798,6 +884,43 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   --color-code-gutter: var(--code-gutter);
   --color-inline-code: var(--inline-code-bg);
   --color-success: var(--success);
+  /* 状态族工具类：bg-st-run-soft、text-st-attn、border-st-fail-border、bg-st-attn-solid 等。 */
+  --color-st-run: var(--st-run);
+  --color-st-run-fill: var(--st-run-fill);
+  --color-st-run-soft: var(--st-run-soft);
+  --color-st-run-border: var(--st-run-border);
+  --color-st-attn: var(--st-attn);
+  --color-st-attn-fill: var(--st-attn-fill);
+  --color-st-attn-soft: var(--st-attn-soft);
+  --color-st-attn-border: var(--st-attn-border);
+  --color-st-attn-solid: var(--st-attn-solid);
+  --color-st-attn-ring: var(--st-attn-ring);
+  --color-on-attn: var(--on-attn);
+  --color-st-fail: var(--st-fail);
+  --color-st-fail-fill: var(--st-fail-fill);
+  --color-st-fail-soft: var(--st-fail-soft);
+  --color-st-fail-border: var(--st-fail-border);
+  --color-st-done: var(--st-done);
+  --color-st-done-fill: var(--st-done-fill);
+  --color-st-done-soft: var(--st-done-soft);
+  --color-st-done-border: var(--st-done-border);
+  --color-st-queue: var(--st-queue);
+  --color-st-queue-fill: var(--st-queue-fill);
+  --color-st-queue-soft: var(--st-queue-soft);
+  --color-st-queue-border: var(--st-queue-border);
+  --color-lane: var(--lane-bg);
+  --color-well: var(--well-bg);
+  --color-well-stroke: var(--well-stroke);
+  --color-well-text: var(--well-text);
+  --color-well-muted: var(--well-muted);
+  --color-diff-add: var(--diff-add-bg);
+  --color-diff-add-mark: var(--diff-add-mark);
+  --color-diff-del: var(--diff-del-bg);
+  --color-diff-del-mark: var(--diff-del-mark);
+  --color-code-type: var(--code-type);
+  --radius-card: var(--r-card);
+  --shadow-card: var(--sh-1);
+  --shadow-edge: var(--edge-highlight);
   --shadow-key: var(--key-shadow);
   --shadow-primary: var(--sh-primary);
   --shadow-float: var(--sh-float);
@@ -897,11 +1020,9 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 .effort-slider::-webkit-slider-thumb { appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--key-bg); border: 1px solid var(--control-border); box-shadow: var(--key-shadow); }
 .effort-slider::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--key-bg); border: 1px solid var(--control-border); box-shadow: var(--key-shadow); }
 .effort-slider:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 999px; }
+/* Windows 自绘窗口按钮绝对定位在外壳右上角，只压在应用标题栏预留的 144px 上；
+   标题栏以下的页头与会话头不再需要为窗口按钮留白。 */
 .app-shell[data-custom-titlebar] { position: relative; }
-.app-shell[data-custom-titlebar] .auxiliary-page-header { padding-right: 136px; }
-.app-shell[data-custom-titlebar] .workbench-chat-header:not([data-context-aside]) { padding-right: 144px; }
-/* 窄窗口的会话标签条同样位于首行，新建按钮需让开 Windows 自绘窗口按钮。 */
-.app-shell[data-custom-titlebar] .mobile-session-tabs { padding-right: 132px; }
 
 /* === 旧 WebView 透明度工具类降级 ===
    Tailwind 对「var 色 + 透明度」工具类(如 bg-muted/50)生成的构建降级值是全强度基色,
@@ -986,8 +1107,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   :root { --activity-rail-width: 44px; }
 }
 
-/* 手机底部标签栏取代功能栏，抽屉与内容不再预留左侧宽度。 */
-:root[data-phone-shell] { --activity-rail-width: 0px; }
+/* 手机底部标签栏取代功能栏，抽屉与内容不再预留左侧宽度；手机卡片圆角比桌面大一级（8 → 12）。 */
+:root[data-phone-shell] { --activity-rail-width: 0px; --r-card: calc(var(--r-md) + 4px); }
 
 /* 拖动侧栏宽度时整页保持调整光标，且不误选正文。 */
 :root[data-sidebar-resizing],

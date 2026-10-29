@@ -98,7 +98,8 @@ export function ConfigSearchBox({
         className={cn(
           'h-8.5 pl-8 text-sm pointer-coarse:min-h-11',
           // 侧栏搜索是一枚平键：键帽面 + 键帽描边，右侧留出快捷键小键帽的位置。
-          placement === 'sidebar' && 'h-8 border-key-border bg-key pr-9 shadow-key',
+          // 分区导航较窄：占位文字放不下时以省略号收尾，不在词中间硬裁。
+          placement === 'sidebar' && 'h-8 border-key-border bg-key pr-9 text-ellipsis shadow-key',
         )}
         placeholder={t('config:configSearch.placeholder')}
         onChange={(event) => {

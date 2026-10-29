@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useContext } from 'react'
+import { SessionRouteLeading } from './session-route-chrome'
 import { TaskWorkspaceSlots } from './task-workspace-context'
 // 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
 // 拆分说明：props 类型在 focus-session-props，composer 状态与提交逻辑在
@@ -185,6 +186,8 @@ export const FocusSession = memo(function FocusSession({
   onAbort,
 }: FocusSessionProps) {
   const slots = useContext(TaskWorkspaceSlots)
+  // 会话页（路由模式）的返回入口：放在顶栏最左侧，不再单独占一行。
+  const routeLeading = useContext(SessionRouteLeading)
   const { t, language } = useI18n()
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const theme = useUiStore((state) => state.theme)
@@ -605,7 +608,17 @@ export const FocusSession = memo(function FocusSession({
             phoneShell && 'gap-0 pr-1 pl-[92px]',
           )}
         >
+          {phoneShell && routeLeading && (
+            // 手机顶栏左侧本就为菜单键留出了位置，返回入口放在这里，标题仍然居中。
+            <div className="absolute top-1/2 left-1 z-1 -translate-y-1/2">{routeLeading}</div>
+          )}
           <div className="flex min-w-0 flex-1 items-center gap-1" data-window-drag-region>
+            {!phoneShell && routeLeading && (
+              <>
+                {routeLeading}
+                <span aria-hidden="true" className="mx-1 h-4 w-px flex-none bg-stroke" />
+              </>
+            )}
             {!phoneShell && (
               <>
                 {workspaceBlock}

@@ -65,7 +65,14 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
           await list.getByRole('button', { name: /Template verification/ }).click()
           const detail = page.locator('[data-slot="page-detail"]')
           await detail.waitFor({ state: 'visible' })
-          if (width <= 800) {
+          // 列表/详情按容器宽度（760px）而不是视口切换单栏；新外壳没有侧栏和活动栏，
+          // 800px 视口下内容区已够宽，两栏并排。手机宽度必须是单栏。
+          const stacked = await list.evaluate(
+            (el) =>
+              el.closest('[class*="@container/list-detail"]').getBoundingClientRect().width < 760,
+          )
+          if (width <= 390) assert.equal(stacked, true, `${width}px schedules stack list/detail`)
+          if (stacked) {
             assert.equal(await list.isVisible(), false)
             assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
             await list.waitFor({ state: 'visible' })
@@ -118,14 +125,15 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
     await page.goto(base + '/#/config/notifications')
     await page.locator('[data-page-template="settings"]').waitFor()
     // 配置读取失败必须保留可重试错误，不显示为成功或空配置。
-    await page.route('**/api/settings/notifications', (route) =>
-      route.fulfill({
+    // 刷新时应用壳的启动查询与设置页各读一次通知配置，每次注入的失败都记为预期。
+    await page.route('**/api/settings/notifications', (route) => {
+      report.expectedFailedApi.push({ path: '/api/settings/notifications', status: 503 })
+      return route.fulfill({
         status: 503,
         contentType: 'application/json',
         body: JSON.stringify({ error: 'Template fixture load failure' }),
-      }),
-    )
-    report.expectedFailedApi.push({ path: '/api/settings/notifications', status: 503 })
+      })
+    })
     await page.reload()
     await page.getByRole('alert').filter({ hasText: 'Template fixture load failure' }).waitFor()
     await page.unroute('**/api/settings/notifications')

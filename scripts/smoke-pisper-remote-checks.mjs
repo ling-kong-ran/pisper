@@ -49,12 +49,12 @@ export async function verifyRemoteWorkspaceSettings({ browser, base, report, out
     await qr.getByText('https://192.0.2.10:5174', { exact: true }).waitFor()
     await qr.getByText('SHA256:' + 'AB'.repeat(32), { exact: true }).waitFor()
     await page.screenshot({ path: join(output, 'remote-manual-connection.png') })
-    await qr.getByRole('button', { name: 'Close', exact: true }).click()
+    await qr.getByRole('button', { name: '关闭对话框', exact: true }).click()
     legacyServer = true
     await page.getByRole('button', { name: '生成配对二维码', exact: true }).click()
     await qr.getByText('TEST-CODE', { exact: true }).waitFor()
     assert.equal(await qr.locator('details').count(), 0)
-    await qr.getByRole('button', { name: 'Close', exact: true }).click()
+    await qr.getByRole('button', { name: '关闭对话框', exact: true }).click()
     await page.unroute('**/api/remote/**', inboundFixture)
     report.checks.push(
       'Local pairing exposes selectable manual address and fingerprint; older Runtime 404 preserves original QR pairing',

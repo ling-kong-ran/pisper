@@ -19,9 +19,17 @@ const paths = {
 type StartupQuery = keyof typeof paths
 const versions = new Map<StartupQuery, number>()
 
+// 会话目录的唯一权威缓存：看板、侧栏、聊天目录垫片和应用壳都读写这一份。
+// 第 1 期看板视图与完整目录是同一个 /api/sessions，因此直接使用看板键，避免同一数据出现两份缓存。
+export const SESSIONS_QUERY_KEY = ['sessions', 'board'] as const
+
+function startupQueryKey(key: StartupQuery): readonly string[] {
+  return key === 'sessions' ? SESSIONS_QUERY_KEY : [key]
+}
+
 export function startupQueryOptions<T>(key: StartupQuery) {
   return {
-    queryKey: [key],
+    queryKey: startupQueryKey(key),
     // 不消费观察者的取消信号，让 StrictMode 重挂与命令式读取共享在途请求。
     queryFn: async () => {
       for (;;) {
@@ -51,7 +59,10 @@ export function fetchStartupQuery<T>(key: StartupQuery, refresh = false): Promis
 
 export function invalidateStartupQuery(key: StartupQuery) {
   versions.set(key, (versions.get(key) ?? 0) + 1)
-  return queryClient.invalidateQueries({ queryKey: [key], exact: true }, { cancelRefetch: false })
+  return queryClient.invalidateQueries(
+    { queryKey: startupQueryKey(key), exact: true },
+    { cancelRefetch: false },
+  )
 }
 
 export function installStartupQueryEvents(target: EventTarget) {

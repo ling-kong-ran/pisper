@@ -335,12 +335,13 @@ try {
   await page.evaluate(() => window.controls.setTab('assets'))
   await page.getByRole('button', { name: 'assets:assetsPage.addLink', exact: true }).first().click()
   await page.getByRole('heading', { name: 'assets:assetsPage.addLinkAsset', exact: true }).waitFor()
-  const backdrop = await page.locator('.modal-backdrop').boundingBox()
+  // 资产对话框改用共享 Dialog（1d7eee0f 起没有 .modal-backdrop），遮罩是 dialog-overlay。
+  const backdrop = await page.locator('[data-slot="dialog-overlay"]').boundingBox()
   assert(
     backdrop && Math.abs(backdrop.x) < 1 && Math.abs(backdrop.width - 390) < 1,
     'Embedded asset modal must cover the viewport rather than the translated track',
   )
-  await page.getByRole('button', { name: 'assets:assetsPage.closeDialog', exact: true }).click()
+  await page.getByRole('button', { name: 'common:ui.closeDialog', exact: true }).click()
   await page.evaluate(() => window.controls.setTab('changes'))
   const approve = page.getByRole('button', {
     name: 'chat:focusSession.fileChangesApproveAll',

@@ -1,9 +1,21 @@
 // 聊天主页面持有会话目录与实时连接，任务工作区在各分屏内独立装配。
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// 会话页（/board/:sessionId）以路由模式嵌入：只挂载 URL 指定的单个会话，不挂载 Dockview，
+// 任何内部打开会话的动作都交回路由，再由 URL 回写活动会话。
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { PageState } from '@/components/app/PageState'
+import { Button } from '@/components/ui/button'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
@@ -11,7 +23,7 @@ import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { MobileSessionPanel } from './ChatDock'
+import { MobileSessionPanel, SingleSessionPanel } from './ChatDock'
 import { chatApi } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useChatDock } from './use-chat-dock'
@@ -21,9 +33,20 @@ import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
 import { updateSessionOrganization } from './session-organization-api'
-import { SESSION_CREATE_REQUESTED_EVENT, consumeSessionCreationRequest } from './events'
+import {
+  SESSION_CREATE_REQUESTED_EVENT,
+  consumeSessionCreationRequest,
+  consumeSessionSelectionRequest,
+} from './events'
+import { SessionRouteLeading } from './session-route-chrome'
+import { openWebPreviewInSessionContext } from './session-web-preview'
+import { WEB_PREVIEW_OPEN_EVENT, consumeWebPreviewRequest } from './web-preview-events'
 import { SideChatProvider } from './SideChatProvider'
 import type { SideChatRuntime } from './side-chat-context'
+
+// 会话页路由里的保留段：进入后新建会话，再以 replace 换成真实 id（与 '/workflows/new' 同理）。
+const NEW_SESSION_ROUTE_ID = 'new'
+const FOCUS_MESSAGE_PAGE_SIZE = 40
 
 const LazyChatDockView = lazy(() =>
   import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
@@ -49,6 +72,11 @@ type ChatPageProps = {
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+  // 路由模式：URL 里的会话 id（或 'new'）是唯一选中依据；内部打开会话时回调路由切换。
+  routeSessionId?: string
+  onRouteSessionChange?: (sessionId: string) => void
+  // 会话页注入到会话顶栏最左侧的返回入口（路由模式才有）。
+  routeLeading?: ReactNode
 }
 
 export function ChatPage({
@@ -60,8 +88,14 @@ export function ChatPage({
   onAssetConsumed,
   requestText,
   requestConfirm,
+  routeSessionId,
+  onRouteSessionChange,
+  routeLeading,
 }: ChatPageProps) {
   const { t } = useI18n()
+  const routeMode = routeSessionId !== undefined
+  // 'new' 只是“正在新建”的占位，不是可选中的会话 id。
+  const routeTarget = routeMode && routeSessionId !== NEW_SESSION_ROUTE_ID ? routeSessionId : ''
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
@@ -109,7 +143,8 @@ export function ChatPage({
     localStreamSessionsRef,
     loadSessionMessages: liveSync.loadSessionMessages,
     releaseSessionState: catalog.releaseSessionState,
-    singleSessionLayout: mobileLayout,
+    singleSessionLayout: mobileLayout || routeMode,
+    openRoutedSession: routeMode ? onRouteSessionChange : undefined,
     notify,
   })
   const createSessionRecord = catalog.createSessionRecord
@@ -141,6 +176,45 @@ export function ChatPage({
   )
   usePagePrimaryAction(registerPrimaryAction, createSession)
 
+  // 路由模式：URL → 活动会话。目录刷新或删除可能把活动会话换走，只要路由会话仍在目录里就拉回；
+  // 路由会话不在目录里（已删除或链接错误）时不强选，由页面显示“找不到这个会话”。
+  const setActiveId = catalog.setActiveId
+  const routeKnown = Boolean(
+    routeTarget && catalog.sessions.some((session) => session.id === routeTarget),
+  )
+  useEffect(() => {
+    if (!routeTarget || catalog.activeId === routeTarget) return
+    if (!routeKnown && !catalog.loading) return
+    setActiveId(routeTarget)
+  }, [catalog.activeId, catalog.loading, routeKnown, routeTarget, setActiveId])
+
+  // 进入会话页时消费遗留的打开请求：命中当前会话且带消息定位时强制重载，让定位条目可见；
+  // 指向别的会话的旧请求直接丢弃，地址栏才是选中依据。
+  const routeEntryHandledRef = useRef('')
+  useEffect(() => {
+    if (!routeTarget || routeEntryHandledRef.current === routeTarget) return
+    routeEntryHandledRef.current = routeTarget
+    const request = consumeSessionSelectionRequest()
+    if (request?.sessionId === routeTarget && request.targetEntryId) {
+      void loadSessionMessages(routeTarget, { force: true, limit: FOCUS_MESSAGE_PAGE_SIZE })
+    }
+  }, [loadSessionMessages, routeTarget])
+
+  // 会话页没有 Dock 预览面板：外链预览落到当前会话检查器的网页预览页；
+  // 从别的页面带过来的预览请求在进入会话页时补开。只在路由会话确认存在后消费：
+  // 目录还在加载或会话已删除（“找不到这个会话”）时请求留着，不被白白吃掉。
+  useEffect(() => {
+    if (!routeTarget || !routeKnown) return
+    const pending = consumeWebPreviewRequest()
+    if (pending) openWebPreviewInSessionContext(routeTarget, pending.url)
+    const openPreview = (event: Event) => {
+      const url = (event as CustomEvent<{ url?: string }>).detail?.url
+      if (url) openWebPreviewInSessionContext(routeTarget, url)
+    }
+    window.addEventListener(WEB_PREVIEW_OPEN_EVENT, openPreview)
+    return () => window.removeEventListener(WEB_PREVIEW_OPEN_EVENT, openPreview)
+  }, [routeKnown, routeTarget])
+
   const promptCommands = usePromptCommands({
     browserNotify,
     notify,
@@ -161,19 +235,35 @@ export function ChatPage({
 
   // 处理会话创建请求（可携带自动发送的提示词，如视觉生成卡片的「试试示例」）：
   // 事件监听 + localStorage 持久化，跨页面跳转/重启后挂载时也会补建。
+  // 路由停在 '/board/new' 且没有待处理的创建请求时（直接打开或刷新该地址），新建一个空会话；
+  // 每次进入 'new' 只建一次，创建完成后路由以 replace 换成真实 id。
+  // 会话页等目录首载完成再建：否则首载快照会覆盖刚合并的新会话，页面误报“找不到这个会话”。
+  const newRouteHandledRef = useRef(false)
+  const awaitingNewRoute = routeMode && routeSessionId === NEW_SESSION_ROUTE_ID
+  const routeCatalogLoading = routeMode && catalog.loading
   useEffect(() => {
-    const createRequested = () => {
+    if (!awaitingNewRoute) newRouteHandledRef.current = false
+  }, [awaitingNewRoute])
+  useEffect(() => {
+    if (routeCatalogLoading) return
+    const consumeCreateRequest = () => {
       const request = consumeSessionCreationRequest()
-      if (!request) return
+      if (!request) return false
+      if (awaitingNewRoute) newRouteHandledRef.current = true
       void (async () => {
         const sessionId = await createSession(undefined, request.cwd)
         if (sessionId && request.prompt) void sendPrompt(request.prompt, sessionId)
       })()
+      return true
     }
+    const createRequested = () => void consumeCreateRequest()
     window.addEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
-    createRequested()
+    if (!consumeCreateRequest() && awaitingNewRoute && !newRouteHandledRef.current) {
+      newRouteHandledRef.current = true
+      void createSession()
+    }
     return () => window.removeEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
-  }, [createSession, sendPrompt])
+  }, [awaitingNewRoute, createSession, routeCatalogLoading, sendPrompt])
   const sessionCommands = useSessionCommands({
     notify,
     requestText,
@@ -297,6 +387,7 @@ export function ChatPage({
       activeId: catalog.activeId,
       compactDock: dock.compactDock,
       mobileLayout,
+      splitAvailable: !mobileLayout && !routeMode,
       requestConfirm,
       sessionTreePulseSessionId: recallPulse.sessionId,
       sessionTreePulseToken: recallPulse.token,
@@ -341,6 +432,7 @@ export function ChatPage({
       dock.splitDockPanel,
       dock.closeDockPanel,
       mobileLayout,
+      routeMode,
       requestConfirm,
       recallPulse.sessionId,
       recallPulse.token,
@@ -426,29 +518,59 @@ export function ChatPage({
         ) : (
           <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-panel">
             <ChatDockContext.Provider value={dockContextValue}>
-              {clientLoaded &&
-                (mobileLayout ? (
-                  <MobileSessionPanel
-                    sessionIds={dock.mobileSessionIds}
-                    onSelectSession={dock.openSessionInDock}
-                    onCreateSession={createSession}
-                    onOpenHistory={() => navigate('chatHistory')}
-                  />
-                ) : (
-                  <Suspense
-                    fallback={
+              <SessionRouteLeading.Provider value={routeMode ? (routeLeading ?? null) : null}>
+                {clientLoaded &&
+                  (routeMode ? (
+                    routeTarget && !routeKnown ? (
+                      <PageState
+                        kind="empty"
+                        title={t('navigation:shell.sessionNotFound')}
+                        description={t('navigation:shell.sessionNotFoundHint')}
+                        action={
+                          <Button variant="secondary" onClick={() => navigate('board')}>
+                            {t('navigation:shell.backToBoardLabel')}
+                          </Button>
+                        }
+                      />
+                    ) : routeTarget ? (
+                      <SingleSessionPanel sessionId={routeTarget} onCreateSession={createSession} />
+                    ) : catalog.globalError ? (
+                      <PageState
+                        kind="error"
+                        title={t('navigation:shell.createSessionFailed')}
+                        description={catalog.globalError}
+                        action={
+                          <Button variant="secondary" onClick={() => void createSession()}>
+                            {t('navigation:more.retry')}
+                          </Button>
+                        }
+                      />
+                    ) : (
                       <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
-                    }
-                  >
-                    <LazyChatDockView
-                      compactDock={dock.compactDock}
-                      onDockReady={dock.onDockReady}
-                      onDockDispose={dock.onDockDispose}
-                      getTabContextMenuItems={dock.getTabContextMenuItems}
-                      createSession={createSession}
+                    )
+                  ) : mobileLayout ? (
+                    <MobileSessionPanel
+                      sessionIds={dock.mobileSessionIds}
+                      onSelectSession={dock.openSessionInDock}
+                      onCreateSession={createSession}
+                      onOpenHistory={() => navigate('chatHistory')}
                     />
-                  </Suspense>
-                ))}
+                  ) : (
+                    <Suspense
+                      fallback={
+                        <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
+                      }
+                    >
+                      <LazyChatDockView
+                        compactDock={dock.compactDock}
+                        onDockReady={dock.onDockReady}
+                        onDockDispose={dock.onDockDispose}
+                        getTabContextMenuItems={dock.getTabContextMenuItems}
+                        createSession={createSession}
+                      />
+                    </Suspense>
+                  ))}
+              </SessionRouteLeading.Provider>
             </ChatDockContext.Provider>
           </div>
         )}

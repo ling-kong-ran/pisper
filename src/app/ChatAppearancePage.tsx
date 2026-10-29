@@ -1,6 +1,7 @@
-// 界面设置组合外观与独立组件；会话布局画布不再作为用户设置入口。
+// 界面设置组合外观与独立组件入口；独立组件的管理视图已迁到“组件”标签页。
 import { lazy, Suspense, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
+import { PAGE_PATHS } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { ensureCustomUiMessages } from '@/app/i18n'
 import type { Notify } from '@/app/route-context'
@@ -24,6 +25,9 @@ export function ChatAppearancePage({
   const [params, setParams] = useSearchParams()
   const view = params.get('view')
   const tab = view === 'layout' || view === 'widgets' ? 'widgets' : 'appearance'
+  // 独立组件已迁到“组件”标签：旧链接 ?view=widgets（含更早的 layout）反向重定向过去。
+  // 这里的标签页本身留到第 4 期设置重组时移除，点它同样会落到组件页。
+  if (tab === 'widgets') return <Navigate to={PAGE_PATHS.components} replace />
   return (
     <Tabs
       value={tab}

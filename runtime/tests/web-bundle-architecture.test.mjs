@@ -400,10 +400,11 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(routes, /input\.includeTree === false/)
 })
 
-test('settings navigation replaces the main sidebar and stays reachable in the mobile shell', async () => {
-  const [app, sidebar, mobileNavigation, settingsNavigation, styles] = await Promise.all([
+test('settings keep an in-page section navigation without the application sidebar and stay reachable in the mobile shell', async () => {
+  const [app, sectionNav, more, mobileNavigation, settingsNavigation, styles] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/components/layout/AppSidebar.tsx', 'utf8'),
+    readFile('src/components/layout/SettingsSectionNav.tsx', 'utf8'),
+    readFile('src/app/MorePage.tsx', 'utf8'),
     readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
     readFile('src/app/settings-navigation.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
@@ -416,14 +417,23 @@ test('settings navigation replaces the main sidebar and stays reachable in the m
   )
   assert.match(app, /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\)/)
   assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
-  assert.match(app, /<WorkbenchNavigation[\s\S]*?page=\{page\}/)
-  assert.match(app, /<WorkbenchHeader/)
-  assert.match(sidebar, /settingsActive \? \(/)
-  assert.match(sidebar, /onClick=\{\(\) => runAndClose\(\(\) => navigate\('chat'\)\)\}/)
+  // 一级导航始终是标题栏（手机外壳为底部标签栏），设置页不再用设置导航替换应用侧栏；
+  // 当前页点亮哪个标签只由 activeShellTab(page, settingsOwned) 决定。
+  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
+  assert.match(app, /<AppTitlebar\s+activeTab=\{shellTab\}/)
+  assert.match(app, /<ShellTabBar\s+activeTab=\{shellTab\}/)
+  assert.doesNotMatch(app, /<WorkbenchNavigation\b|<WorkbenchHeader\b|<AppSidebar\b/)
+  // 桌面设置页在内容区左侧有自己的分区导航；手机仍用横滑分区条。
+  assert.match(app, /const settingsLayout = settingsOwned && !mobileLayout/)
   assert.match(
-    await readFile('src/app/WorkbenchNavigation.tsx', 'utf8'),
-    /getActivityNavigation\(t, capabilities\)/,
+    app,
+    /\{settingsLayout && \([\s\S]*?<SettingsSectionNav\s+page=\{page\}\s+configSection=\{configSection\}\s+mobileApp=\{mobileApp\}\s+onNavigate=\{navigateSettings\}/,
   )
+  assert.match(sectionNav, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
+  assert.match(sectionNav, /aria-label=\{t\('config:settingsShell\.settingsNavigation'\)\}/)
+  assert.match(sectionNav, /aria-current=\{active \? 'page' : undefined\}/)
+  // 功能页入口在“更多”启动台，按 Runtime 能力与客户端形态裁剪。
+  assert.match(more, /getMoreNavigation\(t, \{ capabilities, mobileApp, components \}\)/)
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
   assert.doesNotMatch(app, /<MobilePrimaryNavigation/)
@@ -498,20 +508,22 @@ test('route code and route-specific vendor styles remain lazy', async () => {
       readFile('src/app/ChatAppearancePage.tsx', 'utf8'),
     ])
 
-  // 实际页面保持动态导入；旧组件地址只重定向到设置，不应为了迁移额外加载页面。
+  // 实际页面保持动态导入；组件标签直接懒加载组件管理页（旧的 ?view=widgets 反向跳到这里），
+  // 不再是去设置页的重定向。
   const loaders = [...routeElements.matchAll(/export async function (\w+Route)\(/g)]
   assert.ok(loaders.length > 0)
   for (const [index, loader] of loaders.entries()) {
     const body = routeElements.slice(loader.index, loaders[index + 1]?.index)
-    if (loader[1] === 'componentsRoute') {
-      assert.match(body, /<Navigate to="\/config\/interface\?view=widgets" replace/)
-      assert.doesNotMatch(body, /@\/features\//)
-    } else {
-      assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
-      assert.match(body, /await (?:import\(|Promise\.all\()/, `${loader[1]} must await its page`)
-    }
+    assert.match(body, /\bimport\(/, `${loader[1]} must import its page dynamically`)
+    assert.match(body, /await (?:import\(|Promise\.all\()/, `${loader[1]} must await its page`)
+    assert.doesNotMatch(body, /<Navigate\b/, `${loader[1]} must render a page, not redirect`)
     assert.match(router, new RegExp(`lazy: ${loader[1]}\\b`))
   }
+  for (const route of ['boardRoute', 'sessionRoute', 'moreRoute', 'componentsRoute'])
+    assert.ok(
+      loaders.some((loader) => loader[1] === route),
+      `${route} must be a lazy route`,
+    )
   assert.ok((router.match(/lazy: \w+Route/g)?.length || 0) >= 12)
   assert.doesNotMatch(appearance, /ChatLayoutEditor|interface-chat-layout/)
   assert.doesNotMatch(chat, /useChatLayoutStore|canvasHasKind/)

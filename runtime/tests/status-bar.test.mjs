@@ -58,3 +58,14 @@ test('Pisper shell waits for client detection and retires the global status bar'
     /setUsage\(normalizeTokenUsage\(await apiJson<unknown>\('\/api\/usage\/today'\)\)\)/,
   )
 })
+
+test('today usage now lives in the fleet popover and is fetched only while it is open', async () => {
+  const [systemInfo, fleet] = await Promise.all([
+    readFile('src/features/board/useFleetSystemInfo.ts', 'utf8'),
+    readFile('src/app/FleetMeter.tsx', 'utf8'),
+  ])
+  // 全局状态栏退役后，今日用量放进标题栏舰队计量浮层的系统行，沿用同一个容错归一化。
+  assert.match(systemInfo, /apiJson<unknown>\('\/api\/usage\/today', \{ signal \}\)/)
+  assert.match(systemInfo, /normalizeTokenUsage\(usage\)\.totalTokens/)
+  assert.match(fleet, /useFleetSystemInfo\(open\)/)
+})

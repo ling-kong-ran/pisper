@@ -49,8 +49,10 @@ test('only complete in-range integer edits can commit numeric font inputs', () =
 })
 
 test('numeric UI size scales the UI roles without changing the 16px rem base', () => {
-  assert.deepEqual(uiTextSizes(11), [9, 10, 11, 13, 22, 28, 38])
-  assert.deepEqual(uiTextSizes(16), [14, 15, 16, 18, 32, 41, 55])
+  // 14px 基准阶梯 12/13/14/16/20/24/28：xl 桌面页 h1、2xl 手机 h1、3xl 数字主值。
+  assert.deepEqual(uiTextSizes(14), [12, 13, 14, 16, 20, 24, 28])
+  assert.deepEqual(uiTextSizes(11), [9, 10, 11, 13, 16, 19, 22])
+  assert.deepEqual(uiTextSizes(16), [14, 15, 16, 18, 23, 27, 32])
   assert.deepEqual(uiTextSizes(14), uiTextSizes('default'))
 })
 

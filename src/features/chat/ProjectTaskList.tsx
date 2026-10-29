@@ -12,7 +12,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Archive,
   ArchiveRestore,
@@ -59,7 +59,8 @@ import {
   type WorkspaceSessionGroup,
 } from '@/features/chat/session-workspaces'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
-import { fetchStartupQuery, startupQueryOptions } from '@/lib/startup-queries'
+import { BOARD_SESSIONS_QUERY_KEY, useSessionListQuery } from '@/features/board/public'
+import { fetchStartupQuery } from '@/lib/startup-queries'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
@@ -209,21 +210,21 @@ export function ProjectTaskList({
     [],
   )
 
-  const { data: sidebarSessionData } = useQuery({
-    ...startupQueryOptions<{ sessions: SessionSummary[] }>('sessions'),
-    refetchInterval: 2_000,
-  })
+  // 侧栏只读看板持有的权威会话目录；轮询（可见时 3 秒、隐藏时停止）由看板同步统一负责。
+  const { data: sidebarSessionData } = useSessionListQuery<{ sessions: SessionSummary[] }>()
   useEffect(
     () =>
       subscribeSessionDeletionUpdates(window, ({ deletedIds }) => {
         const deleted = new Set(deletedIds)
-        queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (current) =>
-          current
-            ? {
-                ...current,
-                sessions: current.sessions.filter((session) => !deleted.has(session.id)),
-              }
-            : current,
+        queryClient.setQueryData<{ sessions: SessionSummary[] }>(
+          BOARD_SESSIONS_QUERY_KEY,
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  sessions: current.sessions.filter((session) => !deleted.has(session.id)),
+                }
+              : current,
         )
       }),
     [queryClient],
@@ -264,22 +265,15 @@ export function ProjectTaskList({
       ? workspaceNames[group.key] || workspaceName(group.cwd, language)
       : t('navigation:appSidebar.noWorkspace')
 
+  // 回到前台后的刷新由看板同步负责，这里只同步活动会话高亮。
   useEffect(() => {
-    const refresh = () => {
-      void fetchStartupQuery('sessions', true).catch(() => {})
-    }
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') refresh()
-    }
     const syncActive = (event: Event) => {
       const detail = (event as CustomEvent<{ id?: string }>).detail
       setActiveSessionId(detail?.id || pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '')
     }
-    document.addEventListener('visibilitychange', refreshWhenVisible)
     window.addEventListener(SESSION_SELECTED_EVENT, syncActive)
     window.addEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
     return () => {
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
       window.removeEventListener(SESSION_SELECTED_EVENT, syncActive)
       window.removeEventListener(ACTIVE_SESSION_CHANGED_EVENT, syncActive)
     }
@@ -514,15 +508,17 @@ export function ProjectTaskList({
     if (deletingKey) return
     try {
       const updated = await updateSessionOrganization(session.id, patch)
-      queryClient.setQueryData<{ sessions: SessionSummary[] }>(['sessions'], (current) =>
-        current
-          ? {
-              ...current,
-              sessions: current.sessions.map((item) =>
-                item.id === updated.id ? { ...item, ...updated } : item,
-              ),
-            }
-          : current,
+      queryClient.setQueryData<{ sessions: SessionSummary[] }>(
+        BOARD_SESSIONS_QUERY_KEY,
+        (current) =>
+          current
+            ? {
+                ...current,
+                sessions: current.sessions.map((item) =>
+                  item.id === updated.id ? { ...item, ...updated } : item,
+                ),
+              }
+            : current,
       )
       notify(message)
     } catch (error) {

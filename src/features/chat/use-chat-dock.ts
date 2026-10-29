@@ -57,6 +57,9 @@ type DockOptions = {
     options?: { panelOpen?: boolean; localStreamOwned?: boolean },
   ) => boolean
   singleSessionLayout: boolean
+  // 会话页由路由决定显示哪个会话：单会话布局下的打开请求改为交给路由，
+  // 由 URL 变化再回写活动会话，避免目录与地址栏各自选中不同的会话。
+  openRoutedSession?: (sessionId: string) => void
   notify: Notify
 }
 
@@ -71,6 +74,7 @@ export function useChatDock({
   loadSessionMessages,
   releaseSessionState,
   singleSessionLayout,
+  openRoutedSession,
   notify,
 }: DockOptions) {
   const { t } = useI18n()
@@ -80,6 +84,8 @@ export function useChatDock({
   // 手机布局不渲染 Dock：打开会话时只切换活动 id。
   const singleSessionLayoutRef = useRef(singleSessionLayout)
   singleSessionLayoutRef.current = singleSessionLayout
+  const openRoutedSessionRef = useRef(openRoutedSession)
+  openRoutedSessionRef.current = openRoutedSession
   const [compactDock, setCompactDock] = useState(
     () => window.matchMedia('(max-width: 900px)').matches,
   )
@@ -239,6 +245,10 @@ export function useChatDock({
     (sessionId: string, disposition: SessionOpenDisposition = 'open') => {
       // 单会话布局无 Dock：记录打开顺序并直接切换活动会话。
       if (singleSessionLayoutRef.current) {
+        if (sessionId && openRoutedSessionRef.current) {
+          openRoutedSessionRef.current(sessionId)
+          return true
+        }
         pendingDockRequestRef.current = { sessionId, disposition: 'open' }
         if (sessionId) {
           setMobileOpenedSessionIds((current) =>

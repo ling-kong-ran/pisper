@@ -3,6 +3,9 @@ import test from 'node:test'
 import { getActivityNavigation } from '../../src/app/activity-navigation.ts'
 import { LEGACY_RUNTIME_CAPABILITIES } from '../../src/types/runtime-capabilities.ts'
 
+// 旧功能栏分组只剩休眠的 WorkbenchNavigation 使用（外壳已改用 more-navigation，见
+// more-navigation.test.mjs）。模块保留到第 6 期统一删除，这里的守卫随模块一起删除。
+
 test('activity menus keep workspace, resources, automation and extensions separately reachable', () => {
   const groups = getActivityNavigation((key) => key, LEGACY_RUNTIME_CAPABILITIES)
   assert.deepEqual(
