@@ -33,7 +33,7 @@ export function assertAndroidEnv(env) {
   const missing = ['JAVA_HOME', 'ANDROID_HOME', 'NDK_HOME'].filter((key) => !env[key])
   if (missing.length) {
     console.error(`缺少 Android 工具链环境变量：${missing.join(', ')}`)
-    console.error('参考 docs/mobile.md §0 的构建链说明安装，或放置到 ~/.pisper-android。')
+    console.error('请安装 JDK、Android SDK 与 NDK 并导出上述变量，或放置到 ~/.pisper-android。')
     process.exit(1)
   }
 }

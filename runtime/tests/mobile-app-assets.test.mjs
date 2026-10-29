@@ -1142,32 +1142,25 @@ test('所有构建仅使用 embedded Runtime 且商店构建排除外部安装�
 })
 
 test('公开移动文档与当前启动、配对、更新和隐私边界一致', async () => {
-  const [readmeZh, readmeEn, mobileGuide, site, privacyMd, privacyHtml, support] =
-    await Promise.all([
-      readFile('README.md', 'utf8'),
-      readFile('README.en.md', 'utf8'),
-      readFile('docs/mobile.md', 'utf8'),
-      readFile('docs/index.html', 'utf8'),
-      readFile('docs/privacy.md', 'utf8'),
-      readFile('docs/privacy.html', 'utf8'),
-      readFile('docs/support.md', 'utf8'),
-    ])
-  const userDocs = `${readmeZh}\n${readmeEn}\n${mobileGuide}\n${site}`
+  const [readmeZh, readmeEn, site, privacy, support] = await Promise.all([
+    readFile('README.md', 'utf8'),
+    readFile('README.en.md', 'utf8'),
+    readFile('docs/index.html', 'utf8'),
+    readFile('docs/privacy.html', 'utf8'),
+    readFile('docs/support.html', 'utf8'),
+  ])
+  const userDocs = `${readmeZh}\n${readmeEn}\n${site}`
   assert.doesNotMatch(userDocs, /首屏把|first screen presents|rooted Android|Linux chroot/)
   assert.match(readmeZh, /首次启动会直接进入内置的本机 Runtime/)
   assert.match(
     readmeEn,
     /On first launch, the Android \/ iOS app starts its bundled on-device Runtime/,
   )
-  assert.match(mobileGuide, /桌面用户明确批准后，手机才领取一次性设备令牌/)
-  assert.match(mobileGuide, /Google Play 与 App Store 构建只通过对应商店更新/)
   assert.match(site, /首次启动直接进入本机 Runtime/)
-  for (const privacy of [privacyMd, privacyHtml]) {
-    assert.match(privacy, /discover Desktop advertisements|discover and connect/)
-    assert.match(privacy, /approve it before a device access token is issued/)
-    assert.match(privacy, /GitHub build uses the same embedded Node Runtime and signed/)
-  }
-  assert.match(support, /select the discovered Desktop, and approve the request on Desktop/)
+  assert.match(privacy, /discover Desktop advertisements|discover and connect/)
+  assert.match(privacy, /approve it before a device access token is issued/)
+  assert.match(privacy, /GitHub build uses the same embedded Node Runtime and signed/)
+  assert.match(support, /select the discovered Desktop, and\s+approve the request on Desktop/)
 })
 
 test('App 发布必须签名并校验共享 Runtime 与平台产物', async () => {

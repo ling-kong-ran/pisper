@@ -6,8 +6,6 @@
 
 Windows 桌面版安装到 `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe` 的是原生可执行文件。其他程序或脚本调用时，应直接启动该文件并单独传入参数，不要用 `node` 执行 `.exe`；npm 包的 JavaScript 启动器会自行启动对应的原生程序。
 
-若外部程序启动时出现 `MZ` 和 Node 语法错误，可以使用 [Windows CLI 诊断工具](../docs/troubleshooting/windows-cli.md) 收集入口线索，无需事先知道调用命令。
-
 ## CLI 命令
 
 | 命令 | 解释 |

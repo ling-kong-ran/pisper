@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本文件是 Pisper 仓库的规则中枢与文档路由。保留跨模块强制边界；具体环境、验证矩阵和专项设计以链接文档及实际代码为准。
+本文件是 Pisper 仓库的规则中枢。保留跨模块强制边界；具体环境、验证矩阵和专项设计以脚本、测试、CI 及实际代码为准。
 
 ## 先读与执行顺序
 
@@ -16,14 +16,6 @@
 - **强制边界：** 安全、协议兼容、发布流程，以及“必须”“禁止”“不得”“只能”的要求。
 - **默认建议：** “默认”“优先”“建议”“可以”“应”的组织方式；替代方案需说明职责、依赖方向与取舍。
 - **迁移债务：** 新代码不得扩大偏差；优先治理本次涉及区域，不夹带全仓库重写。
-
-文档路由：
-
-- 开发环境、依赖、验证矩阵、已知债务：[`docs/development-workflow.md`](docs/development-workflow.md)
-- 架构决策、结构变更与回滚记录：[`docs/architecture-decisions.md`](docs/architecture-decisions.md)
-- 移动端构建与设备验收：[`docs/mobile.md`](docs/mobile.md)
-- 故障排查：[`docs/troubleshooting/README.md`](docs/troubleshooting/README.md)
-- 多代理协作：[`docs/team-mode-playbook.md`](docs/team-mode-playbook.md)
 
 ## 项目与目录路由
 
@@ -49,6 +41,7 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 | `crates/` | 确有独立边界的 Rust 库与平台适配 |
 | `scripts/` | 构建、发布、开发工具与迁移入口，不承载产品领域规则 |
 | `packages/pisper/` | npm 安装器、启动器与发布源码清单 |
+| `docs/` | GitHub Pages 官网、隐私与支持页，以及线上读取的 `latest-app.json`、`sponsors.json`；不存放开发或设计文档 |
 | `dist/`、`release/` | 构建和打包产物，不手工维护 |
 
 路径别名：`@/*` → `src/*`，`@shared/*` → `shared/*`。业务所有权优先于复用次数；多个调用方不自动意味着应提升为全局模块。
@@ -92,7 +85,7 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 - 同一远程实体只能有一个权威数据所有者；草稿和派生数据须明确提交、回滚及失效规则。
 - 请求、SSE、Worker、定时器、音频和事件监听须明确所有者、取消与清理路径；模块导入不得隐式启动长期副作用。
 - 异步任务不得遗留未处理 Promise、异常或后台任务；处理重复启动、超时、重试、乱序响应和取消。
-- 新增或升级依赖遵循开发流程记录与锁文件要求；资源、模型和二进制须记录来源、版本、许可证、摘要与打包路径。
+- 新增或升级依赖须同步锁文件并在变更说明中记录原因；资源、模型和二进制须记录来源、版本、许可证、摘要与打包路径。
 - 用户可见行为、命令、配置、协议、存储或目录边界变化时，同步测试、帮助文本、文档和必要发布说明。
 
 ### 安全与平台红线
@@ -133,7 +126,7 @@ npm run release -- patch     # 发布也可传明确版本号
 
 ## 测试与验证
 
-按 [`docs/development-workflow.md`](docs/development-workflow.md) 的矩阵选择检查：
+按改动范围选择检查：
 
 - TypeScript/界面：受影响范围的类型、lint、i18n；跨区域或构建配置运行 `npm run check`。
 - Runtime/工具/路由：相关 `runtime/tests/` 测试；公共线协议还须验证 Web、TUI 与契约。
@@ -151,4 +144,4 @@ npm run release -- patch     # 发布也可传明确版本号
 - 发布前检查分支、工作区、标签和渠道实际变更；工作流运行期间冻结发布分支，失败先查日志与远端状态。
 - 分支集成禁止 `git merge` 和 merge commit，只用 `git rebase` 或 `git cherry-pick`；共享/发布分支禁止强制推送和改写他人提交。
 - 变更说明包含目的、范围、验证、风险、迁移与回滚；不夹带无关格式化、重命名或目录搬迁。
-- 使用子代理时遵循团队手册：子代理运行限定测试，集成者运行完整检查；重构子代理不得修改源码守卫。
+- 使用子代理时：子代理运行限定测试，集成者运行完整检查；重构子代理不得修改源码守卫。

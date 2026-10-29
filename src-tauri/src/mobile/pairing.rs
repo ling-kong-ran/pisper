@@ -10,7 +10,7 @@ use crate::iroh_tunnel::TunnelBridgePool;
 use super::pinning::pinned_client;
 use super::store::{normalize_fingerprint, ServerEndpoint, ServerProfile};
 
-/// 二维码 payload（契约见 docs/mobile.md §5.2）。
+/// 二维码 payload，字段须与桌面端生成的配对二维码保持一致。
 #[derive(Debug, Deserialize)]
 pub struct QrPayload {
     pub v: u32,

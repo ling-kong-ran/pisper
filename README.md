@@ -62,7 +62,7 @@
 
 [语音输入 对话模式](https://ling-kong-ran.github.io/pisper/guide.html#voice)
 
-需要让同一台电脑上的其他 Agent 调用 Pisper？在 MCP 页面自行开启内置服务，复制连接配置。支持会话、记忆、工作流等能力；连接需要令牌。[查看内置 MCP 使用说明](docs/mcp-host.md)。
+需要让同一台电脑上的其他 Agent 调用 Pisper？在 MCP 页面自行开启内置服务，复制连接配置。支持会话、记忆、工作流等能力；连接需要令牌。
 
 <a id="pi-runtime"></a>
 
@@ -80,7 +80,7 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 
 **60 秒体验 Pisper：** 对话模式、语音输入、流式回复与平滑滚动，以及并行会话、分支探索和工作流。
 
-[在线观看](https://ling-kong-ran.github.io/pisper/#promo) · [下载 MP4](docs/promo/pisper-promo-zh-CN.mp4) · [素材说明](docs/promo/README.md)
+[在线观看](https://ling-kong-ran.github.io/pisper/#promo) · [下载 MP4](docs/promo/pisper-promo-zh-CN.mp4)
 
 ## 📸 界面预览
 
@@ -124,9 +124,9 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 | macOS | 按 Apple Silicon / Intel 选择 DMG，使用系统 WKWebView，无需额外分发浏览器内核。 |
 | Linux x64 | AppImage 可能需要 FUSE；Debian / Ubuntu 可选 DEB。离线部署需提前准备发行版所需系统库，DEB 可能依赖 WebKitGTK 等包。 |
 
-Windows 自动更新使用普通包，已有 WebView2 无需随每次更新重复下载。**完整离线包不包含按需下载的本地语音模型**；各平台的模型、MCP 外部程序和扩展仍需单独准备，模型对话需要可达的模型服务（可以是内网服务）。旧版本未提供两种 Windows 包时，以 Release 实际资产为准。详见[离线部署说明](docs/troubleshooting/offline-deployment.md)。
+Windows 自动更新使用普通包，已有 WebView2 无需随每次更新重复下载。**完整离线包不包含按需下载的本地语音模型**；各平台的模型、MCP 外部程序和扩展仍需单独准备，模型对话需要可达的模型服务（可以是内网服务）。旧版本未提供两种 Windows 包时，以 Release 实际资产为准。
 
-普通安装包检测到 WebView2 缺失时，会先说明依赖用途、联网要求和离线包选项；失败时显示修复方向及安装错误码。桌面启动时发现随包文件缺失或 Runtime 初始化失败，也会显示原生错误提示。Linux 在程序执行前发生的系统库错误，请从终端启动查看具体库名，见上方离线部署说明。
+普通安装包检测到 WebView2 缺失时，会先说明依赖用途、联网要求和离线包选项；失败时显示修复方向及安装错误码。桌面启动时发现随包文件缺失或 Runtime 初始化失败，也会显示原生错误提示。Linux 在程序执行前发生的系统库错误，请从终端启动查看具体库名。
 
 <details>
 <summary>macOS 提示「无法打开」？</summary>
@@ -188,7 +188,7 @@ Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌
 
 </details>
 
-手机会记住当前使用的本机或远程 Runtime。完整流程、能力边界、安全模型与排障见 **[移动端使用指南](./docs/mobile.md)** 和 **[本机 Runtime 设计](./docs/mobile-local-runtime.md)**。
+手机会记住当前使用的本机或远程 Runtime。
 
 ### 方式三：npm（Node.js 20+）
 
@@ -220,8 +220,7 @@ npm run desktop:webview:dev
 npm run desktop:webview:build
 ```
 
-移动端 App：`npm run build:ios` 产出本地签名调试 IPA（真机自测）。iOS 模拟器构建流程与
-已知踩坑（Rosetta Node、Tauri CLI ARCHS、旧系统黑屏）见[移动端使用指南](./docs/mobile.md)。
+移动端 App：`npm run build:ios` 产出本地签名调试 IPA（真机自测）。
 
 </details>
 
@@ -236,7 +235,7 @@ Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；�
 - **默认只听本机**：桌面 Runtime 常规入口绑定 127.0.0.1；手机本机 Runtime 只监听随机回环端口。只有显式开启桌面远程访问后，才会额外启动 LAN HTTPS 与 Iroh P2P endpoint。Iroh 只承载原始加密字节，上层仍由 TLS 指纹和设备 Bearer 令牌保护。Pi 遥测默认关闭。
 - **敏感先脱敏、凭据留在沙箱**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘与摘要展示前被替换。手机本机 Provider 凭据与远程设备令牌当前保存在 App 私有目录，依赖系统沙箱与文件权限保护，尚未迁入 Android Keystore 或 iOS Keychain。
 - **权限有边界**：需审批、工作区写入、完全访问三档；凭据不经普通接口回显给 Agent，宿主 Shell 会移除常见凭据环境变量。
-- **对外 MCP 自行开启**：内置服务默认关闭，只监听 127.0.0.1，使用单独的 Bearer 令牌；持有令牌的本机客户端可以调用所有已开放工具。[连接与令牌说明](docs/mcp-host.md)。
+- **对外 MCP 自行开启**：内置服务默认关闭，只监听 127.0.0.1，使用单独的 Bearer 令牌；持有令牌的本机客户端可以调用所有已开放工具。
 - **记忆需确认**：自动推断的记忆先进入待确认区，你点头之前不参与召回。
 
 > 边界说明：脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。桌面 Runtime 的 Provider 凭据仍位于本机 Agent 数据目录，请保护该目录和备份；手机安全存储也不能替代设备锁屏、系统更新与可信侧载来源。完整说明见[项目主页数据安全部分](https://ling-kong-ran.github.io/pisper/#safety)。
@@ -245,7 +244,7 @@ Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；�
 
 Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立更新，失败自动回退到内置版本。桌面端提供统一组件检查入口；移动 App 使用独立发布清单。
 
-独立 UI 组件可在「设置 → 界面设置 → 独立组件」导入文件夹或 ZIP；重新加载界面后会出现在「更多工具」。游戏素材工作台不再内置，源码位于 [pisper-components](https://github.com/ling-kong-ran/pisper-components)。[自定义组件说明](./docs/custom-ui.md)
+独立 UI 组件可在「设置 → 界面设置 → 独立组件」导入文件夹或 ZIP；重新加载界面后会出现在「更多工具」。游戏素材工作台不再内置，源码位于 [pisper-components](https://github.com/ling-kong-ran/pisper-components)。
 
 ## 📚 文档
 
@@ -256,10 +255,6 @@ Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立
 | [使用教程](https://ling-kong-ran.github.io/pisper/guide.html) | 从安装到进阶的完整上手路径 |
 | [项目主页](https://ling-kong-ran.github.io/pisper/) | 产品介绍与界面演示 |
 | [TUI 命令参考](./src-tui/README.md) | CLI、Slash command 与参数说明 |
-| [移动端使用指南](./docs/mobile.md) | 安装、本机运行、桌面配对、安全模型与排障 |
-| [移动端本机 Runtime](./docs/mobile-local-runtime.md) | 统一 Node 架构、能力清单与供应链 |
-| [插件开发指南](./docs/plugin-authoring.md) | 编写与发布插件；另见 [本地插件指南](./docs/local-plugins.md) |
-| [桌面宠物（Petdex）](./docs/petdex-integration.md) | 桌面宠物集成说明 |
 
 <a id="development"></a>
 

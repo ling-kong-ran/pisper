@@ -62,7 +62,7 @@
 
 [Voice Input · Conversation Mode](https://ling-kong-ran.github.io/pisper/guide.html#voice)
 
-Want another agent on the same computer to use Pisper? Enable the built-in server on the MCP page and copy its connection settings. It exposes sessions, memory, workflows, and more behind a token. See the [built-in MCP guide](docs/mcp-host.en.md).
+Want another agent on the same computer to use Pisper? Enable the built-in server on the MCP page and copy its connection settings. It exposes sessions, memory, workflows, and more behind a token.
 
 <a id="pi-runtime"></a>
 
@@ -80,7 +80,7 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
 
 **Experience Pisper in 60 seconds:** conversation mode, voice input, streamed replies and smooth scrolling, parallel sessions, branching, and workflows. Chinese titles; English captions are available in the website player.
 
-[Watch online](https://ling-kong-ran.github.io/pisper/#promo) · [Download MP4](docs/promo/pisper-promo-zh-CN.mp4) · [Production notes](docs/promo/README.md)
+[Watch online](https://ling-kong-ran.github.io/pisper/#promo) · [Download MP4](docs/promo/pisper-promo-zh-CN.mp4)
 
 ## 📸 Screenshots
 
@@ -124,9 +124,9 @@ Choose your system and architecture on the [download page](https://ling-kong-ran
 | macOS | Choose the Apple Silicon or Intel DMG. Uses the system WKWebView; no additional browser engine download. |
 | Linux x64 | AppImage may require FUSE; DEB is available for Debian / Ubuntu. Prepare distribution-specific system libraries before offline deployment; DEB may require packages such as WebKitGTK. |
 
-Windows automatic updates use the standard package, avoiding repeated WebView2 installer downloads. **The full offline package does not include on-demand local speech models.** Models, external MCP programs, and extensions still need separate preparation on every platform; conversations need a reachable model service, which can be on your intranet. Older releases may not offer both Windows variants; check the actual release assets. See the [offline deployment notes](docs/troubleshooting/offline-deployment.md).
+Windows automatic updates use the standard package, avoiding repeated WebView2 installer downloads. **The full offline package does not include on-demand local speech models.** Models, external MCP programs, and extensions still need separate preparation on every platform; conversations need a reachable model service, which can be on your intranet. Older releases may not offer both Windows variants; check the actual release assets.
 
-If WebView2 is missing, the standard installer explains what it is, why internet access is needed, and how to choose the offline package before installing the dependency. Installation failures retain error codes and recovery guidance. Missing bundled files and Runtime initialization failures also display native startup messages. For Linux system-library failures before the application can execute, launch it from a terminal to see the missing library name; see the deployment notes above.
+If WebView2 is missing, the standard installer explains what it is, why internet access is needed, and how to choose the offline package before installing the dependency. Installation failures retain error codes and recovery guidance. Missing bundled files and Runtime initialization failures also display native startup messages. For Linux system-library failures before the application can execute, launch it from a terminal to see the missing library name.
 
 <details>
 <summary>macOS says the app "can't be opened"?</summary>
@@ -188,7 +188,7 @@ On first launch, the Android / iOS app starts its bundled on-device Runtime and 
 
 </details>
 
-The app remembers the currently selected on-device or remote Runtime. See the **[Mobile Guide](./docs/mobile.md)** and **[On-device Runtime design](./docs/mobile-local-runtime.md)** for the complete flow, capability boundaries, security model, and troubleshooting.
+The app remembers the currently selected on-device or remote Runtime.
 
 ### Option 3: npm (Node.js 20+)
 
@@ -221,8 +221,6 @@ npm run desktop:webview:build
 ```
 
 Mobile App: `npm run build:ios` produces a locally signed debugging IPA for real devices.
-For the iOS Simulator build flow and known pitfalls (Rosetta Node, Tauri CLI ARCHS,
-black screen on old iOS), see the [Mobile Guide](./docs/mobile.md).
 
 </details>
 
@@ -237,7 +235,7 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 - **Loopback by default**: the Desktop Runtime binds its normal endpoint to 127.0.0.1; the on-device mobile Runtime listens only on a random loopback port. LAN HTTPS and Iroh P2P start only after Desktop remote access is explicitly enabled. Iroh transports raw encrypted bytes while TLS fingerprint pinning and device Bearer tokens protect the upper layer. Pi telemetry is off by default.
 - **Redaction and sandboxed credentials**: common API keys, Bearer/JWT tokens, private keys, and connection strings are replaced before memories are persisted or summaries are shown. On-device Provider credentials and remote device tokens currently remain in the App-private directory under OS sandbox and file permissions; Android Keystore / iOS Keychain integration is still pending.
 - **Permission boundaries**: approval-required, workspace-write and full-access modes; credentials are never echoed back to agents through ordinary config APIs, and the host shell strips common credential environment variables.
-- **Opt-in MCP server**: off by default, bound to 127.0.0.1, and protected by a separate Bearer token. A local client holding that token can call every exposed tool. See [connection and token details](docs/mcp-host.en.md).
+- **Opt-in MCP server**: off by default, bound to 127.0.0.1, and protected by a separate Bearer token. A local client holding that token can call every exposed tool.
 - **Memory on approval**: automatically inferred memories sit in a review queue and are never recalled until you confirm them.
 
 > Honest boundary: redaction only recognizes common secret formats; it is not full DLP, a sandbox, or end-to-end encryption. Desktop Runtime Provider credentials still live in the local Agent data directory, so protect that directory and its backups. Mobile secure storage does not replace device lock screens, OS updates, or trusted sideload sources. Full details on the [website's data safety section](https://ling-kong-ran.github.io/pisper/#safety).
@@ -246,7 +244,7 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 
 Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated independently, with automatic rollback to the bundled version on component failure. Desktop provides one component-update entry; the mobile App uses its own release manifest.
 
-Standalone UI components can be imported from a folder or ZIP under Settings → Interface → Custom components. They appear in More Tools after reloading the interface. The Game Asset Workbench is no longer bundled; its source lives in [pisper-components](https://github.com/ling-kong-ran/pisper-components). See the [custom component guide](./docs/custom-ui.md).
+Standalone UI components can be imported from a folder or ZIP under Settings → Interface → Custom components. They appear in More Tools after reloading the interface. The Game Asset Workbench is no longer bundled; its source lives in [pisper-components](https://github.com/ling-kong-ran/pisper-components).
 
 ## 📚 Docs
 
@@ -257,10 +255,6 @@ Standalone UI components can be imported from a folder or ZIP under Settings →
 | [Guide](https://ling-kong-ran.github.io/pisper/guide.html) | Full path from install to advanced use |
 | [Website](https://ling-kong-ran.github.io/pisper/) | Product tour and screenshots |
 | [TUI Command Reference](./src-tui/README.en.md) | CLI commands, Slash commands, and arguments |
-| [Mobile Guide](./docs/mobile.md) | Installation, on-device mode, Desktop pairing, security, troubleshooting |
-| [Mobile on-device Runtime](./docs/mobile-local-runtime.md) | Unified Node architecture, capability manifest, supply chain |
-| [Plugin authoring](./docs/plugin-authoring.md) | Writing and shipping plugins; see also [local plugins](./docs/local-plugins.md) |
-| [Desktop pets (Petdex)](./docs/petdex-integration.md) | Desktop pet integration |
 
 <a id="development"></a>
 

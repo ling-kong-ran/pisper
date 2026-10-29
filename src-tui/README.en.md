@@ -6,8 +6,6 @@ Argument notation: `<argument>` is required; `[argument]` is optional.
 
 The Windows desktop app installs a native executable at `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe`. Other programs and scripts should launch that file directly with separate arguments, not pass the `.exe` to `node`. The npm package's JavaScript launcher starts its native executable itself.
 
-For an external launch failure containing `MZ` and a Node syntax error, use the [Windows CLI diagnostic tool](../docs/troubleshooting/windows-cli.md) to collect launch clues without knowing the caller's command in advance.
-
 ## CLI Commands
 
 | Command | Explanation |

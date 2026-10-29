@@ -12,7 +12,7 @@
 // 但归一化 outline 节点不透出该标记（role 统一为 "edit"、值置空），
 // 因此控件级识别当前仅对 macOS outline 生效；Windows 由「安全桌面/
 // 安全输入状态」上报兜底（desktop_computer_use_secure_input_state），
-// 控件级透出的缺口记录在 docs/computer-use-ui-tree.md（可上游补 isPassword 注解）。
+// 控件级透出仍是已知缺口（可上游补 isPassword 注解）。
 
 // outline 行内密码框的 role/subrole 标记（官方 displayName 渲染为
 // `role/subrole "label"`，AXSecureTextField 必然原样出现在文本行中）。
