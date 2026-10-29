@@ -16,7 +16,7 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
     await page.getByRole('textbox', { name: '任务描述', exact: true }).fill(text)
     await page.getByRole('button', { name: '发送消息', exact: true }).click()
     await page.getByRole('button', { name: '停止', exact: true }).waitFor()
-    await page.getByRole('button', { name: '发送消息', exact: true }).waitFor()
+    await page.getByRole('button', { name: '停止', exact: true }).waitFor({ state: 'hidden' })
     return (await tree()).nodes.filter((node) => node.kind === 'assistant')
   }
   const [first] = await send('history first fixture')

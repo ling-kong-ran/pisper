@@ -194,14 +194,14 @@ function MarkdownCopyButton({ source }: { source: string }) {
     }
   }
 
-  // 标题栏里的图标键：悬停在面板色上需要一级表面色，暗色沿用白色 10% 洗色。
+  // 标题栏里的图标键：代码块头部是面板色，悬停统一用一级表面色，浅色与暗色一致。
   const label = copied ? t('common:markdownMessage.copied') : t('common:markdownMessage.copyCode')
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon-sm"
-      className="size-[26px] text-[var(--code-toolbar-text)] hover:bg-white/10 hover:text-[var(--code-toolbar-text)] max-[650px]:size-11 pointer-coarse:size-11 [.markdown-body_&]:hover:bg-surface-hover [.markdown-body_&]:hover:text-foreground"
+      className="size-[26px] text-[var(--code-toolbar-text)] hover:bg-surface-hover hover:text-foreground max-[650px]:size-11 pointer-coarse:size-11"
       data-streamdown="code-block-copy-button"
       onClick={copy}
       aria-label={label}

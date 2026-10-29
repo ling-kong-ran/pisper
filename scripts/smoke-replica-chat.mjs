@@ -122,7 +122,9 @@ try {
   await page.locator('.send-button').click()
   await page.waitForFunction(() => window.replicaChat.evidence.queues === 1)
   await page.waitForFunction(() => document.querySelector('.focus-composer textarea').value === '')
-  await page.locator('.send-button').click()
+  // 停止只在运行条上；发送键运行中没有草稿时不可用。
+  assert.equal(await page.locator('.send-button').isDisabled(), true)
+  await page.locator('.focus-composer-status button').click()
   await page.waitForFunction(() => window.replicaChat.evidence.aborts === 1)
   assert.equal(await page.locator('.send-button').getAttribute('aria-busy'), 'true')
   await page.evaluate(() => window.settleAbort())

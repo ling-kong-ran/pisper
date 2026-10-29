@@ -772,7 +772,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             data-state={agentState}
             aria-hidden="true"
           >
-            <BrandLogo size={20} />
+            <BrandLogo size={22} />
           </span>
           <span className="font-semibold text-foreground">Pisper</span>
           {agentState === 'thinking' && <OrbitSpinner className="size-3.5" />}

@@ -82,7 +82,7 @@ test('the existing page-state key persists independent sizes and migrates older 
     await store.persist.rehydrate()
     assert.equal(store.getState().uiFontSize, 16)
     assert.equal(store.getState().codeFontSize, 24)
-    assert.equal(JSON.parse(values.get('pisper-ui')).version, 2)
+    assert.equal(JSON.parse(values.get('pisper-ui')).version, 3)
     store.getState().resetAppearance()
     assert.equal(store.getState().uiFontSize, 14)
     assert.equal(store.getState().codeFontSize, 12)

@@ -147,7 +147,8 @@ test('移动端删除配对使用应用确认框且运行按钮不能被窄屏�
   assert.match(settings, /if \(!approved\) return/)
   assert.match(settings, /await run\('mobile_forget_server', \{ id: server\.id \}, server\.id\)/)
   assert.match(settings, /disabled=\{Boolean\(busyId\)\}/)
-  assert.match(settings, /className="flex-none max-\[650px\]:h-10/)
+  // 手机上服务器操作按钮保持 44px 触控高度。
+  assert.match(settings, /className="flex-none max-\[650px\]:h-11/)
 })
 
 test('Android arm64 native 产物强制兼容 16 KB 内存页', async () => {

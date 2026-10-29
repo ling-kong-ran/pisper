@@ -5,7 +5,10 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TooltipProvider } from '../../src/components/ui/tooltip.tsx'
 import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
-import { ComposerSendButton } from '../../src/features/chat/focus-session-composer-bits.tsx'
+import {
+  ComposerSendButton,
+  ComposerStatusPill,
+} from '../../src/features/chat/focus-session-composer-bits.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
   const [page, liveSync, prompt] = await Promise.all([
@@ -101,12 +104,14 @@ test('tool activity uses a polished scroll viewport without truncating records',
   assert.match(activity, /tabIndex=\{activities\.length > 3 \? 0 : undefined\}/)
   assert.match(activity, /if \(!streaming \|\| !activities\.length\) return undefined/)
   assert.match(activity, /node\.scrollTop = node\.scrollHeight/)
+  // 工具日志是一张卡片内的细线分隔行：不留行间距，只用上边线分隔。
   assert.match(
     activity,
-    /agent-run-feed[^"\n]*max-h-\[184px\][^"\n]*gap-\[4px\][^"\n]*overflow-y-auto/,
+    /agent-run-feed[^"\n]*max-h-\[184px\][^"\n]*overflow-y-auto[^"\n]*\[&>\*\+\*\]:border-t/,
   )
   assert.match(activity, /agent-run-command-output[^"\n]*max-h-\[320px\]/)
-  assert.match(activity, /latest \? 'current[^']*bg-\[var\(--surface-subtle\)\]/)
+  // 只有运行中的日志高亮最新一行，已完成的日志不再给最后一行着色。
+  assert.match(activity, /latest \? 'current[^']*\.live[^']*bg-surface-subtle/)
   assert.match(activity, /activityPlan\?\.items\?\.length[\s\S]*planCleared/)
 })
 
@@ -116,7 +121,9 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.match(focus, /focus-composer-status/)
   assert.match(focus, /compaction\?\.active \? 'compacting[^']*' : streaming \? 'running' : 'idle'/)
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
-  assert.match(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
+  // 运行条用强调色底与「运行中」文字表示运行，不再整体染成成功绿。
+  assert.match(focus, /\[&\.running\]:border-star-border[^`]*\[&\.running\]:bg-star-soft/)
+  assert.doesNotMatch(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
   assert.match(focus, /compacting[^']*text-\[var\(--warning-strong\)\]/)
   assert.match(focus, /\[&\.idle\]:hidden/)
 })
@@ -156,7 +163,7 @@ test('conversation layout keeps a compact title header without a persistent avat
     /<TaskWorkspaceHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
   assert.doesNotMatch(focus, /sessionActionsMenu|<SessionActionsMenu/)
-  assert.match(message, /<BrandLogo size=\{20\} \/>/)
+  assert.match(message, /<BrandLogo size=\{22\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)
   // 模板可调宽度/间距；保留默认 1040px / 32px，非法配置由布局契约测试拒绝。
   assert.match(message, /max-w-\[var\(--chat-content-width,1040px\)\]/)
@@ -169,20 +176,27 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.doesNotMatch(transcript, /WelcomeEffects|WelcomeFallback/)
 })
 
-test('composer actions distinguish sending, steering, stopping, preparing and blocked states', () => {
+test('composer actions distinguish sending, steering, preparing and blocked states', () => {
   const render = (props) =>
     renderToStaticMarkup(
       React.createElement(ComposerSendButton, {
         queueing: false,
         disabled: false,
-        onAbort() {},
         ...props,
       }),
     )
   assert.match(render({}), /type="submit"/)
-  assert.match(render({ streaming: true }), /type="button"/)
-  assert.match(render({ streaming: true, hasDraft: true, canQueue: true }), /type="submit"/)
-  assert.match(render({ streaming: true, hasDraft: true, canQueue: false }), /type="button"/)
+  assert.doesNotMatch(render({}), / disabled=""/)
+  // 发送键从不兼任停止：运行中没有可排队的草稿时只是不可用，停止由运行条上的停止键负责。
+  for (const props of [{ streaming: true }, { streaming: true, hasDraft: true, canQueue: false }]) {
+    const html = render(props)
+    assert.match(html, /type="submit"/)
+    assert.match(html, / disabled=""/)
+    assert.doesNotMatch(html, /data-action/)
+  }
+  const steering = render({ streaming: true, hasDraft: true, canQueue: true })
+  assert.match(steering, /type="submit"/)
+  assert.doesNotMatch(steering, / disabled=""/)
   for (const state of ['queueing', 'submitting', 'stopping', 'preparing']) {
     const html = render({ [state]: true })
     assert.match(html, /aria-busy="true"/)
@@ -193,6 +207,17 @@ test('composer actions distinguish sending, steering, stopping, preparing and bl
   assert.match(blocked, /aria-label="[^"]*Fixture unavailable"/)
   assert.doesNotMatch(blocked, / disabled=""/)
   // 激活、IME及异步状态切换由 smoke-replica-chat 的真实组件夹具覆盖。
+})
+
+test('the run bar owns the only stop control, including while compacting context', () => {
+  const render = (props) =>
+    renderToStaticMarkup(React.createElement(ComposerStatusPill, { onStop() {}, ...props }))
+  for (const compaction of [null, { active: true }]) {
+    const html = render({ streaming: true, compaction })
+    assert.equal(html.match(/<button/g)?.length, 1)
+  }
+  assert.doesNotMatch(render({ streaming: false }), /<button/)
+  assert.match(render({ streaming: true, stopping: true }), /aria-busy="true"[^>]* disabled=""/)
 })
 
 test('image previews portal above session-level controls', async () => {

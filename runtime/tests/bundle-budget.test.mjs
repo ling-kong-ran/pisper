@@ -23,7 +23,6 @@ const ROUTE_SOURCES = [
 const REACT_BITS_SOURCES = [
   'src/components/react-bits/AnimatedList.tsx',
   'src/components/react-bits/ClickSpark.tsx',
-  'src/components/react-bits/ShinyText.tsx',
 ]
 
 function passingReport() {
@@ -47,7 +46,6 @@ function passingReport() {
   for (const source of ROUTE_SOURCES) {
     manifest[source] = { file: `assets/${source.split('/').at(-1)}.js`, isDynamicEntry: true }
   }
-  manifest['src/features/chat/ChatHistoryPage.tsx'].css = ['assets/react-bits.css']
   for (const source of REACT_BITS_SOURCES) {
     manifest[source] = {
       file: `assets/${source.split('/').at(-1)}.js`,

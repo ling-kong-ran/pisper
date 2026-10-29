@@ -3,14 +3,10 @@ import { Copy, Plus, Server, Star, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { PROVIDER_ICONS } from './provider-constants'
-import {
-  SettingsBadge,
-  SettingsCard,
-  SettingsSectionTitle,
-  SettingsSwitch,
-} from './settings-primitives'
+import { SettingsCard, SettingsSectionTitle, SettingsSwitch } from './settings-primitives'
 import type { ProviderConfig } from './config-types'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 type ConnectionCardGridProps = {
@@ -72,9 +68,7 @@ export function ConnectionCardGrid({
                 <Icon size={15} />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">{provider.name}</span>
-              {isDefault && (
-                <SettingsBadge tone="green">{t('config:configPage.defaultBadge')}</SettingsBadge>
-              )}
+              {isDefault && <Badge variant="accent">{t('config:configPage.defaultBadge')}</Badge>}
             </button>
             {onSetDefaultModel && provider.models.some((model) => model.kind === 'chat') ? (
               <label className="grid min-w-0 gap-1 text-xs text-content-muted">

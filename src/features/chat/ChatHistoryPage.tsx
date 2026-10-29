@@ -17,7 +17,6 @@ import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
-import { SpotlightCard } from '@/components/react-bits/SpotlightCard'
 import { PageState } from '@/components/app/PageState'
 import { AppError } from '@/components/ui/app-primitives'
 import { Badge } from '@/components/ui/badge'
@@ -370,10 +369,9 @@ export function ChatHistoryPage({
                       : ''
                   return (
                     <li key={session.id}>
-                      {/* 聚光层的径向高光不属于本设计语言，这里只保留卡片容器并关闭它。 */}
-                      <SpotlightCard
+                      <div
                         className={cn(
-                          'chat-history-row grid grid-cols-[minmax(0,1fr)_auto] items-center transition-colors duration-(--d-fast) before:hidden! hover:bg-surface-subtle active:bg-surface-subtle',
+                          'chat-history-row relative grid grid-cols-[minmax(0,1fr)_auto] items-center overflow-hidden transition-colors duration-(--d-fast) hover:bg-surface-subtle active:bg-surface-subtle',
                           session.id === activeId &&
                             'active bg-surface-subtle after:absolute after:top-3 after:bottom-3 after:left-0 after:w-[3px] after:rounded-r-[3px] after:bg-star',
                         )}
@@ -536,7 +534,7 @@ export function ChatHistoryPage({
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </SpotlightCard>
+                      </div>
                     </li>
                   )
                 })}

@@ -1081,7 +1081,8 @@ try {
     'partial text arrives before final response',
   )
   await page.getByText('流式回复：验收通过', { exact: true }).waitFor({ timeout: 30000 })
-  await page.getByRole('button', { name: '发送消息', exact: true }).waitFor()
+  // 发送键运行中也保持「发送消息」，以运行条停止键消失判断本轮结束。
+  await page.getByRole('button', { name: '停止', exact: true }).waitFor({ state: 'hidden' })
   await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).waitFor()
   await page.keyboard.press('Escape')
@@ -1189,7 +1190,9 @@ try {
   await prompt.fill('')
   report.checks.push('Enter while streaming queues input; withdrawing restores the draft')
   await page.getByRole('button', { name: '停止', exact: true }).click()
-  await page.getByRole('button', { name: '发送消息', exact: true }).waitFor({ timeout: 30000 })
+  await page
+    .getByRole('button', { name: '停止', exact: true })
+    .waitFor({ state: 'hidden', timeout: 30000 })
   await new Promise((done, reject) => {
     const started = Date.now()
     const timer = setInterval(() => {

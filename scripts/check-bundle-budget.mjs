@@ -45,7 +45,6 @@ const ROUTE_SOURCES = [
 const REACT_BITS_DYNAMIC_SOURCES = [
   'src/components/react-bits/AnimatedList.tsx',
   'src/components/react-bits/ClickSpark.tsx',
-  'src/components/react-bits/ShinyText.tsx',
 ]
 
 function formatSize(bytes) {
@@ -271,7 +270,7 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     walk(key)
     return css
   }
-  for (const source of [...REACT_BITS_DYNAMIC_SOURCES, 'src/features/chat/ChatHistoryPage.tsx']) {
+  for (const source of REACT_BITS_DYNAMIC_SOURCES) {
     const css = transitiveCss(source)
     if (![...css].some((file) => file.includes('react-bits')))
       failures.push(`React Bits CSS is not attached to its consumer: ${source}`)

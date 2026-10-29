@@ -904,7 +904,6 @@ export const FocusSession = memo(function FocusSession({
                 queueing ||
                 (!value.trim() && !selection.attachments.length && !invocation))
             }
-            onAbort={() => void stop()}
           />
         </div>
       </div>

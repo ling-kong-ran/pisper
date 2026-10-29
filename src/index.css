@@ -198,7 +198,7 @@
   --search-bg: var(--panel);
   --menu-shadow: rgba(16, 16, 24, .18);
   --media-bg: #0c0a11;
-  --terminal-bg: #f8fafc;
+  --terminal-bg: #f9f9fa;
   --terminal-fg: #17171a;
   --terminal-cursor: #3d4bef;
   --terminal-selection: #c7ccfb;
@@ -402,7 +402,7 @@
   --sh-2: 0 16px 40px -16px rgba(0, 0, 0, .7);
   --menu-shadow: rgba(0, 0, 0, .6);
   --media-bg: #0a0a0f;
-  --terminal-bg: #111318;
+  --terminal-bg: #0b0b0d;
   --terminal-fg: #e4e4e7;
   --terminal-cursor: #8d95ff;
   --terminal-selection: #2e3266;

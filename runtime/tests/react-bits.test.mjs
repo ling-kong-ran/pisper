@@ -81,14 +81,14 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   // Legacy optional effects remain quiet and isolated from the entry canvas.
   assert.doesNotMatch(welcome, /<Aurora\s*\/>/)
   assert.match(activity, /import\('@\/components\/react-bits\/AnimatedList'\)/)
-  assert.match(composerBits, /import\('@\/components\/react-bits\/ShinyText'\)/)
+  // Quiet Precision 不使用光泽、聚光与动态纹理：运行条文案、历史会话行和网页预览加载层保持静态。
+  assert.doesNotMatch(composerBits, /react-bits\/ShinyText/)
   assert.match(activity, /<Suspense fallback=\{activityCards\}>/)
   assert.match(activity, /<ActivityCard/)
   assert.match(confirmation, /import\('@\/components\/react-bits\/ClickSpark'\)/)
   assert.match(confirmation, /<Suspense fallback=\{action\}>/)
-  assert.match(history, /from '@\/components\/react-bits\/SpotlightCard'/)
-  assert.match(preview, /import\('@\/components\/react-bits\/Threads'\)/)
-  assert.match(preview, /<Suspense fallback=\{null\}>/)
+  assert.doesNotMatch(history, /react-bits\/SpotlightCard/)
+  assert.doesNotMatch(preview, /react-bits\/Threads/)
   assert.doesNotMatch(main, /react-bits\.css/)
   assert.match(shinyText, /import '\.\/react-bits\.css'/)
   assert.match(brand, /max-w-2xl/)

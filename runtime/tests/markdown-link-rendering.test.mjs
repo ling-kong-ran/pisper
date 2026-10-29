@@ -281,7 +281,9 @@ test('Markdown styling covers Streamdown controls, task lists, and math', async 
   assert.match(css, /\.markdown-body \.katex-display/)
   assert.match(markdown, /data-streamdown="code-block-copy-button"/)
   assert.match(markdown, /text-\[var\(--code-toolbar-text\)\]/)
-  assert.match(markdown, /hover:bg-white\/10/)
+  // 代码块头部是浅色面板：复制键悬停用中性悬停底，而不是旧深色工具栏的白色叠加。
+  assert.match(markdown, /hover:bg-surface-hover/)
+  assert.doesNotMatch(markdown, /hover:bg-white\/10/)
   assert.doesNotMatch(css, /\[data-streamdown='code-block-copy-button'\]/)
   assert.match(css, /\[data-streamdown='code-block-body'\] code > span \{ display: block;/)
   assert.doesNotMatch(css, /streaming-plain|code-block-toolbar|\.hljs-/)

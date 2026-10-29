@@ -645,7 +645,7 @@ const ActivityCard = memo(function ActivityCard({
   return (
     <ActivityElement
       activity={activity}
-      className={`agent-run-summary flex w-full min-w-0 flex-none flex-col [transition:background_var(--d-fast)_var(--ease)] ${presentation.tone} ${latest ? 'current [.agent-run-summary&]:bg-[var(--surface-subtle)] [.agent-run-feed.completed_&]:bg-transparent' : ''}`}
+      className={`agent-run-summary flex w-full min-w-0 flex-none flex-col [transition:background_var(--d-fast)_var(--ease)] ${presentation.tone} ${latest ? 'current [.agent-run-feed.live_&]:bg-surface-subtle' : ''}`}
     >
       {showCommandOutput ? (
         <CommandOutput
@@ -1021,7 +1021,7 @@ function AgentRunActivity({
           {showLiveFeed && (
             <div
               ref={liveFeedRef}
-              className="agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col gap-[4px] overflow-y-auto [overscroll-behavior:contain] [.agent-run-activity_&]:gap-0 [&>*+*]:border-t [&>*+*]:border-stroke-soft live"
+              className="agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col overflow-y-auto [overscroll-behavior:contain] [&>*+*]:border-t [&>*+*]:border-stroke-soft live"
               aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
             >
               <Suspense fallback={liveActivityCards}>
@@ -1051,7 +1051,7 @@ function AgentRunActivity({
                 <ChevronRight className={DISCLOSURE_CLASS} aria-hidden="true" />
               </summary>
               <div
-                className="agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col gap-[4px] overflow-y-auto [overscroll-behavior:contain] border-t border-stroke-soft [.agent-run-activity_&]:gap-0 [&>*+*]:border-t [&>*+*]:border-stroke-soft completed"
+                className="agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col overflow-y-auto [overscroll-behavior:contain] border-t border-stroke-soft [&>*+*]:border-t [&>*+*]:border-stroke-soft completed"
                 aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
                 tabIndex={activities.length > 3 ? 0 : undefined}
               >

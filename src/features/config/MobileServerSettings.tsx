@@ -191,7 +191,7 @@ export function MobileServerSettings({
           <Button
             size="sm"
             variant="secondary"
-            className="flex-none max-[650px]:h-10 max-[650px]:px-3 pointer-coarse:h-11 max-[650px]:min-h-11"
+            className="flex-none max-[650px]:h-11 max-[650px]:px-3 pointer-coarse:h-11"
             disabled={localActive || Boolean(busyId)}
             onClick={() =>
               void (async () => {

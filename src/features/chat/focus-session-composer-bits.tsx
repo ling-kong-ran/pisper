@@ -1,6 +1,6 @@
 // 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、输入框顶部的运行条、
 // 手动压缩按钮与按草稿、队列和准备状态选择的发送/停止按钮。
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -16,11 +16,6 @@ import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 // 输入区工具图标键：桌面 30px，手机与粗指针 44px 触控目标；多处复用同一组工具类，避免重复生成样式。
 export const COMPOSER_ICON_KEY_CLASSES =
   'grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11'
-
-// 状态文案切换时的一次性光泽扫过（ShinyText 动画只跑一遍），懒加载避免进入主包。
-const ShinyText = lazy(() =>
-  import('@/components/react-bits/ShinyText').then((module) => ({ default: module.ShinyText })),
-)
 
 export function QueuedInputsTray({
   queuedInputs,
@@ -170,7 +165,7 @@ export function ComposerStatusPill({
   const target = tool ? runningToolTarget(activity) : ''
   return (
     <div
-      className={`focus-composer-status [&.idle]:hidden [&.running]:text-[var(--success-strong)] [&.running]:border-star-border [&.running]:bg-star-soft relative flex h-[34px] min-w-0 shrink-0 items-center gap-2 rounded-t-[inherit] border-b pr-1 pl-4 text-xs text-content-muted pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:pr-0 max-[650px]:pl-3.5 max-[650px]:text-[13px] ${compaction?.active ? 'compacting border-stroke-soft bg-warning-soft text-[var(--warning-strong)]' : streaming ? 'running' : 'idle'}`}
+      className={`focus-composer-status [&.idle]:hidden [&.running]:border-star-border [&.running]:bg-star-soft relative flex h-[34px] min-w-0 shrink-0 items-center gap-2 rounded-t-[inherit] border-b pr-1 pl-4 text-xs text-content-muted pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:pr-0 max-[650px]:pl-3.5 max-[650px]:text-[13px] ${compaction?.active ? 'compacting border-stroke-soft bg-warning-soft text-[var(--warning-strong)]' : streaming ? 'running' : 'idle'}`}
     >
       <span role="status" aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2">
         <OrbitSpinner className={`size-3.5 ${compacting ? 'text-warning-strong' : ''}`} />
@@ -201,20 +196,16 @@ export function ComposerStatusPill({
               <span aria-hidden="true" className="text-content-faint">
                 ·
               </span>
-              <span className="min-w-0 truncate text-content-secondary">
-                <Suspense fallback={statusLabel}>
-                  <ShinyText key={statusLabel}>{statusLabel}</ShinyText>
-                </Suspense>
-              </span>
+              <span className="min-w-0 truncate text-content-secondary">{statusLabel}</span>
             </>
           )
         )}
       </span>
-      {streaming && !compacting && onStop && (
+      {streaming && onStop && (
         <button
           type="button"
           className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm px-1.5 text-xs text-content-secondary transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:border-l max-[650px]:border-star-border max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:font-medium max-[650px]:text-danger max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
-          aria-label={t('chat:focusSession.stopRun')}
+          aria-label={stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
           title={t('chat:focusSession.stopRunShortcut')}
           aria-busy={stopping || undefined}
           disabled={stopping}
@@ -285,7 +276,6 @@ export function ComposerSendButton({
   canQueue = false,
   blockedReason,
   disabled,
-  onAbort,
 }: {
   streaming?: boolean
   queueing: boolean
@@ -296,45 +286,33 @@ export function ComposerSendButton({
   canQueue?: boolean
   blockedReason?: string
   disabled: boolean
-  onAbort: () => void
 }) {
   const { t } = useI18n()
   const sendShortcut = useShortcutLabel('sendMessage')
-  const stopAction = Boolean(streaming && !(hasDraft && canQueue) && !preparing)
+  // 发送键只负责发送；运行中有草稿时把补充说明排入队列，停止只由运行条上的停止键负责。
+  const waitingForDraft = Boolean(streaming && !(hasDraft && canQueue))
   const busy = queueing || submitting || stopping || preparing
-  const unavailable = disabled || busy || Boolean(blockedReason)
+  const unavailable = disabled || busy || waitingForDraft || Boolean(blockedReason)
   const label = preparing
     ? t('chat:focusSession.preparingAttachments')
     : stopping
       ? t('chat:focusSession.stopping')
-      : stopAction
-        ? t('chat:focusSession.stop')
-        : t('chat:focusSession.sendMessage')
+      : t('chat:focusSession.sendMessage')
   return (
     <button
-      type={stopAction ? 'button' : 'submit'}
-      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-md border border-transparent bg-star text-on-accent shadow-primary transition-colors hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none aria-disabled:opacity-50 data-[action=stop]:border-control data-[action=stop]:bg-key data-[action=stop]:text-content data-[action=stop]:shadow-key data-[action=stop]:hover:enabled:bg-surface-hover max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-xl pointer-coarse:size-11 pointer-coarse:min-w-11"
-      data-action={stopAction ? 'stop' : 'send'}
-      title={
-        blockedReason ||
-        (!stopAction && !busy && sendShortcut ? `${label} (${sendShortcut})` : label)
-      }
+      type="submit"
+      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-md border border-transparent bg-star text-on-accent shadow-primary transition-colors hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none aria-disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-xl pointer-coarse:size-11 pointer-coarse:min-w-11"
+      title={blockedReason || (!busy && sendShortcut ? `${label} (${sendShortcut})` : label)}
       aria-label={blockedReason ? `${label}: ${blockedReason}` : label}
       aria-busy={busy || undefined}
       aria-disabled={unavailable || undefined}
       onClick={(event) => {
-        if (unavailable) {
-          event.preventDefault()
-          return
-        }
-        if (stopAction) onAbort()
+        if (unavailable) event.preventDefault()
       }}
       disabled={!blockedReason && unavailable}
     >
       {busy ? (
         <RefreshCw className="animate-spin" size={17} />
-      ) : stopAction ? (
-        <Square size={11} fill="currentColor" />
       ) : (
         <ArrowUp size={17} strokeWidth={2.1} />
       )}

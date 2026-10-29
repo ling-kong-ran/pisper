@@ -1,6 +1,6 @@
 // Web 预览 Dock 面板：内嵌浏览器（地址栏 + iframe），
 // 支持前进/后退/刷新/新开，URL 状态跨会话持久。
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { ArrowLeft, ArrowRight, ExternalLink, Globe2, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -14,10 +14,6 @@ import {
 } from '@/components/ai-elements/web-preview'
 import { normalizeWebPreviewInput } from '@/lib/web-preview'
 import { webPreviewPanelTitle, type WebPreviewPanelParams } from './web-preview-panel'
-
-const Threads = lazy(() =>
-  import('@/components/react-bits/Threads').then((module) => ({ default: module.Threads })),
-)
 
 type PreviewHistory = {
   entries: string[]
@@ -165,10 +161,7 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
             loading ? (
               // 加载层不透明、不做背景模糊；状态胶囊用浮层投影与品牌轨道指示。
               <div className="absolute inset-0 grid place-items-center overflow-hidden bg-panel text-xs text-content-muted">
-                <Suspense fallback={null}>
-                  <Threads />
-                </Suspense>
-                <span className="relative z-[1] flex items-center gap-2 rounded-full bg-popover px-3 py-1.5 shadow-float">
+                <span className="flex items-center gap-2 rounded-full bg-popover px-3 py-1.5 shadow-float">
                   <OrbitSpinner className="size-3.5" />
                   <span>{t('common:webPreview.loading')}</span>
                 </span>
