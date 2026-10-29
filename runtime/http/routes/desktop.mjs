@@ -34,20 +34,6 @@ export const desktopRoutes = [
   },
   {
     method: 'GET',
-    path: '/api/sponsors/:placement',
-    async handler({ services, params, url, json }) {
-      if (!services.sponsors) throw new Error('赞助内容服务尚未初始化。')
-      json(
-        200,
-        await services.sponsors.getPlacement(params.placement, {
-          locale: url.searchParams.get('locale') || 'zh-CN',
-          refresh: url.searchParams.get('refresh') === '1',
-        }),
-      )
-    },
-  },
-  {
-    method: 'GET',
     path: '/api/desktop-pet',
     handler({ services, json }) {
       json(200, requireDesktopPet(services).status())

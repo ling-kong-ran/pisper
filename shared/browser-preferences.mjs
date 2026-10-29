@@ -15,7 +15,6 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   'pisper-active-session',
   'pisper-mobile-session-tabs',
   'pisper-terminal-panel',
-  'pisper-sponsor-dismissals',
   'pisper-model-onboarding-v1-dismissed',
   'pisper.config.manageConnectionsOpen',
   'pisper.config.visualConnectionsOpen',

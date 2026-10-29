@@ -152,7 +152,6 @@ export function createApiHandler(
   runtime,
   {
     updates,
-    sponsors,
     desktopPet,
     engineVersion = 'unknown',
     remoteAccess,
@@ -169,7 +168,6 @@ export function createApiHandler(
 ) {
   const services = {
     updates,
-    sponsors,
     desktopPet,
     engineVersion,
     remoteAccess,

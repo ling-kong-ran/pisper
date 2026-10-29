@@ -25,13 +25,10 @@
 </p>
 
 <p align="center">
-  <a href="https://ling-kong-ran.github.io/pisper/#mobile">Mobile downloads</a> ·
   <a href="https://github.com/ling-kong-ran/pisper/releases?q=app-v">App Releases</a>
 </p>
 
 <p align="center">
-  <a href="https://ling-kong-ran.github.io/pisper/">Website</a> ·
-  <a href="https://ling-kong-ran.github.io/pisper/guide.html">Guide</a> ·
   <a href="#quickstart">Quick start</a> ·
   <a href="#features">Feature map</a> ·
   <a href="#data-safety">Data safety</a> ·
@@ -60,8 +57,6 @@
 | **⚡ Automation & notifications** | **🖥️ Desktop & terminal, one core** |
 | Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
 
-[Voice Input · Conversation Mode](https://ling-kong-ran.github.io/pisper/guide.html#voice)
-
 Want another agent on the same computer to use Pisper? Enable the built-in server on the MCP page and copy its connection settings. It exposes sessions, memory, workflows, and more behind a token.
 
 <a id="pi-runtime"></a>
@@ -74,48 +69,15 @@ Pisper uses [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pac
 - **Context and performance**: hot/cold tool tiers, discover/call loading, stable tool definitions, and prompt-shape diagnostics reduce context pressure and improve provider prompt-cache hit rates.
 - **A complete product layer**: Desktop, the Ratatui TUI, and mobile experiences; on-device mode runs the same Node/Pisper Agent, Providers, sessions, HTTP/SSE, and React interface, hiding capabilities that the embedded Node host cannot provide on that device.
 
-## 🎬 Product film
-
-[![Pisper: One idea, many possibilities](docs/promo/pisper-promo-cover.webp)](https://ling-kong-ran.github.io/pisper/#promo)
-
-**Experience Pisper in 60 seconds:** conversation mode, voice input, streamed replies and smooth scrolling, parallel sessions, branching, and workflows. Chinese titles; English captions are available in the website player.
-
-[Watch online](https://ling-kong-ran.github.io/pisper/#promo) · [Download MP4](docs/promo/pisper-promo-zh-CN.mp4)
-
-## 📸 Screenshots
-
-<table>
-  <tr>
-    <td><a href="docs/shots/chat-grid.png"><img src="docs/shots/web/chat-grid.webp" alt="Parallel sessions in split view" /></a></td>
-    <td><a href="docs/shots/session-tree.png"><img src="docs/shots/web/session-tree.webp" alt="Session Tree branching" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">Parallel sessions: drag tabs, split anywhere</td>
-    <td align="center">Session Tree: resume any branch from a completed Turn</td>
-  </tr>
-  <tr>
-    <td><a href="docs/shots/workflow-builder.png"><img src="docs/shots/web/workflow-builder.webp" alt="Visual workflow builder" /></a></td>
-    <td><a href="docs/shots/cli-chat.png"><img src="docs/shots/web/cli-chat.webp" alt="TUI chat interface" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">Workflows: turn repeated work into pipelines</td>
-    <td align="center">TUI: leave the desk, keep the context</td>
-  </tr>
-</table>
-
-> See the **[website](https://ling-kong-ran.github.io/pisper/)** for more screens and interaction demos. New previews: [conversation mode](docs/shots/conversation-mode.png) · [voice input](docs/shots/voice-input.png) · [streaming replies](docs/shots/smooth-streaming.png).
-
 <a id="quickstart"></a>
 
 ## 🚀 Quick start
-
-> Want step-by-step instructions? See the **[Guide](https://ling-kong-ran.github.io/pisper/guide.html)**.
 
 ### Option 1: Desktop app (recommended)
 
 Grab the installer for your platform from [Releases](https://github.com/ling-kong-ran/pisper/releases/latest). **TUI and Runtime are bundled — no Node.js required.**
 
-Choose your system and architecture on the [download page](https://ling-kong-ran.github.io/pisper/#download):
+Choose your system and architecture:
 
 | System | Package and offline requirements |
 | --- | --- |
@@ -159,12 +121,12 @@ sudo apt install ./Pisper_*_linux_x86_64.deb
 
 ### Option 2: Mobile app
 
-On first launch, the Android / iOS app starts its bundled on-device Runtime and opens the normal Pisper interface. Connecting to Desktop is an optional setting and never blocks first use. The website resolves current App download URLs from `docs/latest-app.json` without displaying or hard-coding a version number:
+On first launch, the Android / iOS app starts its bundled on-device Runtime and opens the normal Pisper interface. Connecting to Desktop is an optional setting and never blocks first use. Download the packages from App Releases:
 
 | Platform | Download | Installation status |
 | --- | --- | --- |
-| Android | [Download the signed APK](https://ling-kong-ran.github.io/pisper/#mobile) | Signed arm64 APK, ready to install. Android may ask you to allow installs from this source when sideloading for the first time. |
-| iOS | [Download the unsigned IPA](https://ling-kong-ran.github.io/pisper/#mobile) | **Unsigned** and not directly installable. Re-sign it with AltStore, Sideloadly, or your own Apple Developer account. |
+| Android | [Download the signed APK](https://github.com/ling-kong-ran/pisper/releases?q=app-v) | Signed arm64 APK, ready to install. Android may ask you to allow installs from this source when sideloading for the first time. |
+| iOS | [Download the unsigned IPA](https://github.com/ling-kong-ran/pisper/releases?q=app-v) | **Unsigned** and not directly installable. Re-sign it with AltStore, Sideloadly, or your own Apple Developer account. |
 
 **Run on this phone**
 
@@ -238,7 +200,7 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 - **Opt-in MCP server**: off by default, bound to 127.0.0.1, and protected by a separate Bearer token. A local client holding that token can call every exposed tool.
 - **Memory on approval**: automatically inferred memories sit in a review queue and are never recalled until you confirm them.
 
-> Honest boundary: redaction only recognizes common secret formats; it is not full DLP, a sandbox, or end-to-end encryption. Desktop Runtime Provider credentials still live in the local Agent data directory, so protect that directory and its backups. Mobile secure storage does not replace device lock screens, OS updates, or trusted sideload sources. Full details on the [website's data safety section](https://ling-kong-ran.github.io/pisper/#safety).
+> Honest boundary: redaction only recognizes common secret formats; it is not full DLP, a sandbox, or end-to-end encryption. Desktop Runtime Provider credentials still live in the local Agent data directory, so protect that directory and its backups. Mobile secure storage does not replace device lock screens, OS updates, or trusted sideload sources.
 
 ## 🧩 Components & independent updates
 
@@ -248,12 +210,8 @@ Standalone UI components can be imported from a folder or ZIP under Settings →
 
 ## 📚 Docs
 
-**New here?** Start with the **[Guide](https://ling-kong-ran.github.io/pisper/guide.html)**: installation, Provider setup, parallel sessions, branching, workflows, terminal, and mobile.
-
 | Doc | Contents |
 | --- | --- |
-| [Guide](https://ling-kong-ran.github.io/pisper/guide.html) | Full path from install to advanced use |
-| [Website](https://ling-kong-ran.github.io/pisper/) | Product tour and screenshots |
 | [TUI Command Reference](./src-tui/README.en.md) | CLI commands, Slash commands, and arguments |
 
 <a id="development"></a>
@@ -277,30 +235,6 @@ Thanks to [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packa
 Contributors:
 
 - [@mik-myp](https://github.com/mik-myp) — frontend TypeScript architecture, shadcn/ui / AI Elements, Zustand and i18n refactor ([#1](https://github.com/ling-kong-ran/pisper/pull/1))
-
-<a id="sponsors"></a>
-
-## ❤️ Sponsors
-
-<details>
-<summary>View sponsors</summary>
-
-<table>
-<tr>
-<td width="180" align="center">
-  <a href="https://matrix.000328.xyz/register?aff=ZPEH"><strong>Matrix</strong></a>
-</td>
-<td>
-Thanks to <a href="https://matrix.000328.xyz/register?aff=ZPEH">Matrix</a> for supporting the Pisper community. Signing up via <a href="https://matrix.000328.xyz/register?aff=ZPEH">this link</a> may generate referral revenue for the project.
-</td>
-</tr>
-</table>
-
-> Sponsor links carry referral parameters. Pisper sponsorship placement never uses sessions, projects, providers, models or API configurations for targeting, and never sends such data to sponsors. The public placement config lives in [`docs/sponsors.json`](./docs/sponsors.json).
-
-</details>
-
-If you'd like to appear here, reach us via an [Issue](https://github.com/ling-kong-ran/pisper/issues).
 
 ---
 

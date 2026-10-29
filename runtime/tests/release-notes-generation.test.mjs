@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import vm from 'node:vm'
 import yaml from 'js-yaml'
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import {
@@ -205,7 +204,7 @@ test('release dates use Beijing calendar dates and commit text cannot inject Mar
   assertReleaseNotes(body, validInput)
 })
 
-test('non-conventional commit list markers remain literal text in Markdown and the homepage', async () => {
+test('non-conventional commit list markers remain literal text in Markdown', () => {
   const subjects = ['- remove legacy', '+ improve behavior', '1. migrate data', '2) follow up']
   const body = formatReleaseNotes({ ...validInput, subjects })
   const nestedLists = []
@@ -215,15 +214,6 @@ test('non-conventional commit list markers remain literal text in Markdown and t
   }
   visit(fromMarkdown(body), null)
   assert.equal(nestedLists.length, 0, 'commit text created a nested list')
-  const source = await readFile(join(repositoryRoot, 'docs/changelog.js'), 'utf8')
-  const context = vm.createContext({
-    document: { querySelector: () => null, querySelectorAll: () => [] },
-  })
-  vm.runInContext(source + '\nglobalThis.parse = parseReleaseCommits', context)
-  assert.deepEqual(
-    Array.from(context.parse(body), (entry) => entry.subject),
-    subjects,
-  )
 })
 
 test('publication CLI accepts canonical notes and refuses a tampered artifact', async (t) => {
@@ -243,32 +233,6 @@ test('publication CLI accepts canonical notes and refuses a tampered artifact', 
   await writeFile(manifestPath, JSON.stringify(manifest))
   await writeFile(path, body.replace('## 完整变更', ''))
   assert.notEqual(run().status, 0)
-})
-
-test('homepage preserves categorized non-conventional subjects and still reads legacy notes', async () => {
-  const source = await readFile(join(repositoryRoot, 'docs/changelog.js'), 'utf8')
-  const context = vm.createContext({
-    document: { querySelector: () => null, querySelectorAll: () => [] },
-  })
-  vm.runInContext(
-    source + '\nglobalThis.parse = parseReleaseCommits; globalThis.category = commitCategory',
-    context,
-  )
-  const body = formatReleaseNotes({
-    ...validInput,
-    subjects: ['feat: 新功能', 'perf: faster', 'fix: 恢复连接', '调整默认设置'],
-  })
-  const entries = context.parse(body)
-  assert.equal(entries.length, 4)
-  assert.deepEqual(
-    Array.from(entries, (entry) => context.category(entry)),
-    ['added', 'improved', 'fixed', 'other'],
-  )
-  assert.equal(entries[3].subject, '调整默认设置')
-  assert.equal(
-    context.parse("## What's Changed\n\n- fix(ui): repair pane")[0].subject,
-    'repair pane',
-  )
 })
 
 for (const [channel, workflow, prefix] of [

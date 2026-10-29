@@ -37,7 +37,6 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     englishReadme,
     chineseTuiGuide,
     englishTuiGuide,
-    projectPage,
   ] = await Promise.all([
     readFile('src-tui/src/main.rs', 'utf8'),
     readFile('packages/pisper/lib/npm-update.mjs', 'utf8'),
@@ -45,7 +44,6 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     readFile('README.en.md', 'utf8'),
     readFile('src-tui/README.md', 'utf8'),
     readFile('src-tui/README.en.md', 'utf8'),
-    readFile('docs/index.html', 'utf8'),
   ])
 
   for (const guide of [chineseTuiGuide, englishTuiGuide]) {
@@ -54,17 +52,11 @@ test('npm, Provider setup, and optional Web onboarding stay documented', async (
     assert.match(guide, /\/provider/)
   }
   for (const readme of [chineseReadme, englishReadme]) {
-    assert.match(readme, /https:\/\/ling-kong-ran\.github\.io\/pisper\//)
     // 根 README 改为自带三分钟上手(转化导向):必须包含 npm 入口,
     // 同时仍链接 TUI 命令参考作为 CLI 与 Slash command 的权威文档。
     assert.match(readme, /npm (?:i|install) -g pisper/)
     assert.match(readme, /src-tui\/README/)
   }
-  assert.match(projectPage, /npm i -g pisper/)
-  assert.doesNotMatch(projectPage, /npm install -g pisper/)
-  assert.match(projectPage, /data-copy-install/)
-  assert.match(projectPage, /pisper web/)
-  assert.match(projectPage, /\/provider/)
   for (const guide of [chineseTuiGuide, englishTuiGuide]) {
     assert.match(guide, /pisper update --check/)
     assert.match(guide, /\| `\/web`/)

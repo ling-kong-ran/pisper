@@ -69,10 +69,16 @@ test('modal surfaces stay scrollable within low-height viewports', async () => {
     readFile('src/components/ui/dialog.tsx', 'utf8'),
     readFile('src/components/ui/alert-dialog.tsx', 'utf8'),
     readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
-    readFile('src/features/assets/AssetsPage.tsx', 'utf8'),
+    readFile('src/features/assets/AssetPreviewDialog.tsx', 'utf8'),
   ])
 
-  assert.match(assets, /modal-backdrop[^"\n]*overflow-y-auto/)
+  // 资产预览固定对话框外框，只让正文区域滚动。
+  assert.match(assets, /scrollMode="body"/)
+  assert.match(assets, /<DialogBody\b/)
+  assert.match(
+    dialog,
+    /function DialogBody[\s\S]*?min-h-0 flex-1 overflow-y-auto overscroll-contain/,
+  )
   assert.match(
     overlays,
     /className="modal[^"\n]*max-h-\[calc\(100dvh_-_40px\)\][^"\n]*overflow-y-auto/,

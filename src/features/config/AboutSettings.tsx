@@ -1,6 +1,6 @@
 // 关于页集中展示版本、项目链接与许可证，并把社区支持入口放在用户主动查看的位置。
 import type { MouseEvent } from 'react'
-import { Code2, ExternalLink, Globe2, Scale, Star, type LucideIcon } from 'lucide-react'
+import { Code2, ExternalLink, Scale, Star, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,6 @@ import {
 } from './settings-primitives'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
-const PROJECT_URL = 'https://ling-kong-ran.github.io/pisper/'
 const REPOSITORY_URL = 'https://github.com/ling-kong-ran/pisper'
 const LICENSE_URL = `${REPOSITORY_URL}/blob/release/LICENSE`
 
@@ -91,13 +90,6 @@ export function AboutSettings({ update, notify }: { update: AppUpdateController;
           className="mb-3 text-[15px] leading-6 font-medium text-content"
         />
         <SettingsGroup>
-          <AboutLink
-            href={PROJECT_URL}
-            icon={Globe2}
-            label={t('config:aboutSettings.website')}
-            value="ling-kong-ran.github.io/pisper"
-            onClick={openLink}
-          />
           <AboutLink
             href={REPOSITORY_URL}
             icon={Code2}

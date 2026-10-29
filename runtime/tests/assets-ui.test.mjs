@@ -3,11 +3,16 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('asset page exposes a dedicated video filter', async () => {
-  const source = await readFile('src/features/assets/AssetsPage.tsx', 'utf8')
+  const [source, api] = await Promise.all([
+    readFile('src/features/assets/AssetsPage.tsx', 'utf8'),
+    readFile('src/features/assets/assets-api.ts', 'utf8'),
+  ])
 
-  assert.match(source, /ASSET_TABS[^\n]*'image', 'video', 'file'/)
-  assert.match(source, /tab === 'video'[^\n]*assetsPage\.videos/)
-  assert.match(source, /tab === 'video'\) params\.set\('kind', 'video'\)/)
+  assert.match(source, /KINDS[^\n]*'image', 'video', 'file'/)
+  assert.match(source, /kind === 'video'[^\n]*assetsPage\.videos/)
+  // Runtime 把视频登记为 file，视频筛选在 API 边界按 MIME 派生。
+  assert.match(api, /params\.set\('kind', kind === 'video' \? 'file' : kind\)/)
+  assert.match(api, /kind === 'video'[\s\S]*?mimeType\?\.startsWith\('video\/'\)/)
 })
 
 test('asset cards grow with their copy instead of clipping the action row', async () => {

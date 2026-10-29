@@ -37,8 +37,6 @@ generated/
 /.pisper/skills/*
 !/.pisper/skills/prompt-cache-optimizer/
 !/.pisper/skills/prompt-cache-optimizer/**
-!/.pisper/skills/screenshot-studio/
-!/.pisper/skills/screenshot-studio/**
 .vesper/
 vesper-agents.json
 pisper-agents.json

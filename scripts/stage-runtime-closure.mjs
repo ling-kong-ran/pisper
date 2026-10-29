@@ -51,11 +51,9 @@ export async function stageRuntimeClosure({
   root = resolve(root)
   await rm(runtimeDir, { recursive: true, force: true })
   await mkdir(runtimeDir, { recursive: true })
-  await mkdir(join(runtimeDir, 'docs'), { recursive: true })
   await Promise.all([
     cp(join(root, 'runtime'), join(runtimeDir, 'runtime'), { recursive: true, force: true }),
     cp(join(root, 'shared'), join(runtimeDir, 'shared'), { recursive: true, force: true }),
-    copyFile(join(root, 'docs', 'sponsors.json'), join(runtimeDir, 'docs', 'sponsors.json')),
     copyFile(join(root, 'package.json'), join(runtimeDir, 'package.json')),
     copyFile(join(root, 'package-lock.json'), join(runtimeDir, 'package-lock.json')),
   ])

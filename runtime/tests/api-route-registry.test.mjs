@@ -102,12 +102,6 @@ test('resource route groups expose representative static and parameter routes', 
       '/api/channels/:channel/onboarding',
       { channel: 'feishu' },
     ],
-    [
-      'GET',
-      '/api/sponsors/settings%20updates',
-      '/api/sponsors/:placement',
-      { placement: 'settings updates' },
-    ],
   ]
 
   for (const [method, pathname, path, params] of cases) {

@@ -7,7 +7,6 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createStaticHandler } from './http/static-handler.mjs'
-import { SponsorContentService } from './services/sponsor-content-service.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
 import { RemoteAccessService } from './services/remote-access-service.mjs'
@@ -109,7 +108,6 @@ export async function createPisperRuntime({
   let vite = null
   let speech = null
   let speechModels = null
-  let sponsorsInitialized = null
   let runtimeInitialized = null
   let startInitialization
 
@@ -317,15 +315,10 @@ export async function createPisperRuntime({
     if (mobileBase) await runtimeBase
     else await runtimeInitialized
 
-    // 更新检查与赞助内容都依赖 app 版本/提交信息，放在运行时初始化之后构建。
+    // 更新检查依赖 app 版本/提交信息，放在运行时初始化之后构建。
     const updates = new UpdateCheckService({
       currentVersion: packageJson.version,
       currentCommit,
-    })
-    const sponsors = new SponsorContentService({
-      dataDir: agentDir,
-      fallbackPath: join(appRoot, 'docs', 'sponsors.json'),
-      appVersion: packageJson.version,
     })
     const speechTerms = new SpeechTermsService({ dataDir: agentDir })
     speechModels = new SpeechModelDownloadService({
@@ -343,9 +336,6 @@ export async function createPisperRuntime({
       resourceDir: join(appRoot, 'shared'),
       hotwordsDir: join(agentDir, 'speech'),
     })
-    sponsorsInitialized = sponsors.init()
-    sponsorsInitialized.catch(() => {})
-    if (!mobileBase) await sponsorsInitialized
     // 仅开发模式注入 Vite 中间件；生产环境直接托管 dist 静态资源。
     if (!production) {
       const { createServer: createViteServer } = await import('vite')
@@ -357,7 +347,6 @@ export async function createPisperRuntime({
     }
     handleApi = apiHandlerModule.createApiHandler(runtime, {
       updates,
-      sponsors,
       desktopPet,
       speech,
       speechModels,
@@ -372,10 +361,8 @@ export async function createPisperRuntime({
     initialization.base = 'ready'
     resolveBase(runtime)
     stage('runtime-base-ready')
-    // 等待所有后台任务落定再结束 initialized，关闭时也不会遗漏仍在运行的服务。
-    const background = await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
-    const failure = background.find((result) => result.status === 'rejected')
-    if (failure) throw failure.reason
+    // 等待后台初始化落定再结束 initialized，关闭时也不会遗漏仍在运行的服务。
+    await runtimeInitialized
     if (capabilities.features.mcp) await mcpHost.startIfEnabled()
     initialization.background = 'ready'
     stage('runtime-initialized')
@@ -447,7 +434,6 @@ export async function createPisperRuntime({
         await (mobileBase ? baseReady : initialized)
         if (mobileBase && /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/.test(url.pathname))
           await runtime.waitForInitialization?.('memory')
-        if (mobileBase && /^\/api\/sponsors(?:\/|$)/.test(url.pathname)) await sponsorsInitialized
       } catch {
         serviceUnavailable(res)
         return
@@ -524,7 +510,7 @@ export async function createPisperRuntime({
         await remoteTransition
         await stopRemote()
         await initialized.catch(() => null)
-        await Promise.allSettled([runtimeInitialized, sponsorsInitialized])
+        await runtimeInitialized?.catch(() => null)
         await mcpHost.close()
         await speech?.dispose()
         await speechModels?.dispose()

@@ -78,20 +78,16 @@ test('mobile links report a missing native bridge without navigating the WebView
 })
 
 test('settings external links bypass the capture preview before native click handlers run', async () => {
-  const [about, updates] = await Promise.all([
-    readFile(new URL('../../src/features/config/AboutSettings.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/config/UpdateSettings.tsx', import.meta.url), 'utf8'),
-  ])
+  const about = await readFile(
+    new URL('../../src/features/config/AboutSettings.tsx', import.meta.url),
+    'utf8',
+  )
   const aboutAnchors = [...about.matchAll(/<a\b[^>]*>/g)]
   assert.equal(aboutAnchors.length, 2)
   for (const [anchor] of aboutAnchors) {
     assert.match(anchor, /data-web-preview="external"/)
     assert.match(anchor, /onClick=/)
   }
-  assert.match(
-    updates,
-    /<a\s+href=\{sponsor\.href\}[\s\S]*?data-web-preview="external"[\s\S]*?onClick=\{openSponsorLink\}/,
-  )
   assert.equal(
     shouldOpenWebPreview({
       href: 'https://github.com/ling-kong-ran/pisper',

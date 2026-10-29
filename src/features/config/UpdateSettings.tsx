@@ -1,20 +1,18 @@
 // 更新设置：检查/下载/安装桌面端与组件（TUI/Runtime）更新，
 // 展示版本、变更日志与安装进度。
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
   CheckCircle2,
   Cpu,
   Download,
   ExternalLink,
-  Handshake,
   Laptop,
   PackageCheck,
   RefreshCw,
   Rocket,
   SquareTerminal,
   TriangleAlert,
-  X,
 } from 'lucide-react'
 import { DEFAULT_BRANCH } from '@shared/app-update.mjs'
 import MarkdownMessage from '@/components/MarkdownMessage'
@@ -24,13 +22,9 @@ import {
   SettingsCard as Panel,
   SettingsSectionTitle as SectionTitle,
 } from './settings-primitives'
-import { STORAGE_KEYS } from '@/app/storage'
-import { pageStateStorage } from '@/lib/page-state-storage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues, SupportedLanguage } from '@/app/i18n'
-import { apiJson } from '@/lib/api'
-import { openMobileExternalLink } from '@/lib/mobile-external-link'
 import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
@@ -38,35 +32,8 @@ import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
-const SPONSOR_REFRESH_MS = 15 * 60_000
-const SPONSOR_DISMISSAL_MS = 30 * 24 * 60 * 60_000
 
 type Translate = (message: string, values?: I18nValues) => string
-
-type SponsorCampaign = {
-  id: string
-  name: string
-  description: string
-  href: string
-}
-
-type SponsorResponse = {
-  campaigns: SponsorCampaign[]
-}
-
-function storedSponsorDismissals() {
-  try {
-    const value = JSON.parse(pageStateStorage.getItem(STORAGE_KEYS.sponsorDismissals) || '{}')
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    return Object.fromEntries(
-      Object.entries(value).filter((entry): entry is [string, number] => {
-        return typeof entry[1] === 'number' && entry[1] > Date.now()
-      }),
-    )
-  } catch {
-    return {}
-  }
-}
 
 function platformLabel(info: AppUpdateInfo, t: Translate) {
   if (!info.desktop && !info.mobile) return t('config:updateSettings.browserMode')
@@ -111,10 +78,7 @@ export function UpdateSettings({
   const mobile = Boolean(info.mobile)
   const nativeApp = desktop || mobile
   const [bundled, setBundled] = useState({ version: BUILD_VERSION, date: '', notes: '' })
-  const [sponsors, setSponsors] = useState<SponsorCampaign[]>([])
   const [componentBusy, setComponentBusy] = useState<'check' | 'install' | ''>('')
-  const [sponsorDismissals, setSponsorDismissals] =
-    useState<Record<string, number>>(storedSponsorDismissals)
 
   useEffect(() => {
     let active = true
@@ -129,38 +93,6 @@ export function UpdateSettings({
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    const loadSponsors = (force = false) => {
-      const refresh = force ? '&refresh=1' : ''
-      return apiJson<SponsorResponse>(
-        `/api/sponsors/settings-updates?locale=${encodeURIComponent(language)}${refresh}`,
-      )
-        .then((value) => {
-          if (active) setSponsors(Array.isArray(value.campaigns) ? value.campaigns : [])
-        })
-        .catch(() => {
-          if (active && !force) setSponsors([])
-        })
-    }
-    void loadSponsors()
-    const timer = window.setInterval(() => void loadSponsors(true), SPONSOR_REFRESH_MS)
-    return () => {
-      active = false
-      window.clearInterval(timer)
-    }
-  }, [language])
-
-  const dismissSponsor = (id: string) => {
-    const next = { ...sponsorDismissals, [id]: Date.now() + SPONSOR_DISMISSAL_MS }
-    setSponsorDismissals(next)
-    try {
-      pageStateStorage.setItem(STORAGE_KEYS.sponsorDismissals, JSON.stringify(next))
-    } catch {
-      // The dismissal remains effective for this session when storage is unavailable.
-    }
-  }
-
   // 检查更新：调控制器检查并防重入（busy 标记）。
   const check = async () => {
     if (!update) return
@@ -174,10 +106,6 @@ export function UpdateSettings({
 
   const openReleases = () => update?.openReleases()
   const openUpdateLog = () => update?.openUpdateLog?.()
-  const openSponsorLink = (event: MouseEvent<HTMLAnchorElement>) => {
-    const pending = openMobileExternalLink(event, event.currentTarget.href)
-    void pending?.catch(() => notify(t('config:aboutSettings.openLinkFailed'), 'error'))
-  }
 
   // 下载/安装更新：桌面端安装全部组件，Web 端仅下载；失败提示。
   const download = async () => {
@@ -219,9 +147,6 @@ export function UpdateSettings({
       status.currentCommit?.slice(0, 7) ||
       bundled.version ||
       info.version
-  const visibleSponsors = sponsors.filter(
-    (sponsor) => (sponsorDismissals[sponsor.id] || 0) <= Date.now(),
-  )
   const componentItems = useMemo(() => {
     const byName = new Map(update.components.map((component) => [component.component, component]))
     return (['desktop', 'tui', 'runtime'] as const).map(
@@ -512,65 +437,6 @@ export function UpdateSettings({
           <MarkdownMessage>{notes}</MarkdownMessage>
         </div>
       </Panel>
-
-      {visibleSponsors.length > 0 && (
-        <Panel className="p-4 py-4" data-config-card="updates-sponsors">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content-muted shadow-key">
-              <Handshake size={18} aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <SectionTitle title={t('config:updateSettings.sponsors')} />
-              <small className="mt-0.5 block text-xs leading-5 text-content-muted">
-                {t('config:updateSettings.sponsorsDescription')}
-              </small>
-            </span>
-          </div>
-          <div className="mt-4 divide-y divide-stroke-soft border-y border-stroke-soft">
-            {visibleSponsors.map((sponsor) => (
-              <div
-                key={sponsor.id}
-                className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-3"
-              >
-                <span className="min-w-0">
-                  <span className="mb-1 flex items-center gap-2">
-                    <span className="truncate text-sm font-medium text-content">
-                      {sponsor.name}
-                    </span>
-                    <Badge tone="gray">{t('config:updateSettings.sponsored')}</Badge>
-                  </span>
-                  <small className="block text-xs leading-5 text-content-muted">
-                    {sponsor.description}
-                  </small>
-                </span>
-                <Button asChild variant="secondary">
-                  <a
-                    href={sponsor.href}
-                    target="_blank"
-                    rel="noopener noreferrer sponsored"
-                    data-web-preview="external"
-                    onClick={openSponsorLink}
-                  >
-                    <ExternalLink size={13} />
-                    {t('config:updateSettings.visitSponsor')}
-                  </a>
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 pointer-coarse:size-11 max-[650px]:size-11"
-                  aria-label={t('config:updateSettings.hideSponsor')}
-                  title={t('config:updateSettings.hideSponsor')}
-                  onClick={() => dismissSponsor(sponsor.id)}
-                >
-                  <X size={15} />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
     </div>
   )
 }

@@ -3,14 +3,17 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 test('asset UI previews text and video while preserving a web download fallback', async () => {
-  const [page, helper] = await Promise.all([
+  const [page, preview, api, helper] = await Promise.all([
     readFile('src/features/assets/AssetsPage.tsx', 'utf8'),
+    readFile('src/features/assets/AssetPreviewDialog.tsx', 'utf8'),
+    readFile('src/features/assets/assets-api.ts', 'utf8'),
     readFile('src/lib/open-asset.ts', 'utf8'),
   ])
 
-  assert.match(page, /content\?preview=1/)
-  assert.match(page, /<MarkdownMessage>/)
-  assert.match(page, /<video[\s\S]*controls[\s\S]*playsInline/)
+  // 预览由独立对话框渲染，请求经领域 API 模块发出。
+  assert.match(api, /content\?preview=1/)
+  assert.match(preview, /<MarkdownMessage>/)
+  assert.match(preview, /<video[\s\S]*controls[\s\S]*playsInline/)
   assert.match(page, /openAssetInApplication/)
   assert.match(helper, /mobile_open_asset/)
   assert.match(helper, /pisperDesktop\?\.openAsset/)

@@ -312,13 +312,6 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     titleKey: 'config:cliSettings.title',
     keywords: ['cli', 'terminal', 'command', '命令行', '终端', '命令'],
   },
-  {
-    id: 'updates-sponsors',
-    section: 'updates',
-    card: 'updates-sponsors',
-    titleKey: 'config:updateSettings.sponsors',
-    keywords: ['sponsor', '赞助', '赞助商'],
-  },
   // —— about 分区卡片 ——
   {
     id: 'about-project',

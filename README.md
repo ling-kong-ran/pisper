@@ -25,13 +25,10 @@
 </p>
 
 <p align="center">
-  <a href="https://ling-kong-ran.github.io/pisper/#mobile">移动端下载</a> ·
   <a href="https://github.com/ling-kong-ran/pisper/releases?q=app-v">App Releases</a>
 </p>
 
 <p align="center">
-  <a href="https://ling-kong-ran.github.io/pisper/">项目主页</a> ·
-  <a href="https://ling-kong-ran.github.io/pisper/guide.html">使用教程</a> ·
   <a href="#quickstart">三分钟上手</a> ·
   <a href="#features">能力地图</a> ·
   <a href="#data-safety">数据安全</a> ·
@@ -60,8 +57,6 @@
 | **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
 | 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
 
-[语音输入 对话模式](https://ling-kong-ran.github.io/pisper/guide.html#voice)
-
 需要让同一台电脑上的其他 Agent 调用 Pisper？在 MCP 页面自行开启内置服务，复制连接配置。支持会话、记忆、工作流等能力；连接需要令牌。
 
 <a id="pi-runtime"></a>
@@ -74,48 +69,15 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 - **上下文与性能**：通过工具冷热分层、discover/call 按需加载、稳定工具定义与提示词形态诊断，减少上下文占用并提高 Provider prompt cache 命中率。
 - **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式运行同一套 Node/Pisper Agent、Provider、会话、HTTP/SSE 与 React，并按 embedded Node 的实际能力清单关闭当前设备无法承载的入口。
 
-## 🎬 宣传视频
-
-[![Pisper：一次灵感，多路推进](docs/promo/pisper-promo-cover.webp)](https://ling-kong-ran.github.io/pisper/#promo)
-
-**60 秒体验 Pisper：** 对话模式、语音输入、流式回复与平滑滚动，以及并行会话、分支探索和工作流。
-
-[在线观看](https://ling-kong-ran.github.io/pisper/#promo) · [下载 MP4](docs/promo/pisper-promo-zh-CN.mp4)
-
-## 📸 界面预览
-
-<table>
-  <tr>
-    <td><a href="docs/shots/chat-grid.png"><img src="docs/shots/web/chat-grid.webp" alt="并行会话分屏" /></a></td>
-    <td><a href="docs/shots/session-tree.png"><img src="docs/shots/web/session-tree.webp" alt="追忆分支视图" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">并行会话：拖标签，四面分屏</td>
-    <td align="center">追忆：在任意已完成 Turn 接回原分支</td>
-  </tr>
-  <tr>
-    <td><a href="docs/shots/workflow-builder.png"><img src="docs/shots/web/workflow-builder.webp" alt="可视化工作流编辑器" /></a></td>
-    <td><a href="docs/shots/cli-chat.png"><img src="docs/shots/web/cli-chat.webp" alt="TUI Chat 界面" /></a></td>
-  </tr>
-  <tr>
-    <td align="center">工作流：把重复工作连成流程</td>
-    <td align="center">TUI：离开桌面，上下文不走</td>
-  </tr>
-</table>
-
-> 更多界面与交互演示见 **[项目主页](https://ling-kong-ran.github.io/pisper/)**。新增预览：[对话模式](docs/shots/conversation-mode.png) · [语音输入](docs/shots/voice-input.png) · [流式渲染](docs/shots/smooth-streaming.png)。
-
 <a id="quickstart"></a>
 
 ## 🚀 三分钟上手
-
-> 需要更详细的图文说明？见 **[使用教程](https://ling-kong-ran.github.io/pisper/guide.html)**。
 
 ### 方式一：桌面版（推荐）
 
 从 [Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载对应平台安装包，**自带 TUI 与 Runtime，无需安装 Node.js**。
 
-可在[下载页](https://ling-kong-ran.github.io/pisper/#download)按系统和架构选择：
+按系统和架构选择：
 
 | 系统 | 安装包与离线条件 |
 | --- | --- |
@@ -159,12 +121,12 @@ sudo apt install ./Pisper_*_linux_x86_64.deb
 
 ### 方式二：移动端 App
 
-Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌面端是正常 Pisper 界面中的可选设置，不会阻塞首次使用。项目主页会从 `docs/latest-app.json` 解析最新 App 下载地址，但页面不显示或写死具体版本号：
+Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌面端是正常 Pisper 界面中的可选设置，不会阻塞首次使用。安装包从 App Releases 下载：
 
 | 平台 | 下载 | 安装状态 |
 | --- | --- | --- |
-| Android | [下载已签名 APK](https://ling-kong-ran.github.io/pisper/#mobile) | 已签名 arm64 APK，可直接安装；首次侧载时按系统提示允许安装未知来源应用。 |
-| iOS | [下载未签名 IPA](https://ling-kong-ran.github.io/pisper/#mobile) | **未签名**，不能直接安装；需使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签。 |
+| Android | [下载已签名 APK](https://github.com/ling-kong-ran/pisper/releases?q=app-v) | 已签名 arm64 APK，可直接安装；首次侧载时按系统提示允许安装未知来源应用。 |
+| iOS | [下载未签名 IPA](https://github.com/ling-kong-ran/pisper/releases?q=app-v) | **未签名**，不能直接安装；需使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签。 |
 
 **本机运行**
 
@@ -238,7 +200,7 @@ Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；�
 - **对外 MCP 自行开启**：内置服务默认关闭，只监听 127.0.0.1，使用单独的 Bearer 令牌；持有令牌的本机客户端可以调用所有已开放工具。
 - **记忆需确认**：自动推断的记忆先进入待确认区，你点头之前不参与召回。
 
-> 边界说明：脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。桌面 Runtime 的 Provider 凭据仍位于本机 Agent 数据目录，请保护该目录和备份；手机安全存储也不能替代设备锁屏、系统更新与可信侧载来源。完整说明见[项目主页数据安全部分](https://ling-kong-ran.github.io/pisper/#safety)。
+> 边界说明：脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。桌面 Runtime 的 Provider 凭据仍位于本机 Agent 数据目录，请保护该目录和备份；手机安全存储也不能替代设备锁屏、系统更新与可信侧载来源。
 
 ## 🧩 组件与独立更新
 
@@ -248,12 +210,8 @@ Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立
 
 ## 📚 文档
 
-**新手从这里开始** → **[使用教程](https://ling-kong-ran.github.io/pisper/guide.html)**：安装、模型配置、并行会话、分支、工作流、终端与移动端的完整说明。
-
 | 文档 | 内容 |
 | --- | --- |
-| [使用教程](https://ling-kong-ran.github.io/pisper/guide.html) | 从安装到进阶的完整上手路径 |
-| [项目主页](https://ling-kong-ran.github.io/pisper/) | 产品介绍与界面演示 |
 | [TUI 命令参考](./src-tui/README.md) | CLI、Slash command 与参数说明 |
 
 <a id="development"></a>
@@ -277,30 +235,6 @@ npm run build   # 生产构建
 贡献者：
 
 - [@mik-myp](https://github.com/mik-myp) — 前端 TypeScript 架构、shadcn/ui / AI Elements、Zustand 与 i18n 重构（[#1](https://github.com/ling-kong-ran/pisper/pull/1)）
-
-<a id="sponsors"></a>
-
-## ❤️ 赞助
-
-<details>
-<summary>查看赞助商</summary>
-
-<table>
-<tr>
-<td width="180" align="center">
-  <a href="https://matrix.000328.xyz/register?aff=ZPEH"><strong>Matrix</strong></a>
-</td>
-<td>
-感谢 <a href="https://matrix.000328.xyz/register?aff=ZPEH">Matrix</a> 对 Pisper 社区的支持。通过<a href="https://matrix.000328.xyz/register?aff=ZPEH">此链接</a>注册，可能为 Pisper 项目带来推广收益。
-</td>
-</tr>
-</table>
-
-> 赞助链接包含推广参数。Pisper 的赞助内容不会使用会话、工作区、Provider、模型或 API 配置进行定向，也不会向赞助商发送这些数据。客户端赞助位的公开配置维护在 [`docs/sponsors.json`](./docs/sponsors.json)。
-
-</details>
-
-如果你也希望出现在这里，欢迎通过 [Issue](https://github.com/ling-kong-ran/pisper/issues) 联系我们。
 
 ---
 
